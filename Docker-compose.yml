@@ -1,0 +1,69 @@
+version: "3.8"
+services:
+  mongo:
+    image: mongo:6
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INIT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INIT_PASSWORD:-password}
+    networks:
+      - internal
+
+  mongo-express:
+    image: mongo-express:1.2.0
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_INIT_USERNAME:-admin}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_INIT_PASSWORD:-password}
+      ME_CONFIG_MONGODB_SERVER: mongo
+    ports:
+      - "8081:8081"
+    networks:
+      - internal
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    env_file:
+      - .env
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./backend:/usr/src/app        # optional, for live edit during dev
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - internal
+      - hostnet  # see note below about host networking
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/src/app:ro   # optional (dev)
+    networks:
+      - internal
+
+volumes:
+  mongo_data:
+
+networks:
+  internal:
+    driver: bridge
+  # hostnet is an alias for host networking if you choose to use it (compose v2/v3).
+  hostnet:
+    external: false
+
