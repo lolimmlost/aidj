@@ -34,7 +34,7 @@ We use **pnpm** by default, but you can modify the scripts in [package.json](./p
    pnpm install
    ```
 
-3. Create a `.env` file based on [`.env.example`](./.env.example).
+3. Create a `.env` file based on the environment variables documented in [environment-configuration.md](./docs/environment-configuration.md).
 
 4. Push the schema to your database with drizzle-kit:
 
