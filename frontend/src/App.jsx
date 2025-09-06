@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import axios from 'axios';
- 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://backend:4000';
- 
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+
 function App() {
   const [playlistId, setPlaylistId] = useState('');
   const [results, setResults] = useState([]);
- 
+
   async function runAiDj() {
     try {
       const res = await axios.post(`${API_BASE_URL}/api/ai-dj/expand`, { playlistId, maxAdds: 5 });
@@ -15,7 +15,7 @@ function App() {
       alert('Error: ' + (e.response?.data?.error || e.message));
     }
   }
- 
+
   return (
     <div style={{ padding: 20, fontFamily: 'sans-serif' }}>
       <h2>AI DJ Control</h2>
@@ -38,6 +38,5 @@ function App() {
     </div>
   );
 }
- 
-export default App;
 
+export default App;
