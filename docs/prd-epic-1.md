@@ -47,3 +47,43 @@ so that the application can communicate with these services.
 4. Provide test connection functionality for each service
 5. Display connection status indicators for each service
 6. Implement proper error handling for configuration issues
+
+## Story 1.4: Local Development Environment Setup
+
+As a developer,
+I want a reproducible local dev environment (containers, scripts) so that new contributors can start quickly.
+
+### Acceptance Criteria
+
+1. Docker/compose configuration for frontend and backend
+2. Local environment variables documented and loaded securely
+3. npm/yarn install and startup scripts work out-of-the-box
+4. Developer README includes setup and run instructions
+5. Linting and formatting run on pre-commit or CI
+
+Points: 3
+
+## Story 1.5: Basic CI/CD Pipeline
+
+As a development team, we want automated builds and basic tests on push to main, so that quality gates are enforced.
+
+### Acceptance Criteria
+
+1. Basic CI workflow (build, lint, unit tests)
+2. Cache dependencies to speed up builds
+3. Reports and artifacts accessible from CI
+4. Documentation of CI/CD workflow in repo
+
+Points: 3
+
+## Story 1.6: Secrets Management & Security Baseline
+
+As a security-conscious team, we want a baseline for secrets management to protect credentials and API keys.
+
+### Acceptance Criteria
+
+1. Secrets stored securely (env vars, vault, or encrypted storage)
+2. Sensitive data redacted from logs and error messages
+3. Create baseline security checklist and enforce in CI
+
+Points: 3

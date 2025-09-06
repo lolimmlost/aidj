@@ -50,7 +50,7 @@ We use **pnpm** by default, but you can modify the scripts in [package.json](./p
    pnpm dev
    ```
 
-   The development server should now be running at [http://localhost:3000](http://localhost:3000).
+The development server should now be running at [http://localhost:3000](http://localhost:3000).
 
 ## Configuration
 
@@ -87,3 +87,16 @@ src/
 ## License
 
 Code in this template is public domain via [Unlicense](./LICENSE).
+
+## Backlog Progress
+
+- Story 1.1: Project Setup and Basic Structure — In Progress
+- Story 1.2: User Authentication System — Completed
+- Story 1.3: Service Configuration Interface — Completed
+- Story 1.4: Local Development Environment Setup — Completed
+- Story 1.5: Basic CI/CD Pipeline — Completed
+- Story 1.6: Secrets Management & Security Baseline — In Progress
+
+## Contributing
+
+Contributions are welcome. Please follow the project's conventions and add new tasks to the backlog as needed.
