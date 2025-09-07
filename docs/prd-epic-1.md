@@ -4,6 +4,9 @@
 
 Establish the foundational project structure, implement user authentication, and create the basic configuration system for connecting to local services. This epic will deliver a working application shell with secure access and the ability to configure connections to Ollama, Navidrome, and Lidarr services.
 
+Root Source Folder Convention
+- All frontend and backend source code for Epic 1 MUST reside under the /src directory at repository root. Import paths should be resolved relative to /src. Do not place business logic or components outside /src unless explicitly allowed for tooling or configuration.
+
 ## Story 1.1: Project Setup and Basic Structure
 
 As a developer,

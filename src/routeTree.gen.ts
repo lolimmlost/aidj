@@ -11,16 +11,25 @@
 import { createServerRootRoute } from "@tanstack/react-start/server";
 
 import { Route as rootRouteImport } from "./routes/__root";
+import { Route as ConfigRouteImport } from "./routes/config";
 import { Route as DashboardRouteRouteImport } from "./routes/dashboard/route";
 import { Route as authRouteRouteImport } from "./routes/(auth)/route";
 import { Route as IndexRouteImport } from "./routes/index";
 import { Route as DashboardIndexRouteImport } from "./routes/dashboard/index";
 import { Route as authSignupRouteImport } from "./routes/(auth)/signup";
 import { Route as authLoginRouteImport } from "./routes/(auth)/login";
+import { ServerRoute as ApiConfigServerRouteImport } from "./routes/api/config";
+import { ServerRoute as ApiAuthRegisterServerRouteImport } from "./routes/api/auth/register";
+import { ServerRoute as ApiAuthLoginServerRouteImport } from "./routes/api/auth/login";
 import { ServerRoute as ApiAuthSplatServerRouteImport } from "./routes/api/auth/$";
 
 const rootServerRouteImport = createServerRootRoute();
 
+const ConfigRoute = ConfigRouteImport.update({
+  id: "/config",
+  path: "/config",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const DashboardRouteRoute = DashboardRouteRouteImport.update({
   id: "/dashboard",
   path: "/dashboard",
@@ -50,6 +59,21 @@ const authLoginRoute = authLoginRouteImport.update({
   path: "/login",
   getParentRoute: () => authRouteRoute,
 } as any);
+const ApiConfigServerRoute = ApiConfigServerRouteImport.update({
+  id: "/api/config",
+  path: "/api/config",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
+const ApiAuthRegisterServerRoute = ApiAuthRegisterServerRouteImport.update({
+  id: "/api/auth/register",
+  path: "/api/auth/register",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
+const ApiAuthLoginServerRoute = ApiAuthLoginServerRouteImport.update({
+  id: "/api/auth/login",
+  path: "/api/auth/login",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
 const ApiAuthSplatServerRoute = ApiAuthSplatServerRouteImport.update({
   id: "/api/auth/$",
   path: "/api/auth/$",
@@ -59,12 +83,14 @@ const ApiAuthSplatServerRoute = ApiAuthSplatServerRouteImport.update({
 export interface FileRoutesByFullPath {
   "/": typeof authRouteRouteWithChildren;
   "/dashboard": typeof DashboardRouteRouteWithChildren;
+  "/config": typeof ConfigRoute;
   "/login": typeof authLoginRoute;
   "/signup": typeof authSignupRoute;
   "/dashboard/": typeof DashboardIndexRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof authRouteRouteWithChildren;
+  "/config": typeof ConfigRoute;
   "/login": typeof authLoginRoute;
   "/signup": typeof authSignupRoute;
   "/dashboard": typeof DashboardIndexRoute;
@@ -74,20 +100,28 @@ export interface FileRoutesById {
   "/": typeof IndexRoute;
   "/(auth)": typeof authRouteRouteWithChildren;
   "/dashboard": typeof DashboardRouteRouteWithChildren;
+  "/config": typeof ConfigRoute;
   "/(auth)/login": typeof authLoginRoute;
   "/(auth)/signup": typeof authSignupRoute;
   "/dashboard/": typeof DashboardIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: "/" | "/dashboard" | "/login" | "/signup" | "/dashboard/";
+  fullPaths:
+    | "/"
+    | "/dashboard"
+    | "/config"
+    | "/login"
+    | "/signup"
+    | "/dashboard/";
   fileRoutesByTo: FileRoutesByTo;
-  to: "/" | "/login" | "/signup" | "/dashboard";
+  to: "/" | "/config" | "/login" | "/signup" | "/dashboard";
   id:
     | "__root__"
     | "/"
     | "/(auth)"
     | "/dashboard"
+    | "/config"
     | "/(auth)/login"
     | "/(auth)/signup"
     | "/dashboard/";
@@ -97,31 +131,60 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   authRouteRoute: typeof authRouteRouteWithChildren;
   DashboardRouteRoute: typeof DashboardRouteRouteWithChildren;
+  ConfigRoute: typeof ConfigRoute;
 }
 export interface FileServerRoutesByFullPath {
+  "/api/config": typeof ApiConfigServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
+  "/api/auth/login": typeof ApiAuthLoginServerRoute;
+  "/api/auth/register": typeof ApiAuthRegisterServerRoute;
 }
 export interface FileServerRoutesByTo {
+  "/api/config": typeof ApiConfigServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
+  "/api/auth/login": typeof ApiAuthLoginServerRoute;
+  "/api/auth/register": typeof ApiAuthRegisterServerRoute;
 }
 export interface FileServerRoutesById {
   __root__: typeof rootServerRouteImport;
+  "/api/config": typeof ApiConfigServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
+  "/api/auth/login": typeof ApiAuthLoginServerRoute;
+  "/api/auth/register": typeof ApiAuthRegisterServerRoute;
 }
 export interface FileServerRouteTypes {
   fileServerRoutesByFullPath: FileServerRoutesByFullPath;
-  fullPaths: "/api/auth/$";
+  fullPaths:
+    | "/api/config"
+    | "/api/auth/$"
+    | "/api/auth/login"
+    | "/api/auth/register";
   fileServerRoutesByTo: FileServerRoutesByTo;
-  to: "/api/auth/$";
-  id: "__root__" | "/api/auth/$";
+  to: "/api/config" | "/api/auth/$" | "/api/auth/login" | "/api/auth/register";
+  id:
+    | "__root__"
+    | "/api/config"
+    | "/api/auth/$"
+    | "/api/auth/login"
+    | "/api/auth/register";
   fileServerRoutesById: FileServerRoutesById;
 }
 export interface RootServerRouteChildren {
+  ApiConfigServerRoute: typeof ApiConfigServerRoute;
   ApiAuthSplatServerRoute: typeof ApiAuthSplatServerRoute;
+  ApiAuthLoginServerRoute: typeof ApiAuthLoginServerRoute;
+  ApiAuthRegisterServerRoute: typeof ApiAuthRegisterServerRoute;
 }
 
 declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
+    "/config": {
+      id: "/config";
+      path: "/config";
+      fullPath: "/config";
+      preLoaderRoute: typeof ConfigRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/dashboard": {
       id: "/dashboard";
       path: "/dashboard";
@@ -168,6 +231,27 @@ declare module "@tanstack/react-router" {
 }
 declare module "@tanstack/react-start/server" {
   interface ServerFileRoutesByPath {
+    "/api/config": {
+      id: "/api/config";
+      path: "/api/config";
+      fullPath: "/api/config";
+      preLoaderRoute: typeof ApiConfigServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/auth/register": {
+      id: "/api/auth/register";
+      path: "/api/auth/register";
+      fullPath: "/api/auth/register";
+      preLoaderRoute: typeof ApiAuthRegisterServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/auth/login": {
+      id: "/api/auth/login";
+      path: "/api/auth/login";
+      fullPath: "/api/auth/login";
+      preLoaderRoute: typeof ApiAuthLoginServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
     "/api/auth/$": {
       id: "/api/auth/$";
       path: "/api/auth/$";
@@ -208,12 +292,16 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   authRouteRoute: authRouteRouteWithChildren,
   DashboardRouteRoute: DashboardRouteRouteWithChildren,
+  ConfigRoute: ConfigRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>();
 const rootServerRouteChildren: RootServerRouteChildren = {
+  ApiConfigServerRoute: ApiConfigServerRoute,
   ApiAuthSplatServerRoute: ApiAuthSplatServerRoute,
+  ApiAuthLoginServerRoute: ApiAuthLoginServerRoute,
+  ApiAuthRegisterServerRoute: ApiAuthRegisterServerRoute,
 };
 export const serverRouteTree = rootServerRouteImport
   ._addFileChildren(rootServerRouteChildren)

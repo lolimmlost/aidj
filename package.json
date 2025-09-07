@@ -8,9 +8,14 @@
     "start": "node .output/server/index.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "lint:fix": "eslint . --fix",
+    "format:check": "prettier --check .",
+    "start:frontend": "vite dev --port 3000",
+    "start:backend": "node .output/server/index.mjs",
     "check-types": "tsc --noEmit",
     "check": "npm format && npm lint && npm check-types",
     "db": "drizzle-kit",
+    "db:studio": "drizzle-kit studio",
     "deps": "npm dlx taze@latest -Ilw",
     "deps:major": "npm dlx taze@latest major -Ilw",
     "ui": "npm dlx shadcn@latest",
@@ -68,3 +73,4 @@
     "vite-tsconfig-paths": "^5.1.4"
   }
 }
+
