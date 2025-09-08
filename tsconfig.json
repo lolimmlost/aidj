@@ -15,9 +15,11 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "~/*": ["src/*"]
     },
     "noEmit": true,
     "strictNullChecks": true
   }
 }
+  

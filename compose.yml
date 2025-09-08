@@ -1,23 +1,14 @@
 services:
   db:
     image: postgres:alpine
-    restart: unless-stopped
     ports:
       - 5432:5432
-    environment:
-      POSTGRES_USER: ai_dj
-      POSTGRES_PASSWORD: changeme
-      POSTGRES_DB: ai_dj
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - internal
-    
-
+      - postgres_data_tanstarter:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=ai_dj
 
 volumes:
-  postgres_data:
-
-networks:
-  internal:
-    driver: bridge
+  postgres_data_tanstarter:

@@ -16,12 +16,17 @@ import { Route as DashboardRouteRouteImport } from "./routes/dashboard/route";
 import { Route as authRouteRouteImport } from "./routes/(auth)/route";
 import { Route as IndexRouteImport } from "./routes/index";
 import { Route as DashboardIndexRouteImport } from "./routes/dashboard/index";
+import { Route as LibrarySearchRouteImport } from "./routes/library/search";
+import { Route as LibraryArtistsRouteImport } from "./routes/library/artists";
 import { Route as authSignupRouteImport } from "./routes/(auth)/signup";
 import { Route as authLoginRouteImport } from "./routes/(auth)/login";
+import { Route as LibraryArtistsIdRouteImport } from "./routes/library/artists/[id]";
+import { Route as LibraryArtistsIdAlbumsAlbumIdRouteImport } from "./routes/library/artists/[id]/albums/[albumId]";
 import { ServerRoute as ApiConfigServerRouteImport } from "./routes/api/config";
 import { ServerRoute as ApiAuthRegisterServerRouteImport } from "./routes/api/auth/register";
 import { ServerRoute as ApiAuthLoginServerRouteImport } from "./routes/api/auth/login";
 import { ServerRoute as ApiAuthSplatServerRouteImport } from "./routes/api/auth/$";
+import { ServerRoute as ApiNavidromeChar91DotPathChar93ServerRouteImport } from "./routes/api/navidrome/[...path]";
 
 const rootServerRouteImport = createServerRootRoute();
 
@@ -49,6 +54,16 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   path: "/",
   getParentRoute: () => DashboardRouteRoute,
 } as any);
+const LibrarySearchRoute = LibrarySearchRouteImport.update({
+  id: "/library/search",
+  path: "/library/search",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const LibraryArtistsRoute = LibraryArtistsRouteImport.update({
+  id: "/library/artists",
+  path: "/library/artists",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const authSignupRoute = authSignupRouteImport.update({
   id: "/signup",
   path: "/signup",
@@ -59,6 +74,17 @@ const authLoginRoute = authLoginRouteImport.update({
   path: "/login",
   getParentRoute: () => authRouteRoute,
 } as any);
+const LibraryArtistsIdRoute = LibraryArtistsIdRouteImport.update({
+  id: "/id",
+  path: "/id",
+  getParentRoute: () => LibraryArtistsRoute,
+} as any);
+const LibraryArtistsIdAlbumsAlbumIdRoute =
+  LibraryArtistsIdAlbumsAlbumIdRouteImport.update({
+    id: "/albums/albumId",
+    path: "/albums/albumId",
+    getParentRoute: () => LibraryArtistsIdRoute,
+  } as any);
 const ApiConfigServerRoute = ApiConfigServerRouteImport.update({
   id: "/api/config",
   path: "/api/config",
@@ -79,6 +105,12 @@ const ApiAuthSplatServerRoute = ApiAuthSplatServerRouteImport.update({
   path: "/api/auth/$",
   getParentRoute: () => rootServerRouteImport,
 } as any);
+const ApiNavidromeChar91DotPathChar93ServerRoute =
+  ApiNavidromeChar91DotPathChar93ServerRouteImport.update({
+    id: "/api/navidrome/[./path]",
+    path: "/api/navidrome/[./path]",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof authRouteRouteWithChildren;
@@ -86,14 +118,22 @@ export interface FileRoutesByFullPath {
   "/config": typeof ConfigRoute;
   "/login": typeof authLoginRoute;
   "/signup": typeof authSignupRoute;
+  "/library/artists": typeof LibraryArtistsRouteWithChildren;
+  "/library/search": typeof LibrarySearchRoute;
   "/dashboard/": typeof DashboardIndexRoute;
+  "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
+  "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof authRouteRouteWithChildren;
   "/config": typeof ConfigRoute;
   "/login": typeof authLoginRoute;
   "/signup": typeof authSignupRoute;
+  "/library/artists": typeof LibraryArtistsRouteWithChildren;
+  "/library/search": typeof LibrarySearchRoute;
   "/dashboard": typeof DashboardIndexRoute;
+  "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
+  "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -103,7 +143,11 @@ export interface FileRoutesById {
   "/config": typeof ConfigRoute;
   "/(auth)/login": typeof authLoginRoute;
   "/(auth)/signup": typeof authSignupRoute;
+  "/library/artists": typeof LibraryArtistsRouteWithChildren;
+  "/library/search": typeof LibrarySearchRoute;
   "/dashboard/": typeof DashboardIndexRoute;
+  "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
+  "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -113,9 +157,22 @@ export interface FileRouteTypes {
     | "/config"
     | "/login"
     | "/signup"
-    | "/dashboard/";
+    | "/library/artists"
+    | "/library/search"
+    | "/dashboard/"
+    | "/library/artists/id"
+    | "/library/artists/id/albums/albumId";
   fileRoutesByTo: FileRoutesByTo;
-  to: "/" | "/config" | "/login" | "/signup" | "/dashboard";
+  to:
+    | "/"
+    | "/config"
+    | "/login"
+    | "/signup"
+    | "/library/artists"
+    | "/library/search"
+    | "/dashboard"
+    | "/library/artists/id"
+    | "/library/artists/id/albums/albumId";
   id:
     | "__root__"
     | "/"
@@ -124,7 +181,11 @@ export interface FileRouteTypes {
     | "/config"
     | "/(auth)/login"
     | "/(auth)/signup"
-    | "/dashboard/";
+    | "/library/artists"
+    | "/library/search"
+    | "/dashboard/"
+    | "/library/artists/id"
+    | "/library/artists/id/albums/albumId";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -132,18 +193,22 @@ export interface RootRouteChildren {
   authRouteRoute: typeof authRouteRouteWithChildren;
   DashboardRouteRoute: typeof DashboardRouteRouteWithChildren;
   ConfigRoute: typeof ConfigRoute;
+  LibraryArtistsRoute: typeof LibraryArtistsRouteWithChildren;
+  LibrarySearchRoute: typeof LibrarySearchRoute;
 }
 export interface FileServerRoutesByFullPath {
   "/api/config": typeof ApiConfigServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
+  "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
 }
 export interface FileServerRoutesByTo {
   "/api/config": typeof ApiConfigServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
+  "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
 }
 export interface FileServerRoutesById {
   __root__: typeof rootServerRouteImport;
@@ -151,6 +216,7 @@ export interface FileServerRoutesById {
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
+  "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
 }
 export interface FileServerRouteTypes {
   fileServerRoutesByFullPath: FileServerRoutesByFullPath;
@@ -158,15 +224,22 @@ export interface FileServerRouteTypes {
     | "/api/config"
     | "/api/auth/$"
     | "/api/auth/login"
-    | "/api/auth/register";
+    | "/api/auth/register"
+    | "/api/navidrome/[./path]";
   fileServerRoutesByTo: FileServerRoutesByTo;
-  to: "/api/config" | "/api/auth/$" | "/api/auth/login" | "/api/auth/register";
+  to:
+    | "/api/config"
+    | "/api/auth/$"
+    | "/api/auth/login"
+    | "/api/auth/register"
+    | "/api/navidrome/[./path]";
   id:
     | "__root__"
     | "/api/config"
     | "/api/auth/$"
     | "/api/auth/login"
-    | "/api/auth/register";
+    | "/api/auth/register"
+    | "/api/navidrome/[./path]";
   fileServerRoutesById: FileServerRoutesById;
 }
 export interface RootServerRouteChildren {
@@ -174,6 +247,7 @@ export interface RootServerRouteChildren {
   ApiAuthSplatServerRoute: typeof ApiAuthSplatServerRoute;
   ApiAuthLoginServerRoute: typeof ApiAuthLoginServerRoute;
   ApiAuthRegisterServerRoute: typeof ApiAuthRegisterServerRoute;
+  ApiNavidromeChar91DotPathChar93ServerRoute: typeof ApiNavidromeChar91DotPathChar93ServerRoute;
 }
 
 declare module "@tanstack/react-router" {
@@ -213,6 +287,20 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DashboardIndexRouteImport;
       parentRoute: typeof DashboardRouteRoute;
     };
+    "/library/search": {
+      id: "/library/search";
+      path: "/library/search";
+      fullPath: "/library/search";
+      preLoaderRoute: typeof LibrarySearchRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/library/artists": {
+      id: "/library/artists";
+      path: "/library/artists";
+      fullPath: "/library/artists";
+      preLoaderRoute: typeof LibraryArtistsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/(auth)/signup": {
       id: "/(auth)/signup";
       path: "/signup";
@@ -226,6 +314,20 @@ declare module "@tanstack/react-router" {
       fullPath: "/login";
       preLoaderRoute: typeof authLoginRouteImport;
       parentRoute: typeof authRouteRoute;
+    };
+    "/library/artists/id": {
+      id: "/library/artists/id";
+      path: "/id";
+      fullPath: "/library/artists/id";
+      preLoaderRoute: typeof LibraryArtistsIdRouteImport;
+      parentRoute: typeof LibraryArtistsRoute;
+    };
+    "/library/artists/id/albums/albumId": {
+      id: "/library/artists/id/albums/albumId";
+      path: "/albums/albumId";
+      fullPath: "/library/artists/id/albums/albumId";
+      preLoaderRoute: typeof LibraryArtistsIdAlbumsAlbumIdRouteImport;
+      parentRoute: typeof LibraryArtistsIdRoute;
     };
   }
 }
@@ -259,6 +361,13 @@ declare module "@tanstack/react-start/server" {
       preLoaderRoute: typeof ApiAuthSplatServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
+    "/api/navidrome/[./path]": {
+      id: "/api/navidrome/[./path]";
+      path: "/api/navidrome/[./path]";
+      fullPath: "/api/navidrome/[./path]";
+      preLoaderRoute: typeof ApiNavidromeChar91DotPathChar93ServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
   }
 }
 
@@ -288,11 +397,36 @@ const DashboardRouteRouteWithChildren = DashboardRouteRoute._addFileChildren(
   DashboardRouteRouteChildren,
 );
 
+interface LibraryArtistsIdRouteChildren {
+  LibraryArtistsIdAlbumsAlbumIdRoute: typeof LibraryArtistsIdAlbumsAlbumIdRoute;
+}
+
+const LibraryArtistsIdRouteChildren: LibraryArtistsIdRouteChildren = {
+  LibraryArtistsIdAlbumsAlbumIdRoute: LibraryArtistsIdAlbumsAlbumIdRoute,
+};
+
+const LibraryArtistsIdRouteWithChildren =
+  LibraryArtistsIdRoute._addFileChildren(LibraryArtistsIdRouteChildren);
+
+interface LibraryArtistsRouteChildren {
+  LibraryArtistsIdRoute: typeof LibraryArtistsIdRouteWithChildren;
+}
+
+const LibraryArtistsRouteChildren: LibraryArtistsRouteChildren = {
+  LibraryArtistsIdRoute: LibraryArtistsIdRouteWithChildren,
+};
+
+const LibraryArtistsRouteWithChildren = LibraryArtistsRoute._addFileChildren(
+  LibraryArtistsRouteChildren,
+);
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   authRouteRoute: authRouteRouteWithChildren,
   DashboardRouteRoute: DashboardRouteRouteWithChildren,
   ConfigRoute: ConfigRoute,
+  LibraryArtistsRoute: LibraryArtistsRouteWithChildren,
+  LibrarySearchRoute: LibrarySearchRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
@@ -302,6 +436,8 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiAuthSplatServerRoute: ApiAuthSplatServerRoute,
   ApiAuthLoginServerRoute: ApiAuthLoginServerRoute,
   ApiAuthRegisterServerRoute: ApiAuthRegisterServerRoute,
+  ApiNavidromeChar91DotPathChar93ServerRoute:
+    ApiNavidromeChar91DotPathChar93ServerRoute,
 };
 export const serverRouteTree = rootServerRouteImport
   ._addFileChildren(rootServerRouteChildren)

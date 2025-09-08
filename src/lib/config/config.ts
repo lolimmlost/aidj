@@ -1,52 +1,36 @@
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
-import path from 'path';
+import defaults from './defaults.json' with { type: 'json' };
+import { ServiceConfig } from './types';
 
-export type ServiceConfig = {
-  ollamaUrl?: string;
-  navidromeUrl?: string;
-  lidarrUrl?: string;
-};
+let currentConfig: ServiceConfig = { ...defaults };
 
-const CONFIG_PATH = path.resolve(__dirname, 'defaults.json');
-
-let currentConfig: ServiceConfig = {};
-
-function loadFromFile(): ServiceConfig {
-  try {
-    if (existsSync(CONFIG_PATH)) {
-      const raw = readFileSync(CONFIG_PATH, 'utf8');
-      const parsed = JSON.parse(raw);
-      return typeof parsed === 'object' && parsed !== null ? (parsed as ServiceConfig) : {};
-    }
-  } catch {
-    // ignore parse errors
+if (typeof window !== 'undefined') {
+  // Client side
+  const stored = localStorage.getItem('serviceConfig');
+  if (stored) {
+    try {
+      currentConfig = { ...currentConfig, ...JSON.parse(stored) };
+    } catch {}
   }
-  return {};
+} else {
+  // Server side - use fs if needed, but for now, use defaults
+  // Note: For server, you may need to implement fs logic in API routes
 }
-
-// Initialize from file on module load
-currentConfig = loadFromFile();
 
 export function getConfig(): ServiceConfig {
   return currentConfig;
 }
 
-export function setConfig(cfg: Partial<ServiceConfig> | ServiceConfig): void {
+export function setConfig(cfg: Partial<ServiceConfig>): void {
   currentConfig = { ...currentConfig, ...cfg };
-  try {
-    writeFileSync(CONFIG_PATH, JSON.stringify(currentConfig, null, 2));
-  } catch {
-    // ignore write errors for now
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('serviceConfig', JSON.stringify(currentConfig));
   }
+  // For server, handle in API
 }
 
 export function resetConfig(): void {
-  currentConfig = {};
-  try {
-    if (existsSync(CONFIG_PATH)) {
-      unlinkSync(CONFIG_PATH);
-    }
-  } catch {
-    // ignore
+  currentConfig = { ...defaults };
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('serviceConfig');
   }
 }
