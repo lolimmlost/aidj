@@ -6,6 +6,8 @@ Establish the foundational project structure, implement user authentication, and
 
 Root Source Folder Convention
 - All frontend and backend source code for Epic 1 MUST reside under the /src directory at repository root. Import paths should be resolved relative to /src. Do not place business logic or components outside /src unless explicitly allowed for tooling or configuration.
+- Database interactions will use Drizzle ORM with SQLite for local storage of user preferences and settings
+- Docker containerization will include explicit networking configuration
 
 ## Story 1.1: Project Setup and Basic Structure
 
@@ -58,7 +60,7 @@ I want a reproducible local dev environment (containers, scripts) so that new co
 
 ### Acceptance Criteria
 
-1. Docker/compose configuration for frontend and backend
+1. Docker/compose configuration with explicit networking configuration
 2. Local environment variables documented and loaded securely
 3. npm/yarn install and startup scripts work out-of-the-box
 4. Developer README includes setup and run instructions

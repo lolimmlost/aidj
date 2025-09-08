@@ -7,32 +7,32 @@ Implement comprehensive integration with Navidrome to enable browsing, searching
 ## Story 2.1: Navidrome API Integration
 
 As a developer,
-I want to implement API integration with Navidrome,
+I want to implement API integration with Navidrome using TanStack Start's full-stack capabilities,
 so that the application can retrieve music library data.
 
 ### Acceptance Criteria
 
-1. Implement authentication with Navidrome API
-2. Create service layer for making API calls to Navidrome
-3. Handle token refresh for long sessions
-4. Implement error handling for API failures
+1. Implement authentication with Navidrome API using TanStack Start's API route system
+2. Create service layer for making API calls to Navidrome with standardized error handling patterns
+3. Handle token refresh for long sessions with service connection timeout specifications (5s for local services)
+4. Implement error handling for API failures using standardized patterns
 5. Create data models for artists, albums, and songs
-6. Implement pagination for large music collections
+6. Implement pagination for large music collections with service connection timeout specifications (5s for local services)
 
 ## Story 2.2: Music Library Browser
 
 As a user,
-I want to browse my music library by artists, albums, and songs,
+I want to browse my music library by artists, albums, and songs using TanStack Start's file-based routing system,
 so that I can easily find music to listen to.
 
 ### Acceptance Criteria
 
-1. Create artist listing view with alphabetical sorting
-2. Implement album grid view for each artist
-3. Create song listing view for each album
-4. Implement search functionality across the entire library
-5. Add filtering options (genre, year, etc.)
-6. Display album artwork and metadata
+1. Create artist listing view with alphabetical sorting using file-based routing
+2. Implement album grid view for each artist with proper loading states
+3. Create song listing view for each album with metadata display
+4. Implement search functionality across the entire library with proper error handling
+5. Add filtering options (genre, year, etc.) with mobile-specific performance optimizations
+6. Display album artwork and metadata with lazy loading for mobile optimization
 
 ## Story 2.3: Music Player Implementation
 

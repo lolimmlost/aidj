@@ -7,7 +7,7 @@ export type ServiceConfig = {
   lidarrUrl?: string;
 };
 
-const CONFIG_PATH = path.resolve(process.cwd(), 'config.json');
+const CONFIG_PATH = path.resolve(__dirname, 'defaults.json');
 
 let currentConfig: ServiceConfig = {};
 

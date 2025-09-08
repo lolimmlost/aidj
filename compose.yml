@@ -1,7 +1,9 @@
 services:
-  postgres:
-    image: postgres:15-alpine
+  db:
+    image: postgres:alpine
     restart: unless-stopped
+    ports:
+      - 5432:5432
     environment:
       POSTGRES_USER: ai_dj
       POSTGRES_PASSWORD: changeme
@@ -10,40 +12,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - internal
+    
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    depends_on:
-      - postgres
-    env_file:
-      - .env
-    ports:
-      - "4000:4000"
-    volumes:
-      - ./backend:/usr/src/app        # optional, for live edit during dev
-      - /etc/localtime:/etc/localtime:ro
-    networks:
-      - internal
-      - hostnet  # see note below about host networking
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    depends_on:
-      - backend
-    ports:
-      - "3000:80"
-    volumes:
-      - ./frontend:/usr/src/app:ro   # optional (dev)
-    environment:
-      - REACT_APP_API_BASE_URL=http://10.0.0.4:4000
-    networks:
-      - internal
 
 volumes:
   postgres_data:
@@ -51,6 +21,3 @@ volumes:
 networks:
   internal:
     driver: bridge
-  # hostnet is an alias for host networking if you choose to use it (compose v2/v3).
-  hostnet:
-    external: false

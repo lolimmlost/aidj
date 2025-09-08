@@ -12,12 +12,12 @@ so that the application can generate music recommendations.
 
 ### Acceptance Criteria
 
-1. Create service layer for making API calls to Ollama
-2. Implement model selection functionality
-3. Handle API responses and parse recommendation results
-4. Implement error handling for model loading issues
-5. Add retry mechanisms for failed API calls
-6. Implement caching for recommendations to reduce API calls
+1. Create service layer using TanStack Start's API routes for making API calls to Ollama
+2. Implement model selection functionality with environment variables for configuration
+3. Handle API responses with standardized error handling patterns
+4. Implement error handling for model loading issues with service connection timeout specifications (5s for local services)
+5. Add retry mechanisms with exponential backoff for failed API calls
+6. Implement caching for recommendations using Drizzle ORM with SQLite
 
 ## Story 3.2: Recommendation Display and Interaction
 
@@ -27,9 +27,9 @@ so that I can discover new music based on my preferences.
 
 ### Acceptance Criteria
 
-1. Create recommendation display section on the main dashboard
-2. Implement different recommendation types (similar artists, mood-based, etc.)
-3. Allow users to provide feedback on recommendations (thumbs up/down)
-4. Create detailed recommendation view with explanations
-5. Implement functionality to add recommended songs to play queue
-6. Display recommendation generation timestamp
+1. Create recommendation display section on the main dashboard using CSS variables for theme implementation
+2. Implement different recommendation types (similar artists, mood-based, etc.) with mobile-specific performance optimizations
+3. Allow users to provide feedback on recommendations (thumbs up/down) with encrypted storage
+4. Create detailed recommendation view with explanations using file-based routing
+5. Implement functionality to add recommended songs to play queue with lazy loading
+6. Display recommendation generation timestamp with service connection timeout specifications

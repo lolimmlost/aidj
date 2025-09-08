@@ -27,12 +27,12 @@ so that I enjoy using the application.
 
 ### Acceptance Criteria
 
-1. Implement consistent color scheme and typography
-2. Create cohesive component design system
-3. Add smooth transitions and animations
-4. Implement proper loading states and placeholders
-5. Ensure accessibility standards are met
-6. Conduct usability testing and implement improvements
+1. Implement consistent color scheme using CSS variables from theme implementation
+2. Create cohesive component design system with file-based routing patterns
+3. Add smooth transitions with mobile-specific performance optimizations
+4. Implement proper loading states with standardized error handling
+5. Ensure accessibility standards are met with proper ARIA attributes
+6. Conduct usability testing and implement improvements with mobile-specific navigation patterns
 
 ## Story 5.3: User Preferences and Settings
 
@@ -42,9 +42,9 @@ so that I can have a personalized experience.
 
 ### Acceptance Criteria
 
-1. Create user profile management interface
-2. Implement preference settings for recommendation types
-3. Add playback settings (default quality, crossfade, etc.)
-4. Implement notification preferences
-5. Allow customization of dashboard layout
-6. Store user preferences securely
+1. Create user profile management interface with encrypted session storage
+2. Implement preference settings for recommendation types using Drizzle ORM
+3. Add playback settings with environment variables for configuration
+4. Implement notification preferences with proper error handling
+5. Allow customization of dashboard layout using file-based routing
+6. Store user preferences securely with Drizzle ORM and SQLite

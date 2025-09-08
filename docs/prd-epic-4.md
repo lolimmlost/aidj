@@ -12,12 +12,12 @@ so that the application can search for and request music downloads.
 
 ### Acceptance Criteria
 
-1. Create service layer for making API calls to Lidarr
-2. Implement API key authentication
-3. Handle search functionality with query parameters
-4. Implement album/artist lookup capabilities
-5. Handle API responses and parse search results
-6. Implement error handling for API failures
+1. Create service layer using TanStack Start's API routes for making API calls to Lidarr
+2. Implement API key authentication with encrypted session storage
+3. Handle search functionality with query parameters and standardized error handling patterns
+4. Implement album/artist lookup capabilities with mobile-specific performance optimizations
+5. Handle API responses with proper parsing and service connection timeout specifications (5s for local services)
+6. Implement error handling for API failures using standardized patterns
 
 ## Story 4.2: Download Request Interface
 
@@ -27,12 +27,12 @@ so that I can expand my music collection.
 
 ### Acceptance Criteria
 
-1. Create search interface for finding music to download
-2. Display search results with album artwork and metadata
-3. Implement download request functionality
-4. Show confirmation when download request is submitted
-5. Handle duplicate request detection
-6. Provide feedback on request submission success or failure
+1. Create search interface using CSS variables for theme implementation
+2. Display search results with album artwork and metadata using file-based routing
+3. Implement download request functionality with environment variables for configuration
+4. Show confirmation with proper loading states and retry logic
+5. Handle duplicate request detection with Drizzle ORM and SQLite
+6. Provide feedback on request submission with standardized error handling
 
 ## Story 4.3: Download Status Monitoring
 
@@ -42,9 +42,9 @@ so that I know when new music will be available.
 
 ### Acceptance Criteria
 
-1. Create download status view showing pending and completed downloads
-2. Display progress information for active downloads
-3. Show estimated completion times when available
-4. Implement automatic status updates
-5. Provide notifications when downloads complete
-6. Allow users to cancel pending download requests
+1. Create download status view with mobile-specific caching and lazy loading
+2. Display progress information with proper loading states
+3. Show estimated completion times with service connection timeout specifications
+4. Implement automatic status updates with proper error handling
+5. Provide notifications with encrypted session storage
+6. Allow users to cancel pending download requests with standardized error handling
