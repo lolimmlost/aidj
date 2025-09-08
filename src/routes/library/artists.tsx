@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { getArtists } from '@/lib/services/navidrome';
 import { Loader2 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -23,12 +22,11 @@ export const Route = createFileRoute('/library/artists')({
 
 function ArtistsList() {
   const [genre, setGenre] = useState('all');
-  const [year, setYear] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
   const { data: artists = [], isLoading, error } = useQuery({
-    queryKey: ['artists', 0, 100, genre, year],
-    queryFn: () => getArtists(0, 1000, undefined, undefined), // Fetch all for client-side filter
+    queryKey: ['artists', genre],
+    queryFn: () => getArtists(0, 50),
   });
 
   if (error) {
@@ -44,7 +42,6 @@ function ArtistsList() {
 
   const handleClearFilters = () => {
     setGenre('all');
-    setYear('');
   };
 
   return (
@@ -72,15 +69,7 @@ function ArtistsList() {
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Input
-              type="number"
-              placeholder="Year"
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-              disabled // Disable year filter for now as artist data doesn't include year
-            />
-          </div>
+          {/* No year filter as artist data doesn't include year */}
           <div className="flex items-end gap-2">
             <Button onClick={handleClearFilters}>Clear</Button>
           </div>

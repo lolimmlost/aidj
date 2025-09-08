@@ -1,25 +1,51 @@
 import { createServerFileRoute } from '@tanstack/react-start/server';
 import { getConfig } from '@/lib/config/config';
+import { getAuthToken, token, clientId, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
 
 export const ServerRoute = createServerFileRoute('/api/navidrome/[./path]').methods({
-  async all({ params, request }: { params: { path: string[] }, request: Request }) {
+  GET: async ({ params, request }) => {
     const config = getConfig();
     if (!config.navidromeUrl) {
       return new Response('Navidrome not configured', { status: 500 });
     }
 
+    await getAuthToken();
+
+    // @ts-expect-error
     const path = params.path.join('/');
-    const url = new URL(`${config.navidromeUrl}/${path}`);
+    let url;
+    if (path.includes('stream/') ) {
+      const songId = path.split('/').pop();
+      url = new URL(`${config.navidromeUrl}/rest/stream`);
+      url.searchParams.append('u', config.navidromeUsername);
+      url.searchParams.append('t', subsonicToken || '');
+      url.searchParams.append('s', subsonicSalt || '');
+      url.searchParams.append('f', 'json');
+      url.searchParams.append('v', '1.8.0');
+      url.searchParams.append('c', 'MyApp');
+      url.searchParams.append('id', songId);
+      const range = request.headers.get('range');
+      if (range) {
+        url.searchParams.append('_range', range);
+      }
+    } else {
+      url = new URL(`${config.navidromeUrl}/${path}`);
+    }
     url.search = new URL(request.url).search;
 
     const headers = new Headers(request.headers);
     // Remove host-related headers if needed
     headers.delete('host');
 
+    // Add Navidrome auth headers
+    if (token && clientId) {
+      headers.set('x-nd-authorization', `Bearer ${token}`);
+      headers.set('x-nd-client-unique-id', clientId);
+    }
+
     const response = await fetch(url.toString(), {
-      method: request.method,
+      method: 'GET',
       headers,
-      body: request.body,
     });
 
     const clonedHeaders = new Headers(response.headers);

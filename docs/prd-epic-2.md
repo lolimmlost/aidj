@@ -12,12 +12,12 @@ so that the application can retrieve music library data.
 
 ### Acceptance Criteria
 
-1. Implement authentication with Navidrome API using TanStack Start's API route system
-2. Create service layer for making API calls to Navidrome with standardized error handling patterns
-3. Handle token refresh for long sessions with service connection timeout specifications (5s for local services)
-4. Implement error handling for API failures using standardized patterns
-5. Create data models for artists, albums, and songs
-6. Implement pagination for large music collections with service connection timeout specifications (5s for local services)
+- [x] 1. Implement authentication with Navidrome API using TanStack Start's API route system
+- [x] 2. Create service layer for making API calls to Navidrome with standardized error handling patterns
+- [x] 3. Handle token refresh for long sessions with service connection timeout specifications (5s for local services)
+- [x] 4. Implement error handling for API failures using standardized patterns
+- [x] 5. Create data models for artists, albums, and songs
+- [x] 6. Implement pagination for large music collections with service connection timeout specifications (5s for local services)
 
 ## Story 2.2: Music Library Browser
 
@@ -27,12 +27,12 @@ so that I can easily find music to listen to.
 
 ### Acceptance Criteria
 
-1. Create artist listing view with alphabetical sorting using file-based routing
-2. Implement album grid view for each artist with proper loading states
-3. Create song listing view for each album with metadata display
-4. Implement search functionality across the entire library with proper error handling
-5. Add filtering options (genre, year, etc.) with mobile-specific performance optimizations
-6. Display album artwork and metadata with lazy loading for mobile optimization
+- [x] 1. Create artist listing view with alphabetical sorting using file-based routing
+- [x] 2. Implement album grid view for each artist with proper loading states
+- [x] 3. Create song listing view for each album with metadata display
+- [x] 4. Implement search functionality across the entire library with proper error handling
+- [-] 5. Add filtering options (genre, year, etc.) with mobile-specific performance optimizations
+- [x] 6. Display album artwork and metadata with lazy loading for mobile optimization
 
 ## Story 2.3: Music Player Implementation
 
@@ -42,9 +42,9 @@ so that I can listen to my music collection without leaving the application.
 
 ### Acceptance Criteria
 
-1. Implement audio player component with play/pause controls
-2. Add progress bar with seeking functionality
-3. Implement volume control
-4. Create playlist functionality
-5. Display current track information
-6. Handle streaming from Navidrome with proper buffering
+- [x] 1. Implement audio player component with play/pause controls
+- [x] 2. Add progress bar with seeking functionality
+- [x] 3. Implement volume control
+- [x] 4. Create playlist functionality
+- [x] 5. Display current track information
+- [x] 6. Handle streaming from Navidrome with proper buffering

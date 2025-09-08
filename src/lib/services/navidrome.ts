@@ -3,9 +3,22 @@ import { getConfig } from '@/lib/config/config';
 export type Artist = {
   id: string;
   name: string;
-  genre?: string;
-  year?: number;
 };
+
+export type ArtistDetail = {
+  id: string;
+  name: string;
+  albumCount: number;
+  songCount: number;
+  genres: string | null;
+  fullText: string;
+  orderArtistName: string;
+  size: number;
+  externalUrl?: string;
+  externalInfoUpdatedAt?: string;
+};
+
+export type ArtistWithDetails = Artist & Omit<ArtistDetail, 'id' | 'name'>;
 
 export interface RawSong {
   id: string;
@@ -33,7 +46,13 @@ export type Song = {
 };
 
 let token: string | null = null;
+export { token };
 let clientId: string | null = null;
+export { clientId };
+let subsonicToken: string | null = null;
+export { subsonicToken };
+let subsonicSalt: string | null = null;
+export { subsonicSalt };
 let tokenExpiry = 0;
 const TOKEN_REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 minutes before expiry
 
@@ -73,6 +92,8 @@ export async function getAuthToken(): Promise<string> {
     }
     token = data.token as string;
     clientId = data.id as string;
+    subsonicToken = data.subsonicToken as string;
+    subsonicSalt = data.subsonicSalt as string;
     tokenExpiry = now + 3600 * 1000; // Assume 1 hour
     return token as string;
   } catch (error: unknown) {
@@ -142,15 +163,37 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<un
   throw new Error('Max retries exceeded for API request');
 }
 
-export async function getArtists(start: number = 0, limit: number = 50, genre?: string, year?: number): Promise<Artist[]> {
+export async function getArtists(start: number = 0, limit: number = 1000): Promise<Artist[]> {
   try {
-    let endpoint = `/api/artist?_start=${start}&_end=${start + limit - 1}`;
-    if (genre) endpoint += `&genre=${encodeURIComponent(genre)}`;
-    if (year) endpoint += `&year=${year}`;
+    const endpoint = `/api/artist?_start=${start}&_end=${start + limit - 1}`;
     const data = await apiFetch(endpoint) as Artist[];
     return data || [];
   } catch (error) {
     throw new Error(`Failed to fetch artists: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+export async function getArtistDetail(id: string): Promise<ArtistDetail> {
+  try {
+    const data = await apiFetch(`/api/artist/${id}`) as ArtistDetail;
+    return data;
+  } catch (error) {
+    throw new Error(`Failed to fetch artist detail: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+export async function getArtistsWithDetails(start: number = 0, limit: number = 1000): Promise<ArtistWithDetails[]> {
+  try {
+    const basicArtists = await getArtists(start, limit);
+    const detailedArtists = await Promise.all(
+      basicArtists.map(async (artist) => {
+        const detail = await getArtistDetail(artist.id);
+        return { ...artist, ...detail };
+      })
+    );
+    return detailedArtists;
+  } catch (error) {
+    throw new Error(`Failed to fetch artists with details: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -168,7 +211,7 @@ export async function getSongs(albumId: string, start: number = 0, limit: number
     const data = await apiFetch(`/api/song?album_id=${albumId}&_start=${start}&_end=${start + limit - 1}`) as RawSong[];
     const songs = data.map((song) => ({
       ...song,
-      url: `/api/navidrome/api/song/${song.id}/stream`,
+      url: `/api/navidrome/stream/${song.id}`,
     })) as Song[];
     return songs || [];
   } catch (error) {
@@ -178,11 +221,12 @@ export async function getSongs(albumId: string, start: number = 0, limit: number
 
 export async function search(query: string, start: number = 0, limit: number = 50): Promise<Song[]> {
   try {
-    const data = await apiFetch(`/api/song?name=${encodeURIComponent(query)}&_start=${start}&_end=${start + limit - 1}`) as RawSong[];
+    const data = await apiFetch(`/api/song?title=${encodeURIComponent(query)}&_start=${start}&_end=${start + limit - 1}`) as RawSong[];
     const songs = data.map((song) => ({
       ...song,
-      url: `/api/navidrome/api/song/${song.id}/stream`,
+      url: `/api/navidrome/stream/${song.id}`,
     })) as Song[];
+    console.log('Search API response:', songs);
     return songs || [];
   } catch (error) {
     throw new Error(`Failed to search music: ${error instanceof Error ? error.message : 'Unknown error'}`);
