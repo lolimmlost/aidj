@@ -17,6 +17,7 @@ import appCss from "~/styles.css?url";
 import { ThemeProvider } from "~/components/theme-provider";
 import { Toaster } from "~/components/ui/sonner";
 import { AudioPlayer } from "~/components/ui/audio-player";
+import { useAudioStore } from "~/lib/stores/audio";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -54,10 +55,18 @@ export const Route = createRootRouteWithContext<{
 });
 
 function RootComponent() {
+  const { isPlaying, playlist, currentSongIndex } = useAudioStore();
+  const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
   return (
     <RootDocument>
-      <Outlet />
-      <AudioPlayer />
+      <div className={`transition-all duration-300 ${hasActiveSong ? 'pb-16' : ''}`}>
+        <Outlet />
+      </div>
+      {hasActiveSong && (
+        <div className={`transition-all duration-300 fixed bottom-0 left-0 right-0 z-50 ${isPlaying ? 'bg-background border-t' : 'opacity-50'}`}>
+          <AudioPlayer />
+        </div>
+      )}
     </RootDocument>
   );
 }
