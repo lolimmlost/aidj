@@ -1,7 +1,7 @@
-# Music Recommendation and Download Interface Product Requirements Document (PRD)
+# AIDJ - AI-Assisted Music Library Product Requirements Document (PRD)
 
 ## Document Status
-This document has been sharded into smaller, more manageable documents for easier navigation and maintenance. Please refer to the sharded documents below for detailed information.
+This document has been sharded into smaller, more manageable documents for easier navigation and maintenance. Please refer to the sharded documents below for detailed information. Updates reflect current progress: core auth, config, dashboard, and Navidrome library integration completed; AI recommendations planned.
 
 ## Sharded Documents
 
@@ -24,23 +24,23 @@ Contains repository structure, service architecture, testing requirements, and a
 ### 5. Epics
 Each epic has been separated into its own document:
 
-- **Epic 1: Foundation & Core Infrastructure**
+- **Epic 1: Foundation & Core Infrastructure** — Completed
   **File:** `docs/prd-epic-1.md`
   Stories: Project Setup, User Authentication System, Service Configuration Interface
 
-- **Epic 2: Music Library Integration**
+- **Epic 2: Music Library Integration** — Completed
   **File:** `docs/prd-epic-2.md`
   Stories: Navidrome API Integration, Music Library Browser, Music Player Implementation
 
-- **Epic 3: AI Recommendations Engine**
+- **Epic 3: AI Recommendations Engine** — Planned
   **File:** `docs/prd-epic-3.md`
   Stories: Ollama API Integration, Recommendation Display and Interaction
 
-- **Epic 4: Download Management**
+- **Epic 4: Download Management** — Planned (Lidarr integration deferred)
   **File:** `docs/prd-epic-4.md`
   Stories: Lidarr API Integration, Download Request Interface, Download Status Monitoring
 
-- **Epic 5: Unified User Experience**
+- **Epic 5: Unified User Experience** — In Progress
   **File:** `docs/prd-epic-5.md`
   Stories: Responsive Design Implementation, UI Polish and Consistency, User Preferences and Settings
 

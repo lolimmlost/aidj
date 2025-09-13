@@ -1,14 +1,14 @@
-# Music Recommendation and Download Interface Fullstack Architecture Document
+# AIDJ - AI-Assisted Music Library Fullstack Architecture Document
 
 ## Introduction
 
-This document outlines the complete fullstack architecture for Music Recommendation and Download Interface, including backend systems, frontend implementation, and their integration. It serves as the single source of truth for AI-driven development, ensuring consistency across the entire technology stack.
+This document outlines the fullstack architecture for AIDJ, focusing on implemented features: user authentication, service configuration, dashboard, and Navidrome music library integration with streaming. Planned: AI recommendations via Ollama. It serves as the single source of truth for development.
 
 This unified approach combines what would traditionally be separate backend and frontend architecture documents, streamlining the development process for modern fullstack applications where these concerns are increasingly intertwined.
 
 ### Starter Template or Existing Project
 
-The project is based on a TanStack Start template with Better Auth and Drizzle ORM. This provides a modern full-stack React framework with server-side rendering capabilities, built-in authentication, and type-safe database interactions.
+The project uses Vite with TanStack Router for client-side routing, Better Auth for authentication, and Drizzle ORM with PostgreSQL for data storage. This setup provides a modern React/TypeScript frontend with API routes for server-side logic.
 
 ### Change Log
 | Date | Version | Description | Author |
@@ -19,63 +19,62 @@ The project is based on a TanStack Start template with Better Auth and Drizzle O
 
 ### Technical Summary
 
-The architecture follows a monolithic approach within a monorepo structure, leveraging TanStack Start's full-stack capabilities. The frontend is built with React and TypeScript, utilizing TanStack Start's file-based routing and SSR features. The backend leverages TanStack Start's API routes for service integrations with Ollama, Navidrome, and Lidarr. Authentication is handled by Better Auth, providing secure session management. Database interactions use Drizzle ORM with SQLite for local storage of user preferences and settings. The application is designed for deployment as a single deployable unit with all functionality contained within the monorepo.
+The architecture is a single-package app with Vite for building. Frontend uses React 19, TypeScript, TanStack Router for file-based routing. API routes in src/routes/api/ handle Navidrome proxying and streaming. Authentication via Better Auth with PostgreSQL. Planned integrations: Ollama for AI. Runs locally via Vite dev server.
 
 ### Platform and Infrastructure Choice
 
-**Platform:** Self-hosted deployment on local network
-**Key Services:** 
-- TanStack Start for fullstack framework
+**Platform:** Local development/self-hosted
+**Key Services:**
+- Vite + TanStack Router for frontend/routing
 - Better Auth for authentication
-- Drizzle ORM with SQLite for data storage
-- Docker for containerization
-**Deployment Host and Regions:** Local network deployment
+- Drizzle ORM with PostgreSQL
+- Navidrome for music library/streaming
+**Deployment:** Vite dev server (npm run dev)
 
 ### Repository Structure
 
-**Structure:** Monorepo
-**Monorepo Tool:** TanStack Start built-in monorepo support
-**Package Organization:** 
-- apps/web: Main frontend application
-- packages/shared: Shared types and utilities
-- packages/config: Shared configuration
+**Structure:** Single package
+**Package Organization:**
+- src/ - App code
+- src/lib/ - Utils, auth, db, services, stores
+- src/routes/ - File-based routes (pages + API)
+- src/components/ - UI components (shadcn/ui)
 
 ### High Level Architecture Diagram
 ```mermaid
 graph TD
-    A[User Browser] --> B[TanStack Start Application]
+    A[User Browser] --> B[Vite + TanStack Router App]
     B --> C[Better Auth]
     B --> D[Drizzle ORM]
-    D --> E[SQLite Database]
-    B --> F[Ollama API]
+    D --> E[PostgreSQL Database]
     B --> G[Navidrome API]
-    B --> H[Lidarr API]
-    B --> I[Docker Container]
+    B --> F[Ollama API (Planned)]
+    B --> I[Docker (Optional)]
 ```
 
 ### Architectural Patterns
 
-- **Monolithic Architecture:** Single deployable application that handles all functionality - _Rationale:_ Simplifies deployment and development for a personal application
-- **Component-Based UI:** Reusable React components with TypeScript - _Rationale:_ Maintainability and type safety across the codebase
-- **Repository Pattern:** Abstract data access logic through Drizzle ORM - _Rationale:_ Enables testing and future database migration flexibility
-- **API Integration Pattern:** Direct service integrations within TanStack Start API routes - _Rationale:_ Leverages framework capabilities for server-side API calls
+- **Client-Side Rendering:** Vite-built React app with TanStack Router - _Rationale:_ Fast development and hot reload
+- **Component-Based UI:** shadcn/ui + Tailwind for reusable components - _Rationale:_ Consistent, accessible design
+- **Repository Pattern:** Drizzle ORM for DB access - _Rationale:_ Type-safe queries
+- **Proxy API Pattern:** API routes proxy Navidrome requests - _Rationale:_ Secure integration, CORS handling
 
 ## Tech Stack
 
 ### Technology Stack Table
 | Category | Technology | Version | Purpose | Rationale |
 |----------|------------|---------|---------|-----------|
-| Frontend Language | TypeScript | 5.x | Type-safe JavaScript development | Improved developer experience and error prevention |
-| Frontend Framework | TanStack Start | Latest | Fullstack React framework with SSR | Modern framework with built-in routing and API routes |
-| UI Component Library | Tailwind CSS | 3.x | Utility-first CSS framework | Rapid UI development with consistent design |
-| State Management | TanStack Query | Latest | Server state management | Built-in TanStack Start integration for API data |
-| Backend Language | TypeScript | 5.x | Type-safe server-side development | Consistency with frontend and improved error prevention |
-| Backend Framework | TanStack Start | Latest | Fullstack framework with API routes | Unified framework for both frontend and backend |
-| API Style | REST | N/A | API communication | Standard approach compatible with all services |
-| Database | SQLite | 3.x | Local data storage | Lightweight, file-based database perfect for local applications |
-| Cache | In-memory | N/A | Temporary data storage | Simple caching solution for a local application |
-| File Storage | Local filesystem | N/A | Music file storage | Leveraging existing Navidrome and Lidarr storage |
-| Authentication | Better Auth | Latest | User authentication | Comprehensive auth solution with built-in TanStack Start support |
+| Frontend Language | TypeScript | 5.x | Type-safe JS | Developer experience |
+| Frontend Framework | React 19 + TanStack Router | Latest | UI + Routing | Modern, type-safe routing |
+| UI Library | shadcn/ui + Tailwind CSS v4 | Latest | Components + Styling | Accessible, customizable UI |
+| State Management | TanStack Query + Zustand | Latest | Data + Local state | Efficient caching and reactivity |
+| Backend Language | TypeScript | 5.x | Server-side logic | Consistency |
+| Backend Framework | Vite API Routes | Latest | API endpoints | Simple server functions |
+| API Style | REST/Proxy | N/A | Service integration | Navidrome compatibility |
+| Database | PostgreSQL | Latest | User data storage | Robust, scalable |
+| Cache | TanStack Query | N/A | API caching | Built-in optimism |
+| File Storage | Navidrome | N/A | Music streaming | External service |
+| Authentication | Better Auth | Latest | User auth | Secure sessions |
 | Frontend Testing | Vitest + React Testing Library | Latest | Frontend unit and integration testing | Built-in TanStack Start testing support |
 | Backend Testing | Vitest | Latest | Backend unit and integration testing | Consistent testing framework across stack |
 | E2E Testing | Playwright | Latest | End-to-end testing | Comprehensive browser automation |
@@ -90,13 +89,13 @@ graph TD
 ## Data Models
 
 ### User
-**Purpose:** Represents an authenticated user of the application
+**Purpose:** Authenticated user
 
 **Key Attributes:**
-- id: string - Unique identifier for the user
-- email: string - User's email address
-- name: string - User's display name
-- createdAt: Date - When the user account was created
+- id: string
+- email: string
+- name: string
+- createdAt: Date
 
 ```typescript
 interface User {
@@ -108,53 +107,45 @@ interface User {
 ```
 
 **Relationships:**
-- One-to-many with UserPreferences
-- One-to-many with DownloadRequests
+- One-to-one with UserConfig (planned)
 
-### UserPreferences
-**Purpose:** Stores user-specific preferences for the application
+### UserConfig
+**Purpose:** User-specific settings (planned)
 
 **Key Attributes:**
-- id: string - Unique identifier for the preference record
-- userId: string - Reference to the user
-- recommendationSettings: JSON - AI recommendation preferences
-- playbackSettings: JSON - Music playback preferences
-- downloadSettings: JSON - Download preferences
+- id: string
+- userId: string
+- navidromeCredentials: JSON
+- playbackSettings: JSON
 
 ```typescript
-interface UserPreferences {
+interface UserConfig {
   id: string;
   userId: string;
-  recommendationSettings: Record<string, any>;
-  playbackSettings: Record<string, any>;
-  downloadSettings: Record<string, any>;
+  navidromeCredentials?: Record<string, any>;
+  playbackSettings?: Record<string, any>;
 }
 ```
 
 **Relationships:**
 - Many-to-one with User
 
-### DownloadRequest
-**Purpose:** Tracks requests for music downloads through Lidarr
+### Playlist (Planned)
+**Purpose:** User-saved playlists
 
 **Key Attributes:**
-- id: string - Unique identifier for the download request
-- userId: string - Reference to the user who made the request
-- title: string - Title of the requested music
-- artist: string - Artist of the requested music
-- status: string - Current status of the download (requested, downloading, completed, failed)
-- requestedAt: Date - When the download was requested
-- completedAt: Date - When the download completed (if applicable)
+- id: string
+- userId: string
+- name: string
+- tracks: string[] (Navidrome IDs)
 
 ```typescript
-interface DownloadRequest {
+interface Playlist {
   id: string;
   userId: string;
-  title: string;
-  artist: string;
-  status: 'requested' | 'downloading' | 'completed' | 'failed';
-  requestedAt: Date;
-  completedAt?: Date;
+  name: string;
+  tracks: string[];
+  createdAt: Date;
 }
 ```
 
@@ -163,375 +154,165 @@ interface DownloadRequest {
 
 ## API Specification
 
-### REST API Specification
-```yaml
-openapi: 3.0.0
-info:
-  title: Music Recommendation and Download Interface API
-  version: 1.0.0
-  description: API for managing music recommendations, playback, and downloads
-servers:
-  - url: http://localhost:3000/api
-    description: Local development server
-paths:
-  /auth/login:
-    post:
-      summary: User login
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                password:
-                  type: string
-      responses:
-        '200':
-          description: Successful login
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  token:
-                    type: string
-  /auth/logout:
-    post:
-      summary: User logout
-      responses:
-        '200':
-          description: Successful logout
-  /recommendations:
-    get:
-      summary: Get music recommendations
-      parameters:
-        - name: limit
-          in: query
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: List of recommendations
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                    title:
-                      type: string
-                    artist:
-                      type: string
-                    reason:
-                      type: string
-  /library/artists:
-    get:
-      summary: Get list of artists
-      responses:
-        '200':
-          description: List of artists
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                    name:
-                      type: string
-  /library/albums:
-    get:
-      summary: Get list of albums
-      parameters:
-        - name: artistId
-          in: query
-          schema:
-            type: string
-      responses:
-        '200':
-          description: List of albums
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                    title:
-                      type: string
-                    artist:
-                      type: string
-  /library/songs:
-    get:
-      summary: Get list of songs
-      parameters:
-        - name: albumId
-          in: query
-          schema:
-            type: string
-      responses:
-        '200':
-          description: List of songs
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                    title:
-                      type: string
-                    artist:
-                      type: string
-                    album:
-                      type: string
-  /downloads:
-    get:
-      summary: Get download requests
-      responses:
-        '200':
-          description: List of download requests
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/DownloadRequest'
-    post:
-      summary: Create download request
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                artist:
-                  type: string
-      responses:
-        '201':
-          description: Download request created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DownloadRequest'
-  /downloads/{id}:
-    get:
-      summary: Get download request status
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Download request details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DownloadRequest'
-components:
-  schemas:
-    DownloadRequest:
-      type: object
-      properties:
-        id:
-          type: string
-        userId:
-          type: string
-        title:
-          type: string
-        artist:
-          type: string
-        status:
-          type: string
-          enum: [requested, downloading, completed, failed]
-        requestedAt:
-          type: string
-          format: date-time
-        completedAt:
-          type: string
-          format: date-time
-          nullable: true
-```
+### Current API Specification
+Current implemented endpoints focus on auth and Navidrome proxying. Planned: recommendations.
+
+Key endpoints:
+- `POST /api/auth/login` - User login
+- `GET /api/navidrome/[...path]` - Proxy Navidrome API (artists, albums, songs)
+- `GET /api/navidrome/stream/$id` - Stream audio
+- Planned: `GET /api/recommendations` - AI recs via Ollama
+
+All API routes use TanStack Router file-based convention in src/routes/api/.
 
 ## Components
 
 ### Frontend Components
 
-**Responsibility:** User interface for music discovery, playback, and download management
+**Responsibility:** UI for auth, dashboard, config, library browsing, audio playback
 
 **Key Interfaces:**
-- React components for UI rendering
-- TanStack Query hooks for data fetching
-- Service functions for API communication
+- React components (shadcn/ui)
+- TanStack Query for Navidrome data
+- Audio store for playback
 
-**Dependencies:** 
-- TanStack Start frontend framework
-- Tailwind CSS for styling
-- TanStack Query for data management
+**Dependencies:**
+- React 19, TanStack Router
+- Tailwind CSS v4
+- TanStack Query v5
 
-**Technology Stack:** 
-- React with TypeScript
-- TanStack Start file-based routing
-- Tailwind CSS for styling
-- TanStack Query for server state management
+**Technology Stack:**
+- React/TypeScript
+- File-based routing
+- Tailwind + shadcn/ui
+- Zustand for audio state
 
 ### Backend API Routes
 
-**Responsibility:** Server-side API endpoints for authentication, recommendations, library management, and download requests
+**Responsibility:** API routes for auth, Navidrome proxy/streaming
 
 **Key Interfaces:**
-- REST API endpoints for frontend communication
-- Service functions for external API integrations
-- Database access functions through Drizzle ORM
+- Proxy endpoints for Navidrome
+- Auth handlers
+- Streaming responses
 
-**Dependencies:** 
-- TanStack Start API routes
-- Better Auth for authentication
-- Drizzle ORM for database access
-- External service APIs (Ollama, Navidrome, Lidarr)
+**Dependencies:**
+- TanStack Router API routes
+- Better Auth
+- Drizzle ORM (Postgres)
+- Navidrome service
 
-**Technology Stack:** 
-- TanStack Start API routes
-- Better Auth for authentication
-- Drizzle ORM with SQLite
-- Axios for external API calls
+**Technology Stack:**
+- Vite server functions
+- Better Auth
+- Drizzle/Postgres
+- Fetch for proxying
 
 ### Authentication Service
 
-**Responsibility:** User authentication and session management
+**Responsibility:** User auth and sessions
 
 **Key Interfaces:**
-- Login and logout endpoints
-- Session validation middleware
-- User management functions
+- Login/signup endpoints
+- Session middleware
 
-**Dependencies:** 
-- Better Auth library
-- Database for user storage
-
-**Technology Stack:** 
+**Dependencies:**
 - Better Auth
-- Drizzle ORM for database access
+- Postgres DB
+
+**Technology Stack:**
+- Better Auth
+- Drizzle ORM
 
 ### Recommendation Service
 
-**Responsibility:** Integration with Ollama for music recommendations
+**Responsibility:** Ollama integration (planned)
 
 **Key Interfaces:**
-- Function to generate recommendations
-- Error handling for API failures
+- Generate recs endpoint
 
-**Dependencies:** 
-- Ollama API
-- User preferences from database
+**Dependencies:**
+- Ollama local API
 
-**Technology Stack:** 
-- Axios for API communication
-- Drizzle ORM for accessing user preferences
+**Technology Stack:**
+- Fetch/Axios
 
 ### Library Service
 
-**Responsibility:** Integration with Navidrome for music library access
+**Responsibility:** Navidrome integration for library and streaming
 
 **Key Interfaces:**
-- Functions to retrieve artists, albums, and songs
-- Music streaming functionality
-- Authentication with Navidrome
+- Proxy API calls (artists/albums/songs)
+- Auth token management
+- Audio streaming
 
-**Dependencies:** 
+**Dependencies:**
 - Navidrome API
-- User credentials
+- User config
 
-**Technology Stack:** 
-- Axios for API communication
-- Stream handling for music playback
+**Technology Stack:**
+- HTTP proxying
+- ReadableStream for audio
 
 ### Download Service
 
-**Responsibility:** Integration with Lidarr for download management
+**Responsibility:** Audio Store (Zustand)
 
 **Key Interfaces:**
-- Functions to search for and request downloads
-- Status monitoring for download requests
-- API key authentication with Lidarr
+- Playback state management
+- Track queue
+- Volume control
 
-**Dependencies:** 
-- Lidarr API
-- User preferences for API configuration
+**Dependencies:**
+- HTML5 Audio API
+- Navidrome streams
 
-**Technology Stack:** 
-- Axios for API communication
-- Drizzle ORM for storing download requests
+**Technology Stack:**
+- Zustand store
+- Event listeners
 
 ## External APIs
 
-### Ollama API
-- **Purpose:** Generate AI music recommendations
-- **Documentation:** https://github.com/ollama/ollama/blob/main/docs/api.md
-- **Base URL(s):** http://[LAN_IP]:11434/api
-- **Authentication:** None (local instance)
-- **Rate Limits:** None specified for local instances
-
-**Key Endpoints Used:**
-- `POST /generate` - Generate music recommendations
-
-**Integration Notes:** 
-- Need to format prompts appropriately for music recommendations
-- Handle model loading delays
-- Implement caching for recommendations
-
 ### Navidrome API
-- **Purpose:** Access music library and streaming
+- **Purpose:** Music library access and streaming
 - **Documentation:** https://www.navidrome.org/docs/developer/api/
-- **Base URL(s):** http://[LAN_IP]:4533/api
-- **Authentication:** Token-based authentication
-- **Rate Limits:** None specified
+- **Base URL:** Configurable (default: http://localhost:4533)
+- **Authentication:** Token-based (user-specific)
 
 **Key Endpoints Used:**
-- `POST /auth/login` - Authenticate with Navidrome
-- `GET /song` - Retrieve song list
-- `GET /artist` - Retrieve artist list
-- `GET /album` - Retrieve album list
-- `GET /stream/{id}` - Stream music
+- `POST /api/v1/auth/login` - Get token
+- `GET /api/v1/artists` - List artists
+- `GET /api/v1/albums` - List albums
+- `GET /api/v1/songs` - List songs
+- `GET /api/v1/stream/{id}` - Stream track
 
-**Integration Notes:** 
-- Handle token refresh for long sessions
-- Implement pagination for large collections
-- Handle streaming with proper buffering
+**Integration Notes:**
+- Proxy via app API to handle auth/CORS
+- Cache metadata, stream directly
+- Handle token refresh
 
-### Lidarr API
-- **Purpose:** Search for and request music downloads
-- **Documentation:** https://lidarr.audio/docs/api/
-- **Base URL(s):** http://[LAN_IP]:8686/api/v1
-- **Authentication:** API key in header
-- **Rate Limits:** None specified
+### Ollama API (Planned)
+- **Purpose:** AI music recommendations
+- **Documentation:** https://ollama.com/docs
+- **Base URL:** http://localhost:11434
+- **Authentication:** None (local)
 
 **Key Endpoints Used:**
-- `GET /album/lookup` - Search for albums
-- `POST /album` - Request album download
-- `GET /queue` - Check download status
+- `POST /api/generate` - Prompt for recs
 
-**Integration Notes:** 
-- Secure storage of API key
-- Handle different quality profiles
-- Implement status polling for download progress
+**Integration Notes:**
+- Format music-specific prompts
+- Cache responses
+- Model selection
+
+### Database (PostgreSQL)
+- **Purpose:** User auth and config storage
+- **Connection:** Via Drizzle ORM
+- **Schema:** src/lib/db/schema/
+
+**Tables:**
+- users (from Better Auth)
+- Planned: user_configs for service creds
 
 ## Core Workflows
 
@@ -539,76 +320,51 @@ components:
 sequenceDiagram
     participant U as User
     participant F as Frontend
-    participant B as Backend
-    participant O as Ollama
+    participant B as Backend/API
     participant N as Navidrome
-    participant L as Lidarr
+    participant DB as PostgreSQL
 
     U->>F: Login
-    F->>B: POST /auth/login
-    B->>B: Validate credentials with Better Auth
-    B-->>F: Return session token
-    F-->>U: Show dashboard
+    F->>B: POST /api/auth/login
+    B->>DB: Validate via Better Auth
+    DB-->>B: User session
+    B-->>F: Token
+    F-->>U: Dashboard
 
-    U->>F: Request recommendations
-    F->>B: GET /recommendations
-    B->>O: POST /api/generate
-    O-->>B: Return recommendations
-    B-->>F: Return formatted recommendations
-    F-->>U: Display recommendations
+    U->>F: Browse artists
+    F->>B: GET /api/navidrome/artists
+    B->>N: Proxy GET /api/v1/artists (with token)
+    N-->>B: Artist list
+    B-->>F: Data
+    F-->>U: Display artists
 
     U->>F: Play song
-    F->>B: GET /library/songs/{id}
-    B->>N: GET /api/song/{id}
-    N-->>B: Return song metadata
-    B-->>F: Return song info
-    F->>N: GET /stream/{id}
-    N-->>F: Stream music
-    F-->>U: Play music
+    F->>B: GET /api/navidrome/stream/{id}
+    B->>N: Proxy stream (with auth)
+    N-->>B: Audio stream
+    B-->>F: Stream response
+    F->>U: Play in audio player
 
-    U->>F: Request download
-    F->>B: POST /downloads
-    B->>L: GET /api/v1/album/lookup
-    L-->>B: Return search results
-    B->>L: POST /api/v1/album
-    L-->>B: Return download request
-    B->>B: Store request in database
-    B-->>F: Return download status
-    F-->>U: Show download confirmation
+    Note over U,F: Planned: AI recs flow with Ollama
 ```
 
 ## Database Schema
 
 ```sql
-CREATE TABLE users (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+-- Better Auth manages users table automatically
+-- src/lib/db/schema/auth.schema.ts
+
+CREATE TABLE user_configs (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL UNIQUE,
+    navidrome_token TEXT,
+    playback_volume INTEGER DEFAULT 50,
+    theme_mode TEXT DEFAULT 'dark',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 
-CREATE TABLE user_preferences (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    recommendation_settings TEXT,
-    playback_settings TEXT,
-    download_settings TEXT,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
-CREATE TABLE download_requests (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    artist TEXT NOT NULL,
-    status TEXT NOT NULL,
-    requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    completed_at DATETIME,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
-CREATE INDEX idx_download_requests_user_id ON download_requests(user_id);
-CREATE INDEX idx_download_requests_status ON download_requests(status);
+CREATE INDEX idx_user_configs_user_id ON user_configs(user_id);
 ```
 
 ## Frontend Architecture
@@ -618,15 +374,19 @@ CREATE INDEX idx_download_requests_status ON download_requests(status);
 #### Component Organization
 ```
 src/
-├── components/           # Shared components
-│   ├── layout/           # Layout components
-│   ├── music/            # Music-specific components
-│   └── ui/               # Generic UI components
-├── routes/               # File-based routes
-├── services/             # API service functions
-├── stores/               # Global state stores
-├── styles/               # Global styles
-└── utils/                # Utility functions
+├── components/
+│   ├── ui/               # shadcn/ui components (button, card, etc.)
+│   └── (custom: audio-player, theme-toggle)
+├── lib/
+│   ├── stores/           # Zustand stores (audio.ts)
+│   ├── services/         # Navidrome service
+│   └── utils.ts
+├── routes/               # TanStack Router
+│   ├── dashboard/
+│   ├── library/          # artists, search, [id]/albums
+│   ├── config/
+│   └── api/              # navidrome proxy, auth
+└── styles.css            # Tailwind
 ```
 
 #### Component Template
@@ -676,25 +436,14 @@ interface AppState {
 
 #### Route Organization
 ```
-routes/
-├── __root.tsx            # Root layout
-├── index.tsx             # Dashboard
-├── login.tsx             # Login page
-├── library/
-│   ├── index.tsx         # Library overview
-│   ├── artists.tsx       # Artists list
-│   ├── albums.tsx        # Albums list
-│   └── songs.tsx         # Songs list
-├── recommendations/
-│   ├── index.tsx         # Recommendations feed
-│   └── [id].tsx          # Recommendation detail
-├── downloads/
-│   ├── index.tsx         # Download queue
-│   └── history.tsx       # Download history
-└── settings/
-    ├── index.tsx         # Settings overview
-    ├── profile.tsx       # User profile
-    └── services.tsx      # Service configuration
+src/routes/
+├── __root.tsx            # Root layout with theme/audio bar
+├── index.tsx             # Landing/redirect to dashboard
+├── (auth)/               # login.tsx, signup.tsx
+├── dashboard/            # index.tsx - Overview
+├── config.tsx            # Service config
+├── library/              # artists.tsx, search.tsx, artists/[id].tsx + albums/[albumId].tsx
+└── api/                  # auth/, navidrome/[...path].ts, stream/$id.ts
 ```
 
 #### Protected Route Pattern
@@ -754,30 +503,14 @@ export const recommendationService = {
 
 ## Backend Architecture
 
-### Service Architecture
+### API Routes Architecture
 
-#### Traditional Server Architecture
-
-##### Controller/Route Organization
+#### Route Organization
 ```
-src/
-├── routes/
-│   ├── auth.ts           # Authentication routes
-│   ├── recommendations.ts # Recommendation routes
-│   ├── library.ts        # Library routes
-│   └── downloads.ts      # Download routes
-├── services/
-│   ├── auth.ts           # Authentication service
-│   ├── ollama.ts         # Ollama integration
-│   ├── navidrome.ts      # Navidrome integration
-│   └── lidarr.ts         # Lidarr integration
-├── models/
-│   ├── user.ts           # User model
-│   └── download.ts       # Download model
-├── middleware/
-│   └── auth.ts           # Authentication middleware
-└── utils/
-    └── database.ts       # Database utilities
+src/routes/api/
+├── auth/                 # login.ts, register.ts (Better Auth)
+├── navidrome/            # [...path].ts (proxy), stream/$id.ts
+└── config.ts             # User service config (planned)
 ```
 
 ##### Controller Template
@@ -901,76 +634,46 @@ export async function authMiddleware(request: Request) {
 ## Unified Project Structure
 
 ```
-music-interface/
-├── .github/
-│   └── workflows/
-│       ├── ci.yaml
-│       └── deploy.yaml
-├── apps/
-│   └── web/                    # TanStack Start application
-│       ├── src/
-│       │   ├── components/     # Shared components
-│       │   ├── routes/         # File-based routes
-│       │   ├── services/       # API service functions
-│       │   ├── stores/         # Global state stores
-│       │   ├── styles/         # Global styles
-│       │   └── utils/          # Utility functions
-│       ├── public/             # Static assets
-│       ├── tests/              # Application tests
-│       └── package.json
-├── packages/
-│   └── shared/                 # Shared types and utilities
-│       ├── src/
-│       │   ├── types/          # TypeScript interfaces
-│       │   ├── constants/      # Shared constants
-│       │   └── utils/          # Shared utilities
-│       └── package.json
-├── infrastructure/
-│   └── docker/
-│       └── Dockerfile
-├── scripts/                    # Build/deploy scripts
-├── docs/                       # Documentation
-│   ├── project-brief.md
-│   ├── technical-requirements.md
-│   ├── prd.md
-│   ├── front-end-spec.md
-│   └── architecture.md
-├── .env.example                # Environment template
-├── package.json                # Root package.json
-├── tsconfig.json               # TypeScript configuration
+aidj/
+├── public/                    # favicon.ico
+├── src/
+│   ├── main.jsx               # Entry point
+│   ├── router.tsx             # TanStack Router setup
+│   ├── routeTree.gen.ts       # Generated routes
+│   ├── components/            # UI (ui/ shadcn, audio-player)
+│   ├── lib/                   # auth/, db/, config/, services/navidrome.ts, stores/audio.ts
+│   ├── routes/                # File-based: __root, dashboard, library, config, api
+│   └── styles.css             # Tailwind
+├── db/                        # schema.ts, config.ts
+├── docs/                      # Markdown docs
+├── drizzle/                   # Meta/migrations
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+├── drizzle.config.ts
 └── README.md
 ```
 
 ## Development Workflow
 
-### Local Development Setup
+### Local Development
 
 #### Prerequisites
-```bash
-# Install Node.js (version 18 or higher)
-# Install Docker (for containerization)
-# Install Git
-```
+- Node.js 18+
+- PostgreSQL (local or Docker)
+- Navidrome running
 
-#### Initial Setup
+#### Setup
 ```bash
-# Clone repository
-git clone [repository-url]
-
-# Install dependencies
 npm install
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your service configurations
-
-# Initialize database
-npm run db:push
+cp .env.example .env  # Edit with DB_URL, NAVIDROME_URL, etc.
+npm run db:push       # Drizzle schema
+npm run dev           # Vite server at localhost:3000
 ```
 
 #### Development Commands
 ```bash
-# Start all services
+# Start dev server
 npm run dev
 
 # Run tests
@@ -988,36 +691,32 @@ npm run format
 
 ### Environment Configuration
 
-#### Required Environment Variables
+#### Environment Variables (.env)
 ```bash
-# Frontend (.env)
-VITE_OLLAMA_URL=http://localhost:11434
-VITENAVIDROME_URL=http://localhost:4533
-VITE_LIDARR_URL=http://localhost:8686
+# Database
+DATABASE_URL=postgresql://user:pass@localhost:5432/aidj
 
-# Backend (.env)
-DATABASE_URL=sqlite.db
-AUTH_SECRET=your-super-secret-auth-secret
+# Auth
+BETTER_AUTH_SECRET=your-secret
+
+# Services
+NAVIDROME_URL=http://your-navidrome:4533
+NAVIDROME_USER=admin
+NAVIDROME_PASS=pass
+
+# Planned
 OLLAMA_URL=http://localhost:11434
-NAVIDROME_URL=http://localhost:4533
-LIDARR_API_KEY=your-lidarr-api-key
-LIDARR_URL=http://localhost:8686
 ```
 
 ## Deployment Architecture
 
 ### Deployment Strategy
 
-**Frontend Deployment:**
-- **Platform:** Docker container
-- **Build Command:** npm run build
-- **Output Directory:** dist
-- **CDN/Edge:** None (local deployment)
-
-**Backend Deployment:**
-- **Platform:** Docker container
-- **Build Command:** npm run build
-- **Deployment Method:** Docker image
+**Deployment:**
+- **Dev:** pnpm dev (localhost:3000)
+- **Build:** pnpm build (dist/)
+- **Serve:** pnpm preview or static host
+- No separate backend; API routes bundled
 
 ### CI/CD Pipeline
 ```yaml
@@ -1060,67 +759,37 @@ jobs:
 ```
 
 ### Environments
-| Environment | Frontend URL | Backend URL | Purpose |
-|-------------|--------------|-------------|---------|
-| Development | http://localhost:3000 | http://localhost:3000/api | Local development |
-| Production | http://[LAN_IP]:3000 | http://[LAN_IP]:3000/api | Live environment |
+| Environment | URL | Purpose |
+|-------------|-----|---------|
+| Development | http://localhost:3000 | Local dev |
+| Production | http://your-ip:3000 | Self-hosted |
 
 ## Security and Performance
 
-### Security Requirements
+### Security
 
-**Frontend Security:**
-- CSP Headers: Default TanStack Start CSP
-- XSS Prevention: React's built-in protection
-- Secure Storage: localStorage for non-sensitive data only
-
-**Backend Security:**
-- Input Validation: Zod schema validation
-- Rate Limiting: None (local application)
-- CORS Policy: Restrict to same origin
-
-**Authentication Security:**
-- Token Storage: HttpOnly cookies
-- Session Management: Better Auth sessions
-- Password Policy: Minimum 8 characters
+- Better Auth handles secure sessions/cookies
+- API routes validate auth middleware
+- Navidrome creds stored encrypted (planned)
+- Input validation in API routes
+- CORS configured for frontend only
 
 ### Performance Optimization
 
-**Frontend Performance:**
-- Bundle Size Target: < 2MB
-- Loading Strategy: Code splitting with TanStack Start
-- Caching Strategy: TanStack Query caching
-
-**Backend Performance:**
-- Response Time Target: < 500ms
-- Database Optimization: Indexes on frequently queried columns
-- Caching Strategy: In-memory caching for recommendations
+**Performance:**
+- Vite HMR for fast dev
+- TanStack Query caching for library data
+- Lazy loading for routes/components
+- Streaming for audio (no full download)
+- Bundle optimization via Vite
 
 ## Testing Strategy
 
-### Testing Pyramid
-```
-E2E Tests
-/        \
-Integration Tests
-/            \
-Frontend Unit  Backend Unit
-```
-
-### Test Organization
-
-#### Frontend Tests
-```
-src/
-├── components/
-│   └── __tests__/
-├── routes/
-│   └── __tests__/
-├── services/
-│   └── __tests__/
-└── utils/
-    └── __tests__/
-```
+### Testing (Planned)
+- Vitest for unit/integration
+- Playwright for E2E
+- Test auth flows, library loading, playback
+- Mock Navidrome API for CI
 
 #### Backend Tests
 ```

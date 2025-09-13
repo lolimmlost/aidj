@@ -1,154 +1,147 @@
-# Technical Requirements for API Integrations
+# AIDJ Technical Requirements
 
-## Ollama Integration
+## PostgreSQL & Better Auth Setup
 
 ### Overview
-Ollama is a local LLM server that will be used for generating music recommendations based on user preferences and listening history.
+PostgreSQL stores user authentication data via Better Auth. Schema auto-managed.
 
-### API Endpoints
-- **Base URL:** `http://[LAN_IP]:11434/api`
-- **Generate Recommendations:** `POST /generate`
-  - Request body should include the model name and prompt for recommendations
-  - Response includes the generated text with recommendations
+### Configuration
+- **DATABASE_URL:** postgresql://user:pass@localhost:5432/aidj
+- **Schema:** src/lib/db/schema/auth.schema.ts (users, sessions)
+- **Migrations:** Drizzle-kit (pnpm db:push)
+
+### Implementation
+- Better Auth handles user registration/login
+- Session middleware in API routes
+- Per-user Navidrome tokens stored in planned user_configs table
+
+### Considerations
+- Secure password hashing (built-in)
+- Session expiration handling
+- Backup/restore for local DB
+
+## Navidrome Integration (Implemented)
+
+### Overview
+Navidrome provides music library browsing and streaming. App proxies requests to handle auth/CORS.
+
+### API Endpoints (Proxied)
+- **Base URL:** Configurable via .env (default: http://localhost:4533)
+- **Auth:** POST /api/v1/auth/login (user creds -> token)
+- **Artists:** GET /api/v1/artists (list, with pagination)
+- **Albums:** GET /api/v1/albums?artistId={id}
+- **Songs:** GET /api/v1/songs?albumId={id}
+- **Search:** GET /api/v1/search (unified)
+- **Stream:** GET /api/v1/stream/{trackId} (audio/mp3)
 
 ### Authentication
-- No authentication required for local instances
-- Access controlled through local network security
+- Per-user tokens obtained on config save
+- Proxy adds Authorization: Bearer {token} header
+- Token refresh via re-login if expired
+
+### Data Format Examples
+- **Artists Response:**
+  ```json
+  {
+    "data": [
+      {"id": "123", "name": "Artist", "albumCount": 5, "image": "url"}
+    ],
+    "next": "pagination_token"
+  }
+  ```
+- **Stream:** Direct audio stream response (Range requests supported)
+
+### Implementation Details
+- **Proxy:** src/routes/api/navidrome/[...path].ts - forwards requests with auth
+- **Streaming:** src/routes/api/navidrome/stream/$id.ts - ReadableStream passthrough
+- **Caching:** TanStack Query caches metadata (artists/albums); streams uncached
+- **Error Handling:** 401 -> token refresh prompt; 404 -> empty state
+- **Pagination:** Infinite query for large libraries
+- **Search:** Unified endpoint; results by type (artists/albums/tracks)
+
+### Considerations
+- Handle large libraries (virtual scrolling)
+- Album art optimization (thumbnails)
+- Offline detection for streaming
+
+## Ollama Integration (Planned)
+
+### Overview
+Local LLM for AI music recommendations based on listening history, mood, etc.
+
+### API Endpoints
+- **Base URL:** http://localhost:11434/api
+- **Generate:** POST /generate
+  - Prompt: "Recommend 5 upbeat tracks similar to [current playlist]"
+  - Models: llama3, mistral (music-tuned if available)
+
+### Authentication
+- None (local access only)
 
 ### Data Format
 - **Request:**
   ```json
   {
     "model": "llama3",
-    "prompt": "Recommend 5 songs similar to [song_name] by [artist]",
-    "stream": false
+    "prompt": "Based on [user history], suggest tracks from library",
+    "stream": false,
+    "options": {"temperature": 0.7}
   }
   ```
 - **Response:**
   ```json
   {
     "model": "llama3",
-    "response": "Here are 5 songs similar to...",
+    "response": "1. Artist - Song (reason)\n2. ...",
     "done": true
   }
   ```
 
 ### Implementation Considerations
-- Need to determine which models work best for music recommendations
-- Should implement error handling for model loading issues
-- Consider caching recommendations to reduce API calls
+- Parse recommendations to match Navidrome library
+- Cache results per user/session
+- Fallback to random/genre-based if Ollama down
+- User feedback loop (like/dislike -> fine-tune prompts)
+- Model loading time handling (progress indicator)
 
-## Navidrome Integration
-
-### Overview
-Navidrome is a music streaming server that will provide access to the local music collection.
-
-### API Endpoints
-- **Base URL:** `http://[LAN_IP]:4533/api`
-- **Authentication:** `POST /auth/login`
-- **Get Songs:** `GET /song`
-- **Get Artists:** `GET /artist`
-- **Get Albums:** `GET /album`
-- **Stream Song:** `GET /stream/{id}`
-
-### Authentication
-- Token-based authentication
-- Login endpoint returns a token that must be included in subsequent requests
-- Tokens have expiration times
-
-### Data Format
-- **Login Request:**
-  ```json
-  {
-    "username": "user",
-    "password": "password"
-  }
-  ```
-- **Login Response:**
-  ```json
-  {
-    "token": "auth_token",
-    "sub": "user_id",
-    "name": "User Name"
-  }
-  ```
-
-### Implementation Considerations
-- Need to handle token refresh for long sessions
-- Should implement search functionality for finding music
-- Consider pagination for large music collections
-
-## Lidarr Integration
-
-### Overview
-Lidarr is a music collection manager that will handle searching for and downloading requested songs.
-
-### API Endpoints
-- **Base URL:** `http://[LAN_IP]:8686/api/v1`
-- **API Key Authentication:** Header `X-Api-Key: [API_KEY]`
-- **Search for Albums:** `GET /album/lookup`
-- **Add Album:** `POST /album`
-- **Get Album Queue:** `GET /queue`
-
-### Authentication
-- API key-based authentication
-- API key configured in Lidarr settings
-
-### Data Format
-- **Search Request:**
-  ```
-  GET /album/lookup?term=[search_term]
-  ```
-- **Search Response:**
-  ```json
-  [
-    {
-      "title": "Album Name",
-      "artist": {
-        "artistName": "Artist Name"
-      },
-      "releaseDate": "2023-01-01",
-      "foreignAlbumId": "album_id"
-    }
-  ]
-  ```
-
-### Implementation Considerations
-- Need to obtain API key from Lidarr configuration
-- Should implement search result filtering and ranking
-- Consider handling different quality profiles for downloads
-
-## General Integration Requirements
+## General Requirements
 
 ### Error Handling
-- Implement retry mechanisms for failed API calls
-- Provide user-friendly error messages
-- Log errors for debugging purposes
+- API proxy: Retry 3x on 5xx; show toasts for 4xx
+- Auth: Clear messages (invalid creds, expired token)
+- Streaming: Buffer display, auto-reconnect
+- Logging: Console in dev; structured (Pino) in prod
 
 ### Security
-- Store API keys and tokens securely
-- Use HTTPS where possible
-- Implement proper input validation
+- Better Auth: Secure sessions, CSRF protection
+- Navidrome tokens: Encrypt in DB (planned)
+- Input validation: Zod in forms/API
+- No client-side service URLs/creds exposure
 
 ### Performance
-- Implement caching for frequently accessed data
-- Use asynchronous requests to prevent UI blocking
-- Optimize API calls to reduce latency
+- TanStack Query: Stale-while-revalidate for metadata
+- Vite: Tree-shaking, code-splitting
+- Streaming: Chunked transfer, no full track preload
+- Images: Lazy load album art, WebP format
 
 ### Configuration
-- Allow users to configure service URLs and credentials
-- Provide default ports for common setups
-- Support environment variables for configuration
+- Per-user Navidrome creds in config UI
+- .env for global settings (DB, service defaults)
+- Theme/user prefs in localStorage/DB
+
+### Data Flow
+1. User logs in -> Better Auth -> session
+2. Config Navidrome -> Test auth -> Save token
+3. Browse library -> Proxy API calls -> Cache results
+4. Play track -> Proxy stream -> Audio store updates
+5. Planned: Get recs -> Ollama prompt -> Filter by library -> Display
 
 ## Data Flow
 
-1. User requests music recommendations through the interface
-2. Application sends prompt to Ollama for recommendations
-3. Application displays recommendations to user
-4. User selects a song to play
-5. Application retrieves song information from Navidrome
-6. Application streams the song from Navidrome
-7. User requests a song download
-8. Application searches for the song in Lidarr
-9. Application adds the song to Lidarr's download queue
-10. Application monitors download progress through Lidarr API
+Current flow:
+1. Login -> Auth -> Dashboard
+2. Config -> Test Navidrome -> Save token
+3. Library browse -> Proxy metadata -> Display cards
+4. Search -> Proxy query -> Filter results
+5. Play -> Proxy stream -> Audio player
+Planned: AI recs integration

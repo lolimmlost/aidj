@@ -1,15 +1,15 @@
-# Music Recommendation and Download Interface UI/UX Specification
+# AIDJ UI/UX Specification
 
 ## Introduction
 
-This document defines the user experience goals, information architecture, user flows, and visual design specifications for the Music Recommendation and Download Interface's user interface. It serves as the foundation for visual design and frontend development, ensuring a cohesive and user-centered experience.
+This document defines the UX goals, information architecture, user flows, and design specs for AIDJ. It focuses on implemented features: authentication, dashboard, configuration, music library browsing with Navidrome integration, and audio playback. Planned: AI recommendations.
 
 ### Overall UX Goals & Principles
 
 #### Target User Personas
-- **Tech-Savvy Music Enthusiast:** Users who run self-hosted services (Ollama, Navidrome, Lidarr) and want a unified interface to manage their music collection. They value privacy, customization, and technical control over their media.
-- **Music Collector:** Users with extensive music libraries who want to easily discover new music, manage their collection, and download new additions. They prioritize organization and efficiency.
-- **Privacy-Conscious Listener:** Users who prefer to keep their music data local and avoid external services. They value applications that respect their privacy and data ownership.
+- **Self-Hosted Music User:** Runs Navidrome for personal library; wants easy browsing, search, and streaming via web interface.
+- **Music Enthusiast:** Browses artists/albums, plays tracks; values responsive UI and audio controls.
+- **Privacy-Focused:** Local-only app, no cloud dependencies; configures services securely.
 
 #### Usability Goals
 - Ease of learning: New users can configure service connections and play music within 5 minutes
@@ -35,34 +35,24 @@ This document defines the user experience goals, information architecture, user 
 ### Site Map / Screen Inventory
 ```mermaid
 graph TD
-    A[Login] --> B[Dashboard]
-    B --> C[Music Library]
-    B --> D[Recommendations]
-    B --> E[Downloads]
-    B --> F[Settings]
-    C --> C1[Artists]
-    C --> C2[Albums]
-    C --> C3[Songs]
-    C --> C4[Playlists]
+    A[Login/Signup] --> B[Dashboard]
+    B --> C[Library]
+    B --> F[Config]
+    C --> C1[Artists List]
+    C --> C2[Search]
     C1 --> C11[Artist Detail]
-    C2 --> C21[Album Detail]
-    C3 --> C31[Now Playing]
-    D --> D1[Recommendation Feed]
-    D --> D2[Recommendation Detail]
-    E --> E1[Download Queue]
-    E --> E2[Download History]
-    F --> F1[Service Configuration]
-    F --> F2[User Profile]
-    F --> F3[Preferences]
+    C11 --> C12[Albums List]
+    C12 --> C13[Album Detail]
+    C13 --> C14[Now Playing]
+    F --> F1[Service Config]
+    F --> F2[Profile]
 ```
 
 ### Navigation Structure
-**Primary Navigation:** Bottom navigation bar on mobile, left sidebar on desktop with the following items:
-- Dashboard (Home)
+**Primary Navigation:** Sidebar (desktop) or bottom tabs (mobile):
+- Dashboard
 - Library
-- Recommendations
-- Downloads
-- Settings
+- Config
 
 **Secondary Navigation:** Contextual navigation within each section (e.g., sub-tabs for different library views)
 
@@ -70,98 +60,87 @@ graph TD
 
 ## User Flows
 
-### Music Playback Flow
-**User Goal:** Find and play a song from the music library
+### Library Browsing Flow
+**User Goal:** Browse artists, albums, search tracks
 
-**Entry Points:** 
-- Library browsing (Artists, Albums, Songs)
-- Search results
-- Recommendation feed
-- Playlist
+**Entry Points:**
+- Dashboard library link
+- Search bar
 
-**Success Criteria:** User can play a song with minimal steps and clear feedback
+**Success Criteria:** Quick navigation to artists/albums; search returns relevant results
 
 ```mermaid
 graph TD
-    A[User selects song] --> B[Check Navidrome connection]
-    B --> C{Connected?}
-    C -->|Yes| D[Load song metadata]
-    C -->|No| E[Show connection error]
-    D --> F[Load album artwork]
-    F --> G[Start streaming]
-    G --> H[Display now playing screen]
-    E --> I[Show configuration option]
+    A[User navigates to Library] --> B[Load artists list]
+    B --> C[Display artist cards]
+    C --> D[User clicks artist]
+    D --> E[Load artist albums]
+    E --> F[Display album grid]
+    F --> G[User searches]
+    G --> H[Query Navidrome search]
+    H --> I[Show search results]
 ```
 
 **Edge Cases & Error Handling:**
-- Navidrome service is unreachable
-- Song file is not available in Navidrome
-- User has insufficient permissions
-- Network connectivity issues
+- Navidrome unreachable
+- Empty library
+- Large result sets (pagination)
 
-**Notes:** The playback experience should be seamless with minimal loading time. Visual feedback should indicate when a song is buffering.
+**Notes:** Infinite scroll or pagination for large libraries; responsive grid layout.
 
-### Recommendation Discovery Flow
-**User Goal:** Discover new music through AI recommendations
+### Audio Playback Flow
+**User Goal:** Play selected track with controls
 
-**Entry Points:** 
-- Dashboard recommendation feed
-- Dedicated recommendations section
-- After playing a song
+**Entry Points:**
+- Click track in library/search
+- Queue from artist/album
 
-**Success Criteria:** User can easily browse recommendations and either play or download suggested music
+**Success Criteria:** Smooth streaming, persistent player, queue management
 
 ```mermaid
 graph TD
-    A[User views recommendations] --> B[Fetch from Ollama]
-    B --> C{Recommendations available?}
-    C -->|Yes| D[Display recommendations]
-    C -->|No| E[Show empty state]
-    D --> F[User selects recommendation]
-    F --> G{Action?}
-    G -->|Play| H[Start playback]
-    G -->|Download| I[Add to Lidarr]
+    A[User clicks play] --> B[Fetch stream URL via API]
+    B --> C[Set audio src to proxy stream]
+    C --> D[Update audio store (Zustand)]
+    D --> E[Show now playing bar]
+    E --> F[User controls: play/pause/seek/volume]
+    F --> G[Update progress, artwork]
 ```
 
 **Edge Cases & Error Handling:**
-- Ollama service is unreachable
-- No recommendations generated
-- User has not configured Ollama connection
-- Recommendation includes music not in library
+- Stream fails (retry/reconnect)
+- Auth token expires
+- Network buffering
 
-**Notes:** Recommendations should be presented in an engaging visual format with album artwork. Users should be able to provide feedback on recommendations.
+**Notes:** Persistent bottom player; mini-player in routes; waveform visualization planned.
 
-### Download Request Flow
-**User Goal:** Request a new song or album for download through Lidarr
+### Configuration Flow
+**User Goal:** Setup Navidrome connection
 
-**Entry Points:** 
-- Search interface
-- Recommendation feed
-- Album/Song detail pages
+**Entry Points:**
+- First login redirect
+- Config route
 
-**Success Criteria:** User can search for music and successfully submit a download request to Lidarr
+**Success Criteria:** Test connection, save creds securely
 
 ```mermaid
 graph TD
-    A[User searches for music] --> B[Query Lidarr]
-    B --> C{Results found?}
-    C -->|Yes| D[Display search results]
-    C -->|No| E[Show no results]
-    D --> F[User selects item]
-    F --> G[Add to download queue]
-    G --> H{Lidarr accepts request?}
-    H -->|Yes| I[Show success message]
-    H -->|No| J[Show error message]
+    A[User visits Config] --> B[Load saved creds (if any)]
+    B --> C[Display form: URL, user, pass]
+    C --> D[User submits]
+    D --> E[Test connection via API]
+    E --> F{Connected?}
+    F -->|Yes| G[Save encrypted token]
+    F -->|No| H[Show error, retry]
+    G --> I[Success toast, redirect]
 ```
 
 **Edge Cases & Error Handling:**
-- Lidarr service is unreachable
-- Search returns no results
-- User has not configured Lidarr connection
-- Item is already in download queue
-- Lidarr rejects the request (e.g., quality profile mismatch)
+- Invalid creds
+- Service unreachable
+- Network timeout
 
-**Notes:** The search interface should be responsive and provide clear feedback on the status of download requests.
+**Notes:** Per-user config; test button with loading state.
 
 ## Wireframes & Mockups
 
@@ -171,104 +150,94 @@ graph TD
 ### Key Screen Layouts
 
 #### Dashboard Screen
-**Purpose:** Central hub for music discovery and quick access to key features
+**Purpose:** App overview, quick library access, recent activity
 
 **Key Elements:**
-- Header with user profile and search
-- Recommendation feed with horizontally scrollable cards
-- Quick access to recently played music
-- Download queue status summary
-- Now playing bar at bottom
+- Welcome message/user info
+- Quick links: Library, Config
+- Recent artists/albums cards
+- Playback stats (planned)
+- Now playing bar
 
-**Interaction Notes:** The dashboard should load quickly and provide immediate value through recommendations and quick access to recent content.
+**Interaction Notes:** Clean entry point post-login; cards link to library sections.
 
-**Design File Reference:** [Dashboard Screen - Figma Link]
+**Design File Reference:** Implemented in src/routes/dashboard/index.tsx
 
-#### Now Playing Screen
-**Purpose:** Full-screen music playback experience
+#### Library Screens
+**Purpose:** Browse/search music collection
+
+**Artist List (src/routes/library/artists.tsx):**
+- Grid of artist cards (name, artwork)
+- Search/filter bar
+- Load more/pagination
+
+**Artist Detail (src/routes/library/artists/[id].tsx):**
+- Artist info, bio (planned)
+- Album grid
+- Top tracks
+
+**Search (src/routes/library/search.tsx):**
+- Unified search (artists/albums/tracks)
+- Filters by type
+- Results in tabs
+
+**Interaction Notes:** Responsive grid; infinite scroll; click to drill down.
+
+**Design File Reference:** Implemented with shadcn Card, TanStack Query
+
+#### Config Screen
+**Purpose:** Manage Navidrome connection, app settings
 
 **Key Elements:**
-- Large album artwork display
-- Song title, artist, and album information
-- Progress bar with time indicators
-- Playback controls (play/pause, skip, previous)
-- Volume control
-- Queue display
-- Lyrics display (if available)
+- Navidrome: URL, username, password fields
+- Test connection button
+- Status badge (connected/disconnected)
+- Theme toggle (dark/light)
+- User profile link
+- Save changes
 
-**Interaction Notes:** Focus on the music playback experience with large, easy-to-tap controls. Visual design should adapt to album artwork colors.
+**Interaction Notes:** Real-time validation; success/error toasts; secure cred handling.
 
-**Design File Reference:** [Now Playing Screen - Figma Link]
-
-#### Service Configuration Screen
-**Purpose:** Configure connections to Ollama, Navidrome, and Lidarr services
-
-**Key Elements:**
-- Form fields for service URLs and credentials
-- Connection test buttons for each service
-- Status indicators for each service
-- Save and cancel buttons
-- Help text for configuration
-
-**Interaction Notes:** Provide clear feedback on connection status. Validate inputs in real-time where possible.
-
-**Design File Reference:** [Service Configuration Screen - Figma Link]
+**Design File Reference:** src/routes/config.tsx with shadcn Form/Input
 
 ## Component Library / Design System
 
 ### Design System Approach
-**Design System Approach:** Create a custom design system based on modern music application patterns with a focus on dark theme optimization
+**Design System:** shadcn/ui + Tailwind CSS v4; dark mode by default for music apps
 
 ### Core Components
 
 #### Music Card
-**Purpose:** Display music content (songs, albums, artists) in a consistent format
+**Purpose:** Display artists/albums/tracks
 
-**Variants:** 
-- Compact (for lists)
-- Standard (for grids)
-- Large (for featured content)
+**Variants:** Artist card, Album card, Track row
+- Artist: Name, artwork, track count
+- Album: Title, artist, year, artwork
+- Track: #, title, duration, play button
 
-**States:** 
-- Default
-- Hover
-- Selected
-- Loading
-- Error
+**States:** Hover (scale), Loading (skeleton), Error (placeholder)
 
-**Usage Guidelines:** Use consistent spacing and typography. Include album artwork when available. Show relevant metadata based on context.
+**Usage:** shadcn Card component; responsive grid/list toggle planned
 
-#### Playback Controls
-**Purpose:** Provide consistent playback controls throughout the application
+#### Audio Player
+**Purpose:** Global playback control
 
-**Variants:** 
-- Full (play, pause, skip, previous, volume)
-- Compact (play/pause, skip)
-- Progress-only (progress bar with time)
+**Components:**
+- Now playing bar (bottom persistent)
+- Full player overlay (on focus)
+- Controls: play/pause, prev/next, seek, volume slider
+- Track info, queue list
 
-**States:** 
-- Playing
-- Paused
-- Loading
-- Disabled
+**States:** Playing, paused, loading, error
 
-**Usage Guidelines:** Always show current playback state. Provide keyboard shortcuts where appropriate. Ensure adequate touch targets.
+**Usage:** Custom AudioPlayer.tsx; integrates with audio store; keyboard support (space=play)
 
-#### Service Status Indicator
-**Purpose:** Show the connection status of integrated services
+#### Service Status Badge
+**Purpose:** Navidrome connection status
 
-**Variants:** 
-- Connected
-- Disconnected
-- Connecting
-- Error
+**Variants:** Success (connected), Error (disconnected), Warning (testing)
 
-**States:** 
-- Active
-- Inactive
-- Hover
-
-**Usage Guidelines:** Use color coding for quick recognition. Provide tooltip with detailed status information on hover.
+**Usage:** shadcn Badge in config; updates on test/save; tooltip with last error
 
 ## Branding & Style Guide
 
@@ -276,15 +245,15 @@ graph TD
 **Brand Guidelines:** Modern, minimalist design with focus on music content. Dark theme optimized for extended listening sessions.
 
 ### Color Palette
-| Color Type | Hex Code | Usage |
-|------------|----------|-------|
-| Primary | #1DB954 | Spotify green-inspired accent color for interactive elements |
-| Secondary | #191414 | Dark background color |
-| Accent | #FFFFFF | Light text and icons |
-| Success | #1DB954 | Positive feedback, confirmations |
-| Warning | #FF9800 | Cautions, important notices |
-| Error | #F44336 | Errors, destructive actions |
-| Neutral | #282828, #535353, #B3B3B3 | Backgrounds, borders, secondary text |
+| Color | Hex | Usage |
+|-------|-----|-------|
+| bg | #0f0f0f | Dark background |
+| card | #1a1a1a | Cards/surfaces |
+| primary | #3b82f6 | Blue accents (buttons, links) |
+| text | #f8fafc | Primary text |
+| muted | #94a3b8 | Secondary text |
+| success | #10b981 | Connected/status |
+| error | #ef4444 | Errors |
 
 ### Typography
 #### Font Families
@@ -314,7 +283,7 @@ graph TD
 ## Accessibility Requirements
 
 ### Compliance Target
-**Standard:** WCAG 2.1 AA
+**Standard:** WCAG 2.2 AA; follows shadcn/ui accessibility
 
 ### Key Requirements
 **Visual:**
@@ -338,12 +307,12 @@ Regular testing with screen readers, keyboard-only navigation, and automated acc
 ## Responsiveness Strategy
 
 ### Breakpoints
-| Breakpoint | Min Width | Max Width | Target Devices |
-|------------|-----------|-----------|----------------|
-| Mobile | 0px | 767px | Smartphones |
-| Tablet | 768px | 1023px | Tablets |
-| Desktop | 1024px | 1439px | Laptops, desktop monitors |
-| Wide | 1440px | - | Large desktop monitors |
+| Breakpoint | Min | Max | Layout |
+|------------|-----|-----|-------|
+| sm | 640px | - | Mobile-first base |
+| md | 768px | - | Tablet: sidebar -> bottom nav |
+| lg | 1024px | - | Desktop: full sidebar |
+| xl | 1280px | - | Wide: larger cards/grids |
 
 ### Adaptation Patterns
 **Layout Changes:** 
@@ -369,20 +338,22 @@ Regular testing with screen readers, keyboard-only navigation, and automated acc
 ## Animation & Micro-interactions
 
 ### Motion Principles
-Animations should be subtle, purposeful, and enhance the user experience without causing distraction. Use easing functions that feel natural and responsive.
+Animations: Tailwind transitions; subtle for music focus.
 
-### Key Animations
-- **Page Transitions:** Slide transitions between main sections (Duration: 300ms, Easing: ease-in-out)
-- **Button Feedback:** Subtle scale animation on button press (Duration: 150ms, Easing: ease-out)
-- **Loading States:** Skeleton screens for content loading (Duration: 1000ms, Easing: linear)
-- **Playback Visualization:** Animated equalizer during music playback (Duration: continuous, Easing: linear)
+Key:
+- Route changes: Fade/slide (300ms)
+- Card hover: Scale 1.05 (150ms)
+- Loading: shadcn skeletons
+- Player: Progress bar fill, play icon rotate
 
 ## Performance Considerations
 
-### Performance Goals
-- **Page Load:** First meaningful paint < 1.5 seconds
-- **Interaction Response:** Click/tap response < 100ms
-- **Animation FPS:** Maintain 60 FPS for all animations
+### Performance
+- Vite: Instant HMR
+- TanStack Query: Optimistic updates, caching
+- Lazy load images (album art)
+- Audio: Streamed, no preload
+- Bundle: <1MB gzipped target
 
 ### Design Strategies
 - Optimize images and artwork for web
@@ -393,19 +364,13 @@ Animations should be subtle, purposeful, and enhance the user experience without
 
 ## Next Steps
 
-### Immediate Actions
-1. Create detailed visual designs in Figma based on this specification
-2. Conduct usability testing with target users
-3. Refine designs based on feedback
-4. Prepare design handoff documentation for development team
+### Current Status
+- [x] Auth screens (login/signup)
+- [x] Dashboard layout
+- [x] Library: artists list/detail, search
+- [x] Config form
+- [x] Audio player component
+- [ ] AI recs UI (planned)
+- [ ] Playlists/queue management
 
-### Design Handoff Checklist
-- [x] All user flows documented
-- [x] Component inventory complete
-- [x] Accessibility requirements defined
-- [x] Responsive strategy clear
-- [x] Brand guidelines incorporated
-- [x] Performance goals established
-
-## Checklist Results
-To be completed after design review and approval.
+Design implemented via shadcn/ui in src/components/ui/
