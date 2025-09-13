@@ -26,8 +26,9 @@ import { ServerRoute as ApiConfigServerRouteImport } from "./routes/api/config";
 import { ServerRoute as ApiAuthRegisterServerRouteImport } from "./routes/api/auth/register";
 import { ServerRoute as ApiAuthLoginServerRouteImport } from "./routes/api/auth/login";
 import { ServerRoute as ApiAuthSplatServerRouteImport } from "./routes/api/auth/$";
-import { ServerRoute as ApiNavidromeStreamIdServerRouteImport } from "./routes/api/navidrome/stream/[id]";
+import { ServerRoute as ApiNavidromeStreamIdServerRouteImport } from "./routes/api/navidrome/stream/$id";
 import { ServerRoute as ApiNavidromeChar91DotPathChar93ServerRouteImport } from "./routes/api/navidrome/[...path]";
+import { ServerRoute as ApiNavidromeStreamIdIdServerRouteImport } from "./routes/api/navidrome/stream/[id]/[id]";
 
 const rootServerRouteImport = createServerRootRoute();
 
@@ -108,14 +109,20 @@ const ApiAuthSplatServerRoute = ApiAuthSplatServerRouteImport.update({
 } as any);
 const ApiNavidromeStreamIdServerRoute =
   ApiNavidromeStreamIdServerRouteImport.update({
-    id: "/api/navidrome/stream/id",
-    path: "/api/navidrome/stream/id",
+    id: "/api/navidrome/stream/$id",
+    path: "/api/navidrome/stream/$id",
     getParentRoute: () => rootServerRouteImport,
   } as any);
 const ApiNavidromeChar91DotPathChar93ServerRoute =
   ApiNavidromeChar91DotPathChar93ServerRouteImport.update({
     id: "/api/navidrome/[./path]",
     path: "/api/navidrome/[./path]",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
+const ApiNavidromeStreamIdIdServerRoute =
+  ApiNavidromeStreamIdIdServerRouteImport.update({
+    id: "/api/navidrome/stream/id/id",
+    path: "/api/navidrome/stream/id/id",
     getParentRoute: () => rootServerRouteImport,
   } as any);
 
@@ -209,7 +216,8 @@ export interface FileServerRoutesByFullPath {
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
-  "/api/navidrome/stream/id": typeof ApiNavidromeStreamIdServerRoute;
+  "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
+  "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
 }
 export interface FileServerRoutesByTo {
   "/api/config": typeof ApiConfigServerRoute;
@@ -217,7 +225,8 @@ export interface FileServerRoutesByTo {
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
-  "/api/navidrome/stream/id": typeof ApiNavidromeStreamIdServerRoute;
+  "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
+  "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
 }
 export interface FileServerRoutesById {
   __root__: typeof rootServerRouteImport;
@@ -226,7 +235,8 @@ export interface FileServerRoutesById {
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
-  "/api/navidrome/stream/id": typeof ApiNavidromeStreamIdServerRoute;
+  "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
+  "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
 }
 export interface FileServerRouteTypes {
   fileServerRoutesByFullPath: FileServerRoutesByFullPath;
@@ -236,7 +246,8 @@ export interface FileServerRouteTypes {
     | "/api/auth/login"
     | "/api/auth/register"
     | "/api/navidrome/[./path]"
-    | "/api/navidrome/stream/id";
+    | "/api/navidrome/stream/$id"
+    | "/api/navidrome/stream/id/id";
   fileServerRoutesByTo: FileServerRoutesByTo;
   to:
     | "/api/config"
@@ -244,7 +255,8 @@ export interface FileServerRouteTypes {
     | "/api/auth/login"
     | "/api/auth/register"
     | "/api/navidrome/[./path]"
-    | "/api/navidrome/stream/id";
+    | "/api/navidrome/stream/$id"
+    | "/api/navidrome/stream/id/id";
   id:
     | "__root__"
     | "/api/config"
@@ -252,7 +264,8 @@ export interface FileServerRouteTypes {
     | "/api/auth/login"
     | "/api/auth/register"
     | "/api/navidrome/[./path]"
-    | "/api/navidrome/stream/id";
+    | "/api/navidrome/stream/$id"
+    | "/api/navidrome/stream/id/id";
   fileServerRoutesById: FileServerRoutesById;
 }
 export interface RootServerRouteChildren {
@@ -262,6 +275,7 @@ export interface RootServerRouteChildren {
   ApiAuthRegisterServerRoute: typeof ApiAuthRegisterServerRoute;
   ApiNavidromeChar91DotPathChar93ServerRoute: typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   ApiNavidromeStreamIdServerRoute: typeof ApiNavidromeStreamIdServerRoute;
+  ApiNavidromeStreamIdIdServerRoute: typeof ApiNavidromeStreamIdIdServerRoute;
 }
 
 declare module "@tanstack/react-router" {
@@ -375,10 +389,10 @@ declare module "@tanstack/react-start/server" {
       preLoaderRoute: typeof ApiAuthSplatServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
-    "/api/navidrome/stream/id": {
-      id: "/api/navidrome/stream/id";
-      path: "/api/navidrome/stream/id";
-      fullPath: "/api/navidrome/stream/id";
+    "/api/navidrome/stream/$id": {
+      id: "/api/navidrome/stream/$id";
+      path: "/api/navidrome/stream/$id";
+      fullPath: "/api/navidrome/stream/$id";
       preLoaderRoute: typeof ApiNavidromeStreamIdServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
@@ -387,6 +401,13 @@ declare module "@tanstack/react-start/server" {
       path: "/api/navidrome/[./path]";
       fullPath: "/api/navidrome/[./path]";
       preLoaderRoute: typeof ApiNavidromeChar91DotPathChar93ServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/navidrome/stream/id/id": {
+      id: "/api/navidrome/stream/id/id";
+      path: "/api/navidrome/stream/id/id";
+      fullPath: "/api/navidrome/stream/id/id";
+      preLoaderRoute: typeof ApiNavidromeStreamIdIdServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
   }
@@ -460,6 +481,7 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiNavidromeChar91DotPathChar93ServerRoute:
     ApiNavidromeChar91DotPathChar93ServerRoute,
   ApiNavidromeStreamIdServerRoute: ApiNavidromeStreamIdServerRoute,
+  ApiNavidromeStreamIdIdServerRoute: ApiNavidromeStreamIdIdServerRoute,
 };
 export const serverRouteTree = rootServerRouteImport
   ._addFileChildren(rootServerRouteChildren)
