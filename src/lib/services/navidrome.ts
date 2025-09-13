@@ -23,9 +23,11 @@ export type ArtistWithDetails = Artist & Omit<ArtistDetail, 'id' | 'name'>;
 export interface RawSong {
   id: string;
   name: string;
+  title?: string; // From search2 response
   albumId: string;
   duration: number;
   track: number;
+  trackNumber?: number; // From search2
 }
 
 export type Album = {
@@ -221,14 +223,63 @@ export async function getSongs(albumId: string, start: number = 0, limit: number
 
 export async function search(query: string, start: number = 0, limit: number = 50): Promise<Song[]> {
   try {
-    const data = await apiFetch(`/api/song?title=${encodeURIComponent(query)}&_start=${start}&_end=${start + limit - 1}`) as RawSong[];
+    const config = getConfig();
+    if (!config.navidromeUrl) {
+      throw new Error('Navidrome URL not configured');
+    }
+
+    // Try multiple search parameters to find working one
+    const searchParams = [
+      { param: 'title', value: query },
+      { param: 'fullText', value: query },
+      { param: 'name', value: query }
+    ];
+
+    let data: RawSong[] = [];
+    let usedParam = '';
+
+    for (const param of searchParams) {
+      try {
+        const endpoint = `/api/song?${param.param}=${encodeURIComponent(param.value)}&_start=${start}&_end=${start + limit - 1}`;
+        console.log(`Trying search with parameter ${param.param}:`, endpoint);
+        
+        data = await apiFetch(endpoint) as RawSong[];
+        usedParam = param.param;
+        
+        if (data && data.length > 0) {
+          console.log(`Search with ${param.param} returned ${data.length} results`);
+          break;
+        }
+      } catch (paramError) {
+        console.log(`Search with ${param.param} failed:`, paramError);
+        continue;
+      }
+    }
+
+    if (data.length === 0) {
+      console.log('No results from any search parameter');
+      return [];
+    }
+
+    console.log(`Search with ${usedParam} succeeded. First result:`, {
+      id: data[0].id,
+      name: data[0].name,
+      title: data[0].title,
+      albumId: data[0].albumId,
+      duration: data[0].duration,
+      track: data[0].track
+    });
+
     const songs = data.map((song) => ({
       ...song,
+      name: song.name || song.title || 'Unknown Title', // Ensure name is populated
       url: `/api/navidrome/stream/${song.id}`,
     })) as Song[];
-    console.log('Search API response:', songs);
-    return songs || [];
+    
+    console.log('Final processed search results:', songs.length, 'songs');
+    return songs;
   } catch (error) {
+    console.error('Comprehensive search error:', error);
     throw new Error(`Failed to search music: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
