@@ -111,7 +111,7 @@ function ConfigPage() {
 
   return (
     <div className="container mx-auto p-6 max-w-2xl">
-      <Card className="fade-in">
+      <Card>
         <CardHeader>
           <CardTitle className="text-3xl font-bold tracking-tight">Service Configuration</CardTitle>
         </CardHeader>

@@ -47,7 +47,7 @@ function ArtistsList() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <Card className="fade-in">
+      <Card>
         <CardContent className="p-6">
           <div className="flex justify-between items-start mb-4">
             <div className="flex items-center gap-3">
@@ -93,7 +93,7 @@ function ArtistsList() {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 fade-in">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {sortedArtists.map((artist) => (
             <Card key={artist.id} className="cursor-pointer transition-shadow hover:shadow-md border-border/50">
               <CardContent className="p-6 hover:bg-accent hover:text-accent-foreground">
