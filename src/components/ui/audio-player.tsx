@@ -1,6 +1,7 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Button } from './button';
 import { Volume2, VolumeX, SkipBack, SkipForward, Play, Pause } from 'lucide-react';
+import { useAudioStore } from '@/lib/stores/audio';
 
 export type Song = {
   id: string;
@@ -12,20 +13,23 @@ export type Song = {
   artist?: string; // Optional for display
 };
 
-interface AudioPlayerProps {
-  songs: Song[];
-  initialSongId?: string;
-  onSongChange?: (song: Song) => void;
-}
-
-export function AudioPlayer({ songs, initialSongId, onSongChange }: AudioPlayerProps) {
+export function AudioPlayer() {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(0.5);
-  const [currentSongIndex, setCurrentSongIndex] = useState(0);
-  const [isBuffering, setIsBuffering] = useState(false);
+  const {
+    playlist,
+    currentSongIndex,
+    isPlaying,
+    currentTime,
+    duration,
+    volume,
+    setIsPlaying,
+    setCurrentTime,
+    setDuration,
+    setVolume,
+    nextSong,
+    previousSong,
+  } = useAudioStore();
+  const currentSong = playlist[currentSongIndex];
 
   const loadSong = (song: Song) => {
     const audio = audioRef.current;
@@ -35,7 +39,6 @@ export function AudioPlayer({ songs, initialSongId, onSongChange }: AudioPlayerP
       setIsPlaying(false);
       setCurrentTime(0);
       setDuration(0);
-      if (onSongChange) onSongChange(song);
     }
   };
 
@@ -66,26 +69,14 @@ export function AudioPlayer({ songs, initialSongId, onSongChange }: AudioPlayerP
     }
   };
 
-  const previousSong = () => {
-    const newIndex = (currentSongIndex - 1 + songs.length) % songs.length;
-    setCurrentSongIndex(newIndex);
-    loadSong(songs[newIndex]);
-  };
-
-  const nextSong = () => {
-    const newIndex = (currentSongIndex + 1) % songs.length;
-    setCurrentSongIndex(newIndex);
-    loadSong(songs[newIndex]);
-  };
-
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     const updateTime = () => setCurrentTime(audio.currentTime);
     const updateDuration = () => setDuration(audio.duration);
-    const onCanPlay = () => setIsBuffering(false);
-    const onWaiting = () => setIsBuffering(true);
+    const onCanPlay = () => {};
+    const onWaiting = () => {};
     const onEnded = () => {
       nextSong();
     };
@@ -105,28 +96,15 @@ export function AudioPlayer({ songs, initialSongId, onSongChange }: AudioPlayerP
       audio.removeEventListener('waiting', onWaiting);
       audio.removeEventListener('ended', onEnded);
     };
-  }, [volume, currentSongIndex]); // Add currentSongIndex for reload
+  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong]);
 
   useEffect(() => {
-    if (songs.length === 0) return;
-
-    let index = 0;
-    if (initialSongId) {
-      index = songs.findIndex(song => song.id === initialSongId);
-      if (index === -1) index = 0;
+    if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {
+      loadSong(playlist[currentSongIndex]);
     }
-    setCurrentSongIndex(index);
-  }, [songs, initialSongId]);
+  }, [currentSongIndex, playlist]);
 
-  useEffect(() => {
-    if (songs.length > 0 && currentSongIndex >= 0 && currentSongIndex < songs.length) {
-      loadSong(songs[currentSongIndex]);
-    }
-  }, [currentSongIndex]);
-
-  const currentSong = songs[currentSongIndex];
-
-  if (!currentSong) return null;
+  if (playlist.length === 0 || currentSongIndex === -1) return null;
 
   const formatTime = (time: number) => {
     const minutes = Math.floor(time / 60);
@@ -134,13 +112,11 @@ export function AudioPlayer({ songs, initialSongId, onSongChange }: AudioPlayerP
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  if (!currentSong) return null;
-
   return (
     <div className="bg-background border-t p-4 flex flex-col space-y-4">
       {/* Current Track Info */}
       <div className="flex items-center space-x-4">
-        <div className="w-12 h-12 bg-gray-300 rounded" /> {/* Placeholder for artwork */}
+        <div className="w-12 h-12 bg-muted rounded flex items-center justify-center" /> {/* Placeholder for artwork */}
         <div>
           <div className="font-semibold">{currentSong.name}</div>
           <div className="text-sm text-muted-foreground">{currentSong.artist || 'Unknown Artist'}</div>
@@ -168,14 +144,13 @@ export function AudioPlayer({ songs, initialSongId, onSongChange }: AudioPlayerP
           value={currentTime}
           max={duration || 0}
           onInput={(e: React.ChangeEvent<HTMLInputElement>) => seek(Number(e.target.value))}
-          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-          disabled={!isPlaying || isBuffering}
+          className="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer"
+          disabled={!isPlaying}
           style={{
-            background: `linear-gradient(to right, #3b82f6 ${ (currentTime / (duration || 1)) * 100 }%, #d1d5db ${ (currentTime / (duration || 1)) * 100 }%)`,
+            background: `linear-gradient(to right, var(--primary) ${ (currentTime / (duration || 1)) * 100 }%, var(--muted) ${ (currentTime / (duration || 1)) * 100 }%)`,
           }}
         />
         <span className="text-sm">{formatTime(duration)}</span>
-        {isBuffering && <span className="text-xs text-yellow-500">Buffering...</span>}
       </div>
 
       {/* Volume Control */}
@@ -189,9 +164,9 @@ export function AudioPlayer({ songs, initialSongId, onSongChange }: AudioPlayerP
           max={1}
           step={0.1}
           onInput={(e: React.ChangeEvent<HTMLInputElement>) => changeVolume(Number(e.target.value))}
-          className="w-20 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+          className="w-20 h-2 bg-muted rounded-lg appearance-none cursor-pointer"
           style={{
-            background: `linear-gradient(to right, #3b82f6 ${volume * 100}%, #d1d5db ${volume * 100}%)`,
+            background: `linear-gradient(to right, var(--primary) ${volume * 100}%, var(--muted) ${volume * 100}%)`,
           }}
         />
       </div>

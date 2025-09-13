@@ -16,6 +16,7 @@ import appCss from "~/styles.css?url";
 
 import { ThemeProvider } from "~/components/theme-provider";
 import { Toaster } from "~/components/ui/sonner";
+import { AudioPlayer } from "~/components/ui/audio-player";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -56,6 +57,7 @@ function RootComponent() {
   return (
     <RootDocument>
       <Outlet />
+      <AudioPlayer />
     </RootDocument>
   );
 }

@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/config")({
@@ -109,67 +110,94 @@ function ConfigPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <h2 className="text-lg font-semibold">Service Configuration</h2>
-      <form onSubmit={onSubmit} className="flex flex-col gap-4 w-full max-w-lg mx-auto">
-        <div className="grid gap-2">
-          <Label htmlFor="ollamaUrl">Ollama URL</Label>
-          <Input
-            id="ollamaUrl"
-            name="ollamaUrl"
-            type="url"
-            placeholder="http://localhost:11434"
-            value={config.ollamaUrl ?? ""}
-            onChange={(e) => update("ollamaUrl", e.target.value)}
-          />
-        </div>
+    <div className="container mx-auto p-6 max-w-2xl">
+      <Card className="fade-in">
+        <CardHeader>
+          <CardTitle className="text-3xl font-bold tracking-tight">Service Configuration</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6 pt-6">
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="ollamaUrl">Ollama URL</Label>
+              <Input
+                id="ollamaUrl"
+                name="ollamaUrl"
+                type="url"
+                placeholder="http://localhost:11434"
+                value={config.ollamaUrl ?? ""}
+                onChange={(e) => update("ollamaUrl", e.target.value)}
+              />
+            </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="navidromeUrl">Navidrome URL</Label>
-          <Input
-            id="navidromeUrl"
-            name="navidromeUrl"
-            type="url"
-            placeholder="http://localhost: Navidrome"
-            value={config.navidromeUrl ?? ""}
-            onChange={(e) => update("navidromeUrl", e.target.value)}
-          />
-        </div>
+            <div className="space-y-2">
+              <Label htmlFor="navidromeUrl">Navidrome URL</Label>
+              <Input
+                id="navidromeUrl"
+                name="navidromeUrl"
+                type="url"
+                placeholder="http://localhost:4533"
+                value={config.navidromeUrl ?? ""}
+                onChange={(e) => update("navidromeUrl", e.target.value)}
+              />
+            </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="lidarrUrl">Lidarr URL</Label>
-          <Input
-            id="lidarrUrl"
-            name="lidarrUrl"
-            type="url"
-            placeholder="http://localhost:8686"
-            value={config.lidarrUrl ?? ""}
-            onChange={(e) => update("lidarrUrl", e.target.value)}
-          />
-        </div>
+            <div className="space-y-2">
+              <Label htmlFor="lidarrUrl">Lidarr URL</Label>
+              <Input
+                id="lidarrUrl"
+                name="lidarrUrl"
+                type="url"
+                placeholder="http://localhost:8686"
+                value={config.lidarrUrl ?? ""}
+                onChange={(e) => update("lidarrUrl", e.target.value)}
+              />
+            </div>
 
-        <Button type="submit" className="w-full" size="lg" disabled={loading}>
-          {loading ? "Saving..." : "Save Configuration"}
-        </Button>
-      </form>
+            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+              {loading ? "Saving..." : "Save Configuration"}
+            </Button>
+          </form>
 
-      {testStatuses && (
-        <div className="text-sm text-center">
-          Connectivity: Ollama: {testStatuses.ollamaUrl ?? "Not configured"} | Navidrome: {testStatuses.navidromeUrl ?? "Not configured"} | Lidarr: {testStatuses.lidarrUrl ?? "Not configured"}
-        </div>
-      )}
+          {status && (
+            <div className={`text-sm text-center p-3 rounded-md ${status.includes('saved') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+              {status}
+            </div>
+          )}
 
-      <Button type="button" className="w-full" onClick={runTestConnections} disabled={testing}>
-        {testing ? "Testing..." : "Test Connections"}
-      </Button>
+          <div className="space-y-3">
+            <Button type="button" className="w-full" variant="outline" onClick={runTestConnections} disabled={testing}>
+              {testing ? "Testing Connections..." : "Test Service Connections"}
+            </Button>
+            
+            {testStatuses && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-muted/50 rounded-lg">
+                <div className="text-center">
+                  <div className="font-medium mb-1">Ollama</div>
+                  <div className={`text-sm px-2 py-1 rounded ${testStatuses.ollamaUrl === 'connected' ? 'bg-green-100 text-green-800' : testStatuses.ollamaUrl === 'not configured' ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-800'}`}>
+                    {testStatuses.ollamaUrl || 'Not configured'}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="font-medium mb-1">Navidrome</div>
+                  <div className={`text-sm px-2 py-1 rounded ${testStatuses.navidromeUrl === 'connected' ? 'bg-green-100 text-green-800' : testStatuses.navidromeUrl === 'not configured' ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-800'}`}>
+                    {testStatuses.navidromeUrl || 'Not configured'}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="font-medium mb-1">Lidarr</div>
+                  <div className={`text-sm px-2 py-1 rounded ${testStatuses.lidarrUrl === 'connected' ? 'bg-green-100 text-green-800' : testStatuses.lidarrUrl === 'not configured' ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-800'}`}>
+                    {testStatuses.lidarrUrl || 'Not configured'}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
-      {status && (
-        <div className="text-sm text-center mt-2">{status}</div>
-      )}
-
-      <div className="text-sm text-center">
-        <Link to="/dashboard">Back to Dashboard</Link>
-      </div>
+          <div className="text-center pt-4 border-t">
+            <Link to="/dashboard" className="text-primary hover:underline">← Back to Dashboard</Link>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
