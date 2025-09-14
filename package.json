@@ -1,5 +1,7 @@
 {
-  "name": "music-recommendation-interface",
+  "name": "aidj-music-interface",
+  "version": "1.0.0",
+  "description": "AIDJ Music Library Interface - Modern music streaming and library management application",
   "private": true,
   "type": "module",
   "scripts": {

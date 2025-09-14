@@ -42,11 +42,43 @@ export const Route = createRootRouteWithContext<{
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "React TanStarter",
+        title: "AIDJ - AI-Assisted Music Library",
       },
       {
         name: "description",
-        content: "A minimal starter template for 🏝️ TanStack Start.",
+        content: "AIDJ: Your AI-powered music library interface. Browse, stream, and manage your self-hosted music collection with modern UI and local privacy.",
+      },
+      {
+        name: "keywords",
+        content: "music, library, streaming, AI, DJ, self-hosted, navidrome, privacy",
+      },
+      {
+        name: "author",
+        content: "AIDJ Team",
+      },
+      {
+        property: "og:title",
+        content: "AIDJ - AI-Assisted Music Library",
+      },
+      {
+        property: "og:description",
+        content: "Modern music library interface with AI recommendations and local privacy",
+      },
+      {
+        property: "og:type",
+        content: "website",
+      },
+      {
+        name: "twitter:card",
+        content: "summary_large_image",
+      },
+      {
+        name: "twitter:title",
+        content: "AIDJ - AI-Assisted Music Library",
+      },
+      {
+        name: "twitter:description",
+        content: "Your AI-powered music library interface",
       },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
