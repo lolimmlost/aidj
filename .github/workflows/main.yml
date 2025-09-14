@@ -18,19 +18,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
+          cache: 'npm'
           
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
         
       - name: Lint code
-        run: pnpm lint
+        run: npm run lint
         
       - name: Build project
-        run: pnpm build
+        run: npm run build
         
       - name: Run unit tests with coverage
-        run: pnpm test:coverage
+        run: npm run test:coverage
         
       - name: Check coverage thresholds
         run: |
