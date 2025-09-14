@@ -2,10 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { search } from '@/lib/services/navidrome';
-import { AudioPlayer } from '@/components/ui/audio-player';
 import { useAudioStore } from '@/lib/stores/audio';
-import { Card, CardContent } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
 
 export const Route = createFileRoute('/library/search')({
   component: SearchPage,

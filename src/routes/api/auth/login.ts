@@ -6,14 +6,28 @@ export const ServerRoute = createServerFileRoute("/api/auth/login").methods({
     try {
       const body = await request.json();
       const { email, password } = body;
-
-      // typed API interface
-      interface AuthApi {
-        login: (payload: { email: string; password: string }) => Promise<any>;
+  
+      // Define auth result type
+      interface AuthResult {
+        user: {
+          id: string;
+          email: string;
+          name?: string;
+        };
+        session: {
+          id: string;
+          expires: string;
+        };
       }
-      const api = (auth as unknown as { api?: Partial<AuthApi> }).api;
+  
+      // Type the auth API
+      interface AuthApi {
+        login: (payload: { email: string; password: string }) => Promise<AuthResult | null>;
+      }
+  
+      const api = (auth as { api?: Partial<AuthApi> }).api;
       const loginFn = api?.login;
-
+  
       if (typeof loginFn === "function") {
         const payload: { email: string; password: string } = { email, password };
         const result = await loginFn(payload);

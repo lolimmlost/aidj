@@ -1,5 +1,12 @@
 import defaults from './defaults.json' with { type: 'json' };
-import { ServiceConfig } from './types';
+
+interface ServiceConfig {
+  ollamaUrl: string;
+  navidromeUrl: string;
+  lidarrUrl: string;
+  navidromeUsername: string;
+  navidromePassword: string;
+}
 
 let currentConfig: ServiceConfig = { ...defaults };
 
@@ -9,7 +16,10 @@ if (typeof window !== 'undefined') {
   if (stored) {
     try {
       currentConfig = { ...currentConfig, ...JSON.parse(stored) };
-    } catch {}
+    } catch (e) {
+      // Ignore invalid stored config
+      console.warn('Invalid config in localStorage:', e);
+    }
   }
 } else {
   // Server side - use fs if needed, but for now, use defaults
