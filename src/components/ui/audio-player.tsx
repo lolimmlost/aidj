@@ -98,6 +98,7 @@ export function AudioPlayer() {
     };
   }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {
       loadSong(playlist[currentSongIndex]);

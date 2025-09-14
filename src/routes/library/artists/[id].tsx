@@ -78,7 +78,7 @@ function ArtistAlbums() {
                     </div>
                     <div className="space-y-1">
                       <div className="font-semibold line-clamp-1 text-foreground">{album.name}</div>
-                      {album.year && <div className="text-sm text-muted-foreground">{album.year}</div>}
+                      {album.year ? <div className="text-sm text-muted-foreground">{album.year}</div> : null}
                     </div>
                   </div>
                 </CardContent>
