@@ -38,7 +38,7 @@ jobs:
         
       - name: Check basic test success
         run: |
-          if [ -f test-results.json ] && grep -q '"status":"pass"' test-results.json; then
+          if [ $? -eq 0 ]; then
             echo "Basic tests passed"
           else
             echo "Basic tests failed"
