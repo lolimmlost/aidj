@@ -79,6 +79,12 @@ As a development team, we want automated builds and basic tests on push to main,
 3. Reports and artifacts accessible from CI
 4. Documentation of CI/CD workflow in repo
 
+### Completion Status
+- [x] Completed: GitHub Actions workflow (main.yml) implements build, lint, and unit tests with Vitest.
+- [x] Completed: pnpm caching configured in workflow for faster dependency installs.
+- [x] Completed: Coverage reports uploaded to Codecov; security scans in GitHub Security tab; artifacts in Actions tab.
+- [x] Completed: Workflow documented in .github/workflows/README.md and project README.md.
+
 Points: 3
 
 ## Story 1.6: Secrets Management & Security Baseline
@@ -94,12 +100,12 @@ As a security-conscious team, we want a baseline for secrets management to prote
 ### Completion Status
 - [x] Completed: Environment variables are used for sensitive data (e.g., service URLs, API keys) via config.ts and .env files. Credentials are not hardcoded.
 - [x] Completed: Logging uses console.log without exposing secrets; no sensitive data is logged in current implementation.
-- [x] Partially completed: Basic security checklist created below; CI enforcement pending GitHub Actions setup.
+- [x] Completed: Basic security checklist created below; CI enforcement implemented via Gitleaks in GitHub Actions.
 
 ### Security Checklist
 1. [x] Use .env files for secrets, excluded from git via .gitignore
 2. [x] Validate environment variables at runtime
-3. [ ] Implement secret scanning in CI (e.g., GitHub Secret Scanning)
+3. [x] Implement secret scanning in CI (e.g., GitHub Secret Scanning via Gitleaks)
 4. [x] No secrets in client-side code
 5. [ ] Add helmet.js for security headers (if applicable)
 6. [ ] Rate limiting on API routes

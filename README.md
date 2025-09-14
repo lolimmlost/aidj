@@ -151,9 +151,9 @@ Add new tests in `src/components/__tests__/` or alongside components. Coverage r
 - Story 1.2: User Authentication System — Completed
 - Story 1.3: Service Configuration Interface — Completed
 - Story 1.4: Local Development Environment Setup — Completed
-- Story 1.5: Navidrome Integration & Library UI — Completed
-- Story 1.6: Audio Streaming & Player — In Progress
-- Story 1.7: Dashboard Implementation — Completed
+- Story 1.5: Basic CI/CD Pipeline — Completed
+- Story 1.6: Secrets Management & Security Baseline — Completed
+- Epic 2: Music Library Integration — Completed (Navidrome API, Library UI, Audio Streaming & Player, Dashboard)
 - Story 2.1: AI Recommendations with Ollama — Planned
 
 ## Contributing

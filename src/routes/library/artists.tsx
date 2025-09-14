@@ -21,7 +21,7 @@ export const Route = createFileRoute('/library/artists')({
   component: ArtistsList,
 });
 
-function ArtistsList() {
+export function ArtistsList() {
   const [genre, setGenre] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
 
