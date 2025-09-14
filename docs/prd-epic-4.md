@@ -4,6 +4,8 @@
 
 Implement integration with Lidarr to enable searching for and requesting music downloads, with status monitoring. This epic will deliver the ability to expand the music collection through the application interface.
 
+**Deferral Note**: Full Lidarr integration deferred until post-Epic 3 completion. Initial focus on mock interface for UX validation (Story 4.4).
+
 ## Story 4.1: Lidarr API Integration
 
 As a developer,
@@ -18,6 +20,23 @@ so that the application can search for and request music downloads.
 4. Implement album/artist lookup capabilities with mobile-specific performance optimizations
 5. Handle API responses with proper parsing and service connection timeout specifications (5s for local services)
 6. Implement error handling for API failures using standardized patterns
+
+## Story 4.4: Mock Download Interface Prototype
+
+As a UX designer/developer,
+I want a mock download interface to test UX flows early,
+so that we can validate user interactions before full Lidarr integration.
+
+### Acceptance Criteria
+
+1. Create placeholder search and request UI using static/mock data
+2. Simulate request submission and status updates (pending, in progress, completed)
+3. Implement mock notifications and error states
+4. Test end-to-end UX flows for download management
+5. Document findings and refinements needed for real integration
+6. Ensure mock aligns with final design system (CSS variables, responsive)
+
+Points: 3
 
 ## Story 4.2: Download Request Interface
 

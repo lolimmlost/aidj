@@ -1,0 +1,84 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Lint code
+        run: pnpm lint
+        
+      - name: Build project
+        run: pnpm build
+        
+      - name: Run unit tests with coverage
+        run: pnpm test:coverage
+        
+      - name: Check coverage thresholds
+        run: |
+          COVERAGE=$(grep -oP '(?<=lines\s+)[0-9]+' coverage/lcov-report/index.html || echo 0)
+          if [ "$COVERAGE" -lt 80 ]; then
+            echo "Coverage is $COVERAGE% which is below 80% threshold"
+            exit 1
+          else
+            echo "Coverage is $COVERAGE% - meeting threshold"
+          fi
+        if: always()
+        
+      - name: Upload test coverage
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          fail_ci_if_error: true
+        if: success()
+
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Run npm audit
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+        if: always()
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -51,6 +51,38 @@ We use **npm** by default.
 
 The development server should now be running at [http://localhost:3000](http://localhost:3000).
 
+## CI/CD Pipeline
+
+This project includes automated CI/CD workflows using GitHub Actions that run on every push to `main` and pull requests. The pipeline ensures code quality through:
+
+### What the Pipeline Does
+- **Linting**: Runs ESLint to enforce code standards
+- **Building**: Compiles the project with Vite
+- **Testing**: Executes unit tests with Vitest, requiring >80% code coverage
+- **Security Scanning**: Uses Trivy for vulnerability detection and Gitleaks for secret scanning
+- **Coverage Reporting**: Uploads results to Codecov for detailed analysis
+
+### Viewing Pipeline Results
+- **Actions Tab**: View build and test results in the GitHub "Actions" tab
+- **Security Tab**: Review vulnerability and secret scan alerts
+- **Coverage**: Access detailed reports at [codecov.io](https://codecov.io) (requires `CODECOV_TOKEN` secret setup)
+
+### Required Repository Secrets
+For full CI/CD functionality, add these secrets in GitHub Settings > Secrets and variables > Actions:
+- `CODECOV_TOKEN`: For coverage report uploads (get from Codecov dashboard)
+
+### Local Workflow Replication
+Run these commands locally to match the CI environment:
+```bash
+pnpm install
+pnpm lint
+pnpm test:coverage  # Requires >80% coverage
+pnpm build
+pnpm check-types
+```
+
+For detailed workflow configuration, see [.github/workflows/README.md](.github/workflows/README.md).
+
 ## Configuration
 
 Before running the application, you'll need to configure the following services in your `.env` file:
@@ -92,6 +124,26 @@ src/
 ## License
 
 Code in this template is public domain via [Unlicense](./LICENSE).
+
+## Development Workflow
+
+### Pre-commit Checks
+The project uses ESLint and Prettier for consistent code style. Consider using a pre-commit hook or run these before pushing:
+```bash
+pnpm lint:fix
+pnpm format
+pnpm test
+```
+
+### Testing
+Unit tests are written with Vitest and React Testing Library. Run tests with:
+```bash
+pnpm test          # Run tests in watch mode
+pnpm test:coverage # Run with coverage reporting
+pnpm test:ui       # Run with Vitest UI
+```
+
+Add new tests in `src/components/__tests__/` or alongside components. Coverage reports are generated in the `coverage/` directory.
 
 ## Backlog Progress
 

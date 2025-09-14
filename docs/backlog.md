@@ -63,10 +63,11 @@ Points: 3
 As a development team, we want automated builds and basic tests on push to main, so that quality gates are enforced.
 
 ### Acceptance Criteria
-1. Basic CI workflow (build, lint, unit tests)
-2. Cache dependencies to speed up builds
-3. Reports and artifacts accessible from CI
-4. Documentation of CI/CD workflow in repo
+1. Set up GitHub Actions workflow for build, lint, and unit tests on push/PR to main
+2. Cache pnpm dependencies to speed up builds
+3. Generate reports and artifacts (e.g., coverage reports) accessible from CI
+4. Document CI/CD workflow in .github/workflows/README.md and update main README.md
+5. Include secret scanning and security checks (e.g., for Story 1.6 checklist items 3,5,6)
 
 Points: 3
 
@@ -92,6 +93,20 @@ As a security-conscious team, we want a baseline for secrets management to prote
 6. [ ] Rate limiting on API routes
 
 Points: 3
+
+## Story 1.7: Testing Framework Integration
+As a development team,
+I want comprehensive testing setup for unit, integration, and E2E tests,
+so that we can ensure reliability across auth, API, and UI flows.
+
+### Acceptance Criteria
+1. Add Vitest/Jest for unit and integration tests with setup in package.json and vitest.config.ts
+2. Create tests for auth flows (login/register), Navidrome API calls, and library browsing/playback
+3. Integrate E2E tests using Playwright or Cypress for key user journeys (e.g., config → library → play)
+4. Run tests in CI/CD pipeline (Story 1.5) with coverage thresholds (>80%)
+5. Update docs/testing-framework-integration.md with setup instructions and best practices
+
+Points: 5
 
 Epic 2: Music Library Integration
 
@@ -295,6 +310,8 @@ Points: 3
 
 Epic 5: Unified User Experience
 
+**Mobile-First Prioritization**: Focus on Story 5.1 first to ensure core responsive design before polish (5.2-5.6).
+
 ## Story 5.1: Responsive Design Implementation
 As a user,
 I want to use the application on both desktop and mobile devices,
@@ -373,6 +390,20 @@ I want to personalize the dashboard layout (which widgets appear, their order, a
 3. Restore defaults and shareable layouts
 
 Points: 2
+
+## Story 5.7: Privacy-Compliant Analytics
+As a product team,
+I want basic usage analytics across epics (e.g., feature adoption, error rates),
+so that we can inform iterations while respecting user privacy.
+
+### Acceptance Criteria
+1. Implement local-only analytics (no external services) using localStorage or DB for opt-in metrics
+2. Track non-PII events: e.g., login success, library searches, recommendation interactions
+3. Provide opt-in toggle in user settings (Story 5.3) with clear privacy policy
+4. Aggregate data in dashboard view for team review (no individual tracking)
+5. Ensure compliance with local processing; document in architecture.md
+
+Points: 3
 
 References:
 - docs/prd-epic-1.md
