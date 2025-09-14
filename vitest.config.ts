@@ -9,7 +9,7 @@ export default defineConfig({
     css: true,
     coverage: {
       enabled: true,
-      provider: 'v8',
+      provider: 'istanbul',
       reporter: ['text', 'json', 'lcov'],
       reportsDirectory: './coverage',
       include: ['src/**/*.{ts,tsx}'],
