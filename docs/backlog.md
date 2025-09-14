@@ -295,6 +295,35 @@ I want to monitor the status of my download requests, so that I know when new mu
 
 Points: 3
 
+## Story 4.4: Mock Download Interface Prototype
+As a UX designer/developer,
+I want a mock download interface to test UX flows early,
+so that we can validate user interactions before full Lidarr integration.
+
+### Acceptance Criteria
+- [x] 1. Create placeholder search and request UI using static/mock data
+- [x] 2. Simulate request submission and status updates (pending, in progress, completed)
+- [x] 3. Implement mock notifications and error states
+- [x] 4. Test end-to-end UX flows for download management
+- [x] 5. Document findings and refinements needed for real integration
+- [x] 6. Ensure mock aligns with final design system (CSS variables, responsive)
+
+### Completion Status
+- [x] Completed: Mock UI implemented in src/routes/downloads/index.tsx with static data simulation.
+
+Points: 3
+
+## Story 4.5: Download Notifications
+As a user,
+I want to receive timely notifications about download events.
+
+### Acceptance Criteria
+1. In-app and optional push/email notifications for status changes
+2. Configurable notification preferences
+3. Notification history with timestamps
+
+Points: 3
+
 ## Story 4.4: Download Notifications
 As a user,
 I want to receive timely notifications about download events.

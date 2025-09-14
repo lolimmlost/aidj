@@ -39,3 +39,8 @@ Unit + Integration testing - Comprehensive unit tests for all components with in
 - Service connection timeout specifications (5s for local services)
 - Theme implementation using CSS variables for color scheme and typography
 - Mobile-specific performance optimizations including lazy loading and caching
+
+## Change Log Update
+| Date | Version | Description | Author |
+|------|---------|-------------|--------|
+| 2025-09-14 | 1.2 | Updated database from SQLite to PostgreSQL for Better Auth compatibility and scalability | Product Manager |
