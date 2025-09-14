@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { Button } from './button';
 import { Volume2, VolumeX, SkipBack, SkipForward, Play, Pause } from 'lucide-react';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -31,7 +31,7 @@ export function AudioPlayer() {
   } = useAudioStore();
   const currentSong = playlist[currentSongIndex];
 
-  const loadSong = (song: Song) => {
+  const loadSong = useCallback((song: Song) => {
     const audio = audioRef.current;
     if (audio) {
       audio.src = song.url; // Proxied stream URL from service
@@ -40,7 +40,7 @@ export function AudioPlayer() {
       setCurrentTime(0);
       setDuration(0);
     }
-  };
+  }, [setIsPlaying, setCurrentTime, setDuration]);
 
   const togglePlayPause = () => {
     const audio = audioRef.current;
