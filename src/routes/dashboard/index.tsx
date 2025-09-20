@@ -86,11 +86,11 @@ function DashboardIndex() {
         console.log('Queued song:', realSong); // Debug log
       } else {
         // Fallback: not in library, suggest Lidarr
-        handleLidarrStub(song);
+        handleAddToLidarr(song);
       }
     } catch (error) {
       console.error('Search failed for queue:', error);
-      handleLidarrStub(song);
+      handleAddToLidarr(song);
     }
   };
 
@@ -139,8 +139,22 @@ function DashboardIndex() {
     }
   };
 
-  const handleLidarrStub = (song: string) => {
-    alert(`Queued "${song}" for download via Lidarr (stub - no actual call)`);
+  const handleAddToLidarr = async (song: string) => {
+    try {
+      const response = await fetch('/api/lidarr/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ song }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert(data.message);
+      } else {
+        alert(`Error: ${data.error}`);
+      }
+    } catch (error) {
+      alert('Failed to add to Lidarr. Please check configuration.');
+    }
   };
 
   const clearPlaylistCache = () => {
@@ -267,7 +281,7 @@ function DashboardIndex() {
                               Queue
                             </Button>
                           ) : (
-                            <Button variant="destructive" size="sm" onClick={() => handleLidarrStub(item.song)}>
+                            <Button variant="destructive" size="sm" onClick={() => handleAddToLidarr(item.song)}>
                               Add to Lidarr
                             </Button>
                           )}

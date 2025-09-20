@@ -1,11 +1,11 @@
 import { createServerFileRoute } from '@tanstack/react-start/server';
 import { generatePlaylist } from '../../lib/services/ollama';
 import { getLibrarySummary, search, type Song } from '../../lib/services/navidrome';
-import { auth } from '../../lib/auth/auth';
 
 export const ServerRoute = createServerFileRoute('/api/playlist').methods({
   POST: async ({ request }) => {
     // Auth check (protected route)
+    const { auth } = await import('../../lib/auth/server');
     const session = await auth.api.getSession({
       headers: request.headers,
       query: {
@@ -30,6 +30,7 @@ export const ServerRoute = createServerFileRoute('/api/playlist').methods({
       }
 
       const summary = await getLibrarySummary();
+      console.log('Library summary for playlist:', summary); // Debug: Log summary
       const { playlist: suggestions } = await generatePlaylist({ style, summary });
       console.log('Generated playlist suggestions:', suggestions); // Debug: Log raw suggestions from Ollama
       

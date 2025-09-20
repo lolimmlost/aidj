@@ -146,11 +146,11 @@ interface PlaylistResponse {
 
 export async function generatePlaylist({ style, summary }: PlaylistRequest): Promise<PlaylistResponse> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout per AC8
 
-  const topArtists = summary.artists.slice(0, 5).map((a: { name: string; genres: string }) => `${a.name} (${a.genres})`).join(', ');
-  const topSongs = summary.songs.slice(0, 5).join(', '); // Limit to top 5 for concise prompt
-  const prompt = `Respond with ONLY valid JSON - no other text! My library includes artists like: [${topArtists}]. Example songs: [${topSongs}]. Create exactly 10-song playlist for style "${style}" using ONLY exact matches from my library. Format: {"playlist": [{"song": "Exact Artist - Exact Title", "explanation": "brief reason (1 sentence) why it fits ${style}"} ... ]}. Ensure all songs are real from my library.`;
+  const topArtists = summary.artists.slice(0, 20).map((a: { name: string; genres: string }) => `${a.name} (${a.genres || 'Unknown'})`).join('; ');
+  const topSongs = summary.songs.slice(0, 20).join('; '); // More examples for better matching
+  const prompt = `Respond with ONLY valid JSON - no other text or explanations! STRICTLY use ONLY songs from my library. My library artists: [${topArtists}]. Example songs: [${topSongs}]. Generate exactly 10 songs for style "${style}" as "Artist - Title" format, where Artist and Title are EXACT matches from my library. If no exact match, do not suggest it - use only available. Format: {"playlist": [{"song": "Exact Artist - Exact Title", "explanation": "1 sentence why it fits ${style} from library"}]} . Double-check all suggestions are from the provided library list.`;
 
   const url = `${OLLAMA_BASE_URL}/api/generate`;
   const body = {

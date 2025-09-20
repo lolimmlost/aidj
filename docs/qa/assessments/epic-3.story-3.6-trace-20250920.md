@@ -4,10 +4,10 @@
 
 ### Coverage Summary
 
-- Total Requirements: 8
+- Total Requirements: 9
 - Fully Covered: 0 (0%)
-- Partially Covered: 0 (0%)
-- Not Covered: 8 (100%)
+- Partially Covered: 2 (22%)
+- Not Covered: 7 (78%)
 
 ### Requirement Mappings
 
@@ -17,47 +17,40 @@
 
 Given-When-Then Mappings:
 
-- **Planned Unit Test**: `dashboard/components/playlist-input.test.tsx::rendersInputField`
-  - Given: Dashboard recommendations section loaded
-  - When: Component mounts
-  - Then: Text input field is visible with placeholder examples
-
-- **Planned E2E Test**: `e2e/playlist-generation.spec.ts::userEntersStyle`
-  - Given: Authenticated user on dashboard
-  - When: Types style in input and clicks generate
-  - Then: Input value is captured and API called with style param
+- **Planned E2E Test**: `tests/e2e/playlist-generation.spec.ts::user inputs style`
+  - Given: User on dashboard with empty recommendations section
+  - When: User types style/theme in input field and clicks generate
+  - Then: Input value is captured and used in API request
 
 #### AC2: Fetch library summary (top 20 artists with genres, top 10 songs) via Navidrome service for prompt context
 
-**Coverage: NONE**
+**Coverage: PARTIAL**
 
 Given-When-Then Mappings:
 
-- **Planned Unit Test**: `services/navidrome.test.ts::getLibrarySummary`
-  - Given: Valid Navidrome config and auth token
-  - When: getLibrarySummary() called
-  - Then: Returns object with top 20 artists (incl. genres) and top 10 songs
+- **Existing Unit Test**: `src/lib/services/__tests__/navidrome.test.ts::fetchLibrarySummary`
+  - Given: Mock Navidrome client with sample library data
+  - When: `fetchLibrarySummary()` is called
+  - Then: Returns top 20 artists with genres and top 10 songs as structured data
+- **Planned E2E Test**: `tests/e2e/playlist-generation.spec.ts::full flow from style input`
+  - Given: Authenticated user with Navidrome library
+  - When: Generate playlist triggered
+  - Then: Library summary fetched and included in Ollama prompt
 
-- **Planned Integration Test**: `api/playlist.integration.test.ts::fetchesSummaryInEndpoint`
-  - Given: Authenticated request to /api/recommendations/playlist
-  - When: Endpoint processes style param
-  - Then: Navidrome API called for artists/songs, summary returned without errors
+#### AC3: Generate playlist using Ollama: prompt includes library summary and style, returns 10 suggestions as JSON {"playlist": [{"song": "Artist - Title", "explanation": "why it fits"}]}
 
-#### AC3: Generate playlist using Ollama: prompt includes library summary and style, returns 10 suggestions as JSON
-
-**Coverage: NONE**
+**Coverage: PARTIAL**
 
 Given-When-Then Mappings:
 
-- **Planned Unit Test**: `services/ollama.test.ts::generateStylePlaylist`
-  - Given: Library summary and style string
-  - When: generateStylePlaylist() called with prompt
-  - Then: Ollama API POSTed with correct prompt, parses JSON response with 10 playlist items
-
-- **Planned Integration Test**: `api/playlist.integration.test.ts::ollamaGeneration`
-  - Given: Mock Ollama response with valid JSON
-  - When: Endpoint builds and sends prompt
-  - Then: Returns playlist array with song/explanation for each
+- **Existing Unit Test**: `src/lib/services/__tests__/ollama.test.ts::generatePlaylistPrompt`
+  - Given: Library summary and user style input
+  - When: Prompt construction and Ollama API call
+  - Then: Valid JSON response with 10 playlist items parsed correctly
+- **Planned Unit Test**: `src/lib/services/__tests__/ollama.test.ts::JSON parsing for playlist suggestions`
+  - Given: Ollama response JSON
+  - When: Parse and validate playlist array
+  - Then: Returns array of {song, explanation} objects
 
 #### AC4: For each suggestion, search Navidrome to resolve actual Song objects (ID, URL) from library
 
@@ -65,15 +58,10 @@ Given-When-Then Mappings:
 
 Given-When-Then Mappings:
 
-- **Planned Unit Test**: `services/navidrome.test.ts::resolvePlaylistSongs`
-  - Given: Array of song suggestions (Artist - Title)
-  - When: resolvePlaylistSongs() called
-  - Then: For each, searches Navidrome and returns Song[] with ID, URL, etc., or fallback if not found
-
-- **Planned Integration Test**: `api/playlist.integration.test.ts::songResolution`
-  - Given: Ollama suggestions from AC3
-  - When: Endpoint resolves via search
-  - Then: All suggestions mapped to valid Song objects from library
+- **Planned Unit Test**: `src/lib/services/__tests__/navidrome.test.ts::song resolution from suggestions`
+  - Given: Playlist suggestions and Navidrome client
+  - When: Search for each song title/artist
+  - Then: Returns matching Song objects with ID and URL, or null for misses
 
 #### AC5: Display generated playlist in dashboard with explanations, feedback (thumbs up/down, encrypted localStorage), and add-to-queue buttons
 
@@ -81,15 +69,10 @@ Given-When-Then Mappings:
 
 Given-When-Then Mappings:
 
-- **Planned Unit Test**: `dashboard/components/playlist-display.test.tsx::rendersPlaylist`
-  - Given: Playlist data from API
-  - When: Component receives props
-  - Then: Displays 10 items with song, explanation, thumbs buttons, queue button
-
-- **Planned E2E Test**: `e2e/playlist-display.spec.ts::viewsGeneratedPlaylist`
-  - Given: Successful playlist generation
-  - When: Dashboard updates with results
-  - Then: List visible, feedback buttons functional (localStorage updated encrypted), queue adds to audio store
+- **Planned E2E Test**: `tests/e2e/playlist-generation.spec.ts::views display`
+  - Given: Generated playlist data
+  - When: Playlist rendered in dashboard
+  - Then: Shows song list, explanations, thumbs up/down buttons, add-to-queue options; feedback stored encrypted in localStorage
 
 #### AC6: Implement caching for generated playlists (localStorage, with privacy toggle to clear cache)
 
@@ -97,15 +80,10 @@ Given-When-Then Mappings:
 
 Given-When-Then Mappings:
 
-- **Planned Unit Test**: `utils/playlist-cache.test.ts::cacheAndRetrieve`
-  - Given: Generated playlist for style
-  - When: cachePlaylist(style, data) called
-  - Then: Stored in localStorage by style hash, retrievePlaylist(style) returns data
-
-- **Planned Unit Test**: `dashboard/components/privacy-toggle.test.tsx::clearCache`
-  - Given: Cached playlists exist
-  - When: Privacy toggle clicked
-  - Then: localStorage cleared for playlist keys
+- **Planned E2E Test**: `tests/e2e/playlist-generation.spec.ts::cache load if exists`
+  - Given: Previously generated playlist in localStorage
+  - When: User requests same style
+  - Then: Loads from cache without regenerating; privacy toggle clears cache
 
 #### AC7: Integrate with audio store: add entire playlist or individual songs to queue/play
 
@@ -113,15 +91,10 @@ Given-When-Then Mappings:
 
 Given-When-Then Mappings:
 
-- **Planned Unit Test**: `stores/audio.test.ts::addPlaylistToQueue`
-  - Given: Playlist Song[] from AC4
-  - When: addPlaylistToQueue(playlist) or playSong(single)
-  - Then: Audio store playlist updated, currentIndex set, isPlaying true
-
-- **Planned Integration Test**: `dashboard/playlist.integration.test.ts::queueIntegration`
-  - Given: Displayed playlist
-  - When: User clicks add-to-queue (single or all)
-  - Then: Audio store state changes, audio player reflects new queue
+- **Planned E2E Test**: `tests/e2e/playlist-generation.spec.ts::adds to queue`
+  - Given: Generated playlist displayed
+  - When: User clicks add-to-queue for playlist or song
+  - Then: Songs added to audio store queue and playback starts if selected
 
 #### AC8: Handle errors: fallback if no matching songs, timeout (5s), retry on Ollama failure
 
@@ -129,49 +102,59 @@ Given-When-Then Mappings:
 
 Given-When-Then Mappings:
 
-- **Planned Unit Test**: `services/ollama.test.ts::errorHandling`
-  - Given: Ollama timeout or failure
-  - When: generateStylePlaylist() called
-  - Then: Retries (up to 3), aborts after 5s, throws OllamaError
+- **Planned E2E Test**: `tests/e2e/playlist-errors.spec.ts::error scenarios`
+  - Given: Ollama timeout or Navidrome search failure
+  - When: Generate playlist attempted
+  - Then: Shows fallback UI (e.g., "No matches, try different style"), retries Ollama up to 3 times, handles 5s timeout
 
-- **Planned Unit Test**: `services/navidrome.test.ts::resolutionFallback`
-  - Given: Suggestion not found in library
-  - When: resolvePlaylistSongs() called
-  - Then: Adds fallback message, continues with partial playlist
+#### AC9: If suggested song not in library, add to Lidarr download queue with user confirmation
 
-- **Planned E2E Test**: `e2e/playlist-errors.spec.ts::errorScenarios`
-  - Given: Navidrome down or no matches
-  - When: Generate playlist
-  - Then: User sees error message/fallback UI, no crash
+**Coverage: NONE**
+
+Given-When-Then Mappings:
+
+- **Planned Unit Test**: `src/lib/services/__tests__/lidarr.test.ts::add request for missing songs` (file to create)
+  - Given: Missing song suggestion and Lidarr client
+  - When: User confirms add
+  - Then: Sends download request to Lidarr queue
+- **Planned E2E Test**: `tests/e2e/playlist-lidarr.spec.ts::handles missing song`
+  - Given: Suggestion not in library
+  - When: User confirms Lidarr add
+  - Then: Prompts confirmation dialog, queues in Lidarr on yes
 
 ### Critical Gaps
 
-1. **All Requirements**
-   - Gap: No tests implemented as feature is pre-implementation (documentation only)
-   - Risk: High - Without tests, quality cannot be assured post-implementation
-   - Action: Implement unit/integration/E2E tests as planned above after dev completes feature
+1. **Caching Privacy Toggle**
+   - Gap: No test for privacy toggle clearing cache or encrypted storage validation
+   - Risk: Medium - Privacy feature unverified, potential data leak
+   - Action: Add unit test for localStorage encryption/decryption and E2E for toggle functionality
 
-2. **Error Handling (AC8)**
-   - Gap: Specific retry/timeout not tested
-   - Risk: Medium - Could lead to poor UX on failures
-   - Action: Add mocks for Ollama/Navidrome failures in integration tests
+2. **Mobile Responsiveness and UI Edge Cases**
+   - Gap: No tests for responsive display on mobile or empty playlist handling
+   - Risk: Low - UI may break on devices, but core flow intact
+   - Action: Extend E2E tests with viewport emulation for mobile
 
-3. **Caching Privacy (AC6)**
-   - Gap: localStorage security/privacy not validated
-   - Risk: Low - But ensure encryption tested
-   - Action: Unit test encryption/decryption cycles
+3. **Non-Functional Requirements (Inferred)**
+   - Gap: No performance test for 5s timeout enforcement; no security test for encrypted feedback
+   - Risk: Medium - Could exceed SLAs or expose data
+   - Action: Add integration test for timeout mocking and unit test for encryption
+
+4. **Retry Logic on Ollama Failure**
+   - Gap: Planned but no explicit test for retry count and backoff
+   - Risk: Medium - Infinite retries or no fallback on persistent failure
+   - Action: Unit test retry mechanism with mocked failures
 
 ### Test Design Recommendations
 
-1. **Additional Test Scenarios**: Cover edge cases like empty library, invalid styles, large libraries (performance).
-2. **Test Types**: Unit for services/stores, Integration for API/endpoint, E2E for UI flow, Performance for fetch timeouts.
-3. **Test Data**: Mock Navidrome responses with sample library, Ollama JSON outputs.
-4. **Mock/Stub Strategies**: Stub Ollama/Navidrome APIs, mock localStorage for caching tests.
+Based on gaps identified, recommend:
+
+1. Additional test scenarios: Privacy toggle, mobile UI, empty library handling
+2. Test types to implement: Unit for Lidarr (create file), integration for audio store integration, performance for timeout
+3. Test data requirements: Mock Navidrome libraries with/without matches, Ollama mock responses (success/fail/timeout)
+4. Mock/stub strategies: Mock Ollama API for prompt/response, stub Navidrome/Lidarr for isolation
 
 ### Risk Assessment
 
-- **High Risk**: AC2, AC3, AC4 (external service dependencies - Navidrome/Ollama availability)
-- **Medium Risk**: AC5, AC7 (UI/store integration - potential state inconsistencies)
-- **Low Risk**: AC1, AC6 (local UI/storage - simpler to test)
-
-Planning Reference: docs/qa/assessments/epic-3.story-3.6-test-design-20250920.md (to be created post-implementation)
+- **High Risk**: Requirements with no coverage (ACs 1,4-9) - Core feature untested pre-implementation
+- **Medium Risk**: Partial coverage on summary fetch and generation (ACs 2,3) - Existing units cover basics but not full integration
+- **Low Risk**: N/A - All critical paths need tests

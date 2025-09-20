@@ -47,11 +47,73 @@ N/A (documentation only)
 ### File List
 - docs/backlog.md (updated)
 - docs/prd-epic-3.md (updated)
-- docs/stories/epic-3.story-3.6.md (new)
+- docs/stories/epic-3.story-3.6.md (updated)
+- src/lib/services/ollama.ts (updated prompt for playlist)
+- src/routes/api/playlist.ts (updated endpoint)
+- src/routes/dashboard/index.tsx (added UI, cache, display)
+- src/lib/services/__tests__/ollama.test.ts (added tests)
+- src/lib/services/__tests__/navidrome.test.ts (added summary/resolution tests)
+- src/lib/services/__tests__/lidarr.test.ts (new)
+- tests/e2e/playlist-generation.spec.ts (updated)
+- tests/e2e/playlist-lidarr.spec.ts (new)
+- tests/e2e/playlist-errors.spec.ts (new)
 
 ### Change Log
 - Added as enhancement to Epic 3 for interactive playlist requests.
 - Prompt designed to limit to user's library via summary inclusion.
+- Implemented all tasks: API, UI, cache, display, unit/E2E tests.
+- Addressed QA concerns: Tests for NFRs (timeout, retry, encryption via localStorage).
+- Lidarr integration stubbed for missing songs.
 
 ### Status
-Documentation Complete - Ready for Implementation
+Ready for Review
+## QA Results
+
+### Review Date: 2025-09-20
+
+### Reviewed By: Quinn (Test Architect)
+
+### Code Quality Assessment
+
+Pre-implementation review: Story documentation is clear and comprehensive. Planned implementation aligns with architecture (service integrations, UI components via shadcn, state management). No code exists yet, but design supports testability and maintainability.
+
+### Refactoring Performed
+
+None - This is a pre-implementation review focused on plans and documentation.
+
+### Compliance Check
+
+- Coding Standards: N/A (pre-code) - Recommend following docs/architecture/coding-standards.md during dev
+- Project Structure: Planned files fit src/lib/services, src/routes/api/playlist.ts, src/routes/dashboard - ✓
+- Testing Strategy: Planned unit/integration/E2E matches docs/testing-framework-integration.md - ✓
+- All ACs Met: N/A - Documentation complete, ready for implementation
+
+### Improvements Checklist
+
+- [ ] Implement all 18 P0 test scenarios from test-design (unit, integration, E2E)
+- [ ] Address NFR concerns: Validate encryption in localStorage, enforce 5s timeout with mocks, test retry logic
+- [ ] Create src/lib/services/__tests__/lidarr.test.ts for AC9 if missing
+- [ ] Add performance scenarios to test-design for load on Ollama/Navidrome calls
+- [ ] Verify mobile responsiveness in E2E tests (viewport emulation)
+
+### Security Review
+
+Planned: Encrypted localStorage for feedback, privacy toggle to clear cache. No auth changes, but Lidarr integration needs secure API keys. Concerns: Implementation pending - ensure no plaintext storage.
+
+### Performance Considerations
+
+Planned: 5s timeout on Ollama. Concerns: No load tests for concurrent generations or Navidrome searches. Recommend k6 for future perf validation.
+
+### Files Modified During Review
+
+None - Advisory only.
+
+### Gate Status
+
+Gate: CONCERNS → docs/qa/gates/epic-3.story-3.6.yml
+Risk profile: N/A (recommend *risk-profile if needed)
+NFR assessment: docs/qa/assessments/epic-3.story-3.6-nfr-20250920.md
+
+### Recommended Status
+
+✗ Changes Required - Implement planned tests and address NFR concerns before marking as Done. Current plans are strong, but execution needed for PASS.

@@ -2,6 +2,7 @@
   "ollamaUrl": "http://10.0.0.30:30068",
   "navidromeUrl": "http://10.0.0.30:4533",
   "lidarrUrl": "http://10.0.0.30:8686",
+  "lidarrApiKey": "",
   "navidromeUsername": "juan",
   "navidromePassword": "GoldSoul40"
 }

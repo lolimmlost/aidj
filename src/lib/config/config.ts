@@ -4,11 +4,12 @@ interface ServiceConfig {
   ollamaUrl: string;
   navidromeUrl: string;
   lidarrUrl: string;
+  lidarrApiKey: string;
   navidromeUsername: string;
   navidromePassword: string;
 }
 
-let currentConfig: ServiceConfig = { ...defaults };
+let currentConfig: ServiceConfig = { ...defaults, lidarrApiKey: '' };
 
 if (typeof window !== 'undefined') {
   // Client side
@@ -39,7 +40,7 @@ export function setConfig(cfg: Partial<ServiceConfig>): void {
 }
 
 export function resetConfig(): void {
-  currentConfig = { ...defaults };
+  currentConfig = { ...defaults, lidarrApiKey: '' };
   if (typeof window !== 'undefined') {
     localStorage.removeItem('serviceConfig');
   }
