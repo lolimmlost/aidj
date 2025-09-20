@@ -55,3 +55,17 @@ export const verification = pgTable("verification", {
   createdAt: timestamp("created_at").$defaultFn(() => /* @__PURE__ */ new Date()),
   updatedAt: timestamp("updated_at").$defaultFn(() => /* @__PURE__ */ new Date()),
 });
+
+import { serial, jsonb } from "drizzle-orm/pg-core";
+
+export const recommendationsCache = pgTable("recommendations_cache", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  promptHash: text("prompt_hash").notNull(),
+  recommendations: jsonb("recommendations").notNull(),
+  explanation: text("explanation").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+
+export type RecommendationsCache = typeof recommendationsCache.$inferSelect;

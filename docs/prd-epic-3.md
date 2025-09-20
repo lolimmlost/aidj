@@ -21,6 +21,20 @@ so that the application can generate music recommendations.
 5. Add retry mechanisms with exponential backoff for failed API calls
 6. Implement caching for recommendations using Drizzle ORM with SQLite
 
+### Tasks
+
+- [ ] Implement unit test for parsing successful API responses (AC3)
+- [ ] Implement unit test for handling malformed API responses with standardized error patterns (AC3)
+- [ ] Implement unit test for retry mechanism with exponential backoff on failed API calls (AC5)
+- [ ] Implement unit test for successful retry after initial failure (AC5)
+
+- [ ] Implement integration test for valid API call to Ollama via route (AC1)
+- [ ] Implement integration test for end-to-end recommendation request via API (AC1)
+- [ ] Implement integration test for timeout on unavailable Ollama service (5s) (AC4)
+- [ ] Implement integration test for graceful error handling on model load failure (AC4)
+
+- [ ] Implement E2E test for end-to-end recommendation request via API route (AC1)
+
 ## Story 3.2: Recommendation Display and Interaction
 
 As a user,
