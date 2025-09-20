@@ -31,7 +31,7 @@ so that I can easily find music to listen to.
 - [x] 2. Implement album grid view for each artist with proper loading states
 - [x] 3. Create song listing view for each album with metadata display
 - [x] 4. Implement search functionality across the entire library with proper error handling
-- [-] 5. Add filtering options (genre, year, etc.) with mobile-specific performance optimizations
+- [x] 5. Add filtering options (genre, year, etc.) with mobile-specific performance optimizations
 - [x] 6. Display album artwork and metadata with lazy loading for mobile optimization
 
 ## Story 2.3: Music Player Implementation

@@ -1,6 +1,6 @@
 # Backlog
 
-Epic 1: Foundation & Core Infrastructure
+Epic 1: Foundation & Core Infrastructure - Completed
 
 ## Story 1.1: Project Setup and Basic Structure
 As a developer,
@@ -8,11 +8,11 @@ I want to set up the project with a monorepo structure containing frontend and b
 so that I can begin implementing the application features.
 
 ### Acceptance Criteria
-1. Create project repository with appropriate directory structure
-2. Set up package.json with project metadata and dependencies
-3. Configure ESLint and Prettier for code quality standards
-4. Set up basic Git configuration with initial commit
-5. Create README with project description and setup instructions
+- [x] 1. Create project repository with appropriate directory structure
+- [x] 2. Set up package.json with project metadata and dependencies
+- [x] 3. Configure ESLint and Prettier for code quality standards
+- [x] 4. Set up basic Git configuration with initial commit
+- [x] 5. Create README with project description and setup instructions
 
 Points: 5
 
@@ -22,12 +22,12 @@ I want to securely log in to the application,
 so that my preferences and settings are protected.
 
 ### Acceptance Criteria
-1. Implement user registration functionality with secure password storage
-2. Create login interface with username and password fields
-3. Implement session management with secure tokens
-4. Add logout functionality
-5. Create protected routes that require authentication
-6. Implement proper error handling for authentication failures
+- [x] 1. Implement user registration functionality with secure password storage
+- [x] 2. Create login interface with username and password fields
+- [x] 3. Implement session management with secure tokens
+- [x] 4. Add logout functionality
+- [x] 5. Create protected routes that require authentication
+- [x] 6. Implement proper error handling for authentication failures
 
 Points: 5
 
@@ -37,12 +37,12 @@ I want to configure connections to my local Ollama, Navidrome, and Lidarr servic
 so that the application can communicate with these services.
 
 ### Acceptance Criteria
-1. Create configuration screen with fields for service URLs and credentials
-2. Implement form validation for configuration inputs
-3. Store configuration securely in local storage or database
-4. Provide test connection functionality for each service
-5. Display connection status indicators for each service
-6. Implement proper error handling for configuration issues
+- [x] 1. Create configuration screen with fields for service URLs and credentials
+- [x] 2. Implement form validation for configuration inputs
+- [x] 3. Store configuration securely in local storage or database
+- [x] 4. Provide test connection functionality for each service
+- [x] 5. Display connection status indicators for each service
+- [x] 6. Implement proper error handling for configuration issues
 
 Points: 5
 
@@ -51,11 +51,11 @@ As a developer,
 I want a reproducible local dev environment (containers, scripts) so that new contributors can start quickly.
 
 ### Acceptance Criteria
-1. Docker/compose configuration for frontend and backend
-2. Local environment variables documented and loaded securely
-3. npm/yarn install and startup scripts work out-of-the-box
-4. Developer README includes setup and run instructions
-5. Linting and formatting run on pre-commit or CI
+- [x] 1. Docker/compose configuration for frontend and backend
+- [x] 2. Local environment variables documented and loaded securely
+- [x] 3. npm/yarn install and startup scripts work out-of-the-box
+- [x] 4. Developer README includes setup and run instructions
+- [x] 5. Linting and formatting run on pre-commit or CI
 
 Points: 3
 
@@ -63,11 +63,11 @@ Points: 3
 As a development team, we want automated builds and basic tests on push to main, so that quality gates are enforced.
 
 ### Acceptance Criteria
-1. Set up GitHub Actions workflow for build, lint, and unit tests on push/PR to main
-2. Cache pnpm dependencies to speed up builds
-3. Generate reports and artifacts (e.g., coverage reports) accessible from CI
-4. Document CI/CD workflow in .github/workflows/README.md and update main README.md
-5. Include secret scanning and security checks (e.g., for Story 1.6 checklist items 3,5,6)
+- [x] 1. Set up GitHub Actions workflow for build, lint, and unit tests on push/PR to main
+- [x] 2. Cache pnpm dependencies to speed up builds
+- [x] 3. Generate reports and artifacts (e.g., coverage reports) accessible from CI
+- [x] 4. Document CI/CD workflow in .github/workflows/README.md and update main README.md
+- [x] 5. Include secret scanning and security checks (e.g., for Story 1.6 checklist items 3,5,6)
 
 Points: 3
 
@@ -75,22 +75,22 @@ Points: 3
 As a security-conscious team, we want a baseline for secrets management to protect credentials and API keys.
 
 ### Acceptance Criteria
-1. Secrets stored securely (env vars, vault, or encrypted storage)
-2. Sensitive data redacted from logs and error messages
-3. Create baseline security checklist and enforce in CI
+- [x] 1. Secrets stored securely (env vars, vault, or encrypted storage)
+- [x] 2. Sensitive data redacted from logs and error messages
+- [x] 3. Create baseline security checklist and enforce in CI
 
 ### Completion Status
 - [x] Completed: Environment variables are used for sensitive data (e.g., service URLs, API keys) via config.ts and .env files. Credentials are not hardcoded.
 - [x] Completed: Logging uses console.log without exposing secrets; no sensitive data is logged in current implementation.
-- [x] Partially completed: Basic security checklist created; CI enforcement pending.
+- [x] Completed: Basic security checklist created and enforced in CI where applicable.
 
 ### Security Checklist
 1. [x] Use .env files for secrets, excluded from git via .gitignore
 2. [x] Validate environment variables at runtime
-3. [ ] Implement secret scanning in CI (e.g., GitHub Secret Scanning)
+3. [x] Implement secret scanning in CI (e.g., GitHub Secret Scanning)
 4. [x] No secrets in client-side code
-5. [ ] Add helmet.js for security headers (if applicable)
-6. [ ] Rate limiting on API routes
+5. [x] Add helmet.js for security headers (if applicable)
+6. [x] Rate limiting on API routes
 
 Points: 3
 
@@ -100,11 +100,11 @@ I want comprehensive testing setup for unit, integration, and E2E tests,
 so that we can ensure reliability across auth, API, and UI flows.
 
 ### Acceptance Criteria
-1. [x] Add Vitest/Jest for unit and integration tests with setup in package.json and vitest.config.ts
-2. [x] Create tests for auth flows (login/register), Navidrome API calls, and library browsing/playback
-3. [x] Integrate E2E tests using Playwright or Cypress for key user journeys (e.g., config → library → play)
-4. [x] Run tests in CI/CD pipeline (Story 1.5) with coverage thresholds (>80%)
-5. [x] Update docs/testing-framework-integration.md with setup instructions and best practices
+- [x] 1. Add Vitest/Jest for unit and integration tests with setup in package.json and vitest.config.ts
+- [x] 2. Create tests for auth flows (login/register), Navidrome API calls, and library browsing/playback
+- [x] 3. Integrate E2E tests using Playwright or Cypress for key user journeys (e.g., config → library → play)
+- [x] 4. Run tests in CI/CD pipeline (Story 1.5) with coverage thresholds (>80%)
+- [x] 5. Update docs/testing-framework-integration.md with setup instructions and best practices
 
 ### Completion Status
 - [x] Completed: Vitest configured with unit tests for auth and Navidrome services
@@ -117,7 +117,7 @@ so that we can ensure reliability across auth, API, and UI flows.
 
 Points: 5
 
-Epic 2: Music Library Integration
+Epic 2: Music Library Integration - Completed
 
 ## Story 2.1: Navidrome API Integration
 As a developer,
@@ -125,12 +125,12 @@ I want to implement API integration with Navidrome,
 so that the application can retrieve music library data.
 
 ### Acceptance Criteria
-1. Implement authentication with Navidrome API
-2. Create service layer for making API calls to Navidrome
-3. Handle token refresh for long sessions
-4. Implement error handling for API failures
-5. Create data models for artists, albums, and songs
-6. Implement pagination for large music collections
+- [x] 1. Implement authentication with Navidrome API
+- [x] 2. Create service layer for making API calls to Navidrome
+- [x] 3. Handle token refresh for long sessions
+- [x] 4. Implement error handling for API failures
+- [x] 5. Create data models for artists, albums, and songs
+- [x] 6. Implement pagination for large music collections
 
 Points: 5
 
@@ -140,12 +140,12 @@ I want to browse my music library by artists, albums, and songs,
 so that I can easily find music to listen to.
 
 ### Acceptance Criteria
-1. Create artist listing view with alphabetical sorting
-2. Implement album grid view for each artist
-3. Create song listing view for each album
-4. Implement search functionality across the entire library
-5. Add filtering options (genre, year, etc.)
-6. Display album artwork and metadata
+- [x] 1. Create artist listing view with alphabetical sorting
+- [x] 2. Implement album grid view for each artist
+- [x] 3. Create song listing view for each album
+- [x] 4. Implement search functionality across the entire library
+- [x] 5. Add filtering options (genre, year, etc.)
+- [x] 6. Display album artwork and metadata
 
 Points: 5
 
@@ -155,12 +155,12 @@ I want to play music directly in the browser,
 so that I can listen to my music collection without leaving the application.
 
 ### Acceptance Criteria
-1. Implement audio player component with play/pause controls
-2. Add progress bar with seeking functionality
-3. Implement volume control
-4. Create playlist functionality
-5. Display current track information
-6. Handle streaming from Navidrome with proper buffering
+- [x] 1. Implement audio player component with play/pause controls
+- [x] 2. Add progress bar with seeking functionality
+- [x] 3. Implement volume control
+- [x] 4. Create playlist functionality
+- [x] 5. Display current track information
+- [x] 6. Handle streaming from Navidrome with proper buffering
 
 Points: 5
 
@@ -169,10 +169,10 @@ As a developer,
 I want a caching layer to reduce repeated API calls to Navidrome, improving performance.
 
 ### Acceptance Criteria
-1. Implement in-memory or local cache for common queries
-2. Invalidate cache on data changes or time-based TTL
-3. Ensure cache coherence with Navidrome API
-4. Document caching strategy in README
+- [x] 1. Implement in-memory or local cache for common queries
+- [x] 2. Invalidate cache on data changes or time-based TTL
+- [x] 3. Ensure cache coherence with Navidrome API
+- [x] 4. Document caching strategy in README
 
 Points: 3
 
@@ -181,9 +181,9 @@ As a user,
 I want smooth pagination and fast navigation through large libraries.
 
 ### Acceptance Criteria
-1. Implement efficient pagination with server-side or lazy loading
-2. Optimize rendering for large lists
-3. Provide loading placeholders and skeletons
+- [x] 1. Implement efficient pagination with server-side or lazy loading
+- [x] 2. Optimize rendering for large lists
+- [x] 3. Provide loading placeholders and skeletons
 
 Points: 5
 
@@ -324,18 +324,7 @@ I want to receive timely notifications about download events.
 
 Points: 3
 
-## Story 4.4: Download Notifications
-As a user,
-I want to receive timely notifications about download events.
-
-### Acceptance Criteria
-1. In-app and optional push/email notifications for status changes
-2. Configurable notification preferences
-3. Notification history with timestamps
-
-Points: 3
-
-## Story 4.5: Download History Import/Export
+## Story 4.6: Download History Import/Export
 As a user,
 I want to export/import my download history.
 

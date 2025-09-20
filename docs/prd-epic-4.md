@@ -29,12 +29,12 @@ so that we can validate user interactions before full Lidarr integration.
 
 ### Acceptance Criteria
 
-1. Create placeholder search and request UI using static/mock data
-2. Simulate request submission and status updates (pending, in progress, completed)
-3. Implement mock notifications and error states
-4. Test end-to-end UX flows for download management
-5. Document findings and refinements needed for real integration
-6. Ensure mock aligns with final design system (CSS variables, responsive)
+- [x] 1. Create placeholder search and request UI using static/mock data
+- [x] 2. Simulate request submission and status updates (pending, in progress, completed)
+- [x] 3. Implement mock notifications and error states
+- [x] 4. Test end-to-end UX flows for download management
+- [x] 5. Document findings and refinements needed for real integration
+- [x] 6. Ensure mock aligns with final design system (CSS variables, responsive)
 
 Points: 3
 
