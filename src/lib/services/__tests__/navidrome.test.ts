@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getArtists, getArtistDetail, getAlbums, getSongs, search, getAuthToken, getArtistsWithDetails, type Artist, type Album } from '../navidrome';
+import { getArtists, getArtistDetail, getAlbums, getSongs, search, getAuthToken, getArtistsWithDetails, getLibrarySummary, type Artist, type Album, type Song } from '../navidrome';
 import { getConfig } from '@/lib/config/config';
 
 // Mock the config module
@@ -34,7 +34,7 @@ describe('Navidrome Service Integration Tests', () => {
   describe('getAuthToken', () => {
     it('should return cached token when valid', async () => {
       const mockToken = 'valid-token-123';
-      // Set up cached token state (in real tests, we'd need to mock the module state)
+      // Mock module state for cache
       vi.doMock('../navidrome', () => {
         const original = vi.importActual('../navidrome');
         return {
@@ -249,19 +249,19 @@ describe('Navidrome Service Integration Tests', () => {
   describe('getSongs', () => {
     it('should fetch songs for album with streaming URLs', async () => {
       const mockRawSongs = [
-        { 
-          id: 's1', 
-          name: 'Song One', 
-          albumId: 'a1', 
-          duration: 180, 
-          track: 1 
+        {
+          id: 's1',
+          name: 'Song One',
+          albumId: 'a1',
+          duration: 180,
+          track: 1
         },
-        { 
-          id: 's2', 
-          title: 'Song Two', 
-          albumId: 'a1', 
-          duration: 240, 
-          trackNumber: 2 
+        {
+          id: 's2',
+          name: 'Song Two',
+          albumId: 'a1',
+          duration: 240,
+          track: 2
         },
       ];
       
@@ -296,17 +296,17 @@ describe('Navidrome Service Integration Tests', () => {
 
   describe('search', () => {
     it('should search songs using multiple parameters', async () => {
-      const mockSongs = [
-        { 
-          id: 's1', 
-          name: 'Test Song', 
-          albumId: 'a1', 
-          duration: 180, 
-          track: 1 
+      const mockRawSongs = [
+        {
+          id: 's1',
+          name: 'Test Artist - Test Song',
+          albumId: 'a1',
+          duration: 180,
+          track: 1,
         },
       ];
       
-      // First param (title) fails
+      // First param (title) returns empty
       mockFetch.mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -314,20 +314,20 @@ describe('Navidrome Service Integration Tests', () => {
         json: async () => [],
       } as Response);
       
-      // Second param (fullText) succeeds
+      // Second param (fullText) succeeds with raw data
       mockFetch.mockResolvedValueOnce({
         ok: true,
         status: 200,
         headers: new Headers({ 'content-type': 'application/json' }),
-        json: async () => mockSongs,
+        json: async () => mockRawSongs,
       } as Response);
 
-      const result = await search('test query', 0, 10);
+      const result = await search('Test Artist - Test Song', 0, 10);
       
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
         id: 's1',
-        name: 'Test Song',
+        name: 'Test Artist - Test Song',
         albumId: 'a1',
         duration: 180,
         track: 1,
@@ -369,6 +369,9 @@ describe('Navidrome Service Integration Tests', () => {
         albumCount: 5,
         songCount: 50,
         genres: 'Rock',
+        fullText: 'Description 1',
+        orderArtistName: 'One Artist',
+        size: 1,
       };
       
       const mockDetail2 = {
@@ -377,9 +380,11 @@ describe('Navidrome Service Integration Tests', () => {
         albumCount: 3,
         songCount: 30,
         genres: 'Jazz',
+        fullText: 'Description 2',
+        orderArtistName: 'Two Artist',
+        size: 1,
       };
       
-      // Mock getArtists
       // Mock getArtists call
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -388,7 +393,7 @@ describe('Navidrome Service Integration Tests', () => {
         json: async () => mockBasicArtists,
       } as Response);
       
-      // Mock getArtistDetail calls (these use apiFetch internally)
+      // Mock getArtistDetail calls
       mockFetch.mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -412,27 +417,28 @@ describe('Navidrome Service Integration Tests', () => {
         albumCount: 5,
         songCount: 50,
         genres: 'Rock',
-        fullText: expect.any(String),
-        orderArtistName: expect.any(String),
-        size: expect.any(Number),
+        fullText: 'Description 1',
+        orderArtistName: 'One Artist',
+        size: 1,
       });
       expect(mockFetch).toHaveBeenCalledTimes(3);
     });
   });
 });
+
 describe('getLibrarySummary', () => {
   it('fetches and combines top artists and songs', async () => {
     const mockArtists = [
-      { id: 'a1', name: 'Artist1', genres: 'Rock' },
-      { id: 'a2', name: 'Artist2', genres: 'Pop' },
+      { id: 'a1', name: 'Artist1', genres: 'Rock', albumCount: 5, songCount: 50, fullText: 'desc1', orderArtistName: 'Artist1', size: 1 },
+      { id: 'a2', name: 'Artist2', genres: 'Pop', albumCount: 3, songCount: 30, fullText: 'desc2', orderArtistName: 'Artist2', size: 1 },
     ];
-    const mockSongs = [
+    const mockSongs: Song[] = [
       { id: 's1', name: 'Song1', albumId: 'al1', duration: 180, track: 1, url: '/stream/s1' },
       { id: 's2', name: 'Song2', albumId: 'al1', duration: 240, track: 2, url: '/stream/s2' },
     ];
 
-    vi.spyOn(getArtistsWithDetails).mockResolvedValueOnce(mockArtists as any);
-    vi.spyOn(getSongsGlobal).mockResolvedValueOnce(mockSongs as any);
+    vi.mocked(getArtistsWithDetails).mockResolvedValueOnce(mockArtists as ArtistWithDetails[]);
+    vi.mocked(getSongsGlobal).mockResolvedValueOnce(mockSongs);
 
     const result = await getLibrarySummary();
 
@@ -446,7 +452,7 @@ describe('getLibrarySummary', () => {
   });
 
   it('handles error in fetching summary', async () => {
-    vi.spyOn(getArtistsWithDetails).mockRejectedValueOnce(new Error('Fetch error'));
+    vi.mocked(getArtistsWithDetails).mockRejectedValueOnce(new Error('Fetch error'));
 
     await expect(getLibrarySummary()).rejects.toThrow('Failed to fetch library summary');
   });
@@ -454,8 +460,8 @@ describe('getLibrarySummary', () => {
 
 describe('song resolution via search', () => {
   it('resolves suggestion to Song object if match found', async () => {
-    const mockSong = { id: 's1', name: 'Artist - Title', albumId: 'al1', duration: 180, track: 1, url: '/stream/s1' };
-    vi.spyOn(apiFetch).mockResolvedValueOnce([mockSong]);
+    const mockSong: Song = { id: 's1', name: 'Artist - Title', albumId: 'al1', duration: 180, track: 1, url: '/api/navidrome/stream/s1' };
+    vi.mocked(search).mockResolvedValueOnce([mockSong]);
 
     const matches = await search('Artist - Title', 0, 1);
 
@@ -463,7 +469,7 @@ describe('song resolution via search', () => {
   });
 
   it('returns empty if no match', async () => {
-    vi.spyOn(apiFetch).mockResolvedValueOnce([]);
+    vi.mocked(search).mockResolvedValueOnce([]);
 
     const matches = await search('Unknown Song', 0, 1);
 
@@ -471,7 +477,7 @@ describe('song resolution via search', () => {
   });
 
   it('handles search error gracefully', async () => {
-    vi.spyOn(apiFetch).mockRejectedValueOnce(new Error('Search error'));
+    vi.mocked(search).mockRejectedValueOnce(new Error('Search error'));
 
     const matches = await search('Test Song', 0, 1);
 

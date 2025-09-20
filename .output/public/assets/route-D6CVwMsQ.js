@@ -1,0 +1,1 @@
+import{c as n,j as s,O as o}from"./main-Jnb6I3g-.js";function m(){const t=n.c(1);let e;return t[0]===Symbol.for("react.memo_cache_sentinel")?(e=s.jsx("div",{className:"bg-background flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10",children:s.jsx("div",{className:"w-full max-w-sm",children:s.jsx(o,{})})}),t[0]=e):e=t[0],e}export{m as component};

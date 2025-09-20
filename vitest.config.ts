@@ -7,6 +7,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: true,
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['tests/e2e/**', 'node_modules/**', 'dist/**'],
     coverage: {
       enabled: true,
       provider: 'istanbul',
@@ -17,9 +19,16 @@ export default defineConfig({
         'src/**/*.test.{ts,tsx}',
         'src/**/__tests__/**',
         'src/main.jsx',
-        'node_modules/**'
+        'node_modules/**',
+        'tests/e2e/**'
       ],
-      all: true
+      all: true,
+      thresholds: {
+        lines: 85,
+        functions: 85,
+        branches: 85,
+        statements: 85,
+      }
     },
   },
   resolve: {

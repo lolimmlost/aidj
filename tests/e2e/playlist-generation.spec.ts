@@ -2,6 +2,15 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Playlist Generation Flow', () => {
   test.beforeEach(async ({ page }) => {
+    await page.route('/api/config', route => route.fulfill({
+      status: 200,
+      body: JSON.stringify({
+        lidarrUrl: 'http://localhost:8686',
+        ollamaUrl: 'http://localhost:11434',
+        navidromeUrl: 'http://localhost:4533',
+      }),
+    }));
+
     await page.goto('/login');
     await page.fill('input[name="username"]', 'testuser');
     await page.fill('input[name="password"]', 'testpass');

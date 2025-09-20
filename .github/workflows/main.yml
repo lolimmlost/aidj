@@ -36,10 +36,23 @@ jobs:
         run: npm run test:e2e
         env:
           PLAYWRIGHT_BROWSERS_PATH: 0
-        continue-on-error: true
         
       - name: Run unit tests with coverage
         run: npm run test:coverage
+
+      - name: Check coverage thresholds
+        run: |
+          if [ -f ./coverage/lcov.info ]; then
+            LINE_COVERAGE=$(grep -E '^SF:' ./coverage/lcov.info | wc -l)
+            TOTAL_LINES=$(grep -E '^DA:' ./coverage/lcov.info | wc -l)
+            if [ $TOTAL_LINES -gt 0 ]; then
+              ACTUAL_COVERAGE=$(echo "scale=2; $LINE_COVERAGE * 100 / $TOTAL_LINES" | bc)
+              if (( $(echo "$ACTUAL_COVERAGE < 85" | bc -l) )); then
+                echo "Coverage below 85%: $ACTUAL_COVERAGE%"
+                exit 1
+              fi
+            fi
+          fi
         
       - name: Check coverage thresholds
         run: |

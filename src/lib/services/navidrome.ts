@@ -25,6 +25,9 @@ export interface RawSong {
   name: string;
   title?: string; // From search2 response
   albumId: string;
+  artistId?: string;
+  album?: string;
+  path?: string;
   duration: number;
   track: number;
   trackNumber?: number; // From search2
@@ -222,6 +225,7 @@ export async function getSongs(albumId: string, start: number = 0, limit: number
 }
 
 export async function search(query: string, start: number = 0, limit: number = 5): Promise<Song[]> { // Limit to 5 for better performance
+
   try {
     const config = getConfig();
     if (!config.navidromeUrl) {
@@ -233,47 +237,57 @@ export async function search(query: string, start: number = 0, limit: number = 5
     const artist = match ? match[1].trim() : '';
     const title = match ? match[2].trim() : query;
 
-    // Prioritize exact title search, then artist + title, then fullText
-    const searchParams = [
-      { param: 'title', value: title }, // Exact title
-      { param: 'fullText', value: `${artist} ${title}` }, // Artist + title
-      { param: 'fullText', value: query }, // Fallback fullText
-    ];
-
     let data: RawSong[] = [];
-    for (const param of searchParams) {
-      try {
-        const endpoint = `/api/song?${param.param}=${encodeURIComponent(param.value)}&_start=${start}&_end=${start + limit - 1}`;
-        console.log(`Trying search with parameter ${param.param}:`, endpoint);
-        
-        data = await apiFetch(endpoint) as RawSong[];
-        
-        if (data && data.length > 0) {
-          console.log(`Search with ${param.param} returned ${data.length} results`);
-          break;
-        }
-      } catch (paramError) {
-        console.log(`Search with ${param.param} failed:`, paramError);
-        continue;
+
+    if (artist && title) {
+      // First, search for the artist
+      const artistSearchEndpoint = `/api/artist?fullText=${encodeURIComponent(artist)}&_start=0&_end=1`;
+      console.log(`Searching for artist:`, artistSearchEndpoint);
+      const artistResults = await apiFetch(artistSearchEndpoint) as Artist[];
+      if (artistResults && artistResults.length > 0) {
+        const artistId = artistResults[0].id;
+        console.log(`Found artist ID: ${artistId} for ${artist}`);
+        // Fetch all songs for the artist and filter client-side for title
+        const allSongsEndpoint = `/api/song?artist_id=${artistId}&_start=0&_end=100`; // Fetch up to 100 songs
+        console.log(`Fetching all songs for artist:`, allSongsEndpoint);
+        const allSongs = await apiFetch(allSongsEndpoint) as RawSong[];
+        console.log(`Fetched ${allSongs.length} songs for artist`);
+        data = allSongs.filter(song => {
+          const songName = (song.name || song.title || '').toLowerCase();
+          return songName.includes(title.toLowerCase());
+        });
+        console.log(`Filtered to ${data.length} songs matching title`);
       }
     }
 
     if (data.length === 0) {
-      console.log('No results from any search parameter');
+      // Fallback to general search
+      const searchParams = [
+        { param: 'fullText', value: query },
+        { param: 'title', value: title },
+      ];
+      for (const param of searchParams) {
+        try {
+          const endpoint = `/api/song?${param.param}=${encodeURIComponent(param.value)}&_start=${start}&_end=${start + limit - 1}`;
+          console.log(`Fallback search with parameter ${param.param}:`, endpoint);
+          data = await apiFetch(endpoint) as RawSong[];
+          if (data && data.length > 0) {
+            console.log(`Fallback search returned ${data.length} results`);
+            break;
+          }
+        } catch (paramError) {
+          console.log(`Fallback search failed:`, paramError);
+          continue;
+        }
+      }
+    }
+
+    if (data.length === 0) {
+      console.log('No results found');
       return [];
     }
 
-    // Filter for better matches: require both artist and title substrings for exact match
-    const filtered = data.filter(song => {
-      const songName = (song.name || song.title || '').toLowerCase();
-      const artistLower = artist.toLowerCase();
-      const titleLower = title.toLowerCase();
-      return songName.includes(artistLower) && songName.includes(titleLower);
-    });
-
-    console.log(`Filtered to ${filtered.length} better matches from ${data.length} total`);
-
-    const songs = filtered.slice(0, limit).map((song) => ({
+    const songs = data.slice(0, limit).map((song) => ({
       ...song,
       name: song.name || song.title || 'Unknown Title',
       url: `/api/navidrome/stream/${song.id}`,
