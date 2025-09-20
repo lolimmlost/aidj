@@ -4,7 +4,7 @@ import { getAuthToken, subsonicToken, subsonicSalt } from '@/lib/services/navidr
 import { createHash } from 'crypto';
 
 export const ServerRoute = createServerFileRoute('/api/navidrome/stream/$id').methods({
-  async GET({ request }) {
+  async GET({ request, params }) {
     console.log('Stream route hit:', request.url);
     
     const config = getConfig();
@@ -20,19 +20,16 @@ export const ServerRoute = createServerFileRoute('/api/navidrome/stream/$id').me
       return new Response('Not authenticated', { status: 401 });
     }
 
-    // Extract song ID directly from URL path (last segment)
-    const url = new URL(request.url);
-    const pathSegments = url.pathname.split('/').filter(Boolean);
-    const songId = pathSegments[pathSegments.length - 1];
+    const { id: songId } = params;
     
-    console.log('Extracted song ID from path:', songId);
+    console.log('Song ID from params:', songId);
     
     if (!songId || songId.length < 10) {
-      console.error('Invalid song ID extracted:', songId);
+      console.error('Invalid song ID:', songId);
       return new Response('Invalid song ID', { status: 400 });
     }
 
-    // Build Subsonic stream URL (matching official Navidrome client)
+    // Build Subsonic stream URL
     const streamUrl = new URL(`${config.navidromeUrl}/rest/stream`);
     streamUrl.searchParams.set('id', songId);
     streamUrl.searchParams.set('format', 'mp3');
@@ -42,7 +39,7 @@ export const ServerRoute = createServerFileRoute('/api/navidrome/stream/$id').me
     streamUrl.searchParams.set('c', 'MusicApp');
     streamUrl.searchParams.set('f', 'raw');
 
-    // Subsonic authentication parameters (matching official format)
+    // Subsonic authentication parameters
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const salt = subsonicSalt;
     const tokenHash = createHash('md5')
@@ -56,8 +53,9 @@ export const ServerRoute = createServerFileRoute('/api/navidrome/stream/$id').me
     streamUrl.searchParams.set('token', tokenHash);
     streamUrl.searchParams.set('v', '1.16.0');
 
-    // Copy any additional query params from request
-    for (const [key, value] of url.searchParams) {
+    // Copy additional query params from request
+    const requestUrl = new URL(request.url);
+    for (const [key, value] of requestUrl.searchParams) {
       if (!streamUrl.searchParams.has(key)) {
         streamUrl.searchParams.set(key, value);
       }
@@ -65,7 +63,7 @@ export const ServerRoute = createServerFileRoute('/api/navidrome/stream/$id').me
 
     console.log('Built stream URL with song ID:', songId);
 
-    // Prepare request headers for Navidrome
+    // Prepare headers for Navidrome
     const headers = new Headers();
     const range = request.headers.get('range');
     if (range) {
@@ -94,7 +92,7 @@ export const ServerRoute = createServerFileRoute('/api/navidrome/stream/$id').me
           // Ignore text extraction error for binary responses
         }
         console.error('Navidrome stream failed:', response.status, errorText);
-        return new Response(`Stream failed: ${response.status}`, { 
+        return new Response(`Stream failed: ${response.status} - ${errorText}`, {
           status: response.status,
           headers: { 'Content-Type': 'text/plain' }
         });

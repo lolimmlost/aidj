@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { generateRecommendations, checkModelAvailability } from '../ollama';
+import { generateRecommendations, checkModelAvailability, generatePlaylist } from '../ollama';
+import type { LibrarySummary } from '../navidrome';
 import { db } from '../../db';
 import { recommendationsCache } from '../../db/schema';
 import { eq, and, gt } from 'drizzle-orm';
@@ -181,3 +182,71 @@ describe('Ollama Service', () => {
       expect(result).toBe(false);
     });
   });
+describe('generatePlaylist', () => {
+  const mockStyle = 'rock';
+  const mockSummary = {
+    artists: [
+      { name: 'Artist1', genres: 'Rock' },
+      { name: 'Artist2', genres: 'Metal' },
+    ],
+    songs: ['Song1', 'Song2', 'Song3'],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('constructs prompt with library summary and style', async () => {
+    const mockResponse = {
+      response: '{"playlist": [{"song": "Artist1 - Song1", "explanation": "Fits rock theme"}]}',
+    };
+    global.fetch = vi.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(mockResponse),
+    } as Response));
+
+    await generatePlaylist({ style: mockStyle, summary: mockSummary });
+
+    expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/generate'), expect.objectContaining({
+      body: JSON.stringify(expect.objectContaining({
+        prompt: expect.stringContaining('My library: artists [Artist1 (Rock), Artist2 (Metal)], songs [Song1, Song2, Song3]. Create 10-song playlist for \'rock\' using only my library. JSON: {"playlist": [{"song": "Artist - Title", "explanation": "reason why it fits the style"}]}'),
+      })),
+    }));
+  });
+
+  it('parses JSON response successfully', async () => {
+    const mockResponse = {
+      response: '{"playlist": [{"song": "Artist1 - Song1", "explanation": "Rock classic"}]}',
+    };
+    global.fetch = vi.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(mockResponse),
+    } as Response));
+
+    const result = await generatePlaylist({ style: mockStyle, summary: mockSummary });
+
+    expect(result.playlist).toEqual([{ song: 'Artist1 - Song1', explanation: 'Rock classic' }]);
+  });
+
+  it('uses fallback extraction on parse error', async () => {
+    const mockResponse = {
+      response: 'Invalid JSON but song: "Artist1 - Song1" explanation: fits',
+    };
+    global.fetch = vi.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(mockResponse),
+    } as Response));
+
+    const result = await generatePlaylist({ style: mockStyle, summary: mockSummary });
+
+    expect(result.playlist).toHaveLength(1);
+    expect(result.playlist[0].song).toBe('Artist1 - Song1');
+    expect(result.playlist[0].explanation).toBe('Fits the requested style based on your library');
+  });
+
+  it('throws timeout error after 5s', async () => {
+    global.fetch = vi.fn(() => Promise.reject(new DOMException('Aborted', 'AbortError')));
+
+    await expect(generatePlaylist({ style: mockStyle, summary: mockSummary })).rejects.toThrow('TIMEOUT_ERROR');
+  });
+});

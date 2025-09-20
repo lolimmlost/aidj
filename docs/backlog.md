@@ -195,12 +195,12 @@ I want to implement API integration with Ollama,
 so that the application can generate music recommendations.
 
 ### Acceptance Criteria
-1. Create service layer for making API calls to Ollama
-2. Implement model selection functionality
-3. Handle API responses and parse recommendation results
-4. Implement error handling for model loading issues
-5. Add retry mechanisms for failed API calls
-6. Implement caching for recommendations to reduce API calls
+1. [x] Create service layer for making API calls to Ollama
+2. [x] Implement model selection functionality
+3. [x] Handle API responses and parse recommendation results
+4. [x] Implement error handling for model loading issues
+5. [x] Add retry mechanisms for failed API calls
+6. [x] Implement caching for recommendations to reduce API calls
 
 Points: 5
 
@@ -209,12 +209,12 @@ As a user,
 I want to see AI-generated music recommendations, so that I can discover new music based on my preferences.
 
 ### Acceptance Criteria
-1. Create recommendation display section on the main dashboard
-2. Implement different recommendation types (similar artists, mood-based, etc.)
-3. Allow users to provide feedback on recommendations (thumbs up/down)
-4. Create detailed recommendation view with explanations
-5. Implement functionality to add recommended songs to play queue
-6. Display recommendation generation timestamp
+1. [x] Create recommendation display section on the main dashboard
+2. [x] Implement different recommendation types (similar artists, mood-based, etc.)
+3. [x] Allow users to provide feedback on recommendations (thumbs up/down)
+4. [x] Create detailed recommendation view with explanations
+5. [x] Implement functionality to add recommended songs to play queue
+6. [x] Display recommendation generation timestamp
 
 Points: 5
 
@@ -247,6 +247,24 @@ We want to analyze user feedback to improve models.
 1. Track thumbs up/down and their impact on recommendations
 2. Provide dashboard view summarizing feedback signals
 3. Integrate with analytics/telemetry (privacy-compliant)
+
+Points: 5
+
+## Story 3.6: Style-Based Playlist Generation
+As a user,
+I want to request and generate themed playlists (e.g., Halloween, Christmas, rave dubstep, rock) using my existing Navidrome library,
+so that I can discover and play music matching specific styles or occasions from my collection.
+
+### Acceptance Criteria
+1. [x] Add input field in dashboard for user to specify playlist style/theme (text input with examples)
+2. [x] Fetch library summary (top 20 artists with genres, top 10 songs) via Navidrome service for prompt context
+3. [x] Generate playlist using Ollama: prompt includes library summary and style, returns 10 suggestions as JSON
+4. [x] For each suggestion, search Navidrome to resolve actual Song objects (ID, URL) from library
+5. [x] Display generated playlist in dashboard with explanations, feedback (thumbs up/down, encrypted localStorage), and add-to-queue buttons
+6. [x] Implement caching for generated playlists (localStorage, with privacy toggle to clear cache)
+7. [x] Integrate with audio store: add entire playlist or individual songs to queue/play
+8. [x] Handle errors: fallback if no matching songs, timeout (5s), retry on Ollama failure
+9. [x] If suggested song not in library, add to Lidarr download queue with user confirmation (Dependency: Epic 4 Story 4.1)
 
 Points: 5
 

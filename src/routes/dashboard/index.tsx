@@ -6,17 +6,19 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { search } from '@/lib/services/navidrome';
 
 export const Route = createFileRoute("/dashboard/")({
   component: DashboardIndex,
 });
 
-function xorEncrypt(str, key) {
-  return str.split('').map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length))).join('');
+function xorEncrypt(str: string, key: string): string {
+  return str.split('').map((c: string, i: number) => String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length))).join('');
 }
 
-function xorDecrypt(encryptedStr, key) {
-  return encryptedStr.split('').map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length))).join('');
+function xorDecrypt(encryptedStr: string, key: string): string {
+  return encryptedStr.split('').map((c: string, i: number) => String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length))).join('');
 }
 
 const ENCRYPT_KEY = 'mySecretKey12345';
@@ -46,6 +48,10 @@ function DashboardIndex() {
   const { data: session } = authClient.useSession();
   const queryClient = useQueryClient();
   const addToQueue = useAudioStore((state) => state.playSong);
+  const addPlaylist = useAudioStore((state) => state.addPlaylist);
+  const [style, setStyle] = useState('');
+  const trimmedStyle = style.trim();
+  const styleHash = btoa(trimmedStyle);
 
   const { data: recommendations, isLoading, error } = useQuery({
     queryKey: ['recommendations', session?.user.id, type],
@@ -69,9 +75,78 @@ function DashboardIndex() {
     queryClient.invalidateQueries({ queryKey: ['recommendations', session?.user.id, type] });
   };
 
-  const handleQueue = (song: string) => {
-    // Assume song as id/name, minimal Song obj
-    addToQueue(song, [{ id: song, name: song, albumId: '', duration: 0, track: 1, url: '', artist: '' }]);
+  const handleQueue = async (song: string) => {
+    try {
+      console.log('Queuing recommendation:', song); // Debug log
+      const songs = await search(song, 0, 1); // Search for exact match, limit 1
+      console.log('Search results for queue:', songs); // Debug log
+      if (songs.length > 0) {
+        const realSong = songs[0];
+        addToQueue(realSong.id, [realSong]);
+        console.log('Queued song:', realSong); // Debug log
+      } else {
+        // Fallback: not in library, suggest Lidarr
+        handleLidarrStub(song);
+      }
+    } catch (error) {
+      console.error('Search failed for queue:', error);
+      handleLidarrStub(song);
+    }
+  };
+
+  interface PlaylistItem {
+    song: string;
+    explanation: string;
+    songId?: string;
+    url?: string;
+    missing?: boolean;
+  }
+
+  const { data: playlistData, isLoading: playlistLoading, error: playlistError, refetch: refetchPlaylist } = useQuery({
+    queryKey: ['playlist', styleHash, trimmedStyle],
+    queryFn: async () => {
+      const cached = localStorage.getItem(`playlist-${styleHash}`);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+      const response = await fetch('/api/playlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ style: trimmedStyle }),
+      });
+      if (!response.ok) throw new Error('Failed to fetch playlist');
+      const data = await response.json();
+      localStorage.setItem(`playlist-${styleHash}`, JSON.stringify(data));
+      return data;
+    },
+    enabled: !!trimmedStyle && !!session,
+  });
+
+  const handlePlaylistQueue = () => {
+    if (!playlistData) return;
+    const resolvedSongs = (playlistData.data.playlist as PlaylistItem[]).filter((item) => item.songId).map((item) => ({
+      id: item.songId!,
+      name: item.song,
+      albumId: '',
+      duration: 0,
+      track: 1,
+      url: item.url!,
+    }));
+    if (resolvedSongs.length > 0) {
+      addPlaylist(resolvedSongs);
+    } else {
+      alert('No songs available in library for this playlist.');
+    }
+  };
+
+  const handleLidarrStub = (song: string) => {
+    alert(`Queued "${song}" for download via Lidarr (stub - no actual call)`);
+  };
+
+  const clearPlaylistCache = () => {
+    Object.keys(localStorage).filter(key => key.startsWith('playlist-')).forEach(key => localStorage.removeItem(key));
+    queryClient.invalidateQueries({ queryKey: ['playlist'] });
+    setStyle('');
   };
 
   return (
@@ -112,7 +187,7 @@ function DashboardIndex() {
                   return (
                     <li key={index} className="flex flex-col space-y-2 p-2 border rounded">
                       <div className="flex justify-between items-center">
-                        <Link to={`/dashboard/recommendations/${songId}`} className="hover:underline">
+                        <Link to="/dashboard/recommendations/id" params={{ id: songId }} className="hover:underline">
                           {rec.song}
                         </Link>
                         <div className="space-x-2">
@@ -128,6 +203,75 @@ function DashboardIndex() {
                         </div>
                       </div>
                       <p className="text-sm text-muted-foreground">{rec.explanation.substring(0, 100)}...</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-semibold">Style-Based Playlist</h2>
+          <Button onClick={clearPlaylistCache} variant="outline" size="sm">Clear Cache</Button>
+        </div>
+        <div className="flex gap-2">
+          <Input
+            placeholder="Enter style (e.g., Halloween, rock, holiday)"
+            value={style}
+            onChange={(e) => setStyle(e.target.value)}
+            className="flex-1"
+          />
+          <Button onClick={() => refetchPlaylist()} disabled={!trimmedStyle}>Generate</Button>
+        </div>
+        {playlistLoading && <p>Loading playlist...</p>}
+        {playlistError && <p className="text-destructive">Error: {playlistError.message}</p>}
+        {playlistData && (
+          <Card className="bg-card text-card-foreground border-card">
+            <CardHeader>
+              <CardTitle>Generated Playlist for "{style}"</CardTitle>
+              <CardDescription>10 suggestions from your library. Add to queue or provide feedback.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between mb-4">
+                <Button onClick={handlePlaylistQueue}>Add Entire Playlist to Queue</Button>
+              </div>
+              <ul className="space-y-2">
+                {(playlistData.data.playlist as PlaylistItem[]).map((item, index: number) => {
+                  const feedback = getFeedback(item.song);
+                  return (
+                    <li key={index} className="flex flex-col space-y-2 p-2 border rounded">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">{item.song}</span>
+                        <div className="space-x-2">
+                          {item.songId ? (
+                            <Button variant="ghost" size="sm" onClick={() => addToQueue(item.songId!, [{
+                              id: item.songId!,
+                              name: item.song,
+                              albumId: '',
+                              duration: 0,
+                              track: 1,
+                              url: item.url!,
+                            }])}>
+                              Queue
+                            </Button>
+                          ) : (
+                            <Button variant="destructive" size="sm" onClick={() => handleLidarrStub(item.song)}>
+                              Add to Lidarr
+                            </Button>
+                          )}
+                          <Button variant={feedback.up ? "default" : "ghost"} size="sm" onClick={() => handleFeedback(item.song, 'up')}>
+                            👍
+                          </Button>
+                          <Button variant={feedback.down ? "default" : "ghost"} size="sm" onClick={() => handleFeedback(item.song, 'down')}>
+                            👎
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{item.explanation}</p>
+                      {item.missing && <p className="text-xs text-destructive">Not in library - consider adding via Lidarr</p>}
                     </li>
                   );
                 })}

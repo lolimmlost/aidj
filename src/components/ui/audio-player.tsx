@@ -36,11 +36,10 @@ export function AudioPlayer() {
     if (audio) {
       audio.src = song.url; // Proxied stream URL from service
       audio.load();
-      setIsPlaying(false);
       setCurrentTime(0);
       setDuration(0);
     }
-  }, [setIsPlaying, setCurrentTime, setDuration]);
+  }, [setCurrentTime, setDuration]);
 
   const togglePlayPause = () => {
     const audio = audioRef.current;
@@ -97,6 +96,17 @@ export function AudioPlayer() {
       audio.removeEventListener('ended', onEnded);
     };
   }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (isPlaying) {
+      audio.play().catch((e) => console.error('Auto-play failed:', e));
+    } else {
+      audio.pause();
+    }
+  }, [isPlaying]);
 
   useEffect(() => {
     if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {

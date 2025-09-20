@@ -24,6 +24,7 @@ import { Route as LibraryArtistsIdRouteImport } from "./routes/library/artists/[
 import { Route as DashboardRecommendationsIdRouteImport } from "./routes/dashboard/recommendations/[id]";
 import { Route as LibraryArtistsIdAlbumsAlbumIdRouteImport } from "./routes/library/artists/[id]/albums/[albumId]";
 import { ServerRoute as ApiRecommendationsServerRouteImport } from "./routes/api/recommendations";
+import { ServerRoute as ApiPlaylistServerRouteImport } from "./routes/api/playlist";
 import { ServerRoute as ApiConfigServerRouteImport } from "./routes/api/config";
 import { ServerRoute as ApiAuthRegisterServerRouteImport } from "./routes/api/auth/register";
 import { ServerRoute as ApiAuthLoginServerRouteImport } from "./routes/api/auth/login";
@@ -101,6 +102,11 @@ const ApiRecommendationsServerRoute =
     path: "/api/recommendations",
     getParentRoute: () => rootServerRouteImport,
   } as any);
+const ApiPlaylistServerRoute = ApiPlaylistServerRouteImport.update({
+  id: "/api/playlist",
+  path: "/api/playlist",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
 const ApiConfigServerRoute = ApiConfigServerRouteImport.update({
   id: "/api/config",
   path: "/api/config",
@@ -232,6 +238,7 @@ export interface RootRouteChildren {
 }
 export interface FileServerRoutesByFullPath {
   "/api/config": typeof ApiConfigServerRoute;
+  "/api/playlist": typeof ApiPlaylistServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
@@ -242,6 +249,7 @@ export interface FileServerRoutesByFullPath {
 }
 export interface FileServerRoutesByTo {
   "/api/config": typeof ApiConfigServerRoute;
+  "/api/playlist": typeof ApiPlaylistServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
@@ -253,6 +261,7 @@ export interface FileServerRoutesByTo {
 export interface FileServerRoutesById {
   __root__: typeof rootServerRouteImport;
   "/api/config": typeof ApiConfigServerRoute;
+  "/api/playlist": typeof ApiPlaylistServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
@@ -265,6 +274,7 @@ export interface FileServerRouteTypes {
   fileServerRoutesByFullPath: FileServerRoutesByFullPath;
   fullPaths:
     | "/api/config"
+    | "/api/playlist"
     | "/api/recommendations"
     | "/api/auth/$"
     | "/api/auth/login"
@@ -275,6 +285,7 @@ export interface FileServerRouteTypes {
   fileServerRoutesByTo: FileServerRoutesByTo;
   to:
     | "/api/config"
+    | "/api/playlist"
     | "/api/recommendations"
     | "/api/auth/$"
     | "/api/auth/login"
@@ -285,6 +296,7 @@ export interface FileServerRouteTypes {
   id:
     | "__root__"
     | "/api/config"
+    | "/api/playlist"
     | "/api/recommendations"
     | "/api/auth/$"
     | "/api/auth/login"
@@ -296,6 +308,7 @@ export interface FileServerRouteTypes {
 }
 export interface RootServerRouteChildren {
   ApiConfigServerRoute: typeof ApiConfigServerRoute;
+  ApiPlaylistServerRoute: typeof ApiPlaylistServerRoute;
   ApiRecommendationsServerRoute: typeof ApiRecommendationsServerRoute;
   ApiAuthSplatServerRoute: typeof ApiAuthSplatServerRoute;
   ApiAuthLoginServerRoute: typeof ApiAuthLoginServerRoute;
@@ -400,6 +413,13 @@ declare module "@tanstack/react-start/server" {
       path: "/api/recommendations";
       fullPath: "/api/recommendations";
       preLoaderRoute: typeof ApiRecommendationsServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/playlist": {
+      id: "/api/playlist";
+      path: "/api/playlist";
+      fullPath: "/api/playlist";
+      preLoaderRoute: typeof ApiPlaylistServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
     "/api/config": {
@@ -518,6 +538,7 @@ export const routeTree = rootRouteImport
   ._addFileTypes<FileRouteTypes>();
 const rootServerRouteChildren: RootServerRouteChildren = {
   ApiConfigServerRoute: ApiConfigServerRoute,
+  ApiPlaylistServerRoute: ApiPlaylistServerRoute,
   ApiRecommendationsServerRoute: ApiRecommendationsServerRoute,
   ApiAuthSplatServerRoute: ApiAuthSplatServerRoute,
   ApiAuthLoginServerRoute: ApiAuthLoginServerRoute,

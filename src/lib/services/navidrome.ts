@@ -283,3 +283,36 @@ export async function search(query: string, start: number = 0, limit: number = 5
     throw new Error(`Failed to search music: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
+export async function getSongsGlobal(start: number = 0, limit: number = 50): Promise<Song[]> {
+  try {
+    const data = await apiFetch(`/api/song?_start=${start}&_end=${start + limit - 1}`) as RawSong[];
+    const songs = data.map((song) => ({
+      ...song,
+      url: `/api/navidrome/stream/${song.id}`,
+    })) as Song[];
+    return songs || [];
+  } catch (error) {
+    throw new Error(`Failed to fetch global songs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+export interface LibrarySummary {
+  artists: Array<{ name: string; genres: string }>;
+  songs: string[];
+}
+
+export async function getLibrarySummary(): Promise<LibrarySummary> {
+  try {
+    const topArtists = await getArtistsWithDetails(0, 20);
+    const topSongs = await getSongsGlobal(0, 10);
+    return {
+      artists: topArtists.map(a => ({ 
+        name: a.name, 
+        genres: a.genres || 'Unknown' 
+      })),
+      songs: topSongs.map(s => s.name),
+    };
+  } catch (error) {
+    throw new Error(`Failed to fetch library summary: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}

@@ -420,3 +420,61 @@ describe('Navidrome Service Integration Tests', () => {
     });
   });
 });
+describe('getLibrarySummary', () => {
+  it('fetches and combines top artists and songs', async () => {
+    const mockArtists = [
+      { id: 'a1', name: 'Artist1', genres: 'Rock' },
+      { id: 'a2', name: 'Artist2', genres: 'Pop' },
+    ];
+    const mockSongs = [
+      { id: 's1', name: 'Song1', albumId: 'al1', duration: 180, track: 1, url: '/stream/s1' },
+      { id: 's2', name: 'Song2', albumId: 'al1', duration: 240, track: 2, url: '/stream/s2' },
+    ];
+
+    vi.spyOn(getArtistsWithDetails).mockResolvedValueOnce(mockArtists as any);
+    vi.spyOn(getSongsGlobal).mockResolvedValueOnce(mockSongs as any);
+
+    const result = await getLibrarySummary();
+
+    expect(result.artists).toEqual([
+      { name: 'Artist1', genres: 'Rock' },
+      { name: 'Artist2', genres: 'Pop' },
+    ]);
+    expect(result.songs).toEqual(['Song1', 'Song2']);
+    expect(getArtistsWithDetails).toHaveBeenCalledWith(0, 20);
+    expect(getSongsGlobal).toHaveBeenCalledWith(0, 10);
+  });
+
+  it('handles error in fetching summary', async () => {
+    vi.spyOn(getArtistsWithDetails).mockRejectedValueOnce(new Error('Fetch error'));
+
+    await expect(getLibrarySummary()).rejects.toThrow('Failed to fetch library summary');
+  });
+});
+
+describe('song resolution via search', () => {
+  it('resolves suggestion to Song object if match found', async () => {
+    const mockSong = { id: 's1', name: 'Artist - Title', albumId: 'al1', duration: 180, track: 1, url: '/stream/s1' };
+    vi.spyOn(apiFetch).mockResolvedValueOnce([mockSong]);
+
+    const matches = await search('Artist - Title', 0, 1);
+
+    expect(matches).toEqual([mockSong]);
+  });
+
+  it('returns empty if no match', async () => {
+    vi.spyOn(apiFetch).mockResolvedValueOnce([]);
+
+    const matches = await search('Unknown Song', 0, 1);
+
+    expect(matches).toEqual([]);
+  });
+
+  it('handles search error gracefully', async () => {
+    vi.spyOn(apiFetch).mockRejectedValueOnce(new Error('Search error'));
+
+    const matches = await search('Test Song', 0, 1);
+
+    expect(matches).toEqual([]);
+  });
+});

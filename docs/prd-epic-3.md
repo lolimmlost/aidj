@@ -49,3 +49,31 @@ so that I can discover new music based on my preferences.
 4. Create detailed recommendation view with explanations using file-based routing
 5. Implement functionality to add recommended songs to play queue with lazy loading
 6. Display recommendation generation timestamp with service connection timeout specifications
+
+## Story 3.6: Style-Based Playlist Generation
+
+As a user,
+I want to request and generate themed playlists (e.g., Halloween, Christmas, rave dubstep, rock) using my existing Navidrome library,
+so that I can discover and play music matching specific styles or occasions from my collection.
+
+### Acceptance Criteria
+
+1. Add input field in dashboard for user to specify playlist style/theme (text input with examples like "Halloween", "rock", "holiday")
+2. Fetch library summary (top 20 artists with genres, top 10 songs) via Navidrome service for prompt context
+3. Generate playlist using Ollama: prompt includes library summary and style, returns 10 suggestions as JSON {"playlist": [{"song": "Artist - Title", "explanation": "why it fits the style"}]}
+4. For each suggestion, search Navidrome to resolve actual Song objects (ID, URL) from library
+5. Display generated playlist in dashboard with explanations, feedback (thumbs up/down, encrypted localStorage), and add-to-queue buttons
+6. Implement caching for generated playlists (localStorage, with privacy toggle to clear cache)
+7. Integrate with audio store: add entire playlist or individual songs to queue/play
+8. Handle errors: fallback if no matching songs, timeout (5s), retry on Ollama failure
+9. If suggested song not in library, add to Lidarr download queue with user confirmation (integrates with Epic 4 Lidarr API; dependency on Story 4.1)
+
+### Tasks
+
+- Design and implement Ollama prompt: "My library: artists [list with genres], songs [examples]. Create 10-song playlist for '[style]' using only my library. JSON: {\"playlist\": [{\"song\": \"Artist - Title\", \"explanation\": \"reason\"}]}"
+- Update recommendations API to /playlist endpoint: fetch summary, build prompt, call Ollama, resolve songs via search
+- Add UI: text input + generate button in dashboard recommendations section
+- Cache: store playlist by style hash in localStorage, load if exists, privacy button to clear
+- Display: list with links to details, queue integration
+- Tests: unit for prompt/resolution, E2E for input-to-playback flow
+- Unit test: Lidarr add request for missing songs (src/lib/services/__tests__/lidarr.test.ts – create if needed)

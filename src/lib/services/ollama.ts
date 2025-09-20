@@ -1,5 +1,7 @@
 // Ollama service for AI recommendation generation
 import { getConfig } from '../config/config';
+import type { LibrarySummary } from './navidrome';
+import { getLibrarySummary } from './navidrome';
 
 const OLLAMA_BASE_URL = getConfig().ollamaUrl || 'http://localhost:11434';
 const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'llama2';
@@ -39,14 +41,26 @@ async function retryFetch(fn: () => Promise<Response>, maxRetries = 3): Promise<
   throw lastError!;
 }
 
-export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, userId }: RecommendationRequest): Promise<RecommendationResponse> {
+export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, userId }: RecommendationRequest & { userId?: string }): Promise<RecommendationResponse> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+  let enhancedPrompt = prompt;
+  if (userId) {
+    try {
+      const summary = await getLibrarySummary();
+      const artistsList = summary.artists.map((a: { name: string; genres: string }) => `${a.name} (${a.genres})`).join(', ');
+      const songsList = summary.songs.slice(0, 10).join(', '); // Top 10 as examples
+      enhancedPrompt = `${prompt}. Use only songs from my library: artists [${artistsList}], example songs [${songsList}]. Suggest exact matches like "Artist - Title".`;
+    } catch (error) {
+      console.warn('Failed to fetch library summary for recommendations:', error);
+    }
+  }
 
   const url = `${OLLAMA_BASE_URL}/api/generate`;
   const body = {
     model,
-    prompt: `Generate 5 music recommendations based on: ${prompt}. Return as JSON: {"recommendations": [{"song": "Artist - Title", "explanation": "brief reason why recommended"}, ...]}`,
+    prompt: `Respond ONLY with valid JSON. No other text, explanations, or conversation. Generate 5 music recommendations based on: ${enhancedPrompt}. JSON: {"recommendations": [{"song": "Artist - Title", "explanation": "brief reason why recommended"}, ...]}`,
     stream: false,
   };
 
@@ -76,7 +90,7 @@ export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, u
       console.error('JSON parse error:', parseError, 'Response:', data.response);
       // Fallback: extract songs from text
       const fallback = data.response.match(/song["']?\s*:\s*["']([^"']+)["']/gi) || [];
-      const recs = fallback.slice(0, 5).map(match => ({ song: match.replace(/song["']?\s*:\s*["']/, '').replace(/["']$/, ''), explanation: 'Recommended based on your preferences' }));
+      const recs = fallback.slice(0, 5).map((match: string) => ({ song: match.replace(/song["']?\s*:\s*["']/, '').replace(/["']$/, ''), explanation: 'Recommended based on your preferences' }));
       return { recommendations: recs };
     }
     if (!parsed.recommendations || !Array.isArray(parsed.recommendations)) {
@@ -88,7 +102,7 @@ export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, u
   } catch (error: unknown) {
     clearTimeout(timeoutId);
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new OllamaError('TIMEOUT_ERROR', 'Ollama request timed out after 5s');
+      throw new OllamaError('TIMEOUT_ERROR', 'Ollama request timed out after 30s');
     }
     throw error;
   }
@@ -113,5 +127,81 @@ export async function checkModelAvailability(model: string): Promise<boolean> {
       console.warn('Model availability check timed out');
     }
     return false;
+  }
+}
+
+interface PlaylistRequest {
+  style: string;
+  summary: LibrarySummary;
+}
+
+interface PlaylistSuggestion {
+  song: string; // "Artist - Title"
+  explanation: string;
+}
+
+interface PlaylistResponse {
+  playlist: PlaylistSuggestion[];
+}
+
+export async function generatePlaylist({ style, summary }: PlaylistRequest): Promise<PlaylistResponse> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+  const artistsList = summary.artists.map((a: { name: string; genres: string }) => `${a.name} (${a.genres})`).join(', ');
+  const songsList = summary.songs.slice(0, 10).join(', '); // Top 10 as examples
+  const prompt = `Respond ONLY with valid JSON. No other text, explanations, or conversation. My library: artists [${artistsList}], songs [${songsList}]. Create 10-song playlist for '${style}' using only my library. JSON: {"playlist": [{"song": "Artist - Title", "explanation": "reason why it fits the style"}]} `;
+
+  const url = `${OLLAMA_BASE_URL}/api/generate`;
+  const body = {
+    model: DEFAULT_MODEL,
+    prompt,
+    stream: false,
+  };
+
+  try {
+    const response = await retryFetch(() => fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    }));
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new OllamaError('API_ERROR', `Ollama API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (!data.response) {
+      throw new OllamaError('PARSE_ERROR', 'No response from Ollama');
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(data.response) as { playlist: PlaylistSuggestion[] };
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError, 'Response:', data.response);
+      // Fallback: extract from text
+      const fallback = data.response.match(/song["']?\s*:\s*["']([^"']+)["']/gi) || [];
+      const recs = fallback.slice(0, 10).map((match: string) => {
+        const song = match.replace(/song["']?\s*:\s*["']/, '').replace(/["']$/, '');
+        return { song, explanation: 'Fits the requested style based on your library' };
+      });
+      return { playlist: recs };
+    }
+    if (!parsed.playlist || !Array.isArray(parsed.playlist)) {
+      throw new OllamaError('PARSE_ERROR', 'Invalid playlist format');
+    }
+    return {
+      playlist: parsed.playlist.slice(0, 10), // Ensure max 10
+    };
+  } catch (error: unknown) {
+    clearTimeout(timeoutId);
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new OllamaError('TIMEOUT_ERROR', 'Ollama request timed out after 30s');
+    }
+    throw error;
   }
 }

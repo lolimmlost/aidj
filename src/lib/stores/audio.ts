@@ -17,6 +17,7 @@ interface AudioState {
   nextSong: () => void;
   previousSong: () => void;
   clearPlaylist: () => void;
+  addPlaylist: (songs: Song[]) => void;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -71,5 +72,8 @@ export const useAudioStore = create<AudioState>()(
     },
 
     clearPlaylist: () => set({ playlist: [], currentSongIndex: -1, isPlaying: false }),
+    addPlaylist: (songs: Song[]) => {
+      set({ playlist: songs, currentSongIndex: 0, isPlaying: true });
+    },
   })
 );
