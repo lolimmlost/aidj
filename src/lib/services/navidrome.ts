@@ -221,30 +221,32 @@ export async function getSongs(albumId: string, start: number = 0, limit: number
   }
 }
 
-export async function search(query: string, start: number = 0, limit: number = 50): Promise<Song[]> {
+export async function search(query: string, start: number = 0, limit: number = 5): Promise<Song[]> { // Limit to 5 for better performance
   try {
     const config = getConfig();
     if (!config.navidromeUrl) {
       throw new Error('Navidrome URL not configured');
     }
 
-    // Try multiple search parameters to find working one
+    // Parse query for artist and title if possible
+    const match = query.match(/^(.+?)\s*-\s*(.+)$/);
+    const artist = match ? match[1].trim() : '';
+    const title = match ? match[2].trim() : query;
+
+    // Prioritize exact title search, then artist + title, then fullText
     const searchParams = [
-      { param: 'title', value: query },
-      { param: 'fullText', value: query },
-      { param: 'name', value: query }
+      { param: 'title', value: title }, // Exact title
+      { param: 'fullText', value: `${artist} ${title}` }, // Artist + title
+      { param: 'fullText', value: query }, // Fallback fullText
     ];
 
     let data: RawSong[] = [];
-    let usedParam = '';
-
     for (const param of searchParams) {
       try {
         const endpoint = `/api/song?${param.param}=${encodeURIComponent(param.value)}&_start=${start}&_end=${start + limit - 1}`;
         console.log(`Trying search with parameter ${param.param}:`, endpoint);
         
         data = await apiFetch(endpoint) as RawSong[];
-        usedParam = param.param;
         
         if (data && data.length > 0) {
           console.log(`Search with ${param.param} returned ${data.length} results`);
@@ -261,18 +263,19 @@ export async function search(query: string, start: number = 0, limit: number = 5
       return [];
     }
 
-    console.log(`Search with ${usedParam} succeeded. First result:`, {
-      id: data[0].id,
-      name: data[0].name,
-      title: data[0].title,
-      albumId: data[0].albumId,
-      duration: data[0].duration,
-      track: data[0].track
+    // Filter for better matches: require both artist and title substrings for exact match
+    const filtered = data.filter(song => {
+      const songName = (song.name || song.title || '').toLowerCase();
+      const artistLower = artist.toLowerCase();
+      const titleLower = title.toLowerCase();
+      return songName.includes(artistLower) && songName.includes(titleLower);
     });
 
-    const songs = data.map((song) => ({
+    console.log(`Filtered to ${filtered.length} better matches from ${data.length} total`);
+
+    const songs = filtered.slice(0, limit).map((song) => ({
       ...song,
-      name: song.name || song.title || 'Unknown Title', // Ensure name is populated
+      name: song.name || song.title || 'Unknown Title',
       url: `/api/navidrome/stream/${song.id}`,
     })) as Song[];
     

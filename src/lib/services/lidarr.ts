@@ -42,11 +42,11 @@ export interface ArtistSearchResult {
 }
 
 export interface AddArtistRequest {
-  artistId: number; // Foreign ID from search
+  artistId: string; // Foreign ID from search (MusicBrainz string)
   monitor: boolean;
   monitorDiscography: boolean;
-  qualityProfileId: number; // Default to 1 or from config
-  rootFolderPath: string; // Default or from config
+  qualityProfileId: number; // Default to 1
+  rootFolderPath: string; // Default '/music'
   addAlbums: boolean;
 }
 
@@ -102,8 +102,12 @@ export async function searchArtist(term: string): Promise<ArtistSearchResult[]> 
   }
 
   try {
-    const data = await apiFetch(`/api/v1/artist/lookup?term=${encodeURIComponent(term)}`) as ArtistSearchResult[];
-    return data || [];
+    const response = await apiFetch(`/api/v1/artist/lookup?term=${encodeURIComponent(term)}`);
+    const data = await response.json() as unknown;
+    if (data && typeof data === 'object' && (data.message || data.error)) {
+      throw new LidarrError('METADATA_ERROR', data.message || data.error || 'Lidarr metadata service failed');
+    }
+    return data as ArtistSearchResult[] || [];
   } catch (error) {
     console.error('Lidarr artist search failed:', error);
     throw new LidarrError('SEARCH_ERROR', `Failed to search artist: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -135,14 +139,16 @@ export async function addArtistToQueue(foreignArtistId: string, artistName: stri
   try {
     // First, lookup to get artist details if needed, but for add, use /api/v1/artist
     // Actually, to add new artist: POST /api/v1/artist with body
+    const config = getConfig();
     const addRequest: AddArtistRequest = {
-      artistId: parseInt(foreignArtistId), // Assuming foreign ID is numeric
+      artistId: foreignArtistId, // Foreign ID as string for MusicBrainz
       monitor: true,
       monitorDiscography: true,
-      qualityProfileId: 1, // Default, can be configured
-      rootFolderPath: '/music', // Default, configure via env
+      qualityProfileId: config.lidarrQualityProfileId || 1,
+      rootFolderPath: config.lidarrRootFolderPath || '/music',
       addAlbums: true,
     };
+    console.log('Lidarr add request body:', addRequest); // Debug
 
     const response = await apiFetch('/api/v1/artist', {
       method: 'POST',
@@ -158,13 +164,13 @@ export async function addArtistToQueue(foreignArtistId: string, artistName: stri
 }
 
 // Get wanted/missing items (queue status)
-export async function getDownloadQueue(): Promise<any[]> {
+export async function getDownloadQueue(): Promise<unknown[]> {
   if (!LIDARR_API_KEY) {
     throw new LidarrError('CONFIG_ERROR', 'Lidarr API key not configured');
   }
 
   try {
-    const data = await apiFetch('/api/v1/wanted/missing?includeArtist=true&includeAlbum=true') as any[];
+    const data = await apiFetch('/api/v1/wanted/missing?includeArtist=true&includeAlbum=true') as unknown[];
     return data || [];
   } catch (error) {
     console.error('Failed to fetch download queue:', error);

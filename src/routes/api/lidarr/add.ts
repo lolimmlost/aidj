@@ -21,6 +21,7 @@ export const ServerRoute = createServerFileRoute('/api/lidarr/add').methods({
 
     try {
       const { song } = await request.json() as { song: string };
+      console.log('Lidarr add request for song:', song); // Debug
       if (!song) {
         return new Response(JSON.stringify({ error: 'Song suggestion required' }), {
           status: 400,
@@ -30,6 +31,7 @@ export const ServerRoute = createServerFileRoute('/api/lidarr/add').methods({
 
       // Parse "Artist - Title"
       const match = song.match(/^(.+?)\s*-\s*(.+)$/);
+      console.log('Parsed artist/title:', match); // Debug
       if (!match) {
         return new Response(JSON.stringify({ error: 'Invalid song format. Expected "Artist - Title"' }), {
           status: 400,

@@ -23,8 +23,13 @@ if (typeof window !== 'undefined') {
     }
   }
 } else {
-  // Server side - use fs if needed, but for now, use defaults
-  // Note: For server, you may need to implement fs logic in API routes
+  // Server side - load sensitive config from process.env
+  currentConfig = {
+    ...defaults,
+    lidarrApiKey: process.env.LIDARR_API_KEY || '',
+    navidromeUsername: process.env.NAVIDROME_USERNAME || defaults.navidromeUsername,
+    navidromePassword: process.env.NAVIDROME_PASSWORD || defaults.navidromePassword,
+  };
 }
 
 export function getConfig(): ServiceConfig {
