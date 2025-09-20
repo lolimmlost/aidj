@@ -50,7 +50,7 @@ This document outlines the key implementation tasks that need to be completed to
 
 ### Task: Implement service integration functions
 - Create service functions for:
-  - Ollama API integration (generate recommendations)
+  - Ollama API integration (generate recommendations) - **Completed**: Includes library-aware recommendations using Navidrome summary for exact library matches, ensuring successful search/queuing from dashboard.
   - Navidrome API integration (get library, stream music)
   - Lidarr API integration (search, request downloads)
 
@@ -64,7 +64,7 @@ This document outlines the key implementation tasks that need to be completed to
 
 ### Task: Create UI components
 - Create components for:
-  - Music player
+  - Music player - **Updated**: Enhanced auto-play in `src/components/ui/audio-player.tsx` to load and play queued songs without state override, fixing pause/switch issues from recommendations.
   - Recommendation cards
   - Library browsing
   - Download management

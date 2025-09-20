@@ -7,7 +7,7 @@ Based on the architecture document, the following API routes need to be implemen
 - POST /api/auth/logout - User logout
 
 ## Recommendation Routes
-- GET /api/recommendations - Get music recommendations
+- POST /api/recommendations - Generate music recommendations based on prompt (e.g., similar artists or mood-based)
 
 ## Library Routes
 - GET /api/library/artists - Get list of artists
@@ -22,6 +22,14 @@ Based on the architecture document, the following API routes need to be implemen
 ## Implementation Notes
 
 These routes should be implemented as TanStack Start API routes in the `src/routes/api/` directory. Each route should:
+
+### /api/recommendations Implementation Details
+- **Method**: POST
+- **Body**: JSON with `{ prompt: string, model?: string }` (prompt examples: "similar artists to your favorites", "mood-based for relaxation")
+- **Auth**: Protected (requires session via auth middleware)
+- **Integration**: Calls `generateRecommendations` in `src/lib/services/ollama.ts`, which fetches user library summary via `getLibrarySummary` from Navidrome service and incorporates it into the Ollama prompt for library-aware suggestions (exact "Artist - Title" matches).
+- **Response**: 200 with `{ data: { recommendations: [{ song: string, explanation: string }] } }`; errors: 401 (unauth), 400 (no prompt), 500 (Ollama failure)
+- **Purpose**: Ensures recommendations are searchable in user's library, fixing queuing/playback issues where mismatched suggestions failed to switch songs.
 
 1. Use proper authentication middleware
 2. Validate input parameters

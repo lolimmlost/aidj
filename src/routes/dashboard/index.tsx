@@ -224,7 +224,16 @@ function DashboardIndex() {
             onChange={(e) => setStyle(e.target.value)}
             className="flex-1"
           />
-          <Button onClick={() => refetchPlaylist()} disabled={!trimmedStyle}>Generate</Button>
+          <Button
+            onClick={() => {
+              localStorage.removeItem(`playlist-${styleHash}`); // Clear specific cache for fresh generation
+              queryClient.invalidateQueries({ queryKey: ['playlist', styleHash, trimmedStyle] });
+              refetchPlaylist();
+            }}
+            disabled={!trimmedStyle}
+          >
+            Generate
+          </Button>
         </div>
         {playlistLoading && <p>Loading playlist...</p>}
         {playlistError && <p className="text-destructive">Error: {playlistError.message}</p>}

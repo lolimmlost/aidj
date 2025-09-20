@@ -148,9 +148,9 @@ export async function generatePlaylist({ style, summary }: PlaylistRequest): Pro
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
-  const artistsList = summary.artists.map((a: { name: string; genres: string }) => `${a.name} (${a.genres})`).join(', ');
-  const songsList = summary.songs.slice(0, 10).join(', '); // Top 10 as examples
-  const prompt = `Respond ONLY with valid JSON. No other text, explanations, or conversation. My library: artists [${artistsList}], songs [${songsList}]. Create 10-song playlist for '${style}' using only my library. JSON: {"playlist": [{"song": "Artist - Title", "explanation": "reason why it fits the style"}]} `;
+  const topArtists = summary.artists.slice(0, 5).map((a: { name: string; genres: string }) => `${a.name} (${a.genres})`).join(', ');
+  const topSongs = summary.songs.slice(0, 5).join(', '); // Limit to top 5 for concise prompt
+  const prompt = `Respond with ONLY valid JSON - no other text! My library includes artists like: [${topArtists}]. Example songs: [${topSongs}]. Create exactly 10-song playlist for style "${style}" using ONLY exact matches from my library. Format: {"playlist": [{"song": "Exact Artist - Exact Title", "explanation": "brief reason (1 sentence) why it fits ${style}"} ... ]}. Ensure all songs are real from my library.`;
 
   const url = `${OLLAMA_BASE_URL}/api/generate`;
   const body = {

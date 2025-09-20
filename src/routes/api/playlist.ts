@@ -31,6 +31,8 @@ export const ServerRoute = createServerFileRoute('/api/playlist').methods({
 
       const summary = await getLibrarySummary();
       const { playlist: suggestions } = await generatePlaylist({ style, summary });
+      console.log('Generated playlist suggestions:', suggestions); // Debug: Log raw suggestions from Ollama
+      
       const resolvedPlaylist = await Promise.all(
         suggestions.map(async (suggestion) => {
           try {
@@ -47,6 +49,8 @@ export const ServerRoute = createServerFileRoute('/api/playlist').methods({
           }
         })
       );
+      console.log('Resolved playlist:', resolvedPlaylist); // Debug: Log after Navidrome search resolution
+      
       return new Response(JSON.stringify({ data: { playlist: resolvedPlaylist } }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
