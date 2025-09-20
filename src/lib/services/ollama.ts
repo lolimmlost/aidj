@@ -7,11 +7,11 @@ const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'llama2';
 interface RecommendationRequest {
   prompt: string;
   model?: string;
+  userId?: string;
 }
 
 interface RecommendationResponse {
-  recommendations: string[];
-  explanation: string;
+  recommendations: { song: string; explanation: string }[];
 }
 
 class OllamaError extends Error {
@@ -39,14 +39,14 @@ async function retryFetch(fn: () => Promise<Response>, maxRetries = 3): Promise<
   throw lastError!;
 }
 
-export async function generateRecommendations({ prompt, model = DEFAULT_MODEL }: RecommendationRequest): Promise<RecommendationResponse> {
+export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, userId }: RecommendationRequest): Promise<RecommendationResponse> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
   const url = `${OLLAMA_BASE_URL}/api/generate`;
   const body = {
     model,
-    prompt: `Generate music recommendations based on: ${prompt}. Return as JSON: {"songs": ["song1", "song2"], "explanation": "reason"}`,
+    prompt: `Generate 5 music recommendations based on: ${prompt}. Return as JSON: {"recommendations": [{"song": "Artist - Title", "explanation": "brief reason why recommended"}, ...]}`,
     stream: false,
   };
 
@@ -69,13 +69,21 @@ export async function generateRecommendations({ prompt, model = DEFAULT_MODEL }:
       throw new OllamaError('PARSE_ERROR', 'No response from Ollama');
     }
 
-    const parsed = JSON.parse(data.response) as { songs: string[]; explanation: string };
-    if (!parsed.songs || !Array.isArray(parsed.songs)) {
+    let parsed;
+    try {
+      parsed = JSON.parse(data.response) as { recommendations: { song: string; explanation: string }[] };
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError, 'Response:', data.response);
+      // Fallback: extract songs from text
+      const fallback = data.response.match(/song["']?\s*:\s*["']([^"']+)["']/gi) || [];
+      const recs = fallback.slice(0, 5).map(match => ({ song: match.replace(/song["']?\s*:\s*["']/, '').replace(/["']$/, ''), explanation: 'Recommended based on your preferences' }));
+      return { recommendations: recs };
+    }
+    if (!parsed.recommendations || !Array.isArray(parsed.recommendations)) {
       throw new OllamaError('PARSE_ERROR', 'Invalid recommendations format');
     }
     return {
-      recommendations: parsed.songs,
-      explanation: parsed.explanation || 'No explanation provided',
+      recommendations: parsed.recommendations.map(r => ({ song: r.song, explanation: r.explanation })),
     };
   } catch (error: unknown) {
     clearTimeout(timeoutId);

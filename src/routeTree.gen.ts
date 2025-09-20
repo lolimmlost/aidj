@@ -21,7 +21,9 @@ import { Route as LibraryArtistsRouteImport } from "./routes/library/artists";
 import { Route as authSignupRouteImport } from "./routes/(auth)/signup";
 import { Route as authLoginRouteImport } from "./routes/(auth)/login";
 import { Route as LibraryArtistsIdRouteImport } from "./routes/library/artists/[id]";
+import { Route as DashboardRecommendationsIdRouteImport } from "./routes/dashboard/recommendations/[id]";
 import { Route as LibraryArtistsIdAlbumsAlbumIdRouteImport } from "./routes/library/artists/[id]/albums/[albumId]";
+import { ServerRoute as ApiRecommendationsServerRouteImport } from "./routes/api/recommendations";
 import { ServerRoute as ApiConfigServerRouteImport } from "./routes/api/config";
 import { ServerRoute as ApiAuthRegisterServerRouteImport } from "./routes/api/auth/register";
 import { ServerRoute as ApiAuthLoginServerRouteImport } from "./routes/api/auth/login";
@@ -81,11 +83,23 @@ const LibraryArtistsIdRoute = LibraryArtistsIdRouteImport.update({
   path: "/id",
   getParentRoute: () => LibraryArtistsRoute,
 } as any);
+const DashboardRecommendationsIdRoute =
+  DashboardRecommendationsIdRouteImport.update({
+    id: "/recommendations/id",
+    path: "/recommendations/id",
+    getParentRoute: () => DashboardRouteRoute,
+  } as any);
 const LibraryArtistsIdAlbumsAlbumIdRoute =
   LibraryArtistsIdAlbumsAlbumIdRouteImport.update({
     id: "/albums/albumId",
     path: "/albums/albumId",
     getParentRoute: () => LibraryArtistsIdRoute,
+  } as any);
+const ApiRecommendationsServerRoute =
+  ApiRecommendationsServerRouteImport.update({
+    id: "/api/recommendations",
+    path: "/api/recommendations",
+    getParentRoute: () => rootServerRouteImport,
   } as any);
 const ApiConfigServerRoute = ApiConfigServerRouteImport.update({
   id: "/api/config",
@@ -135,6 +149,7 @@ export interface FileRoutesByFullPath {
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
   "/library/search": typeof LibrarySearchRoute;
   "/dashboard/": typeof DashboardIndexRoute;
+  "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
   "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
   "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
 }
@@ -146,6 +161,7 @@ export interface FileRoutesByTo {
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
   "/library/search": typeof LibrarySearchRoute;
   "/dashboard": typeof DashboardIndexRoute;
+  "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
   "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
   "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
 }
@@ -160,6 +176,7 @@ export interface FileRoutesById {
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
   "/library/search": typeof LibrarySearchRoute;
   "/dashboard/": typeof DashboardIndexRoute;
+  "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
   "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
   "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
 }
@@ -174,6 +191,7 @@ export interface FileRouteTypes {
     | "/library/artists"
     | "/library/search"
     | "/dashboard/"
+    | "/dashboard/recommendations/id"
     | "/library/artists/id"
     | "/library/artists/id/albums/albumId";
   fileRoutesByTo: FileRoutesByTo;
@@ -185,6 +203,7 @@ export interface FileRouteTypes {
     | "/library/artists"
     | "/library/search"
     | "/dashboard"
+    | "/dashboard/recommendations/id"
     | "/library/artists/id"
     | "/library/artists/id/albums/albumId";
   id:
@@ -198,6 +217,7 @@ export interface FileRouteTypes {
     | "/library/artists"
     | "/library/search"
     | "/dashboard/"
+    | "/dashboard/recommendations/id"
     | "/library/artists/id"
     | "/library/artists/id/albums/albumId";
   fileRoutesById: FileRoutesById;
@@ -212,6 +232,7 @@ export interface RootRouteChildren {
 }
 export interface FileServerRoutesByFullPath {
   "/api/config": typeof ApiConfigServerRoute;
+  "/api/recommendations": typeof ApiRecommendationsServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
@@ -221,6 +242,7 @@ export interface FileServerRoutesByFullPath {
 }
 export interface FileServerRoutesByTo {
   "/api/config": typeof ApiConfigServerRoute;
+  "/api/recommendations": typeof ApiRecommendationsServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
@@ -231,6 +253,7 @@ export interface FileServerRoutesByTo {
 export interface FileServerRoutesById {
   __root__: typeof rootServerRouteImport;
   "/api/config": typeof ApiConfigServerRoute;
+  "/api/recommendations": typeof ApiRecommendationsServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
@@ -242,6 +265,7 @@ export interface FileServerRouteTypes {
   fileServerRoutesByFullPath: FileServerRoutesByFullPath;
   fullPaths:
     | "/api/config"
+    | "/api/recommendations"
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
@@ -251,6 +275,7 @@ export interface FileServerRouteTypes {
   fileServerRoutesByTo: FileServerRoutesByTo;
   to:
     | "/api/config"
+    | "/api/recommendations"
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
@@ -260,6 +285,7 @@ export interface FileServerRouteTypes {
   id:
     | "__root__"
     | "/api/config"
+    | "/api/recommendations"
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
@@ -270,6 +296,7 @@ export interface FileServerRouteTypes {
 }
 export interface RootServerRouteChildren {
   ApiConfigServerRoute: typeof ApiConfigServerRoute;
+  ApiRecommendationsServerRoute: typeof ApiRecommendationsServerRoute;
   ApiAuthSplatServerRoute: typeof ApiAuthSplatServerRoute;
   ApiAuthLoginServerRoute: typeof ApiAuthLoginServerRoute;
   ApiAuthRegisterServerRoute: typeof ApiAuthRegisterServerRoute;
@@ -350,6 +377,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof LibraryArtistsIdRouteImport;
       parentRoute: typeof LibraryArtistsRoute;
     };
+    "/dashboard/recommendations/id": {
+      id: "/dashboard/recommendations/id";
+      path: "/recommendations/id";
+      fullPath: "/dashboard/recommendations/id";
+      preLoaderRoute: typeof DashboardRecommendationsIdRouteImport;
+      parentRoute: typeof DashboardRouteRoute;
+    };
     "/library/artists/id/albums/albumId": {
       id: "/library/artists/id/albums/albumId";
       path: "/albums/albumId";
@@ -361,6 +395,13 @@ declare module "@tanstack/react-router" {
 }
 declare module "@tanstack/react-start/server" {
   interface ServerFileRoutesByPath {
+    "/api/recommendations": {
+      id: "/api/recommendations";
+      path: "/api/recommendations";
+      fullPath: "/api/recommendations";
+      preLoaderRoute: typeof ApiRecommendationsServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
     "/api/config": {
       id: "/api/config";
       path: "/api/config";
@@ -429,10 +470,12 @@ const authRouteRouteWithChildren = authRouteRoute._addFileChildren(
 
 interface DashboardRouteRouteChildren {
   DashboardIndexRoute: typeof DashboardIndexRoute;
+  DashboardRecommendationsIdRoute: typeof DashboardRecommendationsIdRoute;
 }
 
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardIndexRoute: DashboardIndexRoute,
+  DashboardRecommendationsIdRoute: DashboardRecommendationsIdRoute,
 };
 
 const DashboardRouteRouteWithChildren = DashboardRouteRoute._addFileChildren(
@@ -475,6 +518,7 @@ export const routeTree = rootRouteImport
   ._addFileTypes<FileRouteTypes>();
 const rootServerRouteChildren: RootServerRouteChildren = {
   ApiConfigServerRoute: ApiConfigServerRoute,
+  ApiRecommendationsServerRoute: ApiRecommendationsServerRoute,
   ApiAuthSplatServerRoute: ApiAuthSplatServerRoute,
   ApiAuthLoginServerRoute: ApiAuthLoginServerRoute,
   ApiAuthRegisterServerRoute: ApiAuthRegisterServerRoute,

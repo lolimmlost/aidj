@@ -1,8 +1,8 @@
 import { createServerFileRoute } from '@tanstack/react-start/server';
-import { generateRecommendations } from '../../../lib/services/ollama';
-import { auth } from '../../../lib/auth/auth';
+import { generateRecommendations } from '../../lib/services/ollama';
+import { auth } from '../../lib/auth/auth';
 
-export const Route = createServerFileRoute('/api/recommendations').methods({
+export const ServerRoute = createServerFileRoute('/api/recommendations').methods({
   POST: async ({ request }) => {
     // Auth check (protected route)
     const session = await auth.api.getSession({

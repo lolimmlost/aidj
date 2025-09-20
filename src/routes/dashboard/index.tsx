@@ -1,10 +1,79 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import authClient from '@/lib/auth/auth-client';
+import { useAudioStore } from '@/lib/stores/audio';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export const Route = createFileRoute("/dashboard/")({
   component: DashboardIndex,
 });
 
+function xorEncrypt(str, key) {
+  return str.split('').map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length))).join('');
+}
+
+function xorDecrypt(encryptedStr, key) {
+  return encryptedStr.split('').map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length))).join('');
+}
+
+const ENCRYPT_KEY = 'mySecretKey12345';
+
+function getFeedback(song: string) {
+  const songKey = btoa(song);
+  const stored = localStorage.getItem(songKey);
+  if (!stored) return { up: false, down: false };
+  try {
+    const decryptedStr = xorDecrypt(atob(stored), ENCRYPT_KEY);
+    return JSON.parse(decryptedStr) as { up: boolean; down: boolean };
+  } catch {
+    return { up: false, down: false };
+  }
+}
+
+function setFeedback(song: string, type: 'up' | 'down') {
+  const songKey = btoa(song);
+  const feedback = { up: type === 'up', down: type === 'down' };
+  const jsonStr = JSON.stringify(feedback);
+  const encryptedStr = xorEncrypt(jsonStr, ENCRYPT_KEY);
+  localStorage.setItem(songKey, btoa(encryptedStr));
+}
+
 function DashboardIndex() {
+  const [type, setType] = useState<'similar' | 'mood'>('similar');
+  const { data: session } = authClient.useSession();
+  const queryClient = useQueryClient();
+  const addToQueue = useAudioStore((state) => state.playSong);
+
+  const { data: recommendations, isLoading, error } = useQuery({
+    queryKey: ['recommendations', session?.user.id, type],
+    queryFn: async () => {
+      const prompt = type === 'similar' ? 'similar artists to your favorites' : 'mood-based recommendations for relaxation';
+      const response = await fetch('/api/recommendations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      if (!response.ok) throw new Error('Failed to fetch recommendations');
+      const data = await response.json();
+      data.timestamp = new Date().toISOString(); // AC6
+      return data;
+    },
+    enabled: !!session,
+  });
+
+  const handleFeedback = (song: string, type: 'up' | 'down') => {
+    setFeedback(song, type);
+    queryClient.invalidateQueries({ queryKey: ['recommendations', session?.user.id, type] });
+  };
+
+  const handleQueue = (song: string) => {
+    // Assume song as id/name, minimal Song obj
+    addToQueue(song, [{ id: song, name: song, albumId: '', duration: 0, track: 1, url: '', artist: '' }]);
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="text-center">
@@ -14,9 +83,59 @@ function DashboardIndex() {
         </p>
       </div>
 
-      <pre className="bg-card text-card-foreground rounded-lg border p-4 text-sm opacity-75">
-        routes/dashboard/index.tsx
-      </pre>
+      <section className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-semibold">AI Recommendations</h2>
+          <Select value={type} onValueChange={(value) => setType(value as 'similar' | 'mood')}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="similar">Similar Artists</SelectItem>
+              <SelectItem value="mood">Mood-Based</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {isLoading && <p>Loading recommendations...</p>}
+        {error && <p className="text-destructive">Error loading recommendations: {error.message}</p>}
+        {recommendations && (
+          <Card className="bg-card text-card-foreground border-card">
+            <CardHeader>
+              <CardTitle>Based on your history</CardTitle>
+              <CardDescription>Generated at {new Date(recommendations.timestamp).toLocaleString()} (timeout: 5s)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {recommendations.data.recommendations.map((rec: { song: string; explanation: string }, index: number) => {
+                  const feedback = getFeedback(rec.song);
+                  const songId = btoa(rec.song); // For route
+                  return (
+                    <li key={index} className="flex flex-col space-y-2 p-2 border rounded">
+                      <div className="flex justify-between items-center">
+                        <Link to={`/dashboard/recommendations/${songId}`} className="hover:underline">
+                          {rec.song}
+                        </Link>
+                        <div className="space-x-2">
+                          <Button variant="ghost" size="sm" onClick={() => handleQueue(rec.song)}>
+                            Queue
+                          </Button>
+                          <Button variant={feedback.up ? "default" : "ghost"} size="sm" onClick={() => handleFeedback(rec.song, 'up')}>
+                            👍
+                          </Button>
+                          <Button variant={feedback.down ? "default" : "ghost"} size="sm" onClick={() => handleFeedback(rec.song, 'down')}>
+                            👎
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{rec.explanation.substring(0, 100)}...</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+      </section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Link
