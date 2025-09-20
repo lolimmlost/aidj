@@ -54,3 +54,9 @@ Thumbs.db
 
 # Development server artifacts
 
+# Playwright test reports and results
+playwright-report/
+test-results/
+*.png
+*.md
+
