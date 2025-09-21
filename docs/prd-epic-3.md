@@ -23,17 +23,17 @@ so that the application can generate music recommendations.
 
 ### Tasks
 
-- [ ] Implement unit test for parsing successful API responses (AC3)
-- [ ] Implement unit test for handling malformed API responses with standardized error patterns (AC3)
-- [ ] Implement unit test for retry mechanism with exponential backoff on failed API calls (AC5)
-- [ ] Implement unit test for successful retry after initial failure (AC5)
+- [x] Implement unit test for parsing successful API responses (AC3)
+- [x] Implement unit test for handling malformed API responses with standardized error patterns (AC3)
+- [x] Implement unit test for retry mechanism with exponential backoff on failed API calls (AC5)
+- [x] Implement unit test for successful retry after initial failure (AC5)
 
-- [ ] Implement integration test for valid API call to Ollama via route (AC1)
-- [ ] Implement integration test for end-to-end recommendation request via API (AC1)
-- [ ] Implement integration test for timeout on unavailable Ollama service (5s) (AC4)
-- [ ] Implement integration test for graceful error handling on model load failure (AC4)
+- [x] Implement integration test for valid API call to Ollama via route (AC1)
+- [x] Implement integration test for end-to-end recommendation request via API (AC1)
+- [x] Implement integration test for timeout on unavailable Ollama service (5s) (AC4)
+- [x] Implement integration test for graceful error handling on model load failure (AC4)
 
-- [ ] Implement E2E test for end-to-end recommendation request via API route (AC1)
+- [x] Implement E2E test for end-to-end recommendation request via API route (AC1)
 
 ## Story 3.2: Recommendation Display and Interaction
 
@@ -70,10 +70,10 @@ so that I can discover and play music matching specific styles or occasions from
 
 ### Tasks
 
-- Design and implement Ollama prompt: "My library: artists [list with genres], songs [examples]. Create 10-song playlist for '[style]' using only my library. JSON: {\"playlist\": [{\"song\": \"Artist - Title\", \"explanation\": \"reason\"}]}"
-- Update recommendations API to /playlist endpoint: fetch summary, build prompt, call Ollama, resolve songs via search
-- Add UI: text input + generate button in dashboard recommendations section
-- Cache: store playlist by style hash in localStorage, load if exists, privacy button to clear
-- Display: list with links to details, queue integration
-- Tests: unit for prompt/resolution, E2E for input-to-playback flow
-- Unit test: Lidarr add request for missing songs (src/lib/services/__tests__/lidarr.test.ts – create if needed)
+- [ ] Design and implement Ollama prompt: "My library: artists [list with genres], songs [examples]. Create 10-song playlist for '[style]' using only my library. JSON: {\"playlist\": [{\"song\": \"Artist - Title\", \"explanation\": \"reason\"}]}"
+- [ ] Update recommendations API to /playlist endpoint: fetch summary, build prompt, call Ollama, resolve songs via search
+- [ ] Add UI: text input + generate button in dashboard recommendations section
+- [ ] Cache: store playlist by style hash in localStorage, load if exists, privacy button to clear
+- [ ] Display: list with links to details, queue integration
+- [ ] Tests: unit for prompt/resolution, E2E for input-to-playback flow
+- [ ] Unit test: Lidarr add request for missing songs (src/lib/services/__tests__/lidarr.test.ts – create if needed)

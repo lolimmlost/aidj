@@ -256,17 +256,30 @@ I want to request and generate themed playlists (e.g., Halloween, Christmas, rav
 so that I can discover and play music matching specific styles or occasions from my collection.
 
 ### Acceptance Criteria
-1. [x] Add input field in dashboard for user to specify playlist style/theme (text input with examples)
-2. [x] Fetch library summary (top 20 artists with genres, top 10 songs) via Navidrome service for prompt context
-3. [x] Generate playlist using Ollama: prompt includes library summary and style, returns 10 suggestions as JSON
-4. [x] For each suggestion, search Navidrome to resolve actual Song objects (ID, URL) from library
-5. [x] Display generated playlist in dashboard with explanations, feedback (thumbs up/down, encrypted localStorage), and add-to-queue buttons
-6. [x] Implement caching for generated playlists (localStorage, with privacy toggle to clear cache)
-7. [x] Integrate with audio store: add entire playlist or individual songs to queue/play
-8. [x] Handle errors: fallback if no matching songs, timeout (5s), retry on Ollama failure
-9. [x] If suggested song not in library, add to Lidarr download queue with user confirmation (Dependency: Epic 4 Story 4.1)
+1. [ ] Add input field in dashboard for user to specify playlist style/theme (text input with examples)
+2. [ ] Fetch library summary (top 20 artists with genres, top 10 songs) via Navidrome service for prompt context
+3. [ ] Generate playlist using Ollama: prompt includes library summary and style, returns 10 suggestions as JSON
+4. [ ] For each suggestion, search Navidrome to resolve actual Song objects (ID, URL) from library
+5. [ ] Display generated playlist in dashboard with explanations, feedback (thumbs up/down, encrypted localStorage), and add-to-queue buttons
+6. [ ] Implement caching for generated playlists (localStorage, with privacy toggle to clear cache)
+7. [ ] Integrate with audio store: add entire playlist or individual songs to queue/play
+8. [ ] Handle errors: fallback if no matching songs, timeout (5s), retry on Ollama failure
+9. [ ] If suggested song not in library, add to Lidarr download queue with user confirmation (Dependency: Epic 4 Story 4.1)
 
 Points: 5
+
+## Bug 3.7: Navidrome Search Endpoint Fix
+As a developer,
+I want to fix the library search function to use the correct Subsonic API endpoint,
+so that playlist resolution and recommendations work properly.
+
+### Acceptance Criteria
+- [ ] Update src/lib/services/navidrome.ts search() to use /rest/search.view?query=...&songCount=50 instead of /api/song?fullText=
+- [ ] Parse 'song' array from response for matching Song objects
+- [ ] Add unit test for search with mock data
+- [ ] Validate E2E: Generate playlist and confirm songs resolve without fallback to invalid defaults
+
+Points: 2
 
 Epic 4: Download Management
 

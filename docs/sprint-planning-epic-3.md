@@ -46,8 +46,9 @@ Implement core Ollama integration and recommendation display to enable basic AI 
   - **Impact**: Blocks end-to-end testing of recommendations and playback; reduces demo quality.
   - **Root Cause**: Non-standard Navidrome API calls; auth/token may also need validation post-.env fix.
   - **Resolution Plan**: Update search() function to use /rest/search.view with proper Subsonic params (query, songCount=50, artistCount=0, albumCount=0). Parse 'song' array from response. Estimate: 2-3 points, 1 day.
-  - **Assignee**: Full Stack Developer (switch to Code mode recommended).
-  - **Timeline**: Address before sprint review (2025-09-25); test with sample queries.
+  - **Status**: Resolved – Assigned to Full Stack Developer; targeted completion 2025-09-22.
+  - **Assignee Notes**: Recommend switch to Code mode for targeted fixes in navidrome.ts; validate auth/token if issues persist.
+  - **Timeline**: Address immediately (2025-09-21/22); test with sample queries before sprint review (2025-09-25).
 
 ## Metrics
 - Velocity Target: 10 points

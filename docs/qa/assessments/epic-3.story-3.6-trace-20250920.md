@@ -8,6 +8,8 @@
 - Fully Covered: 0 (0%)
 - Partially Covered: 2 (22%)
 - Not Covered: 7 (78%)
+- Status: In-Progress (Core implementation partial; tests pending; impacted by Bug 3.7 on AC4)
+- Updated: 2025-09-21
 
 ### Requirement Mappings
 
@@ -54,7 +56,7 @@ Given-When-Then Mappings:
 
 #### AC4: For each suggestion, search Navidrome to resolve actual Song objects (ID, URL) from library
 
-**Coverage: NONE**
+**Coverage: NONE** (Blocked by Bug 3.7: Navidrome search endpoint issue prevents resolution testing)
 
 Given-When-Then Mappings:
 
@@ -62,6 +64,7 @@ Given-When-Then Mappings:
   - Given: Playlist suggestions and Navidrome client
   - When: Search for each song title/artist
   - Then: Returns matching Song objects with ID and URL, or null for misses
+- **Note**: Post Bug 3.7 fix, add integration test for end-to-end resolution with mock failures
 
 #### AC5: Display generated playlist in dashboard with explanations, feedback (thumbs up/down, encrypted localStorage), and add-to-queue buttons
 
@@ -124,25 +127,35 @@ Given-When-Then Mappings:
 
 ### Critical Gaps
 
-1. **Caching Privacy Toggle**
+1. **Test Implementation Priority**
+   - Gap: All 24 planned scenarios (8 unit, 6 integration, 10 E2E) unimplemented despite partial code progress
+   - Risk: High - Feature unverified; cannot promote to Done without >80% coverage
+   - Action: Implement P0 tests first (core flows AC1-9): Start with unit for AC3/AC4, then E2E for full playlist generation. Target completion post Bug 3.7 fix.
+
+2. **Caching Privacy Toggle**
    - Gap: No test for privacy toggle clearing cache or encrypted storage validation
    - Risk: Medium - Privacy feature unverified, potential data leak
    - Action: Add unit test for localStorage encryption/decryption and E2E for toggle functionality
 
-2. **Mobile Responsiveness and UI Edge Cases**
+3. **Mobile Responsiveness and UI Edge Cases**
    - Gap: No tests for responsive display on mobile or empty playlist handling
    - Risk: Low - UI may break on devices, but core flow intact
    - Action: Extend E2E tests with viewport emulation for mobile
 
-3. **Non-Functional Requirements (Inferred)**
+4. **Non-Functional Requirements (Inferred)**
    - Gap: No performance test for 5s timeout enforcement; no security test for encrypted feedback
    - Risk: Medium - Could exceed SLAs or expose data
    - Action: Add integration test for timeout mocking and unit test for encryption
 
-4. **Retry Logic on Ollama Failure**
+5. **Retry Logic on Ollama Failure**
    - Gap: Planned but no explicit test for retry count and backoff
    - Risk: Medium - Infinite retries or no fallback on persistent failure
    - Action: Unit test retry mechanism with mocked failures
+
+6. **Bug 3.7 Impact (Navidrome Search)**
+   - Gap: AC4 resolution untestable until endpoint fix
+   - Risk: High - Blocks E2E validation of playlist suggestions
+   - Action: After fix, re-run planned tests for AC4; add regression test for search endpoint
 
 ### Test Design Recommendations
 
