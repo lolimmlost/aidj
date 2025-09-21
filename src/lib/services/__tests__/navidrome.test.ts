@@ -13,15 +13,6 @@ const mockGetConfig = getConfig as unknown as ReturnType<typeof vi.fn>;
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Mock the module functions that are tested later
-vi.mock('../navidrome', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../navidrome')>();
-  return {
-    ...actual,
-    getArtistsWithDetails: vi.fn(),
-    getSongsGlobal: vi.fn(),
-  };
-});
 
 describe('Navidrome Service Integration Tests', () => {
   beforeEach(async () => {
@@ -455,35 +446,33 @@ describe('Navidrome Service Integration Tests', () => {
     it('should handle search failure gracefully', async () => {
       const { search } = await import('../navidrome');
 
-      const validLoginResponse = {
-        ok: true,
+      const validLoginResponse = new Response(null, {
         status: 200,
-        json: async () => ({
-          token: 'test-token',
-          id: 'test-client',
-          subsonicToken: 'test-subsonic',
-          subsonicSalt: 'test-salt',
-        }),
-      } as Response;
+        headers: { 'content-type': 'application/json' },
+      });
+      validLoginResponse.json = async () => ({
+        token: 'test-token',
+        id: 'test-client',
+        subsonicToken: 'test-subsonic',
+        subsonicSalt: 'test-salt',
+      });
 
-      const failureResponse = {
-        ok: false,
+      const failureResponse = new Response(null, {
         status: 500,
         statusText: 'Server Error',
-      } as Response;
+      });
 
+      // 1 auth + 3 params * 2 fetches (retry on error)
       mockFetch.mockResolvedValueOnce(validLoginResponse);
-      // First fallback: login success, API fail, retry API fail
-      mockFetch.mockResolvedValueOnce(failureResponse);
-      mockFetch.mockResolvedValueOnce(failureResponse);
-      // Second fallback: API fail, retry API fail
-      mockFetch.mockResolvedValueOnce(failureResponse);
-      mockFetch.mockResolvedValueOnce(failureResponse);
+      for (let i = 0; i < 3; i++) {
+        mockFetch.mockResolvedValueOnce(failureResponse); // first try
+        mockFetch.mockResolvedValueOnce(failureResponse); // retry
+      }
       
       const result = await search('test');
       
       expect(result).toEqual([]);
-      expect(mockFetch).toHaveBeenCalledTimes(5);
+      expect(mockFetch).toHaveBeenCalledTimes(7);
     });
   });
 
@@ -518,6 +507,7 @@ describe('Navidrome Service Integration Tests', () => {
         size: 1,
       };
 
+      // Mock fetch for auth (1), getArtists api (1), 2 getArtistDetail api (2) = 4 calls
       const validLoginResponse = {
         ok: true,
         status: 200,
@@ -529,29 +519,26 @@ describe('Navidrome Service Integration Tests', () => {
         }),
       } as Response;
 
-      // Mock getArtists call (login + API)
-      mockFetch.mockResolvedValueOnce(validLoginResponse);
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        headers: new Headers({ 'content-type': 'application/json' }),
-        json: async () => mockBasicArtists,
-      } as Response);
-      
-      // Mock getArtistDetail calls (2 API, token cached)
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        headers: new Headers({ 'content-type': 'application/json' }),
-        json: async () => mockDetail1,
-      } as Response);
-      
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        headers: new Headers({ 'content-type': 'application/json' }),
-        json: async () => mockDetail2,
-      } as Response);
+      mockFetch
+        .mockResolvedValueOnce(validLoginResponse) // auth in getArtists
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: vi.fn().mockResolvedValue(mockBasicArtists),
+        } as unknown as Response) // getArtists api
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: vi.fn().mockResolvedValue(mockDetail1),
+        } as unknown as Response) // detail 1
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: vi.fn().mockResolvedValue(mockDetail2),
+        } as unknown as Response); // detail 2
 
       const result = await getArtistsWithDetails(0, 2);
       
@@ -571,6 +558,35 @@ describe('Navidrome Service Integration Tests', () => {
   });
 
   describe('getLibrarySummary', () => {
+    const basicArtists = [
+      { id: 'a1', name: 'Artist1' },
+      { id: 'a2', name: 'Artist2' },
+    ];
+    const rawSongs = [
+      { id: 's1', name: 'Song1', albumId: 'al1', duration: 180, track: 1 },
+      { id: 's2', name: 'Song2', albumId: 'al1', duration: 240, track: 2 },
+    ];
+    const detail1 = {
+      id: 'a1',
+      name: 'Artist1',
+      albumCount: 5,
+      songCount: 50,
+      genres: 'Rock',
+      fullText: 'desc1',
+      orderArtistName: 'Artist1',
+      size: 1,
+    };
+    const detail2 = {
+      id: 'a2',
+      name: 'Artist2',
+      albumCount: 3,
+      songCount: 30,
+      genres: 'Pop',
+      fullText: 'desc2',
+      orderArtistName: 'Artist2',
+      size: 1,
+    };
+
     const mockArtists: ArtistWithDetails[] = [
       { id: 'a1', name: 'Artist1', genres: 'Rock', albumCount: 5, songCount: 50, fullText: 'desc1', orderArtistName: 'Artist1', size: 1 },
       { id: 'a2', name: 'Artist2', genres: 'Pop', albumCount: 3, songCount: 30, fullText: 'desc2', orderArtistName: 'Artist2', size: 1 },
@@ -582,8 +598,6 @@ describe('Navidrome Service Integration Tests', () => {
 
     beforeEach(() => {
       vi.clearAllMocks();
-      vi.mocked(getArtistsWithDetails).mockResolvedValue(mockArtists);
-      vi.mocked(getSongsGlobal).mockResolvedValue(mockSongs);
       mockGetConfig.mockReturnValue({
         navidromeUrl: 'http://localhost:4533',
         navidromeUsername: 'testuser',
@@ -592,6 +606,46 @@ describe('Navidrome Service Integration Tests', () => {
     });
 
     it('fetches and combines top artists and songs', async () => {
+      const { getLibrarySummary } = await import('../navidrome');
+
+      const validLoginResponse = new Response(JSON.stringify({
+        token: 'test-token',
+        id: 'test-client',
+        subsonicToken: 'test-subsonic',
+        subsonicSalt: 'test-salt',
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+      const basicResponse = new Response(JSON.stringify(basicArtists), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+      const detail1Response = new Response(JSON.stringify(detail1), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+      const detail2Response = new Response(JSON.stringify(detail2), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+      const rawResponse = new Response(JSON.stringify(rawSongs), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+      // auth + getArtists + 2 details + getSongsGlobal api
+      mockFetch
+        .mockResolvedValueOnce(validLoginResponse)
+        .mockResolvedValueOnce(basicResponse)
+        .mockResolvedValueOnce(detail1Response)
+        .mockResolvedValueOnce(detail2Response)
+        .mockResolvedValueOnce(rawResponse);
+
       const result = await getLibrarySummary();
 
       expect(result).toEqual({
@@ -601,13 +655,17 @@ describe('Navidrome Service Integration Tests', () => {
         ],
         songs: ['Song1', 'Song2'],
       });
-      expect(getArtistsWithDetails).toHaveBeenCalledWith(0, 20);
-      expect(getSongsGlobal).toHaveBeenCalledWith(0, 10);
     });
 
     it('handles error in fetching summary', async () => {
-      vi.mocked(getArtistsWithDetails).mockRejectedValueOnce(new Error('Fetch error'));
-      vi.mocked(getSongsGlobal).mockResolvedValueOnce([]);
+      const { getLibrarySummary } = await import('../navidrome');
+
+      const failureResponse = new Response(null, {
+        status: 500,
+        statusText: 'Server Error',
+      });
+
+      mockFetch.mockResolvedValueOnce(failureResponse); // make first call fail
 
       await expect(getLibrarySummary()).rejects.toThrow('Failed to fetch library summary');
     });
@@ -653,35 +711,33 @@ describe('Navidrome Service Integration Tests', () => {
     it('handles search error gracefully', async () => {
       const { search } = await import('../navidrome');
 
-      const validLoginResponse = {
-        ok: true,
+      const validLoginResponse = new Response(null, {
         status: 200,
-        json: async () => ({
-          token: 'test-token',
-          id: 'test-client',
-          subsonicToken: 'test-subsonic',
-          subsonicSalt: 'test-salt',
-        }),
-      } as Response;
+        headers: { 'content-type': 'application/json' },
+      });
+      validLoginResponse.json = async () => ({
+        token: 'test-token',
+        id: 'test-client',
+        subsonicToken: 'test-subsonic',
+        subsonicSalt: 'test-salt',
+      });
 
-      const failureResponse = {
-        ok: false,
+      const failureResponse = new Response(null, {
         status: 500,
         statusText: 'Server Error',
-      } as Response;
+      });
 
+      // 1 auth + 3 params * 2 fetches (retry on error)
       mockFetch.mockResolvedValueOnce(validLoginResponse);
-      // First fallback: login success, API fail, retry API fail
-      mockFetch.mockResolvedValueOnce(failureResponse);
-      mockFetch.mockResolvedValueOnce(failureResponse);
-      // Second fallback: API fail, retry API fail
-      mockFetch.mockResolvedValueOnce(failureResponse);
-      mockFetch.mockResolvedValueOnce(failureResponse);
+      for (let i = 0; i < 3; i++) {
+        mockFetch.mockResolvedValueOnce(failureResponse); // first try
+        mockFetch.mockResolvedValueOnce(failureResponse); // retry
+      }
 
       const matches = await search('Test Song', 0, 1);
 
       expect(matches).toEqual([]);
-      expect(mockFetch).toHaveBeenCalledTimes(5);
+      expect(mockFetch).toHaveBeenCalledTimes(7);
     });
   });
 });

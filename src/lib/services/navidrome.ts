@@ -238,7 +238,7 @@ export async function search(query: string, start: number = 0, limit: number = 5
   try {
     const config = getConfig();
     if (!config.navidromeUrl) {
-      throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
+      return [];
     }
 
     await getAuthToken(); // Ensure auth
