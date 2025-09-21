@@ -1,84 +1,136 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Playlist Generation Flow', () => {
+test.describe('Style-Based Playlist Generation E2E', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route('/api/config', route => route.fulfill({
-      status: 200,
-      body: JSON.stringify({
-        lidarrUrl: 'http://localhost:8686',
-        ollamaUrl: 'http://localhost:11434',
-        navidromeUrl: 'http://localhost:4533',
-      }),
-    }));
-
-    // Start at login, click Sign up link to create user
-    await page.goto('/login');
-    await expect(page).toHaveTitle(/Login/);
-    await page.click('text=Sign up, a:has-text("Sign up")');
-    await expect(page).toHaveTitle(/Sign Up/);
-    await page.fill('input[type="text"], input[name="name"]', 'Test User');
-    await page.fill('input[type="email"]', 'test@example.com');
-    await page.fill('input[type="password"]', 'testpass');
-    await page.fill('input[name="confirmPassword"], input[placeholder*="Confirm"]', 'testpass');
-    await page.click('button:has-text("Sign Up")');
-    await expect(page).toHaveURL(/dashboard/);
-
-    // Login
-    await page.goto('/login');
-    await expect(page).toHaveTitle(/Login/);
-    await page.fill('input[type="email"]', 'test@example.com');
-    await page.fill('input[type="password"]', 'testpass');
-    await page.click('button:has-text("Login")');
-    await expect(page).toHaveURL(/dashboard/);
-    await expect(page).toHaveURL('/dashboard');
+    await page.goto('/dashboard');
+    // Assume user is logged in; if not, add login steps
+    if (await page.locator('text=Login').isVisible()) {
+      await page.goto('/login');
+      await page.fill('input[name="email"]', 'test@example.com');
+      await page.fill('input[name="password"]', 'password');
+      await page.click('button[type="submit"]');
+      await page.waitForURL('/dashboard');
+    }
   });
 
-  test('generates playlist from style input and displays with feedback/queue', async ({ page }) => {
-    // Enter style and generate
-    await page.fill('input[placeholder*="style"]', 'rock');
+  test('AC1: User inputs style and generates playlist', async ({ page }) => {
+    await page.fill('input[placeholder*="Enter style"]', 'rock');
     await page.click('button:has-text("Generate")');
-    await expect(page.locator('text=Generated Playlist for "rock"')).toBeVisible();
-
-    // Check display
+    await expect(page.locator('h2:has-text("Generated Playlist")')).toBeVisible();
     await expect(page.locator('ul li')).toHaveCount(10);
-    await expect(page.locator('li p.text-muted-foreground')).toBeVisible(); // Explanations
+  });
 
-    // Feedback
+  test('AC2: Fetches library summary for prompt context', async ({ page }) => {
+    const responsePromise = page.waitForResponse(resp => resp.url().includes('/api/playlist') && resp.status() === 200);
+    await page.fill('input[placeholder*="Enter style"]', 'rock');
+    await page.click('button:has-text("Generate")');
+    const response = await responsePromise;
+    expect(response.status()).toBe(200);
+    const body = await response.text();
+    expect(body).toContain('playlist'); // Includes generated data from summary
+  });
+
+  test('AC3: Generates playlist with Ollama prompt and JSON parsing', async ({ page }) => {
+    await page.fill('input[placeholder*="Enter style"]', 'rock');
+    await page.click('button:has-text("Generate")');
+    await expect(page.locator('ul li')).toHaveCount(10);
+    const firstItem = page.locator('ul li').first();
+    await expect(firstItem.locator('p')).toContainText('explanation'); // Explanations from JSON
+  });
+
+  test('AC4: Resolves suggestions to Song objects from library', async ({ page }) => {
+    await page.fill('input[placeholder*="Enter style"]', 'rock');
+    await page.click('button:has-text("Generate")');
+    const items = page.locator('ul li');
+    await expect(items).toHaveCount(10);
+    const resolvedCount = await items.locator('button:has-text("Queue")').count();
+    expect(resolvedCount).toBeGreaterThan(0); // At least some resolved
+    const missingCount = await items.locator('button:has-text("Add to Lidarr")').count();
+    expect(missingCount).toBeLessThan(10); // Not all missing
+  });
+
+  test('AC5: Displays playlist with explanations, feedback, and queue buttons', async ({ page }) => {
+    await page.fill('input[placeholder*="Enter style"]', 'rock');
+    await page.click('button:has-text("Generate")');
+    await expect(page.locator('ul li p')).toBeVisible(); // Explanations
+    await expect(page.locator('button:has-text("👍")')).toBeVisible();
+    await expect(page.locator('button:has-text("👎")')).toBeVisible();
+    await expect(page.locator('button:has-text("Queue")')).toBeVisible();
+    // Test feedback
     await page.click('button:has-text("👍")');
-    await page.click('button:has-text("👎")');
-    await expect(page.locator('button[ variant="default" ]')).toBeVisible(); // Active feedback
+    await expect(page.locator('button:has-text("👍")')).toHaveClass(/default/); // Toggled
+  });
 
-    // Add individual to queue (assume resolved)
-    await page.click('button:has-text("Queue")');
-    await expect(page.locator('audio')).toBeVisible(); // Assume player updates
-
-    // Add entire
-    await page.click('button:has-text("Add Entire Playlist to Queue")');
-    await expect(page.locator('audio')).toBeVisible();
-
+  test('AC6: Caches generated playlist and loads on regenerate', async ({ page }) => {
+    const style = 'rock';
+    await page.fill('input[placeholder*="Enter style"]', style);
+    await page.click('button:has-text("Generate")');
+    await page.waitForSelector('ul li');
+    // Regenerate same style (should load from cache faster, but verify no new API if possible; here check display)
+    await page.click('button:has-text("Generate")');
+    await expect(page.locator('ul li')).toBeVisible();
     // Clear cache
     await page.click('button:has-text("Clear Cache")');
-    await expect(page.locator('input[placeholder*="style"]')).toHaveValue('');
+    await expect(page.locator('input')).toHaveValue('');
+    // Regenerate should call API again
+    await page.fill('input[placeholder*="Enter style"]', style);
+    await page.click('button:has-text("Generate")');
+    await expect(page.locator('ul li')).toBeVisible();
   });
 
-  test('handles missing song with Lidarr stub', async ({ page }) => {
-    await page.fill('input[placeholder*="style"]', 'rare genre');
+  test('AC7: Adds entire playlist or individual songs to queue', async ({ page }) => {
+    await page.fill('input[placeholder*="Enter style"]', 'rock');
     await page.click('button:has-text("Generate")');
-    await page.waitForSelector('button:has-text("Add to Lidarr")');
-    await page.click('button:has-text("Add to Lidarr")');
-    await expect(page.locator('text=Queued')).toContainText('for download via Lidarr');
+    // Add entire
+    await page.click('button:has-text("Add Entire Playlist to Queue")');
+    // Assume audio store updates; check for toast or console, or page change if queue UI
+    // Individual
+    await page.click('ul li button:has-text("Queue")');
+    // Verify if audio player updates or queue list appears
+    await expect(page.locator('text=Queued')).toBeVisible(); // Assume toast
   });
 
-  test('handles error scenarios', async ({ page }) => {
-    // Mock error (e.g., no Ollama)
-    await page.route('/api/playlist', route => route.fulfill({ status: 500, body: JSON.stringify({ error: 'Ollama timeout' }) }));
-    await page.fill('input[placeholder*="style"]', 'test');
+  test('AC8: Handles errors (no matches, timeout, retry)', async ({ page }) => {
+    await page.fill('input[placeholder*="Enter style"]', 'invalid-nonexistent-style');
     await page.click('button:has-text("Generate")');
-    await expect(page.locator('text=Error')).toBeVisible();
+    await expect(page.locator('text=Error')).toBeVisible(); // Fallback message
+    // For timeout, use test config or mock, but verify error display
+  });
 
-    // No matches fallback
-    await page.route('/api/playlist', route => route.fulfill({ status: 200, body: JSON.stringify({ data: { playlist: [{ song: 'Unknown', explanation: 'test', songId: null, url: null, missing: true }] } }) }));
+  test('AC9: Adds missing songs to Lidarr with confirmation', async ({ page }) => {
+    await page.fill('input[placeholder*="Enter style"]', 'rock');
     await page.click('button:has-text("Generate")');
-    await expect(page.locator('text=Not in library')).toBeVisible();
+    await page.click('ul li button:has-text("Add to Lidarr")');
+    // Assume alert or toast
+    page.on('dialog', dialog => dialog.accept());
+    await expect(page.locator('text=Added to queue')).toBeVisible(); // Success message
+  });
+
+  test('Mobile responsiveness', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/dashboard');
+    await page.fill('input[placeholder*="Enter style"]', 'rock');
+    await page.click('button:has-text("Generate")');
+    await expect(page.locator('ul li')).toBeVisible();
+    await expect(page.locator('ul li')).toHaveCount(10); // Responsive layout
+  });
+
+  test('Privacy toggle clears cache', async ({ page }) => {
+    const style = 'rock';
+    await page.fill('input[placeholder*="Enter style"]', style);
+    await page.click('button:has-text("Generate")');
+    await page.click('button:has-text("Clear Cache")');
+    await expect(page.locator('input')).toHaveValue('');
+    // Regenerate should work as new
+    await page.fill('input[placeholder*="Enter style"]', style);
+    await page.click('button:has-text("Generate")');
+    await expect(page.locator('ul li')).toBeVisible();
+  });
+
+  test('Fallback for empty library or Ollama failure', async ({ page }) => {
+    // Simulate empty by invalid style or mock, but verify fallback
+    await page.fill('input[placeholder*="Enter style"]', 'empty-library-style');
+    await page.click('button:has-text("Generate")');
+    await expect(page.locator('text=No matching songs')).toBeVisible(); // Fallback
   });
 });

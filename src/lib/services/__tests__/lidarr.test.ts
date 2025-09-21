@@ -28,12 +28,13 @@ global.fetch = mockFetch;
 // Mock crypto for Web Crypto
 const mockCrypto = {
   subtle: {
-    importKey: vi.fn(),
-    deriveKey: vi.fn(),
-    encrypt: vi.fn(),
-    decrypt: vi.fn(),
+    importKey: vi.fn().mockResolvedValue({} as CryptoKey),
+    deriveKey: vi.fn().mockResolvedValue({} as CryptoKey),
+    deriveBits: vi.fn().mockResolvedValue(new Uint8Array(32)),
+    encrypt: vi.fn().mockResolvedValue(new Uint8Array(32)),
+    decrypt: vi.fn().mockResolvedValue(encoder.encode('test-api-key')),
   },
-  getRandomValues: vi.fn(),
+  getRandomValues: vi.fn().mockReturnValue(new Uint8Array(16)),
 };
 Object.defineProperty(window, 'crypto', { value: mockCrypto });
 
@@ -283,7 +284,7 @@ describe('Lidarr Service Unit Tests', () => {
 
   describe('searchArtist', () => {
     it('searches artist successfully with default limit', async () => {
-      const mockResults = [{ id: 1, artistName: 'Test Artist' }];
+      const mockResults = [{ id: 1, artistName: 'Test Artist', foreignArtistId: 'mb:1' }];
       const mockJsonResults = vi.fn().mockResolvedValue(mockResults);
       const mockResponseSearch = new Response(JSON.stringify(mockResults), {
         status: 200,
@@ -303,7 +304,7 @@ describe('Lidarr Service Unit Tests', () => {
     });
 
     it('searches with custom limit', async () => {
-      const mockResults2 = [{ id: 1, artistName: 'Test Artist' }];
+      const mockResults2 = [{ id: 1, artistName: 'Test Artist', foreignArtistId: 'mb:1' }];
       const mockJsonResults2 = vi.fn().mockResolvedValue(mockResults2);
       const mockResponseSearch2 = new Response(JSON.stringify(mockResults2), {
         status: 200,
@@ -312,9 +313,9 @@ describe('Lidarr Service Unit Tests', () => {
       });
       mockResponseSearch2.json = mockJsonResults2;
       mockFetch.mockResolvedValueOnce(mockResponseSearch2);
-
+  
       await searchArtist('Test Artist', 10);
-
+  
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('limit=10'),
         expect.any(Object),
