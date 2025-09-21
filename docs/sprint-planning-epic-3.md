@@ -41,6 +41,14 @@ Implement core Ollama integration and recommendation display to enable basic AI 
 ## Sprint Backlog Refinement
 - Post-sprint: Refine Stories 3.3-3.5 based on demo feedback (e.g., caching details, analytics opt-in)
 
+## Identified Impediments
+- **Search/Playback Bug (Impacts Stories 3.2 & 3.6)**: Library search returns empty results due to incompatible API endpoints in src/lib/services/navidrome.ts (using /api/song?fullText= instead of Subsonic /rest/search.view?query=). This causes playlist resolution failures and fallback to default song ("earsweatchirt" – likely a library artifact or UI default).
+  - **Impact**: Blocks end-to-end testing of recommendations and playback; reduces demo quality.
+  - **Root Cause**: Non-standard Navidrome API calls; auth/token may also need validation post-.env fix.
+  - **Resolution Plan**: Update search() function to use /rest/search.view with proper Subsonic params (query, songCount=50, artistCount=0, albumCount=0). Parse 'song' array from response. Estimate: 2-3 points, 1 day.
+  - **Assignee**: Full Stack Developer (switch to Code mode recommended).
+  - **Timeline**: Address before sprint review (2025-09-25); test with sample queries.
+
 ## Metrics
 - Velocity Target: 10 points
 - Burndown: Track daily progress in shared doc

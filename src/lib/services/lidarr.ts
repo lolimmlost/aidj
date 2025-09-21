@@ -4,93 +4,17 @@ import { ServiceError } from '../utils';
 
 const LIDARR_BASE_URL = getConfig().lidarrUrl || 'http://localhost:8686';
 
-let cachedKey: string | null = null;
-let cryptoKey: CryptoKey | null = null;
-
 export function resetCache() {
-  cachedKey = null;
-  cryptoKey = null;
+  // No cache to reset
 }
 
-async function deriveKey(password: string): Promise<CryptoKey> {
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    { name: 'PBKDF2' },
-    false,
-    ['deriveBits', 'deriveKey']
-  );
-  return crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: encoder.encode('lidarr-salt'),
-      iterations: 100000,
-      hash: 'SHA-256'
-    },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  );
-}
 
-async function encryptKey(key: string): Promise<string> {
-  if (!cryptoKey) {
-    cryptoKey = await deriveKey('lidarr-encryption-key');
-  }
-  const encoder = new TextEncoder();
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    cryptoKey,
-    encoder.encode(key)
-  );
-  const combined = new Uint8Array(iv.length + encrypted.byteLength);
-  combined.set(iv, 0);
-  combined.set(new Uint8Array(encrypted), iv.length);
-  return btoa(String.fromCharCode(...combined));
-}
-
-async function decryptKey(encryptedKey: string): Promise<string> {
-  if (!cryptoKey) {
-    cryptoKey = await deriveKey('lidarr-encryption-key');
-  }
-  const binary = atob(encryptedKey);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  const iv = bytes.slice(0, 12);
-  const data = bytes.slice(12);
-  const decrypted = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv },
-    cryptoKey,
-    data
-  );
-  const decoder = new TextDecoder();
-  return decoder.decode(decrypted);
-}
-
-export async function getApiKey(): Promise<string> {
-  if (cachedKey) return cachedKey;
-
-  const configKey = getConfig().lidarrApiKey;
-  if (!configKey) {
+export function getApiKey(): string {
+  const apiKey = getConfig().lidarrApiKey;
+  if (!apiKey) {
     throw new ServiceError('CONFIG_ERROR', 'Lidarr API key not configured');
   }
-
-  // Store encrypted in sessionStorage if not present
-  const sessionKey = sessionStorage.getItem('lidarr_encrypted_key');
-  if (sessionKey) {
-    cachedKey = await decryptKey(sessionKey);
-  } else {
-    const encrypted = await encryptKey(configKey);
-    sessionStorage.setItem('lidarr_encrypted_key', encrypted);
-    cachedKey = configKey;
-  }
-
-  return cachedKey;
+  return apiKey;
 }
 
 export interface ArtistSearchResult {
@@ -189,7 +113,11 @@ export async function searchArtist(term: string, limit: number = 20): Promise<Ar
     if (response && typeof response === 'object' && 'message' in response) {
       throw new ServiceError('METADATA_ERROR', (response as { message?: string }).message || 'Lidarr metadata service failed');
     }
-    return response as ArtistSearchResult[] || [];
+    const results = response as ArtistSearchResult[] || [];
+    // Filter for valid MusicBrainz IDs (start with 'mb:')
+    const validResults = results.filter(r => r.foreignArtistId && r.foreignArtistId.startsWith('mb:'));
+    console.log(`Search for "${term}": ${results.length} total, ${validResults.length} valid MBIDs`);
+    return validResults;
   } catch (error) {
     throw new ServiceError('SEARCH_ERROR', `Failed to search artist: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -217,10 +145,12 @@ export async function addArtistToQueue(foreignArtistId: string, artistName: stri
       artistId: foreignArtistId, // Foreign ID as string for MusicBrainz
       monitor: true,
       monitorDiscography: true,
-      qualityProfileId: (config as any).lidarrQualityProfileId || 1,
-      rootFolderPath: (config as any).lidarrRootFolderPath || '/music',
+      qualityProfileId: config.lidarrQualityProfileId ?? 1,
+      rootFolderPath: config.lidarrRootFolderPath ?? '/music',
       addAlbums: true,
     };
+
+    console.log(`Adding artist to Lidarr: ID="${foreignArtistId}", Name="${artistName}"`); // Debug
 
     // Response not used as success is implied by no error
     await apiFetch('/api/v1/artist', {
@@ -230,6 +160,10 @@ export async function addArtistToQueue(foreignArtistId: string, artistName: stri
 
     return { success: true, message: `Added "${artistName}" to Lidarr download queue.` };
   } catch (error) {
+    if (error instanceof ServiceError && error.code === 'API_ERROR' && error.message.includes('410')) {
+      console.log(`Artist "${artistName}" already exists in Lidarr (410 handled as success)`);
+      return { success: true, message: `Artist "${artistName}" already in Lidarr library.` };
+    }
     if (error instanceof ServiceError && error.code === 'CONFIG_ERROR') {
       throw error;
     }

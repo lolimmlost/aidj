@@ -234,72 +234,60 @@ export async function getSongs(albumId: string, start: number = 0, limit: number
   }
 }
 
-export async function search(query: string, start: number = 0, limit: number = 5): Promise<Song[]> { // Limit to 5 for better performance
-
+export async function search(query: string, start: number = 0, limit: number = 50): Promise<Song[]> {
   try {
     const config = getConfig();
     if (!config.navidromeUrl) {
-      return [];
+      throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
     }
 
-    // Parse query for artist and title if possible
-    const match = query.match(/^(.+?)\s*-\s*(.+)$/);
-    const artist = match ? match[1].trim() : '';
-    const title = match ? match[2].trim() : query;
+    await getAuthToken(); // Ensure auth
+
+    // Try multiple search parameters to find working one
+    const searchParams = [
+      { param: 'title', value: query },
+      { param: 'fullText', value: query },
+      { param: 'name', value: query }
+    ];
 
     let data: RawSong[] = [];
+    let usedParam = '';
 
-    if (artist && title) {
-      // First, search for the artist
-      const artistSearchEndpoint = `/api/artist?fullText=${encodeURIComponent(artist)}&_start=0&_end=1`;
-      console.log(`Searching for artist:`, artistSearchEndpoint);
-      const artistResults = await apiFetch(artistSearchEndpoint) as Artist[];
-      if (artistResults && artistResults.length > 0) {
-        const artistId = artistResults[0].id;
-        console.log(`Found artist ID: ${artistId} for ${artist}`);
-        // Fetch all songs for the artist and filter client-side for title
-        const allSongsEndpoint = `/api/song?artist_id=${artistId}&_start=0&_end=100`; // Fetch up to 100 songs
-        console.log(`Fetching all songs for artist:`, allSongsEndpoint);
-        const allSongs = await apiFetch(allSongsEndpoint) as RawSong[];
-        console.log(`Fetched ${allSongs.length} songs for artist`);
-        data = allSongs.filter(song => {
-          const songName = (song.name || song.title || '').toLowerCase();
-          return songName.includes(title.toLowerCase());
-        });
-        console.log(`Filtered to ${data.length} songs matching title`);
-      }
-    }
-
-    if (data.length === 0) {
-      // Fallback to general search
-      const searchParams = [
-        { param: 'fullText', value: query },
-        { param: 'title', value: title },
-      ];
-      for (const param of searchParams) {
-        try {
-          const endpoint = `/api/song?${param.param}=${encodeURIComponent(param.value)}&_start=${start}&_end=${start + limit - 1}`;
-          console.log(`Fallback search with parameter ${param.param}:`, endpoint);
-          data = await apiFetch(endpoint) as RawSong[];
-          if (data && data.length > 0) {
-            console.log(`Fallback search returned ${data.length} results`);
-            break;
-          }
-        } catch (paramError) {
-          console.log(`Fallback search failed:`, paramError);
-          continue;
+    for (const param of searchParams) {
+      try {
+        const endpoint = `/api/song?${param.param}=${encodeURIComponent(param.value)}&_start=${start}&_end=${start + limit - 1}`;
+        console.log(`Trying search with parameter ${param.param}:`, endpoint);
+        
+        data = await apiFetch(endpoint) as RawSong[];
+        usedParam = param.param;
+        
+        if (data && data.length > 0) {
+          console.log(`Search with ${param.param} returned ${data.length} results`);
+          break;
         }
+      } catch (paramError) {
+        console.log(`Search with ${param.param} failed:`, paramError);
+        continue;
       }
     }
 
     if (data.length === 0) {
-      console.log('No results found');
+      console.log('No results from any search parameter');
       return [];
     }
 
-    const songs = data.slice(0, limit).map((song) => ({
+    console.log(`Search with ${usedParam} succeeded. First result:`, {
+      id: data[0].id,
+      name: data[0].name,
+      title: data[0].title,
+      albumId: data[0].albumId,
+      duration: data[0].duration,
+      track: data[0].track
+    });
+
+    const songs = data.map((song) => ({
       ...song,
-      name: song.name || song.title || 'Unknown Title',
+      name: song.name || song.title || 'Unknown Title', // Ensure name is populated
       url: `/api/navidrome/stream/${song.id}`,
     })) as Song[];
     
