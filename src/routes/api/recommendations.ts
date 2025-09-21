@@ -1,4 +1,5 @@
 import { createServerFileRoute } from '@tanstack/react-start/server';
+import { ServiceError } from '../../lib/utils';
 import { generateRecommendations } from '../../lib/services/ollama';
 import { auth } from '../../lib/auth/auth';
 
@@ -36,8 +37,15 @@ export const ServerRoute = createServerFileRoute('/api/recommendations').methods
     } catch (error: unknown) {
       // Standardized error (AC3 stub)
       console.error('Recommendation generation failed:', error);
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return new Response(JSON.stringify({ error: 'Failed to generate recommendations', details: message }), {
+      let code = 'GENERAL_API_ERROR';
+      let message = 'Failed to generate recommendations';
+      if (error instanceof ServiceError) {
+        code = error.code;
+        message = error.message;
+      } else if (error instanceof Error) {
+        message = error.message;
+      }
+      return new Response(JSON.stringify({ code, message }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });

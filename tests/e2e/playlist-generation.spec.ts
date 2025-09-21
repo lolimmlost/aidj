@@ -11,10 +11,25 @@ test.describe('Playlist Generation Flow', () => {
       }),
     }));
 
+    // Start at login, click Sign up link to create user
     await page.goto('/login');
-    await page.fill('input[name="username"]', 'testuser');
-    await page.fill('input[name="password"]', 'testpass');
-    await page.click('button[type="submit"]');
+    await expect(page).toHaveTitle(/Login/);
+    await page.click('text=Sign up, a:has-text("Sign up")');
+    await expect(page).toHaveTitle(/Sign Up/);
+    await page.fill('input[type="text"], input[name="name"]', 'Test User');
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'testpass');
+    await page.fill('input[name="confirmPassword"], input[placeholder*="Confirm"]', 'testpass');
+    await page.click('button:has-text("Sign Up")');
+    await expect(page).toHaveURL(/dashboard/);
+
+    // Login
+    await page.goto('/login');
+    await expect(page).toHaveTitle(/Login/);
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'testpass');
+    await page.click('button:has-text("Login")');
+    await expect(page).toHaveURL(/dashboard/);
     await expect(page).toHaveURL('/dashboard');
   });
 

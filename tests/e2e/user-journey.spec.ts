@@ -2,15 +2,21 @@ import { test, expect } from '@playwright/test';
 
 test.describe('E2E User Journey: Config → Library → Play', () => {
   test('should complete full user journey successfully', async ({ page }) => {
-    // 1. Navigate to login page
+    // 1. Signup if needed
+    await page.goto('/signup');
+    await expect(page).toHaveTitle(/Sign Up/);
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'testpass');
+    await page.fill('input[name="confirmPassword"], input[placeholder*="Confirm"]', 'testpass');
+    await page.click('button:has-text("Sign Up")');
+    await expect(page).toHaveURL(/dashboard/);
+
+    // 2. Login
     await page.goto('/login');
     await expect(page).toHaveTitle(/Login/);
-
-    // 2. Login with test credentials (assuming test user exists)
-    // Note: In real E2E, you'd use a test user or mock auth
-    await page.fill('input[placeholder*="username"], input[type="email"]', 'testuser');
+    await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'testpass');
-    await page.click('button:has-text("Login"), button:has-text("Sign In")');
+    await page.click('button:has-text("Login")');
 
     // Wait for successful login and dashboard redirect
     await expect(page).toHaveURL(/dashboard/);
@@ -82,17 +88,32 @@ test.describe('E2E User Journey: Config → Library → Play', () => {
     await expect(page).toHaveURL(/login/);
     await expect(page.locator('text=Login, text=Sign In')).toBeVisible();
 
-    // Test successful login redirect
-    await page.fill('input[placeholder*="username"], input[type="email"]', 'testuser');
+    // Signup if needed
+    await page.goto('/signup');
+    await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'testpass');
-    await page.click('button:has-text("Login"), button:has-text("Sign In")');
+    await page.fill('input[name="confirmPassword"], input[placeholder*="Confirm"]', 'testpass');
+    await page.click('button:has-text("Sign Up")');
+
+    // Test successful login redirect
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'testpass');
+    await page.click('button:has-text("Login")');
     
     await expect(page).toHaveURL(/dashboard/);
   });
 
   test('should handle configuration validation', async ({ page }) => {
+    // Signup if needed
+    await page.goto('/signup');
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'testpass');
+    await page.fill('input[name="confirmPassword"], input[placeholder*="Confirm"]', 'testpass');
+    await page.click('button:has-text("Sign Up")');
+
     await page.goto('/login');
-    await page.fill('input[placeholder*="username"], input[type="email"]', 'testuser');
+    await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'testpass');
     await page.click('button:has-text("Login")');
     
@@ -110,8 +131,15 @@ test.describe('E2E User Journey: Config → Library → Play', () => {
   });
 
   test('should navigate library hierarchy correctly', async ({ page }) => {
+    // Signup if needed
+    await page.goto('/signup');
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'testpass');
+    await page.fill('input[name="confirmPassword"], input[placeholder*="Confirm"]', 'testpass');
+    await page.click('button:has-text("Sign Up")');
+
     await page.goto('/login');
-    await page.fill('input[placeholder*="username"]', 'testuser');
+    await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'testpass');
     await page.click('button:has-text("Login")');
     
@@ -135,8 +163,15 @@ test.describe('E2E User Journey: Config → Library → Play', () => {
   });
 
   test('should handle audio playback controls', async ({ page }) => {
+    // Signup if needed
+    await page.goto('/signup');
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'testpass');
+    await page.fill('input[name="confirmPassword"], input[placeholder*="Confirm"]', 'testpass');
+    await page.click('button:has-text("Sign Up")');
+
     await page.goto('/login');
-    await page.fill('input[placeholder*="username"]', 'testuser');
+    await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'testpass');
     await page.click('button:has-text("Login")');
     

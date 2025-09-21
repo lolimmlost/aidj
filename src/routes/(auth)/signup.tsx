@@ -62,16 +62,16 @@ function SignupForm() {
 
   return (
     <div className="flex flex-col gap-6">
-      <form onSubmit={handleSubmit}>
+      <form method="post" onSubmit={handleSubmit}>
         <div className="flex flex-col gap-6">
           <div className="flex flex-col items-center gap-2">
-            <a href="#" className="flex flex-col items-center gap-2 font-medium">
+            <a href="/" className="flex flex-col items-center gap-2 font-medium">
               <div className="flex h-8 w-8 items-center justify-center rounded-md">
                 <GalleryVerticalEnd className="size-6" />
               </div>
-              <span className="sr-only">Acme Inc.</span>
+              <span className="sr-only">AIDJ</span>
             </a>
-            <h1 className="text-xl font-bold">Sign up for Acme Inc.</h1>
+            <h1 className="text-xl font-bold">Sign up for AIDJ</h1>
           </div>
           <div className="flex flex-col gap-5">
             <div className="grid gap-2">

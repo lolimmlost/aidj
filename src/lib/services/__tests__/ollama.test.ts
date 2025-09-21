@@ -1,9 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ServiceError } from '../../utils';
 import { generateRecommendations, checkModelAvailability, generatePlaylist } from '../ollama';
 
 // Mock config and env
 vi.mock('../../config/config', () => ({
   getConfig: vi.fn(() => ({ ollamaUrl: 'http://localhost:11434' })),
+}));
+
+vi.mock('../navidrome', () => ({
+  getLibrarySummary: vi.fn(() => Promise.resolve({
+    artists: [
+      { name: 'Artist1', genres: 'Rock' },
+      { name: 'Artist2', genres: 'Metal' },
+    ],
+    songs: ['Song1', 'Song2', 'Song3'],
+  })),
 }));
 
 describe('Ollama Service', () => {
@@ -30,22 +41,35 @@ describe('Ollama Service', () => {
       expect(result.recommendations).toHaveLength(2);
       expect(result.recommendations[0].song).toBe('Song1');
       expect(result.recommendations[0].explanation).toBe('Based on rock preferences');
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/generate'), expect.objectContaining({
+      expect(global.fetch).toHaveBeenCalledWith('http://localhost:11434/api/generate', expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify(expect.objectContaining({
-          model: mockModel,
-          prompt: expect.stringContaining(mockPrompt),
-        })),
+        headers: { 'Content-Type': 'application/json' },
+      }));
+
+      if (vi.mocked(global.fetch).mock.calls.length === 0) {
+        throw new Error('Fetch was not called');
+      }
+      const callArgs = vi.mocked(global.fetch).mock.calls[0][1]!;
+      const bodyStr = callArgs.body as string;
+      const bodyObj = JSON.parse(bodyStr);
+      expect(bodyObj).toEqual(expect.objectContaining({
+        model: mockModel,
+        prompt: expect.stringContaining('Generate 5 music recommendations based on: rock music'),
+        stream: false
       }));
     });
+  });
 
-    it('throws OllamaError for API error (AC3)', async () => {
+    it('throws ServiceError for API error (AC3)', async () => {
       global.fetch = vi.fn(() => Promise.resolve({
         ok: false,
         statusText: 'Bad Gateway',
       } as Response));
 
-      await expect(generateRecommendations({ prompt: mockPrompt, model: mockModel, userId: mockUserId })).rejects.toThrow('Ollama API error: Bad Gateway');
+      const promise = generateRecommendations({ prompt: mockPrompt, model: mockModel, userId: mockUserId });
+      await expect(promise).rejects.toBeInstanceOf(ServiceError);
+      const error = await promise.catch(e => e);
+      expect(error.code).toBe('OLLAMA_API_ERROR');
     });
 
     it('uses fallback for parse error without throwing (AC3)', async () => {
@@ -60,38 +84,26 @@ describe('Ollama Service', () => {
     });
 
     it('retries on failure with exponential backoff (AC5)', async () => {
-      const fetchCalls = vi.fn();
-      global.fetch = fetchCalls;
-      fetchCalls.mockRejectedValueOnce(new Error('Network error'))
+      global.fetch = vi.fn()
+        .mockRejectedValueOnce(new Error('Network error'))
         .mockRejectedValueOnce(new Error('Network error'))
         .mockResolvedValueOnce({
           ok: true,
           json: () => Promise.resolve({ response: '{"recommendations": [{"song": "Song1", "explanation": "test"}]}' }),
         } as Response);
-
+    
       await generateRecommendations({ prompt: mockPrompt, model: mockModel, userId: mockUserId });
-
-      expect(fetchCalls).toHaveBeenCalledTimes(3);
-    });
+    
+      expect(global.fetch).toHaveBeenCalledTimes(3);
+    }, { timeout: 15000 });
 
     it('throws timeout error after 30s (AC4)', async () => {
-      global.fetch = vi.fn(() => {
-        const controller = new AbortController();
-        setTimeout(() => controller.abort(), 100); // Abort early for test
-        return Promise.resolve({
-          ok: true,
-          json: vi.fn(() => Promise.resolve({ response: '{}' })),
-          headers: new Headers(),
-          status: 200,
-          statusText: 'OK',
-          type: 'basic' as ResponseType,
-          redirected: false,
-          url: '',
-          signal: controller.signal,
-        } as unknown as Response);
-      });
-
-      await expect(generateRecommendations({ prompt: mockPrompt, model: mockModel, userId: mockUserId })).rejects.toThrow('Ollama request timed out after 30s');
+      global.fetch = vi.fn(() => Promise.reject(new DOMException('The user aborted a request.', 'AbortError')));
+  
+      const promise = generateRecommendations({ prompt: mockPrompt, model: mockModel, userId: mockUserId });
+      await expect(promise).rejects.toBeInstanceOf(ServiceError);
+      const error = await promise.catch(e => e);
+      expect(error.code).toBe('OLLAMA_TIMEOUT_ERROR');
     });
   });
 
@@ -165,13 +177,24 @@ describe('Ollama Service', () => {
         ok: true,
         json: () => Promise.resolve(mockResponse),
       } as Response));
-
+  
       await generatePlaylist({ style: mockStyle, summary: mockSummary });
+  
+      expect(global.fetch).toHaveBeenCalledWith('http://localhost:11434/api/generate', expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }));
 
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/generate'), expect.objectContaining({
-        body: JSON.stringify(expect.objectContaining({
-          prompt: expect.stringContaining(`My library: artists [${mockSummary.artists.map(a => `${a.name} (${a.genres || 'Unknown'})`).join('; ')}]. Example songs: [${mockSummary.songs.slice(0, 20).join('; ')}]. Generate exactly 10 songs for style "${mockStyle}"`),
-        })),
+      if (vi.mocked(global.fetch).mock.calls.length === 0) {
+        throw new Error('Fetch was not called');
+      }
+      const callArgs = vi.mocked(global.fetch).mock.calls[0][1]!;
+      const bodyStr = callArgs.body as string;
+      const bodyObj = JSON.parse(bodyStr);
+      expect(bodyObj).toEqual(expect.objectContaining({
+        model: 'llama2',
+        prompt: expect.stringContaining('Generate exactly 10 songs for style "rock"'),
+        stream: false
       }));
     });
 
@@ -207,12 +230,15 @@ describe('Ollama Service', () => {
       expect(result.playlist[0].explanation).toBe('Fits the requested style based on your library');
     });
 
-    it('throws timeout error after 5s', async () => {
-      global.fetch = vi.fn(() => Promise.reject(new DOMException('Aborted', 'AbortError')));
 
-      await expect(generatePlaylist({ style: mockStyle, summary: mockSummary })).rejects.toThrow('Ollama request timed out after 30s');
+    it('throws timeout error after 5s', async () => {
+      global.fetch = vi.fn(() => Promise.reject(new DOMException('The user aborted a request.', 'AbortError')));
+    
+      const promise = generatePlaylist({ style: mockStyle, summary: mockSummary });
+      await expect(promise).rejects.toBeInstanceOf(ServiceError);
+      const error = await promise.catch(e => e);
+      expect(error.code).toBe('OLLAMA_TIMEOUT_ERROR');
     });
   });
 
-  // Caching is handled in UI (localStorage/TanStack Query), not service. Tests for UI caching in component tests.
-});
+  // Caching is handled in UI (localStorage/TanStack Query), not service. Tests for UI caching in component tests

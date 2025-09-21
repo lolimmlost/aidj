@@ -6,39 +6,15 @@ export const ServerRoute = createServerFileRoute("/api/auth/login").methods({
     try {
       const body = await request.json();
       const { email, password } = body;
-  
-      // Define auth result type
-      interface AuthResult {
-        user: {
-          id: string;
-          email: string;
-          name?: string;
-        };
-        session: {
-          id: string;
-          expires: string;
-        };
-      }
-  
-      // Type the auth API
-      interface AuthApi {
-        login: (payload: { email: string; password: string }) => Promise<AuthResult | null>;
-      }
-  
-      const api = (auth as { api?: Partial<AuthApi> }).api;
-      const loginFn = api?.login;
-  
-      if (typeof loginFn === "function") {
-        const payload: { email: string; password: string } = { email, password };
-        const result = await loginFn(payload);
-        return new Response(JSON.stringify({ ok: true, result }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" }
-        });
-      }
 
-      return new Response(JSON.stringify({ error: "Login API not available" }), {
-        status: 501,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = await (auth as any).signIn.email({
+        email,
+        password
+      });
+
+      return new Response(JSON.stringify({ ok: true, result }), {
+        status: 200,
         headers: { "Content-Type": "application/json" }
       });
     } catch (e) {

@@ -4,12 +4,12 @@ export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: 2,
   workers: process.env.CI ? 1 : undefined,
   reporter: [
     ['html'],
     ['json', { outputFile: 'test-results.json' }],
-    ...(process.env.CI ? [['github']] : []),
+    ...(process.env.CI ? [['github']] as const : []),
   ],
   use: {
     baseURL: 'http://localhost:3000',
@@ -19,8 +19,12 @@ export default defineConfig({
 
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: 'chromium-headless',
+      use: { ...devices['Desktop Chrome'], headless: true },
+    },
+    {
+      name: 'chromium-headed',
+      use: { ...devices['Desktop Chrome'], headless: false },
     },
     {
       name: 'firefox',

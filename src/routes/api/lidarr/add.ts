@@ -1,4 +1,5 @@
 import { createServerFileRoute } from '@tanstack/react-start/server';
+import { ServiceError } from '../../../lib/utils';
 import { searchArtist, addArtistToQueue } from '../../../lib/services/lidarr';
 
 export const ServerRoute = createServerFileRoute('/api/lidarr/add').methods({
@@ -57,8 +58,15 @@ export const ServerRoute = createServerFileRoute('/api/lidarr/add').methods({
       });
     } catch (error: unknown) {
       console.error('Lidarr add failed:', error);
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return new Response(JSON.stringify({ error: 'Failed to add to Lidarr', details: message }), {
+      let code = 'GENERAL_API_ERROR';
+      let message = 'Failed to add to Lidarr';
+      if (error instanceof ServiceError) {
+        code = error.code;
+        message = error.message;
+      } else if (error instanceof Error) {
+        message = error.message;
+      }
+      return new Response(JSON.stringify({ code, message }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });

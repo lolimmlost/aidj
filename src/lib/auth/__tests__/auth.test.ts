@@ -1,106 +1,222 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import authClient from '../auth-client';
-import { authQueryOptions } from '../queries';
-import { $getUser } from '../functions';
+import * as authFunctions from '~/lib/auth/functions';
+import { $getUser } from '~/lib/auth/functions';
+import { authQueryOptions } from '~/lib/auth/queries';
+import { getWebRequest } from "@tanstack/react-start/server";
+import { QueryClient } from '@tanstack/react-query';
 
-// Mock server functions and environment
-vi.mock('../functions', () => ({
-  $getUser: vi.fn(),
+// Mock serverOnly to allow execution in test environment
+vi.mock("@tanstack/react-start", () => ({
+  serverOnly: vi.fn((fn) => fn),
+  createServerFn: vi.fn(() => ({
+    handler: vi.fn((handlerFn) => vi.fn(handlerFn))
+  })),
 }));
 
-const mockGetUser = $getUser as unknown as ReturnType<typeof vi.fn>;
+// Mock dependencies
+vi.mock('~/env/server', () => ({
+  env: {
+    VITE_BASE_URL: 'http://localhost:3000',
+    GITHUB_CLIENT_ID: 'test-github-id',
+    GITHUB_CLIENT_SECRET: 'test-github-secret',
+    GOOGLE_CLIENT_ID: 'test-google-id',
+    GOOGLE_CLIENT_SECRET: 'test-google-secret',
+  },
+}));
 
-describe('Auth Client', () => {
+vi.mock('~/lib/db', () => ({
+  db: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-start/server", () => ({
+  getWebRequest: vi.fn(),
+}));
+
+const mockGetWebRequest = vi.mocked(getWebRequest);
+
+// Mock the auth module using factory function to avoid hoisting issues
+vi.mock('~/lib/auth/auth', () => ({
+  auth: {
+    api: {
+      getSession: vi.fn(),
+    },
+  },
+}));
+
+// Import after mocks
+import { auth } from '~/lib/auth/auth';
+const mockGetSession = vi.mocked(auth.api.getSession);
+
+describe('Session Handling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Mock window.location for client-side testing
-    Object.defineProperty(window, 'location', {
-      value: { origin: 'http://localhost:3000' },
-      writable: true,
-    });
   });
 
-  it('should create auth client with correct baseURL', () => {
-    const envSpy = vi.spyOn(import.meta.env, 'VITE_BASE_URL', 'get').mockReturnValue(undefined);
-    
-    expect(authClient).toBeDefined();
-    // Verify baseURL is set from window.location when env var is undefined
-    expect(envSpy).toHaveBeenCalled();
-    
-    envSpy.mockRestore();
+  it('should return null if no session exists', async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    const mockHeaders = new Headers({ cookie: '' });
+    const session = await mockGetSession({ headers: mockHeaders });
+    expect(session).toBeNull();
+    expect(mockGetSession).toHaveBeenCalledWith({ headers: mockHeaders });
   });
 
-  it('should use VITE_BASE_URL from environment when available', () => {
-    const envValue = 'https://example.com';
-    vi.stubEnv('VITE_BASE_URL', envValue);
-    
-    // Re-import to get fresh instance (in real Vitest, we'd mock the import)
-    expect(import.meta.env.VITE_BASE_URL).toBe(envValue);
-    
-    vi.unstubAllEnvs();
+  it('should return session data if session exists', async () => {
+    const mockUser = {
+      id: '1',
+      email: 'test@example.com',
+      name: 'Test User',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      emailVerified: true,
+    };
+
+    const mockSessionData = {
+      id: 'session-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      userId: '1',
+      expiresAt: new Date(Date.now() + 3600000),
+      token: 'test-token',
+    };
+
+    const mockSession = {
+      user: mockUser,
+      session: mockSessionData,
+    };
+
+    mockGetSession.mockResolvedValue(mockSession);
+
+    const mockHeaders = new Headers({ cookie: 'better-auth.session=valid-token' });
+    const session = await mockGetSession({ headers: mockHeaders });
+    expect(session).toEqual(mockSession);
+    expect(mockGetSession).toHaveBeenCalledWith({ headers: mockHeaders });
   });
 });
 
-describe('Auth Queries', () => {
-  it('should create query options for user with correct key and function', () => {
+describe('$getUser Server Function', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should return user from valid session', async () => {
+    const mockUser = {
+      id: '1',
+      email: 'test@example.com',
+      name: 'Test User',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      emailVerified: true,
+    };
+
+    const mockSessionData = {
+      id: 'session-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      userId: '1',
+      expiresAt: new Date(Date.now() + 3600000),
+      token: 'test-token',
+    };
+
+    const mockSession = {
+      user: mockUser,
+      session: mockSessionData,
+    };
+
+    mockGetSession.mockResolvedValue(mockSession);
+
+    const mockHeaders = new Headers({ cookie: 'better-auth.session=valid-token' });
+    mockGetWebRequest.mockReturnValue({ headers: mockHeaders } as unknown as ReturnType<typeof getWebRequest>);
+
+    const user = await $getUser();
+    expect(mockGetSession).toHaveBeenCalledWith({ headers: mockHeaders });
+    expect(user).toEqual(mockUser);
+  });
+
+  it('should return null if no session', async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    const mockHeaders = new Headers({ cookie: '' });
+    mockGetWebRequest.mockReturnValue({ headers: mockHeaders } as unknown as ReturnType<typeof getWebRequest>);
+
+    const user = await $getUser();
+    expect(mockGetSession).toHaveBeenCalledWith({ headers: mockHeaders });
+    expect(user).toBeNull();
+  });
+
+  it('should handle session errors', async () => {
+    const error = new Error('Session expired');
+    mockGetSession.mockRejectedValue(error);
+
+    const mockHeaders = new Headers({ cookie: '' });
+    mockGetWebRequest.mockReturnValue({ headers: mockHeaders } as unknown as ReturnType<typeof getWebRequest>);
+
+    await expect($getUser()).rejects.toThrow('Session expired');
+    expect(mockGetSession).toHaveBeenCalledWith({ headers: mockHeaders });
+  });
+});
+
+describe('Auth Query Options', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should create correct query options for user', () => {
     const queryOpts = authQueryOptions();
-    
+
     expect(queryOpts.queryKey).toEqual(['user']);
     expect(queryOpts.queryFn).toBeDefined();
     expect(typeof queryOpts.queryFn).toBe('function');
   });
 
-  it('should handle successful user retrieval', async () => {
-    const mockUser = { id: '1', email: 'test@example.com' };
-    mockGetUser.mockResolvedValue(mockUser);
-    
-    const result = await mockGetUser({ signal: new AbortController().signal });
-    
-    expect(mockGetUser).toHaveBeenCalledWith({ signal: expect.any(AbortSignal) });
+  it('should use $getUser in query function', async () => {
+    const mockUser = {
+      id: '1',
+      email: 'test@example.com',
+      name: 'Test User',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      emailVerified: true,
+    };
+
+    const mockHeaders = new Headers({ cookie: 'better-auth.session=valid-token' });
+    mockGetWebRequest.mockReturnValue({ headers: mockHeaders } as unknown as ReturnType<typeof getWebRequest>);
+
+    const mockSessionData = {
+      id: 'session-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      userId: '1',
+      expiresAt: new Date(Date.now() + 3600000),
+      token: 'test-token',
+    };
+
+    const mockSession = {
+      user: mockUser,
+      session: mockSessionData,
+    };
+
+    mockGetSession.mockResolvedValue(mockSession);
+
+    const queryOpts = authQueryOptions();
+    const mockQueryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+    const mockContext = {
+      client: mockQueryClient,
+      queryKey: ['user'],
+      signal: AbortSignal.timeout(0),
+      meta: {},
+    };
+
+    const $getUserSpy = vi.spyOn(authFunctions, '$getUser');
+    const result = await queryOpts.queryFn!(mockContext);
+
     expect(result).toEqual(mockUser);
-  });
-
-  it('should handle user retrieval failure', async () => {
-    const error = new Error('Session not found');
-    mockGetUser.mockRejectedValue(error);
-    
-    await expect(mockGetUser({ signal: new AbortController().signal })).rejects.toThrow('Session not found');
-    expect(mockGetUser).toHaveBeenCalled();
-  });
-});
-
-describe('Auth Server Functions', () => {
-  it('should get user from session', async () => {
-    const mockSession = { user: { id: '1', email: 'test@example.com' } };
-    const mockHeaders = new Headers();
-    
-    // Mock getWebRequest and auth.api.getSession
-    const getWebRequestMock = vi.fn(() => ({ headers: mockHeaders }));
-    vi.doMock('@tanstack/react-start/server', () => ({
-      getWebRequest: getWebRequestMock,
-    }));
-    
-    const mockAuth = { api: { getSession: vi.fn().mockResolvedValue(mockSession) } };
-    vi.doMock('~/lib/auth/auth', () => ({ auth: mockAuth }));
-    
-    const result = await $getUser();
-    
-    expect(mockAuth.api.getSession).toHaveBeenCalledWith({ headers: mockHeaders });
-    expect(result).toEqual(mockSession.user);
-  });
-
-  it('should return null when no session', async () => {
-    const mockHeaders = new Headers();
-    const getWebRequestMock = vi.fn(() => ({ headers: mockHeaders }));
-    vi.doMock('@tanstack/react-start/server', () => ({
-      getWebRequest: getWebRequestMock,
-    }));
-    
-    const mockAuth = { api: { getSession: vi.fn().mockResolvedValue(null) } };
-    vi.doMock('~/lib/auth/auth', () => ({ auth: mockAuth }));
-    
-    const result = await $getUser();
-    
-    expect(result).toBeNull();
+    expect($getUserSpy).toHaveBeenCalledTimes(1);
   });
 });

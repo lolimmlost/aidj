@@ -11,12 +11,25 @@ test.describe('Recommendations Flow', () => {
       }),
     }));
 
+    // Start at login, click Sign up link to create user
+    await page.goto('/login');
+    await expect(page).toHaveTitle(/Login/);
+    await page.click('text=Sign up, a:has-text("Sign up")');
+    await expect(page).toHaveTitle(/Sign Up/);
+    await page.fill('input[type="text"], input[name="name"]', 'Test User');
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'testpass');
+    await page.fill('input[name="confirmPassword"], input[placeholder*="Confirm"]', 'testpass');
+    await page.click('button:has-text("Sign Up")');
+    await expect(page).toHaveURL(/dashboard/);
+
     // Login
     await page.goto('/login');
-    await page.fill('input[name="username"]', 'testuser');
-    await page.fill('input[name="password"]', 'testpass');
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL('/dashboard');
+    await expect(page).toHaveTitle(/Login/);
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'testpass');
+    await page.click('button:has-text("Login")');
+    await expect(page).toHaveURL(/dashboard/);
   });
 
   test('views recommendations on dashboard (AC1, 3.2-E2E-001)', async ({ page }) => {
@@ -64,7 +77,6 @@ test.describe('Recommendations Flow', () => {
   });
 
   test('views detailed recommendation (AC4, 3.2-E2E-002)', async ({ page }) => {
-    const songId = await page.locator('li:first-child a').getAttribute('href'); // Get link
     await page.click('li:first-child a'); // Click detail
     await expect(page).toHaveURL(/recommendations\/.+/);
     await expect(page.locator('text=Explanation')).toBeVisible(); // Full explanation

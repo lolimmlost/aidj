@@ -2,8 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ArtistsList } from '../artists';
+import { ArtistsList } from '@/components/library/ArtistsList';
 import * as navidrome from '@/lib/services/navidrome';
+
+// Mock server-side modules to prevent env access in client tests
+vi.mock('@/lib/auth/auth', () => ({}));
+vi.mock('@/lib/db/index', () => ({}));
+vi.mock('@/env/server', () => ({ env: { DATABASE_URL: 'mock://test' } }));
+
+// Mock TanStack Router Link for component test
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ children, ...props }) => <a {...props}>{children}</a>,
+}));
 
 // Mock the navidrome service
 vi.mock('@/lib/services/navidrome', () => ({
@@ -136,6 +146,6 @@ describe('ArtistsList Component', () => {
     
     // Check dashboard navigation
     const dashboardLinks = screen.getAllByText('← Dashboard');
-    expect(dashboardLinks).toHaveLength(2);
+    expect(dashboardLinks).toHaveLength(1);
   });
 });

@@ -7,6 +7,8 @@ interface ServiceConfig {
   lidarrApiKey: string;
   navidromeUsername: string;
   navidromePassword: string;
+  lidarrQualityProfileId?: number;
+  lidarrRootFolderPath?: string;
 }
 
 let currentConfig: ServiceConfig = { ...defaults, lidarrApiKey: '' };

@@ -1,4 +1,5 @@
 import { createServerFileRoute } from '@tanstack/react-start/server';
+import { ServiceError } from '../../lib/utils';
 import { generatePlaylist } from '../../lib/services/ollama';
 import { getLibrarySummary, search, type Song } from '../../lib/services/navidrome';
 
@@ -58,8 +59,15 @@ export const ServerRoute = createServerFileRoute('/api/playlist').methods({
       });
     } catch (error: unknown) {
       console.error('Playlist generation failed:', error);
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return new Response(JSON.stringify({ error: 'Failed to generate playlist', details: message }), {
+      let code = 'GENERAL_API_ERROR';
+      let message = 'Failed to generate playlist';
+      if (error instanceof ServiceError) {
+        code = error.code;
+        message = error.message;
+      } else if (error instanceof Error) {
+        message = error.message;
+      }
+      return new Response(JSON.stringify({ code, message }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });

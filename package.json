@@ -29,7 +29,9 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:debug": "playwright test --debug"
+    "test:e2e:debug": "playwright test --debug",
+    "e2e": "playwright test",
+    "test:ci:e2e": "playwright test tests/e2e/ --headed=false --coverage --reporter=html,line,json --project=e2e"
   },
   "dependencies": {
     "@radix-ui/react-dropdown-menu": "^2.1.16",

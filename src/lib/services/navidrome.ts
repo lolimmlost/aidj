@@ -1,4 +1,5 @@
 import { getConfig } from '@/lib/config/config';
+import { ServiceError } from '../utils';
 
 export type Artist = {
   id: string;
@@ -59,12 +60,21 @@ export { subsonicToken };
 let subsonicSalt: string | null = null;
 export { subsonicSalt };
 let tokenExpiry = 0;
+export { tokenExpiry };
+
+export function resetAuthState() {
+  token = null;
+  clientId = null;
+  subsonicToken = null;
+  subsonicSalt = null;
+  tokenExpiry = 0;
+}
 const TOKEN_REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 minutes before expiry
 
 export async function getAuthToken(): Promise<string> {
   const config = getConfig();
   if (!config.navidromeUrl || !config.navidromeUsername || !config.navidromePassword) {
-    throw new Error('Navidrome credentials incomplete');
+    throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome credentials incomplete');
   }
 
   const now = Date.now();
@@ -88,12 +98,12 @@ export async function getAuthToken(): Promise<string> {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      throw new Error(`Login failed: ${response.statusText}`);
+      throw new ServiceError('NAVIDROME_AUTH_ERROR', `Login failed: ${response.statusText}`);
     }
 
     const data = await response.json();
     if (!data.token || !data.id) {
-      throw new Error('No token or id received from login');
+      throw new ServiceError('NAVIDROME_AUTH_ERROR', 'No token or id received from login');
     }
     token = data.token as string;
     clientId = data.id as string;
@@ -104,9 +114,9 @@ export async function getAuthToken(): Promise<string> {
   } catch (error: unknown) {
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('Login request timed out');
+      throw new ServiceError('NAVIDROME_TIMEOUT_ERROR', 'Login request timed out');
     }
-    throw new Error(`Authentication error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new ServiceError('NAVIDROME_AUTH_ERROR', `Authentication error: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -123,7 +133,7 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<un
     try {
       const ndId = clientId;
       if (!ndId) {
-        throw new Error('Client ID not available');
+        throw new ServiceError('NAVIDROME_CLIENT_ERROR', 'Client ID not available');
       }
       const response = await fetch(`${getConfig().navidromeUrl}${endpoint}`, {
         ...options,
@@ -144,7 +154,7 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<un
       }
 
       if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+        throw new ServiceError('NAVIDROME_API_ERROR', `API request failed: ${response.status} ${response.statusText}`);
       }
 
       const contentType = response.headers.get('content-type');
@@ -155,17 +165,17 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<un
     } catch (error: unknown) {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('API request timed out (5s limit)');
+        throw new ServiceError('NAVIDROME_TIMEOUT_ERROR', 'API request timed out (5s limit)');
       }
       if (retries < maxRetries) {
         retries++;
         continue;
       }
-      throw new Error(`API fetch error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new ServiceError('NAVIDROME_API_ERROR', `API fetch error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  throw new Error('Max retries exceeded for API request');
+  throw new ServiceError('NAVIDROME_FETCH_ERROR', 'Max retries exceeded for API request');
 }
 
 export async function getArtists(start: number = 0, limit: number = 1000): Promise<Artist[]> {
@@ -173,8 +183,8 @@ export async function getArtists(start: number = 0, limit: number = 1000): Promi
     const endpoint = `/api/artist?_start=${start}&_end=${start + limit - 1}`;
     const data = await apiFetch(endpoint) as Artist[];
     return data || [];
-  } catch (error) {
-    throw new Error(`Failed to fetch artists: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  } catch {
+    return [];
   }
 }
 
@@ -183,7 +193,7 @@ export async function getArtistDetail(id: string): Promise<ArtistDetail> {
     const data = await apiFetch(`/api/artist/${id}`) as ArtistDetail;
     return data;
   } catch (error) {
-    throw new Error(`Failed to fetch artist detail: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch artist detail: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -198,7 +208,7 @@ export async function getArtistsWithDetails(start: number = 0, limit: number = 1
     );
     return detailedArtists;
   } catch (error) {
-    throw new Error(`Failed to fetch artists with details: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch artists with details: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -207,7 +217,7 @@ export async function getAlbums(artistId: string, start: number = 0, limit: numb
     const data = await apiFetch(`/api/album?artist_id=${artistId}&_start=${start}&_end=${start + limit - 1}`) as Album[];
     return data || [];
   } catch (error) {
-    throw new Error(`Failed to fetch albums: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch albums: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -220,7 +230,7 @@ export async function getSongs(albumId: string, start: number = 0, limit: number
     })) as Song[];
     return songs || [];
   } catch (error) {
-    throw new Error(`Failed to fetch songs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch songs: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -229,7 +239,7 @@ export async function search(query: string, start: number = 0, limit: number = 5
   try {
     const config = getConfig();
     if (!config.navidromeUrl) {
-      throw new Error('Navidrome URL not configured');
+      return [];
     }
 
     // Parse query for artist and title if possible
@@ -297,7 +307,7 @@ export async function search(query: string, start: number = 0, limit: number = 5
     return songs;
   } catch (error) {
     console.error('Comprehensive search error:', error);
-    throw new Error(`Failed to search music: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to search music: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 export async function getSongsGlobal(start: number = 0, limit: number = 50): Promise<Song[]> {
@@ -309,7 +319,7 @@ export async function getSongsGlobal(start: number = 0, limit: number = 50): Pro
     })) as Song[];
     return songs || [];
   } catch (error) {
-    throw new Error(`Failed to fetch global songs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch global songs: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -330,6 +340,6 @@ export async function getLibrarySummary(): Promise<LibrarySummary> {
       songs: topSongs.map(s => s.name),
     };
   } catch (error) {
-    throw new Error(`Failed to fetch library summary: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch library summary: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
