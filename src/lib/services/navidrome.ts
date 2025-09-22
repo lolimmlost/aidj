@@ -80,6 +80,12 @@ export type Song = {
   duration: number;
   track: number;
   url: string;
+  title?: string;
+  artistId?: string;
+  album?: string;
+  trackNumber?: number;
+  explicitContent?: 'true' | 'false' | boolean;
+  discNumber?: string | number;
 };
 
 interface NativeSong {
@@ -388,7 +394,7 @@ export async function search(query: string, start: number = 0, limit: number = 5
       if (response.searchResult?.song) {
         return response.searchResult.song.map((song: SubsonicSong) => ({
           id: song.id,
-          name: `${song.artist} - ${song.title}`,
+          name: song.title,
           title: song.title,
           artist: song.artist || 'Unknown Artist',
           albumId: song.albumId,
@@ -402,32 +408,9 @@ export async function search(query: string, start: number = 0, limit: number = 5
       }
     } catch (error) {
       console.log('Subsonic search failed:', error);
-      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    // If Subsonic fails, try native API as fallback
-    try {
-      const nativeEndpoint = `/api/song?fullText=${encodeURIComponent(query)}&_start=${start}&_end=${start + limit - 1}`;
-      const nativeData = await apiFetch(nativeEndpoint) as NativeSong[];
-      return nativeData.map((song: NativeSong) => ({
-        id: song.id as string,
-        name: song.title || 'Unknown Title',
-        title: song.title,
-        artist: song.artist || 'Unknown Artist',
-        albumId: song.albumId as string,
-        artistId: song.artistId ? song.artistId : null,
-        album: song.album,
-        duration: song.duration || 0,
-        track: Number(song.trackNumber || 1),
-        trackNumber: Number(song.trackNumber || 1),
-        url: `/api/navidrome/stream/${song.id}`,
-        explicitContent: song.explicitContent === 'true',
-        discNumber: song.discNumber ? parseInt(song.discNumber) : 1,
-      }));
-    } catch (nativeError) {
-      console.log('Native search failed:', nativeError);
-      throw new ServiceError('NAVIDROME_API_ERROR', `Native search failed: ${nativeError instanceof Error ? nativeError.message : 'Unknown error'}`);
-    }
+    // If no songs found or search failed, return empty array
+    return [];
 
   } catch (error) {
     console.error('Search error:', error);

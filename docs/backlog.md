@@ -281,6 +281,23 @@ so that playlist resolution and recommendations work properly.
 
 Points: 2
 
+## Story 3.8: Search Feature Reliability Fix
+As a user,
+I want the search feature to work reliably,
+so that I can consistently find music in my library.
+
+### Acceptance Criteria
+1. Search returns results for valid queries
+2. Search handles errors gracefully
+3. Search works across different query types (albums, artists, songs)
+4. Existing functionality continues to work unchanged
+5. Search follows existing auth and API patterns
+6. Integration with audio player maintains current behavior
+7. Search is covered by appropriate tests
+8. No regression in existing functionality verified
+
+Points: 3
+
 Epic 4: Download Management
 
 ## Story 4.1: Lidarr API Integration

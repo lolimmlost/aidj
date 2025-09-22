@@ -5,8 +5,8 @@ test.describe('E2E Service Integrations: Ollama → Navidrome → Lidarr', () =>
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    // Ensure test user exists via Better Auth sign-up API
-    const registerResponse = await page.request.post('/auth/sign-up', {
+    // Ensure test user exists via Better Auth register API
+    const registerResponse = await page.request.post('/api/auth/register', {
       data: {
         email: 'test@example.com',
         password: 'testpass123',
@@ -22,7 +22,7 @@ test.describe('E2E Service Integrations: Ollama → Navidrome → Lidarr', () =>
 
   test.beforeEach(async ({ page }) => {
     // Login via Better Auth API to ensure authenticated state
-    const loginResponse = await page.request.post('/auth/sign-in', {
+    const loginResponse = await page.request.post('/api/auth/login', {
       data: {
         email: 'test@example.com',
         password: 'testpass123'
