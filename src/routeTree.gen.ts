@@ -27,6 +27,8 @@ import { ServerRoute as ApiSearchServerRouteImport } from "./routes/api/search";
 import { ServerRoute as ApiRecommendationsServerRouteImport } from "./routes/api/recommendations";
 import { ServerRoute as ApiPlaylistServerRouteImport } from "./routes/api/playlist";
 import { ServerRoute as ApiConfigServerRouteImport } from "./routes/api/config";
+import { ServerRoute as ApiLidarrSearchServerRouteImport } from "./routes/api/lidarr/search";
+import { ServerRoute as ApiLidarrAvailabilityServerRouteImport } from "./routes/api/lidarr/availability";
 import { ServerRoute as ApiLidarrAddServerRouteImport } from "./routes/api/lidarr/add";
 import { ServerRoute as ApiAuthRegisterServerRouteImport } from "./routes/api/auth/register";
 import { ServerRoute as ApiAuthLoginServerRouteImport } from "./routes/api/auth/login";
@@ -119,6 +121,17 @@ const ApiConfigServerRoute = ApiConfigServerRouteImport.update({
   path: "/api/config",
   getParentRoute: () => rootServerRouteImport,
 } as any);
+const ApiLidarrSearchServerRoute = ApiLidarrSearchServerRouteImport.update({
+  id: "/api/lidarr/search",
+  path: "/api/lidarr/search",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
+const ApiLidarrAvailabilityServerRoute =
+  ApiLidarrAvailabilityServerRouteImport.update({
+    id: "/api/lidarr/availability",
+    path: "/api/lidarr/availability",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
 const ApiLidarrAddServerRoute = ApiLidarrAddServerRouteImport.update({
   id: "/api/lidarr/add",
   path: "/api/lidarr/add",
@@ -257,6 +270,8 @@ export interface FileServerRoutesByFullPath {
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
+  "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
+  "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
@@ -270,6 +285,8 @@ export interface FileServerRoutesByTo {
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
+  "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
+  "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
@@ -284,6 +301,8 @@ export interface FileServerRoutesById {
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
+  "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
+  "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
@@ -299,6 +318,8 @@ export interface FileServerRouteTypes {
     | "/api/auth/login"
     | "/api/auth/register"
     | "/api/lidarr/add"
+    | "/api/lidarr/availability"
+    | "/api/lidarr/search"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
     | "/api/navidrome/stream/id/id";
@@ -312,6 +333,8 @@ export interface FileServerRouteTypes {
     | "/api/auth/login"
     | "/api/auth/register"
     | "/api/lidarr/add"
+    | "/api/lidarr/availability"
+    | "/api/lidarr/search"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
     | "/api/navidrome/stream/id/id";
@@ -325,6 +348,8 @@ export interface FileServerRouteTypes {
     | "/api/auth/login"
     | "/api/auth/register"
     | "/api/lidarr/add"
+    | "/api/lidarr/availability"
+    | "/api/lidarr/search"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
     | "/api/navidrome/stream/id/id";
@@ -339,6 +364,8 @@ export interface RootServerRouteChildren {
   ApiAuthLoginServerRoute: typeof ApiAuthLoginServerRoute;
   ApiAuthRegisterServerRoute: typeof ApiAuthRegisterServerRoute;
   ApiLidarrAddServerRoute: typeof ApiLidarrAddServerRoute;
+  ApiLidarrAvailabilityServerRoute: typeof ApiLidarrAvailabilityServerRoute;
+  ApiLidarrSearchServerRoute: typeof ApiLidarrSearchServerRoute;
   ApiNavidromeChar91DotPathChar93ServerRoute: typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   ApiNavidromeStreamIdServerRoute: typeof ApiNavidromeStreamIdServerRoute;
   ApiNavidromeStreamIdIdServerRoute: typeof ApiNavidromeStreamIdIdServerRoute;
@@ -460,6 +487,20 @@ declare module "@tanstack/react-start/server" {
       path: "/api/config";
       fullPath: "/api/config";
       preLoaderRoute: typeof ApiConfigServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/lidarr/search": {
+      id: "/api/lidarr/search";
+      path: "/api/lidarr/search";
+      fullPath: "/api/lidarr/search";
+      preLoaderRoute: typeof ApiLidarrSearchServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/lidarr/availability": {
+      id: "/api/lidarr/availability";
+      path: "/api/lidarr/availability";
+      fullPath: "/api/lidarr/availability";
+      preLoaderRoute: typeof ApiLidarrAvailabilityServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
     "/api/lidarr/add": {
@@ -585,6 +626,8 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiAuthLoginServerRoute: ApiAuthLoginServerRoute,
   ApiAuthRegisterServerRoute: ApiAuthRegisterServerRoute,
   ApiLidarrAddServerRoute: ApiLidarrAddServerRoute,
+  ApiLidarrAvailabilityServerRoute: ApiLidarrAvailabilityServerRoute,
+  ApiLidarrSearchServerRoute: ApiLidarrSearchServerRoute,
   ApiNavidromeChar91DotPathChar93ServerRoute:
     ApiNavidromeChar91DotPathChar93ServerRoute,
   ApiNavidromeStreamIdServerRoute: ApiNavidromeStreamIdServerRoute,

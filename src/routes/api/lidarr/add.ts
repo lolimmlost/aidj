@@ -1,6 +1,6 @@
 import { createServerFileRoute } from '@tanstack/react-start/server';
 import { ServiceError } from '../../../lib/utils';
-import { searchArtist, addArtistToQueue } from '../../../lib/services/lidarr';
+import { searchArtistsFull, addArtistToQueue, isArtistAdded } from '../../../lib/services/lidarr';
 
 export const ServerRoute = createServerFileRoute('/api/lidarr/add').methods({
   POST: async ({ request }) => {
@@ -41,7 +41,7 @@ export const ServerRoute = createServerFileRoute('/api/lidarr/add').methods({
       }
 
       const artistName = match[1].trim();
-      const results = await searchArtist(artistName);
+      const results = await searchArtistsFull(artistName);
       if (results.length === 0) {
         return new Response(JSON.stringify({ error: 'Artist not found in Lidarr search' }), {
           status: 404,
@@ -50,7 +50,26 @@ export const ServerRoute = createServerFileRoute('/api/lidarr/add').methods({
       }
 
       const artist = results[0];
-      await addArtistToQueue(artist.foreignArtistId, artist.artistName);
+
+      // Check if already available in Navidrome
+      const availability = await checkArtistAvailability(artistName);
+      if (availability.inNavidrome) {
+        return new Response(JSON.stringify({ message: 'Artist already available in your music library' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Check if already requested in Lidarr
+      const isAdded = await isArtistAdded(artist.foreignArtistId);
+      if (isAdded) {
+        return new Response(JSON.stringify({ message: 'Artist already requested in Lidarr' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      await addArtistToQueue(artist);
 
       return new Response(JSON.stringify({ success: true, message: `Added "${artist.artistName}" to Lidarr queue.` }), {
         status: 200,

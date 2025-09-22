@@ -328,7 +328,43 @@ export async function search(query: string, start: number = 0, limit: number = 5
 
     await getAuthToken(); // Ensure auth
 
-    // First, try album search for better results
+    // Check if query is in "Artist - Title" format
+    const artistTitleMatch = query.match(/^(.+?)\s*-\s*(.+)$/);
+    if (artistTitleMatch) {
+      const resolvedSong = await resolveSongByArtistTitle(query);
+      if (resolvedSong) {
+        return [resolvedSong];
+      }
+      // If not found, continue with general search
+    }
+
+    // For individual song lookup, prioritize direct song search first
+    // Use Subsonic API for song search
+    const songEndpoint = `/rest/search.view?query=${encodeURIComponent(query)}&songCount=${limit}&artistCount=0&albumCount=0&offset=${start}`;
+    console.log('Searching songs with Subsonic endpoint:', songEndpoint);
+
+    try {
+      const response = await apiFetch(songEndpoint) as SubsonicSearchResponse;
+      if (response.searchResult?.song && response.searchResult.song.length > 0) {
+        return response.searchResult.song.map((song: SubsonicSong) => ({
+          id: song.id,
+          name: song.title,
+          title: song.title,
+          artist: song.artist || 'Unknown Artist',
+          albumId: song.albumId,
+          artistId: song.artistId,
+          album: song.album,
+          duration: parseInt(song.duration) || 0,
+          track: parseInt(song.track) || 0,
+          trackNumber: parseInt(song.track) || 0,
+          url: `/api/navidrome/stream/${song.id}`,
+        }));
+      }
+    } catch (error) {
+      console.log('Direct song search failed:', error);
+    }
+
+    // If no direct song matches, try album search
     try {
       const albumEndpoint = `/api/album?name=${encodeURIComponent(query)}&_start=0&_end=10`;
       const albums = await apiFetch(albumEndpoint) as Album[];
@@ -350,7 +386,7 @@ export async function search(query: string, start: number = 0, limit: number = 5
       console.log('Album search failed, trying artist search:', albumError);
     }
 
-    // Then, try artist search
+    // Finally, try artist search
     try {
       const artistEndpoint = `/api/artist?name=${encodeURIComponent(query)}&_start=0&_end=4`;
       const artists = await apiFetch(artistEndpoint) as Artist[];
@@ -369,35 +405,10 @@ export async function search(query: string, start: number = 0, limit: number = 5
         return allSongs.slice(start, start + limit);
       }
     } catch (artistError) {
-      console.log('Artist search failed, falling back to song search:', artistError);
+      console.log('Artist search failed:', artistError);
     }
 
-    // Fallback to song search if no artists found
-    // Use Subsonic API for search
-    const endpoint = `/rest/search.view?query=${encodeURIComponent(query)}&songCount=${limit}&artistCount=0&albumCount=0&offset=${start}`;
-    console.log('Searching with Subsonic endpoint:', endpoint);
-
-    try {
-      const response = await apiFetch(endpoint) as SubsonicSearchResponse;
-      if (response.searchResult?.song) {
-        return response.searchResult.song.map((song: SubsonicSong) => ({
-          id: song.id,
-          name: song.title,
-          title: song.title,
-          artist: song.artist || 'Unknown Artist',
-          albumId: song.albumId,
-          artistId: song.artistId,
-          album: song.album,
-          duration: parseInt(song.duration) || 0,
-          track: parseInt(song.track) || 0,
-          trackNumber: parseInt(song.track) || 0,
-          url: `/api/navidrome/stream/${song.id}`,
-        }));
-      }
-    } catch (error) {
-      console.log('Subsonic search failed:', error);
-    }
-    // If no songs found or search failed, return empty array
+    // If no songs found anywhere, return empty array
     return [];
 
   } catch (error) {
@@ -454,13 +465,62 @@ export async function getLibrarySummary(): Promise<LibrarySummary> {
     const topArtists = await getArtistsWithDetails(0, 20);
     const topSongs = await getSongsGlobal(0, 10);
     return {
-      artists: topArtists.map(a => ({ 
-        name: a.name, 
-        genres: a.genres || 'Unknown' 
+      artists: topArtists.map(a => ({
+        name: a.name,
+        genres: a.genres || 'Unknown'
       })),
       songs: topSongs.map(s => s.name),
     };
   } catch (error) {
     throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch library summary: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Resolve a song by parsing "Artist - Title" format
+ * Searches for songs by the artist with matching title
+ */
+export async function resolveSongByArtistTitle(artistTitle: string): Promise<Song | null> {
+  try {
+    const match = artistTitle.match(/^(.+?)\s*-\s*(.+)$/);
+    if (!match) {
+      // Not in "Artist - Title" format, fallback to general search
+      const songs = await search(artistTitle, 0, 1);
+      return songs[0] || null;
+    }
+
+    const artistName = match[1].trim();
+    const songTitle = match[2].trim();
+
+    // First, find the artist
+    const artists = await getArtistsWithDetails(0, 100); // Get more artists
+    const artist = artists.find(a => a.name.toLowerCase() === artistName.toLowerCase());
+    if (!artist) {
+      // Artist not found, fallback to general search
+      const songs = await search(artistTitle, 0, 1);
+      return songs[0] || null;
+    }
+
+    // Get artist's albums
+    const albums = await getAlbums(artist.id, 0, 50);
+    for (const album of albums) {
+      try {
+        const songs = await getSongs(album.id, 0, 50);
+        const song = songs.find(s => s.title?.toLowerCase() === songTitle.toLowerCase() || s.name.toLowerCase() === songTitle.toLowerCase());
+        if (song) {
+          return song;
+        }
+      } catch (error) {
+        console.log(`Failed to get songs for album ${album.id}:`, error);
+      }
+    }
+
+    // Song not found in albums, fallback to general search
+    const songs = await search(songTitle, 0, 5);
+    const song = songs.find(s => s.artist?.toLowerCase() === artistName.toLowerCase());
+    return song || null;
+  } catch (error) {
+    console.error('Error resolving song by artist-title:', error);
+    return null;
   }
 }
