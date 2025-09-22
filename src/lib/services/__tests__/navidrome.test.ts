@@ -494,15 +494,12 @@ describe('Navidrome Service Integration Tests', () => {
         .mockResolvedValueOnce(validLoginResponse) // auth
         .mockResolvedValueOnce(emptyAlbumResponse) // empty albums
         .mockResolvedValueOnce(emptyArtistResponse) // empty artists
-        .mockResolvedValueOnce(failureResponse) // subsonic failure
-        .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })) // native fullText
-        .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })) // native title
-        .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })); // native name
+        .mockResolvedValueOnce(failureResponse); // subsonic failure
 
       const result = await search('test', 0, 50);
 
       expect(result).toEqual([]);
-      expect(mockFetch).toHaveBeenCalledTimes(5); // auth + album + artist + subsonic + native fullText
+      expect(mockFetch).toHaveBeenCalledTimes(4); // auth + album + artist + subsonic
     });
 
     describe('Subsonic search endpoint', () => {
@@ -896,7 +893,7 @@ describe('Navidrome Service Integration Tests', () => {
   
     it('handles search error gracefully', async () => {
       const { search } = await import('../navidrome');
-  
+
       const validLoginResponse = new Response(JSON.stringify({
         token: 'test-token',
         id: 'test-client',
@@ -906,30 +903,27 @@ describe('Navidrome Service Integration Tests', () => {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
-  
+
       const emptyArtistResponse = new Response(JSON.stringify([]), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
-  
+
       const failureResponse = new Response(null, {
         status: 500,
         statusText: 'Server Error',
       });
-  
+
       mockFetch
         .mockResolvedValueOnce(validLoginResponse) // auth
         .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })) // empty albums
         .mockResolvedValueOnce(emptyArtistResponse) // empty artists
-        .mockResolvedValueOnce(failureResponse) // subsonic failure
-        .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })) // native fullText
-        .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })) // native title
-        .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })); // native name
-  
+        .mockResolvedValueOnce(failureResponse); // subsonic failure
+
       const matches = await search('Test Song', 0, 1);
 
       expect(matches).toEqual([]);
-      expect(mockFetch).toHaveBeenCalledTimes(5); // auth + album + artist + subsonic + native fullText
+      expect(mockFetch).toHaveBeenCalledTimes(4); // auth + album + artist + subsonic
     });
   });
   

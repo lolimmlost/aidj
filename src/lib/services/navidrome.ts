@@ -88,18 +88,6 @@ export type Song = {
   discNumber?: string | number;
 };
 
-interface NativeSong {
-  id: string;
-  title: string;
-  artist?: string;
-  albumId: string;
-  artistId?: string;
-  album?: string;
-  duration: number;
-  trackNumber?: number;
-  explicitContent?: 'true' | 'false' | boolean;
-  discNumber?: string;
-}
 
 let token: string | null = null;
 export { token };

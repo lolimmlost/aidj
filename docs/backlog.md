@@ -274,12 +274,17 @@ I want to fix the library search function to use the correct Subsonic API endpoi
 so that playlist resolution and recommendations work properly.
 
 ### Acceptance Criteria
-- [ ] Update src/lib/services/navidrome.ts search() to use /rest/search.view?query=...&songCount=50 instead of /api/song?fullText=
-- [ ] Parse 'song' array from response for matching Song objects
-- [ ] Add unit test for search with mock data
-- [ ] Validate E2E: Generate playlist and confirm songs resolve without fallback to invalid defaults
+- [x] Update src/lib/services/navidrome.ts search() to use /rest/search.view?query=...&songCount=50 instead of /api/song?fullText=
+- [x] Parse 'song' array from response for matching Song objects
+- [x] Add unit test for search with mock data
+- [x] Validate E2E: Generate playlist and confirm songs resolve without fallback to invalid defaults
 
 Points: 2
+
+### Completion Status
+- [x] Completed: Search function already uses /rest/search.view endpoint with proper song array parsing
+- [x] Completed: Unit tests exist for Subsonic search endpoint with mock data
+- [x] Completed: E2E tests validate playlist generation and song resolution
 
 ## Story 3.8: Search Feature Reliability Fix
 As a user,
