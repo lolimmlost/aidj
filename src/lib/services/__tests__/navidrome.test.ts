@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getArtists, getArtistDetail, getAlbums, getSongs, search, getLibrarySummary, getArtistsWithDetails, getSongsGlobal, type Artist, type Album, type Song, type ArtistWithDetails, type LibrarySummary } from '../navidrome';
+import { getArtists, getArtistDetail, getAlbums, getSongs, search, getTopSongs, getLibrarySummary, getArtistsWithDetails, getSongsGlobal, type Artist, type Album, type Song, type ArtistWithDetails, type LibrarySummary, type SubsonicSong, type RawSong } from '../navidrome';
 import { getConfig } from '@/lib/config/config';
 
 // Mock the config module
@@ -375,59 +375,78 @@ describe('Navidrome Service Integration Tests', () => {
   });
 
   describe('search', () => {
-    it('should search songs using multiple parameters', async () => {
+    it('should search songs using Subsonic endpoint', async () => {
       const { search } = await import('../navidrome');
 
-      const mockRawSongs = [
-        {
-          id: 's1',
-          name: 'Test Artist - Test Song',
-          albumId: 'a1',
-          duration: 180,
-          track: 1,
+      const mockSubsonicResponse = {
+        searchResult: {
+          song: [
+            {
+              id: 's1',
+              title: 'Test Artist - Test Song',
+              artist: 'Test Artist',
+              albumId: 'a1',
+              artistId: 'art1',
+              album: 'Test Album',
+              duration: '180',
+              track: '1',
+            },
+          ],
         },
-      ];
+      };
 
-      const validLoginResponse = {
-        ok: true,
+      const validLoginResponse = new Response(JSON.stringify({
+        token: 'test-token',
+        id: 'test-client',
+        subsonicToken: 'test-subsonic',
+        subsonicSalt: 'test-salt',
+      }), {
         status: 200,
-        json: async () => ({
-          token: 'test-token',
-          id: 'test-client',
-          subsonicToken: 'test-subsonic',
-          subsonicSalt: 'test-salt',
-        }),
-      } as Response;
+        headers: { 'content-type': 'application/json' },
+      });
 
-      // First param (title) returns empty
-      mockFetch.mockResolvedValueOnce(validLoginResponse);
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
+      const emptyArtistResponse = new Response(JSON.stringify([]), {
         status: 200,
-        headers: new Headers({ 'content-type': 'application/json' }),
-        json: async () => [],
-      } as Response);
-      
-      // Second param (fullText) succeeds with raw data
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
+        headers: { 'content-type': 'application/json' },
+      });
+
+      const subsonicResponse = new Response(JSON.stringify(mockSubsonicResponse), {
         status: 200,
-        headers: new Headers({ 'content-type': 'application/json' }),
-        json: async () => mockRawSongs,
-      } as Response);
+        headers: { 'content-type': 'application/json' },
+      });
+
+      const emptyAlbumResponse = new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+      mockFetch
+        .mockResolvedValueOnce(validLoginResponse) // auth
+        .mockResolvedValueOnce(emptyAlbumResponse) // empty albums
+        .mockResolvedValueOnce(emptyArtistResponse) // empty artists
+        .mockResolvedValueOnce(subsonicResponse); // subsonic
 
       const result = await search('Test Artist - Test Song', 0, 10);
-      
+
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
         id: 's1',
         name: 'Test Artist - Test Song',
+        title: 'Test Artist - Test Song',
+        artist: 'Test Artist',
         albumId: 'a1',
+        artistId: 'art1',
+        album: 'Test Album',
         duration: 180,
         track: 1,
+        trackNumber: 1,
         url: '/api/navidrome/stream/s1',
       });
-      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:4533/rest/search.view?query=Test%20Artist%20-%20Test%20Song&songCount=10&artistCount=0&albumCount=0&offset=0',
+        expect.any(Object),
+      );
+      expect(mockFetch).toHaveBeenCalledTimes(4); // auth + album + artist + subsonic
     });
 
     it('should return empty array when no config', async () => {
@@ -443,18 +462,22 @@ describe('Navidrome Service Integration Tests', () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it('should handle search failure gracefully', async () => {
+    it('should handle Subsonic search failure gracefully', async () => {
       const { search } = await import('../navidrome');
 
-      const validLoginResponse = new Response(null, {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-      validLoginResponse.json = async () => ({
+      const validLoginResponse = new Response(JSON.stringify({
         token: 'test-token',
         id: 'test-client',
         subsonicToken: 'test-subsonic',
         subsonicSalt: 'test-salt',
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+      const emptyArtistResponse = new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
       });
 
       const failureResponse = new Response(null, {
@@ -462,17 +485,188 @@ describe('Navidrome Service Integration Tests', () => {
         statusText: 'Server Error',
       });
 
-      // 1 auth + 3 params * 2 fetches (retry on error)
-      mockFetch.mockResolvedValueOnce(validLoginResponse);
-      for (let i = 0; i < 3; i++) {
-        mockFetch.mockResolvedValueOnce(failureResponse); // first try
-        mockFetch.mockResolvedValueOnce(failureResponse); // retry
-      }
-      
-      const result = await search('test');
-      
+      const emptyAlbumResponse = new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+      // Mock 3 native failures as empty or error
+      const nativeEmptyResponse = new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+      mockFetch
+        .mockResolvedValueOnce(validLoginResponse) // auth
+        .mockResolvedValueOnce(emptyAlbumResponse) // empty albums
+        .mockResolvedValueOnce(emptyArtistResponse) // empty artists
+        .mockResolvedValueOnce(failureResponse) // subsonic failure
+        .mockResolvedValueOnce(nativeEmptyResponse) // native fullText
+        .mockResolvedValueOnce(nativeEmptyResponse) // native title
+        .mockResolvedValueOnce(nativeEmptyResponse); // native name
+
+      const result = await search('test', 0, 50);
+
       expect(result).toEqual([]);
-      expect(mockFetch).toHaveBeenCalledTimes(7);
+      expect(mockFetch).toHaveBeenCalledTimes(7); // auth + album + artist + subsonic + 3 native
+    });
+
+    describe('Subsonic search endpoint', () => {
+      beforeEach(() => {
+        vi.clearAllMocks();
+        mockGetConfig.mockReturnValue({
+          navidromeUrl: 'http://localhost:4533',
+          navidromeUsername: 'testuser',
+          navidromePassword: 'testpass',
+        });
+      });
+
+      it('should search songs using Subsonic /rest/search.view endpoint successfully', async () => {
+        const { search } = await import('../navidrome');
+
+        const mockSubsonicResponse = {
+          searchResult: {
+            song: [
+              {
+                id: 's1',
+                title: 'Test Song',
+                artist: 'Test Artist',
+                albumId: 'a1',
+                artistId: 'art1',
+                album: 'Test Album',
+                duration: '180',
+                track: '1',
+              },
+            ],
+          },
+        };
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+        const emptyArtistResponse = new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+        const subsonicResponse = new Response(JSON.stringify(mockSubsonicResponse), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+        const emptyAlbumResponse = new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse) // auth
+          .mockResolvedValueOnce(emptyAlbumResponse) // empty albums
+          .mockResolvedValueOnce(emptyArtistResponse) // empty artists
+          .mockResolvedValueOnce(subsonicResponse); // search.view
+
+        const result = await search('Test Song', 0, 1);
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toEqual({
+          id: 's1',
+          name: 'Test Song',
+          title: 'Test Song',
+          artist: 'Test Artist',
+          albumId: 'a1',
+          artistId: 'art1',
+          album: 'Test Album',
+          duration: 180,
+          track: 1,
+          trackNumber: 1,
+          url: '/api/navidrome/stream/s1',
+        });
+        expect(mockFetch).toHaveBeenCalledWith(
+          'http://localhost:4533/rest/search.view?query=Test%20Song&songCount=1&artistCount=0&albumCount=0&offset=0',
+          expect.any(Object),
+        );
+        expect(mockFetch).toHaveBeenCalledTimes(4); // auth + album + artist + subsonic
+      });
+
+      it('should return empty array for no search results with Subsonic endpoint', async () => {
+        const { search } = await import('../navidrome');
+
+        const mockEmptyResponse = {
+          searchResult: {
+            song: [],
+          },
+        };
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+        const emptyResponse = new Response(JSON.stringify(mockEmptyResponse), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(emptyResponse);
+
+        const result = await search('No Match', 0, 1);
+
+        expect(result).toEqual([]);
+      });
+
+      it('should handle Subsonic search API error', async () => {
+        const { search } = await import('../navidrome');
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+        const emptyArtistResponse = new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+        const errorResponse = new Response(null, {
+          status: 500,
+          statusText: 'Internal Server Error',
+        });
+
+        const emptyAlbumResponse = new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse) // auth
+          .mockResolvedValueOnce(emptyAlbumResponse) // empty albums
+          .mockResolvedValueOnce(emptyArtistResponse) // empty artists
+          .mockResolvedValueOnce(errorResponse); // subsonic error
+
+        const result = await search('Error Test', 0, 1);
+
+        expect(result).toEqual([]);
+        expect(mockFetch).toHaveBeenNthCalledWith(4, 'http://localhost:4533/rest/search.view?query=Error%20Test&songCount=1&artistCount=0&albumCount=0&offset=0&u=test-client&t=test-subsonic&s=test-salt&f=json&c=MusicApp', expect.any(Object));
+      });
     });
   });
 
@@ -587,14 +781,6 @@ describe('Navidrome Service Integration Tests', () => {
       size: 1,
     };
 
-    const mockArtists: ArtistWithDetails[] = [
-      { id: 'a1', name: 'Artist1', genres: 'Rock', albumCount: 5, songCount: 50, fullText: 'desc1', orderArtistName: 'Artist1', size: 1 },
-      { id: 'a2', name: 'Artist2', genres: 'Pop', albumCount: 3, songCount: 30, fullText: 'desc2', orderArtistName: 'Artist2', size: 1 },
-    ];
-    const mockSongs: Song[] = [
-      { id: 's1', name: 'Song1', albumId: 'al1', duration: 180, track: 1, url: '/stream/s1' },
-      { id: 's2', name: 'Song2', albumId: 'al1', duration: 240, track: 2, url: '/stream/s2' },
-    ];
 
     beforeEach(() => {
       vi.clearAllMocks();
@@ -682,62 +868,238 @@ describe('Navidrome Service Integration Tests', () => {
         navidromePassword: 'testpass',
       });
     });
-
+  
     it('resolves suggestion to Song object if match found', async () => {
-      const mockSong: Song = { id: 's1', name: 'Artist - Title', albumId: 'al1', duration: 180, track: 1, url: '/api/navidrome/stream/s1' };
+      const mockSong: Song = { id: 's1', name: 'Artist - Title', artist: 'Test Artist', albumId: 'al1', duration: 180, track: 1, url: '/api/navidrome/stream/s1' };
       const module = await import('../navidrome');
       const searchSpy = vi.spyOn(module, 'search');
       searchSpy.mockResolvedValueOnce([mockSong]);
-
+  
       const matches = await module.search('Artist - Title', 0, 1);
-
+  
       searchSpy.mockRestore();
-
+  
       expect(matches).toEqual([mockSong]);
     });
-
+  
     it('returns empty if no match', async () => {
       const module = await import('../navidrome');
       const searchSpy = vi.spyOn(module, 'search');
       searchSpy.mockResolvedValueOnce([]);
-
+  
       const matches = await module.search('Unknown Song', 0, 1);
-
+  
       searchSpy.mockRestore();
-
+  
       expect(matches).toEqual([]);
     });
-
+  
     it('handles search error gracefully', async () => {
       const { search } = await import('../navidrome');
-
-      const validLoginResponse = new Response(null, {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-      validLoginResponse.json = async () => ({
+  
+      const validLoginResponse = new Response(JSON.stringify({
         token: 'test-token',
         id: 'test-client',
         subsonicToken: 'test-subsonic',
         subsonicSalt: 'test-salt',
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
       });
-
+  
+      const emptyArtistResponse = new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+  
       const failureResponse = new Response(null, {
         status: 500,
         statusText: 'Server Error',
       });
-
-      // 1 auth + 3 params * 2 fetches (retry on error)
-      mockFetch.mockResolvedValueOnce(validLoginResponse);
-      for (let i = 0; i < 3; i++) {
-        mockFetch.mockResolvedValueOnce(failureResponse); // first try
-        mockFetch.mockResolvedValueOnce(failureResponse); // retry
-      }
-
+  
+      // Mock 3 native failures as empty
+      const nativeEmptyResponse = new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+  
+      mockFetch
+        .mockResolvedValueOnce(validLoginResponse) // auth
+        .mockResolvedValueOnce(emptyArtistResponse) // empty artists
+        .mockResolvedValueOnce(failureResponse) // subsonic failure
+        .mockResolvedValueOnce(nativeEmptyResponse) // native fullText
+        .mockResolvedValueOnce(nativeEmptyResponse) // native title
+        .mockResolvedValueOnce(nativeEmptyResponse); // native name
+  
       const matches = await search('Test Song', 0, 1);
 
       expect(matches).toEqual([]);
-      expect(mockFetch).toHaveBeenCalledTimes(7);
+      expect(mockFetch).toHaveBeenCalledTimes(7); // auth + album + artist + subsonic + 3 native
+    });
+  });
+  
+  describe('Enhanced Search with Album and Artist Prioritization', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.resetModules();
+      global.fetch = mockFetch;
+      mockGetConfig.mockReturnValue({
+        navidromeUrl: 'http://localhost:4533',
+        navidromeUsername: 'testuser',
+        navidromePassword: 'testpass',
+      });
+    });
+
+    it('should prioritize album search and fetch songs from albums', async () => {
+      const { search } = await import('../navidrome');
+
+      const mockAlbums: Album[] = [
+        { id: 'al1', name: 'Uzi Album', artistId: 'art1', year: 2020 },
+      ];
+
+      const mockSongs: RawSong[] = [
+        { id: 's1', name: 'Song1', albumId: 'al1', duration: 180, track: 1 },
+        { id: 's2', name: 'Song2', albumId: 'al1', duration: 200, track: 2 },
+      ];
+
+      const validLoginResponse = new Response(JSON.stringify({
+        token: 'test-token',
+        id: 'test-client',
+        subsonicToken: 'test-subsonic',
+        subsonicSalt: 'test-salt',
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+      const albumResponse = new Response(JSON.stringify(mockAlbums), { status: 200, headers: { 'content-type': 'application/json' } });
+
+      const songsResponse = new Response(JSON.stringify(mockSongs), { status: 200, headers: { 'content-type': 'application/json' } });
+
+      mockFetch
+        .mockResolvedValueOnce(validLoginResponse) // auth
+        .mockResolvedValueOnce(albumResponse) // album search
+        .mockResolvedValueOnce(songsResponse); // songs from album
+
+      const result = await search('uzi', 0, 50);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].name).toBe('Song1');
+      expect(result[1].name).toBe('Song2');
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:4533/api/album?name=uzi&_start=0&_end=10',
+        expect.any(Object)
+      );
+    });
+
+    it('should prioritize artist search when no albums found and fetch top songs', async () => {
+      const { search, getTopSongs } = await import('../navidrome');
+
+      const mockEmptyAlbums: Album[] = [];
+      const mockArtists: Artist[] = [
+        { id: 'art1', name: 'Lil Uzi Vert' },
+        { id: 'art2', name: 'Uzi Artist' },
+      ];
+
+      const mockTopSongs1: SubsonicSong[] = [
+        { id: 's1', title: 'Song1', artist: 'Lil Uzi Vert', albumId: 'a1', duration: '180', track: '1' },
+      ];
+
+      const mockTopSongs2: SubsonicSong[] = [
+        { id: 's2', title: 'Song2', artist: 'Uzi Artist', albumId: 'a2', duration: '200', track: '1' },
+      ];
+
+      const validLoginResponse = new Response(JSON.stringify({
+        token: 'test-token',
+        id: 'test-client',
+        subsonicToken: 'test-subsonic',
+        subsonicSalt: 'test-salt',
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+      const emptyAlbumResponse = new Response(JSON.stringify(mockEmptyAlbums), { status: 200, headers: { 'content-type': 'application/json' } });
+      const artistResponse = new Response(JSON.stringify(mockArtists), { status: 200, headers: { 'content-type': 'application/json' } });
+
+      const topSongsResponse1 = new Response(JSON.stringify({ topSongs: { song: mockTopSongs1 } }), { status: 200, headers: { 'content-type': 'application/json' } });
+      const topSongsResponse2 = new Response(JSON.stringify({ topSongs: { song: mockTopSongs2 } }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+      mockFetch
+        .mockResolvedValueOnce(validLoginResponse) // auth
+        .mockResolvedValueOnce(emptyAlbumResponse) // empty albums
+        .mockResolvedValueOnce(artistResponse) // artist search
+        .mockResolvedValueOnce(topSongsResponse1) // top songs art1
+        .mockResolvedValueOnce(topSongsResponse2); // top songs art2
+
+      const result = await search('uzi', 0, 50);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].name).toBe('Song1');
+      expect(result[1].name).toBe('Song2');
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:4533/api/artist?name=uzi&_start=0&_end=4',
+        expect.any(Object)
+      );
+      expect(getTopSongs).toHaveBeenCalledTimes(2);
+    });
+  
+    it('should fallback to song search when no albums or artists found', async () => {
+      const { search } = await import('../navidrome');
+
+      const mockEmptyAlbums: Album[] = [];
+      const mockEmptyArtists: Artist[] = [];
+      const mockSongs: SubsonicSong[] = [{ id: 's1', title: 'Fallback Song', artist: 'Fallback', albumId: 'a1', duration: '180', track: '1' }];
+
+      const validLoginResponse = new Response(JSON.stringify({
+        token: 'test-token',
+        id: 'test-client',
+        subsonicToken: 'test-subsonic',
+        subsonicSalt: 'test-salt',
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+      const emptyAlbumResponse = new Response(JSON.stringify(mockEmptyAlbums), { status: 200, headers: { 'content-type': 'application/json' } });
+      const emptyArtistResponse = new Response(JSON.stringify(mockEmptyArtists), { status: 200, headers: { 'content-type': 'application/json' } });
+
+      const subsonicResponse = new Response(JSON.stringify({ searchResult: { song: mockSongs } }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+      mockFetch
+        .mockResolvedValueOnce(validLoginResponse) // auth
+        .mockResolvedValueOnce(emptyAlbumResponse) // empty albums
+        .mockResolvedValueOnce(emptyArtistResponse) // empty artists
+        .mockResolvedValueOnce(subsonicResponse); // subsonic songs
+
+      const result = await search('noalbumorartist', 0, 50);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Fallback Song');
+      expect(mockFetch).toHaveBeenNthCalledWith(4, expect.stringContaining('/rest/search.view?query=noalbumorartist'), expect.any(Object));
+    });
+  
+    it('should handle getTopSongs error gracefully', async () => {
+      const module = await import('../navidrome');
+      const { search } = module;
+      const getTopSongsSpy = vi.spyOn(module, 'getTopSongs').mockRejectedValue(new Error('Top songs error'));
+
+      const mockEmptyAlbums: Album[] = [];
+      const mockArtists: Artist[] = [{ id: 'art1', name: 'Error Artist' }];
+
+      const validLoginResponse = new Response(JSON.stringify({
+        token: 'test-token',
+        id: 'test-client',
+        subsonicToken: 'test-subsonic',
+        subsonicSalt: 'test-salt',
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+      const emptyAlbumResponse = new Response(JSON.stringify(mockEmptyAlbums), { status: 200, headers: { 'content-type': 'application/json' } });
+      const artistResponse = new Response(JSON.stringify(mockArtists), { status: 200, headers: { 'content-type': 'application/json' } });
+
+      // No top songs response needed since spy rejects
+
+      mockFetch
+        .mockResolvedValueOnce(validLoginResponse) // auth
+        .mockResolvedValueOnce(emptyAlbumResponse) // empty albums
+        .mockResolvedValueOnce(artistResponse); // artists
+
+      const result = await search('error', 0, 50);
+
+      expect(result).toEqual([]); // No songs due to error
+      expect(getTopSongsSpy).toHaveBeenCalledWith('art1', 10);
+      getTopSongsSpy.mockRestore();
     });
   });
 });

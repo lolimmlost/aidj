@@ -58,7 +58,7 @@ test.describe('Style-Based Playlist Generation E2E', () => {
     await expect(page.locator('button:has-text("Queue")')).toBeVisible();
     // Test feedback
     await page.click('button:has-text("👍")');
-    await expect(page.locator('button:has-text("👍")')).toHaveClass(/default/); // Toggled
+    await expect(page.locator('button:has-text("👍")')).toHaveAttribute('data-state', 'toggled'); // Toggled
   });
 
   test('AC6: Caches generated playlist and loads on regenerate', async ({ page }) => {
@@ -101,8 +101,6 @@ test.describe('Style-Based Playlist Generation E2E', () => {
     await page.fill('input[placeholder*="Enter style"]', 'rock');
     await page.click('button:has-text("Generate")');
     await page.click('ul li button:has-text("Add to Lidarr")');
-    // Assume alert or toast
-    page.on('dialog', dialog => dialog.accept());
     await expect(page.locator('text=Added to queue')).toBeVisible(); // Success message
   });
 

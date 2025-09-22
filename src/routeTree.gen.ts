@@ -23,6 +23,7 @@ import { Route as authLoginRouteImport } from "./routes/(auth)/login";
 import { Route as LibraryArtistsIdRouteImport } from "./routes/library/artists/[id]";
 import { Route as DashboardRecommendationsIdRouteImport } from "./routes/dashboard/recommendations/[id]";
 import { Route as LibraryArtistsIdAlbumsAlbumIdRouteImport } from "./routes/library/artists/[id]/albums/[albumId]";
+import { ServerRoute as ApiSearchServerRouteImport } from "./routes/api/search";
 import { ServerRoute as ApiRecommendationsServerRouteImport } from "./routes/api/recommendations";
 import { ServerRoute as ApiPlaylistServerRouteImport } from "./routes/api/playlist";
 import { ServerRoute as ApiConfigServerRouteImport } from "./routes/api/config";
@@ -97,6 +98,11 @@ const LibraryArtistsIdAlbumsAlbumIdRoute =
     path: "/albums/albumId",
     getParentRoute: () => LibraryArtistsIdRoute,
   } as any);
+const ApiSearchServerRoute = ApiSearchServerRouteImport.update({
+  id: "/api/search",
+  path: "/api/search",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
 const ApiRecommendationsServerRoute =
   ApiRecommendationsServerRouteImport.update({
     id: "/api/recommendations",
@@ -246,6 +252,7 @@ export interface FileServerRoutesByFullPath {
   "/api/config": typeof ApiConfigServerRoute;
   "/api/playlist": typeof ApiPlaylistServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRoute;
+  "/api/search": typeof ApiSearchServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
@@ -258,6 +265,7 @@ export interface FileServerRoutesByTo {
   "/api/config": typeof ApiConfigServerRoute;
   "/api/playlist": typeof ApiPlaylistServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRoute;
+  "/api/search": typeof ApiSearchServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
@@ -271,6 +279,7 @@ export interface FileServerRoutesById {
   "/api/config": typeof ApiConfigServerRoute;
   "/api/playlist": typeof ApiPlaylistServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRoute;
+  "/api/search": typeof ApiSearchServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
@@ -285,6 +294,7 @@ export interface FileServerRouteTypes {
     | "/api/config"
     | "/api/playlist"
     | "/api/recommendations"
+    | "/api/search"
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
@@ -297,6 +307,7 @@ export interface FileServerRouteTypes {
     | "/api/config"
     | "/api/playlist"
     | "/api/recommendations"
+    | "/api/search"
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
@@ -309,6 +320,7 @@ export interface FileServerRouteTypes {
     | "/api/config"
     | "/api/playlist"
     | "/api/recommendations"
+    | "/api/search"
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
@@ -322,6 +334,7 @@ export interface RootServerRouteChildren {
   ApiConfigServerRoute: typeof ApiConfigServerRoute;
   ApiPlaylistServerRoute: typeof ApiPlaylistServerRoute;
   ApiRecommendationsServerRoute: typeof ApiRecommendationsServerRoute;
+  ApiSearchServerRoute: typeof ApiSearchServerRoute;
   ApiAuthSplatServerRoute: typeof ApiAuthSplatServerRoute;
   ApiAuthLoginServerRoute: typeof ApiAuthLoginServerRoute;
   ApiAuthRegisterServerRoute: typeof ApiAuthRegisterServerRoute;
@@ -421,6 +434,13 @@ declare module "@tanstack/react-router" {
 }
 declare module "@tanstack/react-start/server" {
   interface ServerFileRoutesByPath {
+    "/api/search": {
+      id: "/api/search";
+      path: "/api/search";
+      fullPath: "/api/search";
+      preLoaderRoute: typeof ApiSearchServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
     "/api/recommendations": {
       id: "/api/recommendations";
       path: "/api/recommendations";
@@ -560,6 +580,7 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiConfigServerRoute: ApiConfigServerRoute,
   ApiPlaylistServerRoute: ApiPlaylistServerRoute,
   ApiRecommendationsServerRoute: ApiRecommendationsServerRoute,
+  ApiSearchServerRoute: ApiSearchServerRoute,
   ApiAuthSplatServerRoute: ApiAuthSplatServerRoute,
   ApiAuthLoginServerRoute: ApiAuthLoginServerRoute,
   ApiAuthRegisterServerRoute: ApiAuthRegisterServerRoute,

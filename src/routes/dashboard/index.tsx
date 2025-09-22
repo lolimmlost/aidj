@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { toast } from 'sonner';
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import authClient from '@/lib/auth/auth-client';
@@ -84,6 +85,7 @@ function DashboardIndex() {
         const realSong = songs[0];
         addToQueue(realSong.id, [realSong]);
         console.log('Queued song:', realSong); // Debug log
+        toast.success('Queued');
       } else {
         // Fallback: not in library, suggest Lidarr
         handleAddToLidarr(song);
@@ -134,8 +136,9 @@ function DashboardIndex() {
     }));
     if (resolvedSongs.length > 0) {
       addPlaylist(resolvedSongs);
+      toast.success('Playlist queued');
     } else {
-      alert('No songs available in library for this playlist.');
+      toast.error('No songs available in library for this playlist.');
     }
   };
 
@@ -148,12 +151,12 @@ function DashboardIndex() {
       });
       const data = await response.json();
       if (response.ok) {
-        alert(data.message);
+        toast.success('Added to queue');
       } else {
-        alert(`Error: ${data.error}`);
+        toast.error(`Error: ${data.error || 'Failed to add to Lidarr'}`);
       }
     } catch (error) {
-      alert('Failed to add to Lidarr. Please check configuration.');
+      toast.error('Failed to add to Lidarr. Please check configuration.');
     }
   };
 
@@ -208,10 +211,10 @@ function DashboardIndex() {
                           <Button variant="ghost" size="sm" onClick={() => handleQueue(rec.song)}>
                             Queue
                           </Button>
-                          <Button variant={feedback.up ? "default" : "ghost"} size="sm" onClick={() => handleFeedback(rec.song, 'up')}>
+                          <Button variant={feedback.up ? "default" : "ghost"} size="sm" data-state={feedback.up ? 'toggled' : 'untoggled'} onClick={() => handleFeedback(rec.song, 'up')}>
                             👍
                           </Button>
-                          <Button variant={feedback.down ? "default" : "ghost"} size="sm" onClick={() => handleFeedback(rec.song, 'down')}>
+                          <Button variant={feedback.down ? "default" : "ghost"} size="sm" data-state={feedback.down ? 'toggled' : 'untoggled'} onClick={() => handleFeedback(rec.song, 'down')}>
                             👎
                           </Button>
                         </div>
@@ -254,8 +257,8 @@ function DashboardIndex() {
         {playlistData && (
           <Card className="bg-card text-card-foreground border-card">
             <CardHeader>
-              <CardTitle>Generated Playlist for "{style}"</CardTitle>
-              <CardDescription>10 suggestions from your library. Add to queue or provide feedback.</CardDescription>
+              <h2 className="text-2xl font-semibold">Generated Playlist</h2>
+              <CardDescription>for "{style}". 10 suggestions from your library. Add to queue or provide feedback.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex justify-between mb-4">
@@ -270,14 +273,17 @@ function DashboardIndex() {
                         <span className="font-medium">{item.song}</span>
                         <div className="space-x-2">
                           {item.songId ? (
-                            <Button variant="ghost" size="sm" onClick={() => addToQueue(item.songId!, [{
-                              id: item.songId!,
-                              name: item.song,
-                              albumId: '',
-                              duration: 0,
-                              track: 1,
-                              url: item.url!,
-                            }])}>
+                            <Button variant="ghost" size="sm" onClick={() => {
+                              addToQueue(item.songId!, [{
+                                id: item.songId!,
+                                name: item.song,
+                                albumId: '',
+                                duration: 0,
+                                track: 1,
+                                url: item.url!,
+                              }]);
+                              toast.success('Queued');
+                            }}>
                               Queue
                             </Button>
                           ) : (
@@ -285,10 +291,10 @@ function DashboardIndex() {
                               Add to Lidarr
                             </Button>
                           )}
-                          <Button variant={feedback.up ? "default" : "ghost"} size="sm" onClick={() => handleFeedback(item.song, 'up')}>
+                          <Button variant={feedback.up ? "default" : "ghost"} size="sm" data-state={feedback.up ? 'toggled' : 'untoggled'} onClick={() => handleFeedback(item.song, 'up')}>
                             👍
                           </Button>
-                          <Button variant={feedback.down ? "default" : "ghost"} size="sm" onClick={() => handleFeedback(item.song, 'down')}>
+                          <Button variant={feedback.down ? "default" : "ghost"} size="sm" data-state={feedback.down ? 'toggled' : 'untoggled'} onClick={() => handleFeedback(item.song, 'down')}>
                             👎
                           </Button>
                         </div>
@@ -299,6 +305,9 @@ function DashboardIndex() {
                   );
                 })}
               </ul>
+              {playlistData && (playlistData.data.playlist as PlaylistItem[]).length === 0 && (
+                <p className="text-destructive">No matching songs</p>
+              )}
             </CardContent>
           </Card>
         )}
