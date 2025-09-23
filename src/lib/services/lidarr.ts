@@ -1,4 +1,5 @@
 import { getConfig } from '@/lib/config/config';
+import { mobileOptimization } from '@/lib/performance/mobile-optimization';
 import { ServiceError } from '../utils';
 
 // Lidarr API types based on https://lidarr.audio/docs/api/
@@ -97,17 +98,24 @@ export type Album = {
 
 async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<unknown> {
   const config = getConfig();
-  if (!config.lidarrUrl || !config.lidarrApiKey) {
-    throw new ServiceError('LIDARR_CONFIG_ERROR', 'Lidarr configuration incomplete');
+  if (!config.lidarrUrl) {
+    throw new ServiceError('LIDARR_CONFIG_ERROR', 'Lidarr URL not configured');
   }
 
+  const apiKey = config.lidarrApiKey;
+  if (!apiKey) {
+    throw new ServiceError('LIDARR_CONFIG_ERROR', 'Lidarr API key not configured');
+  }
+
+  // Use adaptive timeout based on network conditions
+  const adaptiveTimeout = mobileOptimization.getAdaptiveTimeout();
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+  const timeoutId = setTimeout(() => controller.abort(), adaptiveTimeout);
 
   try {
     const url = `${config.lidarrUrl}/api/v1${endpoint}`;
     const headers: Record<string, string> = {
-      'X-Api-Key': config.lidarrApiKey,
+      'X-Api-Key': apiKey,
       'Content-Type': 'application/json',
       ...((options.headers as Record<string, string>) || {}),
     };
@@ -131,7 +139,7 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<un
   } catch (error: unknown) {
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new ServiceError('LIDARR_TIMEOUT_ERROR', 'API request timed out (5s limit)');
+      throw new ServiceError('LIDARR_TIMEOUT_ERROR', `API request timed out (${adaptiveTimeout}ms limit)`);
     }
     throw new ServiceError('LIDARR_API_ERROR', `API fetch error: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -139,13 +147,26 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<un
 
 export async function searchArtists(query: string): Promise<Artist[]> {
   try {
+    // Use mobile-optimized batched requests for multiple lookups
+    const cacheKey = `lidarr_artists_${query}`;
+    const cached = mobileOptimization.getCache<Artist[]>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
     const data = await apiFetch(`/artist/lookup?term=${encodeURIComponent(query)}`) as LidarrArtist[];
-    return data.map(artist => ({
+    const result = data.map(artist => ({
       id: artist.id.toString(),
       name: artist.artistName,
       genres: artist.genres,
       status: artist.status,
     }));
+
+    // Cache results for mobile devices
+    mobileOptimization.setCache(cacheKey, result, 300000); // 5 minutes
+    
+    return result;
   } catch (error) {
     console.error('Error searching artists:', error);
     return [];
@@ -164,14 +185,27 @@ export async function searchArtistsFull(query: string): Promise<LidarrArtist[]> 
 
 export async function searchAlbums(query: string): Promise<Album[]> {
   try {
+    // Use mobile-optimized batched requests for multiple lookups
+    const cacheKey = `lidarr_albums_${query}`;
+    const cached = mobileOptimization.getCache<Album[]>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
     const data = await apiFetch(`/album/lookup?term=${encodeURIComponent(query)}`) as LidarrAlbum[];
-    return data.map(album => ({
+    const result = data.map(album => ({
       id: album.id.toString(),
       title: album.title,
       artistId: album.artistId.toString(),
       releaseDate: album.releaseDate,
       images: album.images,
     }));
+
+    // Cache results for mobile devices
+    mobileOptimization.setCache(cacheKey, result, 300000); // 5 minutes
+    
+    return result;
   } catch (error) {
     console.error('Error searching albums:', error);
     return [];
@@ -205,12 +239,14 @@ export async function search(query: string): Promise<{ artists: Artist[]; albums
       return { artists: [], albums: [] };
     }
 
-    const [artists, albums] = await Promise.all([
-      searchArtists(query),
-      searchAlbums(query),
-    ]);
+    // Use mobile-optimized batched requests
+    const qualitySettings = mobileOptimization.getQualitySettings();
+    const results = await mobileOptimization.batchRequests([
+      () => searchArtists(query),
+      () => searchAlbums(query) as unknown as Promise<Artist[]>,
+    ], qualitySettings.concurrentRequests);
 
-    return { artists, albums };
+    return { artists: results[0] as unknown as Artist[], albums: results[1] as unknown as Album[] };
   } catch (error) {
     console.error('Search error:', error);
     throw new ServiceError('LIDARR_API_ERROR', `Failed to search: ${error instanceof Error ? error.message : 'Unknown error'}`);

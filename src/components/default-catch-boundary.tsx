@@ -4,7 +4,7 @@ import {
   Link,
   rootRouteId,
   useMatch,
-  useRouter,
+  useRouter
 } from "@tanstack/react-router";
 import { Button } from "./ui/button";
 

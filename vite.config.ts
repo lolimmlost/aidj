@@ -6,6 +6,12 @@ import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
+  optimizeDeps: {
+    include: ['use-sync-external-store'],
+  },
+  define: {
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+  },
   server: {
     cors: true,  // Enable CORS for dev server to handle preflight OPTIONS requests for API routes
     allowedHosts: ['dev1.appahouse.com'],  // Allow custom host for local domain testing

@@ -1,4 +1,5 @@
 import { getConfig } from '@/lib/config/config';
+import { mobileOptimization } from '@/lib/performance/mobile-optimization';
 import { ServiceError } from '../utils';
 
 export type Artist = {
@@ -112,7 +113,13 @@ const TOKEN_REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 minutes before expiry
 
 export async function getAuthToken(): Promise<string> {
   const config = getConfig();
-  if (!config.navidromeUrl || !config.navidromeUsername || !config.navidromePassword) {
+  if (!config.navidromeUrl) {
+    throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
+  }
+
+  const username = config.navidromeUsername;
+  const password = config.navidromePassword;
+  if (!username || !password) {
     throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome credentials incomplete');
   }
 
@@ -121,16 +128,18 @@ export async function getAuthToken(): Promise<string> {
     return token;
   }
 
+  // Use adaptive timeout based on network conditions
+  const adaptiveTimeout = mobileOptimization.getAdaptiveTimeout();
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  const timeoutId = setTimeout(() => controller.abort(), adaptiveTimeout);
 
   try {
     const response = await fetch(`${config.navidromeUrl}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username: config.navidromeUsername,
-        password: config.navidromePassword,
+        username,
+        password,
       }),
       signal: controller.signal,
     });
@@ -153,7 +162,7 @@ export async function getAuthToken(): Promise<string> {
   } catch (error: unknown) {
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new ServiceError('NAVIDROME_TIMEOUT_ERROR', 'Login request timed out');
+      throw new ServiceError('NAVIDROME_TIMEOUT_ERROR', `Login request timed out (${adaptiveTimeout}ms)`);
     }
     throw new ServiceError('NAVIDROME_AUTH_ERROR', `Authentication error: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -166,8 +175,10 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<un
   while (retries <= maxRetries) {
     const authToken = await getAuthToken();
 
+    // Use adaptive timeout based on network conditions
+    const adaptiveTimeout = mobileOptimization.getAdaptiveTimeout();
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort(), adaptiveTimeout);
 
     try {
       const config = getConfig();
@@ -237,7 +248,7 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<un
     } catch (error: unknown) {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new ServiceError('NAVIDROME_TIMEOUT_ERROR', 'API request timed out (5s limit)');
+        throw new ServiceError('NAVIDROME_TIMEOUT_ERROR', `API request timed out (${adaptiveTimeout}ms limit)`);
       }
       if (retries < maxRetries) {
         retries++;
@@ -328,25 +339,39 @@ export async function search(query: string, start: number = 0, limit: number = 5
 
     await getAuthToken(); // Ensure auth
 
+    // Check cache first for mobile devices
+    const cacheKey = `navidrome_search_${query}_${start}_${limit}`;
+    const cached = mobileOptimization.getCache<Song[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     // Check if query is in "Artist - Title" format
     const artistTitleMatch = query.match(/^(.+?)\s*-\s*(.+)$/);
     if (artistTitleMatch) {
       const resolvedSong = await resolveSongByArtistTitle(query);
       if (resolvedSong) {
+        // Cache the result
+        mobileOptimization.setCache(cacheKey, [resolvedSong], 300000);
         return [resolvedSong];
       }
       // If not found, continue with general search
     }
 
+    // Use mobile-optimized batched requests
+    const qualitySettings = mobileOptimization.getQualitySettings();
+    
     // For individual song lookup, prioritize direct song search first
     // Use Subsonic API for song search
     const songEndpoint = `/rest/search.view?query=${encodeURIComponent(query)}&songCount=${limit}&artistCount=0&albumCount=0&offset=${start}`;
     console.log('Searching songs with Subsonic endpoint:', songEndpoint);
 
+    let songs: Song[] = [];
+    
     try {
       const response = await apiFetch(songEndpoint) as SubsonicSearchResponse;
       if (response.searchResult?.song && response.searchResult.song.length > 0) {
-        return response.searchResult.song.map((song: SubsonicSong) => ({
+        songs = response.searchResult.song.map((song: SubsonicSong) => ({
           id: song.id,
           name: song.title,
           title: song.title,
@@ -364,52 +389,47 @@ export async function search(query: string, start: number = 0, limit: number = 5
       console.log('Direct song search failed:', error);
     }
 
-    // If no direct song matches, try album search
-    try {
-      const albumEndpoint = `/api/album?name=${encodeURIComponent(query)}&_start=0&_end=10`;
-      const albums = await apiFetch(albumEndpoint) as Album[];
-      if (albums && albums.length > 0) {
-        // Get songs for each album
-        const allSongs: Song[] = [];
-        for (const album of albums) {
-          try {
-            const songs = await getSongs(album.id, 0, 50);
-            allSongs.push(...songs);
-          } catch (error) {
-            console.log(`Failed to get songs for album ${album.id}:`, error);
-          }
+    // If no direct song matches, try album search with batching for mobile
+    if (songs.length === 0) {
+      try {
+        const albumEndpoint = `/api/album?name=${encodeURIComponent(query)}&_start=0&_end=${Math.min(10, qualitySettings.preloadCount)}`;
+        const albums = await apiFetch(albumEndpoint) as Album[];
+        if (albums && albums.length > 0) {
+          // Get songs for each album with mobile-optimized batching
+          const albumSongs = await mobileOptimization.batchRequests(
+            albums.map(album => () => getSongs(album.id, 0, 50)),
+            qualitySettings.concurrentRequests
+          );
+          songs = albumSongs.flat().slice(start, start + limit);
         }
-        // Return songs, limited to the requested limit
-        return allSongs.slice(start, start + limit);
+      } catch (albumError) {
+        console.log('Album search failed, trying artist search:', albumError);
       }
-    } catch (albumError) {
-      console.log('Album search failed, trying artist search:', albumError);
     }
 
-    // Finally, try artist search
-    try {
-      const artistEndpoint = `/api/artist?name=${encodeURIComponent(query)}&_start=0&_end=4`;
-      const artists = await apiFetch(artistEndpoint) as Artist[];
-      if (artists && artists.length > 0) {
-        // Get top songs for each artist
-        const allSongs: Song[] = [];
-        for (const artist of artists) {
-          try {
-            const topSongs = await getTopSongs(artist.id, 10);
-            allSongs.push(...topSongs);
-          } catch (error) {
-            console.log(`Failed to get top songs for artist ${artist.id}:`, error);
-          }
+    // Finally, try artist search with batching for mobile
+    if (songs.length === 0) {
+      try {
+        const artistEndpoint = `/api/artist?name=${encodeURIComponent(query)}&_start=0&_end=${Math.min(4, qualitySettings.preloadCount)}`;
+        const artists = await apiFetch(artistEndpoint) as Artist[];
+        if (artists && artists.length > 0) {
+          // Get top songs for each artist with mobile-optimized batching
+          const artistSongs = await mobileOptimization.batchRequests(
+            artists.map(artist => () => getTopSongs(artist.id, 10)),
+            qualitySettings.concurrentRequests
+          );
+          songs = artistSongs.flat().slice(start, start + limit);
         }
-        // Return songs, limited to the requested limit
-        return allSongs.slice(start, start + limit);
+      } catch (artistError) {
+        console.log('Artist search failed:', artistError);
       }
-    } catch (artistError) {
-      console.log('Artist search failed:', artistError);
     }
+
+    // Cache the result for mobile devices
+    mobileOptimization.setCache(cacheKey, songs, 300000);
 
     // If no songs found anywhere, return empty array
-    return [];
+    return songs;
 
   } catch (error) {
     console.error('Search error:', error);
