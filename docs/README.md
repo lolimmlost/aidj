@@ -41,7 +41,7 @@ The PRD is sharded for maintainability. See [prd.md](prd.md) for the overview an
 ## 5. Additional References
 - [backlog-documentation.md](backlog-documentation.md) - Backlog management documentation
 - [epic-1-completion-review.md](epic-1-completion-review.md) - Epic 1 completion review
-- [library-search-fix.md](library-search-fix.md) - Library search issue resolution
+- [SEARCH_USAGE_GUIDELINES.md](SEARCH_USAGE_GUIDELINES.md) - Search usage guidelines and service documentation
 - [prd-po-review.md](prd-po-review.md) - Product Owner PRD review
 - [prd-qa-review.md](prd-qa-review.md) - QA PRD review
 - [prd-sharding-summary.md](prd-sharding-summary.md) - PRD sharding rationale
