@@ -193,7 +193,7 @@ describe('Ollama Service', () => {
       const bodyObj = JSON.parse(bodyStr);
       expect(bodyObj).toEqual(expect.objectContaining({
         model: 'llama2',
-        prompt: expect.stringContaining('Generate exactly 10 songs for style "rock"'),
+        prompt: expect.stringContaining('Generate exactly 5 songs for style "rock"'),
         stream: false
       }));
     });

@@ -14,36 +14,6 @@ export const Route = createFileRoute("/dashboard/")({
   component: DashboardIndex,
 });
 
-function xorEncrypt(str: string, key: string): string {
-  return str.split('').map((c: string, i: number) => String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length))).join('');
-}
-
-function xorDecrypt(encryptedStr: string, key: string): string {
-  return encryptedStr.split('').map((c: string, i: number) => String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length))).join('');
-}
-
-const ENCRYPT_KEY = 'mySecretKey12345';
-
-function getFeedback(song: string) {
-  const songKey = btoa(song);
-  const stored = localStorage.getItem(songKey);
-  if (!stored) return { up: false, down: false };
-  try {
-    const decryptedStr = xorDecrypt(atob(stored), ENCRYPT_KEY);
-    return JSON.parse(decryptedStr) as { up: boolean; down: boolean };
-  } catch {
-    return { up: false, down: false };
-  }
-}
-
-function setFeedback(song: string, type: 'up' | 'down') {
-  const songKey = btoa(song);
-  const feedback = { up: type === 'up', down: type === 'down' };
-  const jsonStr = JSON.stringify(feedback);
-  const encryptedStr = xorEncrypt(jsonStr, ENCRYPT_KEY);
-  localStorage.setItem(songKey, btoa(encryptedStr));
-}
-
 function DashboardIndex() {
   const [type, setType] = useState<'similar' | 'mood'>('similar');
   const { data: session } = authClient.useSession();
@@ -71,11 +41,7 @@ function DashboardIndex() {
     enabled: !!session,
   });
 
-  const handleFeedback = (song: string, type: 'up' | 'down') => {
-    setFeedback(song, type);
-    queryClient.invalidateQueries({ queryKey: ['recommendations', session?.user.id, type] });
-  };
-
+  
   const handleQueue = async (song: string) => {
     try {
       console.log('Queuing recommendation:', song); // Debug log
@@ -87,12 +53,11 @@ function DashboardIndex() {
         console.log('Queued song:', realSong); // Debug log
         toast.success('Queued');
       } else {
-        // Fallback: not in library, suggest Lidarr
-        handleAddToLidarr(song);
+        toast.error('Song not found in library');
       }
     } catch (error) {
       console.error('Search failed for queue:', error);
-      handleAddToLidarr(song);
+      toast.error('Failed to search for song');
     }
   };
 
@@ -142,24 +107,7 @@ function DashboardIndex() {
     }
   };
 
-  const handleAddToLidarr = async (song: string) => {
-    try {
-      const response = await fetch('/api/lidarr/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ song }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        toast.success('Added to queue');
-      } else {
-        toast.error(`Error: ${data.error || 'Failed to add to Lidarr'}`);
-      }
-    } catch (error) {
-      toast.error('Failed to add to Lidarr. Please check configuration.');
-    }
-  };
-
+  
   const clearPlaylistCache = () => {
     Object.keys(localStorage).filter(key => key.startsWith('playlist-')).forEach(key => localStorage.removeItem(key));
     queryClient.invalidateQueries({ queryKey: ['playlist'] });
@@ -199,7 +147,6 @@ function DashboardIndex() {
             <CardContent>
               <ul className="space-y-2">
                 {recommendations.data.recommendations.map((rec: { song: string; explanation: string }, index: number) => {
-                  const feedback = getFeedback(rec.song);
                   const songId = btoa(rec.song); // For route
                   return (
                     <li key={index} className="flex flex-col space-y-2 p-2 border rounded">
@@ -207,17 +154,9 @@ function DashboardIndex() {
                         <Link to="/dashboard/recommendations/id" params={{ id: songId }} className="hover:underline">
                           {rec.song}
                         </Link>
-                        <div className="space-x-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleQueue(rec.song)}>
-                            Queue
-                          </Button>
-                          <Button variant={feedback.up ? "default" : "ghost"} size="sm" data-state={feedback.up ? 'toggled' : 'untoggled'} onClick={() => handleFeedback(rec.song, 'up')}>
-                            👍
-                          </Button>
-                          <Button variant={feedback.down ? "default" : "ghost"} size="sm" data-state={feedback.down ? 'toggled' : 'untoggled'} onClick={() => handleFeedback(rec.song, 'down')}>
-                            👎
-                          </Button>
-                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => handleQueue(rec.song)}>
+                          Queue
+                        </Button>
                       </div>
                       <p className="text-sm text-muted-foreground">{rec.explanation.substring(0, 100)}...</p>
                     </li>
@@ -258,7 +197,7 @@ function DashboardIndex() {
           <Card className="bg-card text-card-foreground border-card">
             <CardHeader>
               <h2 className="text-2xl font-semibold">Generated Playlist</h2>
-              <CardDescription>for "{style}". 10 suggestions from your library. Add to queue or provide feedback.</CardDescription>
+              <CardDescription>for "{style}". 5 suggestions from your library. Add to queue or provide feedback.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex justify-between mb-4">
@@ -266,7 +205,6 @@ function DashboardIndex() {
               </div>
               <ul className="space-y-2">
                 {(playlistData.data.playlist as PlaylistItem[]).map((item, index: number) => {
-                  const feedback = getFeedback(item.song);
                   return (
                     <li key={index} className="flex flex-col space-y-2 p-2 border rounded">
                       <div className="flex justify-between items-center">
@@ -287,20 +225,12 @@ function DashboardIndex() {
                               Queue
                             </Button>
                           ) : (
-                            <Button variant="destructive" size="sm" onClick={() => handleAddToLidarr(item.song)}>
-                              Add to Lidarr
-                            </Button>
+                            <span className="text-sm text-destructive">Not in library</span>
                           )}
-                          <Button variant={feedback.up ? "default" : "ghost"} size="sm" data-state={feedback.up ? 'toggled' : 'untoggled'} onClick={() => handleFeedback(item.song, 'up')}>
-                            👍
-                          </Button>
-                          <Button variant={feedback.down ? "default" : "ghost"} size="sm" data-state={feedback.down ? 'toggled' : 'untoggled'} onClick={() => handleFeedback(item.song, 'down')}>
-                            👎
-                          </Button>
                         </div>
                       </div>
                       <p className="text-sm text-muted-foreground">{item.explanation}</p>
-                      {item.missing && <p className="text-xs text-destructive">Not in library - consider adding via Lidarr</p>}
+                      {item.missing && <p className="text-xs text-destructive">Not in library - Lidarr integration deferred</p>}
                     </li>
                   );
                 })}
@@ -378,6 +308,31 @@ function DashboardIndex() {
         >
           <h3 className="text-lg font-semibold mb-2">Album Detail</h3>
           <p className="text-muted-foreground text-sm">View album tracks (Example)</p>
+        </Link>
+
+        {/* Download Management Links */}
+        <Link
+          to="/downloads"
+          className="card card-hover p-6 text-center block"
+        >
+          <h3 className="text-lg font-semibold mb-2">🎵 Download Music</h3>
+          <p className="text-muted-foreground text-sm">Search and add music to download queue</p>
+        </Link>
+
+        <Link
+          to="/downloads/status"
+          className="card card-hover p-6 text-center block"
+        >
+          <h3 className="text-lg font-semibold mb-2">📊 Download Status</h3>
+          <p className="text-muted-foreground text-sm">Monitor download progress and queue</p>
+        </Link>
+
+        <Link
+          to="/downloads/history"
+          className="card card-hover p-6 text-center block"
+        >
+          <h3 className="text-lg font-semibold mb-2">📋 Download History</h3>
+          <p className="text-muted-foreground text-sm">View and manage download history</p>
         </Link>
       </div>
     </div>

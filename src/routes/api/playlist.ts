@@ -1,7 +1,7 @@
 import { createServerFileRoute } from '@tanstack/react-start/server';
 import { ServiceError } from '../../lib/utils';
 import { generatePlaylist } from '../../lib/services/ollama';
-import { getLibrarySummary, resolveSongByArtistTitle, type Song } from '../../lib/services/navidrome';
+import { getLibrarySummary, resolveSongByArtistTitle, search, type Song } from '../../lib/services/navidrome';
 
 export const ServerRoute = createServerFileRoute('/api/playlist').methods({
   POST: async ({ request }) => {

@@ -1,6 +1,42 @@
-# Backlog
+# Backlog - Halloween MVP Sprint (16 Days Remaining)
 
-Epic 1: Foundation & Core Infrastructure - Completed
+## 🎯 HALLOWEEN MVP PRIORITY ORDER
+
+### IMMEDIATE (Days 1-8) - Core MVP Completion
+**Priority 1: Story 3.6 - AI Playlist Generation (MVP Simplified)**
+- Status: Ready to implement (acceptance criteria simplified)
+- Points: 3
+- Critical for: Core AI feature delivery
+
+**Priority 2: Story 5.1 - Responsive Design Implementation**
+- Status: BLOCKER - Must complete for MVP
+- Points: 3
+- Critical for: Mobile usability
+
+### SECONDARY (Days 9-14) - MVP Polish & Reliability
+**Priority 3: Story 5.2 - Error Handling & Polish**
+- Status: Quality improvement
+- Points: 2
+- Critical for: User confidence
+
+### FINAL (Days 15-16) - Testing & Deployment Prep
+**Priority 4: Integration Testing & Bug Fixes**
+- Status: Validation
+- Points: N/A
+- Critical for: Halloween release
+
+---
+
+## 🚫 DEFERRED TO POST-MVP
+- **Epic 4: Download Management** (All stories deferred)
+- **Story 5.3+:** Advanced UX features (themes, customization)
+- **Advanced AI features:** Detailed feedback, caching, complex playlists
+
+---
+
+## COMPLETED EPICS
+Epic 1: Foundation & Core Infrastructure - Completed ✅
+Epic 2: Music Library Integration - Completed ✅
 
 ## Story 1.1: Project Setup and Basic Structure
 As a developer,
@@ -250,23 +286,28 @@ We want to analyze user feedback to improve models.
 
 Points: 5
 
-## Story 3.6: Style-Based Playlist Generation
+## Story 3.6: Style-Based Playlist Generation (MVP Simplified)
 As a user,
-I want to request and generate themed playlists (e.g., Halloween, Christmas, rave dubstep, rock) using my existing Navidrome library,
-so that I can discover and play music matching specific styles or occasions from my collection.
+I want to request and generate themed playlists (e.g., Halloween, Christmas, rock) using my existing Navidrome library,
+so that I can discover and play music matching specific styles from my collection.
 
-### Acceptance Criteria
-1. [ ] Add input field in dashboard for user to specify playlist style/theme (text input with examples)
-2. [ ] Fetch library summary (top 20 artists with genres, top 10 songs) via Navidrome service for prompt context
-3. [ ] Generate playlist using Ollama: prompt includes library summary and style, returns 10 suggestions as JSON
-4. [ ] For each suggestion, search Navidrome to resolve actual Song objects (ID, URL) from library
-5. [ ] Display generated playlist in dashboard with explanations, feedback (thumbs up/down, encrypted localStorage), and add-to-queue buttons
-6. [ ] Implement caching for generated playlists (localStorage, with privacy toggle to clear cache)
-7. [ ] Integrate with audio store: add entire playlist or individual songs to queue/play
-8. [ ] Handle errors: fallback if no matching songs, timeout (5s), retry on Ollama failure
-9. [ ] If suggested song not in library, add to Lidarr download queue with user confirmation (Dependency: Epic 4 Story 4.1)
+### Acceptance Criteria (MVP Simplified)
+1. [x] Add input field in dashboard for user to specify playlist style/theme (text input with examples like "Halloween", "rock", "party")
+2. [x] Fetch library summary (top 10 artists, top 5 songs) via Navidrome service for prompt context
+3. [x] Generate playlist using Ollama: prompt includes library summary and style, returns 5 suggestions as simple JSON
+4. [x] For each suggestion, search Navidrome to resolve actual Song objects from library
+5. [x] Display generated playlist in dashboard with basic explanations and add-to-queue buttons
+6. [x] Integrate with audio store: add entire playlist or individual songs to queue/play
+7. [x] Handle errors gracefully: timeout (5s), retry on Ollama failure, fallback message if no matches
 
-Points: 5
+### Deferred Features (Post-MVP)
+- Advanced feedback system (thumbs up/down with localStorage)
+- Detailed explanations and metadata
+- Lidarr integration for missing songs
+- Caching and privacy controls
+- Complex playlist generation (10+ songs, multiple styles)
+
+Points: 3 (reduced from 5)
 
 ## Bug 3.7: Navidrome Search Endpoint Fix
 As a developer,
@@ -306,14 +347,14 @@ Points: 3
 ### Completion Status
 - [x] Completed: Search implementation in navidrome.ts includes prioritization (albums > artists > songs), comprehensive error handling, and follows auth patterns. Songs include streaming URLs for audio player integration. Extensive unit tests cover all scenarios including error cases. No regressions detected in existing functionality.
 
-Epic 4: Download Management
+Epic 4: Download Management (DEFERRED TO POST-MVP)
 
-## Story 4.1: Lidarr API Integration
+## Story 4.1: Lidarr API Integration (DEFERRED)
 As a developer,
 I want to implement API integration with Lidarr,
 so that the application can search for and request music downloads.
 
-### Acceptance Criteria
+### Acceptance Criteria (Deferred to Post-MVP)
 1. Create service layer for making API calls to Lidarr
 2. Implement API key authentication
 3. Handle search functionality with query parameters
@@ -321,13 +362,13 @@ so that the application can search for and request music downloads.
 5. Handle API responses and parse search results
 6. Implement error handling for API failures
 
-Points: 5
+Points: 5 (deferred)
 
-## Story 4.2: Download Request Interface
+## Story 4.2: Download Request Interface (DEFERRED)
 As a user,
 I want to search for and request music downloads, so that I can expand my music collection.
 
-### Acceptance Criteria
+### Acceptance Criteria (Deferred to Post-MVP)
 1. Create search interface for finding music to download
 2. Display search results with album artwork and metadata
 3. Implement download request functionality
@@ -335,13 +376,13 @@ I want to search for and request music downloads, so that I can expand my music 
 5. Handle duplicate request detection
 6. Provide feedback on request submission success or failure
 
-Points: 3
+Points: 3 (deferred)
 
-## Story 4.3: Download Status Monitoring
+## Story 4.3: Download Status Monitoring (DEFERRED)
 As a user,
 I want to monitor the status of my download requests, so that I know when new music will be available.
 
-### Acceptance Criteria
+### Acceptance Criteria (Deferred to Post-MVP)
 1. Create download status view showing pending and completed downloads
 2. Display progress information for active downloads
 3. Show estimated completion times when available
@@ -349,7 +390,7 @@ I want to monitor the status of my download requests, so that I know when new mu
 5. Provide notifications when downloads complete
 6. Allow users to cancel pending download requests
 
-Points: 3
+Points: 3 (deferred)
 
 ## Story 4.4: Mock Download Interface Prototype
 As a UX designer/developer,
@@ -391,24 +432,38 @@ I want to export/import my download history.
 
 Points: 3
 
-Epic 5: Unified User Experience
+Epic 5: Unified User Experience (HALLOWEEN MVP PRIORITY)
 
-**Mobile-First Prioritization**: Focus on Story 5.1 first to ensure core responsive design before polish (5.2-5.6).
+**Critical Path for Halloween**: Responsive design is now BLOCKER for MVP completion.
 
-## Story 5.1: Responsive Design Implementation
+## Story 5.1: Responsive Design Implementation (PRIORITY 1 - HALLOWEEN MVP)
 As a user,
 I want to use the application on both desktop and mobile devices,
 so that I can manage my music collection from anywhere.
 
-### Acceptance Criteria
-1. Implement responsive layout that adapts to different screen sizes
-2. Optimize touch interactions for mobile devices
-3. Ensure all functionality is accessible on mobile
-4. Test on various device sizes and orientations
-5. Implement mobile-specific navigation patterns
-6. Optimize performance for mobile devices
+### Acceptance Criteria (MVP Critical)
+1. [ ] Implement responsive layout that adapts to different screen sizes (mobile, tablet, desktop)
+2. [ ] Add mobile hamburger menu for navigation on small screens
+3. [ ] Ensure all functionality is accessible on mobile (library, playlist generation, playback)
+4. [ ] Optimize touch interactions for mobile devices (larger tap targets, swipe gestures)
+5. [ ] Test core flows on mobile: login → dashboard → generate playlist → play music
+6. [ ] Add basic mobile performance optimizations (image sizing, lazy loading)
 
-Points: 3
+Points: 3 (increased priority)
+
+## Story 5.2: Error Handling & Polish (PRIORITY 2 - HALLOWEEN MVP)
+As a user,
+I want the application to handle errors gracefully and feel polished,
+so that I have confidence using the AI features.
+
+### Acceptance Criteria (MVP Critical)
+1. [ ] Add error boundaries for service failures (Ollama, Navidrome)
+2. [ ] Implement loading states for all async operations
+3. [ ] Add retry mechanisms with user-friendly messages
+4. [ ] Ensure transitions don't feel jarring
+5. [ ] Basic accessibility improvements (ARIA labels, keyboard navigation)
+
+Points: 2
 
 ## Story 5.2: UI Polish and Consistency
 As a user,

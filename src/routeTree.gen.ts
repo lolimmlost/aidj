@@ -15,9 +15,12 @@ import { Route as ConfigRouteImport } from "./routes/config";
 import { Route as DashboardRouteRouteImport } from "./routes/dashboard/route";
 import { Route as authRouteRouteImport } from "./routes/(auth)/route";
 import { Route as IndexRouteImport } from "./routes/index";
+import { Route as DownloadsIndexRouteImport } from "./routes/downloads/index";
 import { Route as DashboardIndexRouteImport } from "./routes/dashboard/index";
 import { Route as LibrarySearchRouteImport } from "./routes/library/search";
 import { Route as LibraryArtistsRouteImport } from "./routes/library/artists";
+import { Route as DownloadsStatusRouteImport } from "./routes/downloads/status";
+import { Route as DownloadsHistoryRouteImport } from "./routes/downloads/history";
 import { Route as authSignupRouteImport } from "./routes/(auth)/signup";
 import { Route as authLoginRouteImport } from "./routes/(auth)/login";
 import { Route as LibraryArtistsIdRouteImport } from "./routes/library/artists/[id]";
@@ -27,7 +30,10 @@ import { ServerRoute as ApiSearchServerRouteImport } from "./routes/api/search";
 import { ServerRoute as ApiRecommendationsServerRouteImport } from "./routes/api/recommendations";
 import { ServerRoute as ApiPlaylistServerRouteImport } from "./routes/api/playlist";
 import { ServerRoute as ApiConfigServerRouteImport } from "./routes/api/config";
+import { ServerRoute as ApiLidarrStatusServerRouteImport } from "./routes/api/lidarr/status";
 import { ServerRoute as ApiLidarrSearchServerRouteImport } from "./routes/api/lidarr/search";
+import { ServerRoute as ApiLidarrHistoryServerRouteImport } from "./routes/api/lidarr/history";
+import { ServerRoute as ApiLidarrCancelServerRouteImport } from "./routes/api/lidarr/cancel";
 import { ServerRoute as ApiLidarrAvailabilityServerRouteImport } from "./routes/api/lidarr/availability";
 import { ServerRoute as ApiLidarrAddServerRouteImport } from "./routes/api/lidarr/add";
 import { ServerRoute as ApiAuthRegisterServerRouteImport } from "./routes/api/auth/register";
@@ -58,6 +64,11 @@ const IndexRoute = IndexRouteImport.update({
   path: "/",
   getParentRoute: () => rootRouteImport,
 } as any);
+const DownloadsIndexRoute = DownloadsIndexRouteImport.update({
+  id: "/downloads/",
+  path: "/downloads/",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: "/",
   path: "/",
@@ -71,6 +82,16 @@ const LibrarySearchRoute = LibrarySearchRouteImport.update({
 const LibraryArtistsRoute = LibraryArtistsRouteImport.update({
   id: "/library/artists",
   path: "/library/artists",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DownloadsStatusRoute = DownloadsStatusRouteImport.update({
+  id: "/downloads/status",
+  path: "/downloads/status",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DownloadsHistoryRoute = DownloadsHistoryRouteImport.update({
+  id: "/downloads/history",
+  path: "/downloads/history",
   getParentRoute: () => rootRouteImport,
 } as any);
 const authSignupRoute = authSignupRouteImport.update({
@@ -121,9 +142,24 @@ const ApiConfigServerRoute = ApiConfigServerRouteImport.update({
   path: "/api/config",
   getParentRoute: () => rootServerRouteImport,
 } as any);
+const ApiLidarrStatusServerRoute = ApiLidarrStatusServerRouteImport.update({
+  id: "/api/lidarr/status",
+  path: "/api/lidarr/status",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
 const ApiLidarrSearchServerRoute = ApiLidarrSearchServerRouteImport.update({
   id: "/api/lidarr/search",
   path: "/api/lidarr/search",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
+const ApiLidarrHistoryServerRoute = ApiLidarrHistoryServerRouteImport.update({
+  id: "/api/lidarr/history",
+  path: "/api/lidarr/history",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
+const ApiLidarrCancelServerRoute = ApiLidarrCancelServerRouteImport.update({
+  id: "/api/lidarr/cancel",
+  path: "/api/lidarr/cancel",
   getParentRoute: () => rootServerRouteImport,
 } as any);
 const ApiLidarrAvailabilityServerRoute =
@@ -177,9 +213,12 @@ export interface FileRoutesByFullPath {
   "/config": typeof ConfigRoute;
   "/login": typeof authLoginRoute;
   "/signup": typeof authSignupRoute;
+  "/downloads/history": typeof DownloadsHistoryRoute;
+  "/downloads/status": typeof DownloadsStatusRoute;
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
   "/library/search": typeof LibrarySearchRoute;
   "/dashboard/": typeof DashboardIndexRoute;
+  "/downloads": typeof DownloadsIndexRoute;
   "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
   "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
   "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
@@ -189,9 +228,12 @@ export interface FileRoutesByTo {
   "/config": typeof ConfigRoute;
   "/login": typeof authLoginRoute;
   "/signup": typeof authSignupRoute;
+  "/downloads/history": typeof DownloadsHistoryRoute;
+  "/downloads/status": typeof DownloadsStatusRoute;
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
   "/library/search": typeof LibrarySearchRoute;
   "/dashboard": typeof DashboardIndexRoute;
+  "/downloads": typeof DownloadsIndexRoute;
   "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
   "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
   "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
@@ -204,9 +246,12 @@ export interface FileRoutesById {
   "/config": typeof ConfigRoute;
   "/(auth)/login": typeof authLoginRoute;
   "/(auth)/signup": typeof authSignupRoute;
+  "/downloads/history": typeof DownloadsHistoryRoute;
+  "/downloads/status": typeof DownloadsStatusRoute;
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
   "/library/search": typeof LibrarySearchRoute;
   "/dashboard/": typeof DashboardIndexRoute;
+  "/downloads/": typeof DownloadsIndexRoute;
   "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
   "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
   "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
@@ -219,9 +264,12 @@ export interface FileRouteTypes {
     | "/config"
     | "/login"
     | "/signup"
+    | "/downloads/history"
+    | "/downloads/status"
     | "/library/artists"
     | "/library/search"
     | "/dashboard/"
+    | "/downloads"
     | "/dashboard/recommendations/id"
     | "/library/artists/id"
     | "/library/artists/id/albums/albumId";
@@ -231,9 +279,12 @@ export interface FileRouteTypes {
     | "/config"
     | "/login"
     | "/signup"
+    | "/downloads/history"
+    | "/downloads/status"
     | "/library/artists"
     | "/library/search"
     | "/dashboard"
+    | "/downloads"
     | "/dashboard/recommendations/id"
     | "/library/artists/id"
     | "/library/artists/id/albums/albumId";
@@ -245,9 +296,12 @@ export interface FileRouteTypes {
     | "/config"
     | "/(auth)/login"
     | "/(auth)/signup"
+    | "/downloads/history"
+    | "/downloads/status"
     | "/library/artists"
     | "/library/search"
     | "/dashboard/"
+    | "/downloads/"
     | "/dashboard/recommendations/id"
     | "/library/artists/id"
     | "/library/artists/id/albums/albumId";
@@ -258,8 +312,11 @@ export interface RootRouteChildren {
   authRouteRoute: typeof authRouteRouteWithChildren;
   DashboardRouteRoute: typeof DashboardRouteRouteWithChildren;
   ConfigRoute: typeof ConfigRoute;
+  DownloadsHistoryRoute: typeof DownloadsHistoryRoute;
+  DownloadsStatusRoute: typeof DownloadsStatusRoute;
   LibraryArtistsRoute: typeof LibraryArtistsRouteWithChildren;
   LibrarySearchRoute: typeof LibrarySearchRoute;
+  DownloadsIndexRoute: typeof DownloadsIndexRoute;
 }
 export interface FileServerRoutesByFullPath {
   "/api/config": typeof ApiConfigServerRoute;
@@ -271,7 +328,10 @@ export interface FileServerRoutesByFullPath {
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
   "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
+  "/api/lidarr/cancel": typeof ApiLidarrCancelServerRoute;
+  "/api/lidarr/history": typeof ApiLidarrHistoryServerRoute;
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
+  "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
@@ -286,7 +346,10 @@ export interface FileServerRoutesByTo {
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
   "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
+  "/api/lidarr/cancel": typeof ApiLidarrCancelServerRoute;
+  "/api/lidarr/history": typeof ApiLidarrHistoryServerRoute;
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
+  "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
@@ -302,7 +365,10 @@ export interface FileServerRoutesById {
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
   "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
+  "/api/lidarr/cancel": typeof ApiLidarrCancelServerRoute;
+  "/api/lidarr/history": typeof ApiLidarrHistoryServerRoute;
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
+  "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
@@ -319,7 +385,10 @@ export interface FileServerRouteTypes {
     | "/api/auth/register"
     | "/api/lidarr/add"
     | "/api/lidarr/availability"
+    | "/api/lidarr/cancel"
+    | "/api/lidarr/history"
     | "/api/lidarr/search"
+    | "/api/lidarr/status"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
     | "/api/navidrome/stream/id/id";
@@ -334,7 +403,10 @@ export interface FileServerRouteTypes {
     | "/api/auth/register"
     | "/api/lidarr/add"
     | "/api/lidarr/availability"
+    | "/api/lidarr/cancel"
+    | "/api/lidarr/history"
     | "/api/lidarr/search"
+    | "/api/lidarr/status"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
     | "/api/navidrome/stream/id/id";
@@ -349,7 +421,10 @@ export interface FileServerRouteTypes {
     | "/api/auth/register"
     | "/api/lidarr/add"
     | "/api/lidarr/availability"
+    | "/api/lidarr/cancel"
+    | "/api/lidarr/history"
     | "/api/lidarr/search"
+    | "/api/lidarr/status"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
     | "/api/navidrome/stream/id/id";
@@ -365,7 +440,10 @@ export interface RootServerRouteChildren {
   ApiAuthRegisterServerRoute: typeof ApiAuthRegisterServerRoute;
   ApiLidarrAddServerRoute: typeof ApiLidarrAddServerRoute;
   ApiLidarrAvailabilityServerRoute: typeof ApiLidarrAvailabilityServerRoute;
+  ApiLidarrCancelServerRoute: typeof ApiLidarrCancelServerRoute;
+  ApiLidarrHistoryServerRoute: typeof ApiLidarrHistoryServerRoute;
   ApiLidarrSearchServerRoute: typeof ApiLidarrSearchServerRoute;
+  ApiLidarrStatusServerRoute: typeof ApiLidarrStatusServerRoute;
   ApiNavidromeChar91DotPathChar93ServerRoute: typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   ApiNavidromeStreamIdServerRoute: typeof ApiNavidromeStreamIdServerRoute;
   ApiNavidromeStreamIdIdServerRoute: typeof ApiNavidromeStreamIdIdServerRoute;
@@ -401,6 +479,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof IndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/downloads/": {
+      id: "/downloads/";
+      path: "/downloads";
+      fullPath: "/downloads";
+      preLoaderRoute: typeof DownloadsIndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/dashboard/": {
       id: "/dashboard/";
       path: "/";
@@ -420,6 +505,20 @@ declare module "@tanstack/react-router" {
       path: "/library/artists";
       fullPath: "/library/artists";
       preLoaderRoute: typeof LibraryArtistsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/downloads/status": {
+      id: "/downloads/status";
+      path: "/downloads/status";
+      fullPath: "/downloads/status";
+      preLoaderRoute: typeof DownloadsStatusRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/downloads/history": {
+      id: "/downloads/history";
+      path: "/downloads/history";
+      fullPath: "/downloads/history";
+      preLoaderRoute: typeof DownloadsHistoryRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/(auth)/signup": {
@@ -489,11 +588,32 @@ declare module "@tanstack/react-start/server" {
       preLoaderRoute: typeof ApiConfigServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
+    "/api/lidarr/status": {
+      id: "/api/lidarr/status";
+      path: "/api/lidarr/status";
+      fullPath: "/api/lidarr/status";
+      preLoaderRoute: typeof ApiLidarrStatusServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
     "/api/lidarr/search": {
       id: "/api/lidarr/search";
       path: "/api/lidarr/search";
       fullPath: "/api/lidarr/search";
       preLoaderRoute: typeof ApiLidarrSearchServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/lidarr/history": {
+      id: "/api/lidarr/history";
+      path: "/api/lidarr/history";
+      fullPath: "/api/lidarr/history";
+      preLoaderRoute: typeof ApiLidarrHistoryServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/lidarr/cancel": {
+      id: "/api/lidarr/cancel";
+      path: "/api/lidarr/cancel";
+      fullPath: "/api/lidarr/cancel";
+      preLoaderRoute: typeof ApiLidarrCancelServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
     "/api/lidarr/availability": {
@@ -611,8 +731,11 @@ const rootRouteChildren: RootRouteChildren = {
   authRouteRoute: authRouteRouteWithChildren,
   DashboardRouteRoute: DashboardRouteRouteWithChildren,
   ConfigRoute: ConfigRoute,
+  DownloadsHistoryRoute: DownloadsHistoryRoute,
+  DownloadsStatusRoute: DownloadsStatusRoute,
   LibraryArtistsRoute: LibraryArtistsRouteWithChildren,
   LibrarySearchRoute: LibrarySearchRoute,
+  DownloadsIndexRoute: DownloadsIndexRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
@@ -627,7 +750,10 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiAuthRegisterServerRoute: ApiAuthRegisterServerRoute,
   ApiLidarrAddServerRoute: ApiLidarrAddServerRoute,
   ApiLidarrAvailabilityServerRoute: ApiLidarrAvailabilityServerRoute,
+  ApiLidarrCancelServerRoute: ApiLidarrCancelServerRoute,
+  ApiLidarrHistoryServerRoute: ApiLidarrHistoryServerRoute,
   ApiLidarrSearchServerRoute: ApiLidarrSearchServerRoute,
+  ApiLidarrStatusServerRoute: ApiLidarrStatusServerRoute,
   ApiNavidromeChar91DotPathChar93ServerRoute:
     ApiNavidromeChar91DotPathChar93ServerRoute,
   ApiNavidromeStreamIdServerRoute: ApiNavidromeStreamIdServerRoute,

@@ -144,11 +144,11 @@ interface PlaylistResponse {
 
 export async function generatePlaylist({ style, summary }: PlaylistRequest): Promise<PlaylistResponse> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout per AC8
+  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout per AC7
 
-  const topArtists = summary.artists.slice(0, 20).map((a: { name: string; genres: string }) => `${a.name} (${a.genres || 'Unknown'})`).join('; ');
-  const topSongs = summary.songs.slice(0, 20).join('; '); // More examples for better matching
-  const prompt = `Respond with ONLY valid JSON - no other text or explanations! STRICTLY use ONLY songs from my library. My library artists: [${topArtists}]. Example songs: [${topSongs}]. Generate exactly 10 songs for style "${style}" as "Artist - Title" format, where Artist and Title are EXACT matches from my library. If no exact match, do not suggest it - use only available. Format: {"playlist": [{"song": "Exact Artist - Exact Title", "explanation": "1 sentence why it fits ${style} from library"}]} . Double-check all suggestions are from the provided library list.`;
+  const topArtists = summary.artists.slice(0, 10).map((a: { name: string; genres: string }) => `${a.name} (${a.genres || 'Unknown'})`).join('; ');
+  const topSongs = summary.songs.slice(0, 5).join('; '); // MVP: 5 examples for better matching
+  const prompt = `Respond with ONLY valid JSON - no other text or explanations! STRICTLY use ONLY songs from my library. My library artists: [${topArtists}]. Example songs: [${topSongs}]. Generate exactly 5 songs for style "${style}" as "Artist - Title" format, where Artist and Title are EXACT matches from my library. If no exact match, do not suggest it - use only available. Format: {"playlist": [{"song": "Exact Artist - Exact Title", "explanation": "1 sentence why it fits ${style} from library"}]} . Double-check all suggestions are from the provided library list.`;
 
   const url = `${OLLAMA_BASE_URL}/api/generate`;
   const body = {
@@ -183,7 +183,7 @@ export async function generatePlaylist({ style, summary }: PlaylistRequest): Pro
       console.error('JSON parse error:', parseError, 'Response:', data.response);
       // Fallback: extract from text
       const fallback = data.response.match(/song["']?\s*:\s*["']([^"']+)["']/gi) || [];
-      const recs = fallback.slice(0, 10).map((match: string) => {
+      const recs = fallback.slice(0, 5).map((match: string) => {
         const song = match.replace(/song["']?\s*:\s*["']/, '').replace(/["']$/, '');
         return { song, explanation: 'Fits the requested style based on your library' };
       });
@@ -193,7 +193,7 @@ export async function generatePlaylist({ style, summary }: PlaylistRequest): Pro
       throw new ServiceError('OLLAMA_PARSE_ERROR', 'Invalid playlist format');
     }
     return {
-      playlist: parsed.playlist.slice(0, 10), // Ensure max 10
+      playlist: parsed.playlist.slice(0, 5), // MVP: Ensure max 5
     };
   } catch (error: unknown) {
     clearTimeout(timeoutId);

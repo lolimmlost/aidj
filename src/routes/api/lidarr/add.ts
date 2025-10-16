@@ -1,6 +1,23 @@
 import { createServerFileRoute } from '@tanstack/react-start/server';
 import { ServiceError } from '../../../lib/utils';
 import { searchArtistsFull, addArtistToQueue, isArtistAdded } from '../../../lib/services/lidarr';
+import { search as searchNavidrome } from '../../../lib/services/navidrome';
+
+/**
+ * Check if artist is already available in Navidrome
+ */
+async function checkArtistAvailability(artistName: string): Promise<{ inNavidrome: boolean; artistId?: string }> {
+  try {
+    const navidromeResults = await searchNavidrome(artistName, 0, 1);
+    return {
+      inNavidrome: navidromeResults.length > 0,
+      artistId: navidromeResults[0]?.id
+    };
+  } catch (error) {
+    console.error('Error checking artist availability in Navidrome:', error);
+    return { inNavidrome: false };
+  }
+}
 
 export const ServerRoute = createServerFileRoute('/api/lidarr/add').methods({
   POST: async ({ request }) => {
