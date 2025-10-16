@@ -41,6 +41,7 @@ Thumbs.db
 *.swp
 *.swo
 .bmad
+.bmad-core
 
 # Dependency managers / caches
 .pnp.js
