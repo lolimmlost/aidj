@@ -482,8 +482,9 @@ export interface LibrarySummary {
 
 export async function getLibrarySummary(): Promise<LibrarySummary> {
   try {
-    const topArtists = await getArtistsWithDetails(0, 10); // MVP: 10 artists
-    const topSongs = await getSongsGlobal(0, 5); // MVP: 5 songs
+    const topArtists = await getArtistsWithDetails(0, 15); // Increased to 15 for more variety
+    const topSongs = await getSongsGlobal(0, 10); // Increased to 10 for more variety
+    console.log(`📚 Library summary: ${topArtists.length} artists, ${topSongs.length} songs`);
     return {
       artists: topArtists.map(a => ({
         name: a.name,

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from 'sonner';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -21,8 +21,35 @@ function DashboardIndex() {
   const addToQueue = useAudioStore((state) => state.playSong);
   const addPlaylist = useAudioStore((state) => state.addPlaylist);
   const [style, setStyle] = useState('');
+  const [debouncedStyle, setDebouncedStyle] = useState('');
   const trimmedStyle = style.trim();
   const styleHash = btoa(trimmedStyle);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounce style input (wait 800ms after user stops typing)
+  useEffect(() => {
+    // Clear previous timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+
+    // Set new timeout
+    if (trimmedStyle) {
+      debounceTimeoutRef.current = setTimeout(() => {
+        console.log(`🎯 Debounced style change: "${trimmedStyle}"`);
+        setDebouncedStyle(trimmedStyle);
+      }, 800); // 800ms delay
+    } else {
+      setDebouncedStyle('');
+    }
+
+    // Cleanup
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, [trimmedStyle]);
 
   const { data: recommendations, isLoading, error } = useQuery({
     queryKey: ['recommendations', session?.user.id, type],
@@ -70,23 +97,27 @@ function DashboardIndex() {
   }
 
   const { data: playlistData, isLoading: playlistLoading, error: playlistError, refetch: refetchPlaylist } = useQuery({
-    queryKey: ['playlist', styleHash, trimmedStyle],
+    queryKey: ['playlist', debouncedStyle],
     queryFn: async () => {
-      const cached = localStorage.getItem(`playlist-${styleHash}`);
+      const cacheKey = `playlist-${debouncedStyle}`; // Use debounced style
+      const cached = localStorage.getItem(cacheKey);
       if (cached) {
+        console.log(`📦 Returning cached playlist for "${debouncedStyle}"`);
         return JSON.parse(cached);
       }
+      console.log(`🔄 Generating fresh playlist for style: "${debouncedStyle}"`);
       const response = await fetch('/api/playlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ style: trimmedStyle }),
+        body: JSON.stringify({ style: debouncedStyle }),
       });
       if (!response.ok) throw new Error('Failed to fetch playlist');
       const data = await response.json();
-      localStorage.setItem(`playlist-${styleHash}`, JSON.stringify(data));
+      console.log(`✨ Generated playlist:`, data);
+      localStorage.setItem(cacheKey, JSON.stringify(data));
       return data;
     },
-    enabled: !!trimmedStyle && !!session,
+    enabled: !!debouncedStyle && !!session,
   });
 
   const handlePlaylistQueue = () => {
@@ -112,6 +143,8 @@ function DashboardIndex() {
     Object.keys(localStorage).filter(key => key.startsWith('playlist-')).forEach(key => localStorage.removeItem(key));
     queryClient.invalidateQueries({ queryKey: ['playlist'] });
     setStyle('');
+    setDebouncedStyle('');
+    console.log('🧹 Cleared all playlist cache');
   };
 
   return (
@@ -182,22 +215,32 @@ function DashboardIndex() {
           />
           <Button
             onClick={() => {
-              localStorage.removeItem(`playlist-${styleHash}`); // Clear specific cache for fresh generation
-              queryClient.invalidateQueries({ queryKey: ['playlist', styleHash, trimmedStyle] });
+              // Manually trigger refetch for immediate generation
+              const cacheKey = `playlist-${trimmedStyle}`;
+              localStorage.removeItem(cacheKey); // Clear cache for this style
+              queryClient.invalidateQueries({ queryKey: ['playlist', trimmedStyle] });
               refetchPlaylist();
             }}
             disabled={!trimmedStyle}
           >
-            Generate
+            Generate Now
           </Button>
         </div>
+
+        {/* Show debouncing indicator */}
+        {trimmedStyle && trimmedStyle !== debouncedStyle && (
+          <p className="text-sm text-muted-foreground animate-pulse">
+            ⏳ Typing detected... playlist will generate when you stop typing
+          </p>
+        )}
+
         {playlistLoading && <p>Loading playlist...</p>}
         {playlistError && <p className="text-destructive">Error: {playlistError.message}</p>}
         {playlistData && (
           <Card className="bg-card text-card-foreground border-card">
             <CardHeader>
               <h2 className="text-2xl font-semibold">Generated Playlist</h2>
-              <CardDescription>for "{style}". 5 suggestions from your library. Add to queue or provide feedback.</CardDescription>
+              <CardDescription>for "{debouncedStyle || style}". 5 suggestions from your library. Add to queue or provide feedback.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex justify-between mb-4">

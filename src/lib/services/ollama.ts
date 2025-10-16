@@ -146,9 +146,22 @@ export async function generatePlaylist({ style, summary }: PlaylistRequest): Pro
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout per AC7
 
-  const topArtists = summary.artists.slice(0, 10).map((a: { name: string; genres: string }) => `${a.name} (${a.genres || 'Unknown'})`).join('; ');
-  const topSongs = summary.songs.slice(0, 5).join('; '); // MVP: 5 examples for better matching
-  const prompt = `Respond with ONLY valid JSON - no other text or explanations! STRICTLY use ONLY songs from my library. My library artists: [${topArtists}]. Example songs: [${topSongs}]. Generate exactly 5 songs for style "${style}" as "Artist - Title" format, where Artist and Title are EXACT matches from my library. If no exact match, do not suggest it - use only available. Format: {"playlist": [{"song": "Exact Artist - Exact Title", "explanation": "1 sentence why it fits ${style} from library"}]} . Double-check all suggestions are from the provided library list.`;
+  const topArtists = summary.artists.slice(0, 12).map((a: { name: string; genres: string }) => `${a.name} (${a.genres || 'Unknown'})`).join('; ');
+  const topSongs = summary.songs.slice(0, 8).join('; '); // Increased for more variety
+  const prompt = `Respond with ONLY valid JSON - no other text or explanations! STRICTLY use ONLY songs from my library. My library artists: [${topArtists}]. Example songs: [${topSongs}].
+
+IMPORTANT: Generate exactly 5 DIFFERENT songs that match the style "${style}". Each suggestion must be a UNIQUE song that genuinely fits the requested style.
+
+For style "${style}":
+- If Halloween: choose spooky, dark, mysterious, or themed songs
+- If rock: choose guitar-heavy, energetic, or classic rock songs
+- If party: choose upbeat, danceable, or celebration songs
+- If holiday: choose festive, seasonal, or celebration songs
+- For other styles: match the mood and genre appropriately
+
+Format: {"playlist": [{"song": "Exact Artist - Exact Title", "explanation": "How this song fits ${style}"}, ...]}
+
+CRITICAL: Each song must be an EXACT match from my library list. No duplicates. No songs not in my library.`;
 
   const url = `${OLLAMA_BASE_URL}/api/generate`;
   const body = {
@@ -198,8 +211,10 @@ export async function generatePlaylist({ style, summary }: PlaylistRequest): Pro
   } catch (error: unknown) {
     clearTimeout(timeoutId);
     if (error instanceof DOMException && error.name === 'AbortError') {
+      console.error('⏰ Ollama request timed out after 5s');
       throw new ServiceError('OLLAMA_TIMEOUT_ERROR', 'Ollama request timed out after 5s');
     }
+    console.error('💥 Ollama playlist generation error:', error);
     throw error;
   }
 }
