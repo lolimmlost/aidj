@@ -40,6 +40,7 @@ Thumbs.db
 *.bak
 *.swp
 *.swo
+.bmad
 
 # Dependency managers / caches
 .pnp.js
@@ -59,4 +60,3 @@ playwright-report/
 test-results/
 *.png
 *.md
-
