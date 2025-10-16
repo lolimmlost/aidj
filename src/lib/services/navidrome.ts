@@ -104,7 +104,7 @@ export { tokenExpiry };
 // Rate limiting
 const requestQueue = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
-const RATE_LIMIT_MAX_REQUESTS = 30; // Max 30 requests per minute
+const RATE_LIMIT_MAX_REQUESTS = 60; // Max 60 requests per minute (increased for better UX)
 
 function checkRateLimit(key: string): boolean {
   const now = Date.now();
@@ -362,6 +362,12 @@ export async function search(query: string, start: number = 0, limit: number = 5
     const config = getConfig();
     if (!config.navidromeUrl) {
       return [];
+    }
+
+    // Rate limiting check
+    if (!checkRateLimit('search')) {
+      console.warn('⚠️ Search rate limit reached, throttling request');
+      throw new ServiceError('RATE_LIMIT_ERROR', 'Too many search requests. Please wait a moment.');
     }
 
     await getAuthToken(); // Ensure auth

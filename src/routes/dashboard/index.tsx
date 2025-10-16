@@ -72,32 +72,100 @@ function DashboardIndex() {
       // Use more specific and varied prompts for better recommendations
       const prompts = {
         similar: [
-          'recommend different popular songs by artists similar to your favorites',
-          'discover new tracks in genres matching your library artists',
-          'suggest well-known songs by artists with similar musical style',
-          'find popular tracks from artists in the same genre as your library'
+          'recommend popular songs by artists similar to my library favorites',
+          'discover new tracks from artists with similar style to my collection',
+          'suggest well-known songs by artists in genres matching my library',
+          'find popular tracks from artists similar to those I already have',
+          'recommend other famous songs by my existing library artists',
+          'discover artists with similar musical style to my collection'
         ],
         mood: [
-          'upbeat energetic songs matching your library genre preferences',
-          'relaxing chill songs from artists similar to your collection',
-          'feel-good tracks in genres you already enjoy',
-          'focusing songs that match your musical taste profile'
+          'upbeat energetic songs matching my library genre preferences',
+          'relaxing chill songs from artists similar to my collection',
+          'feel-good tracks in genres I already enjoy',
+          'focusing songs that match my musical taste profile',
+          'mood-boosting songs from artists similar to my favorites',
+          'calming tracks in genres I frequently listen to'
         ]
       };
 
-      const promptArray = prompts[type];
-      const randomPrompt = promptArray[Math.floor(Math.random() * promptArray.length)];
+      let attempts = 0;
+      const maxAttempts = 3;
 
-      console.log(`🎯 Using recommendation prompt: "${randomPrompt}"`);
+      while (attempts < maxAttempts) {
+        attempts++;
+        console.log(`🎯 Recommendation attempt ${attempts}/${maxAttempts}`);
 
-      const response = await fetch('/api/recommendations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: randomPrompt }),
-      });
-      if (!response.ok) throw new Error('Failed to fetch recommendations');
-      const data = await response.json();
-      data.timestamp = new Date().toISOString(); // AC6
+        // Add time-based seed for better randomization
+        const timeSeed = Date.now() % 1000;
+        const promptArray = prompts[type];
+        const randomIndex = (Math.random() * 1000 + timeSeed) % promptArray.length;
+        const randomPrompt = promptArray[Math.floor(randomIndex)];
+
+        console.log(`🎯 Using recommendation prompt ${randomIndex}: "${randomPrompt}"`);
+
+        const response = await fetch('/api/recommendations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: randomPrompt }),
+        });
+        if (!response.ok) throw new Error('Failed to fetch recommendations');
+        const data = await response.json();
+        data.timestamp = new Date().toISOString(); // AC6
+
+        // Validate recommendations by checking if songs exist in library
+        const validatedRecommendations = [];
+        let foundInLibrary = 0;
+
+        for (const rec of data.data.recommendations) {
+          try {
+            // Search for the recommended song
+            const searchResults = await search(rec.song, 0, 1);
+            if (searchResults.length > 0) {
+              foundInLibrary++;
+              validatedRecommendations.push({
+                ...rec,
+                foundInLibrary: true,
+                actualSong: searchResults[0]
+              });
+              console.log(`✅ Found in library: ${rec.song}`);
+            } else {
+              validatedRecommendations.push({
+                ...rec,
+                foundInLibrary: false
+              });
+              console.log(`❌ Not in library: ${rec.song}`);
+            }
+          } catch (searchError) {
+            console.log(`⚠️ Search failed for ${rec.song}:`, searchError);
+            validatedRecommendations.push({
+              ...rec,
+              foundInLibrary: false,
+              searchError: true
+            });
+          }
+        }
+
+        console.log(`📊 Validation results: ${foundInLibrary}/${data.data.recommendations.length} songs found in library`);
+
+        // If at least 2 songs found in library, accept these recommendations
+        if (foundInLibrary >= 2) {
+          console.log(`✅ Accepting recommendations with ${foundInLibrary} library matches`);
+          data.data.recommendations = validatedRecommendations;
+          return data;
+        }
+
+        // If too few matches, try again with different prompt
+        console.log(`🔄 Only ${foundInLibrary} songs found in library, regenerating...`);
+
+        // Small delay before retry
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      // If all attempts failed, return the last result but mark as low quality
+      console.log(`⚠️ All attempts completed with low library matches, returning best available`);
       return data;
     },
     enabled: !!session,
@@ -108,28 +176,49 @@ function DashboardIndex() {
     try {
       console.log('🎯 Queuing recommendation:', song); // Debug log
 
-      // Check cache first
+      // Check cache first - use consistent cache key
       const cacheKey = song.toLowerCase().trim();
       let songs = songCache.current.get(cacheKey);
 
+      // If not in cache, check if it's being pre-cached (wait a moment for background search)
       if (!songs) {
-        console.log('🔍 Cache miss - searching for:', song);
-        try {
-          songs = await search(song, 0, 1); // Search for exact match, limit 1
-          // Cache the result (even if empty)
-          songCache.current.set(cacheKey, songs);
-          console.log('💾 Cached search result for:', song);
+        console.log('🔍 Cache miss - checking if pre-caching:', song);
 
-          // Limit cache size to prevent memory issues
-          if (songCache.current.size > 50) {
-            const firstKey = songCache.current.keys().next().value;
-            songCache.current.delete(firstKey);
+        // Wait a brief moment for pre-caching to complete
+        let attempts = 0;
+        while (!songs && attempts < 3) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          songs = songCache.current.get(cacheKey);
+          if (songs) {
+            console.log('⚡ Found in cache after pre-caching:', song);
+            break;
           }
-        } catch (searchError) {
-          console.error('Search error:', searchError);
-          songCache.current.set(cacheKey, []); // Cache empty result to prevent repeated searches
-          toast.error('Failed to search for song');
-          return;
+          attempts++;
+        }
+
+        // Still not found, search manually
+        if (!songs) {
+          console.log('🔍 Manual search required for:', song);
+          try {
+            songs = await search(song, 0, 1); // Search for exact match, limit 1
+            // Cache the result (even if empty)
+            songCache.current.set(cacheKey, songs);
+            console.log('💾 Cached search result for:', song);
+
+            // Limit cache size to prevent memory issues
+            if (songCache.current.size > 50) {
+              const firstKey = songCache.current.keys().next().value;
+              songCache.current.delete(firstKey);
+            }
+          } catch (searchError) {
+            console.error('Search error:', searchError);
+            if (searchError instanceof Error && searchError.message.includes('rate limit')) {
+              toast.error('Please wait a moment before searching for songs');
+            } else {
+              toast.error('Failed to search for song');
+            }
+            return;
+          }
         }
       } else {
         console.log('⚡ Cache hit for:', song);
@@ -307,28 +396,64 @@ function DashboardIndex() {
             <span className="text-xs text-muted-foreground ml-2">(10s timeout)</span>
           </p>
         )}
-        {error && <p className="text-destructive">Error loading recommendations: {error.message}</p>}
+        {error && (
+        <p className="text-destructive">
+          Error loading recommendations: {error.message}
+          {error.message.includes('rate limit') && (
+            <span className="block text-sm mt-1">💡 Please wait a moment before refreshing again</span>
+          )}
+        </p>
+      )}
         {recommendations && (
           <Card className="bg-card text-card-foreground border-card">
             <CardHeader>
               <CardTitle>Based on your history</CardTitle>
-              <CardDescription>Generated at {new Date(recommendations.timestamp).toLocaleString()} - {recommendations.data.recommendations.filter((rec: any) => rec.song !== recommendations.data.recommendations[0]?.song).length + 1} unique songs</CardDescription>
+              <CardDescription>
+                Generated at {new Date(recommendations.timestamp).toLocaleString()} -
+                {recommendations.data.recommendations.filter((rec: any) => rec.foundInLibrary).length} of {recommendations.data.recommendations.length} songs available in your library
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="space-y-2">
-                {recommendations.data.recommendations.map((rec: { song: string; explanation: string }, index: number) => {
+                {recommendations.data.recommendations.map((rec: any, index: number) => {
                   const songId = btoa(rec.song); // For route
+                  const isInLibrary = rec.foundInLibrary;
+                  const hasSearchError = rec.searchError;
+
                   return (
-                    <li key={index} className="flex flex-col space-y-2 p-2 border rounded">
+                    <li key={index} className={`flex flex-col space-y-2 p-2 border rounded ${isInLibrary ? 'border-green-200 bg-green-50/10' : 'border-gray-200'}`}>
                       <div className="flex justify-between items-center">
-                        <Link to="/dashboard/recommendations/id" params={{ id: songId }} className="hover:underline">
-                          {rec.song}
-                        </Link>
-                        <Button variant="ghost" size="sm" onClick={() => handleQueue(rec.song)}>
-                          Queue
+                        <div className="flex items-center gap-2">
+                          <Link to="/dashboard/recommendations/id" params={{ id: songId }} className="hover:underline">
+                            {rec.song}
+                          </Link>
+                          {isInLibrary && (
+                            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                              ✓ In Library
+                            </span>
+                          )}
+                          {hasSearchError && (
+                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                              ⚠️ Search Error
+                            </span>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleQueue(rec.song)}
+                          disabled={!isInLibrary}
+                          className={!isInLibrary ? "opacity-50 cursor-not-allowed" : ""}
+                        >
+                          {isInLibrary ? "Queue" : "Not Available"}
                         </Button>
                       </div>
                       <p className="text-sm text-muted-foreground">{rec.explanation.substring(0, 100)}...</p>
+                      {!isInLibrary && !hasSearchError && (
+                        <p className="text-xs text-orange-600">
+                          💡 This song isn't in your library but shows similar taste
+                        </p>
+                      )}
                     </li>
                   );
                 })}
@@ -372,7 +497,14 @@ function DashboardIndex() {
         )}
 
         {playlistLoading && <p>Loading playlist...</p>}
-        {playlistError && <p className="text-destructive">Error: {playlistError.message}</p>}
+        {playlistError && (
+          <p className="text-destructive">
+            Error: {playlistError.message}
+            {playlistError.message.includes('rate limit') && (
+              <span className="block text-sm mt-1">💡 Please wait a moment before generating another playlist</span>
+            )}
+          </p>
+        )}
         {playlistData && (
           <Card className="bg-card text-card-foreground border-card">
             <CardHeader>

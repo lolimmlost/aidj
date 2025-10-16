@@ -15,6 +15,8 @@ export default defineConfig({
   server: {
     cors: true,  // Enable CORS for dev server to handle preflight OPTIONS requests for API routes
     allowedHosts: ['dev1.appahouse.com'],  // Allow custom host for local domain testing
+    host: '0.0.0.0',  // Allow access from any IP on the local network
+    port: 3003,      // Specify the port (same as current setup)
   },
   plugins: [
     devtools(),

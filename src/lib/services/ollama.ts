@@ -7,6 +7,33 @@ import { ServiceError } from '../utils';
 const OLLAMA_BASE_URL = getConfig().ollamaUrl || 'http://localhost:11434';
 const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'llama2';
 
+// Rate limiting
+const ollamaRequestQueue = new Map<string, number[]>();
+const OLLAMA_RATE_LIMIT_WINDOW = 60000; // 1 minute
+const OLLAMA_RATE_LIMIT_MAX_REQUESTS = 10; // Max 10 AI requests per minute
+
+function checkOllamaRateLimit(key: string): boolean {
+  const now = Date.now();
+  const windowStart = now - OLLAMA_RATE_LIMIT_WINDOW;
+
+  if (!ollamaRequestQueue.has(key)) {
+    ollamaRequestQueue.set(key, [now]);
+    return true;
+  }
+
+  const requests = ollamaRequestQueue.get(key)!;
+  // Remove old requests outside the window
+  const validRequests = requests.filter(timestamp => timestamp > windowStart);
+
+  if (validRequests.length >= OLLAMA_RATE_LIMIT_MAX_REQUESTS) {
+    return false;
+  }
+
+  validRequests.push(now);
+  ollamaRequestQueue.set(key, validRequests);
+  return true;
+}
+
 interface RecommendationRequest {
   prompt: string;
   model?: string;
@@ -38,18 +65,46 @@ async function retryFetch(fn: () => Promise<Response>, maxRetries = 3): Promise<
 }
 
 export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, userId }: RecommendationRequest & { userId?: string }): Promise<RecommendationResponse> {
+  // Rate limiting check
+  const rateLimitKey = userId ? `recommendations_${userId}` : 'recommendations_anonymous';
+  if (!checkOllamaRateLimit(rateLimitKey)) {
+    console.warn('⚠️ AI recommendation rate limit reached, throttling request');
+    throw new ServiceError('RATE_LIMIT_ERROR', 'Too many AI requests. Please wait a moment before refreshing.');
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout for better responsiveness
 
   let enhancedPrompt = prompt;
   if (userId) {
     const summary = await getLibrarySummary();
+    console.log('🎵 Library summary for recommendations:', summary); // Debug log
     const artistsList = summary.artists.map((a: { name: string; genres: string }) => `${a.name} (${a.genres})`).join(', ');
     const songsList = summary.songs.slice(0, 10).join(', '); // Top 10 as examples
-    enhancedPrompt = `${prompt}. Based on my library: artists [${artistsList}], example songs [${songsList}].
 
-    IMPORTANT: Recommend songs that MATCH THE STYLE and GENRE of my library artists. If I have artists like "Artist1 (rock)" and "Artist2 (metal)", suggest other popular songs in those genres that would likely be in my collection.
-    Use the format "Artist - Title" for consistency. Prioritize songs by the same artists or similar artists in my preferred genres.`;
+    // Extract artist names for more focused recommendations
+    const artistNames = summary.artists.map((a: { name: string }) => a.name).slice(0, 8);
+    console.log('🎤 Top artists for recommendations:', artistNames); // Debug log
+
+    // Add timestamp to encourage different responses each time
+    const timestamp = Date.now();
+    const randomSeed = Math.random().toString(36).substring(7);
+
+    enhancedPrompt = `${prompt}.
+
+CRITICAL: You MUST prioritize recommendations from my actual library. Here are the artists I have: [${artistNames.join(', ')}]. Here are example songs from my library: [${songsList}].
+
+IMPORTANT - Generate DIFFERENT recommendations each time. Session seed: ${randomSeed}_${timestamp}
+
+RULES:
+1. PRIORITY 1: Recommend other popular songs by these exact artists: ${artistNames.slice(0, 5).join(', ')}
+2. PRIORITY 2: Recommend songs by artists that are VERY similar to my library artists
+3. AVOID suggesting the same songs repeatedly - choose DIFFERENT well-known tracks each time
+4. ONLY suggest songs that realistically could be in my collection based on my existing taste
+5. Use the format "Artist - Title" and ensure the artist is either from my library or very similar
+6. If suggesting songs by my library artists, choose their different well-known tracks each time
+
+Your goal is to recommend songs I LIKELY HAVE or songs by artists I clearly like based on my library. Make sure each response is UNIQUE and different from previous suggestions.`;
   }
 
   const url = `${OLLAMA_BASE_URL}/api/generate`;
@@ -146,6 +201,12 @@ interface PlaylistResponse {
 }
 
 export async function generatePlaylist({ style, summary }: PlaylistRequest): Promise<PlaylistResponse> {
+  // Rate limiting check
+  if (!checkOllamaRateLimit('playlist_generation')) {
+    console.warn('⚠️ Playlist generation rate limit reached, throttling request');
+    throw new ServiceError('RATE_LIMIT_ERROR', 'Too many playlist requests. Please wait a moment before generating another.');
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout per AC7
 
