@@ -30,7 +30,7 @@ async function retryFetch(fn: () => Promise<Response>, maxRetries = 3): Promise<
       }
       lastError = error;
       if (attempt === maxRetries) throw error;
-      const delay = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
+      const delay = Math.pow(2, attempt) * 500; // Faster backoff: 1s, 2s, 4s
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -39,7 +39,7 @@ async function retryFetch(fn: () => Promise<Response>, maxRetries = 3): Promise<
 
 export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, userId }: RecommendationRequest & { userId?: string }): Promise<RecommendationResponse> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout for better responsiveness
 
   let enhancedPrompt = prompt;
   if (userId) {
@@ -100,7 +100,7 @@ export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, u
   } catch (error: unknown) {
     clearTimeout(timeoutId);
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new ServiceError('OLLAMA_TIMEOUT_ERROR', 'Ollama request timed out after 30s');
+      throw new ServiceError('OLLAMA_TIMEOUT_ERROR', 'Ollama request timed out after 10s');
     }
     if (error instanceof ServiceError && (error.code === 'OLLAMA_TIMEOUT_ERROR' || error.code === 'SERVER_ERROR' || error instanceof TypeError)) {
       throw error;

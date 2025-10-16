@@ -25,6 +25,21 @@ function DashboardIndex() {
   const trimmedStyle = style.trim();
   const styleHash = btoa(trimmedStyle);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const songCache = useRef<Map<string, any[]>>(new Map()); // Cache for song search results
+
+  // Load cache from localStorage on mount
+  useEffect(() => {
+    const cachedSongs = localStorage.getItem('songCache');
+    if (cachedSongs) {
+      try {
+        const parsed = JSON.parse(cachedSongs);
+        songCache.current = new Map(parsed);
+        console.log(`📦 Loaded ${songCache.current.size} songs from cache`);
+      } catch (error) {
+        console.error('Failed to load song cache:', error);
+      }
+    }
+  }, []);
 
   // Debounce style input (wait 800ms after user stops typing)
   useEffect(() => {
@@ -91,12 +106,39 @@ function DashboardIndex() {
   
   const handleQueue = async (song: string) => {
     try {
-      console.log('Queuing recommendation:', song); // Debug log
-      const songs = await search(song, 0, 1); // Search for exact match, limit 1
-      console.log('Search results for queue:', songs); // Debug log
-      if (songs.length > 0) {
+      console.log('🎯 Queuing recommendation:', song); // Debug log
+
+      // Check cache first
+      const cacheKey = song.toLowerCase().trim();
+      let songs = songCache.current.get(cacheKey);
+
+      if (!songs) {
+        console.log('🔍 Cache miss - searching for:', song);
+        try {
+          songs = await search(song, 0, 1); // Search for exact match, limit 1
+          // Cache the result (even if empty)
+          songCache.current.set(cacheKey, songs);
+          console.log('💾 Cached search result for:', song);
+
+          // Limit cache size to prevent memory issues
+          if (songCache.current.size > 50) {
+            const firstKey = songCache.current.keys().next().value;
+            songCache.current.delete(firstKey);
+          }
+        } catch (searchError) {
+          console.error('Search error:', searchError);
+          songCache.current.set(cacheKey, []); // Cache empty result to prevent repeated searches
+          toast.error('Failed to search for song');
+          return;
+        }
+      } else {
+        console.log('⚡ Cache hit for:', song);
+      }
+
+      console.log('📋 Search results for queue:', songs.length, 'songs'); // Debug log
+      if (songs && songs.length > 0) {
         const realSong = songs[0];
-        console.log('Found song:', realSong); // Debug log
+        console.log('✅ Found song:', realSong); // Debug log
 
         // Ensure the song has all required properties for the audio player
         const songForPlayer = {
@@ -109,16 +151,23 @@ function DashboardIndex() {
           artist: realSong.artist || 'Unknown Artist'
         };
 
-        console.log('Song prepared for player:', songForPlayer); // Debug log
-        addToQueue(realSong.id, [songForPlayer]);
-        console.log('Queued song successfully'); // Debug log
-        toast.success('Queued');
+        console.log('🎵 Song prepared for player:', songForPlayer); // Debug log
+
+        try {
+          addToQueue(realSong.id, [songForPlayer]);
+          console.log('🚀 Queued song successfully'); // Debug log
+          toast.success('Queued');
+        } catch (queueError) {
+          console.error('Queue error:', queueError);
+          toast.error('Failed to add song to queue');
+        }
       } else {
+        console.log('❌ No songs found for:', song);
         toast.error('Song not found in library');
       }
     } catch (error) {
-      console.error('Search failed for queue:', error);
-      toast.error('Failed to search for song');
+      console.error('💥 Unexpected error in handleQueue:', error);
+      toast.error('An unexpected error occurred');
     }
   };
 
@@ -181,6 +230,45 @@ function DashboardIndex() {
     console.log('🧹 Cleared all playlist cache');
   };
 
+  // Save cache to localStorage when it changes
+  useEffect(() => {
+    const saveCache = () => {
+      try {
+        const cacheArray = Array.from(songCache.current.entries());
+        localStorage.setItem('songCache', JSON.stringify(cacheArray));
+      } catch (error) {
+        console.error('Failed to save song cache:', error);
+      }
+    };
+
+    // Save after a short delay to batch updates
+    const timeoutId = setTimeout(saveCache, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [recommendations]); // Trigger when recommendations change (pre-warming happens)
+
+  // Pre-warm cache with common songs when recommendations load
+  useEffect(() => {
+    if (recommendations && recommendations.data.recommendations) {
+      // Pre-cache all recommended songs for faster queuing
+      recommendations.data.recommendations.forEach((rec: { song: string }) => {
+        const cacheKey = rec.song.toLowerCase().trim();
+        if (!songCache.current.has(cacheKey)) {
+          // Start searching in background but don't await
+          search(rec.song, 0, 1)
+            .then(songs => {
+              songCache.current.set(cacheKey, songs);
+              console.log(`🚀 Pre-cached song: ${rec.song}`);
+            })
+            .catch(err => {
+              console.log(`Failed to pre-cache ${rec.song}:`, err);
+              // Cache empty result to prevent repeated attempts
+              songCache.current.set(cacheKey, []);
+            });
+        }
+      });
+    }
+  }, [recommendations]);
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="text-center">
@@ -213,7 +301,12 @@ function DashboardIndex() {
             </Select>
           </div>
         </div>
-        {isLoading && <p>Loading recommendations...</p>}
+        {isLoading && (
+          <p className="animate-pulse">
+            {isLoading ? '⏳ Loading recommendations...' : '🔄 Refreshing...'}
+            <span className="text-xs text-muted-foreground ml-2">(10s timeout)</span>
+          </p>
+        )}
         {error && <p className="text-destructive">Error loading recommendations: {error.message}</p>}
         {recommendations && (
           <Card className="bg-card text-card-foreground border-card">

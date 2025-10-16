@@ -101,6 +101,33 @@ export { subsonicSalt };
 let tokenExpiry = 0;
 export { tokenExpiry };
 
+// Rate limiting
+const requestQueue = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 30; // Max 30 requests per minute
+
+function checkRateLimit(key: string): boolean {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW;
+
+  if (!requestQueue.has(key)) {
+    requestQueue.set(key, [now]);
+    return true;
+  }
+
+  const requests = requestQueue.get(key)!;
+  // Remove old requests outside the window
+  const validRequests = requests.filter(timestamp => timestamp > windowStart);
+
+  if (validRequests.length >= RATE_LIMIT_MAX_REQUESTS) {
+    return false;
+  }
+
+  validRequests.push(now);
+  requestQueue.set(key, validRequests);
+  return true;
+}
+
 export function resetAuthState() {
   token = null;
   clientId = null;
