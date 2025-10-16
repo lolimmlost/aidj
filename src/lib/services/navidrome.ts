@@ -527,7 +527,7 @@ export async function resolveSongByArtistTitle(artistTitle: string): Promise<Son
     for (const album of albums) {
       try {
         const songs = await getSongs(album.id, 0, 50);
-        const song = songs.find(s => s.title?.toLowerCase() === songTitle.toLowerCase() || s.name.toLowerCase() === songTitle.toLowerCase());
+        const song = songs.find(s => s.title?.toLowerCase() === songTitle.toLowerCase() || (s.name && s.name.toLowerCase() === songTitle.toLowerCase()));
         if (song) {
           return song;
         }

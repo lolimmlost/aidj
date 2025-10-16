@@ -51,14 +51,34 @@ function DashboardIndex() {
     };
   }, [trimmedStyle]);
 
-  const { data: recommendations, isLoading, error } = useQuery({
+  const { data: recommendations, isLoading, error, refetch: refetchRecommendations } = useQuery({
     queryKey: ['recommendations', session?.user.id, type],
     queryFn: async () => {
-      const prompt = type === 'similar' ? 'similar artists to your favorites' : 'mood-based recommendations for relaxation';
+      // Use more specific and varied prompts for better recommendations
+      const prompts = {
+        similar: [
+          'recommend different popular songs by artists similar to your favorites',
+          'discover new tracks in genres matching your library artists',
+          'suggest well-known songs by artists with similar musical style',
+          'find popular tracks from artists in the same genre as your library'
+        ],
+        mood: [
+          'upbeat energetic songs matching your library genre preferences',
+          'relaxing chill songs from artists similar to your collection',
+          'feel-good tracks in genres you already enjoy',
+          'focusing songs that match your musical taste profile'
+        ]
+      };
+
+      const promptArray = prompts[type];
+      const randomPrompt = promptArray[Math.floor(Math.random() * promptArray.length)];
+
+      console.log(`🎯 Using recommendation prompt: "${randomPrompt}"`);
+
       const response = await fetch('/api/recommendations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt: randomPrompt }),
       });
       if (!response.ok) throw new Error('Failed to fetch recommendations');
       const data = await response.json();
@@ -76,8 +96,22 @@ function DashboardIndex() {
       console.log('Search results for queue:', songs); // Debug log
       if (songs.length > 0) {
         const realSong = songs[0];
-        addToQueue(realSong.id, [realSong]);
-        console.log('Queued song:', realSong); // Debug log
+        console.log('Found song:', realSong); // Debug log
+
+        // Ensure the song has all required properties for the audio player
+        const songForPlayer = {
+          id: realSong.id,
+          name: realSong.name || realSong.title || song,
+          albumId: realSong.albumId || '',
+          duration: realSong.duration || 0,
+          track: realSong.track || realSong.trackNumber || 1,
+          url: realSong.url,
+          artist: realSong.artist || 'Unknown Artist'
+        };
+
+        console.log('Song prepared for player:', songForPlayer); // Debug log
+        addToQueue(realSong.id, [songForPlayer]);
+        console.log('Queued song successfully'); // Debug log
         toast.success('Queued');
       } else {
         toast.error('Song not found in library');
@@ -159,15 +193,25 @@ function DashboardIndex() {
       <section className="space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-semibold">AI Recommendations</h2>
-          <Select value={type} onValueChange={(value) => setType(value as 'similar' | 'mood')}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="similar">Similar Artists</SelectItem>
-              <SelectItem value="mood">Mood-Based</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetchRecommendations()}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Loading...' : '🔄 Refresh'}
+            </Button>
+            <Select value={type} onValueChange={(value) => setType(value as 'similar' | 'mood')}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="similar">Similar Artists</SelectItem>
+                <SelectItem value="mood">Mood-Based</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         {isLoading && <p>Loading recommendations...</p>}
         {error && <p className="text-destructive">Error loading recommendations: {error.message}</p>}
@@ -175,7 +219,7 @@ function DashboardIndex() {
           <Card className="bg-card text-card-foreground border-card">
             <CardHeader>
               <CardTitle>Based on your history</CardTitle>
-              <CardDescription>Generated at {new Date(recommendations.timestamp).toLocaleString()} (timeout: 5s)</CardDescription>
+              <CardDescription>Generated at {new Date(recommendations.timestamp).toLocaleString()} - {recommendations.data.recommendations.filter((rec: any) => rec.song !== recommendations.data.recommendations[0]?.song).length + 1} unique songs</CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="space-y-2">

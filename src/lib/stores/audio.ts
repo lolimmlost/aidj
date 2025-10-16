@@ -35,13 +35,28 @@ export const useAudioStore = create<AudioState>()(
       const state = get();
       let playlist: Song[] = newPlaylist || state.playlist;
       let index = playlist.findIndex((song: Song) => song.id === songId);
+
       if (index === -1) {
-        index = 0;
-        const foundSong = state.playlist.find((s: Song) => s.id === songId);
-        if (foundSong) {
-          playlist = [foundSong];
+        // If newPlaylist provided, use it
+        if (newPlaylist) {
+          playlist = newPlaylist;
+          index = playlist.findIndex((song: Song) => song.id === songId);
+        }
+
+        // If still not found, try to find in existing playlist
+        if (index === -1) {
+          const foundSong = state.playlist.find((s: Song) => s.id === songId);
+          if (foundSong) {
+            playlist = [foundSong];
+            index = 0;
+          } else {
+            // Song not found anywhere, don't change state
+            console.warn('Song not found:', songId);
+            return;
+          }
         }
       }
+
       set({
         playlist,
         currentSongIndex: index,

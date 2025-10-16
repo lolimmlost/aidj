@@ -46,7 +46,10 @@ export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, u
     const summary = await getLibrarySummary();
     const artistsList = summary.artists.map((a: { name: string; genres: string }) => `${a.name} (${a.genres})`).join(', ');
     const songsList = summary.songs.slice(0, 10).join(', '); // Top 10 as examples
-    enhancedPrompt = `${prompt}. Use only songs from my library: artists [${artistsList}], example songs [${songsList}]. Suggest exact matches like "Artist - Title".`;
+    enhancedPrompt = `${prompt}. Based on my library: artists [${artistsList}], example songs [${songsList}].
+
+    IMPORTANT: Recommend songs that MATCH THE STYLE and GENRE of my library artists. If I have artists like "Artist1 (rock)" and "Artist2 (metal)", suggest other popular songs in those genres that would likely be in my collection.
+    Use the format "Artist - Title" for consistency. Prioritize songs by the same artists or similar artists in my preferred genres.`;
   }
 
   const url = `${OLLAMA_BASE_URL}/api/generate`;
