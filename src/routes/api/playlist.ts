@@ -1,7 +1,8 @@
 import { createServerFileRoute } from '@tanstack/react-start/server';
 import { ServiceError } from '../../lib/utils';
 import { generatePlaylist } from '../../lib/services/ollama';
-import { getLibrarySummary, resolveSongByArtistTitle, search, type Song } from '../../lib/services/navidrome';
+import { getLibrarySummary, search } from '../../lib/services/navidrome';
+import { searchIndexedSong } from '../../lib/services/library-index';
 
 export const ServerRoute = createServerFileRoute('/api/playlist').methods({
   POST: async ({ request }) => {
@@ -40,15 +41,66 @@ export const ServerRoute = createServerFileRoute('/api/playlist').methods({
         suggestions.map(async (suggestion, index) => {
           try {
             console.log(`🔍 Resolving song ${index + 1}/5: "${suggestion.song}"`);
-            const matches = await search(suggestion.song, 0, 1);
-            if (matches.length > 0) {
-              const song: Song = matches[0];
-              console.log(`✅ Found match: "${song.name}" by ${song.artist}`);
-              return { ...suggestion, songId: song.id, url: song.url };
+
+            // Parse "Artist - Title" format
+            const parts = suggestion.song.split(' - ');
+
+            if (parts.length >= 2) {
+              const artistPart = parts[0].trim();
+              const titlePart = parts.slice(1).join(' - ').trim(); // Handle titles with " - " in them
+
+              // STRATEGY 1: Search by title first (like the working search page)
+              console.log(`🔍 Searching by title: "${titlePart}"`);
+              let titleMatches = await search(titlePart, 0, 10);
+
+              // Filter by artist match
+              let match = titleMatches.find(s =>
+                s.artist?.toLowerCase().includes(artistPart.toLowerCase()) ||
+                artistPart.toLowerCase().includes(s.artist?.toLowerCase() || '')
+              );
+
+              if (match) {
+                console.log(`✅ Found by title+artist: "${match.name}" by ${match.artist}`);
+                return { ...suggestion, songId: match.id, url: match.url };
+              }
+
+              // STRATEGY 2: Search by artist name
+              console.log(`🔍 Searching by artist: "${artistPart}"`);
+              const artistMatches = await search(artistPart, 0, 10);
+
+              match = artistMatches.find(s =>
+                s.title?.toLowerCase().includes(titlePart.toLowerCase()) ||
+                s.name?.toLowerCase().includes(titlePart.toLowerCase())
+              );
+
+              if (match) {
+                console.log(`✅ Found by artist+title: "${match.name}" by ${match.artist}`);
+                return { ...suggestion, songId: match.id, url: match.url };
+              }
+
+              // STRATEGY 3: Try full string search as last resort
+              console.log(`🔍 Searching full string: "${suggestion.song}"`);
+              const fullMatches = await search(suggestion.song, 0, 5);
+
+              if (fullMatches.length > 0) {
+                match = fullMatches[0];
+                console.log(`✅ Found by full search: "${match.name}" by ${match.artist}`);
+                return { ...suggestion, songId: match.id, url: match.url };
+              }
             } else {
-              console.log(`❌ No match found for: "${suggestion.song}"`);
-              return { ...suggestion, songId: null, url: null, missing: true };
+              // No " - " separator, just search the whole thing
+              console.log(`🔍 Searching without parse: "${suggestion.song}"`);
+              const matches = await search(suggestion.song, 0, 5);
+
+              if (matches.length > 0) {
+                const match = matches[0];
+                console.log(`✅ Found: "${match.name}" by ${match.artist}`);
+                return { ...suggestion, songId: match.id, url: match.url };
+              }
             }
+
+            console.log(`❌ No match found for: "${suggestion.song}"`);
+            return { ...suggestion, songId: null, url: null, missing: true };
           } catch (error) {
             console.error(`💥 Resolution error for ${suggestion.song}:`, error);
             return { ...suggestion, songId: null, url: null, missing: true };

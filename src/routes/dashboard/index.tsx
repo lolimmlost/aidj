@@ -22,10 +22,10 @@ function DashboardIndex() {
   const addPlaylist = useAudioStore((state) => state.addPlaylist);
   const [style, setStyle] = useState('');
   const [debouncedStyle, setDebouncedStyle] = useState('');
+  const [generationStage, setGenerationStage] = useState<'idle' | 'generating' | 'resolving' | 'retrying' | 'done'>('idle');
   const trimmedStyle = style.trim();
-  const styleHash = btoa(trimmedStyle);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const songCache = useRef<Map<string, any[]>>(new Map()); // Cache for song search results
+  const songCache = useRef<Map<string, unknown[]>>(new Map()); // Cache for song search results
 
   // Load cache from localStorage on mount
   useEffect(() => {
@@ -113,20 +113,63 @@ function DashboardIndex() {
         const data = await response.json();
         data.timestamp = new Date().toISOString(); // AC6
 
+        // Debug: Log what Ollama actually returned
+        console.log(`📦 Ollama response:`, data);
+        console.log(`📦 data.data structure:`, JSON.stringify(data.data, null, 2));
+        console.log(`📦 Recommendations count: ${data.data?.recommendations?.length || 0}`);
+        if (data.data?.recommendations?.length > 0) {
+          console.log(`📦 First recommendation:`, data.data.recommendations[0]);
+        } else {
+          console.log(`❌ No recommendations in response - data.data:`, data.data);
+        }
+
         // Validate recommendations by checking if songs exist in library
         const validatedRecommendations = [];
         let foundInLibrary = 0;
 
         for (const rec of data.data.recommendations) {
           try {
-            // Search for the recommended song
-            const searchResults = await search(rec.song, 0, 1);
-            if (searchResults.length > 0) {
+            // Parse "Artist - Title" format and use multi-strategy search
+            const parts = rec.song.split(' - ');
+            let foundSong = null;
+
+            if (parts.length >= 2) {
+              const artistPart = parts[0].trim();
+              const titlePart = parts.slice(1).join(' - ').trim();
+
+              // STRATEGY 1: Search by title, filter by artist
+              let titleMatches = await search(titlePart, 0, 10);
+              foundSong = titleMatches.find(s =>
+                s.artist?.toLowerCase().includes(artistPart.toLowerCase()) ||
+                artistPart.toLowerCase().includes(s.artist?.toLowerCase() || '')
+              );
+
+              // STRATEGY 2: Search by artist, filter by title
+              if (!foundSong) {
+                const artistMatches = await search(artistPart, 0, 10);
+                foundSong = artistMatches.find(s =>
+                  s.title?.toLowerCase().includes(titlePart.toLowerCase()) ||
+                  s.name?.toLowerCase().includes(titlePart.toLowerCase())
+                );
+              }
+
+              // STRATEGY 3: Full string search as fallback
+              if (!foundSong) {
+                const fullMatches = await search(rec.song, 0, 5);
+                foundSong = fullMatches[0];
+              }
+            } else {
+              // No " - " separator, just search the whole thing
+              const matches = await search(rec.song, 0, 5);
+              foundSong = matches[0];
+            }
+
+            if (foundSong) {
               foundInLibrary++;
               validatedRecommendations.push({
                 ...rec,
                 foundInLibrary: true,
-                actualSong: searchResults[0]
+                actualSong: foundSong
               });
               console.log(`✅ Found in library: ${rec.song}`);
             } else {
@@ -275,21 +318,87 @@ function DashboardIndex() {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
         console.log(`📦 Returning cached playlist for "${debouncedStyle}"`);
+        setGenerationStage('done');
         return JSON.parse(cached);
       }
-      console.log(`🔄 Generating fresh playlist for style: "${debouncedStyle}"`);
-      const response = await fetch('/api/playlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ style: debouncedStyle }),
-      });
-      if (!response.ok) throw new Error('Failed to fetch playlist');
-      const data = await response.json();
-      console.log(`✨ Generated playlist:`, data);
-      localStorage.setItem(cacheKey, JSON.stringify(data));
-      return data;
+
+      let attempts = 0;
+      const maxAttempts = 3;
+      let lastError: Error | null = null;
+      let lastData: unknown = null;
+
+      while (attempts < maxAttempts) {
+        attempts++;
+
+        if (attempts === 1) {
+          setGenerationStage('generating');
+        } else {
+          setGenerationStage('retrying');
+        }
+
+        console.log(`🎯 Playlist generation attempt ${attempts}/${maxAttempts} for style: "${debouncedStyle}"`);
+
+        try {
+          const response = await fetch('/api/playlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ style: debouncedStyle }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch playlist: ${response.statusText}`);
+          }
+
+          setGenerationStage('resolving');
+          const data = await response.json();
+          console.log(`✨ Generated playlist attempt ${attempts}:`, data);
+
+          // Count how many songs were successfully resolved
+          const resolvedCount = (data.data.playlist as PlaylistItem[]).filter(item => item.songId && !item.missing).length;
+          console.log(`📊 Resolution results: ${resolvedCount}/5 songs found in library`);
+
+          // If at least 3 songs found, accept this playlist
+          if (resolvedCount >= 3) {
+            console.log(`✅ Accepting playlist with ${resolvedCount} resolved songs`);
+            setGenerationStage('done');
+            localStorage.setItem(cacheKey, JSON.stringify(data));
+            return data;
+          }
+
+          // Save this result in case all attempts fail
+          lastData = data;
+          console.log(`🔄 Only ${resolvedCount} songs resolved, regenerating...`);
+
+          // Small delay before retry
+          if (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 1500));
+          }
+        } catch (error) {
+          console.error(`💥 Playlist generation attempt ${attempts} failed:`, error);
+          lastError = error instanceof Error ? error : new Error('Unknown error');
+
+          // Small delay before retry
+          if (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
+      }
+
+      // If all attempts failed but we have some data, return it
+      if (lastData) {
+        console.log(`⚠️ All attempts completed with low resolution rate, returning best available`);
+        setGenerationStage('done');
+        localStorage.setItem(cacheKey, JSON.stringify(lastData));
+        return lastData;
+      }
+
+      // If all attempts failed with errors
+      console.error(`🚨 All ${maxAttempts} attempts failed`);
+      setGenerationStage('idle');
+      throw lastError || new Error('Failed to generate playlist after multiple attempts');
     },
     enabled: !!debouncedStyle && !!session,
+    retry: false, // We handle retries ourselves
   });
 
   const handlePlaylistQueue = () => {
@@ -338,21 +447,82 @@ function DashboardIndex() {
   // Pre-warm cache with common songs when recommendations load
   useEffect(() => {
     if (recommendations && recommendations.data.recommendations) {
-      // Pre-cache all recommended songs for faster queuing
-      recommendations.data.recommendations.forEach((rec: { song: string }) => {
+      // Pre-cache all recommended songs for faster queuing using the same 3-strategy search as validation
+      recommendations.data.recommendations.forEach((rec: { song: string; foundInLibrary?: boolean; actualSong?: Song }) => {
         const cacheKey = rec.song.toLowerCase().trim();
+
+        // If we already found it during validation, use that result
+        if (rec.foundInLibrary && rec.actualSong) {
+          songCache.current.set(cacheKey, [rec.actualSong]);
+          console.log(`🚀 Pre-cached from validation: ${rec.song}`);
+          return;
+        }
+
         if (!songCache.current.has(cacheKey)) {
-          // Start searching in background but don't await
-          search(rec.song, 0, 1)
-            .then(songs => {
-              songCache.current.set(cacheKey, songs);
-              console.log(`🚀 Pre-cached song: ${rec.song}`);
-            })
-            .catch(err => {
-              console.log(`Failed to pre-cache ${rec.song}:`, err);
-              // Cache empty result to prevent repeated attempts
-              songCache.current.set(cacheKey, []);
-            });
+          // Use the same 3-strategy search as validation
+          const parts = rec.song.split(' - ');
+
+          if (parts.length >= 2) {
+            const artistPart = parts[0].trim();
+            const titlePart = parts.slice(1).join(' - ').trim();
+
+            // STRATEGY 1: Search by title, filter by artist
+            search(titlePart, 0, 10)
+              .then(titleMatches => {
+                const match = titleMatches.find(s =>
+                  s.artist?.toLowerCase().includes(artistPart.toLowerCase()) ||
+                  artistPart.toLowerCase().includes(s.artist?.toLowerCase() || '')
+                );
+
+                if (match) {
+                  songCache.current.set(cacheKey, [match]);
+                  console.log(`🚀 Pre-cached (title+artist): ${rec.song}`);
+                  return;
+                }
+
+                // STRATEGY 2: Search by artist, filter by title
+                return search(artistPart, 0, 10);
+              })
+              .then(artistMatches => {
+                if (!artistMatches) return;
+
+                const match = artistMatches.find(s =>
+                  s.title?.toLowerCase().includes(titlePart.toLowerCase()) ||
+                  s.name?.toLowerCase().includes(titlePart.toLowerCase())
+                );
+
+                if (match) {
+                  songCache.current.set(cacheKey, [match]);
+                  console.log(`🚀 Pre-cached (artist+title): ${rec.song}`);
+                } else {
+                  // STRATEGY 3: Full string search as fallback
+                  search(rec.song, 0, 5).then(fullMatches => {
+                    if (fullMatches.length > 0) {
+                      songCache.current.set(cacheKey, [fullMatches[0]]);
+                      console.log(`🚀 Pre-cached (full search): ${rec.song}`);
+                    } else {
+                      songCache.current.set(cacheKey, []);
+                      console.log(`⚠️ Pre-cache failed - not found: ${rec.song}`);
+                    }
+                  });
+                }
+              })
+              .catch(err => {
+                console.log(`Failed to pre-cache ${rec.song}:`, err);
+                songCache.current.set(cacheKey, []);
+              });
+          } else {
+            // No separator, just search the whole thing
+            search(rec.song, 0, 5)
+              .then(songs => {
+                songCache.current.set(cacheKey, songs.length > 0 ? [songs[0]] : []);
+                console.log(`🚀 Pre-cached (simple): ${rec.song}`);
+              })
+              .catch(err => {
+                console.log(`Failed to pre-cache ${rec.song}:`, err);
+                songCache.current.set(cacheKey, []);
+              });
+          }
         }
       });
     }
@@ -496,7 +666,27 @@ function DashboardIndex() {
           </p>
         )}
 
-        {playlistLoading && <p>Loading playlist...</p>}
+        {playlistLoading && (
+          <div className="space-y-2 p-4 border rounded-lg bg-muted/50">
+            <div className="flex items-center gap-2">
+              <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+              <p className="font-medium">
+                {generationStage === 'generating' && '🎵 AI generating playlist... (this may take up to 10s)'}
+                {generationStage === 'resolving' && '🔍 Finding songs in your library...'}
+                {generationStage === 'retrying' && '🔄 Improving results, trying again...'}
+                {generationStage === 'done' && '✅ Playlist ready!'}
+                {generationStage === 'idle' && '⏳ Loading playlist...'}
+              </p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {generationStage === 'generating' && 'Analyzing your library and generating suggestions'}
+              {generationStage === 'resolving' && 'Matching AI suggestions to your actual music collection'}
+              {generationStage === 'retrying' && 'Few songs matched - regenerating with better suggestions'}
+              {generationStage === 'done' && 'Complete'}
+              {generationStage === 'idle' && 'Please wait...'}
+            </p>
+          </div>
+        )}
         {playlistError && (
           <p className="text-destructive">
             Error: {playlistError.message}
@@ -512,8 +702,20 @@ function DashboardIndex() {
               <CardDescription>for "{debouncedStyle || style}". 5 suggestions from your library. Add to queue or provide feedback.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex justify-between mb-4">
+              <div className="flex justify-between mb-4 gap-2">
                 <Button onClick={handlePlaylistQueue}>Add Entire Playlist to Queue</Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    // Clear cache for this style to force regeneration
+                    const cacheKey = `playlist-${debouncedStyle}`;
+                    localStorage.removeItem(cacheKey);
+                    console.log(`🗑️ Cleared cache for "${debouncedStyle}", regenerating...`);
+                    refetchPlaylist();
+                  }}
+                >
+                  🔄 Regenerate
+                </Button>
               </div>
               <ul className="space-y-2">
                 {(playlistData.data.playlist as PlaylistItem[]).map((item, index: number) => {
@@ -537,12 +739,32 @@ function DashboardIndex() {
                               Queue
                             </Button>
                           ) : (
-                            <span className="text-sm text-destructive">Not in library</span>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm text-destructive">Not in library</span>
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="h-auto p-0 text-xs"
+                                onClick={() => {
+                                  const [artistPart] = item.song.split(' - ');
+                                  if (artistPart) {
+                                    window.location.href = `/library?search=${encodeURIComponent(artistPart.trim())}`;
+                                  }
+                                }}
+                              >
+                                Search for similar
+                              </Button>
+                            </div>
                           )}
                         </div>
                       </div>
                       <p className="text-sm text-muted-foreground">{item.explanation}</p>
-                      {item.missing && <p className="text-xs text-destructive">Not in library - Lidarr integration deferred</p>}
+                      {item.missing && (
+                        <div className="text-xs bg-destructive/10 border border-destructive/20 rounded p-2">
+                          <p className="text-destructive font-medium">Song not found in your library</p>
+                          <p className="text-muted-foreground mt-1">Try searching for the artist, or use the download feature when available</p>
+                        </div>
+                      )}
                     </li>
                   );
                 })}

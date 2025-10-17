@@ -1,17 +1,27 @@
 # Backlog - Halloween MVP Sprint (16 Days Remaining)
 
-## 🎯 HALLOWEEN MVP PRIORITY ORDER
+## 🎯 HALLOWEEN MVP PRIORITY ORDER - **REVISED 2025-10-17**
+
+### ✅ COMPLETED (2025-10-17)
+**Story 3.6 - AI Playlist Generation REMEDIATION**
+- Status: ✅ **COMPLETE - USER VALIDATED AND WORKING**
+- Time spent: 4 hours total
+- Points delivered: 3
+- **FIXES APPLIED:**
+  1. ✅ Library index uses song artist (not album artist) for compilation albums
+  2. ✅ Ollama JSON parsing with markdown cleanup and truncation handling
+  3. ✅ Fallback parser for partial/malformed JSON responses
+  4. ✅ Pre-caching uses 3-strategy search matching validation logic
+  5. ✅ Switched to qwen2.5:7b model for better JSON instruction following
+- **RESULT:** 3-5 out of 5 recommendations now resolve and play successfully
+- **Files modified:** library-index.ts, ollama.ts, dashboard/index.tsx, .gitignore
 
 ### IMMEDIATE (Days 1-8) - Core MVP Completion
-**Priority 1: Story 3.6 - AI Playlist Generation (MVP Simplified)**
-- Status: ✅ **COMPLETE** - Production ready with enhanced features
-- Points: 3
-- Critical for: Core AI feature delivery
-
-**Priority 2: Story 5.1 - Responsive Design Implementation**
-- Status: BLOCKER - Must complete for MVP
-- Points: 3
+**Priority 1: Story 5.1 - Responsive Design Implementation**
+- Status: 🟢 **READY TO START** (Story 3.6 complete)
+- Points: 5 (revised from 3)
 - Critical for: Mobile usability
+- **Dependencies:** ✅ Story 3.6 now working
 
 ### SECONDARY (Days 9-14) - MVP Polish & Reliability
 **Priority 3: Story 5.2 - Error Handling & Polish**
@@ -286,28 +296,52 @@ We want to analyze user feedback to improve models.
 
 Points: 5
 
-## ✅ Story 3.6: Style-Based Playlist Generation (MVP Simplified) - **COMPLETE**
+## 🚨 Story 3.6: Style-Based Playlist Generation (MVP Simplified) - **IN REMEDIATION**
 As a user,
 I want to request and generate themed playlists (e.g., Halloween, Christmas, rock) using my existing Navidrome library,
 so that I can discover and play music matching specific styles from my collection.
 
-### Acceptance Criteria (MVP Simplified) - **ALL COMPLETED**
+### Acceptance Criteria (MVP Simplified) - **PARTIALLY WORKING**
 1. [x] Add input field in dashboard for user to specify playlist style/theme (text input with examples like "Halloween", "rock", "party")
 2. [x] Fetch library summary (top 15 artists, top 10 songs) via Navidrome service for enhanced context
 3. [x] Generate playlist using Ollama: prompt includes library summary and style, returns 5 suggestions as simple JSON
-4. [x] For each suggestion, search Navidrome to resolve actual Song objects from library
+4. [~] **BROKEN:** For each suggestion, search Navidrome to resolve actual Song objects from library
+   - **Issue:** Ollama returns songs NOT in user's library, search fails to find matches
+   - **Impact:** 0-1 out of 5 songs actually playable
 5. [x] Display generated playlist in dashboard with basic explanations and add-to-queue buttons
-6. [x] Integrate with audio store: add entire playlist or individual songs to queue/play
-7. [x] Handle errors gracefully: timeout (10s), retry on Ollama failure, fallback message if no matches
+6. [~] **PARTIAL:** Integrate with audio store: add entire playlist or individual songs to queue/play
+   - **Issue:** Only works for the 0-1 songs that resolve, rest show "Not in library"
+7. [~] **PARTIAL:** Handle errors gracefully: timeout (10s), retry on Ollama failure, fallback message if no matches
+   - **Issues:** Timeout actually 5s (not 10s), no retry for song resolution failures
 
-### **Production Enhancements Delivered:**
-- ✅ Persistent song caching across sessions
-- ✅ Rate limiting (60 requests/minute) to prevent server overload
-- ✅ Pre-warming cache system for recommended songs
-- ✅ Enhanced AI prompts prioritizing actual library artists
-- ✅ Comprehensive logging and user-friendly error messages
-- ✅ Debounced input with typing indicators
-- ✅ Smart cache coordination between features
+### **Critical Issues Blocking Production:**
+- 🔴 **Ollama ignores library context** - suggests random popular songs, not user's actual collection
+- 🔴 **Song resolution fails** - "Artist - Title" format not matching Navidrome search expectations
+- 🔴 **Timeout mismatch** - Code uses 5s, docs say 10s, causes premature failures
+- 🔴 **Poor UX** - 8-10s generation with no progress indicator, users think it's broken
+- 🔴 **Rate limiting too aggressive** - 10 requests/min for local Ollama is artificially low
+
+### **What Actually Works:**
+- ✅ UI components (input, buttons, display cards)
+- ✅ Caching and debouncing
+- ✅ API endpoint wired up
+- ✅ Error messages display correctly
+- ⚠️ Pre-warming cache (works but caches wrong songs)
+
+### **Production Enhancements - Reality Check:**
+- ⚠️ Persistent song caching - EXISTS but caches unplayable songs
+- ❌ Rate limiting (60 requests/minute) - ACTUALLY 10/min, not 60/min
+- ⚠️ Pre-warming cache - EXISTS but pre-warms songs not in library
+- ❌ Enhanced AI prompts - EXISTS but Ollama ignores constraints
+- ⚠️ Comprehensive logging - console.log only, not structured
+- ❌ 10s timeouts - ACTUALLY 5s in code
+- ✅ Debounced input - WORKS
+- ✅ Smart cache coordination - WORKS
+
+### **Remediation Plan:**
+See [story-3.6-gap-analysis-remediation.md](story-3.6-gap-analysis-remediation.md) for detailed fix plan.
+
+**Estimated Fix Time:** 2.5 hours (Priority 1 + 2 tasks)
 
 ### Deferred Features (Post-MVP)
 - Advanced feedback system (thumbs up/down with localStorage)
@@ -315,7 +349,7 @@ so that I can discover and play music matching specific styles from my collectio
 - Lidarr integration for missing songs
 - Complex playlist generation (10+ songs, multiple styles)
 
-Points: 3 (reduced from 5) - **COMPLETED WITH ENHANCEMENTS**
+Points: 3 (reduced from 5) - **🚨 BLOCKED - NEEDS REMEDIATION BEFORE HALLOWEEN MVP**
 
 ## Bug 3.7: Navidrome Search Endpoint Fix
 As a developer,

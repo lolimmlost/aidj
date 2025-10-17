@@ -379,18 +379,6 @@ export async function search(query: string, start: number = 0, limit: number = 5
       return cached;
     }
 
-    // Check if query is in "Artist - Title" format
-    const artistTitleMatch = query.match(/^(.+?)\s*-\s*(.+)$/);
-    if (artistTitleMatch) {
-      const resolvedSong = await resolveSongByArtistTitle(query);
-      if (resolvedSong) {
-        // Cache the result
-        mobileOptimization.setCache(cacheKey, [resolvedSong], 300000);
-        return [resolvedSong];
-      }
-      // If not found, continue with general search
-    }
-
     // Use mobile-optimized batched requests
     const qualitySettings = mobileOptimization.getQualitySettings();
     

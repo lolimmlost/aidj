@@ -29,6 +29,7 @@ import { Route as LibraryArtistsIdAlbumsAlbumIdRouteImport } from "./routes/libr
 import { ServerRoute as ApiSearchServerRouteImport } from "./routes/api/search";
 import { ServerRoute as ApiRecommendationsServerRouteImport } from "./routes/api/recommendations";
 import { ServerRoute as ApiPlaylistServerRouteImport } from "./routes/api/playlist";
+import { ServerRoute as ApiDebugLibraryServerRouteImport } from "./routes/api/debug-library";
 import { ServerRoute as ApiConfigServerRouteImport } from "./routes/api/config";
 import { ServerRoute as ApiLidarrStatusServerRouteImport } from "./routes/api/lidarr/status";
 import { ServerRoute as ApiLidarrSearchServerRouteImport } from "./routes/api/lidarr/search";
@@ -135,6 +136,11 @@ const ApiRecommendationsServerRoute =
 const ApiPlaylistServerRoute = ApiPlaylistServerRouteImport.update({
   id: "/api/playlist",
   path: "/api/playlist",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
+const ApiDebugLibraryServerRoute = ApiDebugLibraryServerRouteImport.update({
+  id: "/api/debug-library",
+  path: "/api/debug-library",
   getParentRoute: () => rootServerRouteImport,
 } as any);
 const ApiConfigServerRoute = ApiConfigServerRouteImport.update({
@@ -320,6 +326,7 @@ export interface RootRouteChildren {
 }
 export interface FileServerRoutesByFullPath {
   "/api/config": typeof ApiConfigServerRoute;
+  "/api/debug-library": typeof ApiDebugLibraryServerRoute;
   "/api/playlist": typeof ApiPlaylistServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRoute;
   "/api/search": typeof ApiSearchServerRoute;
@@ -338,6 +345,7 @@ export interface FileServerRoutesByFullPath {
 }
 export interface FileServerRoutesByTo {
   "/api/config": typeof ApiConfigServerRoute;
+  "/api/debug-library": typeof ApiDebugLibraryServerRoute;
   "/api/playlist": typeof ApiPlaylistServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRoute;
   "/api/search": typeof ApiSearchServerRoute;
@@ -357,6 +365,7 @@ export interface FileServerRoutesByTo {
 export interface FileServerRoutesById {
   __root__: typeof rootServerRouteImport;
   "/api/config": typeof ApiConfigServerRoute;
+  "/api/debug-library": typeof ApiDebugLibraryServerRoute;
   "/api/playlist": typeof ApiPlaylistServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRoute;
   "/api/search": typeof ApiSearchServerRoute;
@@ -377,6 +386,7 @@ export interface FileServerRouteTypes {
   fileServerRoutesByFullPath: FileServerRoutesByFullPath;
   fullPaths:
     | "/api/config"
+    | "/api/debug-library"
     | "/api/playlist"
     | "/api/recommendations"
     | "/api/search"
@@ -395,6 +405,7 @@ export interface FileServerRouteTypes {
   fileServerRoutesByTo: FileServerRoutesByTo;
   to:
     | "/api/config"
+    | "/api/debug-library"
     | "/api/playlist"
     | "/api/recommendations"
     | "/api/search"
@@ -413,6 +424,7 @@ export interface FileServerRouteTypes {
   id:
     | "__root__"
     | "/api/config"
+    | "/api/debug-library"
     | "/api/playlist"
     | "/api/recommendations"
     | "/api/search"
@@ -432,6 +444,7 @@ export interface FileServerRouteTypes {
 }
 export interface RootServerRouteChildren {
   ApiConfigServerRoute: typeof ApiConfigServerRoute;
+  ApiDebugLibraryServerRoute: typeof ApiDebugLibraryServerRoute;
   ApiPlaylistServerRoute: typeof ApiPlaylistServerRoute;
   ApiRecommendationsServerRoute: typeof ApiRecommendationsServerRoute;
   ApiSearchServerRoute: typeof ApiSearchServerRoute;
@@ -579,6 +592,13 @@ declare module "@tanstack/react-start/server" {
       path: "/api/playlist";
       fullPath: "/api/playlist";
       preLoaderRoute: typeof ApiPlaylistServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/debug-library": {
+      id: "/api/debug-library";
+      path: "/api/debug-library";
+      fullPath: "/api/debug-library";
+      preLoaderRoute: typeof ApiDebugLibraryServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
     "/api/config": {
@@ -742,6 +762,7 @@ export const routeTree = rootRouteImport
   ._addFileTypes<FileRouteTypes>();
 const rootServerRouteChildren: RootServerRouteChildren = {
   ApiConfigServerRoute: ApiConfigServerRoute,
+  ApiDebugLibraryServerRoute: ApiDebugLibraryServerRoute,
   ApiPlaylistServerRoute: ApiPlaylistServerRoute,
   ApiRecommendationsServerRoute: ApiRecommendationsServerRoute,
   ApiSearchServerRoute: ApiSearchServerRoute,

@@ -3,14 +3,15 @@ import { getConfig } from '../config/config';
 import type { LibrarySummary } from './navidrome';
 import { getLibrarySummary } from './navidrome';
 import { ServiceError } from '../utils';
+import { getSongSampleForAI, getIndexedArtists } from './library-index';
 
 const OLLAMA_BASE_URL = getConfig().ollamaUrl || 'http://localhost:11434';
 const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'llama2';
 
-// Rate limiting
+// Rate limiting - increased for local Ollama instances
 const ollamaRequestQueue = new Map<string, number[]>();
 const OLLAMA_RATE_LIMIT_WINDOW = 60000; // 1 minute
-const OLLAMA_RATE_LIMIT_MAX_REQUESTS = 10; // Max 10 AI requests per minute
+const OLLAMA_RATE_LIMIT_MAX_REQUESTS = 30; // Max 30 AI requests per minute for local instances
 
 function checkOllamaRateLimit(key: string): boolean {
   const now = Date.now();
@@ -77,14 +78,14 @@ export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, u
 
   let enhancedPrompt = prompt;
   if (userId) {
-    const summary = await getLibrarySummary();
-    console.log('🎵 Library summary for recommendations:', summary); // Debug log
-    const artistsList = summary.artists.map((a: { name: string; genres: string }) => `${a.name} (${a.genres})`).join(', ');
-    const songsList = summary.songs.slice(0, 10).join(', '); // Top 10 as examples
+    // Use library index instead of summary for accurate song data
+    const songSample = await getSongSampleForAI(80);
+    const artists = await getIndexedArtists();
 
-    // Extract artist names for more focused recommendations
-    const artistNames = summary.artists.map((a: { name: string }) => a.name).slice(0, 8);
-    console.log('🎤 Top artists for recommendations:', artistNames); // Debug log
+    const songListForPrompt = songSample.slice(0, 40).join('\n'); // Show 40 songs
+    const artistsList = artists.slice(0, 30).join(', ');
+
+    console.log(`🎵 Using ${songSample.length} indexed songs and ${artists.length} artists for recommendations`);
 
     // Add timestamp to encourage different responses each time
     const timestamp = Date.now();
@@ -92,19 +93,21 @@ export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, u
 
     enhancedPrompt = `${prompt}.
 
-CRITICAL: You MUST prioritize recommendations from my actual library. Here are the artists I have: [${artistNames.join(', ')}]. Here are example songs from my library: [${songsList}].
+USER'S LIBRARY (complete list of available songs - ONLY use songs from this list):
+${songListForPrompt}
+
+ARTISTS IN LIBRARY: ${artistsList}
 
 IMPORTANT - Generate DIFFERENT recommendations each time. Session seed: ${randomSeed}_${timestamp}
 
 RULES:
-1. PRIORITY 1: Recommend other popular songs by these exact artists: ${artistNames.slice(0, 5).join(', ')}
-2. PRIORITY 2: Recommend songs by artists that are VERY similar to my library artists
-3. AVOID suggesting the same songs repeatedly - choose DIFFERENT well-known tracks each time
-4. ONLY suggest songs that realistically could be in my collection based on my existing taste
-5. Use the format "Artist - Title" and ensure the artist is either from my library or very similar
-6. If suggesting songs by my library artists, choose their different well-known tracks each time
+1. ONLY recommend songs from the library list above - copy the EXACT format "Artist - Title"
+2. Choose DIFFERENT songs each time - never repeat the same recommendations
+3. Select songs that match the mood/style requested in the prompt
+4. If no specific mood requested, recommend diverse songs from the library
+5. Format: "Artist - Title" exactly as shown in the library list
 
-Your goal is to recommend songs I LIKELY HAVE or songs by artists I clearly like based on my library. Make sure each response is UNIQUE and different from previous suggestions.`;
+Your goal is to recommend songs from my ACTUAL library that I'll enjoy. Make sure each response is UNIQUE.`;
   }
 
   const url = `${OLLAMA_BASE_URL}/api/generate`;
@@ -132,19 +135,90 @@ Your goal is to recommend songs I LIKELY HAVE or songs by artists I clearly like
     }
 
     const data = await response.json();
+    console.log('🤖 Raw Ollama response:', JSON.stringify(data).substring(0, 500));
+
     if (!data.response) {
+      console.error('❌ No response field from Ollama:', data);
       throw new ServiceError('OLLAMA_PARSE_ERROR', 'No response from Ollama');
+    }
+
+    console.log('🤖 Ollama response text (first 500 chars):', data.response.substring(0, 500));
+
+    // Clean up response: remove markdown code blocks if present
+    let cleanedResponse = data.response.trim();
+    if (cleanedResponse.startsWith('```json')) {
+      cleanedResponse = cleanedResponse.replace(/^```json\s*/i, '').replace(/\s*```\s*$/, '');
+      console.log('🧹 Removed markdown code blocks from response');
+    } else if (cleanedResponse.startsWith('```')) {
+      cleanedResponse = cleanedResponse.replace(/^```\s*/i, '').replace(/\s*```\s*$/, '');
+      console.log('🧹 Removed markdown code blocks from response');
+    }
+
+    // Fix truncated JSON by ensuring it's complete
+    if (cleanedResponse.includes('"recommendations"') && !cleanedResponse.trim().endsWith('}')) {
+      // Try to fix incomplete JSON
+      const openBraces = (cleanedResponse.match(/{/g) || []).length;
+      const closeBraces = (cleanedResponse.match(/}/g) || []).length;
+      const openBrackets = (cleanedResponse.match(/\[/g) || []).length;
+      const closeBrackets = (cleanedResponse.match(/]/g) || []).length;
+
+      if (openBraces > closeBraces || openBrackets > closeBrackets) {
+        console.log('🔧 Attempting to fix incomplete JSON...');
+        if (openBrackets > closeBrackets) cleanedResponse += ']';
+        if (openBraces > closeBraces) cleanedResponse += '}';
+        console.log('🔧 Added missing brackets/braces');
+      }
     }
 
     let parsed;
     try {
-      parsed = JSON.parse(data.response) as { recommendations: { song: string; explanation: string }[] };
+      parsed = JSON.parse(cleanedResponse) as { recommendations: { song: string; explanation: string }[] };
+      console.log('✅ Successfully parsed recommendations:', parsed.recommendations?.length || 0);
     } catch (parseError) {
-      console.error('JSON parse error:', parseError, 'Response:', data.response);
-      // Fallback: extract songs from text
-      const fallback = data.response.match(/song["']?\s*:\s*["']([^"']+)["']/gi) || [];
-      const recs = fallback.slice(0, 5).map((match: string) => ({ song: match.replace(/song["']?\s*:\s*["']/, '').replace(/["']$/, ''), explanation: 'Recommended based on your preferences' }));
-      return { recommendations: recs };
+      console.error('❌ JSON parse error:', parseError);
+      console.error('❌ Cleaned response text:', cleanedResponse);
+
+      // Fallback: extract songs from partial/broken JSON or conversational text
+      let matches: Array<{song: string; explanation: string}> = [];
+
+      // Try to extract from JSON-like format: "song": "Artist - Title"
+      const jsonSongPattern = /"song"\s*:\s*"([^"]+)"/gi;
+      const jsonMatches = [...cleanedResponse.matchAll(jsonSongPattern)];
+      if (jsonMatches.length > 0) {
+        matches = jsonMatches.slice(0, 5).map(match => ({
+          song: match[1],
+          explanation: 'Recommended based on your preferences'
+        }));
+        console.log('🔧 Extracted songs from partial JSON:', matches.length);
+      } else {
+        // Fallback to conversational text patterns
+        const patterns = [
+          /(?:Artist[\s-]*:?\s*([^-\n]+?)\s*[-–]\s*(?:Title|Song)[\s-]*:?\s*([^\n(]+))/gi,
+          /\d+\.\s*(?:Artist[\s-]*)?(?:Title[\s-]*)?:?\s*([^-\n]+?)\s*[-–]\s*([^\n(]+)/gi,
+        ];
+
+        for (const pattern of patterns) {
+          const found = [...cleanedResponse.matchAll(pattern)];
+          if (found.length > 0) {
+            matches = found.slice(0, 5).map(match => {
+              const artist = match[1].trim();
+              const title = match[2].trim().split(/\s*\(/)[0].trim();
+              return {
+                song: `${artist} - ${title}`,
+                explanation: 'Recommended based on your preferences'
+              };
+            });
+            console.log('🔧 Fallback pattern matched:', matches.length, 'songs');
+            break;
+          }
+        }
+      }
+
+      if (matches.length === 0) {
+        console.error('❌ No songs could be parsed from response');
+      }
+
+      return { recommendations: matches };
     }
     if (!parsed.recommendations || !Array.isArray(parsed.recommendations)) {
       throw new ServiceError('OLLAMA_PARSE_ERROR', 'Invalid recommendations format');
@@ -208,24 +282,45 @@ export async function generatePlaylist({ style, summary }: PlaylistRequest): Pro
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout per AC7
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout per AC7
 
-  const topArtists = summary.artists.slice(0, 12).map((a: { name: string; genres: string }) => `${a.name} (${a.genres || 'Unknown'})`).join('; ');
-  const topSongs = summary.songs.slice(0, 8).join('; '); // Increased for more variety
-  const prompt = `Respond with ONLY valid JSON - no other text or explanations! STRICTLY use ONLY songs from my library. My library artists: [${topArtists}]. Example songs: [${topSongs}].
+  // Get indexed library data for better context
+  console.log('📚 Fetching indexed library data for AI context...');
+  const songSample = await getSongSampleForAI(80); // Get 80 actual songs from library
+  const artists = await getIndexedArtists();
 
-IMPORTANT: Generate exactly 5 DIFFERENT songs that match the style "${style}". Each suggestion must be a UNIQUE song that genuinely fits the requested style.
+  // Format songs list for prompt (show first 60 for readability)
+  const songListForPrompt = songSample.slice(0, 60).join('\n');
+  const artistsList = artists.slice(0, 30).join(', ');
+
+  console.log(`🎵 Using ${songSample.length} indexed songs and ${artists.length} artists for context`);
+
+  const prompt = `You are a music playlist generator. You MUST ONLY use songs from the user's EXACT library listed below.
+
+USER'S LIBRARY (complete list of available songs):
+${songListForPrompt}
+
+ARTISTS IN LIBRARY: ${artistsList}
+
+TASK: Create a 5-song playlist for style "${style}"
+
+RULES:
+1. ONLY use songs from the library list above - copy the EXACT format "Artist - Title"
+2. Each song must genuinely match the "${style}" theme/mood
+3. No duplicates
+4. No songs not in the list above
 
 For style "${style}":
-- If Halloween: choose spooky, dark, mysterious, or themed songs
+- If Halloween: choose spooky, dark, mysterious, or horror-themed songs
 - If rock: choose guitar-heavy, energetic, or classic rock songs
 - If party: choose upbeat, danceable, or celebration songs
-- If holiday: choose festive, seasonal, or celebration songs
-- For other styles: match the mood and genre appropriately
+- If chill/relaxing: choose mellow, ambient, or calm songs
+- Match the mood appropriately for other styles
 
-Format: {"playlist": [{"song": "Exact Artist - Exact Title", "explanation": "How this song fits ${style}"}, ...]}
+OUTPUT FORMAT (valid JSON only, no other text):
+{"playlist": [{"song": "Artist - Title", "explanation": "Why this fits ${style}"}, ...]}
 
-CRITICAL: Each song must be an EXACT match from my library list. No duplicates. No songs not in my library.`;
+Generate exactly 5 songs now:`;
 
   const url = `${OLLAMA_BASE_URL}/api/generate`;
   const body = {
@@ -275,8 +370,8 @@ CRITICAL: Each song must be an EXACT match from my library list. No duplicates. 
   } catch (error: unknown) {
     clearTimeout(timeoutId);
     if (error instanceof DOMException && error.name === 'AbortError') {
-      console.error('⏰ Ollama request timed out after 5s');
-      throw new ServiceError('OLLAMA_TIMEOUT_ERROR', 'Ollama request timed out after 5s');
+      console.error('⏰ Ollama request timed out after 10s');
+      throw new ServiceError('OLLAMA_TIMEOUT_ERROR', 'Ollama request timed out after 10s');
     }
     console.error('💥 Ollama playlist generation error:', error);
     throw error;

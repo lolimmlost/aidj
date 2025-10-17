@@ -12,6 +12,7 @@ dist/
 build/
 .next/
 out/
+.output/
 
 # Vite / cache
 .vite/
@@ -53,6 +54,8 @@ Thumbs.db
 # Web bundling outputs
 # (Note: intentionally not ignoring web-bundles by default)
 # web-bundles/
+#build output
+.output
 
 # Development server artifacts
 
