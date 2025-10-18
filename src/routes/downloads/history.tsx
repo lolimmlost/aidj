@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -6,6 +6,11 @@ import { toast } from 'sonner'
 import { getDownloadHistory, exportDownloadHistory, clearDownloadHistory } from '@/lib/services/lidarr'
 
 export const Route = createFileRoute('/downloads/history')({
+  beforeLoad: async ({ context }) => {
+    if (!context.user) {
+      throw redirect({ to: '/login' });
+    }
+  },
   component: DownloadHistoryPage,
 })
 

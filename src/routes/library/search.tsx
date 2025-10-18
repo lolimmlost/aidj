@@ -1,10 +1,15 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { search } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
 
 export const Route = createFileRoute('/library/search')({
+  beforeLoad: async ({ context }) => {
+    if (!context.user) {
+      throw redirect({ to: '/login' });
+    }
+  },
   component: SearchPage,
 });
 

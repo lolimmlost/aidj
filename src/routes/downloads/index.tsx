@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useState } from 'react'
 import { search } from '@/lib/services/lidarr'
 import { search as searchNavidrome } from '@/lib/services/navidrome'
@@ -8,6 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner'
 
 export const Route = createFileRoute('/downloads/')({
+  beforeLoad: async ({ context }) => {
+    if (!context.user) {
+      throw redirect({ to: '/login' });
+    }
+  },
   component: DownloadsPage,
 })
 

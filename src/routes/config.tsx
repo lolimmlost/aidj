@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,6 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/config")({
+  beforeLoad: async ({ context }) => {
+    if (!context.user) {
+      throw redirect({ to: '/login' });
+    }
+  },
   component: ConfigPage,
 });
 

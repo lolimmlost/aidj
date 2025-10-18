@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
@@ -11,6 +11,11 @@ import { LayoutSettings } from './layout';
 import { ServicesSettings } from './services';
 
 export const Route = createFileRoute('/settings/')({
+  beforeLoad: async ({ context }) => {
+    if (!context.user) {
+      throw redirect({ to: '/login' });
+    }
+  },
   component: SettingsPage,
 });
 

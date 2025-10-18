@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { toast } from 'sonner';
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,6 +12,11 @@ import { Input } from '@/components/ui/input';
 import { search } from '@/lib/services/navidrome';
 
 export const Route = createFileRoute("/dashboard/")({
+  beforeLoad: async ({ context }) => {
+    if (!context.user) {
+      throw redirect({ to: '/login' });
+    }
+  },
   component: DashboardIndex,
 });
 

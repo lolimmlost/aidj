@@ -1,4 +1,4 @@
-import { createFileRoute, useParams } from '@tanstack/react-router';
+import { createFileRoute, useParams, redirect } from '@tanstack/react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
@@ -6,6 +6,11 @@ import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
 
 export const Route = createFileRoute('/dashboard/recommendations/id')({
+  beforeLoad: async ({ context }) => {
+    if (!context.user) {
+      throw redirect({ to: '/login' });
+    }
+  },
   component: RecommendationDetail,
 });
 

@@ -1,10 +1,15 @@
-import { createFileRoute, Link, useParams, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useParams, useNavigate, redirect } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { getAlbums } from '@/lib/services/navidrome';
 import { Loader2, Music } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 
 export const Route = createFileRoute('/library/artists/id')({
+  beforeLoad: async ({ context }) => {
+    if (!context.user) {
+      throw redirect({ to: '/login' });
+    }
+  },
   component: ArtistAlbums,
 });
 
