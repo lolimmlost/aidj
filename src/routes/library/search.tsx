@@ -3,6 +3,11 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { search } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { NavidromeErrorBoundary } from '@/components/navidrome-error-boundary';
+import { Search as SearchIcon } from 'lucide-react';
 
 export const Route = createFileRoute('/library/search')({
   beforeLoad: async ({ context }) => {

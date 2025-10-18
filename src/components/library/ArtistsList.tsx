@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@tanstack/react-router';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function ArtistsList() {
   const [genre, setGenre] = useState('all');
@@ -87,8 +88,17 @@ export function ArtistsList() {
       </Card>
 
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4" aria-busy="true" aria-live="polite">
+          {[...Array(12)].map((_, index) => (
+            <Card key={index}>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="w-10 h-10 sm:w-12 sm:h-12 rounded-full" />
+                  <Skeleton className="h-5 w-32 sm:w-40" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
