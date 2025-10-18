@@ -28,9 +28,6 @@ function RecommendationDetail() {
   // Get song name from search params (?song=Artist%20-%20Title)
   const song = (search as { song?: string }).song;
 
-  console.log('Search params:', search);
-  console.log('Song from search:', song);
-
   if (!song) {
     return (
       <div className="container mx-auto p-6">
@@ -86,8 +83,9 @@ function RecommendationDetail() {
       setOptimisticFeedback(feedbackType);
     },
     onSuccess: (_, feedbackType) => {
-      // Invalidate recommendations cache to refresh quality scores
+      // Invalidate caches to refresh UI
       queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+      queryClient.invalidateQueries({ queryKey: ['preference-analytics'] });
       const emoji = feedbackType === 'thumbs_up' ? '👍' : '👎';
       toast.success(`Feedback saved ${emoji}`, {
         description: 'Your preferences help improve recommendations',
@@ -97,10 +95,21 @@ function RecommendationDetail() {
     onError: (error) => {
       console.error('Failed to submit feedback:', error);
       setOptimisticFeedback(null); // Revert optimistic update
-      toast.error('Failed to save feedback', {
-        description: error instanceof Error ? error.message : 'Please try again',
-        duration: 3000,
-      });
+
+      // Check if it's a duplicate feedback error
+      const isDuplicate = error instanceof Error && error.message.includes('already rated');
+
+      if (isDuplicate) {
+        toast.info('Already rated', {
+          description: 'You have already provided feedback for this song',
+          duration: 2000,
+        });
+      } else {
+        toast.error('Failed to save feedback', {
+          description: error instanceof Error ? error.message : 'Please try again',
+          duration: 3000,
+        });
+      }
     },
   });
 

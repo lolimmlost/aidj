@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { toast } from 'sonner';
 import React, { useState, useEffect, useRef } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
 import { usePreferencesStore } from '@/lib/stores/preferences';
@@ -38,6 +38,63 @@ function DashboardIndex() {
   const trimmedStyle = style.trim();
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const songCache = useRef<Map<string, unknown[]>>(new Map()); // Cache for song search results
+
+  // Track feedback state per song (for optimistic updates)
+  const [songFeedback, setSongFeedback] = useState<Record<string, 'thumbs_up' | 'thumbs_down' | null>>({});
+
+  // Feedback mutation for inline buttons
+  const feedbackMutation = useMutation({
+    mutationFn: async ({ song, feedbackType }: { song: string; feedbackType: 'thumbs_up' | 'thumbs_down' }) => {
+      const response = await fetch('/api/recommendations/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          songArtistTitle: song,
+          feedbackType,
+          source: 'recommendation',
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to submit feedback');
+      }
+      return response.json();
+    },
+    onMutate: async ({ song, feedbackType }) => {
+      // Optimistic update
+      setSongFeedback(prev => ({ ...prev, [song]: feedbackType }));
+    },
+    onSuccess: (_, { song, feedbackType }) => {
+      // Invalidate caches to refresh UI
+      queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+      queryClient.invalidateQueries({ queryKey: ['preference-analytics'] });
+      const emoji = feedbackType === 'thumbs_up' ? '👍' : '👎';
+      toast.success(`Feedback saved ${emoji}`, {
+        description: 'Your preferences help improve recommendations',
+        duration: 2000,
+      });
+    },
+    onError: (error, { song }) => {
+      console.error('Failed to submit feedback:', error);
+      // Revert optimistic update
+      setSongFeedback(prev => ({ ...prev, [song]: null }));
+
+      // Check if it's a duplicate feedback error
+      const isDuplicate = error instanceof Error && error.message.includes('already rated');
+
+      if (isDuplicate) {
+        toast.info('Already rated', {
+          description: 'You have already provided feedback for this song',
+          duration: 2000,
+        });
+      } else {
+        toast.error('Failed to save feedback', {
+          description: error instanceof Error ? error.message : 'Please try again',
+          duration: 3000,
+        });
+      }
+    },
+  });
 
   // Load user preferences on mount
   useEffect(() => {
@@ -667,6 +724,9 @@ function DashboardIndex() {
                       const isInLibrary = rec.foundInLibrary;
                       const hasSearchError = rec.searchError;
 
+                      const currentFeedback = songFeedback[rec.song];
+                      const hasFeedback = currentFeedback !== undefined && currentFeedback !== null;
+
                       return (
                         <li key={index} className={`flex flex-col space-y-2 p-2 border rounded ${isInLibrary ? 'border-green-200 bg-green-50/10' : 'border-gray-200'}`}>
                           <div className="flex justify-between items-center">
@@ -685,15 +745,38 @@ function DashboardIndex() {
                                 </span>
                               )}
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleQueue(rec.song)}
-                              disabled={!isInLibrary}
-                              className={!isInLibrary ? "opacity-50 cursor-not-allowed" : ""}
-                            >
-                              {isInLibrary ? "Queue" : "Not Available"}
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              {/* Like/Dislike Buttons */}
+                              <Button
+                                variant={currentFeedback === 'thumbs_up' ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => feedbackMutation.mutate({ song: rec.song, feedbackType: 'thumbs_up' })}
+                                disabled={feedbackMutation.isPending || hasFeedback}
+                                className={currentFeedback === 'thumbs_up' ? 'bg-green-600 hover:bg-green-700' : ''}
+                                title={hasFeedback ? "Already rated" : "Like this song"}
+                              >
+                                {feedbackMutation.isPending && currentFeedback === 'thumbs_up' ? '⏳' : '👍'}
+                              </Button>
+                              <Button
+                                variant={currentFeedback === 'thumbs_down' ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => feedbackMutation.mutate({ song: rec.song, feedbackType: 'thumbs_down' })}
+                                disabled={feedbackMutation.isPending || hasFeedback}
+                                className={currentFeedback === 'thumbs_down' ? 'bg-red-600 hover:bg-red-700' : ''}
+                                title={hasFeedback ? "Already rated" : "Dislike this song"}
+                              >
+                                {feedbackMutation.isPending && currentFeedback === 'thumbs_down' ? '⏳' : '👎'}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleQueue(rec.song)}
+                                disabled={!isInLibrary}
+                                className={!isInLibrary ? "opacity-50 cursor-not-allowed" : ""}
+                              >
+                                {isInLibrary ? "Queue" : "Not Available"}
+                              </Button>
+                            </div>
                           </div>
                           <p className="text-sm text-muted-foreground">{rec.explanation.substring(0, 100)}...</p>
                           {!isInLibrary && !hasSearchError && (

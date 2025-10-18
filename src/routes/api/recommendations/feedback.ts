@@ -5,6 +5,7 @@ import { recommendationFeedback, recommendationsCache, userPreferences } from '.
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { starSong, unstarSong } from '../../../lib/services/navidrome';
+import { clearPreferenceCache } from '../../../lib/services/preferences';
 
 // Zod schema for feedback validation
 const FeedbackSchema = z.object({
@@ -41,6 +42,33 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/feedback'
       // Input validation using Zod
       const validatedData = FeedbackSchema.parse(body);
 
+      // Check if feedback already exists for this song
+      const existingFeedback = await db
+        .select()
+        .from(recommendationFeedback)
+        .where(
+          and(
+            eq(recommendationFeedback.userId, session.user.id),
+            eq(recommendationFeedback.songArtistTitle, validatedData.songArtistTitle)
+          )
+        )
+        .limit(1)
+        .then(rows => rows[0]);
+
+      if (existingFeedback) {
+        return new Response(JSON.stringify({
+          code: 'DUPLICATE_FEEDBACK',
+          message: 'You have already rated this song',
+          existingFeedback: {
+            feedbackType: existingFeedback.feedbackType,
+            timestamp: existingFeedback.timestamp,
+          }
+        }), {
+          status: 409, // Conflict
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
       // Insert feedback record
       const feedbackRecord = {
         id: crypto.randomUUID(),
@@ -53,6 +81,9 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/feedback'
       };
 
       await db.insert(recommendationFeedback).values(feedbackRecord);
+
+      // Clear preference cache to ensure fresh data on next fetch
+      clearPreferenceCache(session.user.id);
 
       // Sync to Navidrome (star/unstar) if enabled and songId provided
       if (validatedData.songId) {
