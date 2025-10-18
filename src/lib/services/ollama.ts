@@ -4,6 +4,7 @@ import type { LibrarySummary } from './navidrome';
 import { getLibrarySummary } from './navidrome';
 import { ServiceError } from '../utils';
 import { getSongSampleForAI, getIndexedArtists } from './library-index';
+import { buildUserPreferenceProfile, getListeningPatterns } from './preferences';
 
 const OLLAMA_BASE_URL = getConfig().ollamaUrl || 'http://localhost:11434';
 const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'llama2';
@@ -39,6 +40,7 @@ interface RecommendationRequest {
   prompt: string;
   model?: string;
   userId?: string;
+  useFeedbackForPersonalization?: boolean; // Privacy setting
 }
 
 interface RecommendationResponse {
@@ -65,7 +67,11 @@ async function retryFetch(fn: () => Promise<Response>, maxRetries = 3): Promise<
   throw lastError!;
 }
 
-export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, userId }: RecommendationRequest & { userId?: string }): Promise<RecommendationResponse> {
+export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, userId, useFeedbackForPersonalization = true }: RecommendationRequest & { userId?: string }): Promise<RecommendationResponse> {
+  // Performance monitoring - start timer
+  const perfStart = Date.now();
+  const perfTimings: Record<string, number> = {};
+
   // Rate limiting check
   const rateLimitKey = userId ? `recommendations_${userId}` : 'recommendations_anonymous';
   if (!checkOllamaRateLimit(rateLimitKey)) {
@@ -79,13 +85,54 @@ export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, u
   let enhancedPrompt = prompt;
   if (userId) {
     // Use library index instead of summary for accurate song data
+    const libStart = Date.now();
     const songSample = await getSongSampleForAI(80);
     const artists = await getIndexedArtists();
+    perfTimings.libraryFetch = Date.now() - libStart;
 
     const songListForPrompt = songSample.slice(0, 40).join('\n'); // Show 40 songs
     const artistsList = artists.slice(0, 30).join(', ');
 
     console.log(`🎵 Using ${songSample.length} indexed songs and ${artists.length} artists for recommendations`);
+
+    // Fetch user preference data for personalization (if privacy setting allows)
+    let preferenceSection = '';
+    const prefStart = Date.now();
+    if (useFeedbackForPersonalization) {
+      try {
+        const profile = await buildUserPreferenceProfile(userId);
+        const patterns = await getListeningPatterns(userId);
+        perfTimings.preferenceFetch = Date.now() - prefStart;
+
+        if (patterns.hasEnoughData) {
+          // User has enough feedback data - personalize recommendations
+          const likedArtistsList = profile.likedArtists.slice(0, 5).map(a => a.artist).join(', ');
+          const dislikedArtistsList = profile.dislikedArtists.slice(0, 3).map(a => a.artist).join(', ');
+
+          preferenceSection = `
+USER PREFERENCES (use this to personalize recommendations):
+LIKED ARTISTS: ${likedArtistsList || 'None yet'}
+DISLIKED ARTISTS: ${dislikedArtistsList || 'None yet'}
+LISTENING PATTERNS: ${patterns.insights.join('. ')}
+FEEDBACK STATS: ${profile.thumbsUpCount} likes, ${profile.thumbsDownCount} dislikes
+
+PERSONALIZATION RULES:
+- Prioritize songs from liked artists
+- Avoid songs from disliked artists
+- Match the user's listening patterns and insights
+`;
+          console.log(`🎯 Personalizing with ${profile.totalFeedbackCount} feedback items`);
+        } else {
+          console.log(`ℹ️ Not enough feedback data yet (${profile.totalFeedbackCount} items), using generic recommendations`);
+        }
+      } catch (error) {
+        perfTimings.preferenceFetch = Date.now() - prefStart;
+        console.warn('⚠️ Failed to load user preferences, continuing with generic recommendations:', error);
+      }
+    } else {
+      perfTimings.preferenceFetch = Date.now() - prefStart;
+      console.log(`🔒 Privacy setting disabled feedback personalization, using generic recommendations`);
+    }
 
     // Add timestamp to encourage different responses each time
     const timestamp = Date.now();
@@ -97,7 +144,7 @@ USER'S LIBRARY (complete list of available songs - ONLY use songs from this list
 ${songListForPrompt}
 
 ARTISTS IN LIBRARY: ${artistsList}
-
+${preferenceSection}
 IMPORTANT - Generate DIFFERENT recommendations each time. Session seed: ${randomSeed}_${timestamp}
 
 RULES:
@@ -106,8 +153,9 @@ RULES:
 3. Select songs that match the mood/style requested in the prompt
 4. If no specific mood requested, recommend diverse songs from the library
 5. Format: "Artist - Title" exactly as shown in the library list
+6. USE USER PREFERENCES to personalize recommendations (prioritize liked artists, avoid disliked)
 
-Your goal is to recommend songs from my ACTUAL library that I'll enjoy. Make sure each response is UNIQUE.`;
+Your goal is to recommend songs from my ACTUAL library that I'll enjoy based on my preferences. Make sure each response is UNIQUE.`;
   }
 
   const url = `${OLLAMA_BASE_URL}/api/generate`;
@@ -118,12 +166,14 @@ Your goal is to recommend songs from my ACTUAL library that I'll enjoy. Make sur
   };
 
   try {
+    const ollamaStart = Date.now();
     const response = await retryFetch(() => fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: controller.signal,
     }));
+    perfTimings.ollamaCall = Date.now() - ollamaStart;
 
     clearTimeout(timeoutId);
 
@@ -223,6 +273,16 @@ Your goal is to recommend songs from my ACTUAL library that I'll enjoy. Make sur
     if (!parsed.recommendations || !Array.isArray(parsed.recommendations)) {
       throw new ServiceError('OLLAMA_PARSE_ERROR', 'Invalid recommendations format');
     }
+
+    // Performance summary logging
+    perfTimings.total = Date.now() - perfStart;
+    console.log('⏱️ Performance breakdown:', {
+      libraryFetch: `${perfTimings.libraryFetch || 0}ms`,
+      preferenceFetch: `${perfTimings.preferenceFetch || 0}ms`,
+      ollamaCall: `${perfTimings.ollamaCall || 0}ms`,
+      total: `${perfTimings.total}ms`,
+    });
+
     return {
       recommendations: parsed.recommendations.map(r => ({ song: r.song, explanation: r.explanation })),
     };
@@ -262,7 +322,9 @@ export async function checkModelAvailability(model: string): Promise<boolean> {
 
 interface PlaylistRequest {
   style: string;
-  summary: LibrarySummary;
+  summary?: LibrarySummary;
+  userId?: string;
+  useFeedbackForPersonalization?: boolean; // Privacy setting
 }
 
 interface PlaylistSuggestion {
@@ -274,7 +336,7 @@ interface PlaylistResponse {
   playlist: PlaylistSuggestion[];
 }
 
-export async function generatePlaylist({ style, summary }: PlaylistRequest): Promise<PlaylistResponse> {
+export async function generatePlaylist({ style, summary, userId, useFeedbackForPersonalization = true }: PlaylistRequest): Promise<PlaylistResponse> {
   // Rate limiting check
   if (!checkOllamaRateLimit('playlist_generation')) {
     console.warn('⚠️ Playlist generation rate limit reached, throttling request');
@@ -295,13 +357,41 @@ export async function generatePlaylist({ style, summary }: PlaylistRequest): Pro
 
   console.log(`🎵 Using ${songSample.length} indexed songs and ${artists.length} artists for context`);
 
+  // Fetch user preference data for personalization (if privacy setting allows)
+  let preferenceSection = '';
+  if (userId && useFeedbackForPersonalization) {
+    try {
+      const profile = await buildUserPreferenceProfile(userId);
+      const patterns = await getListeningPatterns(userId);
+
+      if (patterns.hasEnoughData) {
+        const likedArtistsList = profile.likedArtists.slice(0, 5).map(a => a.artist).join(', ');
+        const dislikedArtistsList = profile.dislikedArtists.slice(0, 3).map(a => a.artist).join(', ');
+
+        preferenceSection = `
+USER PREFERENCES:
+LIKED ARTISTS: ${likedArtistsList || 'None yet'}
+DISLIKED ARTISTS: ${dislikedArtistsList || 'None yet'}
+LISTENING PATTERNS: ${patterns.insights.join('. ')}
+
+PERSONALIZATION: Prioritize songs from liked artists while matching the style. Avoid disliked artists.
+`;
+        console.log(`🎯 Personalizing playlist with ${profile.totalFeedbackCount} feedback items`);
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to load user preferences for playlist, continuing without personalization:', error);
+    }
+  } else if (userId && !useFeedbackForPersonalization) {
+    console.log(`🔒 Privacy setting disabled feedback personalization for playlist`);
+  }
+
   const prompt = `You are a music playlist generator. You MUST ONLY use songs from the user's EXACT library listed below.
 
 USER'S LIBRARY (complete list of available songs):
 ${songListForPrompt}
 
 ARTISTS IN LIBRARY: ${artistsList}
-
+${preferenceSection}
 TASK: Create a 5-song playlist for style "${style}"
 
 RULES:

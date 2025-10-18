@@ -13,6 +13,8 @@ import { search } from '@/lib/services/navidrome';
 import { OllamaErrorBoundary } from '@/components/ollama-error-boundary';
 import { NavidromeErrorBoundary } from '@/components/navidrome-error-boundary';
 import { Skeleton } from '@/components/ui/skeleton';
+import { hasLegacyFeedback, migrateLegacyFeedback, isMigrationCompleted } from '@/lib/utils/feedback-migration';
+import { PreferenceInsights } from '@/components/recommendations/PreferenceInsights';
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context }) => {
@@ -43,6 +45,45 @@ function DashboardIndex() {
       loadPreferences();
     }
   }, [session, loadPreferences]);
+
+  // Check for legacy feedback and prompt migration
+  useEffect(() => {
+    if (!session) return;
+
+    if (!isMigrationCompleted() && hasLegacyFeedback()) {
+      toast.info('Migrate your feedback?', {
+        description: 'Sync your song feedback across devices',
+        duration: 10000,
+        action: {
+          label: 'Migrate',
+          onClick: async () => {
+            toast.loading('Migrating feedback...', { id: 'feedback-migration' });
+            try {
+              const result = await migrateLegacyFeedback();
+              if (result.success && result.migratedCount > 0) {
+                toast.success(`Migrated ${result.migratedCount} feedback items`, {
+                  id: 'feedback-migration',
+                  description: 'Your feedback is now synced across devices',
+                });
+              } else if (result.failedCount > 0) {
+                toast.warning(`Migrated ${result.migratedCount}, failed ${result.failedCount}`, {
+                  id: 'feedback-migration',
+                  description: 'Some items could not be migrated',
+                });
+              } else {
+                toast.success('No feedback to migrate', { id: 'feedback-migration' });
+              }
+            } catch (error) {
+              toast.error('Migration failed', {
+                id: 'feedback-migration',
+                description: error instanceof Error ? error.message : 'Please try again',
+              });
+            }
+          },
+        },
+      });
+    }
+  }, [session]);
 
   // Load cache from localStorage on mount
   useEffect(() => {
@@ -622,7 +663,7 @@ function DashboardIndex() {
                 <CardContent>
                   <ul className="space-y-2">
                     {recommendations.data.recommendations.map((rec: any, index: number) => {
-                      const songId = btoa(rec.song); // For route
+                      const songId = encodeURIComponent(rec.song); // For route (URL-safe encoding)
                       const isInLibrary = rec.foundInLibrary;
                       const hasSearchError = rec.searchError;
 
@@ -630,7 +671,7 @@ function DashboardIndex() {
                         <li key={index} className={`flex flex-col space-y-2 p-2 border rounded ${isInLibrary ? 'border-green-200 bg-green-50/10' : 'border-gray-200'}`}>
                           <div className="flex justify-between items-center">
                             <div className="flex items-center gap-2">
-                              <Link to="/dashboard/recommendations/id" params={{ id: songId }} className="hover:underline">
+                              <Link to="/dashboard/recommendations/id" search={{ song: rec.song }} className="hover:underline">
                                 {rec.song}
                               </Link>
                               {isInLibrary && (
@@ -669,6 +710,11 @@ function DashboardIndex() {
             )}
           </section>
         </OllamaErrorBoundary>
+      )}
+
+      {/* Preference Analytics Widget */}
+      {preferences.dashboardLayout.showRecommendations && (
+        <PreferenceInsights />
       )}
 
       <OllamaErrorBoundary>

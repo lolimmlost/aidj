@@ -56,7 +56,7 @@ export const verification = pgTable("verification", {
   updatedAt: timestamp("updated_at").$defaultFn(() => /* @__PURE__ */ new Date()),
 });
 
-import { serial, jsonb } from "drizzle-orm/pg-core";
+import { serial, jsonb, real, integer } from "drizzle-orm/pg-core";
 
 export const recommendationsCache = pgTable("recommendations_cache", {
   id: serial("id").primaryKey(),
@@ -66,6 +66,10 @@ export const recommendationsCache = pgTable("recommendations_cache", {
   explanation: text("explanation").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   expiresAt: timestamp("expires_at").notNull(),
+
+  // Quality scoring based on user feedback (added in Story 3.9)
+  qualityScore: real("quality_score"), // Nullable: calculated from feedback ratio (0.0 - 1.0)
+  feedbackCount: integer("feedback_count").default(0).notNull(), // Total feedback received on this recommendation set
 });
 
 export type RecommendationsCache = typeof recommendationsCache.$inferSelect;

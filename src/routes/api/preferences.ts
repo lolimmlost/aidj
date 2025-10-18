@@ -11,6 +11,7 @@ const PreferencesSchema = z.object({
     aiEnabled: z.boolean(),
     frequency: z.enum(['always', 'daily', 'weekly']),
     styleBasedPlaylists: z.boolean(),
+    useFeedbackForPersonalization: z.boolean().optional(),
   }).optional(),
   playbackSettings: z.object({
     volume: z.number().min(0).max(1),
@@ -66,6 +67,7 @@ export const ServerRoute = createServerFileRoute('/api/preferences').methods({
             aiEnabled: true,
             frequency: 'always' as const,
             styleBasedPlaylists: true,
+            useFeedbackForPersonalization: true,
           },
           playbackSettings: {
             volume: 0.5,

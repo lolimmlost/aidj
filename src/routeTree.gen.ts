@@ -33,6 +33,10 @@ import { ServerRoute as ApiPreferencesServerRouteImport } from "./routes/api/pre
 import { ServerRoute as ApiPlaylistServerRouteImport } from "./routes/api/playlist";
 import { ServerRoute as ApiDebugLibraryServerRouteImport } from "./routes/api/debug-library";
 import { ServerRoute as ApiConfigServerRouteImport } from "./routes/api/config";
+import { ServerRoute as ApiRecommendationsFeedbackServerRouteImport } from "./routes/api/recommendations/feedback";
+import { ServerRoute as ApiRecommendationsExportServerRouteImport } from "./routes/api/recommendations/export";
+import { ServerRoute as ApiRecommendationsClearServerRouteImport } from "./routes/api/recommendations/clear";
+import { ServerRoute as ApiRecommendationsAnalyticsServerRouteImport } from "./routes/api/recommendations/analytics";
 import { ServerRoute as ApiLidarrStatusServerRouteImport } from "./routes/api/lidarr/status";
 import { ServerRoute as ApiLidarrSearchServerRouteImport } from "./routes/api/lidarr/search";
 import { ServerRoute as ApiLidarrHistoryServerRouteImport } from "./routes/api/lidarr/history";
@@ -160,6 +164,30 @@ const ApiConfigServerRoute = ApiConfigServerRouteImport.update({
   path: "/api/config",
   getParentRoute: () => rootServerRouteImport,
 } as any);
+const ApiRecommendationsFeedbackServerRoute =
+  ApiRecommendationsFeedbackServerRouteImport.update({
+    id: "/feedback",
+    path: "/feedback",
+    getParentRoute: () => ApiRecommendationsServerRoute,
+  } as any);
+const ApiRecommendationsExportServerRoute =
+  ApiRecommendationsExportServerRouteImport.update({
+    id: "/export",
+    path: "/export",
+    getParentRoute: () => ApiRecommendationsServerRoute,
+  } as any);
+const ApiRecommendationsClearServerRoute =
+  ApiRecommendationsClearServerRouteImport.update({
+    id: "/clear",
+    path: "/clear",
+    getParentRoute: () => ApiRecommendationsServerRoute,
+  } as any);
+const ApiRecommendationsAnalyticsServerRoute =
+  ApiRecommendationsAnalyticsServerRouteImport.update({
+    id: "/analytics",
+    path: "/analytics",
+    getParentRoute: () => ApiRecommendationsServerRoute,
+  } as any);
 const ApiLidarrStatusServerRoute = ApiLidarrStatusServerRouteImport.update({
   id: "/api/lidarr/status",
   path: "/api/lidarr/status",
@@ -348,7 +376,7 @@ export interface FileServerRoutesByFullPath {
   "/api/debug-library": typeof ApiDebugLibraryServerRoute;
   "/api/playlist": typeof ApiPlaylistServerRoute;
   "/api/preferences": typeof ApiPreferencesServerRoute;
-  "/api/recommendations": typeof ApiRecommendationsServerRoute;
+  "/api/recommendations": typeof ApiRecommendationsServerRouteWithChildren;
   "/api/search": typeof ApiSearchServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
@@ -359,6 +387,10 @@ export interface FileServerRoutesByFullPath {
   "/api/lidarr/history": typeof ApiLidarrHistoryServerRoute;
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
+  "/api/recommendations/analytics": typeof ApiRecommendationsAnalyticsServerRoute;
+  "/api/recommendations/clear": typeof ApiRecommendationsClearServerRoute;
+  "/api/recommendations/export": typeof ApiRecommendationsExportServerRoute;
+  "/api/recommendations/feedback": typeof ApiRecommendationsFeedbackServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
@@ -368,7 +400,7 @@ export interface FileServerRoutesByTo {
   "/api/debug-library": typeof ApiDebugLibraryServerRoute;
   "/api/playlist": typeof ApiPlaylistServerRoute;
   "/api/preferences": typeof ApiPreferencesServerRoute;
-  "/api/recommendations": typeof ApiRecommendationsServerRoute;
+  "/api/recommendations": typeof ApiRecommendationsServerRouteWithChildren;
   "/api/search": typeof ApiSearchServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
@@ -379,6 +411,10 @@ export interface FileServerRoutesByTo {
   "/api/lidarr/history": typeof ApiLidarrHistoryServerRoute;
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
+  "/api/recommendations/analytics": typeof ApiRecommendationsAnalyticsServerRoute;
+  "/api/recommendations/clear": typeof ApiRecommendationsClearServerRoute;
+  "/api/recommendations/export": typeof ApiRecommendationsExportServerRoute;
+  "/api/recommendations/feedback": typeof ApiRecommendationsFeedbackServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
@@ -389,7 +425,7 @@ export interface FileServerRoutesById {
   "/api/debug-library": typeof ApiDebugLibraryServerRoute;
   "/api/playlist": typeof ApiPlaylistServerRoute;
   "/api/preferences": typeof ApiPreferencesServerRoute;
-  "/api/recommendations": typeof ApiRecommendationsServerRoute;
+  "/api/recommendations": typeof ApiRecommendationsServerRouteWithChildren;
   "/api/search": typeof ApiSearchServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
@@ -400,6 +436,10 @@ export interface FileServerRoutesById {
   "/api/lidarr/history": typeof ApiLidarrHistoryServerRoute;
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
+  "/api/recommendations/analytics": typeof ApiRecommendationsAnalyticsServerRoute;
+  "/api/recommendations/clear": typeof ApiRecommendationsClearServerRoute;
+  "/api/recommendations/export": typeof ApiRecommendationsExportServerRoute;
+  "/api/recommendations/feedback": typeof ApiRecommendationsFeedbackServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
@@ -422,6 +462,10 @@ export interface FileServerRouteTypes {
     | "/api/lidarr/history"
     | "/api/lidarr/search"
     | "/api/lidarr/status"
+    | "/api/recommendations/analytics"
+    | "/api/recommendations/clear"
+    | "/api/recommendations/export"
+    | "/api/recommendations/feedback"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
     | "/api/navidrome/stream/id/id";
@@ -442,6 +486,10 @@ export interface FileServerRouteTypes {
     | "/api/lidarr/history"
     | "/api/lidarr/search"
     | "/api/lidarr/status"
+    | "/api/recommendations/analytics"
+    | "/api/recommendations/clear"
+    | "/api/recommendations/export"
+    | "/api/recommendations/feedback"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
     | "/api/navidrome/stream/id/id";
@@ -462,6 +510,10 @@ export interface FileServerRouteTypes {
     | "/api/lidarr/history"
     | "/api/lidarr/search"
     | "/api/lidarr/status"
+    | "/api/recommendations/analytics"
+    | "/api/recommendations/clear"
+    | "/api/recommendations/export"
+    | "/api/recommendations/feedback"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
     | "/api/navidrome/stream/id/id";
@@ -472,7 +524,7 @@ export interface RootServerRouteChildren {
   ApiDebugLibraryServerRoute: typeof ApiDebugLibraryServerRoute;
   ApiPlaylistServerRoute: typeof ApiPlaylistServerRoute;
   ApiPreferencesServerRoute: typeof ApiPreferencesServerRoute;
-  ApiRecommendationsServerRoute: typeof ApiRecommendationsServerRoute;
+  ApiRecommendationsServerRoute: typeof ApiRecommendationsServerRouteWithChildren;
   ApiSearchServerRoute: typeof ApiSearchServerRoute;
   ApiAuthSplatServerRoute: typeof ApiAuthSplatServerRoute;
   ApiAuthLoginServerRoute: typeof ApiAuthLoginServerRoute;
@@ -648,6 +700,34 @@ declare module "@tanstack/react-start/server" {
       preLoaderRoute: typeof ApiConfigServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
+    "/api/recommendations/feedback": {
+      id: "/api/recommendations/feedback";
+      path: "/feedback";
+      fullPath: "/api/recommendations/feedback";
+      preLoaderRoute: typeof ApiRecommendationsFeedbackServerRouteImport;
+      parentRoute: typeof ApiRecommendationsServerRoute;
+    };
+    "/api/recommendations/export": {
+      id: "/api/recommendations/export";
+      path: "/export";
+      fullPath: "/api/recommendations/export";
+      preLoaderRoute: typeof ApiRecommendationsExportServerRouteImport;
+      parentRoute: typeof ApiRecommendationsServerRoute;
+    };
+    "/api/recommendations/clear": {
+      id: "/api/recommendations/clear";
+      path: "/clear";
+      fullPath: "/api/recommendations/clear";
+      preLoaderRoute: typeof ApiRecommendationsClearServerRouteImport;
+      parentRoute: typeof ApiRecommendationsServerRoute;
+    };
+    "/api/recommendations/analytics": {
+      id: "/api/recommendations/analytics";
+      path: "/analytics";
+      fullPath: "/api/recommendations/analytics";
+      preLoaderRoute: typeof ApiRecommendationsAnalyticsServerRouteImport;
+      parentRoute: typeof ApiRecommendationsServerRoute;
+    };
     "/api/lidarr/status": {
       id: "/api/lidarr/status";
       path: "/api/lidarr/status";
@@ -786,6 +866,28 @@ const LibraryArtistsRouteWithChildren = LibraryArtistsRoute._addFileChildren(
   LibraryArtistsRouteChildren,
 );
 
+interface ApiRecommendationsServerRouteChildren {
+  ApiRecommendationsAnalyticsServerRoute: typeof ApiRecommendationsAnalyticsServerRoute;
+  ApiRecommendationsClearServerRoute: typeof ApiRecommendationsClearServerRoute;
+  ApiRecommendationsExportServerRoute: typeof ApiRecommendationsExportServerRoute;
+  ApiRecommendationsFeedbackServerRoute: typeof ApiRecommendationsFeedbackServerRoute;
+}
+
+const ApiRecommendationsServerRouteChildren: ApiRecommendationsServerRouteChildren =
+  {
+    ApiRecommendationsAnalyticsServerRoute:
+      ApiRecommendationsAnalyticsServerRoute,
+    ApiRecommendationsClearServerRoute: ApiRecommendationsClearServerRoute,
+    ApiRecommendationsExportServerRoute: ApiRecommendationsExportServerRoute,
+    ApiRecommendationsFeedbackServerRoute:
+      ApiRecommendationsFeedbackServerRoute,
+  };
+
+const ApiRecommendationsServerRouteWithChildren =
+  ApiRecommendationsServerRoute._addFileChildren(
+    ApiRecommendationsServerRouteChildren,
+  );
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   authRouteRoute: authRouteRouteWithChildren,
@@ -806,7 +908,7 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiDebugLibraryServerRoute: ApiDebugLibraryServerRoute,
   ApiPlaylistServerRoute: ApiPlaylistServerRoute,
   ApiPreferencesServerRoute: ApiPreferencesServerRoute,
-  ApiRecommendationsServerRoute: ApiRecommendationsServerRoute,
+  ApiRecommendationsServerRoute: ApiRecommendationsServerRouteWithChildren,
   ApiSearchServerRoute: ApiSearchServerRoute,
   ApiAuthSplatServerRoute: ApiAuthSplatServerRoute,
   ApiAuthLoginServerRoute: ApiAuthLoginServerRoute,

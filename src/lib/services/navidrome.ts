@@ -566,3 +566,93 @@ export async function resolveSongByArtistTitle(artistTitle: string): Promise<Son
     return null;
   }
 }
+
+/**
+ * Star a song in Navidrome (mark as "loved")
+ * Uses Subsonic API star endpoint
+ */
+export async function starSong(songId: string): Promise<void> {
+  const config = getConfig();
+  if (!config.navidromeUrl) {
+    throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
+  }
+
+  if (!subsonicToken || !subsonicSalt) {
+    // Ensure we have Subsonic auth tokens
+    await getAuthToken();
+  }
+
+  try {
+    const url = new URL(`${config.navidromeUrl}/rest/star`);
+    url.searchParams.append('u', config.navidromeUsername || '');
+    url.searchParams.append('t', subsonicToken || '');
+    url.searchParams.append('s', subsonicSalt || '');
+    url.searchParams.append('v', '1.16.1');
+    url.searchParams.append('c', 'aidj');
+    url.searchParams.append('f', 'json');
+    url.searchParams.append('id', songId);
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Failed to star song: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (data['subsonic-response']?.status !== 'ok') {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+    }
+
+    console.log(`⭐ Starred song ${songId} in Navidrome`);
+  } catch (error) {
+    console.error('Failed to star song in Navidrome:', error);
+    throw error instanceof ServiceError ? error : new ServiceError('NAVIDROME_API_ERROR', `Failed to star song: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Unstar a song in Navidrome (remove "loved" flag)
+ * Uses Subsonic API unstar endpoint
+ */
+export async function unstarSong(songId: string): Promise<void> {
+  const config = getConfig();
+  if (!config.navidromeUrl) {
+    throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
+  }
+
+  if (!subsonicToken || !subsonicSalt) {
+    // Ensure we have Subsonic auth tokens
+    await getAuthToken();
+  }
+
+  try {
+    const url = new URL(`${config.navidromeUrl}/rest/unstar`);
+    url.searchParams.append('u', config.navidromeUsername || '');
+    url.searchParams.append('t', subsonicToken || '');
+    url.searchParams.append('s', subsonicSalt || '');
+    url.searchParams.append('v', '1.16.1');
+    url.searchParams.append('c', 'aidj');
+    url.searchParams.append('f', 'json');
+    url.searchParams.append('id', songId);
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Failed to unstar song: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (data['subsonic-response']?.status !== 'ok') {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+    }
+
+    console.log(`⭐ Unstarred song ${songId} in Navidrome`);
+  } catch (error) {
+    console.error('Failed to unstar song in Navidrome:', error);
+    throw error instanceof ServiceError ? error : new ServiceError('NAVIDROME_API_ERROR', `Failed to unstar song: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}

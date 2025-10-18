@@ -1,9 +1,11 @@
-import { createFileRoute, useParams, redirect } from '@tanstack/react-router';
+import { createFileRoute, useSearch, redirect } from '@tanstack/react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 export const Route = createFileRoute('/dashboard/recommendations/id')({
   beforeLoad: async ({ context }) => {
@@ -15,38 +17,102 @@ export const Route = createFileRoute('/dashboard/recommendations/id')({
 });
 
 function RecommendationDetail() {
-  const { id } = useParams({ from: '/dashboard/recommendations/[id]' });
+  const search = useSearch({ from: '/dashboard/recommendations/id' });
   const { data: session } = authClient.useSession();
   const addToQueue = useAudioStore((state) => state.playSong);
+  const queryClient = useQueryClient();
 
-  const song = atob(id);
+  // Local state for optimistic updates (must be before any early returns)
+  const [optimisticFeedback, setOptimisticFeedback] = useState<'thumbs_up' | 'thumbs_down' | null>(null);
 
-  const { data: recommendation, isLoading, error } = useQuery({
-    queryKey: ['recommendation-detail', id, session?.user.id],
-    queryFn: async () => {
-      const response = await fetch('/api/recommendations', {
+  // Get song name from search params (?song=Artist%20-%20Title)
+  const song = (search as { song?: string }).song;
+
+  console.log('Search params:', search);
+  console.log('Song from search:', song);
+
+  if (!song) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Error</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-destructive">No song specified in URL</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              URL: {window.location.href}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Try to get cached recommendations from dashboard query
+  const cachedRecs = queryClient.getQueryData(['recommendations', session?.user.id, 'similar']) ||
+                     queryClient.getQueryData(['recommendations', session?.user.id, 'mood']);
+
+  // Find this song's explanation in cached recommendations
+  let explanation = 'This song was recommended based on your listening history and preferences.';
+
+  if (cachedRecs && (cachedRecs as any).data?.recommendations) {
+    const found = (cachedRecs as any).data.recommendations.find((r: any) => r.song === song);
+    if (found && found.explanation) {
+      explanation = found.explanation;
+    }
+  }
+
+  // Feedback mutation
+  const feedbackMutation = useMutation({
+    mutationFn: async (feedbackType: 'thumbs_up' | 'thumbs_down') => {
+      const response = await fetch('/api/recommendations/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: `Provide a detailed explanation why "${song}" is recommended based on user listening history and preferences. Return as JSON: {"explanation": "detailed reason"}` }),
+        body: JSON.stringify({
+          songArtistTitle: song,
+          feedbackType,
+          source: 'recommendation',
+        }),
       });
-      if (!response.ok) throw new Error('Failed to fetch recommendation detail');
-      const data = await response.json();
-      data.timestamp = new Date().toISOString();
-      return data;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to submit feedback');
+      }
+      return response.json();
     },
-    enabled: !!session,
+    onMutate: async (feedbackType) => {
+      // Optimistic update
+      setOptimisticFeedback(feedbackType);
+    },
+    onSuccess: (_, feedbackType) => {
+      // Invalidate recommendations cache to refresh quality scores
+      queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+      const emoji = feedbackType === 'thumbs_up' ? '👍' : '👎';
+      toast.success(`Feedback saved ${emoji}`, {
+        description: 'Your preferences help improve recommendations',
+        duration: 2000,
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to submit feedback:', error);
+      setOptimisticFeedback(null); // Revert optimistic update
+      toast.error('Failed to save feedback', {
+        description: error instanceof Error ? error.message : 'Please try again',
+        duration: 3000,
+      });
+    },
   });
 
-  if (isLoading) return <p className="container mx-auto p-6">Loading detail...</p>;
-  if (error) return <p className="container mx-auto p-6 text-destructive">Error: {error.message}</p>;
-
-  const parsed = recommendation.data.recommendations?.find((r: { song: string }) => r.song === song) || { explanation: recommendation.data.explanation || 'No explanation available.' };
-  const explanation = parsed.explanation;
-
-  const songKey = btoa(song);
-  const feedback = getFeedback(song);
   const handleFeedback = (type: 'up' | 'down') => {
-    setFeedback(song, type);
+    const feedbackType = type === 'up' ? 'thumbs_up' : 'thumbs_down';
+    feedbackMutation.mutate(feedbackType);
+  };
+
+  // Display feedback state (optimistic or persisted)
+  const feedback = {
+    up: optimisticFeedback === 'thumbs_up',
+    down: optimisticFeedback === 'thumbs_down',
   };
 
   const handleQueue = (s: string) => {
@@ -58,19 +124,35 @@ function RecommendationDetail() {
       <Card className="bg-card text-card-foreground border-card">
         <CardHeader>
           <CardTitle>{song}</CardTitle>
-          <CardDescription>Generated at {new Date(recommendation.timestamp).toLocaleString()} (timeout: 5s)</CardDescription>
+          <CardDescription>AI-powered recommendation from your music library</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-muted-foreground whitespace-pre-wrap">{explanation}</p>
-          <div className="space-x-2">
-            <Button variant={feedback.up ? "default" : "ghost"} onClick={() => handleFeedback('up')}>
-              👍
+
+          {/* Feedback Buttons */}
+          <div className="flex items-center gap-2 py-2">
+            <span className="text-sm font-medium text-muted-foreground">Rate this song:</span>
+            <Button
+              variant={feedback.up ? "default" : "outline"}
+              size="sm"
+              onClick={() => handleFeedback('up')}
+              disabled={feedbackMutation.isPending}
+              className={feedback.up ? 'bg-green-600 hover:bg-green-700' : ''}
+            >
+              {feedbackMutation.isPending && optimisticFeedback === 'thumbs_up' ? '⏳' : '👍'} Like
             </Button>
-            <Button variant={feedback.down ? "default" : "ghost"} onClick={() => handleFeedback('down')}>
-              👎
+            <Button
+              variant={feedback.down ? "default" : "outline"}
+              size="sm"
+              onClick={() => handleFeedback('down')}
+              disabled={feedbackMutation.isPending}
+              className={feedback.down ? 'bg-red-600 hover:bg-red-700' : ''}
+            >
+              {feedbackMutation.isPending && optimisticFeedback === 'thumbs_down' ? '⏳' : '👎'} Dislike
             </Button>
           </div>
-          <Button variant="ghost" onClick={() => handleQueue(song)}>
+
+          <Button variant="outline" onClick={() => handleQueue(song)}>
             Add to Queue
           </Button>
         </CardContent>
@@ -79,19 +161,5 @@ function RecommendationDetail() {
   );
 }
 
-function getFeedback(song: string) {
-  const songKey = btoa(song);
-  const stored = localStorage.getItem(songKey);
-  if (!stored) return { up: false, down: false };
-  try {
-    return JSON.parse(atob(stored)) as { up: boolean; down: boolean };
-  } catch {
-    return { up: false, down: false };
-  }
-}
-
-function setFeedback(song: string, type: 'up' | 'down') {
-  const songKey = btoa(song);
-  const feedback = { up: type === 'up', down: type === 'down' };
-  localStorage.setItem(songKey, btoa(JSON.stringify(feedback)));
-}
+// Note: Legacy localStorage feedback functions removed in Story 3.9
+// Feedback is now stored in database via /api/recommendations/feedback

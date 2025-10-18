@@ -13,10 +13,12 @@ export const userPreferences = pgTable("user_preferences", {
     aiEnabled: boolean;
     frequency: 'always' | 'daily' | 'weekly';
     styleBasedPlaylists: boolean;
+    useFeedbackForPersonalization: boolean; // Privacy: Use feedback to improve recommendations
   }>().default({
     aiEnabled: true,
     frequency: 'always',
     styleBasedPlaylists: true,
+    useFeedbackForPersonalization: true,
   }).notNull(),
 
   // Playback settings

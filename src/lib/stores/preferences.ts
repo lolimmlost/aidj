@@ -6,6 +6,7 @@ export interface RecommendationSettings {
   aiEnabled: boolean;
   frequency: 'always' | 'daily' | 'weekly';
   styleBasedPlaylists: boolean;
+  useFeedbackForPersonalization: boolean;
 }
 
 export interface PlaybackSettings {
@@ -58,6 +59,7 @@ const defaultPreferences: UserPreferences = {
     aiEnabled: true,
     frequency: 'always',
     styleBasedPlaylists: true,
+    useFeedbackForPersonalization: true,
   },
   playbackSettings: {
     volume: 0.5,

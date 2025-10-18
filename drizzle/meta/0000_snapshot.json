@@ -1,6 +1,6 @@
 {
-  "id": "c1af1a97-ba4d-4369-b730-0e2b799ad22d",
-  "prevId": "08317f21-af18-4e53-9bea-6f3869d65e8c",
+  "id": "64d7d140-a2aa-4dea-8176-61c88337e638",
+  "prevId": "c1af1a97-ba4d-4369-b730-0e2b799ad22d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -155,6 +155,19 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true
+        },
+        "quality_score": {
+          "name": "quality_score",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "feedback_count": {
+          "name": "feedback_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         }
       },
       "indexes": {},
@@ -457,6 +470,162 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.recommendation_feedback": {
+      "name": "recommendation_feedback",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recommendation_cache_id": {
+          "name": "recommendation_cache_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "song_artist_title": {
+          "name": "song_artist_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "feedback_type": {
+          "name": "feedback_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'recommendation'"
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "recommendation_feedback_user_id_idx": {
+          "name": "recommendation_feedback_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "recommendation_feedback_timestamp_idx": {
+          "name": "recommendation_feedback_timestamp_idx",
+          "columns": [
+            {
+              "expression": "timestamp",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "recommendation_feedback_cache_id_idx": {
+          "name": "recommendation_feedback_cache_id_idx",
+          "columns": [
+            {
+              "expression": "recommendation_cache_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "recommendation_feedback_user_type_time_idx": {
+          "name": "recommendation_feedback_user_type_time_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "feedback_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "timestamp",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "recommendation_feedback_user_id_user_id_fk": {
+          "name": "recommendation_feedback_user_id_user_id_fk",
+          "tableFrom": "recommendation_feedback",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "recommendation_feedback_recommendation_cache_id_recommendations_cache_id_fk": {
+          "name": "recommendation_feedback_recommendation_cache_id_recommendations_cache_id_fk",
+          "tableFrom": "recommendation_feedback",
+          "tableTo": "recommendations_cache",
+          "columnsFrom": [
+            "recommendation_cache_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
