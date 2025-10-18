@@ -3,29 +3,32 @@
  * Displays user preference analytics and listening patterns
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { BarChart3 } from 'lucide-react';
 
 interface AnalyticsData {
-  likedArtists: Array<{ artist: string; count: number }>;
-  dislikedArtists: Array<{ artist: string; count: number }>;
-  feedbackCount: {
-    total: number;
-    thumbsUp: number;
-    thumbsDown: number;
+  // Enhanced response structure
+  profile: {
+    likedArtists: Array<{ artist: string; count: number }>;
+    dislikedArtists: Array<{ artist: string; count: number }>;
+    feedbackCount: {
+      total: number;
+      thumbsUp: number;
+      thumbsDown: number;
+    };
   };
-  topGenres: string[];
-  activityTrend: {
-    hasEnoughData: boolean;
-    insights: string[];
+  activity?: {
+    listeningPatternInsights: string[];
   };
 }
 
 async function fetchAnalytics(): Promise<AnalyticsData> {
-  const response = await fetch('/api/recommendations/analytics');
+  const response = await fetch('/api/recommendations/analytics?metrics=quality,activity');
   if (!response.ok) {
     throw new Error('Failed to fetch analytics');
   }
@@ -77,18 +80,33 @@ export function PreferenceInsights() {
     return null;
   }
 
-  const { feedbackCount, activityTrend, likedArtists, dislikedArtists } = analytics;
+  const { profile, activity } = analytics;
+  const { feedbackCount, likedArtists, dislikedArtists } = profile;
   const hasData = feedbackCount.total > 0;
+  const hasEnoughData = hasData && feedbackCount.total >= 5;
+  const insights = activity?.listeningPatternInsights || [];
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Your Taste Profile</CardTitle>
-        <CardDescription>
-          {hasData
-            ? `Based on ${feedbackCount.total} ${feedbackCount.total === 1 ? 'song' : 'songs'} you've rated`
-            : 'Start rating songs to see your preferences'}
-        </CardDescription>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle>Your Taste Profile</CardTitle>
+            <CardDescription>
+              {hasData
+                ? `Based on ${feedbackCount.total} ${feedbackCount.total === 1 ? 'song' : 'songs'} you've rated`
+                : 'Start rating songs to see your preferences'}
+            </CardDescription>
+          </div>
+          {hasData && hasEnoughData && (
+            <Link to="/dashboard/analytics">
+              <Button variant="outline" size="sm" className="gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Full Analytics
+              </Button>
+            </Link>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Feedback Summary */}
@@ -120,11 +138,11 @@ export function PreferenceInsights() {
         )}
 
         {/* Insights */}
-        {activityTrend.insights.length > 0 && (
+        {insights.length > 0 && (
           <div className="space-y-2">
             <h4 className="text-sm font-medium">Insights</h4>
             <ul className="space-y-1">
-              {activityTrend.insights.map((insight) => (
+              {insights.map((insight: string) => (
                 <li key={insight} className="text-sm text-muted-foreground flex items-start gap-2">
                   <span className="text-primary">•</span>
                   <span>{insight}</span>
@@ -135,7 +153,7 @@ export function PreferenceInsights() {
         )}
 
         {/* Expandable Artist Lists */}
-        {hasData && activityTrend.hasEnoughData && (
+        {hasData && hasEnoughData && (
           <div className="space-y-2">
             <Button
               variant="ghost"
@@ -160,7 +178,7 @@ export function PreferenceInsights() {
                       Top Liked Artists
                     </h4>
                     <ul className="space-y-1">
-                      {likedArtists.slice(0, 5).map((item) => (
+                      {likedArtists.slice(0, 5).map((item: { artist: string; count: number }) => (
                         <li
                           key={item.artist}
                           className="text-sm text-muted-foreground flex items-center justify-between"
@@ -182,7 +200,7 @@ export function PreferenceInsights() {
                       Artists to Avoid
                     </h4>
                     <ul className="space-y-1">
-                      {dislikedArtists.slice(0, 5).map((item) => (
+                      {dislikedArtists.slice(0, 5).map((item: { artist: string; count: number }) => (
                         <li
                           key={item.artist}
                           className="text-sm text-muted-foreground flex items-center justify-between"

@@ -22,6 +22,7 @@ import { Route as LibrarySearchRouteImport } from "./routes/library/search";
 import { Route as LibraryArtistsRouteImport } from "./routes/library/artists";
 import { Route as DownloadsStatusRouteImport } from "./routes/downloads/status";
 import { Route as DownloadsHistoryRouteImport } from "./routes/downloads/history";
+import { Route as DashboardAnalyticsRouteImport } from "./routes/dashboard/analytics";
 import { Route as authSignupRouteImport } from "./routes/(auth)/signup";
 import { Route as authLoginRouteImport } from "./routes/(auth)/login";
 import { Route as LibraryArtistsIdRouteImport } from "./routes/library/artists/[id]";
@@ -105,6 +106,11 @@ const DownloadsHistoryRoute = DownloadsHistoryRouteImport.update({
   id: "/downloads/history",
   path: "/downloads/history",
   getParentRoute: () => rootRouteImport,
+} as any);
+const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
+  id: "/analytics",
+  path: "/analytics",
+  getParentRoute: () => DashboardRouteRoute,
 } as any);
 const authSignupRoute = authSignupRouteImport.update({
   id: "/signup",
@@ -259,6 +265,7 @@ export interface FileRoutesByFullPath {
   "/config": typeof ConfigRoute;
   "/login": typeof authLoginRoute;
   "/signup": typeof authSignupRoute;
+  "/dashboard/analytics": typeof DashboardAnalyticsRoute;
   "/downloads/history": typeof DownloadsHistoryRoute;
   "/downloads/status": typeof DownloadsStatusRoute;
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
@@ -275,6 +282,7 @@ export interface FileRoutesByTo {
   "/config": typeof ConfigRoute;
   "/login": typeof authLoginRoute;
   "/signup": typeof authSignupRoute;
+  "/dashboard/analytics": typeof DashboardAnalyticsRoute;
   "/downloads/history": typeof DownloadsHistoryRoute;
   "/downloads/status": typeof DownloadsStatusRoute;
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
@@ -294,6 +302,7 @@ export interface FileRoutesById {
   "/config": typeof ConfigRoute;
   "/(auth)/login": typeof authLoginRoute;
   "/(auth)/signup": typeof authSignupRoute;
+  "/dashboard/analytics": typeof DashboardAnalyticsRoute;
   "/downloads/history": typeof DownloadsHistoryRoute;
   "/downloads/status": typeof DownloadsStatusRoute;
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
@@ -313,6 +322,7 @@ export interface FileRouteTypes {
     | "/config"
     | "/login"
     | "/signup"
+    | "/dashboard/analytics"
     | "/downloads/history"
     | "/downloads/status"
     | "/library/artists"
@@ -329,6 +339,7 @@ export interface FileRouteTypes {
     | "/config"
     | "/login"
     | "/signup"
+    | "/dashboard/analytics"
     | "/downloads/history"
     | "/downloads/status"
     | "/library/artists"
@@ -347,6 +358,7 @@ export interface FileRouteTypes {
     | "/config"
     | "/(auth)/login"
     | "/(auth)/signup"
+    | "/dashboard/analytics"
     | "/downloads/history"
     | "/downloads/status"
     | "/library/artists"
@@ -619,6 +631,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DownloadsHistoryRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/dashboard/analytics": {
+      id: "/dashboard/analytics";
+      path: "/analytics";
+      fullPath: "/dashboard/analytics";
+      preLoaderRoute: typeof DashboardAnalyticsRouteImport;
+      parentRoute: typeof DashboardRouteRoute;
+    };
     "/(auth)/signup": {
       id: "/(auth)/signup";
       path: "/signup";
@@ -830,11 +849,13 @@ const authRouteRouteWithChildren = authRouteRoute._addFileChildren(
 );
 
 interface DashboardRouteRouteChildren {
+  DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute;
   DashboardIndexRoute: typeof DashboardIndexRoute;
   DashboardRecommendationsIdRoute: typeof DashboardRecommendationsIdRoute;
 }
 
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
+  DashboardAnalyticsRoute: DashboardAnalyticsRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DashboardRecommendationsIdRoute: DashboardRecommendationsIdRoute,
 };
