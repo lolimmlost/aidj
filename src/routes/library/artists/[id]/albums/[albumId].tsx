@@ -26,24 +26,35 @@ function AlbumSongs() {
   const sortedSongs = [...songs].sort((a, b) => a.track - b.track);
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Songs</h1>
+    <div className="container mx-auto p-3 sm:p-6">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">Songs</h1>
       {isLoading ? (
-        <div className="flex justify-center">
-          <Loader2 className="h-8 w-8 animate-spin" />
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
         <div className="space-y-2">
           {sortedSongs.map((song) => (
             <div
               key={song.id}
-              className="flex items-center p-3 border rounded hover:bg-gray-100 cursor-pointer"
+              className="flex items-center p-3 sm:p-4 border rounded hover:bg-accent hover:text-accent-foreground cursor-pointer min-h-[44px] transition-colors"
               onClick={() => setCurrentSongId(song.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  setCurrentSongId(song.id);
+                }
+              }}
             >
-              <div className="w-8 text-right mr-4">{song.track}</div>
-              <div className="flex-1">
-                <div className="font-medium">{song.name}</div>
-                <div className="text-sm text-gray-600">Duration: {Math.floor(song.duration / 60)}:{(song.duration % 60).toString().padStart(2, '0')}</div>
+              <div className="w-6 sm:w-8 text-right mr-3 sm:mr-4 text-sm sm:text-base text-muted-foreground flex-shrink-0">
+                {song.track}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium truncate text-sm sm:text-base">{song.name}</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">
+                  Duration: {Math.floor(song.duration / 60)}:{(song.duration % 60).toString().padStart(2, '0')}
+                </div>
               </div>
             </div>
           ))}

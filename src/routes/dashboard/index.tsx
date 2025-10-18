@@ -538,10 +538,10 @@ function DashboardIndex() {
   }, [recommendations]);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold tracking-tight mb-2">Music Dashboard</h1>
-        <p className="text-muted-foreground max-w-md mx-auto">
+    <div className="container mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
+      <div className="text-center px-4 sm:px-0">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-2">Music Dashboard</h1>
+        <p className="text-sm sm:text-base text-muted-foreground max-w-md mx-auto">
           Welcome to your music library. Explore artists, search for songs, and enjoy seamless playback.
         </p>
       </div>
@@ -549,19 +549,20 @@ function DashboardIndex() {
       {/* AI Recommendations Section - conditionally rendered based on user preferences */}
       {preferences.dashboardLayout.showRecommendations && (
         <section className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-semibold">AI Recommendations</h2>
-            <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <h2 className="text-xl sm:text-2xl font-semibold">AI Recommendations</h2>
+            <div className="flex gap-2 w-full sm:w-auto">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => refetchRecommendations()}
                 disabled={isLoading}
+                className="flex-1 sm:flex-none min-h-[44px]"
               >
                 {isLoading ? 'Loading...' : '🔄 Refresh'}
               </Button>
               <Select value={type} onValueChange={(value) => setType(value as 'similar' | 'mood')}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
                   <SelectValue placeholder="Type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -646,16 +647,18 @@ function DashboardIndex() {
       )}
 
       <section className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-semibold">Style-Based Playlist</h2>
-          <Button onClick={clearPlaylistCache} variant="outline" size="sm">Clear Cache</Button>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <h2 className="text-xl sm:text-2xl font-semibold">Style-Based Playlist</h2>
+          <Button onClick={clearPlaylistCache} variant="outline" size="sm" className="min-h-[44px] w-full sm:w-auto">
+            Clear Cache
+          </Button>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <Input
             placeholder="Enter style (e.g., Halloween, rock, holiday)"
             value={style}
             onChange={(e) => setStyle(e.target.value)}
-            className="flex-1"
+            className="flex-1 min-h-[44px]"
           />
           <Button
             onClick={() => {
@@ -666,6 +669,7 @@ function DashboardIndex() {
               refetchPlaylist();
             }}
             disabled={!trimmedStyle}
+            className="min-h-[44px] w-full sm:w-auto"
           >
             Generate Now
           </Button>
@@ -714,8 +718,10 @@ function DashboardIndex() {
               <CardDescription>for "{debouncedStyle || style}". 5 suggestions from your library. Add to queue or provide feedback.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex justify-between mb-4 gap-2">
-                <Button onClick={handlePlaylistQueue}>Add Entire Playlist to Queue</Button>
+              <div className="flex flex-col sm:flex-row justify-between mb-4 gap-2">
+                <Button onClick={handlePlaylistQueue} className="min-h-[44px] w-full sm:w-auto">
+                  Add Entire Playlist to Queue
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -725,6 +731,7 @@ function DashboardIndex() {
                     console.log(`🗑️ Cleared cache for "${debouncedStyle}", regenerating...`);
                     refetchPlaylist();
                   }}
+                  className="min-h-[44px] w-full sm:w-auto"
                 >
                   🔄 Regenerate
                 </Button>

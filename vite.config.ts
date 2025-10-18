@@ -13,10 +13,13 @@ export default defineConfig({
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
   server: {
-    cors: true,  // Enable CORS for dev server to handle preflight OPTIONS requests for API routes
-    allowedHosts: ['dev1.appahouse.com'],  // Allow custom host for local domain testing
     host: '0.0.0.0',  // Allow access from any IP on the local network
-    port: 3003,      // Specify the port (same as current setup)
+    port: 3003,
+    allowedHosts: ['dev2.appahouse.com', 'localhost'],
+    cors: {
+      origin: true,  // Allow all origins in development
+      credentials: true,
+    },
   },
   plugins: [
     devtools(),

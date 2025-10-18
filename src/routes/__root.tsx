@@ -17,6 +17,7 @@ import appCss from "~/styles.css?url";
 import { ThemeProvider } from "~/components/theme-provider";
 import { Toaster } from "~/components/ui/sonner";
 import { AudioPlayer } from "~/components/ui/audio-player";
+import { MobileNav } from "~/components/ui/mobile-nav";
 import { useAudioStore } from "~/lib/stores/audio";
 
 export const Route = createRootRouteWithContext<{
@@ -91,7 +92,8 @@ function RootComponent() {
   const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
   return (
     <RootDocument>
-      <div className={`transition-all duration-300 ${hasActiveSong ? 'pb-16' : ''}`}>
+      <MobileNav />
+      <div className={`transition-all duration-300 ${hasActiveSong ? 'pb-20 md:pb-16' : ''}`}>
         <Outlet />
       </div>
       {hasActiveSong && (

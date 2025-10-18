@@ -124,8 +124,110 @@ export function AudioPlayer() {
 
   return (
     <div className="bg-background/95 backdrop-blur-sm border-t border-border/50 shadow-lg">
-      <div className="max-w-6xl mx-auto px-4 py-3">
-        <div className="flex items-center justify-between">
+      <div className="max-w-6xl mx-auto px-2 sm:px-4 py-2 sm:py-3">
+        {/* Mobile Layout (< 768px) - Stacked */}
+        <div className="md:hidden space-y-2">
+          {/* Track Info + Play/Pause */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-2 flex-1 min-w-0">
+              <div className="relative">
+                <div className="w-10 h-10 bg-gradient-to-br from-muted to-muted-foreground/20 rounded-lg flex items-center justify-center overflow-hidden">
+                  {currentSong.artist && (
+                    <span className="text-xs font-medium text-muted-foreground/70">
+                      {currentSong.artist.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </span>
+                  )}
+                  {isPlaying && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 animate-pulse rounded-lg" />
+                  )}
+                </div>
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-sm truncate" title={currentSong.name}>
+                  {currentSong.name}
+                </h3>
+                <p className="text-xs text-muted-foreground truncate" title={currentSong.artist || 'Unknown Artist'}>
+                  {currentSong.artist || 'Unknown Artist'}
+                </p>
+              </div>
+            </div>
+
+            {/* Mobile Controls */}
+            <div className="flex items-center space-x-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-h-[44px] min-w-[44px] p-2 rounded-full hover:bg-accent/20"
+                onClick={previousSong}
+                aria-label="Previous song"
+              >
+                <SkipBack className="h-5 w-5" />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`min-h-[44px] min-w-[44px] p-2 rounded-full ${isPlaying ? 'bg-primary hover:bg-primary/90' : 'bg-accent hover:bg-accent/80'}`}
+                onClick={togglePlayPause}
+                aria-label={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? (
+                  <Pause className="h-6 w-6" />
+                ) : (
+                  <Play className="h-6 w-6 ml-0.5" />
+                )}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-h-[44px] min-w-[44px] p-2 rounded-full hover:bg-accent/20"
+                onClick={nextSong}
+                aria-label="Next song"
+              >
+                <SkipForward className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Mobile Progress Bar */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-muted-foreground min-w-[2.5rem]">
+              {formatTime(currentTime)}
+            </span>
+            <div className="flex-1 relative min-h-[44px] flex items-center">
+              <input
+                type="range"
+                value={currentTime}
+                max={duration || 0}
+                step={0.1}
+                onInput={(e: React.ChangeEvent<HTMLInputElement>) => seek(Number(e.target.value))}
+                className="w-full h-2 bg-muted/50 rounded-full appearance-none cursor-pointer
+                  [&::-webkit-slider-thumb]:appearance-none
+                  [&::-webkit-slider-thumb]:h-5
+                  [&::-webkit-slider-thumb]:w-5
+                  [&::-webkit-slider-thumb]:bg-primary
+                  [&::-webkit-slider-thumb]:rounded-full
+                  [&::-webkit-slider-thumb]:shadow-md
+                  [&::-moz-range-thumb]:h-5
+                  [&::-moz-range-thumb]:w-5
+                  [&::-moz-range-thumb]:bg-primary
+                  [&::-moz-range-thumb]:rounded-full
+                  [&::-moz-range-thumb]:border-0"
+                style={{
+                  background: `linear-gradient(to right, var(--primary) ${(currentTime / (duration || 1)) * 100}%, var(--muted) ${(currentTime / (duration || 1)) * 100}%)`,
+                }}
+                aria-label="Seek position"
+              />
+            </div>
+            <span className="text-xs font-mono text-muted-foreground min-w-[2.5rem]">
+              {formatTime(duration)}
+            </span>
+          </div>
+        </div>
+
+        {/* Desktop Layout (>= 768px) - Original Horizontal */}
+        <div className="hidden md:flex items-center justify-between">
           {/* Track Info - Left Side */}
           <div className="flex items-center space-x-4 flex-1 min-w-0">
             <div className="relative">
@@ -160,7 +262,7 @@ export function AudioPlayer() {
             >
               <SkipBack className="h-4 w-4" />
             </Button>
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -173,7 +275,7 @@ export function AudioPlayer() {
                 <Play className="h-5 w-5 ml-0.5" />
               )}
             </Button>
-            
+
             <Button
               variant="ghost"
               size="sm"

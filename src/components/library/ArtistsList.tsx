@@ -38,28 +38,32 @@ export function ArtistsList() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
       <Card>
-        <CardContent className="p-6">
-          <div className="flex justify-between items-start mb-4">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-4">
             <div className="flex items-center gap-3">
-              <User className="h-6 w-6 text-muted-foreground" />
-              <h1 className="text-3xl font-bold tracking-tight">Artists</h1>
+              <User className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground" />
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Artists</h1>
             </div>
-            <Link to="/dashboard" className="text-primary hover:underline text-sm">
+            <Link to="/dashboard" className="text-primary hover:underline text-sm min-h-[44px] flex items-center">
               ← Dashboard
             </Link>
           </div>
-          
-          <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="mb-4">
+
+          <Button
+            variant="outline"
+            onClick={() => setShowFilters(!showFilters)}
+            className="mb-4 min-h-[44px] w-full sm:w-auto"
+          >
             {showFilters ? 'Hide' : 'Show'} Filters
           </Button>
-          
+
           {showFilters && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Select value={genre} onValueChange={setGenre}>
-                  <SelectTrigger>
+                  <SelectTrigger className="min-h-[44px]">
                     <SelectValue placeholder="Filter by genre" />
                   </SelectTrigger>
                   <SelectContent>
@@ -73,7 +77,9 @@ export function ArtistsList() {
                 </Select>
               </div>
               <div className="flex items-end gap-2">
-                <Button variant="outline" onClick={handleClearFilters}>Clear Filters</Button>
+                <Button variant="outline" onClick={handleClearFilters} className="min-h-[44px]">
+                  Clear Filters
+                </Button>
               </div>
             </div>
           )}
@@ -85,20 +91,20 @@ export function ArtistsList() {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {sortedArtists.map((artist) => (
             <Card key={artist.id} className="cursor-pointer transition-shadow hover:shadow-md border-border/50">
-              <CardContent className="p-6 hover:bg-accent hover:text-accent-foreground">
+              <CardContent className="p-4 sm:p-6 hover:bg-accent hover:text-accent-foreground">
                 <Link
                   to="/library/artists/id"
                   params={{id: artist.id}}
-                  className="flex items-center gap-3 h-full"
+                  className="flex items-center gap-3 h-full min-h-[44px]"
                 >
-                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
                     <User className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate">{artist.name}</div>
+                    <div className="font-semibold truncate text-sm sm:text-base">{artist.name}</div>
                   </div>
                 </Link>
               </CardContent>

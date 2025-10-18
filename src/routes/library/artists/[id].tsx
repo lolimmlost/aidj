@@ -24,22 +24,22 @@ function ArtistAlbums() {
   const sortedAlbums = [...albums].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
       <Card className="fade-in">
-        <CardContent className="p-6">
-          <div className="flex justify-between items-start mb-6">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center">
-                <Music className="h-8 w-8 text-muted-foreground" />
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4 sm:mb-6">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
+                <Music className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold tracking-tight">Artist Albums</h1>
-                <p className="text-muted-foreground mt-1">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Artist Albums</h1>
+                <p className="text-sm sm:text-base text-muted-foreground mt-1">
                   {albums.length} {albums.length === 1 ? 'album' : 'albums'}
                 </p>
               </div>
             </div>
-            <Link to="/dashboard" className="text-primary hover:underline text-sm">
+            <Link to="/dashboard" className="text-primary hover:underline text-sm min-h-[44px] flex items-center">
               ← Dashboard
             </Link>
           </div>
@@ -60,15 +60,22 @@ function ArtistAlbums() {
         </Card>
       ) : (
         <div className="fade-in">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             {sortedAlbums.map((album) => (
               <Card key={album.id} className="cursor-pointer transition-shadow hover:shadow-md border-border/50 overflow-hidden">
                 <CardContent className="p-0">
                   <div
-                    className="block p-4 hover:bg-accent hover:text-accent-foreground transition-colors"
+                    className="block p-3 sm:p-4 hover:bg-accent hover:text-accent-foreground transition-colors min-h-[44px]"
                     onClick={() => navigate({ to: '/library/artists/id/albums/albumId', params: { id, albumId: album.id } })}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        navigate({ to: '/library/artists/id/albums/albumId', params: { id, albumId: album.id } });
+                      }
+                    }}
                   >
-                    <div className="aspect-square w-full rounded-lg mb-3 overflow-hidden bg-muted">
+                    <div className="aspect-square w-full rounded-lg mb-2 sm:mb-3 overflow-hidden bg-muted">
                       <img
                         src={album.artwork || '/placeholder-album.jpg'}
                         alt={album.name}
@@ -77,8 +84,8 @@ function ArtistAlbums() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <div className="font-semibold line-clamp-1 text-foreground">{album.name}</div>
-                      {album.year ? <div className="text-sm text-muted-foreground">{album.year}</div> : null}
+                      <div className="font-semibold line-clamp-2 text-xs sm:text-sm text-foreground">{album.name}</div>
+                      {album.year ? <div className="text-xs text-muted-foreground">{album.year}</div> : null}
                     </div>
                   </div>
                 </CardContent>

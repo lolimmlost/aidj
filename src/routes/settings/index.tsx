@@ -59,7 +59,7 @@ function SettingsPage() {
       {/* Settings Tabs */}
       {!isLoading && (
         <Tabs defaultValue="profile" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 mb-8">
+          <TabsList className="w-full grid grid-cols-2 gap-1 h-auto p-1 mb-8 sm:grid-cols-3 lg:grid-cols-6">
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="services">Services</TabsTrigger>
             <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
