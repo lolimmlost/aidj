@@ -1,0 +1,24 @@
+schema: 1
+story: '5.3'
+gate: CONCERNS
+status_reason: 'API route tests failing due to TanStack Router mocking complexity; dashboard layout preferences not actively applied to dashboard UI.'
+reviewer: 'Quinn'
+updated: '2025-10-17T00:00:00Z'
+top_issues:
+  - id: 'TEST-001'
+    severity: medium
+    finding: 'API route tests fail with "ServerRoute.methods is not a function" error'
+    suggested_action: 'Refactor API tests to properly mock TanStack Router ServerRoute or document that API tests require integration test environment'
+  - id: 'MNT-001'
+    severity: low
+    finding: 'Dashboard layout preferences saved to database but not actively consumed by dashboard UI'
+    suggested_action: 'Update dashboard/index.tsx to read and apply showRecommendations/showRecentlyPlayed preferences to conditionally render sections'
+  - id: 'REL-001'
+    severity: low
+    finding: 'No E2E tests implemented despite being listed in story tasks'
+    suggested_action: 'Add basic E2E test for settings page navigation and preference persistence using Playwright'
+  - id: 'DOC-001'
+    severity: low
+    finding: 'Database migration applied but no rollback migration provided'
+    suggested_action: 'Create rollback migration for user_preferences table for safer schema management'
+waiver: { active: false }

@@ -15,6 +15,7 @@ import { Route as ConfigRouteImport } from "./routes/config";
 import { Route as DashboardRouteRouteImport } from "./routes/dashboard/route";
 import { Route as authRouteRouteImport } from "./routes/(auth)/route";
 import { Route as IndexRouteImport } from "./routes/index";
+import { Route as SettingsIndexRouteImport } from "./routes/settings/index";
 import { Route as DownloadsIndexRouteImport } from "./routes/downloads/index";
 import { Route as DashboardIndexRouteImport } from "./routes/dashboard/index";
 import { Route as LibrarySearchRouteImport } from "./routes/library/search";
@@ -28,6 +29,7 @@ import { Route as DashboardRecommendationsIdRouteImport } from "./routes/dashboa
 import { Route as LibraryArtistsIdAlbumsAlbumIdRouteImport } from "./routes/library/artists/[id]/albums/[albumId]";
 import { ServerRoute as ApiSearchServerRouteImport } from "./routes/api/search";
 import { ServerRoute as ApiRecommendationsServerRouteImport } from "./routes/api/recommendations";
+import { ServerRoute as ApiPreferencesServerRouteImport } from "./routes/api/preferences";
 import { ServerRoute as ApiPlaylistServerRouteImport } from "./routes/api/playlist";
 import { ServerRoute as ApiDebugLibraryServerRouteImport } from "./routes/api/debug-library";
 import { ServerRoute as ApiConfigServerRouteImport } from "./routes/api/config";
@@ -63,6 +65,11 @@ const authRouteRoute = authRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: "/",
   path: "/",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: "/settings/",
+  path: "/settings/",
   getParentRoute: () => rootRouteImport,
 } as any);
 const DownloadsIndexRoute = DownloadsIndexRouteImport.update({
@@ -133,6 +140,11 @@ const ApiRecommendationsServerRoute =
     path: "/api/recommendations",
     getParentRoute: () => rootServerRouteImport,
   } as any);
+const ApiPreferencesServerRoute = ApiPreferencesServerRouteImport.update({
+  id: "/api/preferences",
+  path: "/api/preferences",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
 const ApiPlaylistServerRoute = ApiPlaylistServerRouteImport.update({
   id: "/api/playlist",
   path: "/api/playlist",
@@ -225,6 +237,7 @@ export interface FileRoutesByFullPath {
   "/library/search": typeof LibrarySearchRoute;
   "/dashboard/": typeof DashboardIndexRoute;
   "/downloads": typeof DownloadsIndexRoute;
+  "/settings": typeof SettingsIndexRoute;
   "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
   "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
   "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
@@ -240,6 +253,7 @@ export interface FileRoutesByTo {
   "/library/search": typeof LibrarySearchRoute;
   "/dashboard": typeof DashboardIndexRoute;
   "/downloads": typeof DownloadsIndexRoute;
+  "/settings": typeof SettingsIndexRoute;
   "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
   "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
   "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
@@ -258,6 +272,7 @@ export interface FileRoutesById {
   "/library/search": typeof LibrarySearchRoute;
   "/dashboard/": typeof DashboardIndexRoute;
   "/downloads/": typeof DownloadsIndexRoute;
+  "/settings/": typeof SettingsIndexRoute;
   "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
   "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
   "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
@@ -276,6 +291,7 @@ export interface FileRouteTypes {
     | "/library/search"
     | "/dashboard/"
     | "/downloads"
+    | "/settings"
     | "/dashboard/recommendations/id"
     | "/library/artists/id"
     | "/library/artists/id/albums/albumId";
@@ -291,6 +307,7 @@ export interface FileRouteTypes {
     | "/library/search"
     | "/dashboard"
     | "/downloads"
+    | "/settings"
     | "/dashboard/recommendations/id"
     | "/library/artists/id"
     | "/library/artists/id/albums/albumId";
@@ -308,6 +325,7 @@ export interface FileRouteTypes {
     | "/library/search"
     | "/dashboard/"
     | "/downloads/"
+    | "/settings/"
     | "/dashboard/recommendations/id"
     | "/library/artists/id"
     | "/library/artists/id/albums/albumId";
@@ -323,11 +341,13 @@ export interface RootRouteChildren {
   LibraryArtistsRoute: typeof LibraryArtistsRouteWithChildren;
   LibrarySearchRoute: typeof LibrarySearchRoute;
   DownloadsIndexRoute: typeof DownloadsIndexRoute;
+  SettingsIndexRoute: typeof SettingsIndexRoute;
 }
 export interface FileServerRoutesByFullPath {
   "/api/config": typeof ApiConfigServerRoute;
   "/api/debug-library": typeof ApiDebugLibraryServerRoute;
   "/api/playlist": typeof ApiPlaylistServerRoute;
+  "/api/preferences": typeof ApiPreferencesServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRoute;
   "/api/search": typeof ApiSearchServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
@@ -347,6 +367,7 @@ export interface FileServerRoutesByTo {
   "/api/config": typeof ApiConfigServerRoute;
   "/api/debug-library": typeof ApiDebugLibraryServerRoute;
   "/api/playlist": typeof ApiPlaylistServerRoute;
+  "/api/preferences": typeof ApiPreferencesServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRoute;
   "/api/search": typeof ApiSearchServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
@@ -367,6 +388,7 @@ export interface FileServerRoutesById {
   "/api/config": typeof ApiConfigServerRoute;
   "/api/debug-library": typeof ApiDebugLibraryServerRoute;
   "/api/playlist": typeof ApiPlaylistServerRoute;
+  "/api/preferences": typeof ApiPreferencesServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRoute;
   "/api/search": typeof ApiSearchServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
@@ -388,6 +410,7 @@ export interface FileServerRouteTypes {
     | "/api/config"
     | "/api/debug-library"
     | "/api/playlist"
+    | "/api/preferences"
     | "/api/recommendations"
     | "/api/search"
     | "/api/auth/$"
@@ -407,6 +430,7 @@ export interface FileServerRouteTypes {
     | "/api/config"
     | "/api/debug-library"
     | "/api/playlist"
+    | "/api/preferences"
     | "/api/recommendations"
     | "/api/search"
     | "/api/auth/$"
@@ -426,6 +450,7 @@ export interface FileServerRouteTypes {
     | "/api/config"
     | "/api/debug-library"
     | "/api/playlist"
+    | "/api/preferences"
     | "/api/recommendations"
     | "/api/search"
     | "/api/auth/$"
@@ -446,6 +471,7 @@ export interface RootServerRouteChildren {
   ApiConfigServerRoute: typeof ApiConfigServerRoute;
   ApiDebugLibraryServerRoute: typeof ApiDebugLibraryServerRoute;
   ApiPlaylistServerRoute: typeof ApiPlaylistServerRoute;
+  ApiPreferencesServerRoute: typeof ApiPreferencesServerRoute;
   ApiRecommendationsServerRoute: typeof ApiRecommendationsServerRoute;
   ApiSearchServerRoute: typeof ApiSearchServerRoute;
   ApiAuthSplatServerRoute: typeof ApiAuthSplatServerRoute;
@@ -490,6 +516,13 @@ declare module "@tanstack/react-router" {
       path: "/";
       fullPath: "/";
       preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/settings/": {
+      id: "/settings/";
+      path: "/settings";
+      fullPath: "/settings";
+      preLoaderRoute: typeof SettingsIndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/downloads/": {
@@ -585,6 +618,13 @@ declare module "@tanstack/react-start/server" {
       path: "/api/recommendations";
       fullPath: "/api/recommendations";
       preLoaderRoute: typeof ApiRecommendationsServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/preferences": {
+      id: "/api/preferences";
+      path: "/api/preferences";
+      fullPath: "/api/preferences";
+      preLoaderRoute: typeof ApiPreferencesServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
     "/api/playlist": {
@@ -756,6 +796,7 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryArtistsRoute: LibraryArtistsRouteWithChildren,
   LibrarySearchRoute: LibrarySearchRoute,
   DownloadsIndexRoute: DownloadsIndexRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
@@ -764,6 +805,7 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiConfigServerRoute: ApiConfigServerRoute,
   ApiDebugLibraryServerRoute: ApiDebugLibraryServerRoute,
   ApiPlaylistServerRoute: ApiPlaylistServerRoute,
+  ApiPreferencesServerRoute: ApiPreferencesServerRoute,
   ApiRecommendationsServerRoute: ApiRecommendationsServerRoute,
   ApiSearchServerRoute: ApiSearchServerRoute,
   ApiAuthSplatServerRoute: ApiAuthSplatServerRoute,

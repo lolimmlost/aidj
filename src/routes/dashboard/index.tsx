@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
+import { usePreferencesStore } from '@/lib/stores/preferences';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,12 +21,20 @@ function DashboardIndex() {
   const queryClient = useQueryClient();
   const addToQueue = useAudioStore((state) => state.playSong);
   const addPlaylist = useAudioStore((state) => state.addPlaylist);
+  const { preferences, loadPreferences } = usePreferencesStore();
   const [style, setStyle] = useState('');
   const [debouncedStyle, setDebouncedStyle] = useState('');
   const [generationStage, setGenerationStage] = useState<'idle' | 'generating' | 'resolving' | 'retrying' | 'done'>('idle');
   const trimmedStyle = style.trim();
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const songCache = useRef<Map<string, unknown[]>>(new Map()); // Cache for song search results
+
+  // Load user preferences on mount
+  useEffect(() => {
+    if (session) {
+      loadPreferences();
+    }
+  }, [session, loadPreferences]);
 
   // Load cache from localStorage on mount
   useEffect(() => {
@@ -138,7 +147,7 @@ function DashboardIndex() {
               const titlePart = parts.slice(1).join(' - ').trim();
 
               // STRATEGY 1: Search by title, filter by artist
-              let titleMatches = await search(titlePart, 0, 10);
+              const titleMatches = await search(titlePart, 0, 10);
               foundSong = titleMatches.find(s =>
                 s.artist?.toLowerCase().includes(artistPart.toLowerCase()) ||
                 artistPart.toLowerCase().includes(s.artist?.toLowerCase() || '')
@@ -537,101 +546,104 @@ function DashboardIndex() {
         </p>
       </div>
 
-      <section className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-semibold">AI Recommendations</h2>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetchRecommendations()}
-              disabled={isLoading}
-            >
-              {isLoading ? 'Loading...' : '🔄 Refresh'}
-            </Button>
-            <Select value={type} onValueChange={(value) => setType(value as 'similar' | 'mood')}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="similar">Similar Artists</SelectItem>
-                <SelectItem value="mood">Mood-Based</SelectItem>
-              </SelectContent>
-            </Select>
+      {/* AI Recommendations Section - conditionally rendered based on user preferences */}
+      {preferences.dashboardLayout.showRecommendations && (
+        <section className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-semibold">AI Recommendations</h2>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetchRecommendations()}
+                disabled={isLoading}
+              >
+                {isLoading ? 'Loading...' : '🔄 Refresh'}
+              </Button>
+              <Select value={type} onValueChange={(value) => setType(value as 'similar' | 'mood')}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="similar">Similar Artists</SelectItem>
+                  <SelectItem value="mood">Mood-Based</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
-        {isLoading && (
-          <p className="animate-pulse">
-            {isLoading ? '⏳ Loading recommendations...' : '🔄 Refreshing...'}
-            <span className="text-xs text-muted-foreground ml-2">(10s timeout)</span>
+          {isLoading && (
+            <p className="animate-pulse">
+              {isLoading ? '⏳ Loading recommendations...' : '🔄 Refreshing...'}
+              <span className="text-xs text-muted-foreground ml-2">(10s timeout)</span>
+            </p>
+          )}
+          {error && (
+          <p className="text-destructive">
+            Error loading recommendations: {error.message}
+            {error.message.includes('rate limit') && (
+              <span className="block text-sm mt-1">💡 Please wait a moment before refreshing again</span>
+            )}
           </p>
         )}
-        {error && (
-        <p className="text-destructive">
-          Error loading recommendations: {error.message}
-          {error.message.includes('rate limit') && (
-            <span className="block text-sm mt-1">💡 Please wait a moment before refreshing again</span>
-          )}
-        </p>
-      )}
-        {recommendations && (
-          <Card className="bg-card text-card-foreground border-card">
-            <CardHeader>
-              <CardTitle>Based on your history</CardTitle>
-              <CardDescription>
-                Generated at {new Date(recommendations.timestamp).toLocaleString()} -
-                {recommendations.data.recommendations.filter((rec: any) => rec.foundInLibrary).length} of {recommendations.data.recommendations.length} songs available in your library
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {recommendations.data.recommendations.map((rec: any, index: number) => {
-                  const songId = btoa(rec.song); // For route
-                  const isInLibrary = rec.foundInLibrary;
-                  const hasSearchError = rec.searchError;
+          {recommendations && (
+            <Card className="bg-card text-card-foreground border-card">
+              <CardHeader>
+                <CardTitle>Based on your history</CardTitle>
+                <CardDescription>
+                  Generated at {new Date(recommendations.timestamp).toLocaleString()} -
+                  {recommendations.data.recommendations.filter((rec: any) => rec.foundInLibrary).length} of {recommendations.data.recommendations.length} songs available in your library
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {recommendations.data.recommendations.map((rec: any, index: number) => {
+                    const songId = btoa(rec.song); // For route
+                    const isInLibrary = rec.foundInLibrary;
+                    const hasSearchError = rec.searchError;
 
-                  return (
-                    <li key={index} className={`flex flex-col space-y-2 p-2 border rounded ${isInLibrary ? 'border-green-200 bg-green-50/10' : 'border-gray-200'}`}>
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <Link to="/dashboard/recommendations/id" params={{ id: songId }} className="hover:underline">
-                            {rec.song}
-                          </Link>
-                          {isInLibrary && (
-                            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                              ✓ In Library
-                            </span>
-                          )}
-                          {hasSearchError && (
-                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
-                              ⚠️ Search Error
-                            </span>
-                          )}
+                    return (
+                      <li key={index} className={`flex flex-col space-y-2 p-2 border rounded ${isInLibrary ? 'border-green-200 bg-green-50/10' : 'border-gray-200'}`}>
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <Link to="/dashboard/recommendations/id" params={{ id: songId }} className="hover:underline">
+                              {rec.song}
+                            </Link>
+                            {isInLibrary && (
+                              <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                ✓ In Library
+                              </span>
+                            )}
+                            {hasSearchError && (
+                              <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                                ⚠️ Search Error
+                              </span>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleQueue(rec.song)}
+                            disabled={!isInLibrary}
+                            className={!isInLibrary ? "opacity-50 cursor-not-allowed" : ""}
+                          >
+                            {isInLibrary ? "Queue" : "Not Available"}
+                          </Button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleQueue(rec.song)}
-                          disabled={!isInLibrary}
-                          className={!isInLibrary ? "opacity-50 cursor-not-allowed" : ""}
-                        >
-                          {isInLibrary ? "Queue" : "Not Available"}
-                        </Button>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{rec.explanation.substring(0, 100)}...</p>
-                      {!isInLibrary && !hasSearchError && (
-                        <p className="text-xs text-orange-600">
-                          💡 This song isn't in your library but shows similar taste
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
-      </section>
+                        <p className="text-sm text-muted-foreground">{rec.explanation.substring(0, 100)}...</p>
+                        {!isInLibrary && !hasSearchError && (
+                          <p className="text-xs text-orange-600">
+                            💡 This song isn't in your library but shows similar taste
+                          </p>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+      )}
 
       <section className="space-y-4">
         <div className="flex justify-between items-center">
@@ -803,11 +815,11 @@ function DashboardIndex() {
         </Link>
 
         <Link
-          to="/config"
+          to="/settings"
           className="card card-hover p-6 text-center block"
         >
-          <h3 className="text-lg font-semibold mb-2">Service Configuration</h3>
-          <p className="text-muted-foreground text-sm">Configure your music service</p>
+          <h3 className="text-lg font-semibold mb-2">Settings</h3>
+          <p className="text-muted-foreground text-sm">Customize your preferences and services</p>
         </Link>
 
         <Link
