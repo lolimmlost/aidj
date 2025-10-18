@@ -37,93 +37,111 @@ function SearchPage() {
     playSong(songId, songs);
   };
 
-  if (error) {
-    return <div style={{ padding: '20px' }}>Error searching: {error.message}</div>;
-  }
-
   return (
-    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-      <h1 style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '20px' }}>Search Music Library</h1>
-      
-      {/* Minimal test input - no styling, no containers */}
-      <div style={{ marginBottom: '20px' }}>
-        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Test Input:</label>
-        <input
-          type="text"
-          placeholder="Type here to test..."
-          value={query}
-          onChange={handleInputChange}
-          style={{
-            width: '100%',
-            maxWidth: '400px',
-            padding: '10px',
-            border: '2px solid #ccc',
-            borderRadius: '4px',
-            fontSize: '16px',
-            outline: 'none'
-          }}
-        />
-        <div style={{ marginTop: '10px', fontSize: '14px', color: '#666' }}>
-          Debug: Query = "{query}" (length: {query.length}) | Songs: {songs.length} | Loading: {isLoading ? 'Yes' : 'No'}
-        </div>
-      </div>
-
-      {/* Link for navigation */}
-      <div style={{ marginBottom: '20px' }}>
-        <Link to="/dashboard" style={{ color: '#3b82f6', textDecoration: 'none' }}>
-          ← Back to Dashboard
-        </Link>
-      </div>
-
-      {isLoading ? (
-        <div style={{ textAlign: 'center', padding: '40px' }}>
-          <div>Loading...</div>
-        </div>
-      ) : query.trim().length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-          Enter a search term above to find songs in your library.
-        </div>
-      ) : songs.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-          <h3>No results found for "{query}"</h3>
-          <p style={{ marginTop: '10px' }}>Try different keywords. Debug: Query="{query}", Length={query.length}</p>
-        </div>
-      ) : (
-        <div>
-          <div style={{ marginBottom: '20px', fontWeight: 'bold' }}>
-            Found {songs.length} songs
+    <NavidromeErrorBoundary>
+      <div className="container mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6 max-w-4xl">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="flex items-center gap-3">
+            <SearchIcon className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground" />
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Search Music Library</h1>
           </div>
-          <div style={{ marginBottom: '20px' }}>
-            {songs.map((song) => (
-              <div
-                key={song.id}
-                style={{
-                  border: '1px solid #ddd',
-                  borderRadius: '8px',
-                  padding: '15px',
-                  marginBottom: '10px',
-                  cursor: 'pointer',
-                  backgroundColor: '#f9f9f9'
-                }}
-                onClick={() => handleSongClick(song.id)}
-              >
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <div style={{ width: '40px', textAlign: 'right', marginRight: '15px', color: '#666' }}>
-                    {song.track}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>{song.name}</div>
-                    <div style={{ fontSize: '14px', color: '#666' }}>
-                      Duration: {Math.floor(song.duration / 60)}:{(song.duration % 60).toString().padStart(2, '0')}
+          <Link to="/dashboard" className="text-primary hover:underline text-sm min-h-[44px] flex items-center">
+            ← Dashboard
+          </Link>
+        </div>
+
+        <Card>
+          <CardContent className="p-4 sm:p-6">
+            <div className="space-y-2">
+              <label htmlFor="search-input" className="text-sm font-medium">
+                Search for songs, artists, or albums
+              </label>
+              <Input
+                id="search-input"
+                type="text"
+                placeholder="Type to search..."
+                value={query}
+                onChange={handleInputChange}
+                className="min-h-[44px]"
+                aria-label="Search library"
+              />
+              {query.trim().length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {isLoading ? 'Searching...' : `Found ${songs.length} result${songs.length !== 1 ? 's' : ''}`}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {error && (
+          <Card className="border-destructive">
+            <CardContent className="p-6 text-center">
+              <p className="text-destructive font-medium">Error searching: {error.message}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {isLoading ? (
+          <div className="space-y-3" aria-busy="true" aria-live="polite">
+            {[...Array(8)].map((_, index) => (
+              <Card key={index}>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-4 w-8" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-5 w-3/4" />
+                      <Skeleton className="h-4 w-1/4" />
                     </div>
+                    <Skeleton className="h-6 w-6 rounded-full" />
                   </div>
-                  <div style={{ marginLeft: '15px', color: '#666' }}>▶</div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
-        </div>
-      )}
-    </div>
+        ) : query.trim().length === 0 ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <SearchIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground">
+                Enter a search term above to find songs in your library.
+              </p>
+            </CardContent>
+          </Card>
+        ) : songs.length === 0 ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <h3 className="font-semibold text-lg mb-2">No results found for "{query}"</h3>
+              <p className="text-sm text-muted-foreground">Try different keywords or check your spelling.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2" aria-live="polite">
+            {songs.map((song) => (
+              <Card
+                key={song.id}
+                className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
+                onClick={() => handleSongClick(song.id)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 text-right text-sm text-muted-foreground">
+                      {song.track}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold truncate">{song.name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {Math.floor(song.duration / 60)}:{(song.duration % 60).toString().padStart(2, '0')}
+                      </div>
+                    </div>
+                    <div className="text-muted-foreground">▶</div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </NavidromeErrorBoundary>
   );
 }
