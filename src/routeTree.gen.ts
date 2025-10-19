@@ -16,8 +16,10 @@ import { Route as DashboardRouteRouteImport } from "./routes/dashboard/route";
 import { Route as authRouteRouteImport } from "./routes/(auth)/route";
 import { Route as IndexRouteImport } from "./routes/index";
 import { Route as SettingsIndexRouteImport } from "./routes/settings/index";
+import { Route as PlaylistsIndexRouteImport } from "./routes/playlists/index";
 import { Route as DownloadsIndexRouteImport } from "./routes/downloads/index";
 import { Route as DashboardIndexRouteImport } from "./routes/dashboard/index";
+import { Route as PlaylistsIdRouteImport } from "./routes/playlists/$id";
 import { Route as LibrarySearchRouteImport } from "./routes/library/search";
 import { Route as LibraryArtistsRouteImport } from "./routes/library/artists";
 import { Route as DownloadsStatusRouteImport } from "./routes/downloads/status";
@@ -34,12 +36,14 @@ import { ServerRoute as ApiPreferencesServerRouteImport } from "./routes/api/pre
 import { ServerRoute as ApiPlaylistServerRouteImport } from "./routes/api/playlist";
 import { ServerRoute as ApiDebugLibraryServerRouteImport } from "./routes/api/debug-library";
 import { ServerRoute as ApiConfigServerRouteImport } from "./routes/api/config";
+import { ServerRoute as ApiPlaylistsIndexServerRouteImport } from "./routes/api/playlists/index";
 import { ServerRoute as ApiRecommendationsSeasonalPlaylistServerRouteImport } from "./routes/api/recommendations/seasonal-playlist";
 import { ServerRoute as ApiRecommendationsSeasonalInsightsServerRouteImport } from "./routes/api/recommendations/seasonal-insights";
 import { ServerRoute as ApiRecommendationsFeedbackServerRouteImport } from "./routes/api/recommendations/feedback";
 import { ServerRoute as ApiRecommendationsExportServerRouteImport } from "./routes/api/recommendations/export";
 import { ServerRoute as ApiRecommendationsClearServerRouteImport } from "./routes/api/recommendations/clear";
 import { ServerRoute as ApiRecommendationsAnalyticsServerRouteImport } from "./routes/api/recommendations/analytics";
+import { ServerRoute as ApiPlaylistsIdServerRouteImport } from "./routes/api/playlists/$id";
 import { ServerRoute as ApiLidarrStatusServerRouteImport } from "./routes/api/lidarr/status";
 import { ServerRoute as ApiLidarrSearchServerRouteImport } from "./routes/api/lidarr/search";
 import { ServerRoute as ApiLidarrHistoryServerRouteImport } from "./routes/api/lidarr/history";
@@ -51,6 +55,8 @@ import { ServerRoute as ApiAuthLoginServerRouteImport } from "./routes/api/auth/
 import { ServerRoute as ApiAuthSplatServerRouteImport } from "./routes/api/auth/$";
 import { ServerRoute as ApiNavidromeStreamIdServerRouteImport } from "./routes/api/navidrome/stream/$id";
 import { ServerRoute as ApiNavidromeChar91DotPathChar93ServerRouteImport } from "./routes/api/navidrome/[...path]";
+import { ServerRoute as ApiPlaylistsIdSongsIndexServerRouteImport } from "./routes/api/playlists/$id/songs/index";
+import { ServerRoute as ApiPlaylistsIdSongsSongIdServerRouteImport } from "./routes/api/playlists/$id/songs/$songId";
 import { ServerRoute as ApiNavidromeStreamIdIdServerRouteImport } from "./routes/api/navidrome/stream/[id]/[id]";
 
 const rootServerRouteImport = createServerRootRoute();
@@ -79,6 +85,11 @@ const SettingsIndexRoute = SettingsIndexRouteImport.update({
   path: "/settings/",
   getParentRoute: () => rootRouteImport,
 } as any);
+const PlaylistsIndexRoute = PlaylistsIndexRouteImport.update({
+  id: "/playlists/",
+  path: "/playlists/",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const DownloadsIndexRoute = DownloadsIndexRouteImport.update({
   id: "/downloads/",
   path: "/downloads/",
@@ -88,6 +99,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: "/",
   path: "/",
   getParentRoute: () => DashboardRouteRoute,
+} as any);
+const PlaylistsIdRoute = PlaylistsIdRouteImport.update({
+  id: "/playlists/$id",
+  path: "/playlists/$id",
+  getParentRoute: () => rootRouteImport,
 } as any);
 const LibrarySearchRoute = LibrarySearchRouteImport.update({
   id: "/library/search",
@@ -172,6 +188,11 @@ const ApiConfigServerRoute = ApiConfigServerRouteImport.update({
   path: "/api/config",
   getParentRoute: () => rootServerRouteImport,
 } as any);
+const ApiPlaylistsIndexServerRoute = ApiPlaylistsIndexServerRouteImport.update({
+  id: "/api/playlists/",
+  path: "/api/playlists/",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
 const ApiRecommendationsSeasonalPlaylistServerRoute =
   ApiRecommendationsSeasonalPlaylistServerRouteImport.update({
     id: "/seasonal-playlist",
@@ -208,6 +229,11 @@ const ApiRecommendationsAnalyticsServerRoute =
     path: "/analytics",
     getParentRoute: () => ApiRecommendationsServerRoute,
   } as any);
+const ApiPlaylistsIdServerRoute = ApiPlaylistsIdServerRouteImport.update({
+  id: "/api/playlists/$id",
+  path: "/api/playlists/$id",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
 const ApiLidarrStatusServerRoute = ApiLidarrStatusServerRouteImport.update({
   id: "/api/lidarr/status",
   path: "/api/lidarr/status",
@@ -266,6 +292,18 @@ const ApiNavidromeChar91DotPathChar93ServerRoute =
     path: "/api/navidrome/[./path]",
     getParentRoute: () => rootServerRouteImport,
   } as any);
+const ApiPlaylistsIdSongsIndexServerRoute =
+  ApiPlaylistsIdSongsIndexServerRouteImport.update({
+    id: "/songs/",
+    path: "/songs/",
+    getParentRoute: () => ApiPlaylistsIdServerRoute,
+  } as any);
+const ApiPlaylistsIdSongsSongIdServerRoute =
+  ApiPlaylistsIdSongsSongIdServerRouteImport.update({
+    id: "/songs/$songId",
+    path: "/songs/$songId",
+    getParentRoute: () => ApiPlaylistsIdServerRoute,
+  } as any);
 const ApiNavidromeStreamIdIdServerRoute =
   ApiNavidromeStreamIdIdServerRouteImport.update({
     id: "/api/navidrome/stream/id/id",
@@ -284,8 +322,10 @@ export interface FileRoutesByFullPath {
   "/downloads/status": typeof DownloadsStatusRoute;
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
   "/library/search": typeof LibrarySearchRoute;
+  "/playlists/$id": typeof PlaylistsIdRoute;
   "/dashboard/": typeof DashboardIndexRoute;
   "/downloads": typeof DownloadsIndexRoute;
+  "/playlists": typeof PlaylistsIndexRoute;
   "/settings": typeof SettingsIndexRoute;
   "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
   "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
@@ -301,8 +341,10 @@ export interface FileRoutesByTo {
   "/downloads/status": typeof DownloadsStatusRoute;
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
   "/library/search": typeof LibrarySearchRoute;
+  "/playlists/$id": typeof PlaylistsIdRoute;
   "/dashboard": typeof DashboardIndexRoute;
   "/downloads": typeof DownloadsIndexRoute;
+  "/playlists": typeof PlaylistsIndexRoute;
   "/settings": typeof SettingsIndexRoute;
   "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
   "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
@@ -321,8 +363,10 @@ export interface FileRoutesById {
   "/downloads/status": typeof DownloadsStatusRoute;
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
   "/library/search": typeof LibrarySearchRoute;
+  "/playlists/$id": typeof PlaylistsIdRoute;
   "/dashboard/": typeof DashboardIndexRoute;
   "/downloads/": typeof DownloadsIndexRoute;
+  "/playlists/": typeof PlaylistsIndexRoute;
   "/settings/": typeof SettingsIndexRoute;
   "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
   "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
@@ -341,8 +385,10 @@ export interface FileRouteTypes {
     | "/downloads/status"
     | "/library/artists"
     | "/library/search"
+    | "/playlists/$id"
     | "/dashboard/"
     | "/downloads"
+    | "/playlists"
     | "/settings"
     | "/dashboard/recommendations/id"
     | "/library/artists/id"
@@ -358,8 +404,10 @@ export interface FileRouteTypes {
     | "/downloads/status"
     | "/library/artists"
     | "/library/search"
+    | "/playlists/$id"
     | "/dashboard"
     | "/downloads"
+    | "/playlists"
     | "/settings"
     | "/dashboard/recommendations/id"
     | "/library/artists/id"
@@ -377,8 +425,10 @@ export interface FileRouteTypes {
     | "/downloads/status"
     | "/library/artists"
     | "/library/search"
+    | "/playlists/$id"
     | "/dashboard/"
     | "/downloads/"
+    | "/playlists/"
     | "/settings/"
     | "/dashboard/recommendations/id"
     | "/library/artists/id"
@@ -394,7 +444,9 @@ export interface RootRouteChildren {
   DownloadsStatusRoute: typeof DownloadsStatusRoute;
   LibraryArtistsRoute: typeof LibraryArtistsRouteWithChildren;
   LibrarySearchRoute: typeof LibrarySearchRoute;
+  PlaylistsIdRoute: typeof PlaylistsIdRoute;
   DownloadsIndexRoute: typeof DownloadsIndexRoute;
+  PlaylistsIndexRoute: typeof PlaylistsIndexRoute;
   SettingsIndexRoute: typeof SettingsIndexRoute;
 }
 export interface FileServerRoutesByFullPath {
@@ -413,15 +465,19 @@ export interface FileServerRoutesByFullPath {
   "/api/lidarr/history": typeof ApiLidarrHistoryServerRoute;
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
+  "/api/playlists/$id": typeof ApiPlaylistsIdServerRouteWithChildren;
   "/api/recommendations/analytics": typeof ApiRecommendationsAnalyticsServerRoute;
   "/api/recommendations/clear": typeof ApiRecommendationsClearServerRoute;
   "/api/recommendations/export": typeof ApiRecommendationsExportServerRoute;
   "/api/recommendations/feedback": typeof ApiRecommendationsFeedbackServerRoute;
   "/api/recommendations/seasonal-insights": typeof ApiRecommendationsSeasonalInsightsServerRoute;
   "/api/recommendations/seasonal-playlist": typeof ApiRecommendationsSeasonalPlaylistServerRoute;
+  "/api/playlists": typeof ApiPlaylistsIndexServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
+  "/api/playlists/$id/songs/$songId": typeof ApiPlaylistsIdSongsSongIdServerRoute;
+  "/api/playlists/$id/songs": typeof ApiPlaylistsIdSongsIndexServerRoute;
 }
 export interface FileServerRoutesByTo {
   "/api/config": typeof ApiConfigServerRoute;
@@ -439,15 +495,19 @@ export interface FileServerRoutesByTo {
   "/api/lidarr/history": typeof ApiLidarrHistoryServerRoute;
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
+  "/api/playlists/$id": typeof ApiPlaylistsIdServerRouteWithChildren;
   "/api/recommendations/analytics": typeof ApiRecommendationsAnalyticsServerRoute;
   "/api/recommendations/clear": typeof ApiRecommendationsClearServerRoute;
   "/api/recommendations/export": typeof ApiRecommendationsExportServerRoute;
   "/api/recommendations/feedback": typeof ApiRecommendationsFeedbackServerRoute;
   "/api/recommendations/seasonal-insights": typeof ApiRecommendationsSeasonalInsightsServerRoute;
   "/api/recommendations/seasonal-playlist": typeof ApiRecommendationsSeasonalPlaylistServerRoute;
+  "/api/playlists": typeof ApiPlaylistsIndexServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
+  "/api/playlists/$id/songs/$songId": typeof ApiPlaylistsIdSongsSongIdServerRoute;
+  "/api/playlists/$id/songs": typeof ApiPlaylistsIdSongsIndexServerRoute;
 }
 export interface FileServerRoutesById {
   __root__: typeof rootServerRouteImport;
@@ -466,15 +526,19 @@ export interface FileServerRoutesById {
   "/api/lidarr/history": typeof ApiLidarrHistoryServerRoute;
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
+  "/api/playlists/$id": typeof ApiPlaylistsIdServerRouteWithChildren;
   "/api/recommendations/analytics": typeof ApiRecommendationsAnalyticsServerRoute;
   "/api/recommendations/clear": typeof ApiRecommendationsClearServerRoute;
   "/api/recommendations/export": typeof ApiRecommendationsExportServerRoute;
   "/api/recommendations/feedback": typeof ApiRecommendationsFeedbackServerRoute;
   "/api/recommendations/seasonal-insights": typeof ApiRecommendationsSeasonalInsightsServerRoute;
   "/api/recommendations/seasonal-playlist": typeof ApiRecommendationsSeasonalPlaylistServerRoute;
+  "/api/playlists/": typeof ApiPlaylistsIndexServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
+  "/api/playlists/$id/songs/$songId": typeof ApiPlaylistsIdSongsSongIdServerRoute;
+  "/api/playlists/$id/songs/": typeof ApiPlaylistsIdSongsIndexServerRoute;
 }
 export interface FileServerRouteTypes {
   fileServerRoutesByFullPath: FileServerRoutesByFullPath;
@@ -494,15 +558,19 @@ export interface FileServerRouteTypes {
     | "/api/lidarr/history"
     | "/api/lidarr/search"
     | "/api/lidarr/status"
+    | "/api/playlists/$id"
     | "/api/recommendations/analytics"
     | "/api/recommendations/clear"
     | "/api/recommendations/export"
     | "/api/recommendations/feedback"
     | "/api/recommendations/seasonal-insights"
     | "/api/recommendations/seasonal-playlist"
+    | "/api/playlists"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
-    | "/api/navidrome/stream/id/id";
+    | "/api/navidrome/stream/id/id"
+    | "/api/playlists/$id/songs/$songId"
+    | "/api/playlists/$id/songs";
   fileServerRoutesByTo: FileServerRoutesByTo;
   to:
     | "/api/config"
@@ -520,15 +588,19 @@ export interface FileServerRouteTypes {
     | "/api/lidarr/history"
     | "/api/lidarr/search"
     | "/api/lidarr/status"
+    | "/api/playlists/$id"
     | "/api/recommendations/analytics"
     | "/api/recommendations/clear"
     | "/api/recommendations/export"
     | "/api/recommendations/feedback"
     | "/api/recommendations/seasonal-insights"
     | "/api/recommendations/seasonal-playlist"
+    | "/api/playlists"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
-    | "/api/navidrome/stream/id/id";
+    | "/api/navidrome/stream/id/id"
+    | "/api/playlists/$id/songs/$songId"
+    | "/api/playlists/$id/songs";
   id:
     | "__root__"
     | "/api/config"
@@ -546,15 +618,19 @@ export interface FileServerRouteTypes {
     | "/api/lidarr/history"
     | "/api/lidarr/search"
     | "/api/lidarr/status"
+    | "/api/playlists/$id"
     | "/api/recommendations/analytics"
     | "/api/recommendations/clear"
     | "/api/recommendations/export"
     | "/api/recommendations/feedback"
     | "/api/recommendations/seasonal-insights"
     | "/api/recommendations/seasonal-playlist"
+    | "/api/playlists/"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
-    | "/api/navidrome/stream/id/id";
+    | "/api/navidrome/stream/id/id"
+    | "/api/playlists/$id/songs/$songId"
+    | "/api/playlists/$id/songs/";
   fileServerRoutesById: FileServerRoutesById;
 }
 export interface RootServerRouteChildren {
@@ -573,6 +649,8 @@ export interface RootServerRouteChildren {
   ApiLidarrHistoryServerRoute: typeof ApiLidarrHistoryServerRoute;
   ApiLidarrSearchServerRoute: typeof ApiLidarrSearchServerRoute;
   ApiLidarrStatusServerRoute: typeof ApiLidarrStatusServerRoute;
+  ApiPlaylistsIdServerRoute: typeof ApiPlaylistsIdServerRouteWithChildren;
+  ApiPlaylistsIndexServerRoute: typeof ApiPlaylistsIndexServerRoute;
   ApiNavidromeChar91DotPathChar93ServerRoute: typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   ApiNavidromeStreamIdServerRoute: typeof ApiNavidromeStreamIdServerRoute;
   ApiNavidromeStreamIdIdServerRoute: typeof ApiNavidromeStreamIdIdServerRoute;
@@ -615,6 +693,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SettingsIndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/playlists/": {
+      id: "/playlists/";
+      path: "/playlists";
+      fullPath: "/playlists";
+      preLoaderRoute: typeof PlaylistsIndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/downloads/": {
       id: "/downloads/";
       path: "/downloads";
@@ -628,6 +713,13 @@ declare module "@tanstack/react-router" {
       fullPath: "/dashboard/";
       preLoaderRoute: typeof DashboardIndexRouteImport;
       parentRoute: typeof DashboardRouteRoute;
+    };
+    "/playlists/$id": {
+      id: "/playlists/$id";
+      path: "/playlists/$id";
+      fullPath: "/playlists/$id";
+      preLoaderRoute: typeof PlaylistsIdRouteImport;
+      parentRoute: typeof rootRouteImport;
     };
     "/library/search": {
       id: "/library/search";
@@ -745,6 +837,13 @@ declare module "@tanstack/react-start/server" {
       preLoaderRoute: typeof ApiConfigServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
+    "/api/playlists/": {
+      id: "/api/playlists/";
+      path: "/api/playlists";
+      fullPath: "/api/playlists";
+      preLoaderRoute: typeof ApiPlaylistsIndexServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
     "/api/recommendations/seasonal-playlist": {
       id: "/api/recommendations/seasonal-playlist";
       path: "/seasonal-playlist";
@@ -786,6 +885,13 @@ declare module "@tanstack/react-start/server" {
       fullPath: "/api/recommendations/analytics";
       preLoaderRoute: typeof ApiRecommendationsAnalyticsServerRouteImport;
       parentRoute: typeof ApiRecommendationsServerRoute;
+    };
+    "/api/playlists/$id": {
+      id: "/api/playlists/$id";
+      path: "/api/playlists/$id";
+      fullPath: "/api/playlists/$id";
+      preLoaderRoute: typeof ApiPlaylistsIdServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
     };
     "/api/lidarr/status": {
       id: "/api/lidarr/status";
@@ -863,6 +969,20 @@ declare module "@tanstack/react-start/server" {
       fullPath: "/api/navidrome/[./path]";
       preLoaderRoute: typeof ApiNavidromeChar91DotPathChar93ServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/playlists/$id/songs/": {
+      id: "/api/playlists/$id/songs/";
+      path: "/songs";
+      fullPath: "/api/playlists/$id/songs";
+      preLoaderRoute: typeof ApiPlaylistsIdSongsIndexServerRouteImport;
+      parentRoute: typeof ApiPlaylistsIdServerRoute;
+    };
+    "/api/playlists/$id/songs/$songId": {
+      id: "/api/playlists/$id/songs/$songId";
+      path: "/songs/$songId";
+      fullPath: "/api/playlists/$id/songs/$songId";
+      preLoaderRoute: typeof ApiPlaylistsIdSongsSongIdServerRouteImport;
+      parentRoute: typeof ApiPlaylistsIdServerRoute;
     };
     "/api/navidrome/stream/id/id": {
       id: "/api/navidrome/stream/id/id";
@@ -955,6 +1075,19 @@ const ApiRecommendationsServerRouteWithChildren =
     ApiRecommendationsServerRouteChildren,
   );
 
+interface ApiPlaylistsIdServerRouteChildren {
+  ApiPlaylistsIdSongsSongIdServerRoute: typeof ApiPlaylistsIdSongsSongIdServerRoute;
+  ApiPlaylistsIdSongsIndexServerRoute: typeof ApiPlaylistsIdSongsIndexServerRoute;
+}
+
+const ApiPlaylistsIdServerRouteChildren: ApiPlaylistsIdServerRouteChildren = {
+  ApiPlaylistsIdSongsSongIdServerRoute: ApiPlaylistsIdSongsSongIdServerRoute,
+  ApiPlaylistsIdSongsIndexServerRoute: ApiPlaylistsIdSongsIndexServerRoute,
+};
+
+const ApiPlaylistsIdServerRouteWithChildren =
+  ApiPlaylistsIdServerRoute._addFileChildren(ApiPlaylistsIdServerRouteChildren);
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   authRouteRoute: authRouteRouteWithChildren,
@@ -964,7 +1097,9 @@ const rootRouteChildren: RootRouteChildren = {
   DownloadsStatusRoute: DownloadsStatusRoute,
   LibraryArtistsRoute: LibraryArtistsRouteWithChildren,
   LibrarySearchRoute: LibrarySearchRoute,
+  PlaylistsIdRoute: PlaylistsIdRoute,
   DownloadsIndexRoute: DownloadsIndexRoute,
+  PlaylistsIndexRoute: PlaylistsIndexRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 };
 export const routeTree = rootRouteImport
@@ -986,6 +1121,8 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiLidarrHistoryServerRoute: ApiLidarrHistoryServerRoute,
   ApiLidarrSearchServerRoute: ApiLidarrSearchServerRoute,
   ApiLidarrStatusServerRoute: ApiLidarrStatusServerRoute,
+  ApiPlaylistsIdServerRoute: ApiPlaylistsIdServerRouteWithChildren,
+  ApiPlaylistsIndexServerRoute: ApiPlaylistsIndexServerRoute,
   ApiNavidromeChar91DotPathChar93ServerRoute:
     ApiNavidromeChar91DotPathChar93ServerRoute,
   ApiNavidromeStreamIdServerRoute: ApiNavidromeStreamIdServerRoute,

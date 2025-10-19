@@ -1021,6 +1021,14 @@ function DashboardIndex() {
         </Link>
 
         <Link
+          to="/playlists"
+          className="card card-hover p-6 text-center block"
+        >
+          <h3 className="text-lg font-semibold mb-2">My Playlists</h3>
+          <p className="text-muted-foreground text-sm">Organize your music collections</p>
+        </Link>
+
+        <Link
           to="/library/artists/id"
           params={{id: '08jJDtStA34urKpsWC7xHt'}}
           className="card card-hover p-6 text-center block"

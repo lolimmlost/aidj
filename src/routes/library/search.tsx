@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NavidromeErrorBoundary } from '@/components/navidrome-error-boundary';
 import { Search as SearchIcon } from 'lucide-react';
+import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
 
 export const Route = createFileRoute('/library/search')({
   beforeLoad: async ({ context }) => {
@@ -120,21 +121,35 @@ function SearchPage() {
             {songs.map((song) => (
               <Card
                 key={song.id}
-                className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
-                onClick={() => handleSongClick(song.id)}
+                className="transition-all hover:shadow-md hover:border-primary/50"
               >
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
                     <div className="w-8 text-right text-sm text-muted-foreground">
                       {song.track}
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => handleSongClick(song.id)}
+                    >
                       <div className="font-semibold truncate">{song.name}</div>
                       <div className="text-sm text-muted-foreground">
-                        {Math.floor(song.duration / 60)}:{(song.duration % 60).toString().padStart(2, '0')}
+                        {song.artist} • {Math.floor(song.duration / 60)}:{(song.duration % 60).toString().padStart(2, '0')}
                       </div>
                     </div>
-                    <div className="text-muted-foreground">▶</div>
+                    <div className="flex items-center gap-2">
+                      <AddToPlaylistButton
+                        songId={song.id}
+                        artistName={song.artist || 'Unknown Artist'}
+                        songTitle={song.name || song.title || 'Unknown Song'}
+                      />
+                      <div
+                        className="text-muted-foreground cursor-pointer p-2 hover:text-primary"
+                        onClick={() => handleSongClick(song.id)}
+                      >
+                        ▶
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Menu, X, Home, Music, Search, Settings, Download, LayoutDashboard, BarChart3 } from 'lucide-react';
+import { Menu, X, Home, Music, Search, Settings, Download, LayoutDashboard, BarChart3, ListMusic } from 'lucide-react';
 import { Button } from './button';
 
 export function MobileNav() {
@@ -66,6 +66,12 @@ export function MobileNav() {
               to="/library/search"
               icon={<Search className="h-5 w-5" />}
               label="Search Library"
+              onClick={closeMenu}
+            />
+            <NavLink
+              to="/playlists"
+              icon={<ListMusic className="h-5 w-5" />}
+              label="Playlists"
               onClick={closeMenu}
             />
             <NavLink

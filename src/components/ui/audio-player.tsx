@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { Button } from './button';
 import { Volume2, VolumeX, SkipBack, SkipForward, Play, Pause } from 'lucide-react';
 import { useAudioStore } from '@/lib/stores/audio';
+import { AddToPlaylistButton } from '../playlists/AddToPlaylistButton';
 
 export type Song = {
   id: string;
@@ -154,6 +155,12 @@ export function AudioPlayer() {
 
             {/* Mobile Controls */}
             <div className="flex items-center space-x-1">
+              <AddToPlaylistButton
+                songId={currentSong.id}
+                artistName={currentSong.artist || 'Unknown Artist'}
+                songTitle={currentSong.name}
+                size="icon"
+              />
               <Button
                 variant="ghost"
                 size="sm"

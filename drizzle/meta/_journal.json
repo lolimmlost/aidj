@@ -15,6 +15,13 @@
       "when": 1760828035436,
       "tag": "0001_steady_the_leader",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1760842097245,
+      "tag": "0002_striped_hercules",
+      "breakpoints": true
     }
   ]
 }

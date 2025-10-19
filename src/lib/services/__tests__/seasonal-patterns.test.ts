@@ -7,19 +7,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   detectSeasonalPreferences,
   analyzeMonthlyFeedback,
-  getCurrentSeasonalPattern,
   hasSeasonalPatterns,
 } from '../seasonal-patterns';
 import { db } from '../../db';
-import { recommendationFeedback } from '../../db/schema';
 
 // Mock the database
 vi.mock('../../db', () => ({
   db: {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockReturnThis(),
+    select: vi.fn(),
   },
 }));
 
@@ -43,11 +38,12 @@ describe('Seasonal Pattern Detection', () => {
         hourOfDay: 12,
       }));
 
-      vi.mocked(db.select).mockReturnValue({
+      // Each db.select() call returns a new chain that resolves to mockFeedback
+      vi.mocked(db.select).mockImplementation(() => ({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue(mockFeedback),
         }),
-      } as any);
+      } as any));
 
       const result = await detectSeasonalPreferences('user1');
 
@@ -56,24 +52,38 @@ describe('Seasonal Pattern Detection', () => {
     });
 
     it('should detect patterns when sufficient feedback exists', async () => {
-      // Mock database to return 20 feedback items (above threshold)
-      const mockFeedback = Array(20).fill(null).map((_, i) => ({
-        id: `fb-${i}`,
-        userId: 'user1',
-        songArtistTitle: `Horror Band ${i % 3} - Spooky Song ${i}`,
-        feedbackType: 'thumbs_up' as const,
-        season: 'fall' as const,
-        timestamp: new Date(),
-        month: 10,
-        dayOfWeek: 1,
-        hourOfDay: 12,
-      }));
+      // detectSeasonalPreferences queries each season separately
+      // Need 50+ items with high thumbs up ratio to pass confidence threshold (0.7)
+      const createMockFeedback = (season: string, count: number) =>
+        Array(count).fill(null).map((_, i) => ({
+          id: `fb-${season}-${i}`,
+          userId: 'user1',
+          songArtistTitle: `Horror Band ${i % 3} - Spooky Song ${i}`,
+          feedbackType: 'thumbs_up' as const,
+          season,
+          timestamp: new Date(),
+          month: 10,
+          dayOfWeek: 1,
+          hourOfDay: 12,
+        }));
 
-      vi.mocked(db.select).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue(mockFeedback),
-        }),
-      } as any);
+      // Track which query we're on (seasons: spring, summer, fall, winter)
+      let queryCallCount = 0;
+
+      // Each db.select() call must return a fresh chain
+      vi.mocked(db.select).mockImplementation(() => {
+        queryCallCount++;
+        const currentQuery = queryCallCount;
+
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue(
+              // fall is the 3rd season queried - use 50+ items for confidence >= 0.7
+              currentQuery === 3 ? createMockFeedback('fall', 50) : []
+            ),
+          }),
+        } as any;
+      });
 
       const result = await detectSeasonalPreferences('user1');
 
@@ -81,20 +91,20 @@ describe('Seasonal Pattern Detection', () => {
       const fallPattern = result.patterns.find(p => p.season === 'fall');
       expect(fallPattern).toBeDefined();
       if (fallPattern) {
-        expect(fallPattern.thumbsUpCount).toBe(20);
-        expect(fallPattern.totalFeedback).toBe(20);
-        expect(fallPattern.confidence).toBeGreaterThan(0);
+        expect(fallPattern.thumbsUpCount).toBe(50);
+        expect(fallPattern.totalFeedback).toBe(50);
+        expect(fallPattern.confidence).toBeGreaterThanOrEqual(0.7);
       }
     });
   });
 
   describe('analyzeMonthlyFeedback', () => {
     it('should return null for months with insufficient data', async () => {
-      vi.mocked(db.select).mockReturnValue({
+      vi.mocked(db.select).mockImplementation(() => ({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([]),
         }),
-      } as any);
+      } as any));
 
       const result = await analyzeMonthlyFeedback('user1', 10);
       expect(result).toBeNull();
@@ -113,11 +123,11 @@ describe('Seasonal Pattern Detection', () => {
         hourOfDay: 12,
       }));
 
-      vi.mocked(db.select).mockReturnValue({
+      vi.mocked(db.select).mockImplementation(() => ({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue(mockFeedback),
         }),
-      } as any);
+      } as any));
 
       const result = await analyzeMonthlyFeedback('user1', 10);
 
@@ -132,34 +142,48 @@ describe('Seasonal Pattern Detection', () => {
 
   describe('hasSeasonalPatterns', () => {
     it('should return false when no patterns detected', async () => {
-      vi.mocked(db.select).mockReturnValue({
+      vi.mocked(db.select).mockImplementation(() => ({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([]),
         }),
-      } as any);
+      } as any));
 
       const result = await hasSeasonalPatterns('user1');
       expect(result).toBe(false);
     });
 
     it('should return true when patterns exist', async () => {
-      const mockFeedback = Array(20).fill(null).map((_, i) => ({
-        id: `fb-${i}`,
-        userId: 'user1',
-        songArtistTitle: `Artist ${i} - Song ${i}`,
-        feedbackType: 'thumbs_up' as const,
-        season: 'fall' as const,
-        month: 10,
-        timestamp: new Date(),
-        dayOfWeek: 1,
-        hourOfDay: 12,
-      }));
+      // Need 50+ items with high thumbs up ratio to pass confidence threshold (0.7)
+      const createMockFeedback = (season: string, count: number) =>
+        Array(count).fill(null).map((_, i) => ({
+          id: `fb-${season}-${i}`,
+          userId: 'user1',
+          songArtistTitle: `Artist ${i} - Song ${i}`,
+          feedbackType: 'thumbs_up' as const,
+          season,
+          month: 10,
+          timestamp: new Date(),
+          dayOfWeek: 1,
+          hourOfDay: 12,
+        }));
 
-      vi.mocked(db.select).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue(mockFeedback),
-        }),
-      } as any);
+      // Track which query we're on (seasons: spring, summer, fall, winter)
+      let queryCallCount = 0;
+
+      // Each db.select() call must return a fresh chain
+      vi.mocked(db.select).mockImplementation(() => {
+        queryCallCount++;
+        const currentQuery = queryCallCount;
+
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue(
+              // summer is the 2nd season queried - use 50+ items for confidence >= 0.7
+              currentQuery === 2 ? createMockFeedback('summer', 50) : []
+            ),
+          }),
+        } as any;
+      });
 
       const result = await hasSeasonalPatterns('user1');
       expect(result).toBe(true);
