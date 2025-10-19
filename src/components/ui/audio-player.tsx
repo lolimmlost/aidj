@@ -7,7 +7,9 @@ import { AddToPlaylistButton } from '../playlists/AddToPlaylistButton';
 export type Song = {
   id: string;
   name: string;
+  title?: string; // Alternative name field from API
   albumId: string;
+  album?: string; // Album name for display
   duration: number;
   track: number;
   url: string;
@@ -99,21 +101,43 @@ export function AudioPlayer() {
   }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong]);
 
   useEffect(() => {
+    if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {
+      const currentSong = playlist[currentSongIndex];
+      const audio = audioRef.current;
+
+      if (audio && currentSong) {
+        // Set up one-time canplay listener to handle autoplay
+        const handleCanPlay = () => {
+          if (isPlaying) {
+            audio.play().catch((e) => console.error('Auto-play failed:', e));
+          }
+          audio.removeEventListener('canplay', handleCanPlay);
+        };
+
+        audio.addEventListener('canplay', handleCanPlay);
+        loadSong(currentSong);
+
+        // Cleanup
+        return () => {
+          audio.removeEventListener('canplay', handleCanPlay);
+        };
+      }
+    }
+  }, [currentSongIndex, playlist, isPlaying, loadSong]);
+
+  useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    if (isPlaying) {
-      audio.play().catch((e) => console.error('Auto-play failed:', e));
-    } else {
-      audio.pause();
+    // Only handle pause/resume for already-loaded audio
+    if (audio.src && audio.readyState >= 2) {
+      if (isPlaying) {
+        audio.play().catch((e) => console.error('Play failed:', e));
+      } else {
+        audio.pause();
+      }
     }
   }, [isPlaying]);
-
-  useEffect(() => {
-    if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {
-      loadSong(playlist[currentSongIndex]);
-    }
-  }, [currentSongIndex, playlist, loadSong]);
 
   if (playlist.length === 0 || currentSongIndex === -1) return null;
 
@@ -144,11 +168,12 @@ export function AudioPlayer() {
                 </div>
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm truncate" title={currentSong.name}>
-                  {currentSong.name}
+                <h3 className="font-semibold text-sm truncate" title={currentSong.name || currentSong.title || 'Unknown Song'}>
+                  {currentSong.name || currentSong.title || 'Unknown Song'}
                 </h3>
                 <p className="text-xs text-muted-foreground truncate" title={currentSong.artist || 'Unknown Artist'}>
                   {currentSong.artist || 'Unknown Artist'}
+                  {currentSong.album && ` • ${currentSong.album}`}
                 </p>
               </div>
             </div>
@@ -250,11 +275,12 @@ export function AudioPlayer() {
               </div>
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-sm truncate" title={currentSong.name}>
-                {currentSong.name}
+              <h3 className="font-semibold text-sm truncate" title={currentSong.name || currentSong.title || 'Unknown Song'}>
+                {currentSong.name || currentSong.title || 'Unknown Song'}
               </h3>
               <p className="text-xs text-muted-foreground truncate" title={currentSong.artist || 'Unknown Artist'}>
                 {currentSong.artist || 'Unknown Artist'}
+                {currentSong.album && ` • ${currentSong.album}`}
               </p>
             </div>
           </div>

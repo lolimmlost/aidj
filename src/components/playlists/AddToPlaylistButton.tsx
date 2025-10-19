@@ -20,6 +20,7 @@ interface AddToPlaylistButtonProps {
   variant?: 'default' | 'ghost' | 'outline';
   size?: 'default' | 'sm' | 'lg' | 'icon';
   showLabel?: boolean;
+  hideCreateNew?: boolean;
 }
 
 interface Playlist {
@@ -38,6 +39,7 @@ export function AddToPlaylistButton({
   variant = 'ghost',
   size = 'sm',
   showLabel = false,
+  hideCreateNew = false,
 }: AddToPlaylistButtonProps) {
   const [open, setOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -148,11 +150,15 @@ export function AddToPlaylistButton({
             </DropdownMenuItem>
           ))}
 
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleCreateNew}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create New Playlist
-          </DropdownMenuItem>
+          {!hideCreateNew && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleCreateNew}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create New Playlist
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

@@ -2,7 +2,7 @@ import { createServerFileRoute } from '@tanstack/react-start/server';
 import { auth } from '../../../lib/auth/auth';
 import { db } from '../../../lib/db';
 import { recommendationFeedback, recommendationsCache, userPreferences } from '../../../lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { starSong, unstarSong } from '../../../lib/services/navidrome';
 import { clearPreferenceCache } from '../../../lib/services/preferences';
@@ -14,12 +14,99 @@ const FeedbackSchema = z.object({
   feedbackType: z.enum(['thumbs_up', 'thumbs_down'], {
     errorMap: () => ({ message: 'Feedback type must be thumbs_up or thumbs_down' }),
   }),
-  source: z.enum(['recommendation', 'playlist']).optional().default('recommendation'),
+  source: z.enum(['recommendation', 'playlist', 'search', 'library']).optional().default('recommendation'),
   recommendationCacheId: z.number().int().positive().optional(),
-  songId: z.string().optional(), // Navidrome song ID for starring
+  songId: z.string().optional(), // Navidrome song ID for starring and storage
 });
 
 export const ServerRoute = createServerFileRoute('/api/recommendations/feedback').methods({
+  // GET /api/recommendations/feedback - Fetch user feedback for songs
+  GET: async ({ request }) => {
+    // Authentication middleware validation
+    const session = await auth.api.getSession({
+      headers: request.headers,
+      query: {
+        disableCookieCache: true,
+      },
+    });
+
+    if (!session) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    try {
+      // Parse query parameters
+      const url = new URL(request.url);
+      const songIdsParam = url.searchParams.get('songIds');
+
+      if (!songIdsParam) {
+        return new Response(JSON.stringify({
+          code: 'MISSING_SONG_IDS',
+          message: 'songIds query parameter is required'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Parse comma-separated song IDs
+      const songIds = songIdsParam.split(',').map(id => id.trim()).filter(Boolean);
+
+      if (songIds.length === 0) {
+        return new Response(JSON.stringify({
+          code: 'INVALID_SONG_IDS',
+          message: 'At least one songId is required'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Fetch feedback for the requested songs
+      const feedbackRecords = await db
+        .select({
+          songId: recommendationFeedback.songId,
+          feedbackType: recommendationFeedback.feedbackType,
+        })
+        .from(recommendationFeedback)
+        .where(
+          and(
+            eq(recommendationFeedback.userId, session.user.id),
+            inArray(recommendationFeedback.songId, songIds)
+          )
+        );
+
+      // Convert to map: songId -> feedbackType
+      const feedbackMap: Record<string, 'thumbs_up' | 'thumbs_down'> = {};
+      for (const record of feedbackRecords) {
+        if (record.songId) {
+          feedbackMap[record.songId] = record.feedbackType;
+        }
+      }
+
+      return new Response(JSON.stringify({
+        feedback: feedbackMap
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error: unknown) {
+      console.error('Failed to fetch feedback:', error);
+
+      const message = error instanceof Error ? error.message : 'Failed to fetch feedback';
+      return new Response(JSON.stringify({
+        code: 'FEEDBACK_FETCH_ERROR',
+        message
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  },
+
   // POST /api/recommendations/feedback - Submit user feedback
   POST: async ({ request }) => {
     // Authentication middleware validation
@@ -43,14 +130,16 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/feedback'
       // Input validation using Zod
       const validatedData = FeedbackSchema.parse(body);
 
-      // Check if feedback already exists for this song
+      // Check if feedback already exists for this song (prefer songId, fallback to songArtistTitle)
       const existingFeedback = await db
         .select()
         .from(recommendationFeedback)
         .where(
           and(
             eq(recommendationFeedback.userId, session.user.id),
-            eq(recommendationFeedback.songArtistTitle, validatedData.songArtistTitle)
+            validatedData.songId
+              ? eq(recommendationFeedback.songId, validatedData.songId)
+              : eq(recommendationFeedback.songArtistTitle, validatedData.songArtistTitle)
           )
         )
         .limit(1)
@@ -79,6 +168,7 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/feedback'
         id: crypto.randomUUID(),
         userId: session.user.id,
         songArtistTitle: validatedData.songArtistTitle,
+        songId: validatedData.songId || null, // Store songId for faster lookups (Story 3.12)
         feedbackType: validatedData.feedbackType,
         source: validatedData.source,
         recommendationCacheId: validatedData.recommendationCacheId || null,

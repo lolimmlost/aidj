@@ -392,19 +392,24 @@ export async function search(query: string, start: number = 0, limit: number = 5
     try {
       const response = await apiFetch(songEndpoint) as SubsonicSearchResponse;
       if (response.searchResult?.song && response.searchResult.song.length > 0) {
-        songs = response.searchResult.song.map((song: SubsonicSong) => ({
-          id: song.id,
-          name: song.title,
-          title: song.title,
-          artist: song.artist || 'Unknown Artist',
-          albumId: song.albumId,
-          artistId: song.artistId,
-          album: song.album,
-          duration: parseInt(song.duration) || 0,
-          track: parseInt(song.track) || 0,
-          trackNumber: parseInt(song.track) || 0,
-          url: `/api/navidrome/stream/${song.id}`,
-        }));
+        console.log('🔍 Search API response (first song):', response.searchResult.song[0]);
+        songs = response.searchResult.song.map((song: SubsonicSong) => {
+          const mappedSong = {
+            id: song.id,
+            name: song.title,
+            title: song.title,
+            artist: song.artist || 'Unknown Artist',
+            albumId: song.albumId,
+            artistId: song.artistId,
+            album: song.album,
+            duration: Math.floor(parseFloat(song.duration) || 0),
+            track: parseInt(song.track) || 0,
+            trackNumber: parseInt(song.track) || 0,
+            url: `/api/navidrome/stream/${song.id}`,
+          };
+          console.log('🎵 Mapped song:', { name: mappedSong.name, artist: mappedSong.artist, duration: mappedSong.duration });
+          return mappedSong;
+        });
       }
     } catch (error) {
       console.log('Direct song search failed:', error);

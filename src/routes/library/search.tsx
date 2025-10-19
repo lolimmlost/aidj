@@ -9,6 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { NavidromeErrorBoundary } from '@/components/navidrome-error-boundary';
 import { Search as SearchIcon } from 'lucide-react';
 import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
+import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
+import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 
 export const Route = createFileRoute('/library/search')({
   beforeLoad: async ({ context }) => {
@@ -28,6 +30,10 @@ function SearchPage() {
     queryFn: () => search(query.trim(), 0, 50),
     enabled: query.trim().length > 0,
   });
+
+  // Fetch feedback for displayed songs
+  const songIds = songs.map(song => song.id);
+  const { data: feedbackData } = useSongFeedback(songIds);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     console.log('Input change:', e.target.value);
@@ -132,16 +138,26 @@ function SearchPage() {
                       className="flex-1 min-w-0 cursor-pointer"
                       onClick={() => handleSongClick(song.id)}
                     >
-                      <div className="font-semibold truncate">{song.name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {song.artist} • {Math.floor(song.duration / 60)}:{(song.duration % 60).toString().padStart(2, '0')}
+                      <div className="font-semibold truncate">{song.name || song.title || 'Unknown Song'}</div>
+                      <div className="text-sm text-muted-foreground truncate">
+                        {song.artist || 'Unknown Artist'}
+                        {song.album && ` • ${song.album}`}
+                        {' • '}{Math.floor(song.duration / 60)}:{Math.floor(song.duration % 60).toString().padStart(2, '0')}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <SongFeedbackButtons
+                        songId={song.id}
+                        artistName={song.artist || 'Unknown Artist'}
+                        songTitle={song.name || song.title || 'Unknown Song'}
+                        currentFeedback={feedbackData?.feedback[song.id] || null}
+                        source="search"
+                      />
                       <AddToPlaylistButton
                         songId={song.id}
                         artistName={song.artist || 'Unknown Artist'}
                         songTitle={song.name || song.title || 'Unknown Song'}
+                        hideCreateNew={true}
                       />
                       <div
                         className="text-muted-foreground cursor-pointer p-2 hover:text-primary"

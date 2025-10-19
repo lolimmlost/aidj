@@ -18,11 +18,14 @@ export const recommendationFeedback = pgTable("recommendation_feedback", {
   // Song identifier (format: "Artist - Title")
   songArtistTitle: text("song_artist_title").notNull(),
 
+  // Navidrome song ID for faster lookups (Story 3.12)
+  songId: text("song_id"),
+
   // Feedback type: thumbs up or thumbs down
   feedbackType: text("feedback_type", { enum: ['thumbs_up', 'thumbs_down'] }).notNull(),
 
   // Where the feedback came from
-  source: text("source", { enum: ['recommendation', 'playlist'] }).default('recommendation').notNull(),
+  source: text("source", { enum: ['recommendation', 'playlist', 'search', 'library'] }).default('recommendation').notNull(),
 
   timestamp: timestamp("timestamp")
     .$defaultFn(() => new Date())
@@ -52,6 +55,10 @@ export const recommendationFeedback = pgTable("recommendation_feedback", {
   seasonIdx: index("recommendation_feedback_season_idx").on(table.season),
   userSeasonIdx: index("recommendation_feedback_user_season_idx").on(table.userId, table.season),
   userMonthIdx: index("recommendation_feedback_user_month_idx").on(table.userId, table.month),
+
+  // Index for songId lookups (Story 3.12)
+  songIdIdx: index("recommendation_feedback_song_id_idx").on(table.songId),
+  userSongIdIdx: index("recommendation_feedback_user_song_id_idx").on(table.userId, table.songId),
 }));
 
 export type RecommendationFeedback = typeof recommendationFeedback.$inferSelect;

@@ -22,6 +22,13 @@
       "when": 1760842097245,
       "tag": "0002_striped_hercules",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1760844615538,
+      "tag": "0003_rare_baron_strucker",
+      "breakpoints": true
     }
   ]
 }
