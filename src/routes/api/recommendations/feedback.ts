@@ -6,6 +6,7 @@ import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { starSong, unstarSong } from '../../../lib/services/navidrome';
 import { clearPreferenceCache } from '../../../lib/services/preferences';
+import { extractTemporalMetadata } from '../../../lib/utils/temporal';
 
 // Zod schema for feedback validation
 const FeedbackSchema = z.object({
@@ -69,6 +70,10 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/feedback'
         });
       }
 
+      // Extract temporal metadata for seasonal pattern detection (Story 3.11)
+      const timestamp = new Date();
+      const temporal = extractTemporalMetadata(timestamp);
+
       // Insert feedback record
       const feedbackRecord = {
         id: crypto.randomUUID(),
@@ -77,7 +82,12 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/feedback'
         feedbackType: validatedData.feedbackType,
         source: validatedData.source,
         recommendationCacheId: validatedData.recommendationCacheId || null,
-        timestamp: new Date(),
+        timestamp,
+        // Temporal metadata (Story 3.11)
+        month: temporal.month,
+        season: temporal.season,
+        dayOfWeek: temporal.dayOfWeek,
+        hourOfDay: temporal.hourOfDay,
       };
 
       await db.insert(recommendationFeedback).values(feedbackRecord);

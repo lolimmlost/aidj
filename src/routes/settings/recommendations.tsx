@@ -95,6 +95,23 @@ export function RecommendationSettings() {
           />
         </div>
 
+        {/* Seasonal Recommendations (Story 3.11) */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="seasonal-recs">Seasonal Recommendations</Label>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Automatically adjust recommendations based on season and time of year
+            </p>
+          </div>
+          <Switch
+            id="seasonal-recs"
+            checked={localSettings.enableSeasonalRecommendations ?? true}
+            onCheckedChange={(checked) =>
+              setLocalSettings({ ...localSettings, enableSeasonalRecommendations: checked })
+            }
+          />
+        </div>
+
         {/* Save Button */}
         <div className="pt-4">
           <Button

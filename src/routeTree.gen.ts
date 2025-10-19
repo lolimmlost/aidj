@@ -34,6 +34,8 @@ import { ServerRoute as ApiPreferencesServerRouteImport } from "./routes/api/pre
 import { ServerRoute as ApiPlaylistServerRouteImport } from "./routes/api/playlist";
 import { ServerRoute as ApiDebugLibraryServerRouteImport } from "./routes/api/debug-library";
 import { ServerRoute as ApiConfigServerRouteImport } from "./routes/api/config";
+import { ServerRoute as ApiRecommendationsSeasonalPlaylistServerRouteImport } from "./routes/api/recommendations/seasonal-playlist";
+import { ServerRoute as ApiRecommendationsSeasonalInsightsServerRouteImport } from "./routes/api/recommendations/seasonal-insights";
 import { ServerRoute as ApiRecommendationsFeedbackServerRouteImport } from "./routes/api/recommendations/feedback";
 import { ServerRoute as ApiRecommendationsExportServerRouteImport } from "./routes/api/recommendations/export";
 import { ServerRoute as ApiRecommendationsClearServerRouteImport } from "./routes/api/recommendations/clear";
@@ -170,6 +172,18 @@ const ApiConfigServerRoute = ApiConfigServerRouteImport.update({
   path: "/api/config",
   getParentRoute: () => rootServerRouteImport,
 } as any);
+const ApiRecommendationsSeasonalPlaylistServerRoute =
+  ApiRecommendationsSeasonalPlaylistServerRouteImport.update({
+    id: "/seasonal-playlist",
+    path: "/seasonal-playlist",
+    getParentRoute: () => ApiRecommendationsServerRoute,
+  } as any);
+const ApiRecommendationsSeasonalInsightsServerRoute =
+  ApiRecommendationsSeasonalInsightsServerRouteImport.update({
+    id: "/seasonal-insights",
+    path: "/seasonal-insights",
+    getParentRoute: () => ApiRecommendationsServerRoute,
+  } as any);
 const ApiRecommendationsFeedbackServerRoute =
   ApiRecommendationsFeedbackServerRouteImport.update({
     id: "/feedback",
@@ -403,6 +417,8 @@ export interface FileServerRoutesByFullPath {
   "/api/recommendations/clear": typeof ApiRecommendationsClearServerRoute;
   "/api/recommendations/export": typeof ApiRecommendationsExportServerRoute;
   "/api/recommendations/feedback": typeof ApiRecommendationsFeedbackServerRoute;
+  "/api/recommendations/seasonal-insights": typeof ApiRecommendationsSeasonalInsightsServerRoute;
+  "/api/recommendations/seasonal-playlist": typeof ApiRecommendationsSeasonalPlaylistServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
@@ -427,6 +443,8 @@ export interface FileServerRoutesByTo {
   "/api/recommendations/clear": typeof ApiRecommendationsClearServerRoute;
   "/api/recommendations/export": typeof ApiRecommendationsExportServerRoute;
   "/api/recommendations/feedback": typeof ApiRecommendationsFeedbackServerRoute;
+  "/api/recommendations/seasonal-insights": typeof ApiRecommendationsSeasonalInsightsServerRoute;
+  "/api/recommendations/seasonal-playlist": typeof ApiRecommendationsSeasonalPlaylistServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
@@ -452,6 +470,8 @@ export interface FileServerRoutesById {
   "/api/recommendations/clear": typeof ApiRecommendationsClearServerRoute;
   "/api/recommendations/export": typeof ApiRecommendationsExportServerRoute;
   "/api/recommendations/feedback": typeof ApiRecommendationsFeedbackServerRoute;
+  "/api/recommendations/seasonal-insights": typeof ApiRecommendationsSeasonalInsightsServerRoute;
+  "/api/recommendations/seasonal-playlist": typeof ApiRecommendationsSeasonalPlaylistServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
@@ -478,6 +498,8 @@ export interface FileServerRouteTypes {
     | "/api/recommendations/clear"
     | "/api/recommendations/export"
     | "/api/recommendations/feedback"
+    | "/api/recommendations/seasonal-insights"
+    | "/api/recommendations/seasonal-playlist"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
     | "/api/navidrome/stream/id/id";
@@ -502,6 +524,8 @@ export interface FileServerRouteTypes {
     | "/api/recommendations/clear"
     | "/api/recommendations/export"
     | "/api/recommendations/feedback"
+    | "/api/recommendations/seasonal-insights"
+    | "/api/recommendations/seasonal-playlist"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
     | "/api/navidrome/stream/id/id";
@@ -526,6 +550,8 @@ export interface FileServerRouteTypes {
     | "/api/recommendations/clear"
     | "/api/recommendations/export"
     | "/api/recommendations/feedback"
+    | "/api/recommendations/seasonal-insights"
+    | "/api/recommendations/seasonal-playlist"
     | "/api/navidrome/[./path]"
     | "/api/navidrome/stream/$id"
     | "/api/navidrome/stream/id/id";
@@ -719,6 +745,20 @@ declare module "@tanstack/react-start/server" {
       preLoaderRoute: typeof ApiConfigServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
+    "/api/recommendations/seasonal-playlist": {
+      id: "/api/recommendations/seasonal-playlist";
+      path: "/seasonal-playlist";
+      fullPath: "/api/recommendations/seasonal-playlist";
+      preLoaderRoute: typeof ApiRecommendationsSeasonalPlaylistServerRouteImport;
+      parentRoute: typeof ApiRecommendationsServerRoute;
+    };
+    "/api/recommendations/seasonal-insights": {
+      id: "/api/recommendations/seasonal-insights";
+      path: "/seasonal-insights";
+      fullPath: "/api/recommendations/seasonal-insights";
+      preLoaderRoute: typeof ApiRecommendationsSeasonalInsightsServerRouteImport;
+      parentRoute: typeof ApiRecommendationsServerRoute;
+    };
     "/api/recommendations/feedback": {
       id: "/api/recommendations/feedback";
       path: "/feedback";
@@ -892,6 +932,8 @@ interface ApiRecommendationsServerRouteChildren {
   ApiRecommendationsClearServerRoute: typeof ApiRecommendationsClearServerRoute;
   ApiRecommendationsExportServerRoute: typeof ApiRecommendationsExportServerRoute;
   ApiRecommendationsFeedbackServerRoute: typeof ApiRecommendationsFeedbackServerRoute;
+  ApiRecommendationsSeasonalInsightsServerRoute: typeof ApiRecommendationsSeasonalInsightsServerRoute;
+  ApiRecommendationsSeasonalPlaylistServerRoute: typeof ApiRecommendationsSeasonalPlaylistServerRoute;
 }
 
 const ApiRecommendationsServerRouteChildren: ApiRecommendationsServerRouteChildren =
@@ -902,6 +944,10 @@ const ApiRecommendationsServerRouteChildren: ApiRecommendationsServerRouteChildr
     ApiRecommendationsExportServerRoute: ApiRecommendationsExportServerRoute,
     ApiRecommendationsFeedbackServerRoute:
       ApiRecommendationsFeedbackServerRoute,
+    ApiRecommendationsSeasonalInsightsServerRoute:
+      ApiRecommendationsSeasonalInsightsServerRoute,
+    ApiRecommendationsSeasonalPlaylistServerRoute:
+      ApiRecommendationsSeasonalPlaylistServerRoute,
   };
 
 const ApiRecommendationsServerRouteWithChildren =

@@ -5,6 +5,11 @@ import { getLibrarySummary } from './navidrome';
 import { ServiceError } from '../utils';
 import { getSongSampleForAI, getIndexedArtists } from './library-index';
 import { buildUserPreferenceProfile, getListeningPatterns } from './preferences';
+import { getCurrentSeasonalPattern } from './seasonal-patterns';
+import { getSeasonalKeywords, getCurrentSeason, getSeasonDisplay } from '../utils/temporal';
+import { db } from '../db';
+import { userPreferences } from '../db/schema';
+import { eq } from 'drizzle-orm';
 
 const OLLAMA_BASE_URL = getConfig().ollamaUrl || 'http://localhost:11434';
 const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'llama2';
@@ -97,6 +102,7 @@ export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, u
 
     // Fetch user preference data for personalization (if privacy setting allows)
     let preferenceSection = '';
+    let seasonalSection = '';
     const prefStart = Date.now();
     if (useFeedbackForPersonalization) {
       try {
@@ -125,6 +131,52 @@ PERSONALIZATION RULES:
         } else {
           console.log(`ℹ️ Not enough feedback data yet (${profile.totalFeedbackCount} items), using generic recommendations`);
         }
+
+        // Seasonal context (Story 3.11) - Check if user has enabled seasonal recommendations
+        try {
+          const userPrefs = await db
+            .select()
+            .from(userPreferences)
+            .where(eq(userPreferences.userId, userId))
+            .limit(1)
+            .then(rows => rows[0]);
+
+          const seasonalEnabled = userPrefs?.recommendationSettings?.enableSeasonalRecommendations !== false;
+
+          if (seasonalEnabled) {
+            const currentMonth = new Date().getMonth() + 1;
+            const currentSeason = getCurrentSeason();
+            const seasonalKeywords = getSeasonalKeywords(currentMonth);
+            const seasonalPattern = await getCurrentSeasonalPattern(userId);
+
+            if (seasonalPattern && seasonalPattern.confidence >= 0.7) {
+              const topSeasonalArtists = seasonalPattern.preferredArtists.slice(0, 3).join(', ');
+              seasonalSection = `
+SEASONAL CONTEXT (${getSeasonDisplay(currentSeason)}):
+User historically enjoys: ${topSeasonalArtists} during ${currentSeason}
+Seasonal keywords: ${seasonalKeywords.join(', ')}
+Seasonal preference strength: ${(seasonalPattern.confidence * 100).toFixed(0)}%
+
+SEASONAL ADJUSTMENT:
+- Blend seasonal preferences (80%) with year-round favorites (20%)
+- If seasonal keywords apply, prioritize matching songs from library
+`;
+              console.log(`🍂 Adding seasonal context for ${currentSeason} (confidence: ${seasonalPattern.confidence.toFixed(2)})`);
+            } else if (seasonalKeywords.length > 0) {
+              // No historical data, but current month has seasonal significance
+              seasonalSection = `
+SEASONAL CONTEXT (${getSeasonDisplay(currentSeason)}):
+Current month keywords: ${seasonalKeywords.join(', ')}
+Suggest relevant seasonal music if available in library
+`;
+              console.log(`🍂 Adding seasonal keywords for current month (no historical data yet)`);
+            }
+          } else {
+            console.log(`🔒 Seasonal recommendations disabled by user preference`);
+          }
+        } catch (seasonalError) {
+          console.warn('⚠️ Failed to load seasonal patterns:', seasonalError);
+        }
       } catch (error) {
         perfTimings.preferenceFetch = Date.now() - prefStart;
         console.warn('⚠️ Failed to load user preferences, continuing with generic recommendations:', error);
@@ -144,7 +196,7 @@ USER'S LIBRARY (complete list of available songs - ONLY use songs from this list
 ${songListForPrompt}
 
 ARTISTS IN LIBRARY: ${artistsList}
-${preferenceSection}
+${preferenceSection}${seasonalSection}
 IMPORTANT - Generate DIFFERENT recommendations each time. Session seed: ${randomSeed}_${timestamp}
 
 RULES:

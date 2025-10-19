@@ -27,6 +27,12 @@ export const recommendationFeedback = pgTable("recommendation_feedback", {
   timestamp: timestamp("timestamp")
     .$defaultFn(() => new Date())
     .notNull(),
+
+  // Temporal metadata for seasonal pattern detection (Story 3.11)
+  month: integer("month"), // 1-12
+  season: text("season", { enum: ['spring', 'summer', 'fall', 'winter'] }),
+  dayOfWeek: integer("day_of_week"), // 1-7 (1=Monday)
+  hourOfDay: integer("hour_of_day"), // 0-23
 }, (table) => ({
   // Index for user-scoped queries
   userIdIdx: index("recommendation_feedback_user_id_idx").on(table.userId),
@@ -40,6 +46,12 @@ export const recommendationFeedback = pgTable("recommendation_feedback", {
   // Compound index for analytics queries (user's feedback by type over time)
   userFeedbackTypeTimestampIdx: index("recommendation_feedback_user_type_time_idx")
     .on(table.userId, table.feedbackType, table.timestamp),
+
+  // Temporal indexes for seasonal pattern queries (Story 3.11)
+  monthIdx: index("recommendation_feedback_month_idx").on(table.month),
+  seasonIdx: index("recommendation_feedback_season_idx").on(table.season),
+  userSeasonIdx: index("recommendation_feedback_user_season_idx").on(table.userId, table.season),
+  userMonthIdx: index("recommendation_feedback_user_month_idx").on(table.userId, table.month),
 }));
 
 export type RecommendationFeedback = typeof recommendationFeedback.$inferSelect;

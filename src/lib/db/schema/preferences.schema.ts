@@ -14,11 +14,13 @@ export const userPreferences = pgTable("user_preferences", {
     frequency: 'always' | 'daily' | 'weekly';
     styleBasedPlaylists: boolean;
     useFeedbackForPersonalization: boolean; // Privacy: Use feedback to improve recommendations
+    enableSeasonalRecommendations: boolean; // Story 3.11: Seasonal adjustments
   }>().default({
     aiEnabled: true,
     frequency: 'always',
     styleBasedPlaylists: true,
     useFeedbackForPersonalization: true,
+    enableSeasonalRecommendations: true,
   }).notNull(),
 
   // Playback settings
