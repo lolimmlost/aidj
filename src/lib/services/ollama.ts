@@ -7,6 +7,7 @@ import { getSongSampleForAI, getIndexedArtists } from './library-index';
 import { buildUserPreferenceProfile, getListeningPatterns } from './preferences';
 import { getCurrentSeasonalPattern } from './seasonal-patterns';
 import { getSeasonalKeywords, getCurrentSeason, getSeasonDisplay } from '../utils/temporal';
+import { getOrCreateLibraryProfile } from './library-profile';
 import { db } from '../db';
 import { userPreferences } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -103,6 +104,7 @@ export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, u
     // Fetch user preference data for personalization (if privacy setting allows)
     let preferenceSection = '';
     let seasonalSection = '';
+    let genreSection = '';
     const prefStart = Date.now();
     if (useFeedbackForPersonalization) {
       try {
@@ -186,6 +188,39 @@ Suggest relevant seasonal music if available in library
       console.log(`🔒 Privacy setting disabled feedback personalization, using generic recommendations`);
     }
 
+    // Fetch library genre profile for genre-based filtering (Story 3.7)
+    const genreStart = Date.now();
+    try {
+      const libraryProfile = await getOrCreateLibraryProfile(userId, false);
+      perfTimings.genreProfileFetch = Date.now() - genreStart;
+
+      if (libraryProfile && Object.keys(libraryProfile.genreDistribution).length > 0) {
+        // Format genre distribution for prompt: "Rock: 40%, Electronic: 25%, ..."
+        const genreEntries = Object.entries(libraryProfile.genreDistribution)
+          .sort((a, b) => b[1] - a[1]) // Sort by percentage descending
+          .slice(0, 5) // Top 5 genres
+          .map(([genre, percentage]) => `${genre}: ${(percentage * 100).toFixed(0)}%`)
+          .join(', ');
+
+        const topKeywords = libraryProfile.topKeywords.slice(0, 10).join(', ');
+
+        genreSection = `
+LIBRARY GENRE PROFILE:
+Your library is ${genreEntries}
+Common keywords: ${topKeywords}
+
+GENRE MATCHING RULES:
+- Prioritize recommendations that match your dominant genres
+- Use keywords to understand your music style preferences
+- Balance genre matching with song variety
+`;
+        console.log(`🎸 Adding genre profile context: ${genreEntries}`);
+      }
+    } catch (genreError) {
+      perfTimings.genreProfileFetch = Date.now() - genreStart;
+      console.warn('⚠️ Failed to load library genre profile, continuing without genre context:', genreError);
+    }
+
     // Add timestamp to encourage different responses each time
     const timestamp = Date.now();
     const randomSeed = Math.random().toString(36).substring(7);
@@ -196,7 +231,7 @@ USER'S LIBRARY (complete list of available songs - ONLY use songs from this list
 ${songListForPrompt}
 
 ARTISTS IN LIBRARY: ${artistsList}
-${preferenceSection}${seasonalSection}
+${preferenceSection}${genreSection}${seasonalSection}
 IMPORTANT - Generate DIFFERENT recommendations each time. Session seed: ${randomSeed}_${timestamp}
 
 RULES:
@@ -331,6 +366,7 @@ Your goal is to recommend songs from my ACTUAL library that I'll enjoy based on 
     console.log('⏱️ Performance breakdown:', {
       libraryFetch: `${perfTimings.libraryFetch || 0}ms`,
       preferenceFetch: `${perfTimings.preferenceFetch || 0}ms`,
+      genreProfileFetch: `${perfTimings.genreProfileFetch || 0}ms`,
       ollamaCall: `${perfTimings.ollamaCall || 0}ms`,
       total: `${perfTimings.total}ms`,
     });

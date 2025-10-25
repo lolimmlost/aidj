@@ -50,6 +50,7 @@ import { ServerRoute as ApiLidarrHistoryServerRouteImport } from "./routes/api/l
 import { ServerRoute as ApiLidarrCancelServerRouteImport } from "./routes/api/lidarr/cancel";
 import { ServerRoute as ApiLidarrAvailabilityServerRouteImport } from "./routes/api/lidarr/availability";
 import { ServerRoute as ApiLidarrAddServerRouteImport } from "./routes/api/lidarr/add";
+import { ServerRoute as ApiLibraryProfileAnalyzeServerRouteImport } from "./routes/api/library-profile/analyze";
 import { ServerRoute as ApiAuthRegisterServerRouteImport } from "./routes/api/auth/register";
 import { ServerRoute as ApiAuthLoginServerRouteImport } from "./routes/api/auth/login";
 import { ServerRoute as ApiAuthSplatServerRouteImport } from "./routes/api/auth/$";
@@ -265,6 +266,12 @@ const ApiLidarrAddServerRoute = ApiLidarrAddServerRouteImport.update({
   path: "/api/lidarr/add",
   getParentRoute: () => rootServerRouteImport,
 } as any);
+const ApiLibraryProfileAnalyzeServerRoute =
+  ApiLibraryProfileAnalyzeServerRouteImport.update({
+    id: "/api/library-profile/analyze",
+    path: "/api/library-profile/analyze",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
 const ApiAuthRegisterServerRoute = ApiAuthRegisterServerRouteImport.update({
   id: "/api/auth/register",
   path: "/api/auth/register",
@@ -459,6 +466,7 @@ export interface FileServerRoutesByFullPath {
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
+  "/api/library-profile/analyze": typeof ApiLibraryProfileAnalyzeServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
   "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
   "/api/lidarr/cancel": typeof ApiLidarrCancelServerRoute;
@@ -489,6 +497,7 @@ export interface FileServerRoutesByTo {
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
+  "/api/library-profile/analyze": typeof ApiLibraryProfileAnalyzeServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
   "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
   "/api/lidarr/cancel": typeof ApiLidarrCancelServerRoute;
@@ -520,6 +529,7 @@ export interface FileServerRoutesById {
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
+  "/api/library-profile/analyze": typeof ApiLibraryProfileAnalyzeServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
   "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
   "/api/lidarr/cancel": typeof ApiLidarrCancelServerRoute;
@@ -552,6 +562,7 @@ export interface FileServerRouteTypes {
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
+    | "/api/library-profile/analyze"
     | "/api/lidarr/add"
     | "/api/lidarr/availability"
     | "/api/lidarr/cancel"
@@ -582,6 +593,7 @@ export interface FileServerRouteTypes {
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
+    | "/api/library-profile/analyze"
     | "/api/lidarr/add"
     | "/api/lidarr/availability"
     | "/api/lidarr/cancel"
@@ -612,6 +624,7 @@ export interface FileServerRouteTypes {
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
+    | "/api/library-profile/analyze"
     | "/api/lidarr/add"
     | "/api/lidarr/availability"
     | "/api/lidarr/cancel"
@@ -643,6 +656,7 @@ export interface RootServerRouteChildren {
   ApiAuthSplatServerRoute: typeof ApiAuthSplatServerRoute;
   ApiAuthLoginServerRoute: typeof ApiAuthLoginServerRoute;
   ApiAuthRegisterServerRoute: typeof ApiAuthRegisterServerRoute;
+  ApiLibraryProfileAnalyzeServerRoute: typeof ApiLibraryProfileAnalyzeServerRoute;
   ApiLidarrAddServerRoute: typeof ApiLidarrAddServerRoute;
   ApiLidarrAvailabilityServerRoute: typeof ApiLidarrAvailabilityServerRoute;
   ApiLidarrCancelServerRoute: typeof ApiLidarrCancelServerRoute;
@@ -935,6 +949,13 @@ declare module "@tanstack/react-start/server" {
       preLoaderRoute: typeof ApiLidarrAddServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
+    "/api/library-profile/analyze": {
+      id: "/api/library-profile/analyze";
+      path: "/api/library-profile/analyze";
+      fullPath: "/api/library-profile/analyze";
+      preLoaderRoute: typeof ApiLibraryProfileAnalyzeServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
     "/api/auth/register": {
       id: "/api/auth/register";
       path: "/api/auth/register";
@@ -1115,6 +1136,7 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiAuthSplatServerRoute: ApiAuthSplatServerRoute,
   ApiAuthLoginServerRoute: ApiAuthLoginServerRoute,
   ApiAuthRegisterServerRoute: ApiAuthRegisterServerRoute,
+  ApiLibraryProfileAnalyzeServerRoute: ApiLibraryProfileAnalyzeServerRoute,
   ApiLidarrAddServerRoute: ApiLidarrAddServerRoute,
   ApiLidarrAvailabilityServerRoute: ApiLidarrAvailabilityServerRoute,
   ApiLidarrCancelServerRoute: ApiLidarrCancelServerRoute,
