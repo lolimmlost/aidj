@@ -1,9 +1,10 @@
 import { createFileRoute, useParams, redirect } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
 import { getSongs } from '@/lib/services/navidrome';
-import { AudioPlayer } from '@/components/ui/audio-player';
+import { useAudioStore } from '@/lib/stores/audio';
 import { Loader2 } from 'lucide-react';
+import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
+import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 
 export const Route = createFileRoute('/library/artists/id/albums/albumId')({
   beforeLoad: async ({ context }) => {
@@ -16,12 +17,21 @@ export const Route = createFileRoute('/library/artists/id/albums/albumId')({
 
 function AlbumSongs() {
   const { albumId } = useParams({ from: '/library/artists/id/albums/albumId' }) as { albumId: string };
-  const [currentSongId, setCurrentSongId] = useState<string | undefined>(undefined);
+  const { playSong } = useAudioStore();
 
   const { data: songs = [], isLoading, error } = useQuery({
     queryKey: ['songs', albumId],
     queryFn: () => getSongs(albumId, 0, 50), // Fetch first 50 songs for the album
   });
+
+  // Fetch feedback for all songs
+  const songIds = songs.map(song => song.id);
+  const { data: feedbackData } = useSongFeedback(songIds);
+  const feedback = feedbackData?.feedback || {};
+
+  const handleSongClick = (songId: string) => {
+    playSong(songId, songs);
+  };
 
   if (error) {
     return <div className="container mx-auto p-4">Error loading songs: {error.message}</div>;
@@ -43,12 +53,12 @@ function AlbumSongs() {
             <div
               key={song.id}
               className="flex items-center p-3 sm:p-4 border rounded hover:bg-accent hover:text-accent-foreground cursor-pointer min-h-[44px] transition-colors"
-              onClick={() => setCurrentSongId(song.id)}
+              onClick={() => handleSongClick(song.id)}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
-                  setCurrentSongId(song.id);
+                  handleSongClick(song.id);
                 }
               }}
             >
@@ -61,16 +71,19 @@ function AlbumSongs() {
                   Duration: {Math.floor(song.duration / 60)}:{(song.duration % 60).toString().padStart(2, '0')}
                 </div>
               </div>
+              <div className="ml-2 flex-shrink-0">
+                <SongFeedbackButtons
+                  songId={song.id}
+                  artistName={song.artist || 'Unknown Artist'}
+                  songTitle={song.name}
+                  currentFeedback={feedback[song.id] || null}
+                  source="library"
+                  size="sm"
+                />
+              </div>
             </div>
           ))}
         </div>
-      )}
-
-      {sortedSongs.length > 0 && (
-        <AudioPlayer
-          songs={sortedSongs}
-          initialSongId={currentSongId}
-        />
       )}
     </div>
   );
