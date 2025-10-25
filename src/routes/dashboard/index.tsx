@@ -518,14 +518,23 @@ function DashboardIndex() {
 
   const handlePlaylistQueue = () => {
     if (!playlistData) return;
-    const resolvedSongs = (playlistData.data.playlist as PlaylistItem[]).filter((item) => item.songId).map((item) => ({
-      id: item.songId!,
-      name: item.song,
-      albumId: '',
-      duration: 0,
-      track: 1,
-      url: item.url!,
-    }));
+    const resolvedSongs = (playlistData.data.playlist as PlaylistItem[]).filter((item) => item.songId).map((item) => {
+      // Parse "Artist - Title" format
+      const parts = item.song.split(' - ');
+      const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
+      const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
+
+      return {
+        id: item.songId!,
+        name: title,
+        title: title,
+        albumId: '',
+        duration: 0,
+        track: 1,
+        url: item.url!,
+        artist: artist,
+      };
+    });
     if (resolvedSongs.length > 0) {
       addPlaylist(resolvedSongs);
       toast.success('Playlist queued');
@@ -665,6 +674,7 @@ function DashboardIndex() {
                   onClick={() => refetchRecommendations()}
                   disabled={isLoading}
                   className="flex-1 sm:flex-none min-h-[44px]"
+                  aria-label="Refresh recommendations"
                 >
                   {isLoading ? 'Loading...' : '🔄 Refresh'}
                 </Button>
@@ -804,7 +814,7 @@ function DashboardIndex() {
         <section className="space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <h2 className="text-xl sm:text-2xl font-semibold">Style-Based Playlist</h2>
-            <Button onClick={clearPlaylistCache} variant="outline" size="sm" className="min-h-[44px] w-full sm:w-auto">
+            <Button onClick={clearPlaylistCache} variant="outline" size="sm" className="min-h-[44px] w-full sm:w-auto" aria-label="Clear playlist cache">
               Clear Cache
             </Button>
           </div>
@@ -814,6 +824,7 @@ function DashboardIndex() {
             value={style}
             onChange={(e) => setStyle(e.target.value)}
             className="flex-1 min-h-[44px]"
+            aria-label="Playlist style"
           />
           <Button
             onClick={() => {
@@ -825,6 +836,7 @@ function DashboardIndex() {
             }}
             disabled={!trimmedStyle}
             className="min-h-[44px] w-full sm:w-auto"
+            aria-label="Generate playlist now"
           >
             Generate Now
           </Button>
@@ -893,7 +905,7 @@ function DashboardIndex() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-col sm:flex-row justify-between mb-4 gap-2">
-                <Button onClick={handlePlaylistQueue} className="min-h-[44px] w-full sm:w-auto">
+                <Button onClick={handlePlaylistQueue} className="min-h-[44px] w-full sm:w-auto" aria-label="Add entire playlist to queue">
                   Add Entire Playlist to Queue
                 </Button>
                 <Button
@@ -906,6 +918,7 @@ function DashboardIndex() {
                     refetchPlaylist();
                   }}
                   className="min-h-[44px] w-full sm:w-auto"
+                  aria-label="Regenerate playlist"
                 >
                   🔄 Regenerate
                 </Button>
@@ -919,13 +932,20 @@ function DashboardIndex() {
                         <div className="space-x-2">
                           {item.songId ? (
                             <Button variant="ghost" size="sm" onClick={() => {
+                              // Parse "Artist - Title" format
+                              const parts = item.song.split(' - ');
+                              const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
+                              const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
+
                               addToQueue(item.songId!, [{
                                 id: item.songId!,
-                                name: item.song,
+                                name: title,
+                                title: title,
                                 albumId: '',
                                 duration: 0,
                                 track: 1,
                                 url: item.url!,
+                                artist: artist,
                               }]);
                               toast.success('Queued');
                             }}>

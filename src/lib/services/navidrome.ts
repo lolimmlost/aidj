@@ -195,93 +195,173 @@ export async function getAuthToken(): Promise<string> {
   }
 }
 
-async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<unknown> {
-  let retries = 0;
-  const maxRetries = 1; // Retry once on 401
+/**
+ * Retry helper with exponential backoff for recoverable errors
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 2,
+  isRetriable: (error: unknown) => boolean = () => true
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
 
-  while (retries <= maxRetries) {
+      // Don't retry if error is not retriable
+      if (!isRetriable(error)) {
+        throw error;
+      }
+
+      // Don't retry if we've exhausted attempts
+      if (attempt > maxRetries) {
+        throw error;
+      }
+
+      // Exponential backoff: 500ms, 1000ms
+      const delay = Math.pow(2, attempt - 1) * 500;
+      console.log(`🔄 Navidrome retry attempt ${attempt}/${maxRetries + 1} after ${delay}ms`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw lastError;
+}
+
+async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<unknown> {
+  let authRetries = 0;
+  const maxAuthRetries = 1; // Retry once on 401
+
+  while (authRetries <= maxAuthRetries) {
     const authToken = await getAuthToken();
 
-    // Use adaptive timeout based on network conditions
-    const adaptiveTimeout = mobileOptimization.getAdaptiveTimeout();
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), adaptiveTimeout);
-
     try {
-      const config = getConfig();
-      const ndId = clientId;
-      if (!ndId) {
-        throw new ServiceError('NAVIDROME_CLIENT_ERROR', 'Client ID not available');
-      }
+      // Wrap the fetch with retry logic for network/timeout errors
+      return await retryWithBackoff(
+        async () => {
+          // Use adaptive timeout based on network conditions
+          const adaptiveTimeout = mobileOptimization.getAdaptiveTimeout();
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), adaptiveTimeout);
 
-      let url = `${config.navidromeUrl}${endpoint}`;
-      let headers: Record<string, string> = {};
-      if (options.headers) {
-        if (options.headers instanceof Headers) {
-          options.headers.forEach((value, key) => {
-            headers[key] = value;
-          });
-        } else if (typeof options.headers === 'object') {
-          Object.assign(headers, options.headers);
+          try {
+            const config = getConfig();
+            const ndId = clientId;
+            if (!ndId) {
+              throw new ServiceError('NAVIDROME_CLIENT_ERROR', 'Client ID not available');
+            }
+
+            let url = `${config.navidromeUrl}${endpoint}`;
+            let headers: Record<string, string> = {};
+            if (options.headers) {
+              if (options.headers instanceof Headers) {
+                options.headers.forEach((value, key) => {
+                  headers[key] = value;
+                });
+              } else if (typeof options.headers === 'object') {
+                Object.assign(headers, options.headers);
+              }
+            }
+
+            if (endpoint.startsWith('/rest/')) {
+              // Subsonic API: use query params for auth
+              const params = new URLSearchParams({
+                u: ndId,
+                t: subsonicToken || '',
+                s: subsonicSalt || '',
+                f: 'json',
+                c: 'MusicApp',
+              });
+              if (url.includes('?')) {
+                url += `&${params.toString()}`;
+              } else {
+                url += `?${params.toString()}`;
+              }
+            } else {
+              // Native API: use headers
+              headers = {
+                'x-nd-authorization': `Bearer ${authToken}`,
+                'x-nd-client-unique-id': ndId,
+                ...headers,
+              };
+            }
+
+            const response = await fetch(url, {
+              ...options,
+              headers,
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            if (response.status === 401) {
+              token = null; // Invalidate token
+              clientId = null;
+              authRetries++;
+              // Throw special error to break out of retry loop and retry auth
+              throw new ServiceError('NAVIDROME_AUTH_RETRY', 'Auth token expired, retrying with new token');
+            }
+
+            if (!response.ok) {
+              // 5xx errors are retriable, 4xx are not (except 401 handled above)
+              const isRetriable = response.status >= 500;
+              const error = new ServiceError(
+                'NAVIDROME_API_ERROR',
+                `API request failed: ${response.status} ${response.statusText}`
+              );
+              (error as any).isRetriable = isRetriable;
+              throw error;
+            }
+
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+              return await response.json();
+            }
+            return await response.text();
+          } catch (error: unknown) {
+            clearTimeout(timeoutId);
+
+            // Timeout errors are retriable
+            if (error instanceof Error && error.name === 'AbortError') {
+              const timeoutError = new ServiceError('NAVIDROME_TIMEOUT_ERROR', `API request timed out (${adaptiveTimeout}ms limit)`);
+              (timeoutError as any).isRetriable = true;
+              throw timeoutError;
+            }
+
+            // Network errors are retriable
+            if (error instanceof TypeError && error.message.includes('fetch')) {
+              const networkError = new ServiceError('NAVIDROME_NETWORK_ERROR', 'Network request failed');
+              (networkError as any).isRetriable = true;
+              throw networkError;
+            }
+
+            throw error;
+          }
+        },
+        2, // Max 2 retries
+        (error) => {
+          // Only retry if error is marked as retriable
+          if (error instanceof ServiceError && error.code === 'NAVIDROME_AUTH_RETRY') {
+            return false; // Don't retry auth errors here, handle in outer loop
+          }
+          return (error as any).isRetriable === true;
         }
-      }
-
-      if (endpoint.startsWith('/rest/')) {
-        // Subsonic API: use query params for auth
-        const params = new URLSearchParams({
-          u: ndId,
-          t: subsonicToken || '',
-          s: subsonicSalt || '',
-          f: 'json',
-          c: 'MusicApp',
-        });
-        if (url.includes('?')) {
-          url += `&${params.toString()}`;
-        } else {
-          url += `?${params.toString()}`;
-        }
-      } else {
-        // Native API: use headers
-        headers = {
-          'x-nd-authorization': `Bearer ${authToken}`,
-          'x-nd-client-unique-id': ndId,
-          ...headers,
-        };
-      }
-
-      const response = await fetch(url, {
-        ...options,
-        headers,
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      if (response.status === 401) {
-        token = null; // Invalidate token
-        clientId = null;
-        retries++;
-        continue;
-      }
-
-      if (!response.ok) {
-        throw new ServiceError('NAVIDROME_API_ERROR', `API request failed: ${response.status} ${response.statusText}`);
-      }
-
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        return await response.json();
-      }
-      return await response.text();
+      );
     } catch (error: unknown) {
-      clearTimeout(timeoutId);
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new ServiceError('NAVIDROME_TIMEOUT_ERROR', `API request timed out (${adaptiveTimeout}ms limit)`);
+      // If it's an auth retry error, continue the auth retry loop
+      if (error instanceof ServiceError && error.code === 'NAVIDROME_AUTH_RETRY') {
+        if (authRetries < maxAuthRetries) {
+          continue;
+        }
       }
-      if (retries < maxRetries) {
-        retries++;
+
+      // Otherwise, throw the error
+      if (authRetries < maxAuthRetries && error instanceof ServiceError && error.code === 'NAVIDROME_API_ERROR') {
+        authRetries++;
         continue;
       }
-      throw new ServiceError('NAVIDROME_API_ERROR', `API fetch error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+      throw error;
     }
   }
 

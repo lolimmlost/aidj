@@ -131,4 +131,42 @@
   .fade-in {
     @apply opacity-0 animate-in fade-in-0 duration-300;
   }
+
+  /* Enhanced focus-visible indicators for accessibility */
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary ring-2 ring-primary;
+  }
+
+  /* Smooth transitions with prefers-reduced-motion support */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    .card-hover {
+      @apply hover:shadow-md hover:translate-y-0;
+    }
+
+    .fade-in {
+      @apply opacity-100;
+    }
+  }
+
+  /* Smooth transitions for animations */
+  .transition-smooth {
+    @apply transition-all duration-300 ease-in-out;
+  }
 }

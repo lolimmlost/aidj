@@ -125,7 +125,21 @@ function RecommendationDetail() {
   };
 
   const handleQueue = (s: string) => {
-    addToQueue(s, [{ id: s, name: s, albumId: '', duration: 0, track: 1, url: '', artist: '' }]);
+    // Parse "Artist - Title" format
+    const parts = s.split(' - ');
+    const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
+    const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : s;
+
+    addToQueue(s, [{
+      id: s,
+      name: title,
+      title: title,
+      albumId: '',
+      duration: 0,
+      track: 1,
+      url: '',
+      artist: artist
+    }]);
   };
 
   return (

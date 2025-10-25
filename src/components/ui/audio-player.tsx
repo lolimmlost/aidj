@@ -250,6 +250,10 @@ export function AudioPlayer() {
                   background: `linear-gradient(to right, var(--primary) ${(currentTime / (duration || 1)) * 100}%, var(--muted) ${(currentTime / (duration || 1)) * 100}%)`,
                 }}
                 aria-label="Seek position"
+                aria-valuemin={0}
+                aria-valuemax={duration || 0}
+                aria-valuenow={Math.round(currentTime)}
+                aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
               />
             </div>
             <span className="text-xs font-mono text-muted-foreground min-w-[2.5rem]">
@@ -290,8 +294,9 @@ export function AudioPlayer() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 rounded-full hover:bg-accent/20 transition-colors"
+              className="h-11 w-11 rounded-full hover:bg-accent/20 transition-colors"
               onClick={previousSong}
+              aria-label="Previous song"
             >
               <SkipBack className="h-4 w-4" />
             </Button>
@@ -301,6 +306,7 @@ export function AudioPlayer() {
               size="sm"
               className={`h-10 w-10 rounded-full transition-all duration-200 ${isPlaying ? 'bg-primary hover:bg-primary/90' : 'bg-accent hover:bg-accent/80'}`}
               onClick={togglePlayPause}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
             >
               {isPlaying ? (
                 <Pause className="h-5 w-5" />
@@ -312,8 +318,9 @@ export function AudioPlayer() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 rounded-full hover:bg-accent/20 transition-colors"
+              className="h-11 w-11 rounded-full hover:bg-accent/20 transition-colors"
               onClick={nextSong}
+              aria-label="Next song"
             >
               <SkipForward className="h-4 w-4" />
             </Button>
@@ -350,6 +357,11 @@ export function AudioPlayer() {
                   style={{
                     background: `linear-gradient(to right, var(--primary) ${ (currentTime / (duration || 1)) * 100 }%, var(--muted) ${ (currentTime / (duration || 1)) * 100 }%)`,
                   }}
+                  aria-label="Seek position"
+                  aria-valuemin={0}
+                  aria-valuemax={duration || 0}
+                  aria-valuenow={Math.round(currentTime)}
+                  aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
                 />
                 {duration > 0 && (
                   <div
@@ -368,8 +380,9 @@ export function AudioPlayer() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 hover:bg-accent/20"
+                className="h-11 w-11 p-0 hover:bg-accent/20"
                 onClick={() => changeVolume(volume > 0 ? 0 : 0.5)}
+                aria-label={volume > 0 ? 'Mute' : 'Unmute'}
               >
                 {volume > 0 ? (
                   <Volume2 className="h-4 w-4" />
@@ -398,6 +411,10 @@ export function AudioPlayer() {
                 style={{
                   background: `linear-gradient(to right, var(--primary) ${volume * 100}%, var(--muted) ${volume * 100}%)`,
                 }}
+                aria-label="Volume"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(volume * 100)}
               />
             </div>
           </div>
