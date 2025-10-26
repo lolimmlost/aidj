@@ -43,6 +43,7 @@ import { ServerRoute as ApiRecommendationsFeedbackServerRouteImport } from "./ro
 import { ServerRoute as ApiRecommendationsExportServerRouteImport } from "./routes/api/recommendations/export";
 import { ServerRoute as ApiRecommendationsClearServerRouteImport } from "./routes/api/recommendations/clear";
 import { ServerRoute as ApiRecommendationsAnalyticsServerRouteImport } from "./routes/api/recommendations/analytics";
+import { ServerRoute as ApiPlaylistsSyncServerRouteImport } from "./routes/api/playlists/sync";
 import { ServerRoute as ApiPlaylistsIdServerRouteImport } from "./routes/api/playlists/$id";
 import { ServerRoute as ApiLidarrStatusServerRouteImport } from "./routes/api/lidarr/status";
 import { ServerRoute as ApiLidarrSearchServerRouteImport } from "./routes/api/lidarr/search";
@@ -230,6 +231,11 @@ const ApiRecommendationsAnalyticsServerRoute =
     path: "/analytics",
     getParentRoute: () => ApiRecommendationsServerRoute,
   } as any);
+const ApiPlaylistsSyncServerRoute = ApiPlaylistsSyncServerRouteImport.update({
+  id: "/api/playlists/sync",
+  path: "/api/playlists/sync",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
 const ApiPlaylistsIdServerRoute = ApiPlaylistsIdServerRouteImport.update({
   id: "/api/playlists/$id",
   path: "/api/playlists/$id",
@@ -474,6 +480,7 @@ export interface FileServerRoutesByFullPath {
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
   "/api/playlists/$id": typeof ApiPlaylistsIdServerRouteWithChildren;
+  "/api/playlists/sync": typeof ApiPlaylistsSyncServerRoute;
   "/api/recommendations/analytics": typeof ApiRecommendationsAnalyticsServerRoute;
   "/api/recommendations/clear": typeof ApiRecommendationsClearServerRoute;
   "/api/recommendations/export": typeof ApiRecommendationsExportServerRoute;
@@ -505,6 +512,7 @@ export interface FileServerRoutesByTo {
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
   "/api/playlists/$id": typeof ApiPlaylistsIdServerRouteWithChildren;
+  "/api/playlists/sync": typeof ApiPlaylistsSyncServerRoute;
   "/api/recommendations/analytics": typeof ApiRecommendationsAnalyticsServerRoute;
   "/api/recommendations/clear": typeof ApiRecommendationsClearServerRoute;
   "/api/recommendations/export": typeof ApiRecommendationsExportServerRoute;
@@ -537,6 +545,7 @@ export interface FileServerRoutesById {
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
   "/api/playlists/$id": typeof ApiPlaylistsIdServerRouteWithChildren;
+  "/api/playlists/sync": typeof ApiPlaylistsSyncServerRoute;
   "/api/recommendations/analytics": typeof ApiRecommendationsAnalyticsServerRoute;
   "/api/recommendations/clear": typeof ApiRecommendationsClearServerRoute;
   "/api/recommendations/export": typeof ApiRecommendationsExportServerRoute;
@@ -570,6 +579,7 @@ export interface FileServerRouteTypes {
     | "/api/lidarr/search"
     | "/api/lidarr/status"
     | "/api/playlists/$id"
+    | "/api/playlists/sync"
     | "/api/recommendations/analytics"
     | "/api/recommendations/clear"
     | "/api/recommendations/export"
@@ -601,6 +611,7 @@ export interface FileServerRouteTypes {
     | "/api/lidarr/search"
     | "/api/lidarr/status"
     | "/api/playlists/$id"
+    | "/api/playlists/sync"
     | "/api/recommendations/analytics"
     | "/api/recommendations/clear"
     | "/api/recommendations/export"
@@ -632,6 +643,7 @@ export interface FileServerRouteTypes {
     | "/api/lidarr/search"
     | "/api/lidarr/status"
     | "/api/playlists/$id"
+    | "/api/playlists/sync"
     | "/api/recommendations/analytics"
     | "/api/recommendations/clear"
     | "/api/recommendations/export"
@@ -664,6 +676,7 @@ export interface RootServerRouteChildren {
   ApiLidarrSearchServerRoute: typeof ApiLidarrSearchServerRoute;
   ApiLidarrStatusServerRoute: typeof ApiLidarrStatusServerRoute;
   ApiPlaylistsIdServerRoute: typeof ApiPlaylistsIdServerRouteWithChildren;
+  ApiPlaylistsSyncServerRoute: typeof ApiPlaylistsSyncServerRoute;
   ApiPlaylistsIndexServerRoute: typeof ApiPlaylistsIndexServerRoute;
   ApiNavidromeChar91DotPathChar93ServerRoute: typeof ApiNavidromeChar91DotPathChar93ServerRoute;
   ApiNavidromeStreamIdServerRoute: typeof ApiNavidromeStreamIdServerRoute;
@@ -899,6 +912,13 @@ declare module "@tanstack/react-start/server" {
       fullPath: "/api/recommendations/analytics";
       preLoaderRoute: typeof ApiRecommendationsAnalyticsServerRouteImport;
       parentRoute: typeof ApiRecommendationsServerRoute;
+    };
+    "/api/playlists/sync": {
+      id: "/api/playlists/sync";
+      path: "/api/playlists/sync";
+      fullPath: "/api/playlists/sync";
+      preLoaderRoute: typeof ApiPlaylistsSyncServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
     };
     "/api/playlists/$id": {
       id: "/api/playlists/$id";
@@ -1144,6 +1164,7 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiLidarrSearchServerRoute: ApiLidarrSearchServerRoute,
   ApiLidarrStatusServerRoute: ApiLidarrStatusServerRoute,
   ApiPlaylistsIdServerRoute: ApiPlaylistsIdServerRouteWithChildren,
+  ApiPlaylistsSyncServerRoute: ApiPlaylistsSyncServerRoute,
   ApiPlaylistsIndexServerRoute: ApiPlaylistsIndexServerRoute,
   ApiNavidromeChar91DotPathChar93ServerRoute:
     ApiNavidromeChar91DotPathChar93ServerRoute,

@@ -1089,4 +1089,8 @@ describe('Navidrome Service Integration Tests', () => {
       expect(result).toEqual([]); // No songs due to error
     });
   });
+
+  // TODO: Add integration tests for playlist API methods (getPlaylists, getPlaylist, createPlaylist, updatePlaylist, deletePlaylist, addSongsToPlaylist)
+  // These functions are implemented in navidrome.ts but unit tests require complex mocking of Subsonic API responses
+  // Recommendation: Add E2E tests or integration tests with a real/mock Navidrome instance
 });

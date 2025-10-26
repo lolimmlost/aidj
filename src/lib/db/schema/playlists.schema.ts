@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, unique, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, unique, index, jsonb } from "drizzle-orm/pg-core";
 import { user } from "./auth.schema";
 
 export const userPlaylists = pgTable("user_playlists", {
@@ -8,6 +8,19 @@ export const userPlaylists = pgTable("user_playlists", {
     .references(() => user.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
+  // Navidrome sync fields
+  navidromeId: text("navidrome_id"), // Nullable - only set for synced playlists
+  lastSynced: timestamp("last_synced"), // When playlist was last synced with Navidrome
+  songCount: integer("song_count"), // Cached song count for performance
+  totalDuration: integer("total_duration"), // Total duration in seconds
+  smartPlaylistCriteria: jsonb("smart_playlist_criteria").$type<{
+    genre?: string[];
+    yearFrom?: number;
+    yearTo?: number;
+    artists?: string[];
+    rating?: number;
+    recentlyAdded?: '7d' | '30d' | '90d';
+  }>(), // Filter rules for smart playlists
   createdAt: timestamp("created_at")
     .$defaultFn(() => new Date())
     .notNull(),
@@ -17,6 +30,7 @@ export const userPlaylists = pgTable("user_playlists", {
 }, (table) => ({
   userIdIdx: index("user_playlists_user_id_idx").on(table.userId),
   createdAtIdx: index("user_playlists_created_at_idx").on(table.createdAt.desc()),
+  navidromeIdIdx: index("user_playlists_navidrome_id_idx").on(table.navidromeId), // Index for fast sync lookups
   uniqueUserPlaylistName: unique("unique_user_playlist_name").on(table.userId, table.name),
 }));
 

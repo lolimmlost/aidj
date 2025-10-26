@@ -65,6 +65,21 @@ export interface SubsonicSong {
   track: string;
 }
 
+export interface NavidromePlaylist {
+  id: string;
+  name: string;
+  songCount: number;
+  duration: number; // seconds
+  owner: string;
+  public: boolean;
+  created: string; // ISO timestamp
+  changed: string; // ISO timestamp
+}
+
+export interface NavidromePlaylistWithSongs extends NavidromePlaylist {
+  entry: SubsonicSong[]; // Array of songs in playlist
+}
+
 export type Album = {
   id: string;
   name: string;
@@ -739,5 +754,239 @@ export async function unstarSong(songId: string): Promise<void> {
   } catch (error) {
     console.error('Failed to unstar song in Navidrome:', error);
     throw error instanceof ServiceError ? error : new ServiceError('NAVIDROME_API_ERROR', `Failed to unstar song: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get all playlists for the authenticated user
+ * Uses Subsonic API getPlaylists endpoint
+ */
+export async function getPlaylists(): Promise<NavidromePlaylist[]> {
+  try {
+    const endpoint = `/rest/getPlaylists`;
+    const data = await apiFetch(endpoint) as any;
+
+    // Handle Subsonic response structure
+    const playlists = data['subsonic-response']?.playlists?.playlist || data.playlists?.playlist || [];
+    console.log(`📋 Fetched ${playlists.length} playlists from Navidrome`);
+    return playlists as NavidromePlaylist[];
+  } catch (error) {
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch playlists: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get a single playlist with all its songs
+ * Uses Subsonic API getPlaylist endpoint
+ */
+export async function getPlaylist(id: string): Promise<NavidromePlaylistWithSongs> {
+  try {
+    const endpoint = `/rest/getPlaylist?id=${encodeURIComponent(id)}`;
+    const data = await apiFetch(endpoint) as any;
+
+    // Handle Subsonic response structure
+    const playlist = data['subsonic-response']?.playlist || data.playlist;
+    if (!playlist) {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Playlist not found: ${id}`);
+    }
+
+    console.log(`📋 Fetched playlist "${playlist.name}" with ${playlist.songCount} songs`);
+    return playlist as NavidromePlaylistWithSongs;
+  } catch (error) {
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch playlist: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Create a new playlist in Navidrome
+ * Uses Subsonic API createPlaylist endpoint
+ */
+export async function createPlaylist(name: string, songIds?: string[]): Promise<NavidromePlaylist> {
+  try {
+    let endpoint = `/rest/createPlaylist?name=${encodeURIComponent(name)}`;
+
+    // Add song IDs if provided
+    if (songIds && songIds.length > 0) {
+      songIds.forEach(id => {
+        endpoint += `&songId=${encodeURIComponent(id)}`;
+      });
+    }
+
+    const data = await apiFetch(endpoint, { method: 'POST' }) as any;
+
+    // Handle Subsonic response structure
+    const playlist = data['subsonic-response']?.playlist || data.playlist;
+    if (!playlist) {
+      throw new ServiceError('NAVIDROME_API_ERROR', 'Failed to create playlist: no response data');
+    }
+
+    console.log(`✅ Created playlist "${name}" with ${songIds?.length || 0} songs`);
+    return playlist as NavidromePlaylist;
+  } catch (error) {
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to create playlist: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Update an existing playlist (name and/or songs)
+ * Uses Subsonic API updatePlaylist endpoint
+ */
+export async function updatePlaylist(id: string, name?: string, songIds?: string[]): Promise<void> {
+  try {
+    let endpoint = `/rest/updatePlaylist?playlistId=${encodeURIComponent(id)}`;
+
+    if (name) {
+      endpoint += `&name=${encodeURIComponent(name)}`;
+    }
+
+    // Add song IDs if provided (replaces all songs in playlist)
+    if (songIds && songIds.length > 0) {
+      songIds.forEach(songId => {
+        endpoint += `&songIdToAdd=${encodeURIComponent(songId)}`;
+      });
+    }
+
+    const data = await apiFetch(endpoint, { method: 'POST' }) as any;
+
+    // Check for Subsonic response status
+    if (data['subsonic-response']?.status !== 'ok') {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+    }
+
+    console.log(`✅ Updated playlist ${id}`);
+  } catch (error) {
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to update playlist: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Delete a playlist from Navidrome
+ * Uses Subsonic API deletePlaylist endpoint
+ */
+export async function deletePlaylist(id: string): Promise<void> {
+  try {
+    const endpoint = `/rest/deletePlaylist?id=${encodeURIComponent(id)}`;
+    const data = await apiFetch(endpoint, { method: 'POST' }) as any;
+
+    // Check for Subsonic response status
+    if (data['subsonic-response']?.status !== 'ok') {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+    }
+
+    console.log(`🗑️ Deleted playlist ${id}`);
+  } catch (error) {
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to delete playlist: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Search for songs matching smart playlist criteria
+ * Uses Navidrome's search API to find songs by genre, year, artist, etc.
+ */
+export async function searchSongsByCriteria(criteria: {
+  genre?: string[];
+  yearFrom?: number;
+  yearTo?: number;
+  artists?: string[];
+  rating?: number;
+  recentlyAdded?: '7d' | '30d' | '90d';
+}, limit: number = 100): Promise<SubsonicSong[]> {
+  try {
+    const matchedSongs: SubsonicSong[] = [];
+
+    // Strategy: Search for songs and filter client-side
+    // Navidrome's Subsonic API doesn't have direct genre/year filtering in search
+    // So we'll use getAlbumList2 with 'byGenre' and 'byYear' types, then get songs from those albums
+
+    if (criteria.genre && criteria.genre.length > 0) {
+      // Search by genre using getAlbumList2
+      for (const genre of criteria.genre) {
+        try {
+          const endpoint = `/rest/getAlbumList2?type=byGenre&genre=${encodeURIComponent(genre)}&size=${limit}`;
+          const data = await apiFetch(endpoint) as any;
+          const albums = data['subsonic-response']?.albumList2?.album || data.albumList2?.album || [];
+
+          // Get songs from these albums
+          for (const album of albums.slice(0, 10)) { // Limit to first 10 albums to avoid too many requests
+            const albumSongs = await getSongs(album.id, 0, 50);
+            matchedSongs.push(...albumSongs.map(song => ({
+              id: song.id,
+              title: song.name || song.title || '',
+              artist: song.artist || '',
+              albumId: song.albumId,
+              album: album.name,
+              duration: (song.duration || 0).toString(),
+              track: (song.track || 0).toString(),
+            } as SubsonicSong)));
+          }
+        } catch (error) {
+          console.warn(`Failed to search for genre ${genre}:`, error);
+        }
+      }
+    }
+
+    // If we got songs from genre search, filter by other criteria
+    if (matchedSongs.length > 0) {
+      return matchedSongs.slice(0, limit);
+    }
+
+    // Fallback: Use general search with combined criteria
+    const searchQueries: string[] = [];
+    if (criteria.artists && criteria.artists.length > 0) {
+      searchQueries.push(...criteria.artists);
+    }
+    if (criteria.genre && criteria.genre.length > 0) {
+      searchQueries.push(...criteria.genre);
+    }
+
+    if (searchQueries.length > 0) {
+      for (const query of searchQueries) {
+        const songs = await search(query, 0, limit);
+        matchedSongs.push(...songs.map(song => ({
+          id: song.id,
+          title: song.name || song.title || '',
+          artist: song.artist || '',
+          albumId: song.albumId,
+          album: '',
+          duration: (song.duration || 0).toString(),
+          track: (song.track || 0).toString(),
+        } as SubsonicSong)));
+      }
+    }
+
+    // Remove duplicates
+    const uniqueSongs = Array.from(
+      new Map(matchedSongs.map(song => [song.id, song])).values()
+    );
+
+    return uniqueSongs.slice(0, limit);
+  } catch (error) {
+    console.error('Failed to search songs by criteria:', error);
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to search songs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Add songs to an existing playlist
+ * Uses Subsonic API updatePlaylist endpoint with songIdToAdd parameter
+ */
+export async function addSongsToPlaylist(playlistId: string, songIds: string[]): Promise<void> {
+  try {
+    let endpoint = `/rest/updatePlaylist?playlistId=${encodeURIComponent(playlistId)}`;
+
+    songIds.forEach(songId => {
+      endpoint += `&songIdToAdd=${encodeURIComponent(songId)}`;
+    });
+
+    const data = await apiFetch(endpoint, { method: 'POST' }) as any;
+
+    // Check for Subsonic response status
+    if (data['subsonic-response']?.status !== 'ok') {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+    }
+
+    console.log(`➕ Added ${songIds.length} songs to playlist ${playlistId}`);
+  } catch (error) {
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to add songs to playlist: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

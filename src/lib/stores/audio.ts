@@ -18,6 +18,7 @@ interface AudioState {
   previousSong: () => void;
   clearPlaylist: () => void;
   addPlaylist: (songs: Song[]) => void;
+  addPlaylistToQueue: (songs: Song[], replaceQueue?: boolean) => void;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -89,6 +90,21 @@ export const useAudioStore = create<AudioState>()(
     clearPlaylist: () => set({ playlist: [], currentSongIndex: -1, isPlaying: false }),
     addPlaylist: (songs: Song[]) => {
       set({ playlist: songs, currentSongIndex: 0, isPlaying: true });
+    },
+    addPlaylistToQueue: (songs: Song[], replaceQueue: boolean = false) => {
+      const state = get();
+      if (replaceQueue) {
+        // Replace entire queue with new playlist
+        set({ playlist: songs, currentSongIndex: 0, isPlaying: true });
+      } else {
+        // Append to existing queue
+        const newPlaylist = [...state.playlist, ...songs];
+        set({ playlist: newPlaylist });
+        // If nothing was playing, start playing the first new song
+        if (state.currentSongIndex === -1 && songs.length > 0) {
+          set({ currentSongIndex: state.playlist.length, isPlaying: true });
+        }
+      }
     },
   })
 );

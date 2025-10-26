@@ -4,11 +4,20 @@ import { db } from '../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../lib/db/schema/playlists.schema';
 import { eq, sql, desc } from 'drizzle-orm';
 import { z } from 'zod';
+import { searchSongsByCriteria } from '../../../lib/services/navidrome';
 
 // Zod schema for playlist validation
 const CreatePlaylistSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
+  smartPlaylistCriteria: z.object({
+    genre: z.array(z.string()).optional(),
+    yearFrom: z.number().optional(),
+    yearTo: z.number().optional(),
+    artists: z.array(z.string()).optional(),
+    rating: z.number().min(1).max(5).optional(),
+    recentlyAdded: z.enum(['7d', '30d', '90d']).optional(),
+  }).optional(),
 });
 
 export const ServerRoute = createServerFileRoute('/api/playlists/').methods({
@@ -51,17 +60,58 @@ export const ServerRoute = createServerFileRoute('/api/playlists/').methods({
         });
       }
 
-      // Create new playlist
+      // Create new playlist (with optional smart playlist criteria)
       const newPlaylist = {
         id: crypto.randomUUID(),
         userId: session.user.id,
         name: validatedData.name,
         description: validatedData.description || null,
+        smartPlaylistCriteria: validatedData.smartPlaylistCriteria || null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
       await db.insert(userPlaylists).values(newPlaylist);
+
+      // If smart playlist criteria provided, populate with matching songs
+      if (validatedData.smartPlaylistCriteria) {
+        try {
+          console.log('🔍 Searching for songs matching smart playlist criteria:', validatedData.smartPlaylistCriteria);
+          const matchingSongs = await searchSongsByCriteria(validatedData.smartPlaylistCriteria, 100);
+
+          console.log(`📋 Found ${matchingSongs.length} songs matching criteria`);
+
+          // Add songs to playlist
+          const songsToAdd = matchingSongs.map((song, index) => ({
+            id: crypto.randomUUID(),
+            playlistId: newPlaylist.id,
+            songId: song.id,
+            songArtistTitle: `${song.artist} - ${song.title}`,
+            position: index,
+            addedAt: new Date(),
+          }));
+
+          if (songsToAdd.length > 0) {
+            await db.insert(playlistSongs).values(songsToAdd);
+          }
+
+          // Update playlist with song count and duration
+          const totalDuration = matchingSongs.reduce((sum, song) => sum + parseInt(song.duration || '0'), 0);
+          await db
+            .update(userPlaylists)
+            .set({
+              songCount: matchingSongs.length,
+              totalDuration,
+              updatedAt: new Date(),
+            })
+            .where(eq(userPlaylists.id, newPlaylist.id));
+
+          console.log(`✅ Smart playlist "${newPlaylist.name}" created with ${matchingSongs.length} songs`);
+        } catch (error) {
+          console.error('Failed to populate smart playlist:', error);
+          // Don't fail the whole request, playlist is created but empty
+        }
+      }
 
       return new Response(JSON.stringify({ data: newPlaylist }), {
         status: 201,
@@ -109,20 +159,28 @@ export const ServerRoute = createServerFileRoute('/api/playlists/').methods({
     }
 
     try {
-      // Fetch playlists with song count
+      // Fetch playlists with all Navidrome sync fields
       const playlists = await db
         .select({
           id: userPlaylists.id,
           name: userPlaylists.name,
           description: userPlaylists.description,
+          navidromeId: userPlaylists.navidromeId,
+          lastSynced: userPlaylists.lastSynced,
+          songCount: userPlaylists.songCount,
+          totalDuration: userPlaylists.totalDuration,
+          smartPlaylistCriteria: userPlaylists.smartPlaylistCriteria,
           createdAt: userPlaylists.createdAt,
           updatedAt: userPlaylists.updatedAt,
-          songCount: sql<number>`cast(count(${playlistSongs.id}) as int)`,
+          actualSongCount: sql<number>`cast(count(${playlistSongs.id}) as int)`,
         })
         .from(userPlaylists)
         .leftJoin(playlistSongs, eq(userPlaylists.id, playlistSongs.playlistId))
         .where(eq(userPlaylists.userId, session.user.id))
-        .groupBy(userPlaylists.id)
+        .groupBy(userPlaylists.id, userPlaylists.name, userPlaylists.description,
+                 userPlaylists.navidromeId, userPlaylists.lastSynced, userPlaylists.songCount,
+                 userPlaylists.totalDuration, userPlaylists.smartPlaylistCriteria,
+                 userPlaylists.createdAt, userPlaylists.updatedAt)
         .orderBy(desc(userPlaylists.createdAt));
 
       return new Response(JSON.stringify({ data: { playlists } }), {
