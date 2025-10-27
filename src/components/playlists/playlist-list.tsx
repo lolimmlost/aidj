@@ -12,6 +12,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   ListMusic,
   RefreshCw,
   ChevronDown,
@@ -21,8 +27,13 @@ import {
   XCircle,
   Clock,
   Sparkles,
+  WifiOff,
+  Play,
+  ListPlus,
 } from 'lucide-react';
 import { useAudioStore } from '@/lib/stores/audio';
+import { SmartPlaylistEditor } from './smart-playlist-editor';
+import { SmartPlaylistBuilder } from './smart-playlist-builder';
 
 interface SmartPlaylistCriteria {
   genre?: string[];
@@ -62,7 +73,7 @@ interface PlaylistListProps {
 export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
   const [expandedPlaylistId, setExpandedPlaylistId] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  const { addPlaylistToQueue } = useAudioStore();
+  const { addPlaylistToQueue, addToQueueNext, addToQueueEnd } = useAudioStore();
 
   // Fetch all playlists
   const { data, isLoading, error } = useQuery({
@@ -73,7 +84,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
         throw new Error('Failed to fetch playlists');
       }
       const json = await response.json();
-      return json.data as { playlists: Playlist[] };
+      return json.data as { playlists: Playlist[]; navidromeAvailable: boolean };
     },
   });
 
@@ -125,7 +136,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     setExpandedPlaylistId(expandedPlaylistId === playlistId ? null : playlistId);
   };
 
-  const handleAddToQueue = (playlist: Playlist, songs?: PlaylistSong[]) => {
+  const handleAddToQueue = (playlist: Playlist, songs?: PlaylistSong[], position: 'next' | 'end' = 'end') => {
     if (!songs || songs.length === 0) {
       toast.error('This playlist is empty');
       return;
@@ -136,15 +147,49 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
       id: song.songId,
       title: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
       artist: song.songArtistTitle.split(' - ')[0] || 'Unknown Artist',
-      url: `/api/stream/${song.songId}`,
+      url: `/api/navidrome/stream/${song.songId}`,
     }));
 
-    addPlaylistToQueue(audioSongs, false);
-    toast.success(`Added ${songs.length} songs to queue`, {
-      description: `From "${playlist.name}"`,
-    });
+    if (position === 'next') {
+      addToQueueNext(audioSongs);
+      toast.success(`Added ${songs.length} songs to play next`, {
+        description: `From "${playlist.name}"`,
+      });
+    } else {
+      addToQueueEnd(audioSongs);
+      toast.success(`Added ${songs.length} songs to end of queue`, {
+        description: `From "${playlist.name}"`,
+      });
+    }
 
     onAddToQueue?.(playlist.id, songs);
+  };
+
+  const handlePlayFromSong = (playlist: Playlist, songs: PlaylistSong[], startIndex: number) => {
+    if (!songs || songs.length === 0) {
+      toast.error('This playlist is empty');
+      return;
+    }
+
+    // Convert playlist songs to audio store format starting from the clicked song
+    const audioSongs = songs.map((song) => ({
+      id: song.songId,
+      title: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
+      artist: song.songArtistTitle.split(' - ')[0] || 'Unknown Artist',
+      url: `/api/navidrome/stream/${song.songId}`,
+    }));
+
+    // Replace queue and start playing from the selected song
+    addPlaylistToQueue(audioSongs, true);
+
+    // Use the audio store's playSong to start from the specific index
+    const { playSong } = useAudioStore.getState();
+    playSong(audioSongs[startIndex].id, audioSongs);
+
+    const songTitle = audioSongs[startIndex].title;
+    toast.success(`Playing from "${songTitle}"`, {
+      description: `From "${playlist.name}"`,
+    });
   };
 
   const formatDuration = (seconds?: number | null) => {
@@ -173,6 +218,11 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
   };
 
   const getSyncStatus = (playlist: Playlist) => {
+    // Check if playlist was deleted from Navidrome (sync conflict)
+    if (playlist.description?.includes('[Deleted from Navidrome]')) {
+      return { icon: XCircle, text: 'Deleted in Navidrome', color: 'text-destructive' };
+    }
+
     if (!playlist.navidromeId) return null;
     if (!playlist.lastSynced) {
       return { icon: XCircle, text: 'Not synced', color: 'text-destructive' };
@@ -189,6 +239,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
   };
 
   const playlists = data?.playlists || [];
+  const navidromeAvailable = data?.navidromeAvailable ?? true;
 
   if (isLoading) {
     return (
@@ -222,18 +273,72 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
 
   return (
     <div className="space-y-4">
-      {/* Sync Button */}
-      <div className="flex justify-end">
-        <Button
-          onClick={() => syncMutation.mutate()}
-          disabled={syncMutation.isPending}
-          variant="outline"
-          className="min-h-[44px]"
-        >
-          <RefreshCw className={`mr-2 h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
-          {syncMutation.isPending ? 'Syncing...' : 'Sync Navidrome'}
-        </Button>
+      {/* Header with Actions */}
+      <div className="flex flex-wrap justify-between items-center gap-3">
+        <div className="flex items-center gap-3">
+          {!navidromeAvailable && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
+              <WifiOff className="h-4 w-4" />
+              <span>Offline - Showing cached playlists</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* New Smart Playlist Editor */}
+          <SmartPlaylistEditor
+            trigger={
+              <Button className="min-h-[44px]">
+                <Sparkles className="mr-2 h-4 w-4" />
+                New Smart Playlist
+              </Button>
+            }
+          />
+
+          {/* Legacy Smart Playlist Builder (keep for now) */}
+          <SmartPlaylistBuilder
+            trigger={
+              <Button variant="outline" className="min-h-[44px]">
+                <Plus className="mr-2 h-4 w-4" />
+                Create Playlist
+              </Button>
+            }
+          />
+
+          {/* Sync Button */}
+          <Button
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending || !navidromeAvailable}
+            variant="outline"
+            className="min-h-[44px]"
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+            {syncMutation.isPending ? 'Syncing...' : 'Sync Navidrome'}
+          </Button>
+        </div>
       </div>
+
+      {/* Fallback suggestion when Navidrome is offline and no cached playlists */}
+      {!navidromeAvailable && playlists.length === 0 && (
+        <Card className="border-dashed">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-3">
+              <Sparkles className="h-12 w-12 mx-auto text-muted-foreground" />
+              <h3 className="text-lg font-semibold">No Cached Playlists Available</h3>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                Navidrome is currently unavailable and you have no cached playlists.
+                Try creating an AI-generated playlist instead!
+              </p>
+              <Button variant="outline" asChild className="min-h-[44px]">
+                <Link to="/dashboard">
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Try AI Playlists
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Playlist Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -350,22 +455,51 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
                             {expandedPlaylistData.songs.map((song, index) => (
                               <div
                                 key={song.id}
-                                className="text-sm p-2 hover:bg-accent rounded flex items-center gap-2"
+                                className="group text-sm p-2 hover:bg-accent rounded flex items-center gap-2 cursor-pointer transition-colors"
+                                onClick={() => handlePlayFromSong(playlist, expandedPlaylistData.songs, index)}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    handlePlayFromSong(playlist, expandedPlaylistData.songs, index);
+                                  }
+                                }}
                               >
                                 <span className="text-muted-foreground w-6">{index + 1}.</span>
                                 <span className="truncate flex-1">{song.songArtistTitle}</span>
+                                <Play className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity text-primary flex-shrink-0" />
                               </div>
                             ))}
                           </div>
-                          <Button
-                            onClick={() => handleAddToQueue(playlist, expandedPlaylistData.songs)}
-                            variant="secondary"
-                            size="sm"
-                            className="w-full min-h-[44px]"
-                          >
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add All to Queue
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                className="w-full min-h-[44px]"
+                              >
+                                <ListPlus className="mr-2 h-4 w-4" />
+                                Add to Queue
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="center" className="w-48">
+                              <DropdownMenuItem
+                                onClick={() => handleAddToQueue(playlist, expandedPlaylistData.songs, 'next')}
+                                className="min-h-[44px]"
+                              >
+                                <Play className="mr-2 h-4 w-4" />
+                                Play Next
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleAddToQueue(playlist, expandedPlaylistData.songs, 'end')}
+                                className="min-h-[44px]"
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add to End
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </>
                       ) : (
                         <p className="text-sm text-muted-foreground text-center py-4">

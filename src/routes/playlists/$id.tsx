@@ -2,7 +2,7 @@ import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-ro
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useState } from 'react';
-import { ListMusic, Play, Trash2, X } from 'lucide-react';
+import { ListMusic, Play, Trash2, X, ListPlus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -17,6 +17,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useAudioStore } from '@/lib/stores/audio';
 import { playPlaylist } from '@/lib/utils/playlist-helpers';
 
@@ -50,7 +56,7 @@ function PlaylistDetailPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { setPlaylist, playSong } = useAudioStore();
+  const { setPlaylist, playSong, addToQueueNext, addToQueueEnd } = useAudioStore();
 
   const { data: playlist, isLoading, error } = useQuery({
     queryKey: ['playlist', id],
@@ -140,12 +146,62 @@ function PlaylistDetailPage() {
     }
   };
 
+  const handlePlayFromSong = (startIndex: number) => {
+    if (!playlist || playlist.songs.length === 0) {
+      toast.error('This playlist is empty');
+      return;
+    }
+
+    // Convert playlist songs to audio store format
+    const audioSongs = playlist.songs.map((song) => ({
+      id: song.songId,
+      title: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
+      artist: song.songArtistTitle.split(' - ')[0] || 'Unknown Artist',
+      url: `/api/navidrome/stream/${song.songId}`,
+    }));
+
+    // Start playing from the selected song
+    setPlaylist(audioSongs);
+    playSong(audioSongs[startIndex].id, audioSongs);
+
+    const songTitle = audioSongs[startIndex].title;
+    toast.success(`Playing from "${songTitle}"`, {
+      description: `From "${playlist.name}"`,
+    });
+  };
+
   const handleRemoveSong = (songId: string) => {
     removeSongMutation.mutate(songId);
   };
 
   const handleDeletePlaylist = () => {
     deletePlaylistMutation.mutate();
+  };
+
+  const handleAddToQueue = (position: 'next' | 'end') => {
+    if (!playlist || playlist.songs.length === 0) {
+      toast.error('This playlist is empty');
+      return;
+    }
+
+    const audioSongs = playlist.songs.map((song) => ({
+      id: song.songId,
+      title: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
+      artist: song.songArtistTitle.split(' - ')[0] || 'Unknown Artist',
+      url: `/api/navidrome/stream/${song.songId}`,
+    }));
+
+    if (position === 'next') {
+      addToQueueNext(audioSongs);
+      toast.success(`Added ${playlist.songs.length} songs to play next`, {
+        description: `From "${playlist.name}"`,
+      });
+    } else {
+      addToQueueEnd(audioSongs);
+      toast.success(`Added ${playlist.songs.length} songs to end of queue`, {
+        description: `From "${playlist.name}"`,
+      });
+    }
   };
 
   if (error) {
@@ -224,6 +280,34 @@ function PlaylistDetailPage() {
               <Play className="mr-2 h-4 w-4" />
               Play All
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={playlist.songs.length === 0}
+                  className="min-h-[44px]"
+                >
+                  <ListPlus className="mr-2 h-4 w-4" />
+                  Add to Queue
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                <DropdownMenuItem
+                  onClick={() => handleAddToQueue('next')}
+                  className="min-h-[44px]"
+                >
+                  <Play className="mr-2 h-4 w-4" />
+                  Play Next
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleAddToQueue('end')}
+                  className="min-h-[44px]"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add to End
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" className="min-h-[44px]">
@@ -277,9 +361,20 @@ function PlaylistDetailPage() {
               {playlist.songs.map((song, index) => (
                 <div
                   key={song.id}
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors"
+                  className="group flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors"
                 >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div
+                    className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                    onClick={() => handlePlayFromSong(index)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handlePlayFromSong(index);
+                      }
+                    }}
+                  >
                     <span className="text-muted-foreground text-sm w-8 flex-shrink-0">
                       {index + 1}
                     </span>
@@ -289,11 +384,15 @@ function PlaylistDetailPage() {
                         Added {new Date(song.addedAt).toLocaleDateString()}
                       </p>
                     </div>
+                    <Play className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity text-primary flex-shrink-0" />
                   </div>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleRemoveSong(song.songId)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveSong(song.songId);
+                    }}
                     disabled={removeSongMutation.isPending}
                     className="min-h-[44px] min-w-[44px]"
                     aria-label="Remove song"

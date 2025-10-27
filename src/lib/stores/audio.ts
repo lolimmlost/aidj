@@ -19,6 +19,11 @@ interface AudioState {
   clearPlaylist: () => void;
   addPlaylist: (songs: Song[]) => void;
   addPlaylistToQueue: (songs: Song[], replaceQueue?: boolean) => void;
+  addToQueueNext: (songs: Song[]) => void;
+  addToQueueEnd: (songs: Song[]) => void;
+  getUpcomingQueue: () => Song[];
+  removeFromQueue: (index: number) => void;
+  clearQueue: () => void;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -104,6 +109,79 @@ export const useAudioStore = create<AudioState>()(
         if (state.currentSongIndex === -1 && songs.length > 0) {
           set({ currentSongIndex: state.playlist.length, isPlaying: true });
         }
+      }
+    },
+
+    // Add songs right after the currently playing song
+    addToQueueNext: (songs: Song[]) => {
+      const state = get();
+      if (state.playlist.length === 0 || state.currentSongIndex === -1) {
+        // No playlist exists, just set it
+        set({ playlist: songs, currentSongIndex: 0, isPlaying: true });
+      } else {
+        // Insert songs after current song
+        const newPlaylist = [
+          ...state.playlist.slice(0, state.currentSongIndex + 1),
+          ...songs,
+          ...state.playlist.slice(state.currentSongIndex + 1),
+        ];
+        set({ playlist: newPlaylist });
+      }
+    },
+
+    // Add songs to the end of the queue
+    addToQueueEnd: (songs: Song[]) => {
+      const state = get();
+      if (state.playlist.length === 0 || state.currentSongIndex === -1) {
+        // No playlist exists, just set it
+        set({ playlist: songs, currentSongIndex: 0, isPlaying: true });
+      } else {
+        // Append to end
+        const newPlaylist = [...state.playlist, ...songs];
+        set({ playlist: newPlaylist });
+      }
+    },
+
+    // Get the upcoming queue (songs after current)
+    getUpcomingQueue: () => {
+      const state = get();
+      if (state.currentSongIndex === -1 || state.currentSongIndex >= state.playlist.length - 1) {
+        return [];
+      }
+      return state.playlist.slice(state.currentSongIndex + 1);
+    },
+
+    // Remove a song from the queue by index
+    removeFromQueue: (index: number) => {
+      const state = get();
+      if (index < 0 || index >= state.playlist.length) return;
+
+      const newPlaylist = state.playlist.filter((_, i) => i !== index);
+      let newIndex = state.currentSongIndex;
+
+      // Adjust current index if needed
+      if (index < state.currentSongIndex) {
+        newIndex--;
+      } else if (index === state.currentSongIndex) {
+        // If removing current song, keep index but song will change
+        newIndex = Math.min(newIndex, newPlaylist.length - 1);
+      }
+
+      set({
+        playlist: newPlaylist,
+        currentSongIndex: newPlaylist.length === 0 ? -1 : newIndex,
+        isPlaying: newPlaylist.length === 0 ? false : state.isPlaying,
+      });
+    },
+
+    // Clear everything after the current song
+    clearQueue: () => {
+      const state = get();
+      if (state.currentSongIndex === -1) {
+        set({ playlist: [], currentSongIndex: -1, isPlaying: false });
+      } else {
+        const currentSong = state.playlist[state.currentSongIndex];
+        set({ playlist: currentSong ? [currentSong] : [], currentSongIndex: currentSong ? 0 : -1 });
       }
     },
   })

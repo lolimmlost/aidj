@@ -17,6 +17,7 @@ import appCss from "~/styles.css?url";
 import { ThemeProvider } from "~/components/theme-provider";
 import { Toaster } from "~/components/ui/sonner";
 import { AudioPlayer } from "~/components/ui/audio-player";
+import { QueuePanel } from "~/components/ui/queue-panel";
 import { MobileNav } from "~/components/ui/mobile-nav";
 import { useAudioStore } from "~/lib/stores/audio";
 
@@ -97,9 +98,12 @@ function RootComponent() {
         <Outlet />
       </div>
       {hasActiveSong && (
-        <div className={`transition-all duration-300 fixed bottom-0 left-0 right-0 z-50 ${isPlaying ? 'bg-background border-t' : 'opacity-50'}`}>
-          <AudioPlayer />
-        </div>
+        <>
+          <div className={`transition-all duration-300 fixed bottom-0 left-0 right-0 z-50 ${isPlaying ? 'bg-background border-t' : 'opacity-50'}`}>
+            <AudioPlayer />
+          </div>
+          <QueuePanel />
+        </>
       )}
     </RootDocument>
   );
