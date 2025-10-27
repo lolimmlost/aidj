@@ -6,14 +6,24 @@ import { eq } from 'drizzle-orm';
 import { evaluateSmartPlaylistRules } from '../../../../lib/services/smart-playlist-evaluator';
 import { z } from 'zod';
 
+// Recursive type for rule conditions (any is required for recursive Zod schema)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const RuleConditionSchema: z.ZodType<any> = z.lazy(() =>
+  z.union([
+    z.record(z.string(), z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.tuple([z.number(), z.number()])]))),
+    z.object({ all: z.array(RuleConditionSchema) }),
+    z.object({ any: z.array(RuleConditionSchema) }),
+  ])
+);
+
 // Zod schema for smart playlist validation
 const SmartPlaylistSchema = z.object({
   name: z.string().min(1).max(100),
   rules: z.object({
     name: z.string().optional(),
     comment: z.string().optional(),
-    all: z.array(z.any()).optional(),
-    any: z.array(z.any()).optional(),
+    all: z.array(RuleConditionSchema).optional(),
+    any: z.array(RuleConditionSchema).optional(),
     sort: z.string().optional(),
     order: z.enum(['asc', 'desc']).optional(),
     limit: z.number().int().min(1).max(1000).optional(),

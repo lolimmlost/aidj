@@ -5,13 +5,19 @@
  * from the user's library using Navidrome's Subsonic API.
  */
 
-import { getSongsGlobal, getAlbums, getSongs, type SubsonicSong } from './navidrome';
+import { getSongsGlobal, type SubsonicSong } from './navidrome';
+
+// Navidrome condition value can be various types depending on the operator
+type ConditionValue = string | number | boolean | [number, number];
+
+// A condition is an object with an operator as the key and field/value as nested object
+type RuleCondition = Record<string, Record<string, ConditionValue>> | { all: RuleCondition[] } | { any: RuleCondition[] };
 
 interface SmartPlaylistRules {
   name?: string;
   comment?: string;
-  all?: Array<Record<string, any>>;
-  any?: Array<Record<string, any>>;
+  all?: RuleCondition[];
+  any?: RuleCondition[];
   sort?: string;
   order?: 'asc' | 'desc';
   limit?: number;
@@ -87,7 +93,7 @@ export async function evaluateSmartPlaylistRules(rules: SmartPlaylistRules): Pro
 /**
  * Apply a single condition to filter songs
  */
-function applyCondition(songs: SubsonicSong[], condition: Record<string, any>): SubsonicSong[] {
+function applyCondition(songs: SubsonicSong[], condition: RuleCondition): SubsonicSong[] {
   const operator = Object.keys(condition)[0];
   const fieldValue = condition[operator];
 
@@ -140,9 +146,10 @@ function applyCondition(songs: SubsonicSong[], condition: Record<string, any>): 
       case 'endsWith':
         return String(getSongField(song, field)).toLowerCase().endsWith(String(value).toLowerCase());
 
-      case 'inTheRange':
+      case 'inTheRange': {
         const numValue = Number(getSongField(song, field));
         return numValue >= value[0] && numValue <= value[1];
+      }
 
       case 'inTheLast':
         // This requires date fields which may not be fully available via Subsonic
@@ -172,7 +179,7 @@ const warnedFields = new Set<string>();
 /**
  * Get a field value from a song
  */
-function getSongField(song: any, field: string): any {
+function getSongField(song: SubsonicSong, field: string): string | number | boolean {
   switch (field) {
     case 'title':
       return song.title || '';
