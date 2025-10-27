@@ -56,7 +56,7 @@ function PlaylistDetailPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { setPlaylist, playSong, addToQueueNext, addToQueueEnd } = useAudioStore();
+  const { setPlaylist, playSong, addToQueueNext, addToQueueEnd, setIsPlaying } = useAudioStore();
 
   const { data: playlist, isLoading, error } = useQuery({
     queryKey: ['playlist', id],
@@ -163,11 +163,40 @@ function PlaylistDetailPage() {
     // Start playing from the selected song
     setPlaylist(audioSongs);
     playSong(audioSongs[startIndex].id, audioSongs);
+    setIsPlaying(true);
 
     const songTitle = audioSongs[startIndex].title;
     toast.success(`Playing from "${songTitle}"`, {
       description: `From "${playlist.name}"`,
     });
+  };
+
+  const handleAddSongToQueue = (song: PlaylistSong, position: 'now' | 'next' | 'end') => {
+    const audioSong = {
+      id: song.songId,
+      title: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
+      artist: song.songArtistTitle.split(' - ')[0] || 'Unknown Artist',
+      url: `/api/navidrome/stream/${song.songId}`,
+    };
+
+    if (position === 'now') {
+      const audioSongs = playlist!.songs.map((s) => ({
+        id: s.songId,
+        title: s.songArtistTitle.split(' - ')[1] || s.songArtistTitle,
+        artist: s.songArtistTitle.split(' - ')[0] || 'Unknown Artist',
+        url: `/api/navidrome/stream/${s.songId}`,
+      }));
+      setPlaylist(audioSongs);
+      playSong(song.songId, audioSongs);
+      setIsPlaying(true);
+      toast.success(`Now playing "${audioSong.title}"`);
+    } else if (position === 'next') {
+      addToQueueNext([audioSong]);
+      toast.success(`Added "${audioSong.title}" to play next`);
+    } else {
+      addToQueueEnd([audioSong]);
+      toast.success(`Added "${audioSong.title}" to end of queue`);
+    }
   };
 
   const handleRemoveSong = (songId: string) => {
@@ -361,10 +390,13 @@ function PlaylistDetailPage() {
               {playlist.songs.map((song, index) => (
                 <div
                   key={song.id}
-                  className="group flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors"
+                  className="group flex items-center gap-2 p-3 rounded-lg hover:bg-accent transition-colors"
                 >
+                  <span className="text-muted-foreground text-sm w-8 flex-shrink-0">
+                    {index + 1}
+                  </span>
                   <div
-                    className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                    className="flex-1 min-w-0 cursor-pointer"
                     onClick={() => handlePlayFromSong(index)}
                     role="button"
                     tabIndex={0}
@@ -375,17 +407,57 @@ function PlaylistDetailPage() {
                       }
                     }}
                   >
-                    <span className="text-muted-foreground text-sm w-8 flex-shrink-0">
-                      {index + 1}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium truncate">{song.songArtistTitle}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Added {new Date(song.addedAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <Play className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity text-primary flex-shrink-0" />
+                    <p className="font-medium truncate">{song.songArtistTitle}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Added {new Date(song.addedAt).toLocaleDateString()}
+                    </p>
                   </div>
+                  <Play className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity text-primary flex-shrink-0" />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 w-9 p-0 flex-shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ListPlus className="h-4 w-4" />
+                        <span className="sr-only">Add to queue</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddSongToQueue(song, 'now');
+                        }}
+                        className="min-h-[44px]"
+                      >
+                        <Play className="mr-2 h-4 w-4" />
+                        Play Now
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddSongToQueue(song, 'next');
+                        }}
+                        className="min-h-[44px]"
+                      >
+                        <Play className="mr-2 h-4 w-4" />
+                        Play Next
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddSongToQueue(song, 'end');
+                        }}
+                        className="min-h-[44px]"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add to End
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -394,7 +466,7 @@ function PlaylistDetailPage() {
                       handleRemoveSong(song.songId);
                     }}
                     disabled={removeSongMutation.isPending}
-                    className="min-h-[44px] min-w-[44px]"
+                    className="min-h-[44px] min-w-[44px] flex-shrink-0"
                     aria-label="Remove song"
                   >
                     <X className="h-4 w-4" />

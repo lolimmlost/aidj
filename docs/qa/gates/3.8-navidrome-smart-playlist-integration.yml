@@ -1,0 +1,112 @@
+# <!-- Powered by BMAD™ Core -->
+schema: 1
+story: "3.8"
+story_title: "Navidrome Smart Playlist Integration"
+gate: CONCERNS
+status_reason: "All 8 acceptance criteria met with comprehensive implementation and 22 passing unit tests. Error handling complete with offline mode, sync conflict resolution, and validation. Core functionality is production-ready. Remaining concerns are non-blocking technical debt (code complexity, logging) recommended for future refactoring."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-10-26T00:00:00Z"
+
+waiver: { active: false }
+
+top_issues:
+  - id: "CODE-001"
+    severity: medium
+    finding: "searchSongsByCriteria function is overly complex (200+ lines) with nested loops, multiple strategies, and magic numbers"
+    suggested_action: "Refactor into smaller functions: extractArtistSongs(), getGenreAlbums(), applyCriteriaFilters(). Extract magic numbers to named constants (SONGS_PER_ARTIST = 20, etc.)"
+    suggested_owner: dev
+    refs:
+      - "src/lib/services/navidrome.ts:930-1129"
+
+  - id: "MAINT-001"
+    severity: low
+    finding: "Excessive console.log statements throughout playlist services"
+    suggested_action: "Replace console.log with structured logging framework or categorize logs (debug, info, warn, error)"
+    suggested_owner: dev
+    refs:
+      - "src/lib/services/navidrome.ts"
+      - "src/lib/services/playlist-sync.ts"
+
+  - id: "TEST-001"
+    severity: low
+    finding: "Integration and E2E tests deferred to future sprint"
+    suggested_action: "Add integration tests when test infrastructure is established (test database, mock Navidrome server)"
+    suggested_owner: dev
+    refs:
+      - "Task 9 - subtasks 4, 5, 6 (integration tests)"
+      - "Task 9 - subtasks 7, 8 (E2E tests)"
+
+risk_summary:
+  totals:
+    critical: 0
+    high: 0
+    medium: 1
+    low: 2
+  highest: medium
+  recommendations:
+    must_fix: []
+    monitor:
+      - "Monitor searchSongsByCriteria performance with large libraries (>1000 albums)"
+      - "Track error rates for offline scenarios to validate error handling effectiveness"
+
+quality_score: 72
+expires: "2025-11-09T00:00:00Z"
+
+evidence:
+  tests_reviewed: 22
+  files_created: 5
+  files_modified: 7
+  risks_identified: 3
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "Authentication properly implemented in API routes using Better Auth session checks. Input validation via enhanced Zod schema. SQL injection protected by Drizzle ORM."
+  performance:
+    status: PASS
+    notes: "Adaptive timeout infrastructure via apiFetch (AbortController with 5s default). Database indexes added for navidromeId. TanStack Query caching implemented. Potential concern with searchSongsByCriteria for large libraries."
+  reliability:
+    status: PASS
+    notes: "Offline mode implemented with checkNavidromeConnectivity(). Fallback mechanism for cached playlists. Sync errors handled with 503 status. Comprehensive error handling with retry logic and graceful degradation."
+  maintainability:
+    status: CONCERNS
+    notes: "Code well-structured with TypeScript types and proper separation of concerns. searchSongsByCriteria is overly complex (200+ lines). Excessive console.log statements need structured logging."
+
+history:
+  - at: "2025-10-26T00:00:00Z"
+    gate: FAIL
+    note: "Initial review - Tasks 8 and 9 incomplete, AC7 and AC8 not met"
+  - at: "2025-10-26T00:00:00Z"
+    gate: CONCERNS
+    note: "Final review - Tasks 8 and 9 completed, all 8 ACs met, 22 unit tests passing. Code complexity and logging remain as non-blocking concerns."
+
+recommendations:
+  immediate: []  # All critical issues resolved
+  future:
+    - action: "Refactor searchSongsByCriteria into smaller, more maintainable functions"
+      refs: ["src/lib/services/navidrome.ts:930-1129"]
+    - action: "Replace console.log with structured logging framework"
+      refs: ["src/lib/services/navidrome.ts", "src/lib/services/playlist-sync.ts"]
+    - action: "Add integration tests when test infrastructure is established"
+      refs: ["src/lib/services/__tests__/playlist-sync.test.ts", "tests/e2e/playlists.spec.ts"]
+    - action: "Extract magic numbers in searchSongsByCriteria to named constants"
+      refs: ["src/lib/services/navidrome.ts:930-1129"]
+
+compliance_notes:
+  architecture: "PASS - Follows unified project structure, uses established patterns (TanStack Router, Drizzle ORM, Better Auth)"
+  patterns: "PASS - Proper separation of concerns (services, routes, components), TypeScript types well-defined"
+  testing_strategy: "PASS - AC8 met with 22 comprehensive unit tests. Integration/E2E tests appropriately deferred to future sprint with clear documentation."
+
+completed_tasks:
+  - "Task 1: Navidrome Playlist API Methods (6 functions: getPlaylists, getPlaylist, createPlaylist, updatePlaylist, deletePlaylist, addSongsToPlaylist)"
+  - "Task 2: Playlist Sync Service (syncNavidromePlaylists, needsSync helper)"
+  - "Task 3: Smart Playlist Filter UI (SmartPlaylistBuilder component with all filter criteria)"
+  - "Task 4: Playlist Display in Dashboard (PlaylistList component with metadata and sync indicators)"
+  - "Task 5: Queue Integration (addPlaylistToQueue method in audio store)"
+  - "Task 6: API Routes for Playlist Operations (GET, POST /api/playlists, POST /api/playlists/sync)"
+  - "Task 7: Database Schema Updates (extended userPlaylists with 5 new fields, migration created)"
+  - "Task 8: Error Handling and Edge Cases (checkNavidromeConnectivity, offline badge, sync conflict UI, enhanced validation)"
+  - "Task 9: Testing (22 unit tests: 10 playlist-sync + 12 playlist API methods, all passing)"

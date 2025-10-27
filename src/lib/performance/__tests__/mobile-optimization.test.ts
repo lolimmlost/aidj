@@ -325,7 +325,7 @@ describe('MobileOptimization', () => {
 
     it('should handle missing connection API', () => {
       // Remove connection property
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       delete (navigator as unknown as { connection?: unknown }).connection;
 
       const conditions = optimization.getNetworkConditions();

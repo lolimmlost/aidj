@@ -295,16 +295,6 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
             }
           />
 
-          {/* Legacy Smart Playlist Builder (keep for now) */}
-          <SmartPlaylistBuilder
-            trigger={
-              <Button variant="outline" className="min-h-[44px]">
-                <Plus className="mr-2 h-4 w-4" />
-                Create Playlist
-              </Button>
-            }
-          />
-
           {/* Sync Button */}
           <Button
             onClick={() => syncMutation.mutate()}

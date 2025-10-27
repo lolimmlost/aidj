@@ -2,18 +2,144 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Music, Trash2 } from 'lucide-react';
+import { X, Music, Trash2, GripVertical } from 'lucide-react';
 import { useState } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+interface SortableQueueItemProps {
+  song: { id: string; title: string; artist: string };
+  index: number;
+  actualIndex: number;
+  onRemove: (index: number) => void;
+  onPlay: (index: number) => void;
+}
+
+function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay }: SortableQueueItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: song.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="group flex items-start gap-2 p-2 rounded hover:bg-accent transition-colors"
+    >
+      <button
+        className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5 flex-shrink-0 touch-none"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <span className="text-xs text-muted-foreground w-5 mt-0.5 flex-shrink-0">
+        {index + 1}
+      </span>
+      <div
+        className="min-w-0 flex-1 cursor-pointer"
+        onClick={() => onPlay(actualIndex)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onPlay(actualIndex);
+          }
+        }}
+      >
+        <p className="font-medium text-sm truncate">{song.title}</p>
+        <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
+      </div>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove(actualIndex);
+        }}
+        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+        title="Remove from queue"
+      >
+        <X className="h-3 w-3" />
+      </Button>
+    </div>
+  );
+}
 
 export function QueuePanel() {
-  const { playlist, currentSongIndex, getUpcomingQueue, removeFromQueue, clearQueue } = useAudioStore();
+  const { playlist, currentSongIndex, getUpcomingQueue, removeFromQueue, clearQueue, reorderQueue, playSong, setIsPlaying } = useAudioStore();
   const [isOpen, setIsOpen] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px movement required before drag starts
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const currentSong = currentSongIndex >= 0 && currentSongIndex < playlist.length
     ? playlist[currentSongIndex]
     : null;
 
   const upcomingQueue = getUpcomingQueue();
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    // Find indices in the upcoming queue
+    const oldIndex = upcomingQueue.findIndex(song => song.id === active.id);
+    const newIndex = upcomingQueue.findIndex(song => song.id === over.id);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      // Convert to actual playlist indices (offset by currentSongIndex + 1)
+      const actualOldIndex = currentSongIndex + 1 + oldIndex;
+      const actualNewIndex = currentSongIndex + 1 + newIndex;
+      reorderQueue(actualOldIndex, actualNewIndex);
+    }
+  };
+
+  const handlePlaySong = (playlistIndex: number) => {
+    if (playlistIndex >= 0 && playlistIndex < playlist.length) {
+      const song = playlist[playlistIndex];
+      playSong(song.id, playlist);
+      setIsPlaying(true);
+    }
+  };
 
   if (!isOpen) {
     // Collapsed state - show count badge
@@ -79,34 +205,32 @@ export function QueuePanel() {
           ) : (
             <>
               <ScrollArea className="h-64">
-                <div className="space-y-1">
-                  {upcomingQueue.map((song, index) => {
-                    const actualIndex = currentSongIndex + 1 + index;
-                    return (
-                      <div
-                        key={`${song.id}-${actualIndex}`}
-                        className="group flex items-start gap-2 p-2 rounded hover:bg-accent transition-colors"
-                      >
-                        <span className="text-xs text-muted-foreground w-5 mt-0.5 flex-shrink-0">
-                          {index + 1}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-sm truncate">{song.title}</p>
-                          <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeFromQueue(actualIndex)}
-                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                          title="Remove from queue"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={upcomingQueue.map(s => s.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-1">
+                      {upcomingQueue.map((song, index) => {
+                        const actualIndex = currentSongIndex + 1 + index;
+                        return (
+                          <SortableQueueItem
+                            key={song.id}
+                            song={song}
+                            index={index}
+                            actualIndex={actualIndex}
+                            onRemove={removeFromQueue}
+                            onPlay={handlePlaySong}
+                          />
+                        );
+                      })}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               </ScrollArea>
 
               <div className="mt-3 pt-3 border-t">

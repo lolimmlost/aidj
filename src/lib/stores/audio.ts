@@ -24,6 +24,7 @@ interface AudioState {
   getUpcomingQueue: () => Song[];
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
+  reorderQueue: (fromIndex: number, toIndex: number) => void;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -183,6 +184,37 @@ export const useAudioStore = create<AudioState>()(
         const currentSong = state.playlist[state.currentSongIndex];
         set({ playlist: currentSong ? [currentSong] : [], currentSongIndex: currentSong ? 0 : -1 });
       }
+    },
+
+    // Reorder songs in the queue
+    reorderQueue: (fromIndex: number, toIndex: number) => {
+      const state = get();
+
+      if (fromIndex < 0 || fromIndex >= state.playlist.length || toIndex < 0 || toIndex >= state.playlist.length) {
+        return;
+      }
+
+      if (fromIndex === toIndex) return;
+
+      const newPlaylist = [...state.playlist];
+      const [movedSong] = newPlaylist.splice(fromIndex, 1);
+      newPlaylist.splice(toIndex, 0, movedSong);
+
+      // Adjust current index if needed
+      let newCurrentIndex = state.currentSongIndex;
+
+      if (fromIndex === state.currentSongIndex) {
+        // The current song is being moved
+        newCurrentIndex = toIndex;
+      } else if (fromIndex < state.currentSongIndex && toIndex >= state.currentSongIndex) {
+        // A song before current was moved to after current
+        newCurrentIndex--;
+      } else if (fromIndex > state.currentSongIndex && toIndex <= state.currentSongIndex) {
+        // A song after current was moved to before current
+        newCurrentIndex++;
+      }
+
+      set({ playlist: newPlaylist, currentSongIndex: newCurrentIndex });
     },
   })
 );

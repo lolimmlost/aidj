@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { NavidromeErrorBoundary } from '@/components/navidrome-error-boundary';
 import { Search as SearchIcon } from 'lucide-react';
 import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
+import { AddToQueueButton } from '@/components/playlists/AddToQueueButton';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 
@@ -157,7 +158,11 @@ function SearchPage() {
                         songId={song.id}
                         artistName={song.artist || 'Unknown Artist'}
                         songTitle={song.name || song.title || 'Unknown Song'}
-                        hideCreateNew={true}
+                      />
+                      <AddToQueueButton
+                        songId={song.id}
+                        artistName={song.artist || 'Unknown Artist'}
+                        songTitle={song.name || song.title || 'Unknown Song'}
                       />
                       <div
                         className="text-muted-foreground cursor-pointer p-2 hover:text-primary"

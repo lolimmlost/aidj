@@ -42,6 +42,23 @@ export const ServerRoute = createServerFileRoute('/api/playlists/sync').methods(
     } catch (error: unknown) {
       console.error('Playlist sync failed:', error);
       const message = error instanceof Error ? error.message : 'Failed to sync playlists';
+
+      // Check if error is due to Navidrome unavailability
+      const isUnavailable = message.includes('NAVIDROME_TIMEOUT_ERROR') ||
+                           message.includes('NAVIDROME_API_ERROR') ||
+                           message.includes('Failed to fetch');
+
+      if (isUnavailable) {
+        return new Response(JSON.stringify({
+          code: 'NAVIDROME_UNAVAILABLE',
+          message: 'Navidrome is currently unavailable. Showing cached playlists.',
+          error: true,
+        }), {
+          status: 503, // Service Unavailable
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
       return new Response(JSON.stringify({
         code: 'PLAYLIST_SYNC_ERROR',
         message,

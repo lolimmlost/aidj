@@ -1090,7 +1090,386 @@ describe('Navidrome Service Integration Tests', () => {
     });
   });
 
-  // TODO: Add integration tests for playlist API methods (getPlaylists, getPlaylist, createPlaylist, updatePlaylist, deletePlaylist, addSongsToPlaylist)
-  // These functions are implemented in navidrome.ts but unit tests require complex mocking of Subsonic API responses
-  // Recommendation: Add E2E tests or integration tests with a real/mock Navidrome instance
+  describe('Playlist API methods', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockGetConfig.mockReturnValue({
+        navidromeUrl: 'http://localhost:4533',
+        navidromeUsername: 'testuser',
+        navidromePassword: 'testpass',
+      });
+    });
+
+    describe('getPlaylists', () => {
+      it('should fetch all playlists successfully', async () => {
+        const { getPlaylists } = await import('../navidrome');
+
+        const mockPlaylists = [
+          { id: 'pl1', name: 'Rock Classics', songCount: 42, duration: 9840, owner: 'testuser', public: false, created: '2024-01-01T00:00:00Z', changed: '2024-01-01T00:00:00Z' },
+          { id: 'pl2', name: '2020s Mix', songCount: 30, duration: 7200, owner: 'testuser', public: false, created: '2024-01-02T00:00:00Z', changed: '2024-01-02T00:00:00Z' },
+        ];
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const playlistsResponse = new Response(JSON.stringify({
+          'subsonic-response': {
+            playlists: {
+              playlist: mockPlaylists
+            }
+          }
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(playlistsResponse);
+
+        const result = await getPlaylists();
+
+        expect(result).toEqual(mockPlaylists);
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('/rest/getPlaylists'), expect.any(Object));
+      });
+
+      it('should return empty array when no playlists exist', async () => {
+        const { getPlaylists } = await import('../navidrome');
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const emptyResponse = new Response(JSON.stringify({
+          'subsonic-response': {
+            playlists: {
+              playlist: []
+            }
+          }
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(emptyResponse);
+
+        const result = await getPlaylists();
+
+        expect(result).toEqual([]);
+      });
+
+      it('should throw error on API failure', async () => {
+        const { getPlaylists } = await import('../navidrome');
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const errorResponse = new Response(null, { status: 500, statusText: 'Server Error' });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(errorResponse);
+
+        await expect(getPlaylists()).rejects.toThrow();
+      });
+    });
+
+    describe('getPlaylist', () => {
+      it('should fetch single playlist with songs', async () => {
+        const { getPlaylist } = await import('../navidrome');
+
+        const mockPlaylist = {
+          id: 'pl1',
+          name: 'Rock Classics',
+          songCount: 2,
+          duration: 420,
+          owner: 'testuser',
+          public: false,
+          created: '2024-01-01T00:00:00Z',
+          changed: '2024-01-01T00:00:00Z',
+          entry: [
+            { id: 's1', title: 'Song 1', artist: 'Artist 1', albumId: 'a1', duration: '180', track: '1' },
+            { id: 's2', title: 'Song 2', artist: 'Artist 2', albumId: 'a2', duration: '240', track: '2' },
+          ]
+        };
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const playlistResponse = new Response(JSON.stringify({
+          'subsonic-response': {
+            playlist: mockPlaylist
+          }
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(playlistResponse);
+
+        const result = await getPlaylist('pl1');
+
+        expect(result).toEqual(mockPlaylist);
+        expect(result.entry).toHaveLength(2);
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('/rest/getPlaylist?id=pl1'), expect.any(Object));
+      });
+
+      it('should throw error for non-existent playlist', async () => {
+        const { getPlaylist } = await import('../navidrome');
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const emptyResponse = new Response(JSON.stringify({
+          'subsonic-response': {}
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(emptyResponse);
+
+        await expect(getPlaylist('invalid')).rejects.toThrow('Playlist not found');
+      });
+    });
+
+    describe('createPlaylist', () => {
+      it('should create playlist without songs', async () => {
+        const { createPlaylist } = await import('../navidrome');
+
+        const mockCreatedPlaylist = {
+          id: 'pl-new',
+          name: 'New Playlist',
+          songCount: 0,
+          duration: 0,
+          owner: 'testuser',
+          public: false,
+          created: '2024-01-01T00:00:00Z',
+          changed: '2024-01-01T00:00:00Z',
+        };
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const createResponse = new Response(JSON.stringify({
+          'subsonic-response': {
+            playlist: mockCreatedPlaylist
+          }
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(createResponse);
+
+        const result = await createPlaylist('New Playlist');
+
+        expect(result).toEqual(mockCreatedPlaylist);
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('/rest/createPlaylist?name=New%20Playlist'), expect.objectContaining({ method: 'POST' }));
+      });
+
+      it('should create playlist with initial songs', async () => {
+        const { createPlaylist } = await import('../navidrome');
+
+        const mockCreatedPlaylist = {
+          id: 'pl-new',
+          name: 'New Playlist',
+          songCount: 2,
+          duration: 420,
+          owner: 'testuser',
+          public: false,
+          created: '2024-01-01T00:00:00Z',
+          changed: '2024-01-01T00:00:00Z',
+        };
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const createResponse = new Response(JSON.stringify({
+          'subsonic-response': {
+            playlist: mockCreatedPlaylist
+          }
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(createResponse);
+
+        const result = await createPlaylist('New Playlist', ['s1', 's2']);
+
+        expect(result).toEqual(mockCreatedPlaylist);
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('songId=s1'), expect.objectContaining({ method: 'POST' }));
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('songId=s2'), expect.objectContaining({ method: 'POST' }));
+      });
+    });
+
+    describe('updatePlaylist', () => {
+      it('should update playlist name', async () => {
+        const { updatePlaylist } = await import('../navidrome');
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const updateResponse = new Response(JSON.stringify({
+          'subsonic-response': {
+            status: 'ok'
+          }
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(updateResponse);
+
+        await updatePlaylist('pl1', 'Updated Name');
+
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('/rest/updatePlaylist?playlistId=pl1'), expect.objectContaining({ method: 'POST' }));
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('name=Updated%20Name'), expect.objectContaining({ method: 'POST' }));
+      });
+
+      it('should update playlist songs', async () => {
+        const { updatePlaylist } = await import('../navidrome');
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const updateResponse = new Response(JSON.stringify({
+          'subsonic-response': {
+            status: 'ok'
+          }
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(updateResponse);
+
+        await updatePlaylist('pl1', undefined, ['s1', 's2', 's3']);
+
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('songIdToAdd=s1'), expect.objectContaining({ method: 'POST' }));
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('songIdToAdd=s2'), expect.objectContaining({ method: 'POST' }));
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('songIdToAdd=s3'), expect.objectContaining({ method: 'POST' }));
+      });
+    });
+
+    describe('deletePlaylist', () => {
+      it('should delete playlist successfully', async () => {
+        const { deletePlaylist } = await import('../navidrome');
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const deleteResponse = new Response(JSON.stringify({
+          'subsonic-response': {
+            status: 'ok'
+          }
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(deleteResponse);
+
+        await deletePlaylist('pl1');
+
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('/rest/deletePlaylist?id=pl1'), expect.objectContaining({ method: 'POST' }));
+      });
+
+      it('should throw error on delete failure', async () => {
+        const { deletePlaylist } = await import('../navidrome');
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const errorResponse = new Response(JSON.stringify({
+          'subsonic-response': {
+            status: 'failed',
+            error: {
+              message: 'Playlist not found'
+            }
+          }
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(errorResponse);
+
+        await expect(deletePlaylist('invalid')).rejects.toThrow();
+      });
+    });
+
+    describe('checkNavidromeConnectivity', () => {
+      it('should return true when Navidrome is available', async () => {
+        const { checkNavidromeConnectivity } = await import('../navidrome');
+
+        const pingResponse = new Response(JSON.stringify({
+          'subsonic-response': {
+            status: 'ok'
+          }
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch.mockResolvedValueOnce(pingResponse);
+
+        const result = await checkNavidromeConnectivity();
+
+        expect(result).toBe(true);
+        expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/rest/ping'), expect.any(Object));
+      });
+
+      it('should return false when Navidrome is unavailable', async () => {
+        const { checkNavidromeConnectivity } = await import('../navidrome');
+
+        mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+        const result = await checkNavidromeConnectivity();
+
+        expect(result).toBe(false);
+      });
+
+      it('should return false on timeout', async () => {
+        const { checkNavidromeConnectivity } = await import('../navidrome');
+
+        const abortError = new Error('The user aborted a request.');
+        abortError.name = 'AbortError';
+        mockFetch.mockRejectedValueOnce(abortError);
+
+        const result = await checkNavidromeConnectivity();
+
+        expect(result).toBe(false);
+      });
+    });
+  });
 });

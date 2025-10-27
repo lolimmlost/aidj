@@ -1,8 +1,13 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
+import { Link } from '@tanstack/react-router';
 import { Button } from './button';
-import { Volume2, VolumeX, SkipBack, SkipForward, Play, Pause } from 'lucide-react';
+import { Volume2, VolumeX, SkipBack, SkipForward, Play, Pause, Heart } from 'lucide-react';
 import { useAudioStore } from '@/lib/stores/audio';
 import { AddToPlaylistButton } from '../playlists/AddToPlaylistButton';
+import { scrobbleSong } from '@/lib/services/navidrome';
+import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 export type Song = {
   id: string;
@@ -18,6 +23,9 @@ export type Song = {
 
 export function AudioPlayer() {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const hasScrobbledRef = useRef<boolean>(false);
+  const scrobbleThresholdReachedRef = useRef<boolean>(false);
+  const currentSongIdRef = useRef<string | null>(null);
   const {
     playlist,
     currentSongIndex,
@@ -33,6 +41,47 @@ export function AudioPlayer() {
     previousSong,
   } = useAudioStore();
   const currentSong = playlist[currentSongIndex];
+  const queryClient = useQueryClient();
+
+  // Fetch feedback for current song
+  const { data: feedbackData } = useSongFeedback(currentSong ? [currentSong.id] : []);
+  const isLiked = feedbackData?.feedback?.[currentSong?.id] === 'thumbs_up';
+
+  // Like/unlike mutation
+  const likeMutation = useMutation({
+    mutationFn: async (liked: boolean) => {
+      const response = await fetch('/api/recommendations/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          songId: currentSong.id,
+          songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
+          feedbackType: liked ? 'thumbs_up' : 'thumbs_down',
+          source: 'library',
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update feedback');
+      }
+
+      return response.json();
+    },
+    onSuccess: (_, liked) => {
+      queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
+      queryClient.invalidateQueries({ queryKey: ['playlists'] }); // Refresh Liked Songs playlist
+      toast.success(liked ? '❤️ Added to Liked Songs' : '💔 Removed from Liked Songs');
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to update', { description: error.message });
+    },
+  });
+
+  const handleToggleLike = () => {
+    if (!currentSong) return;
+    likeMutation.mutate(!isLiked);
+  };
 
   const loadSong = useCallback((song: Song) => {
     const audio = audioRef.current;
@@ -41,6 +90,11 @@ export function AudioPlayer() {
       audio.load();
       setCurrentTime(0);
       setDuration(0);
+      // Reset scrobble tracking for new song
+      hasScrobbledRef.current = false;
+      scrobbleThresholdReachedRef.current = false;
+      currentSongIdRef.current = song.id;
+      console.log(`🎵 Loaded song: ${song.name || song.title} (ID: ${song.id})`);
     }
   }, [setCurrentTime, setDuration]);
 
@@ -65,9 +119,10 @@ export function AudioPlayer() {
   };
 
   const changeVolume = (newVolume: number) => {
-    setVolume(newVolume);
+    const clampedVolume = Math.max(0, Math.min(1, newVolume));
+    setVolume(clampedVolume);
     if (audioRef.current) {
-      audioRef.current.volume = newVolume;
+      audioRef.current.volume = clampedVolume;
     }
   };
 
@@ -75,11 +130,33 @@ export function AudioPlayer() {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const updateTime = () => setCurrentTime(audio.currentTime);
+    const updateTime = () => {
+      setCurrentTime(audio.currentTime);
+
+      // Check if we've crossed the 50% threshold for scrobbling
+      if (audio.duration > 0 && currentSong) {
+        const playedPercentage = (audio.currentTime / audio.duration) * 100;
+
+        // Mark threshold reached at 50%
+        if (playedPercentage >= 50 && !scrobbleThresholdReachedRef.current) {
+          scrobbleThresholdReachedRef.current = true;
+          console.log(`📊 50% threshold reached for: ${currentSong.name}`);
+        }
+      }
+    };
+
     const updateDuration = () => setDuration(audio.duration);
     const onCanPlay = () => {};
     const onWaiting = () => {};
     const onEnded = () => {
+      // Scrobble on song end if we haven't already
+      if (currentSongIdRef.current && !hasScrobbledRef.current) {
+        hasScrobbledRef.current = true;
+        console.log(`🎵 Song ended, scrobbling: ${currentSongIdRef.current}`);
+        scrobbleSong(currentSongIdRef.current, true).catch(err =>
+          console.error('Failed to scrobble on song end:', err)
+        );
+      }
       nextSong();
     };
 
@@ -98,7 +175,7 @@ export function AudioPlayer() {
       audio.removeEventListener('waiting', onWaiting);
       audio.removeEventListener('ended', onEnded);
     };
-  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong]);
+  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong]);
 
   useEffect(() => {
     if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {
@@ -106,21 +183,33 @@ export function AudioPlayer() {
       const audio = audioRef.current;
 
       if (audio && currentSong) {
-        // Set up one-time canplay listener to handle autoplay
-        const handleCanPlay = () => {
-          if (isPlaying) {
-            audio.play().catch((e) => console.error('Auto-play failed:', e));
-          }
-          audio.removeEventListener('canplay', handleCanPlay);
-        };
+        // Only load if the song ID has actually changed
+        if (currentSongIdRef.current !== currentSong.id) {
+          // Set up one-time canplay listener to handle autoplay
+          const handleCanPlay = () => {
+            if (isPlaying) {
+              audio.play().catch((e) => console.error('Auto-play failed:', e));
+            }
+            audio.removeEventListener('canplay', handleCanPlay);
+          };
 
-        audio.addEventListener('canplay', handleCanPlay);
-        loadSong(currentSong);
+          audio.addEventListener('canplay', handleCanPlay);
+          loadSong(currentSong);
 
-        // Cleanup
-        return () => {
-          audio.removeEventListener('canplay', handleCanPlay);
-        };
+          // Cleanup: Scrobble when changing songs if 50% threshold was reached
+          return () => {
+            audio.removeEventListener('canplay', handleCanPlay);
+
+            // If user skipped after 50% threshold, scrobble before loading next song
+            if (scrobbleThresholdReachedRef.current && !hasScrobbledRef.current && currentSongIdRef.current) {
+              hasScrobbledRef.current = true;
+              console.log(`🎵 Song skipped after 50%, scrobbling: ${currentSongIdRef.current}`);
+              scrobbleSong(currentSongIdRef.current, true).catch(err =>
+                console.error('Failed to scrobble on song change:', err)
+              );
+            }
+          };
+        }
       }
     }
   }, [currentSongIndex, playlist, isPlaying, loadSong]);
@@ -168,18 +257,46 @@ export function AudioPlayer() {
                 </div>
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm truncate" title={currentSong.name || currentSong.title || 'Unknown Song'}>
+                <Link
+                  to="/albums/$id"
+                  params={{ id: currentSong.albumId }}
+                  className="font-semibold text-sm truncate block hover:text-primary transition-colors"
+                  title={currentSong.name || currentSong.title || 'Unknown Song'}
+                >
                   {currentSong.name || currentSong.title || 'Unknown Song'}
-                </h3>
-                <p className="text-xs text-muted-foreground truncate" title={currentSong.artist || 'Unknown Artist'}>
-                  {currentSong.artist || 'Unknown Artist'}
-                  {currentSong.album && ` • ${currentSong.album}`}
+                </Link>
+                <p className="text-xs text-muted-foreground truncate">
+                  <span className="hover:text-primary transition-colors cursor-pointer" title={currentSong.artist || 'Unknown Artist'}>
+                    {currentSong.artist || 'Unknown Artist'}
+                  </span>
+                  {currentSong.album && (
+                    <>
+                      {' • '}
+                      <Link
+                        to="/albums/$id"
+                        params={{ id: currentSong.albumId }}
+                        className="hover:text-primary transition-colors"
+                      >
+                        {currentSong.album}
+                      </Link>
+                    </>
+                  )}
                 </p>
               </div>
             </div>
 
             {/* Mobile Controls */}
             <div className="flex items-center space-x-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`min-h-[44px] min-w-[44px] p-2 rounded-full ${isLiked ? 'text-red-500' : ''} hover:bg-accent/20`}
+                onClick={handleToggleLike}
+                disabled={likeMutation.isPending}
+                aria-label={isLiked ? 'Unlike song' : 'Like song'}
+              >
+                <Heart className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
+              </Button>
               <AddToPlaylistButton
                 songId={currentSong.id}
                 artistName={currentSong.artist || 'Unknown Artist'}
@@ -233,6 +350,7 @@ export function AudioPlayer() {
                 value={currentTime}
                 max={duration || 0}
                 step={0.1}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => seek(Number(e.target.value))}
                 onInput={(e: React.ChangeEvent<HTMLInputElement>) => seek(Number(e.target.value))}
                 className="w-full h-2 bg-muted/50 rounded-full appearance-none cursor-pointer
                   [&::-webkit-slider-thumb]:appearance-none
@@ -241,11 +359,13 @@ export function AudioPlayer() {
                   [&::-webkit-slider-thumb]:bg-primary
                   [&::-webkit-slider-thumb]:rounded-full
                   [&::-webkit-slider-thumb]:shadow-md
+                  [&::-webkit-slider-thumb]:cursor-pointer
                   [&::-moz-range-thumb]:h-5
                   [&::-moz-range-thumb]:w-5
                   [&::-moz-range-thumb]:bg-primary
                   [&::-moz-range-thumb]:rounded-full
-                  [&::-moz-range-thumb]:border-0"
+                  [&::-moz-range-thumb]:border-0
+                  [&::-moz-range-thumb]:cursor-pointer"
                 style={{
                   background: `linear-gradient(to right, var(--primary) ${(currentTime / (duration || 1)) * 100}%, var(--muted) ${(currentTime / (duration || 1)) * 100}%)`,
                 }}
@@ -279,14 +399,42 @@ export function AudioPlayer() {
               </div>
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-sm truncate" title={currentSong.name || currentSong.title || 'Unknown Song'}>
+              <Link
+                to="/albums/$id"
+                params={{ id: currentSong.albumId }}
+                className="font-semibold text-sm truncate block hover:text-primary transition-colors"
+                title={currentSong.name || currentSong.title || 'Unknown Song'}
+              >
                 {currentSong.name || currentSong.title || 'Unknown Song'}
-              </h3>
-              <p className="text-xs text-muted-foreground truncate" title={currentSong.artist || 'Unknown Artist'}>
-                {currentSong.artist || 'Unknown Artist'}
-                {currentSong.album && ` • ${currentSong.album}`}
+              </Link>
+              <p className="text-xs text-muted-foreground truncate">
+                <span className="hover:text-primary transition-colors cursor-pointer" title={currentSong.artist || 'Unknown Artist'}>
+                  {currentSong.artist || 'Unknown Artist'}
+                </span>
+                {currentSong.album && (
+                  <>
+                    {' • '}
+                    <Link
+                      to="/albums/$id"
+                      params={{ id: currentSong.albumId }}
+                      className="hover:text-primary transition-colors"
+                    >
+                      {currentSong.album}
+                    </Link>
+                  </>
+                )}
               </p>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`h-9 w-9 rounded-full ${isLiked ? 'text-red-500' : ''} hover:bg-accent/20`}
+              onClick={handleToggleLike}
+              disabled={likeMutation.isPending}
+              aria-label={isLiked ? 'Unlike song' : 'Like song'}
+            >
+              <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
+            </Button>
           </div>
 
           {/* Controls - Center */}
@@ -329,33 +477,35 @@ export function AudioPlayer() {
           {/* Progress & Volume - Right Side */}
           <div className="flex items-center space-x-4">
             {/* Progress Bar */}
-            <div className="flex items-center space-x-2 min-w-[120px]">
-              <span className="text-xs font-mono text-muted-foreground min-w-[3rem] text-right">
-                {formatTime(currentTime)}
-              </span>
-              <div className="flex-1 w-24 relative">
+            <div className="flex flex-col space-y-1 min-w-[180px]">
+              <div className="flex justify-between text-xs font-mono text-muted-foreground px-1">
+                <span>{formatTime(currentTime)}</span>
+                <span>{formatTime(duration)}</span>
+              </div>
+              <div className="relative">
                 <input
                   type="range"
                   value={currentTime}
                   max={duration || 0}
                   step={0.1}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => seek(Number(e.target.value))}
                   onInput={(e: React.ChangeEvent<HTMLInputElement>) => seek(Number(e.target.value))}
                   className="w-full h-1.5 bg-muted/50 rounded-full appearance-none cursor-pointer relative z-10
                     [&::-webkit-slider-thumb]:appearance-none
-                    [&::-webkit-slider-thumb]:h-3
-                    [&::-webkit-slider-thumb]:w-3
+                    [&::-webkit-slider-thumb]:h-3.5
+                    [&::-webkit-slider-thumb]:w-3.5
                     [&::-webkit-slider-thumb]:bg-primary
                     [&::-webkit-slider-thumb]:rounded-full
                     [&::-webkit-slider-thumb]:shadow-md
-                    [&::-moz-range-thumb]:h-3
-                    [&::-moz-range-thumb]:w-3
+                    [&::-webkit-slider-thumb]:cursor-pointer
+                    [&::-moz-range-thumb]:h-3.5
+                    [&::-moz-range-thumb]:w-3.5
                     [&::-moz-range-thumb]:bg-primary
                     [&::-moz-range-thumb]:rounded-full
                     [&::-moz-range-thumb]:border-0
-                    disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!isPlaying}
+                    [&::-moz-range-thumb]:cursor-pointer"
                   style={{
-                    background: `linear-gradient(to right, var(--primary) ${ (currentTime / (duration || 1)) * 100 }%, var(--muted) ${ (currentTime / (duration || 1)) * 100 }%)`,
+                    background: `linear-gradient(to right, var(--primary) ${(currentTime / (duration || 1)) * 100}%, var(--muted) ${(currentTime / (duration || 1)) * 100}%)`,
                   }}
                   aria-label="Seek position"
                   aria-valuemin={0}
@@ -363,16 +513,7 @@ export function AudioPlayer() {
                   aria-valuenow={Math.round(currentTime)}
                   aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
                 />
-                {duration > 0 && (
-                  <div
-                    className="absolute inset-0 h-1.5 bg-primary/20 rounded-full -z-10"
-                    style={{ width: `${Math.min(100, (currentTime / duration) * 100)}%` }}
-                  />
-                )}
               </div>
-              <span className="text-xs font-mono text-muted-foreground min-w-[3rem]">
-                {formatTime(duration)}
-              </span>
             </div>
 
             {/* Volume Control */}
@@ -393,21 +534,25 @@ export function AudioPlayer() {
               <input
                 type="range"
                 value={volume}
+                min={0}
                 max={1}
-                step={0.05}
+                step={0.01}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => changeVolume(Number(e.target.value))}
                 onInput={(e: React.ChangeEvent<HTMLInputElement>) => changeVolume(Number(e.target.value))}
-                className="w-16 h-1.5 bg-muted/50 rounded-full appearance-none cursor-pointer
+                className="w-20 h-1.5 bg-muted/50 rounded-full appearance-none cursor-pointer
                   [&::-webkit-slider-thumb]:appearance-none
-                  [&::-webkit-slider-thumb]:h-3
-                  [&::-webkit-slider-thumb]:w-3
+                  [&::-webkit-slider-thumb]:h-3.5
+                  [&::-webkit-slider-thumb]:w-3.5
                   [&::-webkit-slider-thumb]:bg-primary
                   [&::-webkit-slider-thumb]:rounded-full
                   [&::-webkit-slider-thumb]:shadow-md
-                  [&::-moz-range-thumb]:h-3
-                  [&::-moz-range-thumb]:w-3
+                  [&::-webkit-slider-thumb]:cursor-pointer
+                  [&::-moz-range-thumb]:h-3.5
+                  [&::-moz-range-thumb]:w-3.5
                   [&::-moz-range-thumb]:bg-primary
                   [&::-moz-range-thumb]:rounded-full
-                  [&::-moz-range-thumb]:border-0"
+                  [&::-moz-range-thumb]:border-0
+                  [&::-moz-range-thumb]:cursor-pointer"
                 style={{
                   background: `linear-gradient(to right, var(--primary) ${volume * 100}%, var(--muted) ${volume * 100}%)`,
                 }}

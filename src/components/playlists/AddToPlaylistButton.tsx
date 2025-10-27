@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ListPlus, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -121,13 +121,23 @@ export function AddToPlaylistButton({
             className="min-h-[44px]"
             aria-label="Add to playlist"
           >
-            <ListPlus className={showLabel ? 'mr-2 h-4 w-4' : 'h-4 w-4'} />
+            <Plus className={showLabel ? 'mr-2 h-4 w-4' : 'h-4 w-4'} />
             {showLabel && 'Add to Playlist'}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel>Add to Playlist</DropdownMenuLabel>
           <DropdownMenuSeparator />
+
+          {!hideCreateNew && (
+            <>
+              <DropdownMenuItem onClick={handleCreateNew}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create New Playlist
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
 
           {isLoading && (
             <DropdownMenuItem disabled>Loading playlists...</DropdownMenuItem>
@@ -149,16 +159,6 @@ export function AddToPlaylistButton({
               </span>
             </DropdownMenuItem>
           ))}
-
-          {!hideCreateNew && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleCreateNew}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create New Playlist
-              </DropdownMenuItem>
-            </>
-          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

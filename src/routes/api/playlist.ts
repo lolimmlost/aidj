@@ -51,7 +51,7 @@ export const ServerRoute = createServerFileRoute('/api/playlist').methods({
 
               // STRATEGY 1: Search by title first (like the working search page)
               console.log(`🔍 Searching by title: "${titlePart}"`);
-              let titleMatches = await search(titlePart, 0, 10);
+              const titleMatches = await search(titlePart, 0, 10);
 
               // Filter by artist match
               let match = titleMatches.find(s =>

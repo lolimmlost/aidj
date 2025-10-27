@@ -4,7 +4,7 @@ import { db } from '../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../lib/db/schema/playlists.schema';
 import { eq, sql, desc } from 'drizzle-orm';
 import { z } from 'zod';
-import { searchSongsByCriteria } from '../../../lib/services/navidrome';
+import { searchSongsByCriteria, checkNavidromeConnectivity } from '../../../lib/services/navidrome';
 
 // Zod schema for playlist validation
 const CreatePlaylistSchema = z.object({
@@ -12,11 +12,19 @@ const CreatePlaylistSchema = z.object({
   description: z.string().max(500).optional(),
   smartPlaylistCriteria: z.object({
     genre: z.array(z.string()).optional(),
-    yearFrom: z.number().optional(),
-    yearTo: z.number().optional(),
+    yearFrom: z.number().int().min(1900).max(new Date().getFullYear()).optional(),
+    yearTo: z.number().int().min(1900).max(new Date().getFullYear()).optional(),
     artists: z.array(z.string()).optional(),
     rating: z.number().min(1).max(5).optional(),
     recentlyAdded: z.enum(['7d', '30d', '90d']).optional(),
+  }).refine((data) => {
+    // Validate year range: yearFrom <= yearTo
+    if (data.yearFrom && data.yearTo && data.yearFrom > data.yearTo) {
+      return false;
+    }
+    return true;
+  }, {
+    message: 'yearFrom must be less than or equal to yearTo',
   }).optional(),
 });
 
@@ -159,7 +167,10 @@ export const ServerRoute = createServerFileRoute('/api/playlists/').methods({
     }
 
     try {
-      // Fetch playlists with all Navidrome sync fields
+      // Check Navidrome connectivity (non-blocking)
+      const navidromeAvailable = await checkNavidromeConnectivity();
+
+      // Fetch playlists with all Navidrome sync fields (always show cached data)
       const playlists = await db
         .select({
           id: userPlaylists.id,
@@ -183,7 +194,12 @@ export const ServerRoute = createServerFileRoute('/api/playlists/').methods({
                  userPlaylists.createdAt, userPlaylists.updatedAt)
         .orderBy(desc(userPlaylists.createdAt));
 
-      return new Response(JSON.stringify({ data: { playlists } }), {
+      return new Response(JSON.stringify({
+        data: {
+          playlists,
+          navidromeAvailable, // Include connectivity status
+        }
+      }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });

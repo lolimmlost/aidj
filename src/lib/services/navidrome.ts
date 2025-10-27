@@ -758,6 +758,149 @@ export async function unstarSong(songId: string): Promise<void> {
 }
 
 /**
+ * Get starred (favorited/loved) songs from Navidrome
+ * Uses Subsonic API getStarred2 endpoint
+ */
+export async function getStarredSongs(): Promise<SubsonicSong[]> {
+  const config = getConfig();
+  if (!config.navidromeUrl) {
+    throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
+  }
+
+  if (!subsonicToken || !subsonicSalt) {
+    // Ensure we have Subsonic auth tokens
+    await getAuthToken();
+  }
+
+  try {
+    const url = new URL(`${config.navidromeUrl}/rest/getStarred2`);
+    url.searchParams.append('u', config.navidromeUsername || '');
+    url.searchParams.append('t', subsonicToken || '');
+    url.searchParams.append('s', subsonicSalt || '');
+    url.searchParams.append('v', '1.16.1');
+    url.searchParams.append('c', 'aidj');
+    url.searchParams.append('f', 'json');
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch starred songs: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (data['subsonic-response']?.status !== 'ok') {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+    }
+
+    const starredSongs = data['subsonic-response']?.starred2?.song || [];
+    console.log(`⭐ Fetched ${starredSongs.length} starred songs from Navidrome`);
+
+    // Map to SubsonicSong format
+    return starredSongs.map((song: any) => ({
+      id: song.id,
+      title: song.title || song.name || '',
+      artist: song.artist || '',
+      album: song.album || '',
+      albumId: song.albumId || '',
+      duration: song.duration?.toString() || '0',
+      track: song.track?.toString() || '0',
+    }));
+  } catch (error) {
+    console.error('Failed to fetch starred songs from Navidrome:', error);
+    throw error instanceof ServiceError ? error : new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch starred songs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Scrobble a song play in Navidrome (register play count)
+ * Uses Subsonic API scrobble endpoint
+ *
+ * @param songId - The Navidrome song ID
+ * @param submission - If true, registers a play. If false, updates "now playing" status
+ * @param time - Optional timestamp (defaults to now)
+ */
+export async function scrobbleSong(songId: string, submission: boolean = true, time?: Date): Promise<void> {
+  const config = getConfig();
+  if (!config.navidromeUrl) {
+    throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
+  }
+
+  if (!subsonicToken || !subsonicSalt) {
+    // Ensure we have Subsonic auth tokens
+    await getAuthToken();
+  }
+
+  try {
+    const url = new URL(`${config.navidromeUrl}/rest/scrobble`);
+    url.searchParams.append('u', config.navidromeUsername || '');
+    url.searchParams.append('t', subsonicToken || '');
+    url.searchParams.append('s', subsonicSalt || '');
+    url.searchParams.append('v', '1.16.1');
+    url.searchParams.append('c', 'aidj');
+    url.searchParams.append('f', 'json');
+    url.searchParams.append('id', songId);
+    url.searchParams.append('submission', submission.toString());
+
+    if (time) {
+      // Subsonic expects time in milliseconds since epoch
+      url.searchParams.append('time', time.getTime().toString());
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Failed to scrobble song: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (data['subsonic-response']?.status !== 'ok') {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+    }
+
+    if (submission) {
+      console.log(`🎵 Scrobbled song ${songId} in Navidrome (play count updated)`);
+    } else {
+      console.log(`▶️ Updated now playing status for song ${songId} in Navidrome`);
+    }
+  } catch (error) {
+    console.error('Failed to scrobble song in Navidrome:', error);
+    // Don't throw error - scrobbling should fail silently to not disrupt playback
+    // Just log for debugging
+  }
+}
+
+/**
+ * Check if Navidrome server is available
+ * Returns true if connection successful, false if unavailable
+ */
+export async function checkNavidromeConnectivity(): Promise<boolean> {
+  try {
+    // Use ping endpoint with minimal timeout to check connectivity
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout for health check
+
+    try {
+      const config = getConfig();
+      const response = await fetch(`${config.navidromeUrl}/rest/ping?v=1.16.1&c=MusicApp&f=json`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      return response.ok;
+    } catch {
+      clearTimeout(timeoutId);
+      return false;
+    }
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Get all playlists for the authenticated user
  * Uses Subsonic API getPlaylists endpoint
  */
@@ -883,6 +1026,23 @@ export async function deletePlaylist(id: string): Promise<void> {
  * Search for songs matching smart playlist criteria
  * Uses Navidrome's search API to find songs by genre, year, artist, etc.
  */
+/**
+ * Get similar songs for a given song ID (recommendations)
+ * Uses Subsonic API getSimilarSongs endpoint with Last.fm data
+ */
+export async function getSimilarSongs(songId: string, count: number = 50): Promise<SubsonicSong[]> {
+  try {
+    const endpoint = `/rest/getSimilarSongs?id=${encodeURIComponent(songId)}&count=${count}`;
+    const data = await apiFetch(endpoint) as any;
+    const songs = data['subsonic-response']?.similarSongs?.song || data.similarSongs?.song || [];
+    console.log(`🎵 Found ${songs.length} similar songs for ${songId}`);
+    return songs as SubsonicSong[];
+  } catch (error) {
+    console.warn('Failed to get similar songs:', error);
+    return [];
+  }
+}
+
 export async function searchSongsByCriteria(criteria: {
   genre?: string[];
   yearFrom?: number;
@@ -893,31 +1053,132 @@ export async function searchSongsByCriteria(criteria: {
 }, limit: number = 100): Promise<SubsonicSong[]> {
   try {
     const matchedSongs: SubsonicSong[] = [];
+    const seedSongIds: string[] = [];
 
-    // Strategy: Search for songs and filter client-side
-    // Navidrome's Subsonic API doesn't have direct genre/year filtering in search
-    // So we'll use getAlbumList2 with 'byGenre' and 'byYear' types, then get songs from those albums
+    console.log('🎯 Smart Playlist Criteria:', JSON.stringify(criteria, null, 2));
 
-    if (criteria.genre && criteria.genre.length > 0) {
-      // Search by genre using getAlbumList2
+    // Strategy 1: If artists specified, find seed songs and get recommendations
+    if (criteria.artists && criteria.artists.length > 0) {
+      console.log('🎨 Building recommendations from seed artists:', criteria.artists);
+
+      for (const artistName of criteria.artists) {
+        try {
+          // First, get the actual artist's songs
+          console.log(`🔍 Searching for artist: ${artistName}`);
+          const artistSongs = await search(artistName, 0, 20);
+          console.log(`📝 Found ${artistSongs.length} songs for ${artistName}`);
+
+          // Add the artist's own songs first
+          matchedSongs.push(...artistSongs.map(song => ({
+            id: song.id,
+            title: song.name || song.title || '',
+            artist: song.artist || '',
+            albumId: song.albumId,
+            album: '',
+            duration: (song.duration || 0).toString(),
+            track: (song.track || 0).toString(),
+          } as SubsonicSong)));
+
+          // Then try to get similar songs for variety
+          seedSongIds.push(...artistSongs.slice(0, 3).map(s => s.id));
+        } catch (error) {
+          console.warn(`Failed to find songs for artist ${artistName}:`, error);
+        }
+      }
+
+      // Get similar songs for each seed (recommendations)
+      console.log(`🎵 Getting recommendations from ${seedSongIds.length} seed songs...`);
+      for (const seedId of seedSongIds.slice(0, 5)) {
+        try {
+          const similar = await getSimilarSongs(seedId, 20);
+          if (similar.length > 0) {
+            console.log(`🎯 Got ${similar.length} similar songs`);
+            matchedSongs.push(...similar);
+          } else {
+            console.log(`⚠️ No similar songs found (Last.fm might not be configured)`);
+          }
+        } catch (error) {
+          console.warn(`Failed to get similar songs:`, error);
+        }
+      }
+    }
+
+    // Strategy 2: For genre searches, try multiple approaches
+    if (criteria.genre && criteria.genre.length > 0 && matchedSongs.length < limit) {
+      console.log('🎼 Searching for songs in genres:', criteria.genre);
+
       for (const genre of criteria.genre) {
         try {
-          const endpoint = `/rest/getAlbumList2?type=byGenre&genre=${encodeURIComponent(genre)}&size=${limit}`;
-          const data = await apiFetch(endpoint) as any;
-          const albums = data['subsonic-response']?.albumList2?.album || data.albumList2?.album || [];
+          // Approach 1: Try getAlbumList2 with byGenre (requires genre tags)
+          const genreEndpoint = `/rest/getAlbumList2?type=byGenre&genre=${encodeURIComponent(genre)}&size=50`;
+          console.log(`🔍 Trying genre filter: ${genreEndpoint}`);
+          const genreData = await apiFetch(genreEndpoint) as any;
+          const genreAlbums = genreData['subsonic-response']?.albumList2?.album || genreData.albumList2?.album || [];
 
-          // Get songs from these albums
-          for (const album of albums.slice(0, 10)) { // Limit to first 10 albums to avoid too many requests
-            const albumSongs = await getSongs(album.id, 0, 50);
-            matchedSongs.push(...albumSongs.map(song => ({
-              id: song.id,
-              title: song.name || song.title || '',
-              artist: song.artist || '',
-              albumId: song.albumId,
-              album: album.name,
-              duration: (song.duration || 0).toString(),
-              track: (song.track || 0).toString(),
-            } as SubsonicSong)));
+          console.log(`📀 Found ${genreAlbums.length} albums with genre tag "${genre}"`);
+
+          if (genreAlbums.length > 0) {
+            // Genre tags exist! Use them
+            const shuffled = genreAlbums.sort(() => Math.random() - 0.5);
+            const albumsToSample = Math.min(20, shuffled.length);
+
+            for (const album of shuffled.slice(0, albumsToSample)) {
+              try {
+                const albumSongs = await getSongs(album.id, 0, 50);
+                const songsPerAlbum = Math.min(5, Math.ceil(limit / albumsToSample));
+                const randomFromAlbum = albumSongs
+                  .sort(() => Math.random() - 0.5)
+                  .slice(0, songsPerAlbum);
+
+                matchedSongs.push(...randomFromAlbum.map(song => ({
+                  id: song.id,
+                  title: song.name || song.title || '',
+                  artist: song.artist || '',
+                  albumId: song.albumId,
+                  album: album.name,
+                  duration: (song.duration || 0).toString(),
+                  track: (song.track || 0).toString(),
+                } as SubsonicSong)));
+
+                if (matchedSongs.length >= limit) break;
+              } catch (error) {
+                console.warn(`Failed to get songs for album ${album.id}:`, error);
+              }
+            }
+          } else {
+            // Approach 2: No genre tags - use random albums instead
+            console.log(`⚠️ No genre tags found. Getting random recent albums instead...`);
+            const randomEndpoint = `/rest/getAlbumList2?type=random&size=30`;
+            const randomData = await apiFetch(randomEndpoint) as any;
+            const randomAlbums = randomData['subsonic-response']?.albumList2?.album || randomData.albumList2?.album || [];
+
+            console.log(`🎲 Got ${randomAlbums.length} random albums`);
+
+            // Get songs from random albums with variety
+            for (const album of randomAlbums.slice(0, 20)) {
+              try {
+                const albumSongs = await getSongs(album.id, 0, 50);
+                // Take fewer songs per album for more artist diversity
+                const songsToTake = Math.min(3, albumSongs.length);
+                const randomFromAlbum = albumSongs
+                  .sort(() => Math.random() - 0.5)
+                  .slice(0, songsToTake);
+
+                matchedSongs.push(...randomFromAlbum.map(song => ({
+                  id: song.id,
+                  title: song.name || song.title || '',
+                  artist: song.artist || '',
+                  albumId: song.albumId,
+                  album: album.name,
+                  duration: (song.duration || 0).toString(),
+                  track: (song.track || 0).toString(),
+                } as SubsonicSong)));
+
+                if (matchedSongs.length >= limit) break;
+              } catch (error) {
+                console.warn(`Failed to get songs for album:`, error);
+              }
+            }
           }
         } catch (error) {
           console.warn(`Failed to search for genre ${genre}:`, error);
@@ -925,24 +1186,13 @@ export async function searchSongsByCriteria(criteria: {
       }
     }
 
-    // If we got songs from genre search, filter by other criteria
-    if (matchedSongs.length > 0) {
-      return matchedSongs.slice(0, limit);
-    }
-
-    // Fallback: Use general search with combined criteria
-    const searchQueries: string[] = [];
-    if (criteria.artists && criteria.artists.length > 0) {
-      searchQueries.push(...criteria.artists);
-    }
-    if (criteria.genre && criteria.genre.length > 0) {
-      searchQueries.push(...criteria.genre);
-    }
-
-    if (searchQueries.length > 0) {
-      for (const query of searchQueries) {
-        const songs = await search(query, 0, limit);
-        matchedSongs.push(...songs.map(song => ({
+    // Fallback: If we still have no songs, try getting from global song list
+    if (matchedSongs.length === 0) {
+      console.log('⚠️ No songs found with criteria, falling back to global library...');
+      try {
+        const globalSongs = await getSongsGlobal(0, limit);
+        console.log(`📚 Retrieved ${globalSongs.length} songs from global library`);
+        matchedSongs.push(...globalSongs.map(song => ({
           id: song.id,
           title: song.name || song.title || '',
           artist: song.artist || '',
@@ -951,6 +1201,9 @@ export async function searchSongsByCriteria(criteria: {
           duration: (song.duration || 0).toString(),
           track: (song.track || 0).toString(),
         } as SubsonicSong)));
+      } catch (error) {
+        console.error('Failed to get global songs:', error);
+        throw new ServiceError('NAVIDROME_API_ERROR', 'No songs found in your library. Please check your Navidrome configuration and library scan.');
       }
     }
 
@@ -959,7 +1212,36 @@ export async function searchSongsByCriteria(criteria: {
       new Map(matchedSongs.map(song => [song.id, song])).values()
     );
 
-    return uniqueSongs.slice(0, limit);
+    console.log(`📊 Total songs before filtering: ${uniqueSongs.length}`);
+
+    // Ensure artist diversity by limiting songs per artist
+    const songsByArtist = new Map<string, SubsonicSong[]>();
+    for (const song of uniqueSongs) {
+      const artist = song.artist || 'Unknown';
+      if (!songsByArtist.has(artist)) {
+        songsByArtist.set(artist, []);
+      }
+      songsByArtist.get(artist)!.push(song);
+    }
+
+    console.log(`🎤 Found ${songsByArtist.size} unique artists`);
+
+    // Take max 10 songs per artist for variety
+    const diverseSongs: SubsonicSong[] = [];
+    for (const [artist, songs] of songsByArtist.entries()) {
+      const shuffled = songs.sort(() => Math.random() - 0.5);
+      const maxPerArtist = 10;
+      diverseSongs.push(...shuffled.slice(0, maxPerArtist));
+      if (songs.length > maxPerArtist) {
+        console.log(`  🎵 Limited ${artist} from ${songs.length} to ${maxPerArtist} songs`);
+      }
+    }
+
+    // Shuffle final playlist
+    const shuffled = diverseSongs.sort(() => Math.random() - 0.5);
+    console.log(`✅ Created playlist with ${shuffled.length} diverse songs from ${songsByArtist.size} artists`);
+
+    return shuffled.slice(0, limit);
   } catch (error) {
     console.error('Failed to search songs by criteria:', error);
     throw new ServiceError('NAVIDROME_API_ERROR', `Failed to search songs: ${error instanceof Error ? error.message : 'Unknown error'}`);

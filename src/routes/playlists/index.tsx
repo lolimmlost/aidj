@@ -1,6 +1,5 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { ListMusic } from 'lucide-react';
-import { CreatePlaylistDialog } from '@/components/playlists/CreatePlaylistDialog';
 import { SmartPlaylistBuilder } from '@/components/playlists/smart-playlist-builder';
 import { PlaylistList } from '@/components/playlists/playlist-list';
 
@@ -22,7 +21,6 @@ function PlaylistsPage() {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">My Playlists</h1>
         </div>
         <div className="flex items-center gap-3">
-          <CreatePlaylistDialog />
           <SmartPlaylistBuilder />
           <Link to="/dashboard" className="text-primary hover:underline text-sm min-h-[44px] flex items-center">
             ← Dashboard

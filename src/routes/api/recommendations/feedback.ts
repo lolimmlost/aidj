@@ -4,9 +4,10 @@ import { db } from '../../../lib/db';
 import { recommendationFeedback, recommendationsCache, userPreferences } from '../../../lib/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { z } from 'zod';
-import { starSong, unstarSong } from '../../../lib/services/navidrome';
+import { starSong, unstarSong, getStarredSongs } from '../../../lib/services/navidrome';
 import { clearPreferenceCache } from '../../../lib/services/preferences';
 import { extractTemporalMetadata } from '../../../lib/utils/temporal';
+import { userPlaylists, playlistSongs } from '../../../lib/db/schema';
 
 // Zod schema for feedback validation
 const FeedbackSchema = z.object({
@@ -145,42 +146,57 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/feedback'
         .limit(1)
         .then(rows => rows[0]);
 
-      if (existingFeedback) {
-        return new Response(JSON.stringify({
-          code: 'DUPLICATE_FEEDBACK',
-          message: 'You have already rated this song',
-          existingFeedback: {
-            feedbackType: existingFeedback.feedbackType,
-            timestamp: existingFeedback.timestamp,
-          }
-        }), {
-          status: 409, // Conflict
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-
       // Extract temporal metadata for seasonal pattern detection (Story 3.11)
       const timestamp = new Date();
       const temporal = extractTemporalMetadata(timestamp);
 
-      // Insert feedback record
-      const feedbackRecord = {
-        id: crypto.randomUUID(),
-        userId: session.user.id,
-        songArtistTitle: validatedData.songArtistTitle,
-        songId: validatedData.songId || null, // Store songId for faster lookups (Story 3.12)
-        feedbackType: validatedData.feedbackType,
-        source: validatedData.source,
-        recommendationCacheId: validatedData.recommendationCacheId || null,
-        timestamp,
-        // Temporal metadata (Story 3.11)
-        month: temporal.month,
-        season: temporal.season,
-        dayOfWeek: temporal.dayOfWeek,
-        hourOfDay: temporal.hourOfDay,
-      };
+      let feedbackRecord;
 
-      await db.insert(recommendationFeedback).values(feedbackRecord);
+      if (existingFeedback) {
+        // If feedback exists and is the same, return success (idempotent)
+        if (existingFeedback.feedbackType === validatedData.feedbackType) {
+          console.log(`✓ Feedback already exists with same type, skipping update`);
+          feedbackRecord = existingFeedback;
+        } else {
+          // Update existing feedback with new type
+          console.log(`🔄 Updating feedback from ${existingFeedback.feedbackType} to ${validatedData.feedbackType}`);
+          await db
+            .update(recommendationFeedback)
+            .set({
+              feedbackType: validatedData.feedbackType,
+              timestamp,
+              source: validatedData.source,
+              // Update temporal metadata
+              month: temporal.month,
+              season: temporal.season,
+              dayOfWeek: temporal.dayOfWeek,
+              hourOfDay: temporal.hourOfDay,
+            })
+            .where(eq(recommendationFeedback.id, existingFeedback.id));
+
+          feedbackRecord = { ...existingFeedback, feedbackType: validatedData.feedbackType };
+        }
+      } else {
+        // Insert new feedback record
+        console.log(`✨ Creating new feedback: ${validatedData.feedbackType}`);
+        feedbackRecord = {
+          id: crypto.randomUUID(),
+          userId: session.user.id,
+          songArtistTitle: validatedData.songArtistTitle,
+          songId: validatedData.songId || null,
+          feedbackType: validatedData.feedbackType,
+          source: validatedData.source,
+          recommendationCacheId: validatedData.recommendationCacheId || null,
+          timestamp,
+          // Temporal metadata (Story 3.11)
+          month: temporal.month,
+          season: temporal.season,
+          dayOfWeek: temporal.dayOfWeek,
+          hourOfDay: temporal.hourOfDay,
+        };
+
+        await db.insert(recommendationFeedback).values(feedbackRecord);
+      }
 
       // Clear preference cache to ensure fresh data on next fetch
       clearPreferenceCache(session.user.id);
@@ -206,6 +222,75 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/feedback'
             } else if (validatedData.feedbackType === 'thumbs_down') {
               await unstarSong(validatedData.songId);
               console.log(`❌ Unstarred song ${validatedData.songId} in Navidrome`);
+            }
+
+            // Auto-sync Liked Songs playlist after starring/unstarring
+            try {
+              const LIKED_SONGS_NAME = '❤️ Liked Songs';
+              const starredSongs = await getStarredSongs();
+
+              // Find or create Liked Songs playlist
+              let likedPlaylist = await db
+                .select()
+                .from(userPlaylists)
+                .where(
+                  and(
+                    eq(userPlaylists.userId, session.user.id),
+                    eq(userPlaylists.name, LIKED_SONGS_NAME)
+                  )
+                )
+                .limit(1)
+                .then(rows => rows[0]);
+
+              if (!likedPlaylist) {
+                const [newPlaylist] = await db
+                  .insert(userPlaylists)
+                  .values({
+                    id: crypto.randomUUID(),
+                    userId: session.user.id,
+                    name: LIKED_SONGS_NAME,
+                    description: 'Auto-synced from your starred songs in Navidrome',
+                    navidromeId: null,
+                    lastSynced: new Date(),
+                    songCount: starredSongs.length,
+                    totalDuration: starredSongs.reduce((sum, s) => sum + parseInt(s.duration || '0'), 0),
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                  })
+                  .returning();
+                likedPlaylist = newPlaylist;
+              }
+
+              // Update playlist metadata
+              await db
+                .update(userPlaylists)
+                .set({
+                  lastSynced: new Date(),
+                  songCount: starredSongs.length,
+                  totalDuration: starredSongs.reduce((sum, s) => sum + parseInt(s.duration || '0'), 0),
+                  updatedAt: new Date(),
+                })
+                .where(eq(userPlaylists.id, likedPlaylist.id));
+
+              // Clear and re-insert songs
+              await db.delete(playlistSongs).where(eq(playlistSongs.playlistId, likedPlaylist.id));
+
+              if (starredSongs.length > 0) {
+                await db.insert(playlistSongs).values(
+                  starredSongs.map((song, index) => ({
+                    id: crypto.randomUUID(),
+                    playlistId: likedPlaylist.id,
+                    songId: song.id,
+                    songArtistTitle: `${song.artist} - ${song.title}`,
+                    position: index + 1,
+                    addedAt: new Date(),
+                  }))
+                );
+              }
+
+              console.log(`💖 Auto-synced Liked Songs playlist: ${starredSongs.length} songs`);
+            } catch (syncError) {
+              console.error('Failed to auto-sync Liked Songs playlist (non-blocking):', syncError);
             }
           } else {
             console.log(`🔒 Navidrome sync disabled by user preference`);

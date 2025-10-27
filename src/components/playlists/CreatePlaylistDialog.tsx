@@ -73,16 +73,21 @@ export function CreatePlaylistDialog({ trigger, open: externalOpen, onOpenChange
     });
   };
 
+  // Determine if we're in controlled mode (external open/onOpenChange provided)
+  const isControlled = externalOpen !== undefined && externalOnOpenChange !== undefined;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button className="min-h-[44px]">
-            <Plus className="mr-2 h-4 w-4" />
-            Create Playlist
-          </Button>
-        )}
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          {trigger || (
+            <Button className="min-h-[44px]">
+              <Plus className="mr-2 h-4 w-4" />
+              Create Playlist
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
