@@ -165,31 +165,38 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     onAddToQueue?.(playlist.id, songs);
   };
 
-  const handlePlayFromSong = (playlist: Playlist, songs: PlaylistSong[], startIndex: number) => {
+  const handlePlayFromSong = async (playlist: Playlist, songs: PlaylistSong[], startIndex: number) => {
     if (!songs || songs.length === 0) {
       toast.error('This playlist is empty');
       return;
     }
 
-    // Convert playlist songs to audio store format starting from the clicked song
-    const audioSongs = songs.map((song) => ({
-      id: song.songId,
-      title: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
-      artist: song.songArtistTitle.split(' - ')[0] || 'Unknown Artist',
-      url: `/api/navidrome/stream/${song.songId}`,
-    }));
+    try {
+      // Load playlist with full metadata from Navidrome using helper
+      const { loadPlaylistIntoQueue } = await import('@/lib/utils/playlist-helpers');
+      const audioSongs = await loadPlaylistIntoQueue(playlist.id);
 
-    // Replace queue and start playing from the selected song
-    addPlaylistToQueue(audioSongs, true);
+      if (audioSongs.length === 0) {
+        toast.error('Failed to load playlist songs');
+        return;
+      }
 
-    // Use the audio store's playSong to start from the specific index
-    const { playSong } = useAudioStore.getState();
-    playSong(audioSongs[startIndex].id, audioSongs);
+      // Get audio store instance and set everything up
+      const { setPlaylist, playSong, setIsPlaying } = useAudioStore.getState();
 
-    const songTitle = audioSongs[startIndex].title;
-    toast.success(`Playing from "${songTitle}"`, {
-      description: `From "${playlist.name}"`,
-    });
+      // Set playlist and start playing from the selected song
+      setPlaylist(audioSongs);
+      playSong(audioSongs[startIndex].id, audioSongs);
+      setIsPlaying(true);
+
+      const songTitle = audioSongs[startIndex].title || audioSongs[startIndex].name;
+      toast.success(`Playing from "${songTitle}"`, {
+        description: `From "${playlist.name}"`,
+      });
+    } catch (error) {
+      console.error('Failed to play from song:', error);
+      toast.error('Failed to load playlist');
+    }
   };
 
   const formatDuration = (seconds?: number | null) => {

@@ -10,8 +10,7 @@ interface PlaylistSong {
 
 /**
  * Convert playlist songs to the format expected by the audio player
- * Note: This is a simplified implementation. In a production app, you would
- * fetch full song metadata from Navidrome for each song ID.
+ * Fetches full song metadata from Navidrome for proper playback
  */
 export async function loadPlaylistIntoQueue(
   playlistId: string
@@ -29,11 +28,49 @@ export async function loadPlaylistIntoQueue(
     return [];
   }
 
-  // Convert playlist songs to Song[] format
-  // For now, we'll create song objects from the stored data
-  // In a real implementation, you'd fetch full metadata from Navidrome
+  // Fetch full metadata for all songs in one batch using Navidrome's getSong endpoint
+  const songIds = playlist.songs.map((s: PlaylistSong) => s.songId).join(',');
+  let songsMap = new Map<string, any>();
+
+  try {
+    // Use Navidrome Subsonic API to get song metadata
+    const metadataResponse = await fetch(`/api/navidrome/rest/getSong?id=${songIds}`);
+    if (metadataResponse.ok) {
+      const metadataJson = await metadataResponse.json();
+      // Subsonic returns song array in subsonic-response.song
+      const subsonicResponse = metadataJson['subsonic-response'];
+      if (subsonicResponse && subsonicResponse.song) {
+        const songsArray = Array.isArray(subsonicResponse.song)
+          ? subsonicResponse.song
+          : [subsonicResponse.song];
+        songsArray.forEach((song: any) => {
+          songsMap.set(song.id, song);
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch song metadata from Navidrome:', error);
+  }
+
+  // Map playlist songs to audio player format
   const songs: Song[] = playlist.songs.map((playlistSong: PlaylistSong) => {
-    // Parse "Artist - Title" format
+    const metadata = songsMap.get(playlistSong.songId);
+
+    if (metadata) {
+      return {
+        id: metadata.id,
+        name: metadata.title || metadata.name,
+        title: metadata.title,
+        artist: metadata.artist,
+        album: metadata.album,
+        albumId: metadata.albumId || '',
+        duration: parseInt(metadata.duration || '0'),
+        track: parseInt(metadata.track || '0'),
+        url: `/api/navidrome/stream/${metadata.id}`,
+      };
+    }
+
+    // Fallback to parsed data if metadata not found
     const parts = playlistSong.songArtistTitle.split(' - ');
     const artist = parts[0] || 'Unknown Artist';
     const title = parts.slice(1).join(' - ') || playlistSong.songArtistTitle;
@@ -41,12 +78,12 @@ export async function loadPlaylistIntoQueue(
     return {
       id: playlistSong.songId,
       name: title,
+      title: title,
       artist: artist,
-      // These fields would ideally come from Navidrome metadata
-      albumId: '', // Not available in playlist data
-      duration: 0, // Not available in playlist data
+      albumId: '',
+      duration: 0,
       track: playlistSong.position,
-      url: `/api/navidrome/stream/${playlistSong.songId}`, // Stream URL
+      url: `/api/navidrome/stream/${playlistSong.songId}`,
     };
   });
 
