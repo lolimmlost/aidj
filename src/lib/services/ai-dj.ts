@@ -15,12 +15,75 @@ const AI_DJ_RECOMMENDATION_TIMEOUT_MS = 10000; // 10 seconds timeout for fetchin
 export interface AIContext {
   currentSong: Song;
   recentQueue: Song[];
+  fullPlaylist?: Song[];
+  currentSongIndex?: number;
+}
+
+// Extended recommendation type with genreScore
+interface RecommendationWithScore {
+  song: string;
+  explanation: string;
+  genreScore?: number;
 }
 
 export interface AIDJQueueMetadata {
   aiQueued: boolean;
   queuedAt: number;
   queuedBy: 'ai-dj';
+}
+
+// Track artist recommendation frequency across sessions
+interface ArtistRecommendationTracker {
+  artist: string;
+  lastRecommended: number;
+  countToday: number;
+  countThisSession: number;
+}
+
+// In-memory tracker for artist recommendations
+const artistRecommendationTracker = new Map<string, ArtistRecommendationTracker>();
+
+/**
+ * Check if artist has been recommended too frequently
+ * @param artist - Artist name to check
+ * @returns true if artist should be avoided for variety
+ */
+function shouldAvoidArtist(artist: string): boolean {
+  const now = Date.now();
+  const oneDayAgo = now - (24 * 60 * 60 * 1000); // 24 hours ago
+  const tracker = artistRecommendationTracker.get(artist);
+  
+  if (!tracker) {
+    // First time seeing this artist
+    artistRecommendationTracker.set(artist, {
+      artist,
+      lastRecommended: now,
+      countToday: 1,
+      countThisSession: 1,
+    });
+    return false;
+  }
+  
+  // Update tracking
+  const isNewDay = now > tracker.lastRecommended + oneDayAgo;
+  const countToday = isNewDay ? 1 : tracker.countToday + 1;
+  const countSession = tracker.countThisSession + 1;
+  
+  artistRecommendationTracker.set(artist, {
+    artist,
+    lastRecommended: now,
+    countToday,
+    countThisSession,
+  });
+  
+  // Avoid if:
+  // - Recommended 3+ times today
+  // - Recommended 2+ times in current session
+  // - Last recommended within last 2 hours
+  const twoHoursAgo = now - (2 * 60 * 60 * 1000);
+  const recentlyRecommended = now - tracker.lastRecommended < twoHoursAgo;
+  
+  return countToday >= 3 || countSession >= 2 || recentlyRecommended;
 }
 
 /**
@@ -71,8 +134,80 @@ function buildRecentQueueContext(recentQueue: Song[], limit: number = 5): string
   const recentSongs = recentQueue.slice(-limit);
   const artists = [...new Set(recentSongs.map(s => s.artist || 'Unknown').filter(Boolean))];
   const artistSummary = artists.slice(0, 3).join(', ');
+  
+  // Extract genres/keywords from recent songs if available
+  // Note: Song type doesn't have genre property, so we'll use artist diversity instead
+  const genres = [...new Set(recentSongs.map(s => s.artist).filter(Boolean))];
+  const genreSummary = genres.slice(0, 3).join(', ');
+  
+  // Calculate energy/mood diversity
+  const uniqueArtists = artists.length;
+  const diversityScore = uniqueArtists / recentSongs.length;
+  
+  let context = `Recently played: ${artistSummary}`;
+  if (genreSummary) {
+    context += ` (genres: ${genreSummary})`;
+  }
+  context += `. Artist diversity: ${(diversityScore * 100).toFixed(0)}%`;
+  
+  return context;
+}
 
-  return `Recently played: ${artistSummary}`;
+/**
+ * Build extended context from full playback history for better variety
+ * @param fullPlaylist - Complete playlist history
+ * @param currentSongIndex - Current position
+ * @param excludeSongIds - Songs to exclude
+ * @returns Extended context string
+ */
+function buildExtendedContext(fullPlaylist: Song[], currentSongIndex: number, excludeSongIds: string[] = []): string {
+  if (fullPlaylist.length === 0) {
+    return '';
+  }
+  
+  // Analyze broader listening patterns
+  const allPlayedSongs = fullPlaylist.slice(0, currentSongIndex + 1);
+  const upcomingSongs = fullPlaylist.slice(currentSongIndex + 1);
+  
+  // Get most frequent artists in session
+  const artistCounts = new Map<string, number>();
+  allPlayedSongs.forEach(song => {
+    const artist = song.artist || 'Unknown';
+    artistCounts.set(artist, (artistCounts.get(artist) || 0) + 1);
+  });
+  
+  const topArtists = Array.from(artistCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([artist]) => artist);
+  
+  // Check for artist repetition
+  const currentArtist = fullPlaylist[currentSongIndex]?.artist;
+  const sameArtistCount = allPlayedSongs.filter(s => s.artist === currentArtist).length;
+  
+  // Build context string
+  let context = '';
+  
+  if (topArtists.length > 0) {
+    context += `Session favorites: ${topArtists.join(', ')}. `;
+  }
+  
+  if (currentArtist && sameArtistCount > 1) {
+    context += `${currentArtist} played ${sameArtistCount} times this session. `;
+  }
+  
+  if (upcomingSongs.length > 0) {
+    const upcomingArtists = [...new Set(upcomingSongs.slice(0, 5).map(s => s.artist).filter(Boolean))];
+    if (upcomingArtists.length > 0) {
+      context += `Upcoming: ${upcomingArtists.slice(0, 3).join(', ')}. `;
+    }
+  }
+  
+  if (excludeSongIds.length > 0) {
+    context += `Need to avoid ${excludeSongIds.length} recently suggested songs. `;
+  }
+  
+  return context;
 }
 
 /**
@@ -87,18 +222,31 @@ export async function generateContextualRecommendations(
   context: AIContext,
   batchSize: number,
   userId?: string,
-  useFeedbackForPersonalization: boolean = true
+  useFeedbackForPersonalization: boolean = true,
+  excludeSongIds: string[] = []
 ): Promise<Song[]> {
   try {
     // Build AI prompt with current context
     const currentContext = extractSongContext(context.currentSong);
     const recentContext = buildRecentQueueContext(context.recentQueue);
+    
+    // Add extended context if available
+    const extendedContext = context.fullPlaylist && context.currentSongIndex !== undefined
+      ? buildExtendedContext(context.fullPlaylist, context.currentSongIndex, excludeSongIds)
+      : '';
+
+    // Add excluded songs to the prompt for AI awareness
+    const excludeText = excludeSongIds.length > 0
+      ? `IMPORTANT: Do NOT recommend these songs that were recently suggested: ${excludeSongIds.join(', ')}.`
+      : '';
 
     const prompt = [
       currentContext,
       recentContext,
+      extendedContext,
+      excludeText,
       `Recommend ${batchSize} similar songs from my library that match this vibe and flow naturally after the current song.`,
-      'Focus on maintaining the current mood and energy level.',
+      'Focus on maintaining the current mood and energy level while ensuring variety.',
     ].filter(Boolean).join('. ');
 
     console.log('🎵 AI DJ generating recommendations with context:', prompt);
@@ -124,21 +272,27 @@ export async function generateContextualRecommendations(
     }
 
     // Apply genre filtering and ranking (Story 3.7 integration)
-    let rankedRecommendations = recommendations.recommendations;
+    let rankedRecommendations: RecommendationWithScore[] = recommendations.recommendations;
     if (userId) {
       try {
         const libraryProfile = await getOrCreateLibraryProfile(userId);
         rankedRecommendations = await rankRecommendations(
-          recommendations.recommendations,
-          libraryProfile
+          libraryProfile,
+          recommendations.recommendations
         );
 
         // Filter out low-scoring recommendations (< 0.4 similarity)
-        rankedRecommendations = rankedRecommendations.filter(
-          rec => rec.genreScore >= 0.4
+        // Add genreScore to recommendations if not present
+        const scoredRecommendations = rankedRecommendations.map(rec => ({
+          ...rec,
+          genreScore: (rec as RecommendationWithScore).genreScore || 0.5
+        }));
+        
+        rankedRecommendations = scoredRecommendations.filter(
+          rec => rec.genreScore !== undefined && rec.genreScore >= 0.4
         );
 
-        console.log(`✅ AI DJ: Genre filtering - ${rankedRecommendations.length}/${recommendations.recommendations.length} recommendations passed (avg score: ${(rankedRecommendations.reduce((sum, r) => sum + r.genreScore, 0) / rankedRecommendations.length).toFixed(2)})`);
+        console.log(`✅ AI DJ: Genre filtering - ${rankedRecommendations.length}/${recommendations.recommendations.length} recommendations passed (avg score: ${(rankedRecommendations.reduce((sum, r) => sum + (r.genreScore || 0), 0) / rankedRecommendations.length).toFixed(2)})`);
       } catch (error) {
         console.warn('⚠️ AI DJ: Genre filtering failed, using raw recommendations', error);
         // Fallback to basic recommendations without filtering
@@ -155,25 +309,43 @@ export async function generateContextualRecommendations(
     const recommendedSongs: Song[] = [];
     const allSongs = await getSongsGlobal(0, 1000); // Get larger sample to find matches
     
-    for (const rec of rankedRecommendations.slice(0, batchSize)) {
+    // Filter out excluded songs from the recommendations
+    const filteredRecommendations = rankedRecommendations.filter(rec => {
+      // Check if this recommendation matches any excluded song
+      const recLower = rec.song.toLowerCase();
+      return !excludeSongIds.some(excludeId => {
+        const song = allSongs.find(s => s.id === excludeId);
+        if (!song) return false;
+        
+        const songTitle = (song.title || song.name || '').toLowerCase();
+        const songArtist = (song.artist || '').toLowerCase();
+        
+        // Check if recommendation matches excluded song by title/artist
+        return recLower.includes(songTitle) ||
+               recLower.includes(songArtist) ||
+               songTitle.includes(recLower) ||
+               songArtist.includes(recLower);
+      });
+    });
+    
+    for (const rec of filteredRecommendations.slice(0, batchSize)) {
       try {
-        // Improved song matching with multiple strategies
+        // Enhanced song matching with multiple strategies and better fallbacks
         let matchedSong: Song | undefined;
+        const recLower = rec.song.toLowerCase();
         
         // Strategy 1: Exact name match
-        matchedSong = allSongs.find(s =>
-          s.name.toLowerCase() === rec.song.toLowerCase() ||
-          (s.title && s.title.toLowerCase() === rec.song.toLowerCase())
-        );
+        matchedSong = allSongs.find(s => {
+          const songName = (s.name || s.title || '').toLowerCase();
+          return songName === recLower;
+        });
         
         // Strategy 2: Partial name match (contains)
         if (!matchedSong) {
-          matchedSong = allSongs.find(s =>
-            s.name.toLowerCase().includes(rec.song.toLowerCase()) ||
-            rec.song.toLowerCase().includes(s.name.toLowerCase()) ||
-            (s.title && s.title.toLowerCase().includes(rec.song.toLowerCase())) ||
-            rec.song.toLowerCase().includes(s.title?.toLowerCase() || '')
-          );
+          matchedSong = allSongs.find(s => {
+            const songName = (s.name || s.title || '').toLowerCase();
+            return songName.includes(recLower) || recLower.includes(songName);
+          });
         }
         
         // Strategy 3: Try to parse "Artist - Title" format and match by artist
@@ -182,19 +354,19 @@ export async function generateContextualRecommendations(
           const artist = artistPart.trim().toLowerCase();
           const title = titlePart.trim().toLowerCase();
           
-          matchedSong = allSongs.find(s =>
-            s.artist?.toLowerCase().includes(artist) && (
-              s.name.toLowerCase().includes(title) ||
-              (s.title && s.title.toLowerCase().includes(title))
-            )
-          );
+          matchedSong = allSongs.find(s => {
+            const songArtist = (s.artist || '').toLowerCase();
+            const songName = (s.name || s.title || '').toLowerCase();
+            return songArtist.includes(artist) && songName.includes(title);
+          });
         }
         
         // Strategy 4: Fuzzy match by word similarity
         if (!matchedSong) {
-          const recWords = rec.song.toLowerCase().split(/\s+/);
+          const recWords = recLower.split(/\s+/);
           const bestMatch = allSongs.find(s => {
-            const songWords = (s.name || s.title || '').toLowerCase().split(/\s+/);
+            const songName = (s.name || s.title || '').toLowerCase();
+            const songWords = songName.split(/\s+/);
             const commonWords = recWords.filter(word =>
               word.length > 2 && songWords.some(songWord =>
                 songWord.includes(word) || word.includes(songWord)
@@ -208,24 +380,82 @@ export async function generateContextualRecommendations(
           }
         }
         
-        // Strategy 5: Last resort - get any song from the same artist if artist is mentioned
+        // Strategy 5: Artist-based fallback with better matching
         if (!matchedSong) {
-          const recLower = rec.song.toLowerCase();
-          const artistMatch = allSongs.find(s =>
-            s.artist?.toLowerCase().split(/\s+/).some(artistWord =>
-              recLower.includes(artistWord) && artistWord.length > 2
-            )
-          );
+          const recWords = recLower.split(/\s+/);
+          const artistCandidates = allSongs.filter(s => {
+            const songArtist = (s.artist || '').toLowerCase();
+            // Check if any word from recommendation matches artist name
+            return recWords.some(word =>
+              word.length > 2 && songArtist.includes(word)
+            );
+          });
           
-          if (artistMatch) {
-            matchedSong = artistMatch;
-            console.log(`🎵 AI DJ: Using fallback artist match for "${rec.song}" -> "${artistMatch.name}" by ${artistMatch.artist}`);
+          // Prefer songs with title similarity if available
+          if (artistCandidates.length > 1) {
+            const titleCandidates = artistCandidates.filter(s => {
+              const songName = (s.name || s.title || '').toLowerCase();
+              const songWords = songName.split(/\s+/);
+              return recWords.some(word =>
+                word.length > 2 && songWords.some(songWord =>
+                  songWord.includes(word) || word.includes(songWord)
+                )
+              );
+            });
+            
+            if (titleCandidates.length > 0) {
+              matchedSong = titleCandidates[0];
+            } else {
+              matchedSong = artistCandidates[0];
+            }
+          } else if (artistCandidates.length === 1) {
+            matchedSong = artistCandidates[0];
+          }
+          
+          if (matchedSong) {
+            console.log(`🎵 AI DJ: Using enhanced artist match for "${rec.song}" -> "${matchedSong.name || matchedSong.title}" by ${matchedSong.artist}`);
+          }
+        }
+        
+        // Strategy 6: Diverse fallback - pick from underrepresented artists
+        if (!matchedSong) {
+          // Get artist distribution in current recommendations
+          const currentArtists = recommendedSongs.map(s => s.artist).filter((a): a is string => !!a);
+          const artistCounts = new Map<string, number>();
+          currentArtists.forEach(artist => {
+            artistCounts.set(artist, (artistCounts.get(artist) || 0) + 1);
+          });
+          
+          // Find songs from artists with minimal representation
+          const diverseCandidates = allSongs.filter(s => {
+            const artist = s.artist;
+            if (!artist) return false;
+            
+            const count = artistCounts.get(artist) || 0;
+            // Prefer artists with 0 or 1 recommendations so far
+            return count <= 1;
+          });
+          
+          if (diverseCandidates.length > 0) {
+            // Randomly select from diverse candidates
+            matchedSong = diverseCandidates[Math.floor(Math.random() * diverseCandidates.length)];
+            console.log(`🎵 AI DJ: Using diverse fallback for "${rec.song}" -> "${matchedSong.name || matchedSong.title}" by ${matchedSong.artist}`);
           }
         }
 
         if (matchedSong) {
-          recommendedSongs.push(matchedSong);
-          console.log(`✅ AI DJ: Matched "${rec.song}" to "${matchedSong.name}" by ${matchedSong.artist}`);
+          // Check if this song is already in the recommended songs to avoid duplicates
+          const isDuplicate = recommendedSongs.some(existing =>
+            existing.id === matchedSong.id ||
+            (existing.name || existing.title) === (matchedSong.name || matchedSong.title)
+          );
+          
+          if (!isDuplicate) {
+            recommendedSongs.push(matchedSong);
+            console.log(`✅ AI DJ: Matched "${rec.song}" to "${matchedSong.name || matchedSong.title}" by ${matchedSong.artist}`);
+          } else {
+            console.log(`⚠️ AI DJ: Skipping duplicate song "${matchedSong.name || matchedSong.title}"`);
+          }
         } else {
           console.warn(`⚠️ AI DJ: Could not find song "${rec.song}" in library`);
         }
@@ -234,16 +464,26 @@ export async function generateContextualRecommendations(
       }
     }
 
-    // If we still have no matches, try to get any songs from library as fallback
-    if (recommendedSongs.length === 0) {
-      console.warn('⚠️ AI DJ: No exact matches found, using fallback songs from library');
+    // If we don't have enough matches, try to get more diverse songs from library as fallback
+    if (recommendedSongs.length < batchSize) {
+      const neededSongs = batchSize - recommendedSongs.length;
+      console.warn(`⚠️ AI DJ: Need ${neededSongs} more songs, using fallback from library`);
       try {
-        const fallbackSongs = await getSongsGlobal(0, Math.min(batchSize, 10));
+        // Get more songs for better variety
+        const fallbackSongs = await getSongsGlobal(0, Math.min(batchSize * 3, 50));
         if (fallbackSongs.length > 0) {
-          // Shuffle and take requested amount
-          const shuffled = fallbackSongs.sort(() => Math.random() - 0.5);
-          recommendedSongs.push(...shuffled.slice(0, batchSize));
-          console.log(`🎵 AI DJ: Using ${recommendedSongs.length} fallback songs from library`);
+          // Filter out songs already recommended and get diverse artists
+          const existingIds = new Set(recommendedSongs.map(s => s.id));
+          const existingArtists = new Set(recommendedSongs.map(s => s.artist?.toLowerCase()).filter(Boolean));
+          
+          const diverseFallback = fallbackSongs
+            .filter(song => !existingIds.has(song.id))
+            .filter(song => !existingArtists.has(song.artist?.toLowerCase()))
+            .sort(() => Math.random() - 0.5)
+            .slice(0, neededSongs);
+          
+          recommendedSongs.push(...diverseFallback);
+          console.log(`🎵 AI DJ: Added ${diverseFallback.length} diverse fallback songs from library`);
         }
       } catch (error) {
         console.error('⚠️ AI DJ: Failed to get fallback songs:', error);
@@ -289,6 +529,35 @@ export function checkCooldown(lastQueueTime: number, cooldownMs: number = AI_DJ_
  * @param recommendations - Songs to add to queue
  * @returns Metadata for queued songs
  */
+// Export artist tracking stats for use in Ollama service
+export function getArtistRecommendationStats() {
+  const now = Date.now();
+  const oneDayAgo = now - (24 * 60 * 60 * 1000);
+  const twoHoursAgo = now - (2 * 60 * 60 * 1000);
+  
+  const recentArtists: string[] = [];
+  const overRecommendedArtists: string[] = [];
+  
+  for (const [artist, tracker] of artistRecommendationTracker.entries()) {
+    if (now - tracker.lastRecommended < oneDayAgo) {
+      // Still within last day
+      if (tracker.countToday > 0) {
+        recentArtists.push(artist);
+      }
+    } else {
+      // Older than a day, check if over-recommended
+      if (tracker.countToday >= 3 || tracker.countThisSession >= 2) {
+        overRecommendedArtists.push(artist);
+      }
+    }
+  }
+  
+  return {
+    recentArtists,
+    overRecommendedArtists,
+  };
+}
+
 export function prepareAIDJQueueMetadata(recommendations: Song[]): AIDJQueueMetadata[] {
   const now = Date.now();
   return recommendations.map(() => ({

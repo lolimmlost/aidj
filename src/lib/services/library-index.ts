@@ -1,5 +1,5 @@
 // Library indexing service for fast song lookup and AI context
-import { getArtists, getAlbums, getSongs, type Song, type Artist } from './navidrome';
+import { getArtists, getAlbums, getSongs, type Song } from './navidrome';
 import { ServiceError } from '../utils';
 
 export interface LibraryIndex {
@@ -42,12 +42,13 @@ export async function buildLibraryIndex(forceRefresh = false): Promise<LibraryIn
     const songList: string[] = [];
     const artists: string[] = [];
 
-    // Fetch all artists - LIMIT TO REASONABLE NUMBER
-    const allArtists = await getArtists(0, 50); // Fetch 50 artists max
+    // Fetch more artists for better diversity
+    const allArtists = await getArtists(0, 200); // Fetch 200 artists for more variety
 
     console.log(`📚 Indexing ${allArtists.length} artists...`);
 
     let totalSongsIndexed = 0;
+    const songsPerArtist = new Map<string, number>(); // Track songs per artist for balance
 
     // Process each artist - limit processing to avoid timeouts
     for (const artist of allArtists) {
@@ -57,12 +58,16 @@ export async function buildLibraryIndex(forceRefresh = false): Promise<LibraryIn
 
       try {
         // Get albums for this artist
-        const albums = await getAlbums(artist.id, 0, 3); // Get first 3 albums
+        const albums = await getAlbums(artist.id, 0, 5); // Get first 5 albums
 
-        // Get songs from first 3 albums only (most recent/popular)
+        // Get songs from albums with diversity in mind
         for (const album of albums) {
           try {
-            const albumSongs = await getSongs(album.id, 0, 15); // Limit to 15 songs per album
+            // Limit songs per album based on artist's current count
+            const artistSongCount = songsPerArtist.get(artistName) || 0;
+            const maxSongsForArtist = artistSongCount < 3 ? 10 : 5; // Allow more songs from underrepresented artists
+            
+            const albumSongs = await getSongs(album.id, 0, Math.min(maxSongsForArtist, 15));
             artistTopSongs.push(...albumSongs);
 
             // Add to song index
@@ -77,14 +82,18 @@ export async function buildLibraryIndex(forceRefresh = false): Promise<LibraryIn
               songs.set(songKey, song);
               songList.push(displayKey);
               totalSongsIndexed++;
+              
+              // Track songs per artist
+              const currentCount = songsPerArtist.get(songArtist) || 0;
+              songsPerArtist.set(songArtist, currentCount + 1);
             }
           } catch (error) {
             console.warn(`⚠️ Failed to fetch songs for album ${album.name}:`, error);
           }
 
-          // Stop if we've indexed enough songs (limit for performance)
-          if (totalSongsIndexed >= 200) {
-            console.log(`⚠️ Reached song limit (200), stopping indexing`);
+          // Stop if we've indexed enough songs (increased limit for more variety)
+          if (totalSongsIndexed >= 800) {
+            console.log(`⚠️ Reached song limit (800), stopping indexing`);
             break;
           }
         }
@@ -95,7 +104,7 @@ export async function buildLibraryIndex(forceRefresh = false): Promise<LibraryIn
       }
 
       // Break early if we have enough
-      if (totalSongsIndexed >= 200) {
+      if (totalSongsIndexed >= 800) {
         break;
       }
     }
@@ -122,7 +131,7 @@ export async function buildLibraryIndex(forceRefresh = false): Promise<LibraryIn
 }
 
 /**
- * Search for a song in the index by "Artist - Title" format
+ * Search for a song in index by "Artist - Title" format
  */
 export async function searchIndexedSong(query: string): Promise<Song | null> {
   const index = await buildLibraryIndex();
@@ -166,15 +175,85 @@ export async function getArtistSongsFromIndex(artistName: string): Promise<Song[
 }
 
 /**
- * Get a sample of songs for AI context
- * Returns top N songs formatted as "Artist - Title"
+ * Get a diverse sample of songs for AI context
+ * Returns songs with maximum artist diversity formatted as "Artist - Title"
  */
 export async function getSongSampleForAI(limit: number = 100): Promise<string[]> {
   const index = await buildLibraryIndex();
 
-  // Return random sample for better variety
-  const shuffled = [...index.songList].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, limit);
+  // Group songs by artist for diversity
+  const songsByArtist = new Map<string, string[]>();
+  
+  for (const song of index.songList) {
+    const artist = song.split(' - ')[0].toLowerCase();
+    if (!songsByArtist.has(artist)) {
+      songsByArtist.set(artist, []);
+    }
+    songsByArtist.get(artist)!.push(song);
+  }
+
+  // Select songs ensuring maximum diversity
+  const diverseSample: string[] = [];
+  const artists = Array.from(songsByArtist.keys());
+  
+  // First pass: get one song from as many different artists as possible
+  const shuffledArtists = [...artists].sort(() => Math.random() - 0.5);
+  for (const artist of shuffledArtists) {
+    if (diverseSample.length >= limit) break;
+    
+    const artistSongs = songsByArtist.get(artist)!;
+    if (artistSongs.length > 0) {
+      // Pick a random song from this artist
+      const randomSong = artistSongs[Math.floor(Math.random() * artistSongs.length)];
+      diverseSample.push(randomSong);
+    }
+  }
+  
+  // Second pass: fill remaining slots with additional songs from diverse artists
+  if (diverseSample.length < limit) {
+    // Sort artists by song count to prioritize underrepresented artists
+    const artistsByCount = Array.from(songsByArtist.entries())
+      .sort((a, b) => a[1].length - b[1].length);
+    
+    const underrepresentedArtists = artistsByCount
+      .filter(([artist, songs]) => {
+        const artistSongCount = diverseSample.filter(s => 
+          s.split(' - ')[0].toLowerCase() === artist
+        ).length;
+        return artistSongCount === 0 && songs.length > 0;
+      })
+      .map(([artist]) => artist);
+    
+    // Add songs from underrepresented artists first
+    for (const artist of underrepresentedArtists) {
+      if (diverseSample.length >= limit) break;
+      
+      const artistSongs = songsByArtist.get(artist)!;
+      const randomSong = artistSongs[Math.floor(Math.random() * artistSongs.length)];
+      if (!diverseSample.includes(randomSong)) {
+        diverseSample.push(randomSong);
+      }
+    }
+    
+    // If still need more songs, add from remaining artists (max 2 per artist)
+    const allSongsShuffled = [...index.songList].sort(() => Math.random() - 0.5);
+    for (const song of allSongsShuffled) {
+      if (diverseSample.length >= limit) break;
+      
+      const artist = song.split(' - ')[0].toLowerCase();
+      const artistSongCount = diverseSample.filter(s => s.split(' - ')[0].toLowerCase() === artist).length;
+      
+      // Limit to max 2 songs per artist in sample
+      if (artistSongCount < 2) {
+        if (!diverseSample.includes(song)) {
+          diverseSample.push(song);
+        }
+      }
+    }
+  }
+
+  // Final shuffle to randomize order
+  return diverseSample.sort(() => Math.random() - 0.5);
 }
 
 /**
@@ -186,7 +265,7 @@ export async function getIndexedArtists(): Promise<string[]> {
 }
 
 /**
- * Clear the library index cache (force rebuild on next access)
+ * Clear library index cache (force rebuild on next access)
  */
 export function clearLibraryIndexCache(): void {
   libraryIndexCache = null;

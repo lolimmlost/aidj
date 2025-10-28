@@ -652,31 +652,151 @@ function DashboardIndex() {
     }
   }, [recommendations]);
 
+  // Get time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   return (
-    <div className="container mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
-      <div className="text-center px-4 sm:px-0">
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-2">Music Dashboard</h1>
-        <p className="text-sm sm:text-base text-muted-foreground max-w-md mx-auto">
-          Welcome to your music library. Explore artists, search for songs, and enjoy seamless playback.
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
+        {/* Hero Section with Personalized Greeting */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/20 p-8 sm:p-12">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl -z-10" />
+          <div className="relative z-10">
+            <p className="text-sm font-medium text-primary mb-2 tracking-wide uppercase">Your Music Hub</p>
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-3 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+              {getGreeting()}, {session?.user?.name || 'Music Lover'}
+            </h1>
+            <p className="text-base sm:text-lg text-muted-foreground max-w-2xl">
+              Discover new music, create intelligent playlists, and explore your library with AI-powered recommendations
+            </p>
+
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8">
+              <div className="bg-background/50 backdrop-blur-sm rounded-xl p-4 border border-border/50">
+                <div className="text-2xl font-bold text-primary">
+                  {recommendations?.data?.recommendations?.filter((r: any) => r.foundInLibrary).length || 0}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">Available Recommendations</div>
+              </div>
+              <div className="bg-background/50 backdrop-blur-sm rounded-xl p-4 border border-border/50">
+                <div className="text-2xl font-bold text-green-600">
+                  {playlistData ? (playlistData.data.playlist as PlaylistItem[]).filter(item => item.songId).length : 0}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">Playlist Songs Ready</div>
+              </div>
+              <div className="bg-background/50 backdrop-blur-sm rounded-xl p-4 border border-border/50">
+                <div className="text-2xl font-bold text-blue-600">AI</div>
+                <div className="text-xs text-muted-foreground mt-1">Powered</div>
+              </div>
+              <div className="bg-background/50 backdrop-blur-sm rounded-xl p-4 border border-border/50">
+                <div className="text-2xl font-bold text-purple-600">DJ</div>
+                <div className="text-xs text-muted-foreground mt-1">Tools Available</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Link to="/library/search" className="group">
+            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 hover:border-blue-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/10 hover:-translate-y-1">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-3 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.35-4.35"/>
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold mb-1">Search Library</h3>
+              <p className="text-sm text-muted-foreground">Find your favorite songs instantly</p>
+            </div>
+          </Link>
+
+          <Link to="/library/artists" className="group">
+            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 hover:-translate-y-1">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-3 bg-purple-500/10 rounded-xl group-hover:bg-purple-500/20 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-600">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold mb-1">Browse Artists</h3>
+              <p className="text-sm text-muted-foreground">Explore your music collection</p>
+            </div>
+          </Link>
+
+          <Link to="/playlists" className="group">
+            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-green-500/10 to-green-600/5 border border-green-500/20 hover:border-green-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/10 hover:-translate-y-1">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-3 bg-green-500/10 rounded-xl group-hover:bg-green-500/20 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
+                    <path d="M9 18V5l12-2v13"/>
+                    <circle cx="6" cy="18" r="3"/>
+                    <circle cx="18" cy="16" r="3"/>
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold mb-1">My Playlists</h3>
+              <p className="text-sm text-muted-foreground">Manage your collections</p>
+            </div>
+          </Link>
+
+          <Link to="/settings" className="group">
+            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-orange-500/10 to-orange-600/5 border border-orange-500/20 hover:border-orange-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/10 hover:-translate-y-1">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-3 bg-orange-500/10 rounded-xl group-hover:bg-orange-500/20 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-orange-600">
+                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold mb-1">Settings</h3>
+              <p className="text-sm text-muted-foreground">Customize your experience</p>
+            </div>
+          </Link>
+        </div>
 
       {/* AI Recommendations Section - conditionally rendered based on user preferences */}
       {preferences.dashboardLayout.showRecommendations && (
         <OllamaErrorBoundary>
-          <section className="space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-              <h2 className="text-xl sm:text-2xl font-semibold">AI Recommendations</h2>
+          <section className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h2 className="text-2xl sm:text-3xl font-bold mb-2 flex items-center gap-2">
+                  <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">AI Recommendations</span>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                    Powered by AI
+                  </span>
+                </h2>
+                <p className="text-sm text-muted-foreground">Personalized suggestions based on your music taste</p>
+              </div>
               <div className="flex gap-2 w-full sm:w-auto">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => refetchRecommendations()}
                   disabled={isLoading}
-                  className="flex-1 sm:flex-none min-h-[44px]"
+                  className="flex-1 sm:flex-none min-h-[44px] hover:bg-primary/5 hover:border-primary/50 transition-all"
                   aria-label="Refresh recommendations"
                 >
-                  {isLoading ? 'Loading...' : '🔄 Refresh'}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`mr-2 ${isLoading ? 'animate-spin' : ''}`}>
+                    <path d="M21 2v6h-6"/>
+                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+                    <path d="M3 22v-6h6"/>
+                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+                  </svg>
+                  {isLoading ? 'Loading...' : 'Refresh'}
                 </Button>
                 <Select value={type} onValueChange={(value) => setType(value as 'similar' | 'mood')}>
                   <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
@@ -719,87 +839,142 @@ function DashboardIndex() {
             </p>
           )}
             {recommendations && (
-              <Card className="bg-card text-card-foreground border-card">
-                <CardHeader>
-                  <CardTitle>Based on your history</CardTitle>
-                  <CardDescription>
-                    Generated at {new Date(recommendations.timestamp).toLocaleString()} -
-                    {recommendations.data.recommendations.filter((rec: any) => rec.foundInLibrary).length} of {recommendations.data.recommendations.length} songs available in your library
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {recommendations.data.recommendations.map((rec: any, index: number) => {
-                      const songId = encodeURIComponent(rec.song); // For route (URL-safe encoding)
-                      const isInLibrary = rec.foundInLibrary;
-                      const hasSearchError = rec.searchError;
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-500/5 to-pink-500/5 border border-purple-500/10 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-500/10 rounded-lg">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-600">
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Based on your listening history</p>
+                      <p className="text-xs text-muted-foreground">
+                        {recommendations.data.recommendations.filter((rec: any) => rec.foundInLibrary).length} of {recommendations.data.recommendations.length} songs in your library • Updated {new Date(recommendations.timestamp).toLocaleTimeString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-                      const currentFeedback = songFeedback[rec.song];
-                      const hasFeedback = currentFeedback !== undefined && currentFeedback !== null;
+                <div className="grid grid-cols-1 gap-3">
+                  {recommendations.data.recommendations.map((rec: any, index: number) => {
+                    const songId = encodeURIComponent(rec.song);
+                    const isInLibrary = rec.foundInLibrary;
+                    const hasSearchError = rec.searchError;
+                    const currentFeedback = songFeedback[rec.song];
+                    const hasFeedback = currentFeedback !== undefined && currentFeedback !== null;
 
-                      return (
-                        <li key={index} className={`flex flex-col space-y-2 p-2 border rounded ${isInLibrary ? 'border-green-200 bg-green-50/10' : 'border-gray-200'}`}>
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                              <Link to="/dashboard/recommendations/id" search={{ song: rec.song }} className="hover:underline">
-                                {rec.song}
-                              </Link>
-                              {isInLibrary && (
-                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                                  ✓ In Library
-                                </span>
-                              )}
-                              {hasSearchError && (
-                                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
-                                  ⚠️ Search Error
-                                </span>
+                    return (
+                      <div
+                        key={index}
+                        className={`group relative overflow-hidden rounded-xl border transition-all duration-300 hover:shadow-lg ${
+                          isInLibrary
+                            ? 'border-green-500/30 bg-gradient-to-br from-green-500/5 to-green-600/5 hover:border-green-500/50'
+                            : 'border-border bg-card/50 hover:border-border/80'
+                        }`}
+                      >
+                        <div className="p-4 sm:p-5">
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Link
+                                  to="/dashboard/recommendations/id"
+                                  search={{ song: rec.song }}
+                                  className="font-semibold text-base hover:text-primary transition-colors"
+                                >
+                                  {rec.song}
+                                </Link>
+                                {isInLibrary && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                                      <polyline points="20 6 9 17 4 12"/>
+                                    </svg>
+                                    In Library
+                                  </span>
+                                )}
+                                {hasSearchError && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
+                                    ⚠️ Search Error
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground line-clamp-2">{rec.explanation}</p>
+                              {!isInLibrary && !hasSearchError && (
+                                <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <path d="M12 16v-4"/>
+                                    <path d="M12 8h.01"/>
+                                  </svg>
+                                  Not in your library, but matches your taste
+                                </div>
                               )}
                             </div>
-                            <div className="flex items-center gap-2">
-                              {/* Like/Dislike Buttons */}
+
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <div className="flex items-center gap-1 bg-background/50 rounded-lg p-1">
+                                <Button
+                                  variant={currentFeedback === 'thumbs_up' ? "default" : "ghost"}
+                                  size="sm"
+                                  onClick={() => feedbackMutation.mutate({ song: rec.song, feedbackType: 'thumbs_up' })}
+                                  disabled={feedbackMutation.isPending || hasFeedback}
+                                  className={`h-9 w-9 p-0 ${currentFeedback === 'thumbs_up' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
+                                  title={hasFeedback ? "Already rated" : "Like this song"}
+                                >
+                                  {feedbackMutation.isPending && currentFeedback === 'thumbs_up' ? (
+                                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                    </svg>
+                                  ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M7 10v12"/>
+                                      <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/>
+                                    </svg>
+                                  )}
+                                </Button>
+                                <Button
+                                  variant={currentFeedback === 'thumbs_down' ? "default" : "ghost"}
+                                  size="sm"
+                                  onClick={() => feedbackMutation.mutate({ song: rec.song, feedbackType: 'thumbs_down' })}
+                                  disabled={feedbackMutation.isPending || hasFeedback}
+                                  className={`h-9 w-9 p-0 ${currentFeedback === 'thumbs_down' ? 'bg-red-600 hover:bg-red-700 text-white' : ''}`}
+                                  title={hasFeedback ? "Already rated" : "Dislike this song"}
+                                >
+                                  {feedbackMutation.isPending && currentFeedback === 'thumbs_down' ? (
+                                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                    </svg>
+                                  ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M17 14V2"/>
+                                      <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z"/>
+                                    </svg>
+                                  )}
+                                </Button>
+                              </div>
                               <Button
-                                variant={currentFeedback === 'thumbs_up' ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => feedbackMutation.mutate({ song: rec.song, feedbackType: 'thumbs_up' })}
-                                disabled={feedbackMutation.isPending || hasFeedback}
-                                className={currentFeedback === 'thumbs_up' ? 'bg-green-600 hover:bg-green-700' : ''}
-                                title={hasFeedback ? "Already rated" : "Like this song"}
-                              >
-                                {feedbackMutation.isPending && currentFeedback === 'thumbs_up' ? '⏳' : '👍'}
-                              </Button>
-                              <Button
-                                variant={currentFeedback === 'thumbs_down' ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => feedbackMutation.mutate({ song: rec.song, feedbackType: 'thumbs_down' })}
-                                disabled={feedbackMutation.isPending || hasFeedback}
-                                className={currentFeedback === 'thumbs_down' ? 'bg-red-600 hover:bg-red-700' : ''}
-                                title={hasFeedback ? "Already rated" : "Dislike this song"}
-                              >
-                                {feedbackMutation.isPending && currentFeedback === 'thumbs_down' ? '⏳' : '👎'}
-                              </Button>
-                              <Button
-                                variant="ghost"
+                                variant={isInLibrary ? "default" : "outline"}
                                 size="sm"
                                 onClick={() => handleQueue(rec.song)}
                                 disabled={!isInLibrary}
-                                className={!isInLibrary ? "opacity-50 cursor-not-allowed" : ""}
+                                className={`${!isInLibrary ? "opacity-50 cursor-not-allowed" : "bg-primary hover:bg-primary/90"}`}
                               >
-                                {isInLibrary ? "Queue" : "Not Available"}
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                                  <path d="M5 12h14"/>
+                                  <path d="M12 5v14"/>
+                                </svg>
+                                {isInLibrary ? "Queue" : "Unavailable"}
                               </Button>
                             </div>
                           </div>
-                          <p className="text-sm text-muted-foreground">{rec.explanation.substring(0, 100)}...</p>
-                          {!isInLibrary && !hasSearchError && (
-                            <p className="text-xs text-orange-600">
-                              💡 This song isn't in your library but shows similar taste
-                            </p>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </CardContent>
-              </Card>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </section>
         </OllamaErrorBoundary>
@@ -811,106 +986,119 @@ function DashboardIndex() {
       )}
 
       {/* DJ Features Section */}
-      <div className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-2">DJ Features</h2>
-          <p className="text-muted-foreground">
-            Professional DJ tools and features to enhance your mixing experience
+      <section className="space-y-6">
+        <div className="text-center space-y-3">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
+            </svg>
+            <span className="text-sm font-medium text-blue-600 dark:text-blue-400">Professional Tools</span>
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+            DJ Features
+          </h2>
+          <p className="text-muted-foreground max-w-2xl mx-auto">
+            Elevate your mixing experience with professional-grade tools powered by AI and advanced audio processing
           </p>
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {/* DJ Mixer */}
-          <Link
-            to="/dj/mixer"
-            className="block"
-          >
-            <div className="h-full p-6 bg-card text-card-foreground border-2 border-card rounded-lg transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 cursor-pointer">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+          {/* DJ Mixer - Featured Card */}
+          <Link to="/dj/mixer" className="group md:col-span-2">
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600/10 via-purple-600/5 to-pink-600/10 border-2 border-blue-500/20 hover:border-blue-500/40 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-1 p-8">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full blur-3xl -z-10" />
+
+              <div className="flex flex-col sm:flex-row gap-6 items-start">
+                <div className="flex-shrink-0 p-4 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10"/>
                     <path d="M12 2a10 10 0 0 0 10 10"/>
                   </svg>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="bg-primary text-primary-foreground text-xs px-2 py-1 rounded">
-                    NEW
-                  </span>
-                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-                    Pro
-                  </span>
+
+                <div className="flex-1 space-y-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-2xl font-bold">DJ Mixer</h3>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                      NEW
+                    </span>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-400 to-orange-500 text-white">
+                      ⭐ Pro
+                    </span>
+                  </div>
+                  <p className="text-base text-muted-foreground">
+                    Professional DJ mixing interface with dual decks, crossfader, real-time audio visualization, and beat-matching technology for seamless transitions
+                  </p>
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      Dual Decks
+                    </div>
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      Live Waveforms
+                    </div>
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      Effects
+                    </div>
+                  </div>
                 </div>
+
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all">
+                  <path d="M5 12h14"/>
+                  <path d="m12 5 7 7-7 7"/>
+                </svg>
               </div>
-              <h3 className="text-lg font-semibold mb-2">DJ Mixer</h3>
-              <p className="text-sm text-muted-foreground">
-                Professional DJ mixing interface with dual decks, crossfader, and real-time audio visualization
-              </p>
             </div>
           </Link>
 
           {/* DJ Queue Manager */}
-          <Link
-            to="/dj/queue"
-            className="block"
-          >
-            <div className="h-full p-6 bg-card text-card-foreground border-2 border-card rounded-lg transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 cursor-pointer">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <Link to="/dj/queue" className="group">
+            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-green-500/10 to-emerald-600/5 border-2 border-green-500/20 hover:border-green-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/10 hover:-translate-y-1">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-md group-hover:scale-110 transition-transform">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M9 18V5l12-2v13"/>
                     <path d="m9 9 6 6"/>
                     <circle cx="6" cy="18" r="3"/>
                     <circle cx="18" cy="16" r="3"/>
                   </svg>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="bg-primary text-primary-foreground text-xs px-2 py-1 rounded">
-                    NEW
-                  </span>
-                  <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
+                <div className="flex gap-2">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                     Auto
                   </span>
                 </div>
               </div>
-              <h3 className="text-lg font-semibold mb-2">DJ Queue Manager</h3>
-              <p className="text-sm text-muted-foreground">
-                Advanced queue management with auto-mixing, priority settings, and smart recommendations
+              <h3 className="text-xl font-bold mb-2">Queue Manager</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Smart queue management with auto-mixing, priority settings, and AI-powered song recommendations
               </p>
-            </div>
-          </Link>
-
-          {/* DJ Controls */}
-          <Link
-            to="/dj/controls"
-            className="block"
-          >
-            <div className="h-full p-6 bg-card text-card-foreground border-2 border-card rounded-lg transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 cursor-pointer">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2v20"/>
-                    <path d="M8 10h8"/>
-                    <path d="M8 14h8"/>
-                  </svg>
-                </div>
+              <div className="flex items-center text-xs text-muted-foreground">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                  <path d="M5 12h14"/>
+                  <path d="m12 5 7 7-7 7"/>
+                </svg>
+                Explore feature
               </div>
-              <h3 className="text-lg font-semibold mb-2">DJ Controls</h3>
-              <p className="text-sm text-muted-foreground">
-                Essential DJ controls for playback, crossfading, and session management
-              </p>
             </div>
           </Link>
 
           {/* AI DJ Assistant */}
-          <Link
-            to="/dj/ai-assistant"
-            className="block"
-          >
-            <div className="h-full p-6 bg-card text-card-foreground border-2 border-card rounded-lg transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 cursor-pointer">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <Link to="/dj/ai-assistant" className="group">
+            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-purple-500/10 to-pink-600/5 border-2 border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 hover:-translate-y-1">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl shadow-md group-hover:scale-110 transition-transform">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4.9 19.1C1 15.5 1 10.5 4.9 6.9"/>
                     <path d="M16.6 6.9C20.4 10.5 20 15.5 16.6 19.1"/>
                     <path d="M12 2v6"/>
@@ -918,68 +1106,154 @@ function DashboardIndex() {
                     <path d="M8 12h8"/>
                   </svg>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">
+                <div className="flex gap-2">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
                     AI
                   </span>
-                  <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
                     BETA
                   </span>
                 </div>
               </div>
-              <h3 className="text-lg font-semibold mb-2">AI DJ Assistant</h3>
-              <p className="text-sm text-muted-foreground">
-                AI-powered DJ that analyzes your library and creates intelligent mixes
+              <h3 className="text-xl font-bold mb-2">AI DJ Assistant</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                AI-powered assistant that analyzes your library and creates intelligent, seamless mixes automatically
               </p>
+              <div className="flex items-center text-xs text-muted-foreground">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                  <path d="M5 12h14"/>
+                  <path d="m12 5 7 7-7 7"/>
+                </svg>
+                Try AI mixing
+              </div>
+            </div>
+          </Link>
+
+          {/* DJ Controls */}
+          <Link to="/dj/controls" className="group">
+            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-orange-500/10 to-red-600/5 border-2 border-orange-500/20 hover:border-orange-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/10 hover:-translate-y-1">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-gradient-to-br from-orange-600 to-red-600 rounded-xl shadow-md group-hover:scale-110 transition-transform">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2v20"/>
+                    <path d="M8 10h8"/>
+                    <path d="M8 14h8"/>
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-xl font-bold mb-2">DJ Controls</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Essential DJ controls for playback, crossfading, and comprehensive session management
+              </p>
+              <div className="flex items-center text-xs text-muted-foreground">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                  <path d="M5 12h14"/>
+                  <path d="m12 5 7 7-7 7"/>
+                </svg>
+                Access controls
+              </div>
+            </div>
+          </Link>
+
+          {/* More Tools Link */}
+          <Link to="/dj" className="group">
+            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-gray-500/10 to-gray-600/5 border-2 border-dashed border-gray-500/30 hover:border-gray-500/50 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center space-y-2">
+                  <div className="inline-flex p-3 bg-gray-500/10 rounded-xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600">
+                      <path d="M12 5v14"/>
+                      <path d="M5 12h14"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-1">More DJ Tools</h3>
+                    <p className="text-sm text-muted-foreground">Explore additional features</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </Link>
         </div>
-        
-        <div className="mt-8 p-4 bg-muted/50 rounded-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 18v-6a2 2 0 0 1-2H9a2 2 0 0 1 2v6a2 2 0 0 1-2h8a2 2 0 0 1 2z"/>
-              <path d="M12 12v.01"/>
-            </svg>
-            <h3 className="font-semibold">Pro Tip</h3>
+
+        <div className="p-6 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 border border-blue-500/10 rounded-2xl">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-blue-500/10 rounded-lg flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+                <path d="M5 3v4"/>
+                <path d="M19 17v4"/>
+                <path d="M3 5h4"/>
+                <path d="M17 19h4"/>
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-1 text-sm">Pro Tip</h3>
+              <p className="text-sm text-muted-foreground">
+                Start with <span className="font-medium text-foreground">DJ Mixer</span> for the complete mixing experience. Features marked with "Pro" offer advanced capabilities for professional DJs. All tools integrate seamlessly with your music library.
+              </p>
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Start with DJ Mixer for a complete mixing experience, or use individual features to enhance specific aspects of your workflow.
-            Features marked with "Pro" offer advanced capabilities for professional DJs.
-          </p>
         </div>
-      </div>
+      </section>
 
       <OllamaErrorBoundary>
-        <section className="space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-            <h2 className="text-xl sm:text-2xl font-semibold">Style-Based Playlist</h2>
-            <Button onClick={clearPlaylistCache} variant="outline" size="sm" className="min-h-[44px] w-full sm:w-auto" aria-label="Clear playlist cache">
+        <section className="space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-bold mb-2 flex items-center gap-2">
+                <span className="bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">Style-Based Playlists</span>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                  AI Generated
+                </span>
+              </h2>
+              <p className="text-sm text-muted-foreground">Create custom playlists based on mood, genre, or theme</p>
+            </div>
+            <Button onClick={clearPlaylistCache} variant="outline" size="sm" className="min-h-[44px] w-full sm:w-auto hover:bg-destructive/5 hover:border-destructive/50 transition-all" aria-label="Clear playlist cache">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                <path d="M3 6h18"/>
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+              </svg>
               Clear Cache
             </Button>
           </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Input
-            placeholder="Enter style (e.g., Halloween, rock, holiday)"
-            value={style}
-            onChange={(e) => setStyle(e.target.value)}
-            className="flex-1 min-h-[44px]"
-            aria-label="Playlist style"
-          />
-          <Button
-            onClick={() => {
-              // Manually trigger refetch for immediate generation
-              const cacheKey = `playlist-${trimmedStyle}`;
-              localStorage.removeItem(cacheKey); // Clear cache for this style
-              queryClient.invalidateQueries({ queryKey: ['playlist', trimmedStyle] });
-              refetchPlaylist();
-            }}
-            disabled={!trimmedStyle}
-            className="min-h-[44px] w-full sm:w-auto"
-            aria-label="Generate playlist now"
-          >
-            Generate Now
-          </Button>
+
+        <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-500/5 to-cyan-500/5 border border-blue-500/20">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+              </svg>
+              <Input
+                placeholder="Enter a mood, genre, or theme (e.g., 'Chill Sunday', 'Workout Energy', 'Halloween Party')"
+                value={style}
+                onChange={(e) => setStyle(e.target.value)}
+                className="pl-12 min-h-[52px] bg-background/50 border-border/50 focus:border-primary/50 transition-all"
+                aria-label="Playlist style"
+              />
+            </div>
+            <Button
+              onClick={() => {
+                const cacheKey = `playlist-${trimmedStyle}`;
+                localStorage.removeItem(cacheKey);
+                queryClient.invalidateQueries({ queryKey: ['playlist', trimmedStyle] });
+                refetchPlaylist();
+              }}
+              disabled={!trimmedStyle}
+              className="min-h-[52px] w-full sm:w-auto px-6 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg shadow-blue-500/20"
+              aria-label="Generate playlist now"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+                <path d="M5 3v4"/>
+                <path d="M19 17v4"/>
+                <path d="M3 5h4"/>
+                <path d="M17 19h4"/>
+              </svg>
+              Generate Playlist
+            </Button>
+          </div>
         </div>
 
         {/* Show debouncing indicator */}
@@ -1038,198 +1312,196 @@ function DashboardIndex() {
           </p>
         )}
         {playlistData && (
-          <Card className="bg-card text-card-foreground border-card">
-            <CardHeader>
-              <h2 className="text-2xl font-semibold">Generated Playlist</h2>
-              <CardDescription>for "{debouncedStyle || style}". 5 suggestions from your library. Add to queue or provide feedback.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col sm:flex-row justify-between mb-4 gap-2">
-                <Button onClick={handlePlaylistQueue} className="min-h-[44px] w-full sm:w-auto" aria-label="Add entire playlist to queue">
-                  Add Entire Playlist to Queue
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 border border-blue-500/10 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-500/10 rounded-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+                    <path d="M9 18V5l12-2v13"/>
+                    <circle cx="6" cy="18" r="3"/>
+                    <circle cx="18" cy="16" r="3"/>
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Generated Playlist: "{debouncedStyle || style}"</p>
+                  <p className="text-xs text-muted-foreground">
+                    {(playlistData.data.playlist as PlaylistItem[]).filter(item => item.songId).length} of 5 songs found in your library
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handlePlaylistQueue} size="sm" className="bg-primary hover:bg-primary/90" aria-label="Add entire playlist to queue">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                    <path d="M5 12h14"/>
+                    <path d="M12 5v14"/>
+                  </svg>
+                  Queue All
                 </Button>
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={() => {
-                    // Clear cache for this style to force regeneration
                     const cacheKey = `playlist-${debouncedStyle}`;
                     localStorage.removeItem(cacheKey);
                     console.log(`🗑️ Cleared cache for "${debouncedStyle}", regenerating...`);
                     refetchPlaylist();
                   }}
-                  className="min-h-[44px] w-full sm:w-auto"
                   aria-label="Regenerate playlist"
                 >
-                  🔄 Regenerate
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                    <path d="M21 2v6h-6"/>
+                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+                    <path d="M3 22v-6h6"/>
+                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+                  </svg>
+                  Regenerate
                 </Button>
               </div>
-              <ul className="space-y-2">
-                {(playlistData.data.playlist as PlaylistItem[]).map((item, index: number) => {
-                  return (
-                    <li key={index} className="flex flex-col space-y-2 p-2 border rounded">
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium">{item.song}</span>
-                        <div className="space-x-2">
-                          {item.songId ? (
-                            <Button variant="ghost" size="sm" onClick={() => {
-                              // Parse "Artist - Title" format
-                              const parts = item.song.split(' - ');
-                              const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
-                              const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
+            </div>
 
-                              addToQueue(item.songId!, [{
-                                id: item.songId!,
-                                name: title,
-                                title: title,
-                                albumId: '',
-                                duration: 0,
-                                track: 1,
-                                url: item.url!,
-                                artist: artist,
-                              }]);
-                              toast.success('Queued');
-                            }}>
+            <div className="grid grid-cols-1 gap-3">
+              {(playlistData.data.playlist as PlaylistItem[]).map((item, index: number) => {
+                const hasSong = !!item.songId;
+                return (
+                  <div
+                    key={index}
+                    className={`group rounded-xl border transition-all duration-300 hover:shadow-md ${
+                      hasSong
+                        ? 'border-green-500/30 bg-gradient-to-br from-green-500/5 to-green-600/5 hover:border-green-500/50'
+                        : 'border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-red-500/5 hover:border-orange-500/50'
+                    }`}
+                  >
+                    <div className="p-4 sm:p-5">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-background/80 text-xs font-medium">
+                              {index + 1}
+                            </span>
+                            <span className="font-semibold text-base">{item.song}</span>
+                            {hasSong ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                                  <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                Available
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                                Not in Library
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">{item.explanation}</p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {hasSong ? (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => {
+                                const parts = item.song.split(' - ');
+                                const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
+                                const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
+
+                                addToQueue(item.songId!, [{
+                                  id: item.songId!,
+                                  name: title,
+                                  title: title,
+                                  albumId: '',
+                                  duration: 0,
+                                  track: 1,
+                                  url: item.url!,
+                                  artist: artist,
+                                }]);
+                                toast.success('Queued');
+                              }}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                                <path d="M5 12h14"/>
+                                <path d="M12 5v14"/>
+                              </svg>
                               Queue
                             </Button>
                           ) : (
-                            <div className="flex flex-col gap-1">
-                              <span className="text-sm text-destructive">Not in library</span>
-                              <Button
-                                variant="link"
-                                size="sm"
-                                className="h-auto p-0 text-xs"
-                                onClick={() => {
-                                  const [artistPart] = item.song.split(' - ');
-                                  if (artistPart) {
-                                    window.location.href = `/library?search=${encodeURIComponent(artistPart.trim())}`;
-                                  }
-                                }}
-                              >
-                                Search for similar
-                              </Button>
-                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const [artistPart] = item.song.split(' - ');
+                                if (artistPart) {
+                                  window.location.href = `/library?search=${encodeURIComponent(artistPart.trim())}`;
+                                }
+                              }}
+                              className="border-orange-500/30 hover:bg-orange-500/10"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                                <circle cx="11" cy="11" r="8"/>
+                                <path d="m21 21-4.35-4.35"/>
+                              </svg>
+                              Search Similar
+                            </Button>
                           )}
                         </div>
                       </div>
-                      <p className="text-sm text-muted-foreground">{item.explanation}</p>
-                      {item.missing && (
-                        <div className="text-xs bg-destructive/10 border border-destructive/20 rounded p-2">
-                          <p className="text-destructive font-medium">Song not found in your library</p>
-                          <p className="text-muted-foreground mt-1">Try searching for the artist, or use the download feature when available</p>
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-              {playlistData && (playlistData.data.playlist as PlaylistItem[]).length === 0 && (
-                <p className="text-destructive">No matching songs</p>
-              )}
-            </CardContent>
-          </Card>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {(playlistData.data.playlist as PlaylistItem[]).length === 0 && (
+              <div className="text-center p-8 border border-dashed rounded-xl">
+                <p className="text-muted-foreground">No matching songs found. Try a different style or theme.</p>
+              </div>
+            )}
+          </div>
         )}
         </section>
       </OllamaErrorBoundary>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Link
-          to="/"
-          className="card card-hover p-6 text-center block"
-        >
-          <h3 className="text-lg font-semibold mb-2">Home</h3>
-          <p className="text-muted-foreground text-sm">Return to the main page</p>
-        </Link>
+      {/* Additional Features - Compact Grid */}
+      <section className="space-y-4">
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-muted-foreground">More Features</h3>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <Link to="/downloads" className="group p-4 rounded-xl border border-border/50 hover:border-primary/50 bg-card/50 hover:bg-card transition-all duration-200 hover:-translate-y-0.5">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" x2="12" y1="15" y2="3"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Downloads</p>
+                <p className="text-xs text-muted-foreground">Manage music</p>
+              </div>
+            </div>
+          </Link>
 
-        <Link
-          to="/login"
-          className="card card-hover p-6 text-center block"
-        >
-          <h3 className="text-lg font-semibold mb-2">Login</h3>
-          <p className="text-muted-foreground text-sm">Sign in to your account</p>
-        </Link>
+          <Link to="/dashboard/analytics" className="group p-4 rounded-xl border border-border/50 hover:border-primary/50 bg-card/50 hover:bg-card transition-all duration-200 hover:-translate-y-0.5">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                  <line x1="12" x2="12" y1="20" y2="10"/>
+                  <line x1="18" x2="18" y1="20" y2="4"/>
+                  <line x1="6" x2="6" y1="20" y2="16"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Analytics</p>
+                <p className="text-xs text-muted-foreground">View insights</p>
+              </div>
+            </div>
+          </Link>
+        </div>
+      </section>
 
-        <Link
-          to="/signup"
-          className="card card-hover p-6 text-center block"
-        >
-          <h3 className="text-lg font-semibold mb-2">Signup</h3>
-          <p className="text-muted-foreground text-sm">Create a new account</p>
-        </Link>
-
-        <Link
-          to="/settings"
-          className="card card-hover p-6 text-center block"
-        >
-          <h3 className="text-lg font-semibold mb-2">Settings</h3>
-          <p className="text-muted-foreground text-sm">Customize your preferences and services</p>
-        </Link>
-
-        <Link
-          to="/library/search"
-          className="card card-hover p-6 text-center block"
-        >
-          <h3 className="text-lg font-semibold mb-2">Search Library</h3>
-          <p className="text-muted-foreground text-sm">Find your favorite songs</p>
-        </Link>
-
-        <Link
-          to="/library/artists"
-          className="card card-hover p-6 text-center block"
-        >
-          <h3 className="text-lg font-semibold mb-2">Browse Artists</h3>
-          <p className="text-muted-foreground text-sm">Explore artists and albums</p>
-        </Link>
-
-        <Link
-          to="/playlists"
-          className="card card-hover p-6 text-center block"
-        >
-          <h3 className="text-lg font-semibold mb-2">My Playlists</h3>
-          <p className="text-muted-foreground text-sm">Organize your music collections</p>
-        </Link>
-
-        <Link
-          to="/library/artists/id"
-          params={{id: '08jJDtStA34urKpsWC7xHt'}}
-          className="card card-hover p-6 text-center block"
-        >
-          <h3 className="text-lg font-semibold mb-2">Artist Detail</h3>
-          <p className="text-muted-foreground text-sm">View artist information (Example)</p>
-        </Link>
-
-        <Link
-          to="/library/artists/id/albums/albumId"
-          params={{id: '08jJDtStA34urKpsWC7xHt', albumId: '1'}}
-          className="card card-hover p-6 text-center block"
-        >
-          <h3 className="text-lg font-semibold mb-2">Album Detail</h3>
-          <p className="text-muted-foreground text-sm">View album tracks (Example)</p>
-        </Link>
-
-        {/* Download Management Links */}
-        <Link
-          to="/downloads"
-          className="card card-hover p-6 text-center block"
-        >
-          <h3 className="text-lg font-semibold mb-2">🎵 Download Music</h3>
-          <p className="text-muted-foreground text-sm">Search and add music to download queue</p>
-        </Link>
-
-        <Link
-          to="/downloads/status"
-          className="card card-hover p-6 text-center block"
-        >
-          <h3 className="text-lg font-semibold mb-2">📊 Download Status</h3>
-          <p className="text-muted-foreground text-sm">Monitor download progress and queue</p>
-        </Link>
-
-        <Link
-          to="/downloads/history"
-          className="card card-hover p-6 text-center block"
-        >
-          <h3 className="text-lg font-semibold mb-2">📋 Download History</h3>
-          <p className="text-muted-foreground text-sm">View and manage download history</p>
-        </Link>
       </div>
     </div>
   );

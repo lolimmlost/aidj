@@ -1,7 +1,5 @@
 // Ollama service for AI recommendation generation
 import { getConfig } from '../config/config';
-import type { LibrarySummary } from './navidrome';
-import { getLibrarySummary } from './navidrome';
 import { ServiceError } from '../utils';
 import { getSongSampleForAI, getIndexedArtists } from './library-index';
 import { buildUserPreferenceProfile, getListeningPatterns } from './preferences';
@@ -92,12 +90,12 @@ export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, u
   if (userId) {
     // Use library index instead of summary for accurate song data
     const libStart = Date.now();
-    const songSample = await getSongSampleForAI(80);
+    const songSample = await getSongSampleForAI(100); // Increased sample size for more variety
     const artists = await getIndexedArtists();
     perfTimings.libraryFetch = Date.now() - libStart;
 
-    const songListForPrompt = songSample.slice(0, 40).join('\n'); // Show 40 songs
-    const artistsList = artists.slice(0, 30).join(', ');
+    const songListForPrompt = songSample.slice(0, 80).join('\n'); // Show 80 songs instead of 40
+    const artistsList = artists.slice(0, 50).join(', '); // Show 50 artists instead of 30
 
     console.log(`🎵 Using ${songSample.length} indexed songs and ${artists.length} artists for recommendations`);
 
@@ -242,7 +240,25 @@ RULES:
 5. Format: "Artist - Title" exactly as shown in the library list
 6. USE USER PREFERENCES to personalize recommendations (prioritize liked artists, avoid disliked)
 
-Your goal is to recommend songs from my ACTUAL library that I'll enjoy based on my preferences. Make sure each response is UNIQUE.`;
+DIVERSITY REQUIREMENTS:
+- Select songs from DIFFERENT artists (avoid multiple songs from same artist)
+- Include songs from different genres when possible
+- Vary the energy levels and styles of recommended songs
+- Do not recommend songs that have been recently played or suggested
+- Ensure each recommendation provides a fresh listening experience
+- AVOID repeating artists from the last 10 songs played
+- PRIORITIZE artists you haven't recommended in this session
+- If you've recommended the same artist 3+ times today, choose others
+- BALANCE between familiar favorites and new discoveries
+
+CONTEXTUAL AWARENESS:
+- Consider the full listening session history for variety
+- If user has heard many songs from one genre, explore others
+- Mix up the tempo and mood between recommendations
+- Avoid suggesting songs that sound too similar to each other
+- Create a journey through different musical styles and emotions
+
+Your goal is to recommend songs from my ACTUAL library that I'll enjoy based on my preferences. Make sure each response is UNIQUE and DIVERSE.`;
   }
 
   const url = `${OLLAMA_BASE_URL}/api/generate`;
@@ -410,7 +426,6 @@ export async function checkModelAvailability(model: string): Promise<boolean> {
 
 interface PlaylistRequest {
   style: string;
-  summary?: LibrarySummary;
   userId?: string;
   useFeedbackForPersonalization?: boolean; // Privacy setting
 }
@@ -424,7 +439,7 @@ interface PlaylistResponse {
   playlist: PlaylistSuggestion[];
 }
 
-export async function generatePlaylist({ style, summary, userId, useFeedbackForPersonalization = true }: PlaylistRequest): Promise<PlaylistResponse> {
+export async function generatePlaylist({ style, userId, useFeedbackForPersonalization = true }: PlaylistRequest): Promise<PlaylistResponse> {
   // Rate limiting check
   if (!checkOllamaRateLimit('playlist_generation')) {
     console.warn('⚠️ Playlist generation rate limit reached, throttling request');

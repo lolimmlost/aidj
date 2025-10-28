@@ -33,6 +33,8 @@ interface AudioState {
   aiQueuedSongIds: Set<string>;
   aiDJIsLoading: boolean;
   aiDJError: string | null;
+  // Track recently recommended songs for diversity
+  aiDJRecentlyRecommended: Array<{songId: string; timestamp: number}>;
   // DJ mixing state
   djSession: DJSession | null;
   djQueue: DJQueueItem[];
@@ -92,6 +94,7 @@ export const useAudioStore = create<AudioState>()(
     aiQueuedSongIds: new Set<string>(),
     aiDJIsLoading: false,
     aiDJError: null,
+    aiDJRecentlyRecommended: [],
     // DJ mixing initial state
     djSession: null,
     djQueue: [],
@@ -379,6 +382,20 @@ export const useAudioStore = create<AudioState>()(
           state.currentSongIndex
         );
 
+        // Get recently recommended songs to avoid duplicates
+        const recentlyRecommended = state.aiDJRecentlyRecommended
+          .filter(rec => Date.now() - rec.timestamp < 3600000) // Only consider last hour
+          .map(rec => rec.songId);
+        
+        // Also exclude recently played songs for more variety
+        const recentlyPlayed = state.playlist.slice(
+          Math.max(0, state.currentSongIndex - 10),
+          state.currentSongIndex + 5 // Include upcoming songs too
+        ).map(song => song.id);
+
+        // Combine all exclusions
+        const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed])];
+
         // Call API endpoint to generate recommendations (server-side only)
         const response = await fetch('/api/ai-dj/recommendations', {
           method: 'POST',
@@ -389,8 +406,11 @@ export const useAudioStore = create<AudioState>()(
           body: JSON.stringify({
             currentSong,
             recentQueue,
+            fullPlaylist: state.playlist,
+            currentSongIndex: state.currentSongIndex,
             batchSize: recommendationSettings.aiDJBatchSize,
             useFeedbackForPersonalization: recommendationSettings.useFeedbackForPersonalization,
+            excludeSongIds: allExclusions,
           }),
         });
 
@@ -417,7 +437,19 @@ export const useAudioStore = create<AudioState>()(
         // Add recommendations to queue
         const newPlaylist = [...state.playlist, ...recommendations];
         const newQueuedIds = new Set(state.aiQueuedSongIds);
-        recommendations.forEach((song: Song) => newQueuedIds.add(song.id));
+        const now = Date.now();
+        
+        // Track newly recommended songs
+        const newRecentlyRecommended = [...state.aiDJRecentlyRecommended];
+        recommendations.forEach((song: Song) => {
+          newQueuedIds.add(song.id);
+          newRecentlyRecommended.push({ songId: song.id, timestamp: now });
+        });
+
+        // Clean up old recommendations (older than 2 hours)
+        const cleanedRecentlyRecommended = newRecentlyRecommended.filter(
+          rec => now - rec.timestamp < 7200000
+        );
 
         // Check if we need to start playback (empty queue case)
         const shouldStartPlayback = state.playlist.length === 0 || state.currentSongIndex === -1;
@@ -426,8 +458,9 @@ export const useAudioStore = create<AudioState>()(
           playlist: newPlaylist,
           currentSongIndex: shouldStartPlayback ? 0 : state.currentSongIndex,
           isPlaying: shouldStartPlayback ? true : state.isPlaying,
-          aiDJLastQueueTime: Date.now(),
+          aiDJLastQueueTime: now,
           aiQueuedSongIds: newQueuedIds,
+          aiDJRecentlyRecommended: cleanedRecentlyRecommended,
           aiDJIsLoading: false,
           aiDJError: null,
         });

@@ -1,5 +1,4 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { Link } from '@tanstack/react-router';
 import { Button } from './button';
 import { Volume2, VolumeX, SkipBack, SkipForward, Play, Pause, Heart, Loader2, AlertCircle } from 'lucide-react';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -41,7 +40,7 @@ const Slider = ({
   ariaValueText?: string;
   progressColor?: string;
 }) => {
-  const percentage = ((value - min) / (max - min)) * 100;
+  const percentage = max > 0 ? ((value - min) / (max - min)) * 100 : 0;
   
   return (
     <input
@@ -81,223 +80,6 @@ const Slider = ({
   );
 };
 
-// Song info component
-const SongInfo = ({ song, isPlaying, isLiked, onToggleLike, isPending, compact = false }: {
-  song: Song;
-  isPlaying: boolean;
-  isLiked: boolean;
-  onToggleLike: () => void;
-  isPending: boolean;
-  compact?: boolean;
-}) => {
-  const sizeClasses = compact
-    ? "w-12 h-12 text-xs sm:w-10 sm:h-10"
-    : "w-12 h-12 text-xs";
-    
-  const buttonClasses = compact
-    ? "min-h-[44px] min-w-[44px] h-10 w-10 sm:h-9 sm:w-9"
-    : "h-9 w-9";
-
-  return (
-    <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
-      <div className="relative">
-        <div className={cn(
-          "bg-gradient-to-br from-muted to-muted-foreground/20 rounded-lg flex items-center justify-center overflow-hidden",
-          sizeClasses
-        )}>
-          {song.artist && (
-            <span className="font-medium text-muted-foreground/70 truncate w-20">
-              {song.artist.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-            </span>
-          )}
-          {isPlaying && (
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 animate-pulse rounded-lg" />
-          )}
-        </div>
-      </div>
-      <div className="min-w-0 flex-1">
-        <Link
-          to="/library/artists/id/albums/albumId"
-          params={{ id: song.artist || 'unknown', albumId: song.albumId }}
-          className="font-semibold text-sm truncate block hover:text-primary transition-colors py-1"
-          title={song.name || song.title || 'Unknown Song'}
-        >
-          {song.name || song.title || 'Unknown Song'}
-        </Link>
-        <p className="text-xs text-muted-foreground truncate">
-          <span className="hover:text-primary transition-colors cursor-pointer" title={song.artist || 'Unknown Artist'}>
-            {song.artist || 'Unknown Artist'}
-          </span>
-          {song.album && (
-            <>
-              {' • '}
-              <Link
-                to="/library/artists/id/albums/albumId"
-                params={{ id: song.artist || 'unknown', albumId: song.albumId }}
-                className="hover:text-primary transition-colors"
-              >
-                {song.album}
-              </Link>
-            </>
-          )}
-        </p>
-      </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        className={cn(
-          "rounded-full hover:bg-accent/20",
-          isLiked ? "text-red-500" : "",
-          buttonClasses
-        )}
-        onClick={onToggleLike}
-        disabled={isPending}
-        aria-label={isLiked ? 'Unlike song' : 'Like song'}
-      >
-        <Heart className={cn("h-4 w-5", isLiked ? "fill-current" : "")} />
-      </Button>
-    </div>
-  );
-};
-
-// Playback controls component
-const PlaybackControls = ({
-  isPlaying,
-  onPrevious,
-  onPlayPause,
-  onNext,
-  compact = false,
-  isLoading = false
-}: {
-  isPlaying: boolean;
-  onPrevious: () => void;
-  onPlayPause: () => void;
-  onNext: () => void;
-  compact?: boolean;
-  isLoading?: boolean;
-}) => {
-  const controlSize = compact
-    ? "min-h-[44px] min-w-[44px] h-12 w-12 sm:h-11 sm:w-11"
-    : "h-11 w-11";
-    
-  const playButtonSize = compact
-    ? "min-h-[48px] min-w-[48px] h-14 w-14 sm:h-10 sm:w-10"
-    : "h-10 w-10";
-
-  return (
-    <div className="flex items-center space-x-2 sm:space-x-3">
-      <Button
-        variant="ghost"
-        size="sm"
-        className={cn(
-          "rounded-full hover:bg-accent/20 transition-colors",
-          controlSize
-        )}
-        onClick={onPrevious}
-        aria-label="Previous song"
-      >
-        <SkipBack className="h-5 w-5 sm:h-4 sm:w-4" />
-      </Button>
-
-      <Button
-        variant="ghost"
-        size="sm"
-        className={cn(
-          "rounded-full transition-all duration-200",
-          isPlaying ? "bg-primary hover:bg-primary/90" : "bg-accent hover:bg-accent/80",
-          playButtonSize
-        )}
-        onClick={onPlayPause}
-        disabled={isLoading}
-        aria-label={isPlaying ? "Pause" : "Play"}
-        aria-busy={isLoading}
-      >
-        {isLoading ? (
-          <Loader2 className="h-5 w-5 sm:h-4 sm:w-4 animate-spin" />
-        ) : isPlaying ? (
-          <Pause className="h-6 w-6 sm:h-5 sm:w-5" />
-        ) : (
-          <Play className="h-6 w-6 sm:h-5 sm:w-5 ml-0.5" />
-        )}
-      </Button>
-
-      <Button
-        variant="ghost"
-        size="sm"
-        className={cn(
-          "rounded-full hover:bg-accent/20 transition-colors",
-          controlSize
-        )}
-        onClick={onNext}
-        aria-label="Next song"
-      >
-        <SkipForward className="h-5 w-5 sm:h-4 sm:w-4" />
-      </Button>
-    </div>
-  );
-};
-
-// Progress bar component
-const ProgressBar = ({
-  currentTime,
-  duration,
-  onSeek,
-  compact = false
-}: {
-  currentTime: number;
-  duration: number;
-  onSeek: (time: number) => void;
-  compact?: boolean;
-}) => {
-  const formatTime = (time: number) => {
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  const containerClasses = compact
-    ? "flex items-center gap-2"
-    : "flex flex-col space-y-1 min-w-[180px]";
-
-  const sliderClasses = compact
-    ? "w-full h-3 relative min-h-[48px] flex items-center py-3"
-    : "w-full relative";
-
-  return (
-    <div className={containerClasses}>
-      {!compact && (
-        <div className="flex justify-between text-xs font-mono text-muted-foreground px-1">
-          <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(duration)}</span>
-        </div>
-      )}
-      <div className={sliderClasses}>
-        {compact && (
-          <span className="text-xs font-mono text-muted-foreground min-w-[2.5rem] sm:min-w-[3rem]">
-            {formatTime(currentTime)}
-          </span>
-        )}
-        <Slider
-          value={currentTime}
-          max={duration || 0}
-          step={0.1}
-          onChange={(e) => onSeek(Number(e.target.value))}
-          onInput={(e) => onSeek(Number(e.target.value))}
-          className={cn("w-full", compact ? "h-3" : "h-1.5")}
-          ariaLabel="Seek position"
-          ariaValueMax={duration || 0}
-          ariaValueNow={Math.round(currentTime)}
-          ariaValueText={`${formatTime(currentTime)} of ${formatTime(duration)}`}
-        />
-        {compact && (
-          <span className="text-xs font-mono text-muted-foreground min-w-[2.5rem] sm:min-w-[3rem]">
-            {formatTime(duration)}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-};
 
 // Volume control component
 const VolumeControl = ({ volume, onChange }: {
@@ -347,6 +129,17 @@ export type Song = {
   track: number;
   url: string;
   artist?: string; // Optional for display
+};
+
+// Helper function for time formatting
+const formatTime = (time: number) => {
+  // Handle NaN, undefined, or invalid values
+  if (!isFinite(time) || time < 0) {
+    return '0:00';
+  }
+  const minutes = Math.floor(time / 60);
+  const seconds = Math.floor(time % 60);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
 export function AudioPlayer() {
@@ -628,34 +421,117 @@ export function AudioPlayer() {
 
   return (
     <div
-      className="bg-background/95 backdrop-blur-sm border-t border-border/50 shadow-lg"
+      className="relative bg-gradient-to-r from-background via-background/98 to-background border-t border-border/50 shadow-2xl backdrop-blur-xl"
       role="region"
       aria-label="Audio Player"
     >
-      <div className="max-w-6xl mx-auto px-2 sm:px-4 py-2 sm:py-3">
-        {/* Mobile Layout (< 768px) - Stacked */}
+      {/* Gradient overlay for visual interest */}
+      <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-purple-500/5 pointer-events-none" />
+
+      <div className="relative w-full max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
+        {/* Mobile Layout (< 768px) - Navidrome Style */}
         <div className="md:hidden space-y-3" role="group" aria-label="Mobile audio controls">
           {/* Error Display */}
           {error && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-red-700 dark:text-red-300 text-sm" role="alert">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              <span>{error}</span>
+            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300 text-sm shadow-md animate-in slide-in-from-top-2 duration-300" role="alert">
+              <div className="p-1.5 bg-red-100 dark:bg-red-900/40 rounded-lg">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              </div>
+              <span className="flex-1">{error}</span>
             </div>
           )}
           
-          {/* Track Info + Controls */}
-          <div className="flex items-center justify-between gap-3" role="group" aria-label="Song information and playback controls">
-            <SongInfo
-              song={currentSong}
-              isPlaying={isPlaying}
-              isLiked={isLiked}
-              onToggleLike={handleToggleLike}
-              isPending={likeMutation.isPending}
-              compact
-            />
+          {/* Album Artwork + Song Info */}
+          <div className="flex items-start gap-3" role="group" aria-label="Song information">
+            {/* Album Artwork */}
+            <div className="relative flex-shrink-0">
+              <div className="w-16 h-16 bg-gradient-to-br from-primary/20 via-purple-500/10 to-pink-500/10 rounded-lg flex items-center justify-center overflow-hidden shadow-md ring-2 ring-primary/10 transition-all duration-300">
+                {currentSong.artist && (
+                  <span className="font-bold text-primary/70 truncate px-2 text-center text-sm">
+                    {currentSong.artist.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </span>
+                )}
+                {isPlaying && (
+                  <>
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-purple-500/20 animate-pulse rounded-lg" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="flex gap-0.5">
+                        <div className="w-0.5 h-2 bg-primary/60 animate-[wave_1s_ease-in-out_infinite]" style={{animationDelay: '0s'}} />
+                        <div className="w-0.5 h-3 bg-primary/60 animate-[wave_1s_ease-in-out_infinite]" style={{animationDelay: '0.1s'}} />
+                        <div className="w-0.5 h-2 bg-primary/60 animate-[wave_1s_ease-in-out_infinite]" style={{animationDelay: '0.2s'}} />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+              {/* Glow effect on playing */}
+              {isPlaying && (
+                <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full -z-10 animate-pulse" />
+              )}
+            </div>
             
-            {/* Mobile Controls */}
-            <div className="flex items-center space-x-2">
+            {/* Song Info */}
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-base truncate block hover:text-primary transition-colors leading-tight" title={currentSong.name || currentSong.title || 'Unknown Song'}>
+                {currentSong.name || currentSong.title || 'Unknown Song'}
+              </h3>
+              <p className="font-medium text-sm text-foreground/70 truncate mt-1">
+                <span className="hover:text-primary transition-colors cursor-pointer" title={currentSong.artist || 'Unknown Artist'}>
+                  {currentSong.artist || 'Unknown Artist'}
+                </span>
+                {currentSong.album && (
+                  <>
+                    {' • '}
+                    <span className="hover:text-primary transition-colors cursor-pointer" title={currentSong.album}>
+                      {currentSong.album}
+                    </span>
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div role="group" aria-label="Playback progress">
+            <div className="flex items-center gap-2 px-1">
+              <span className="text-xs font-mono text-muted-foreground min-w-[2.5rem]">
+                {formatTime(currentTime)}
+              </span>
+              <Slider
+                value={isFinite(currentTime) ? currentTime : 0}
+                max={isFinite(duration) ? duration : 0}
+                step={0.1}
+                onChange={(e) => seek(Number(e.target.value))}
+                onInput={(e) => seek(Number(e.target.value))}
+                className="flex-1 h-2"
+                ariaLabel="Seek position"
+                ariaValueMax={isFinite(duration) ? duration : 0}
+                ariaValueNow={Math.round(isFinite(currentTime) ? currentTime : 0)}
+                progressColor={isFinite(duration) && duration > 0
+                  ? `linear-gradient(to right, hsl(var(--primary)) ${(currentTime / duration) * 100}%, hsl(var(--muted)) ${(currentTime / duration) * 100}%)`
+                  : 'hsl(var(--muted))'
+                }
+              />
+              <span className="text-xs font-mono text-muted-foreground min-w-[2.5rem]">
+                {formatTime(duration)}
+              </span>
+            </div>
+          </div>
+
+          {/* Mobile Controls */}
+          <div className="flex items-center justify-between gap-2" role="group" aria-label="Playback controls">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full hover:bg-accent/20"
+                onClick={handleToggleLike}
+                disabled={likeMutation.isPending}
+                aria-label={isLiked ? 'Unlike song' : 'Like song'}
+              >
+                <Heart className={cn("h-4 w-4", isLiked ? "fill-current text-red-500" : "")} />
+              </Button>
+              
               <div className="min-h-[44px] min-w-[44px] flex items-center">
                 <AddToPlaylistButton
                   songId={currentSong.id}
@@ -664,74 +540,198 @@ export function AudioPlayer() {
                   size="icon"
                 />
               </div>
-              <PlaybackControls
-                isPlaying={isPlaying}
-                onPrevious={previousSong}
-                onPlayPause={togglePlayPause}
-                onNext={nextSong}
-                compact
-                isLoading={isLoading}
-              />
             </div>
-          </div>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full hover:bg-accent/20"
+                onClick={previousSong}
+                aria-label="Previous song"
+              >
+                <SkipBack className="h-4 w-4" />
+              </Button>
 
-          {/* Mobile Progress Bar */}
-          <div role="group" aria-label="Playback progress">
-            <ProgressBar
-              currentTime={currentTime}
-              duration={duration}
-              onSeek={seek}
-              compact
-            />
-          </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full transition-all duration-300 shadow-lg hover:scale-105 relative"
+                onClick={togglePlayPause}
+                disabled={isLoading}
+                aria-label={isPlaying ? "Pause" : "Play"}
+                aria-busy={isLoading}
+              >
+                {isPlaying && (
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-md -z-10 animate-pulse" />
+                )}
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isPlaying ? (
+                  <Pause className="h-4 w-4" />
+                ) : (
+                  <Play className="h-4 w-4 ml-0.5" />
+                )}
+              </Button>
 
-          {/* Mobile AI DJ Toggle */}
-          <div className="pt-3 border-t border-border/50" role="group" aria-label="AI DJ controls">
-            <AIDJToggle compact />
-          </div>
-        </div>
-
-        {/* Desktop Layout (>= 768px) - Horizontal */}
-        <div className="hidden md:flex items-center justify-between" role="group" aria-label="Desktop audio controls">
-          {/* Track Info - Left Side */}
-          <div role="group" aria-label="Song information">
-            <SongInfo
-              song={currentSong}
-              isPlaying={isPlaying}
-              isLiked={isLiked}
-              onToggleLike={handleToggleLike}
-              isPending={likeMutation.isPending}
-            />
-          </div>
-
-          {/* Controls - Center */}
-          <div className="px-6" role="group" aria-label="Playback controls">
-            <PlaybackControls
-              isPlaying={isPlaying}
-              onPrevious={previousSong}
-              onPlayPause={togglePlayPause}
-              onNext={nextSong}
-              isLoading={isLoading}
-            />
-          </div>
-
-          {/* Progress & Volume - Right Side */}
-          <div className="flex items-center space-x-4" role="group" aria-label="Audio settings">
-            <div role="group" aria-label="Playback progress">
-              <ProgressBar
-                currentTime={currentTime}
-                duration={duration}
-                onSeek={seek}
-              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full hover:bg-accent/20"
+                onClick={nextSong}
+                aria-label="Next song"
+              >
+                <SkipForward className="h-4 w-4" />
+              </Button>
             </div>
-            <div role="group" aria-label="Volume controls">
+            
+            <div className="flex items-center gap-2">
               <VolumeControl
                 volume={volume}
                 onChange={changeVolume}
               />
+              <AIDJToggle compact />
             </div>
-            <div className="pl-4 border-l border-border/50" role="group" aria-label="AI DJ controls">
-              <AIDJToggle />
+          </div>
+        </div>
+
+        {/* Desktop Layout (>= 768px) - Navidrome Style */}
+        <div className="hidden md:flex items-center gap-4 flex-shrink-0" role="group" aria-label="Desktop audio controls">
+          {/* Album Artwork - Left Side */}
+          <div className="relative flex-shrink-0" role="group" aria-label="Album artwork">
+            <div className="w-20 h-20 bg-gradient-to-br from-primary/20 via-purple-500/10 to-pink-500/10 rounded-xl flex items-center justify-center overflow-hidden shadow-lg ring-2 ring-primary/10 transition-all duration-300">
+              {currentSong.artist && (
+                <span className="font-bold text-primary/70 truncate px-2 text-center text-lg">
+                  {currentSong.artist.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                </span>
+              )}
+              {isPlaying && (
+                <>
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-purple-500/20 animate-pulse rounded-xl" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="flex gap-0.5">
+                      <div className="w-0.5 h-3 bg-primary/60 animate-[wave_1s_ease-in-out_infinite]" style={{animationDelay: '0s'}} />
+                      <div className="w-0.5 h-4 bg-primary/60 animate-[wave_1s_ease-in-out_infinite]" style={{animationDelay: '0.1s'}} />
+                      <div className="w-0.5 h-3 bg-primary/60 animate-[wave_1s_ease-in-out_infinite]" style={{animationDelay: '0.2s'}} />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            {/* Glow effect on playing */}
+            {isPlaying && (
+              <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full -z-10 animate-pulse" />
+            )}
+          </div>
+
+          {/* Song Information - Middle */}
+          <div className="flex-1 min-w-0" role="group" aria-label="Song information">
+            <div className="space-y-1">
+              <h3 className="font-semibold text-lg truncate block hover:text-primary transition-colors leading-tight" title={currentSong.name || currentSong.title || 'Unknown Song'}>
+                {currentSong.name || currentSong.title || 'Unknown Song'}
+              </h3>
+              <p className="font-medium text-sm text-foreground/70 truncate">
+                <span className="hover:text-primary transition-colors cursor-pointer" title={currentSong.artist || 'Unknown Artist'}>
+                  {currentSong.artist || 'Unknown Artist'}
+                </span>
+                {currentSong.album && (
+                  <>
+                    {' • '}
+                    <span className="hover:text-primary transition-colors cursor-pointer" title={currentSong.album}>
+                      {currentSong.album}
+                    </span>
+                  </>
+                )}
+              </p>
+              {/* Progress Bar */}
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs font-mono text-muted-foreground min-w-[2.5rem]">
+                  {formatTime(currentTime)}
+                </span>
+                <Slider
+                  value={isFinite(currentTime) ? currentTime : 0}
+                  max={isFinite(duration) ? duration : 0}
+                  step={0.1}
+                  onChange={(e) => seek(Number(e.target.value))}
+                  onInput={(e) => seek(Number(e.target.value))}
+                  className="flex-1 h-2"
+                  ariaLabel="Seek position"
+                  ariaValueMax={isFinite(duration) ? duration : 0}
+                  ariaValueNow={Math.round(isFinite(currentTime) ? currentTime : 0)}
+                  progressColor={isFinite(duration) && duration > 0
+                    ? `linear-gradient(to right, hsl(var(--primary)) ${(currentTime / duration) * 100}%, hsl(var(--muted)) ${(currentTime / duration) * 100}%)`
+                    : 'hsl(var(--muted))'
+                  }
+                />
+                <span className="text-xs font-mono text-muted-foreground min-w-[2.5rem]">
+                  {formatTime(duration)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Controls - Right Side */}
+          <div className="flex items-center gap-2 flex-shrink-0" role="group" aria-label="Playback controls">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full hover:bg-accent/20"
+              onClick={handleToggleLike}
+              disabled={likeMutation.isPending}
+              aria-label={isLiked ? 'Unlike song' : 'Like song'}
+            >
+              <Heart className={cn("h-5 w-5", isLiked ? "fill-current text-red-500" : "")} />
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full hover:bg-accent/20"
+              onClick={previousSong}
+              aria-label="Previous song"
+            >
+              <SkipBack className="h-5 w-5" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full transition-all duration-300 shadow-lg hover:scale-105 relative"
+              onClick={togglePlayPause}
+              disabled={isLoading}
+              aria-label={isPlaying ? "Pause" : "Play"}
+              aria-busy={isLoading}
+            >
+              {isPlaying && (
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-md -z-10 animate-pulse" />
+              )}
+              {isLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : isPlaying ? (
+                <Pause className="h-5 w-5" />
+              ) : (
+                <Play className="h-5 w-5 ml-0.5" />
+              )}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full hover:bg-accent/20"
+              onClick={nextSong}
+              aria-label="Next song"
+            >
+              <SkipForward className="h-5 w-5" />
+            </Button>
+
+            <div className="pl-2 border-l border-border/50 flex-shrink-0" role="group" aria-label="Additional controls">
+              <div className="flex items-center gap-2">
+                <VolumeControl
+                  volume={volume}
+                  onChange={changeVolume}
+                />
+                <AIDJToggle compact />
+              </div>
             </div>
           </div>
         </div>

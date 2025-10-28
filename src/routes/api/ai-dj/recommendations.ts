@@ -9,11 +9,14 @@ export const ServerRoute = createServerFileRoute('/api/ai-dj/recommendations').m
   POST: async ({ request }: { request: Request }) => {
     try {
       const body = await request.json();
-      const { currentSong, recentQueue, batchSize, useFeedbackForPersonalization } = body as {
+      const { currentSong, recentQueue, fullPlaylist, currentSongIndex, batchSize, useFeedbackForPersonalization, excludeSongIds } = body as {
         currentSong: Song;
         recentQueue: Song[];
+        fullPlaylist?: Song[];
+        currentSongIndex?: number;
         batchSize: number;
         useFeedbackForPersonalization: boolean;
+        excludeSongIds?: string[];
       };
 
       if (!currentSong) {
@@ -29,6 +32,8 @@ export const ServerRoute = createServerFileRoute('/api/ai-dj/recommendations').m
       const context: AIContext = {
         currentSong,
         recentQueue: recentQueue || [],
+        fullPlaylist,
+        currentSongIndex,
       };
 
       // Get user ID from session/auth (if available)
@@ -39,7 +44,8 @@ export const ServerRoute = createServerFileRoute('/api/ai-dj/recommendations').m
         context,
         batchSize || 3,
         userId,
-        useFeedbackForPersonalization
+        useFeedbackForPersonalization,
+        excludeSongIds || []
       );
 
       return new Response(
