@@ -55,6 +55,7 @@ import { ServerRoute as ApiLibraryProfileAnalyzeServerRouteImport } from "./rout
 import { ServerRoute as ApiAuthRegisterServerRouteImport } from "./routes/api/auth/register";
 import { ServerRoute as ApiAuthLoginServerRouteImport } from "./routes/api/auth/login";
 import { ServerRoute as ApiAuthSplatServerRouteImport } from "./routes/api/auth/$";
+import { ServerRoute as ApiAiDjRecommendationsServerRouteImport } from "./routes/api/ai-dj/recommendations";
 import { ServerRoute as ApiPlaylistsSmartIndexServerRouteImport } from "./routes/api/playlists/smart/index";
 import { ServerRoute as ApiPlaylistsSmartPreviewServerRouteImport } from "./routes/api/playlists/smart/preview";
 import { ServerRoute as ApiPlaylistsLikedSongsSyncServerRouteImport } from "./routes/api/playlists/liked-songs/sync";
@@ -296,6 +297,12 @@ const ApiAuthSplatServerRoute = ApiAuthSplatServerRouteImport.update({
   path: "/api/auth/$",
   getParentRoute: () => rootServerRouteImport,
 } as any);
+const ApiAiDjRecommendationsServerRoute =
+  ApiAiDjRecommendationsServerRouteImport.update({
+    id: "/api/ai-dj/recommendations",
+    path: "/api/ai-dj/recommendations",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
 const ApiPlaylistsSmartIndexServerRoute =
   ApiPlaylistsSmartIndexServerRouteImport.update({
     id: "/api/playlists/smart/",
@@ -490,6 +497,7 @@ export interface FileServerRoutesByFullPath {
   "/api/preferences": typeof ApiPreferencesServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRouteWithChildren;
   "/api/search": typeof ApiSearchServerRoute;
+  "/api/ai-dj/recommendations": typeof ApiAiDjRecommendationsServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
@@ -525,6 +533,7 @@ export interface FileServerRoutesByTo {
   "/api/preferences": typeof ApiPreferencesServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRouteWithChildren;
   "/api/search": typeof ApiSearchServerRoute;
+  "/api/ai-dj/recommendations": typeof ApiAiDjRecommendationsServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
@@ -561,6 +570,7 @@ export interface FileServerRoutesById {
   "/api/preferences": typeof ApiPreferencesServerRoute;
   "/api/recommendations": typeof ApiRecommendationsServerRouteWithChildren;
   "/api/search": typeof ApiSearchServerRoute;
+  "/api/ai-dj/recommendations": typeof ApiAiDjRecommendationsServerRoute;
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
@@ -598,6 +608,7 @@ export interface FileServerRouteTypes {
     | "/api/preferences"
     | "/api/recommendations"
     | "/api/search"
+    | "/api/ai-dj/recommendations"
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
@@ -633,6 +644,7 @@ export interface FileServerRouteTypes {
     | "/api/preferences"
     | "/api/recommendations"
     | "/api/search"
+    | "/api/ai-dj/recommendations"
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
@@ -668,6 +680,7 @@ export interface FileServerRouteTypes {
     | "/api/preferences"
     | "/api/recommendations"
     | "/api/search"
+    | "/api/ai-dj/recommendations"
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
@@ -704,6 +717,7 @@ export interface RootServerRouteChildren {
   ApiPreferencesServerRoute: typeof ApiPreferencesServerRoute;
   ApiRecommendationsServerRoute: typeof ApiRecommendationsServerRouteWithChildren;
   ApiSearchServerRoute: typeof ApiSearchServerRoute;
+  ApiAiDjRecommendationsServerRoute: typeof ApiAiDjRecommendationsServerRoute;
   ApiAuthSplatServerRoute: typeof ApiAuthSplatServerRoute;
   ApiAuthLoginServerRoute: typeof ApiAuthLoginServerRoute;
   ApiAuthRegisterServerRoute: typeof ApiAuthRegisterServerRoute;
@@ -1039,6 +1053,13 @@ declare module "@tanstack/react-start/server" {
       preLoaderRoute: typeof ApiAuthSplatServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
+    "/api/ai-dj/recommendations": {
+      id: "/api/ai-dj/recommendations";
+      path: "/api/ai-dj/recommendations";
+      fullPath: "/api/ai-dj/recommendations";
+      preLoaderRoute: typeof ApiAiDjRecommendationsServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
     "/api/playlists/smart/": {
       id: "/api/playlists/smart/";
       path: "/api/playlists/smart";
@@ -1216,6 +1237,7 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiPreferencesServerRoute: ApiPreferencesServerRoute,
   ApiRecommendationsServerRoute: ApiRecommendationsServerRouteWithChildren,
   ApiSearchServerRoute: ApiSearchServerRoute,
+  ApiAiDjRecommendationsServerRoute: ApiAiDjRecommendationsServerRoute,
   ApiAuthSplatServerRoute: ApiAuthSplatServerRoute,
   ApiAuthLoginServerRoute: ApiAuthLoginServerRoute,
   ApiAuthRegisterServerRoute: ApiAuthRegisterServerRoute,

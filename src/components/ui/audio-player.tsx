@@ -4,6 +4,7 @@ import { Button } from './button';
 import { Volume2, VolumeX, SkipBack, SkipForward, Play, Pause, Heart } from 'lucide-react';
 import { useAudioStore } from '@/lib/stores/audio';
 import { AddToPlaylistButton } from '../playlists/AddToPlaylistButton';
+import { AIDJToggle } from '../ai-dj-toggle';
 import { scrobbleSong } from '@/lib/services/navidrome';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -380,6 +381,11 @@ export function AudioPlayer() {
               {formatTime(duration)}
             </span>
           </div>
+
+          {/* Mobile AI DJ Toggle */}
+          <div className="pt-2 border-t border-border/50">
+            <AIDJToggle compact />
+          </div>
         </div>
 
         {/* Desktop Layout (>= 768px) - Original Horizontal */}
@@ -561,6 +567,11 @@ export function AudioPlayer() {
                 aria-valuemax={100}
                 aria-valuenow={Math.round(volume * 100)}
               />
+            </div>
+
+            {/* AI DJ Toggle */}
+            <div className="pl-4 border-l border-border/50">
+              <AIDJToggle />
             </div>
           </div>
         </div>

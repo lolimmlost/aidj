@@ -28,9 +28,10 @@ interface SortableQueueItemProps {
   actualIndex: number;
   onRemove: (index: number) => void;
   onPlay: (index: number) => void;
+  isAIQueued?: boolean;
 }
 
-function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay }: SortableQueueItemProps) {
+function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued }: SortableQueueItemProps) {
   const {
     attributes,
     listeners,
@@ -50,7 +51,10 @@ function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay }: Sorta
     <div
       ref={setNodeRef}
       style={style}
-      className="group flex items-start gap-2 p-2 rounded hover:bg-accent transition-colors"
+      className={`group flex items-start gap-2 p-2 rounded hover:bg-accent transition-colors ${
+        isAIQueued ? 'bg-blue-50 dark:bg-blue-950/20' : ''
+      }`}
+      title={isAIQueued ? 'Added by AI DJ' : ''}
     >
       <button
         className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5 flex-shrink-0 touch-none"
@@ -74,7 +78,14 @@ function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay }: Sorta
           }
         }}
       >
-        <p className="font-medium text-sm truncate">{song.title}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="font-medium text-sm truncate">{song.title}</p>
+          {isAIQueued && (
+            <span className="text-xs flex-shrink-0" title="Added by AI DJ">
+              ✨
+            </span>
+          )}
+        </div>
         <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
       </div>
       <Button
@@ -94,7 +105,20 @@ function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay }: Sorta
 }
 
 export function QueuePanel() {
-  const { playlist, currentSongIndex, getUpcomingQueue, removeFromQueue, clearQueue, reorderQueue, playSong, setIsPlaying } = useAudioStore();
+  const {
+    playlist,
+    currentSongIndex,
+    getUpcomingQueue,
+    removeFromQueue,
+    clearQueue,
+    reorderQueue,
+    playSong,
+    setIsPlaying,
+    aiQueuedSongIds,
+    aiDJEnabled,
+    aiDJIsLoading,
+    aiDJLastQueueTime,
+  } = useAudioStore();
   const [isOpen, setIsOpen] = useState(false);
 
   const sensors = useSensors(
@@ -182,6 +206,33 @@ export function QueuePanel() {
               <X className="h-4 w-4" />
             </Button>
           </div>
+
+          {/* AI DJ Status */}
+          {aiDJEnabled && (
+            <div className="mt-3 pt-3 border-t">
+              {aiDJIsLoading ? (
+                <div className="flex items-center gap-2 text-xs text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1.5 rounded">
+                  <span className="animate-spin">⏳</span>
+                  <span>AI DJ fetching songs...</span>
+                </div>
+              ) : aiQueuedSongIds.size > 0 ? (
+                <div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 rounded">
+                  <span>✨</span>
+                  <span>
+                    {aiQueuedSongIds.size} AI {aiQueuedSongIds.size === 1 ? 'song' : 'songs'} in queue
+                    {aiDJLastQueueTime > 0 && (
+                      <> • {Math.floor((Date.now() - aiDJLastQueueTime) / 60000)}m ago</>
+                    )}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1.5 rounded">
+                  <span>✨</span>
+                  <span>AI DJ Active • Watching queue</span>
+                </div>
+              )}
+            </div>
+          )}
         </CardHeader>
         <CardContent className="pb-3">
           {currentSong && (
@@ -217,6 +268,7 @@ export function QueuePanel() {
                     <div className="space-y-1">
                       {upcomingQueue.map((song, index) => {
                         const actualIndex = currentSongIndex + 1 + index;
+                        const isAIQueued = aiQueuedSongIds.has(song.id);
                         return (
                           <SortableQueueItem
                             key={song.id}
@@ -225,6 +277,7 @@ export function QueuePanel() {
                             actualIndex={actualIndex}
                             onRemove={removeFromQueue}
                             onPlay={handlePlaySong}
+                            isAIQueued={isAIQueued}
                           />
                         );
                       })}

@@ -1,5 +1,21 @@
 import { create } from 'zustand';
 import type { Song } from '@/components/ui/audio-player';
+import { usePreferencesStore } from './preferences';
+import { toast } from 'sonner';
+
+// Client-side helper functions (moved from ai-dj.ts to avoid server imports)
+function checkQueueThreshold(
+  currentSongIndex: number,
+  playlistLength: number,
+  threshold: number
+): boolean {
+  const remainingSongs = playlistLength - currentSongIndex - 1;
+  return remainingSongs <= threshold;
+}
+
+function checkCooldown(lastQueueTime: number, cooldownMs: number = 30000): boolean {
+  return Date.now() - lastQueueTime >= cooldownMs;
+}
 
 interface AudioState {
   playlist: Song[];
@@ -8,6 +24,13 @@ interface AudioState {
   currentTime: number;
   duration: number;
   volume: number;
+  // AI DJ state (Story 3.9)
+  aiDJEnabled: boolean;
+  aiDJLastQueueTime: number;
+  aiQueuedSongIds: Set<string>;
+  aiDJIsLoading: boolean;
+  aiDJError: string | null;
+
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
   setIsPlaying: (playing: boolean) => void;
@@ -25,6 +48,9 @@ interface AudioState {
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
   reorderQueue: (fromIndex: number, toIndex: number) => void;
+  // AI DJ actions (Story 3.9)
+  setAIDJEnabled: (enabled: boolean) => void;
+  monitorQueueForAIDJ: () => Promise<void>;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -35,6 +61,12 @@ export const useAudioStore = create<AudioState>()(
     currentTime: 0,
     duration: 0,
     volume: 0.5,
+    // AI DJ initial state (Story 3.9)
+    aiDJEnabled: false,
+    aiDJLastQueueTime: 0,
+    aiQueuedSongIds: new Set<string>(),
+    aiDJIsLoading: false,
+    aiDJError: null,
 
     setPlaylist: (songs: Song[]) => set({ playlist: songs, currentSongIndex: 0 }),
 
@@ -84,6 +116,16 @@ export const useAudioStore = create<AudioState>()(
       if (state.playlist.length === 0) return;
       const newIndex = (state.currentSongIndex + 1) % state.playlist.length;
       set({ currentSongIndex: newIndex });
+
+      // Trigger AI DJ monitoring when song changes
+      if (state.aiDJEnabled) {
+        // Use setTimeout to avoid blocking the song change
+        setTimeout(() => {
+          get().monitorQueueForAIDJ().catch(error => {
+            console.error('AI DJ monitoring error after nextSong:', error);
+          });
+        }, 100);
+      }
     },
 
     previousSong: () => {
@@ -215,6 +257,164 @@ export const useAudioStore = create<AudioState>()(
       }
 
       set({ playlist: newPlaylist, currentSongIndex: newCurrentIndex });
+    },
+
+    // AI DJ actions (Story 3.9)
+    setAIDJEnabled: (enabled: boolean) => {
+      set({ aiDJEnabled: enabled, aiDJError: null });
+
+      // If enabled, trigger monitoring
+      if (enabled) {
+        const state = get();
+        state.monitorQueueForAIDJ().catch(error => {
+          console.error('AI DJ monitoring error:', error);
+        });
+      }
+    },
+
+    monitorQueueForAIDJ: async () => {
+      const state = get();
+
+      // Safety checks
+      if (!state.aiDJEnabled) {
+        console.log('🎵 AI DJ: Disabled, skipping monitoring');
+        return;
+      }
+
+      if (state.aiDJIsLoading) {
+        console.log('🎵 AI DJ: Already loading recommendations, skipping');
+        return;
+      }
+
+      // Get preferences
+      const preferencesState = usePreferencesStore.getState();
+      const { recommendationSettings } = preferencesState.preferences;
+
+      // Check if AI is globally disabled
+      if (!recommendationSettings.aiEnabled) {
+        console.log('🎵 AI DJ: Global AI disabled, skipping');
+        return;
+      }
+
+      // Check if AI DJ is enabled in preferences
+      if (!recommendationSettings.aiDJEnabled) {
+        console.log('🎵 AI DJ: AI DJ disabled in preferences, skipping');
+        return;
+      }
+
+      // Check queue threshold
+      const needsRefill = checkQueueThreshold(
+        state.currentSongIndex,
+        state.playlist.length,
+        recommendationSettings.aiDJQueueThreshold
+      );
+
+      if (!needsRefill) {
+        console.log(`🎵 AI DJ: Queue has enough songs (${state.playlist.length - state.currentSongIndex - 1} remaining, threshold: ${recommendationSettings.aiDJQueueThreshold})`);
+        return;
+      }
+
+      // Check cooldown
+      if (!checkCooldown(state.aiDJLastQueueTime)) {
+        const remaining = Math.ceil((30000 - (Date.now() - state.aiDJLastQueueTime)) / 1000);
+        console.log(`🎵 AI DJ: Cooldown active, ${remaining}s remaining`);
+        return;
+      }
+
+      // All checks passed, fetch recommendations
+      console.log('🎵 AI DJ: Queue needs refill, fetching recommendations...');
+      set({ aiDJIsLoading: true, aiDJError: null });
+
+      try {
+        const currentSong = state.playlist[state.currentSongIndex];
+        if (!currentSong) {
+          console.warn('🎵 AI DJ: No current song, skipping');
+          set({ aiDJIsLoading: false });
+          return;
+        }
+
+        // Build context from current song and recent queue
+        const recentQueue = state.playlist.slice(
+          Math.max(0, state.currentSongIndex - 5),
+          state.currentSongIndex
+        );
+
+        // Call API endpoint to generate recommendations (server-side only)
+        const response = await fetch('/api/ai-dj/recommendations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            currentSong,
+            recentQueue,
+            batchSize: recommendationSettings.aiDJBatchSize,
+            useFeedbackForPersonalization: recommendationSettings.useFeedbackForPersonalization,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to fetch AI DJ recommendations');
+        }
+
+        const { recommendations } = await response.json();
+
+        if (recommendations.length === 0) {
+          console.warn('🎵 AI DJ: No recommendations generated');
+          const errorMsg = 'No recommendations available';
+          set({
+            aiDJIsLoading: false,
+            aiDJError: errorMsg,
+          });
+          toast.error('AI DJ Error', {
+            description: errorMsg,
+          });
+          return;
+        }
+
+        // Add recommendations to queue
+        const newPlaylist = [...state.playlist, ...recommendations];
+        const newQueuedIds = new Set(state.aiQueuedSongIds);
+        recommendations.forEach(song => newQueuedIds.add(song.id));
+
+        // Check if we need to start playback (empty queue case)
+        const shouldStartPlayback = state.playlist.length === 0 || state.currentSongIndex === -1;
+
+        set({
+          playlist: newPlaylist,
+          currentSongIndex: shouldStartPlayback ? 0 : state.currentSongIndex,
+          isPlaying: shouldStartPlayback ? true : state.isPlaying,
+          aiDJLastQueueTime: Date.now(),
+          aiQueuedSongIds: newQueuedIds,
+          aiDJIsLoading: false,
+          aiDJError: null,
+        });
+
+        console.log(`✅ AI DJ: Added ${recommendations.length} songs to queue`);
+        toast.success(`✨ AI DJ added ${recommendations.length} ${recommendations.length === 1 ? 'song' : 'songs'} to your queue`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'AI DJ failed to generate recommendations';
+        console.error('🎵 AI DJ Error:', errorMessage);
+        set({
+          aiDJIsLoading: false,
+          aiDJError: errorMessage,
+        });
+        toast.error('AI DJ Error', {
+          description: errorMessage,
+          action: {
+            label: 'Retry',
+            onClick: () => {
+              // Reset error and retry
+              set({ aiDJError: null });
+              get().monitorQueueForAIDJ().catch(err => {
+                console.error('AI DJ retry failed:', err);
+              });
+            },
+          },
+        });
+      }
     },
   })
 );

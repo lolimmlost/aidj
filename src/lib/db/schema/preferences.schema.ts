@@ -15,12 +15,21 @@ export const userPreferences = pgTable("user_preferences", {
     styleBasedPlaylists: boolean;
     useFeedbackForPersonalization: boolean; // Privacy: Use feedback to improve recommendations
     enableSeasonalRecommendations: boolean; // Story 3.11: Seasonal adjustments
+    // Story 3.9: AI DJ Mode
+    aiDJEnabled: boolean; // AI DJ specific toggle
+    aiDJQueueThreshold: number; // Queue remaining songs trigger (1-5)
+    aiDJBatchSize: number; // How many songs to add at a time (1-10)
+    aiDJUseCurrentContext: boolean; // Use current song for context
   }>().default({
     aiEnabled: true,
     frequency: 'always',
     styleBasedPlaylists: true,
     useFeedbackForPersonalization: true,
     enableSeasonalRecommendations: true,
+    aiDJEnabled: false,
+    aiDJQueueThreshold: 2,
+    aiDJBatchSize: 3,
+    aiDJUseCurrentContext: true,
   }).notNull(),
 
   // Playback settings

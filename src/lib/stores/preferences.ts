@@ -7,6 +7,12 @@ export interface RecommendationSettings {
   frequency: 'always' | 'daily' | 'weekly';
   styleBasedPlaylists: boolean;
   useFeedbackForPersonalization: boolean;
+  enableSeasonalRecommendations?: boolean;
+  // Story 3.9: AI DJ Mode
+  aiDJEnabled: boolean;
+  aiDJQueueThreshold: number;
+  aiDJBatchSize: number;
+  aiDJUseCurrentContext: boolean;
 }
 
 export interface PlaybackSettings {
@@ -60,6 +66,11 @@ const defaultPreferences: UserPreferences = {
     frequency: 'always',
     styleBasedPlaylists: true,
     useFeedbackForPersonalization: true,
+    enableSeasonalRecommendations: true,
+    aiDJEnabled: false,
+    aiDJQueueThreshold: 2,
+    aiDJBatchSize: 3,
+    aiDJUseCurrentContext: true,
   },
   playbackSettings: {
     volume: 0.5,

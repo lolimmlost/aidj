@@ -43,6 +43,13 @@
       "when": 1761436156864,
       "tag": "0005_careful_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1761597103988,
+      "tag": "0006_massive_oracle",
+      "breakpoints": true
     }
   ]
 }

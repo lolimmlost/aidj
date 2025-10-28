@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { usePreferencesStore } from '@/lib/stores/preferences';
+import { AIDJSettings } from '@/components/ai-dj-settings';
 
 export function RecommendationSettings() {
   const { preferences, setRecommendationSettings, isLoading } = usePreferencesStore();
@@ -112,6 +113,23 @@ export function RecommendationSettings() {
           />
         </div>
 
+        {/* Privacy: Use Feedback for Personalization */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="use-feedback">Use Feedback for Personalization</Label>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Use your song ratings and feedback to improve recommendations
+            </p>
+          </div>
+          <Switch
+            id="use-feedback"
+            checked={localSettings.useFeedbackForPersonalization}
+            onCheckedChange={(checked) =>
+              setLocalSettings({ ...localSettings, useFeedbackForPersonalization: checked })
+            }
+          />
+        </div>
+
         {/* Save Button */}
         <div className="pt-4">
           <Button
@@ -135,6 +153,11 @@ export function RecommendationSettings() {
             {message.text}
           </div>
         )}
+      </div>
+
+      {/* AI DJ Settings Section (Story 3.9) */}
+      <div className="mt-6">
+        <AIDJSettings />
       </div>
     </Card>
   );

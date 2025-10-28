@@ -1,0 +1,1 @@
+ALTER TABLE "user_preferences" ALTER COLUMN "recommendation_settings" SET DEFAULT '{"aiEnabled":true,"frequency":"always","styleBasedPlaylists":true,"useFeedbackForPersonalization":true,"enableSeasonalRecommendations":true,"aiDJEnabled":false,"aiDJQueueThreshold":2,"aiDJBatchSize":3,"aiDJUseCurrentContext":true}'::jsonb;
