@@ -810,6 +810,146 @@ function DashboardIndex() {
         <PreferenceInsights />
       )}
 
+      {/* DJ Features Section */}
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-2">DJ Features</h2>
+          <p className="text-muted-foreground">
+            Professional DJ tools and features to enhance your mixing experience
+          </p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {/* DJ Mixer */}
+          <Link
+            to="/dj/mixer"
+            className="block"
+          >
+            <div className="h-full p-6 bg-card text-card-foreground border-2 border-card rounded-lg transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 cursor-pointer">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 2a10 10 0 0 0 10 10"/>
+                  </svg>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-primary text-primary-foreground text-xs px-2 py-1 rounded">
+                    NEW
+                  </span>
+                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                    Pro
+                  </span>
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold mb-2">DJ Mixer</h3>
+              <p className="text-sm text-muted-foreground">
+                Professional DJ mixing interface with dual decks, crossfader, and real-time audio visualization
+              </p>
+            </div>
+          </Link>
+
+          {/* DJ Queue Manager */}
+          <Link
+            to="/dj/queue"
+            className="block"
+          >
+            <div className="h-full p-6 bg-card text-card-foreground border-2 border-card rounded-lg transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 cursor-pointer">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 18V5l12-2v13"/>
+                    <path d="m9 9 6 6"/>
+                    <circle cx="6" cy="18" r="3"/>
+                    <circle cx="18" cy="16" r="3"/>
+                  </svg>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-primary text-primary-foreground text-xs px-2 py-1 rounded">
+                    NEW
+                  </span>
+                  <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
+                    Auto
+                  </span>
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold mb-2">DJ Queue Manager</h3>
+              <p className="text-sm text-muted-foreground">
+                Advanced queue management with auto-mixing, priority settings, and smart recommendations
+              </p>
+            </div>
+          </Link>
+
+          {/* DJ Controls */}
+          <Link
+            to="/dj/controls"
+            className="block"
+          >
+            <div className="h-full p-6 bg-card text-card-foreground border-2 border-card rounded-lg transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 cursor-pointer">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2v20"/>
+                    <path d="M8 10h8"/>
+                    <path d="M8 14h8"/>
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold mb-2">DJ Controls</h3>
+              <p className="text-sm text-muted-foreground">
+                Essential DJ controls for playback, crossfading, and session management
+              </p>
+            </div>
+          </Link>
+
+          {/* AI DJ Assistant */}
+          <Link
+            to="/dj/ai-assistant"
+            className="block"
+          >
+            <div className="h-full p-6 bg-card text-card-foreground border-2 border-card rounded-lg transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50 cursor-pointer">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4.9 19.1C1 15.5 1 10.5 4.9 6.9"/>
+                    <path d="M16.6 6.9C20.4 10.5 20 15.5 16.6 19.1"/>
+                    <path d="M12 2v6"/>
+                    <path d="M12 16v6"/>
+                    <path d="M8 12h8"/>
+                  </svg>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">
+                    AI
+                  </span>
+                  <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">
+                    BETA
+                  </span>
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold mb-2">AI DJ Assistant</h3>
+              <p className="text-sm text-muted-foreground">
+                AI-powered DJ that analyzes your library and creates intelligent mixes
+              </p>
+            </div>
+          </Link>
+        </div>
+        
+        <div className="mt-8 p-4 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 18v-6a2 2 0 0 1-2H9a2 2 0 0 1 2v6a2 2 0 0 1-2h8a2 2 0 0 1 2z"/>
+              <path d="M12 12v.01"/>
+            </svg>
+            <h3 className="font-semibold">Pro Tip</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Start with DJ Mixer for a complete mixing experience, or use individual features to enhance specific aspects of your workflow.
+            Features marked with "Pro" offer advanced capabilities for professional DJs.
+          </p>
+        </div>
+      </div>
+
       <OllamaErrorBoundary>
         <section className="space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">

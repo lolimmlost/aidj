@@ -29,11 +29,16 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
 
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Sync with preferences on mount
+  // Sync with preferences on mount and when preferences change
   useEffect(() => {
-    if (preferences.recommendationSettings.aiDJEnabled !== aiDJEnabled) {
-      setAIDJEnabled(preferences.recommendationSettings.aiDJEnabled);
-    }
+    // Use setTimeout to avoid cascading renders and potential visual flashing
+    const timeoutId = setTimeout(() => {
+      if (preferences.recommendationSettings.aiDJEnabled !== aiDJEnabled) {
+        setAIDJEnabled(preferences.recommendationSettings.aiDJEnabled);
+      }
+    }, 0);
+    
+    return () => clearTimeout(timeoutId);
   }, [preferences.recommendationSettings.aiDJEnabled, aiDJEnabled, setAIDJEnabled]);
 
   const handleToggle = async (checked: boolean) => {
@@ -119,14 +124,14 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
   // Compact mode (for mobile/audio player)
   if (compact) {
     return (
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1 min-w-0">
           <Label
             htmlFor="ai-dj-toggle"
             className="text-xs font-medium cursor-pointer select-none whitespace-nowrap"
             title="AI DJ automatically adds songs to your queue"
           >
-            ✨ AI DJ
+            ✨ AI
           </Label>
           {aiDJIsLoading && (
             <Loader2 className="w-3 h-3 animate-spin text-yellow-600 dark:text-yellow-400" />
@@ -141,7 +146,7 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
           id="ai-dj-toggle"
           checked={aiDJEnabled}
           onCheckedChange={handleToggle}
-          disabled={isUpdating}
+          disabled={isUpdating || aiDJIsLoading}
           aria-label="Toggle AI DJ Mode"
         />
       </div>
@@ -168,7 +173,7 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
           id="ai-dj-toggle"
           checked={aiDJEnabled}
           onCheckedChange={handleToggle}
-          disabled={isUpdating}
+          disabled={isUpdating || aiDJIsLoading}
           aria-label="Toggle AI DJ Mode"
         />
       </div>

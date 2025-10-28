@@ -12,6 +12,12 @@ const PreferencesSchema = z.object({
     frequency: z.enum(['always', 'daily', 'weekly']),
     styleBasedPlaylists: z.boolean(),
     useFeedbackForPersonalization: z.boolean().optional(),
+    enableSeasonalRecommendations: z.boolean().optional(),
+    // Story 3.9: AI DJ Mode
+    aiDJEnabled: z.boolean().optional(),
+    aiDJQueueThreshold: z.number().min(1).max(5).optional(),
+    aiDJBatchSize: z.number().min(1).max(10).optional(),
+    aiDJUseCurrentContext: z.boolean().optional(),
   }).optional(),
   playbackSettings: z.object({
     volume: z.number().min(0).max(1),
@@ -68,6 +74,11 @@ export const ServerRoute = createServerFileRoute('/api/preferences').methods({
             frequency: 'always' as const,
             styleBasedPlaylists: true,
             useFeedbackForPersonalization: true,
+            enableSeasonalRecommendations: true,
+            aiDJEnabled: false,
+            aiDJQueueThreshold: 2,
+            aiDJBatchSize: 3,
+            aiDJUseCurrentContext: true,
           },
           playbackSettings: {
             volume: 0.5,
@@ -150,6 +161,12 @@ export const ServerRoute = createServerFileRoute('/api/preferences').methods({
             aiEnabled: true,
             frequency: 'always' as const,
             styleBasedPlaylists: true,
+            useFeedbackForPersonalization: true,
+            enableSeasonalRecommendations: true,
+            aiDJEnabled: false,
+            aiDJQueueThreshold: 2,
+            aiDJBatchSize: 3,
+            aiDJUseCurrentContext: true,
           },
           playbackSettings: validatedData.playbackSettings || {
             volume: 0.5,
@@ -171,7 +188,7 @@ export const ServerRoute = createServerFileRoute('/api/preferences').methods({
           updatedAt: new Date(),
         };
 
-        await db.insert(userPreferences).values(newPrefs);
+        await db.insert(userPreferences).values(newPrefs as any);
         return new Response(JSON.stringify({ data: newPrefs }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
@@ -179,16 +196,43 @@ export const ServerRoute = createServerFileRoute('/api/preferences').methods({
       } else {
         // Update existing preferences (merge with existing values)
         const updatedPrefs = {
-          recommendationSettings: validatedData.recommendationSettings || existingPrefs.recommendationSettings,
-          playbackSettings: validatedData.playbackSettings || existingPrefs.playbackSettings,
-          notificationSettings: validatedData.notificationSettings || existingPrefs.notificationSettings,
-          dashboardLayout: validatedData.dashboardLayout || existingPrefs.dashboardLayout,
+          recommendationSettings: {
+            aiEnabled: existingPrefs.recommendationSettings.aiEnabled,
+            frequency: existingPrefs.recommendationSettings.frequency,
+            styleBasedPlaylists: existingPrefs.recommendationSettings.styleBasedPlaylists,
+            useFeedbackForPersonalization: existingPrefs.recommendationSettings.useFeedbackForPersonalization,
+            enableSeasonalRecommendations: existingPrefs.recommendationSettings.enableSeasonalRecommendations,
+            aiDJEnabled: existingPrefs.recommendationSettings.aiDJEnabled,
+            aiDJQueueThreshold: existingPrefs.recommendationSettings.aiDJQueueThreshold,
+            aiDJBatchSize: existingPrefs.recommendationSettings.aiDJBatchSize,
+            aiDJUseCurrentContext: existingPrefs.recommendationSettings.aiDJUseCurrentContext,
+            ...validatedData.recommendationSettings,
+          },
+          playbackSettings: {
+            volume: existingPrefs.playbackSettings.volume,
+            autoplayNext: existingPrefs.playbackSettings.autoplayNext,
+            crossfadeDuration: existingPrefs.playbackSettings.crossfadeDuration,
+            defaultQuality: existingPrefs.playbackSettings.defaultQuality,
+            ...validatedData.playbackSettings,
+          },
+          notificationSettings: {
+            browserNotifications: existingPrefs.notificationSettings.browserNotifications,
+            downloadCompletion: existingPrefs.notificationSettings.downloadCompletion,
+            recommendationUpdates: existingPrefs.notificationSettings.recommendationUpdates,
+            ...validatedData.notificationSettings,
+          },
+          dashboardLayout: {
+            showRecommendations: existingPrefs.dashboardLayout.showRecommendations,
+            showRecentlyPlayed: existingPrefs.dashboardLayout.showRecentlyPlayed,
+            widgetOrder: existingPrefs.dashboardLayout.widgetOrder,
+            ...validatedData.dashboardLayout,
+          },
           updatedAt: new Date(),
         };
 
         await db
           .update(userPreferences)
-          .set(updatedPrefs)
+          .set(updatedPrefs as any)
           .where(eq(userPreferences.userId, session.user.id));
 
         const result = await db
@@ -211,7 +255,7 @@ export const ServerRoute = createServerFileRoute('/api/preferences').methods({
         return new Response(JSON.stringify({
           code: 'VALIDATION_ERROR',
           message: 'Invalid preference data',
-          errors: error.errors,
+          errors: error.issues,
         }), {
           status: 400,
           headers: { 'Content-Type': 'application/json' }

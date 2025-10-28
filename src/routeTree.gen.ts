@@ -18,12 +18,28 @@ import { Route as IndexRouteImport } from "./routes/index";
 import { Route as SettingsIndexRouteImport } from "./routes/settings/index";
 import { Route as PlaylistsIndexRouteImport } from "./routes/playlists/index";
 import { Route as DownloadsIndexRouteImport } from "./routes/downloads/index";
+import { Route as DjIndexRouteImport } from "./routes/dj/index";
 import { Route as DashboardIndexRouteImport } from "./routes/dashboard/index";
 import { Route as PlaylistsIdRouteImport } from "./routes/playlists/$id";
 import { Route as LibrarySearchRouteImport } from "./routes/library/search";
 import { Route as LibraryArtistsRouteImport } from "./routes/library/artists";
 import { Route as DownloadsStatusRouteImport } from "./routes/downloads/status";
 import { Route as DownloadsHistoryRouteImport } from "./routes/downloads/history";
+import { Route as DjTransitionsRouteImport } from "./routes/dj/transitions";
+import { Route as DjTransitionEffectsRouteImport } from "./routes/dj/transition-effects";
+import { Route as DjSetPlannerRouteImport } from "./routes/dj/set-planner";
+import { Route as DjQueueRouteImport } from "./routes/dj/queue";
+import { Route as DjPlaylistGeneratorRouteImport } from "./routes/dj/playlist-generator";
+import { Route as DjMixerRouteImport } from "./routes/dj/mixer";
+import { Route as DjHarmonicMixerRouteImport } from "./routes/dj/harmonic-mixer";
+import { Route as DjGenreAnalyzerRouteImport } from "./routes/dj/genre-analyzer";
+import { Route as DjEnergyFlowRouteImport } from "./routes/dj/energy-flow";
+import { Route as DjEnergyAnalyzerRouteImport } from "./routes/dj/energy-analyzer";
+import { Route as DjControlsRouteImport } from "./routes/dj/controls";
+import { Route as DjBeatSyncRouteImport } from "./routes/dj/beat-sync";
+import { Route as DjAutomixSettingsRouteImport } from "./routes/dj/automix-settings";
+import { Route as DjAnalyticsRouteImport } from "./routes/dj/analytics";
+import { Route as DjAiAssistantRouteImport } from "./routes/dj/ai-assistant";
 import { Route as DashboardAnalyticsRouteImport } from "./routes/dashboard/analytics";
 import { Route as authSignupRouteImport } from "./routes/(auth)/signup";
 import { Route as authLoginRouteImport } from "./routes/(auth)/login";
@@ -101,6 +117,11 @@ const DownloadsIndexRoute = DownloadsIndexRouteImport.update({
   path: "/downloads/",
   getParentRoute: () => rootRouteImport,
 } as any);
+const DjIndexRoute = DjIndexRouteImport.update({
+  id: "/dj/",
+  path: "/dj/",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: "/",
   path: "/",
@@ -129,6 +150,81 @@ const DownloadsStatusRoute = DownloadsStatusRouteImport.update({
 const DownloadsHistoryRoute = DownloadsHistoryRouteImport.update({
   id: "/downloads/history",
   path: "/downloads/history",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjTransitionsRoute = DjTransitionsRouteImport.update({
+  id: "/dj/transitions",
+  path: "/dj/transitions",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjTransitionEffectsRoute = DjTransitionEffectsRouteImport.update({
+  id: "/dj/transition-effects",
+  path: "/dj/transition-effects",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjSetPlannerRoute = DjSetPlannerRouteImport.update({
+  id: "/dj/set-planner",
+  path: "/dj/set-planner",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjQueueRoute = DjQueueRouteImport.update({
+  id: "/dj/queue",
+  path: "/dj/queue",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjPlaylistGeneratorRoute = DjPlaylistGeneratorRouteImport.update({
+  id: "/dj/playlist-generator",
+  path: "/dj/playlist-generator",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjMixerRoute = DjMixerRouteImport.update({
+  id: "/dj/mixer",
+  path: "/dj/mixer",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjHarmonicMixerRoute = DjHarmonicMixerRouteImport.update({
+  id: "/dj/harmonic-mixer",
+  path: "/dj/harmonic-mixer",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjGenreAnalyzerRoute = DjGenreAnalyzerRouteImport.update({
+  id: "/dj/genre-analyzer",
+  path: "/dj/genre-analyzer",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjEnergyFlowRoute = DjEnergyFlowRouteImport.update({
+  id: "/dj/energy-flow",
+  path: "/dj/energy-flow",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjEnergyAnalyzerRoute = DjEnergyAnalyzerRouteImport.update({
+  id: "/dj/energy-analyzer",
+  path: "/dj/energy-analyzer",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjControlsRoute = DjControlsRouteImport.update({
+  id: "/dj/controls",
+  path: "/dj/controls",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjBeatSyncRoute = DjBeatSyncRouteImport.update({
+  id: "/dj/beat-sync",
+  path: "/dj/beat-sync",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjAutomixSettingsRoute = DjAutomixSettingsRouteImport.update({
+  id: "/dj/automix-settings",
+  path: "/dj/automix-settings",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjAnalyticsRoute = DjAnalyticsRouteImport.update({
+  id: "/dj/analytics",
+  path: "/dj/analytics",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DjAiAssistantRoute = DjAiAssistantRouteImport.update({
+  id: "/dj/ai-assistant",
+  path: "/dj/ai-assistant",
   getParentRoute: () => rootRouteImport,
 } as any);
 const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
@@ -359,12 +455,28 @@ export interface FileRoutesByFullPath {
   "/login": typeof authLoginRoute;
   "/signup": typeof authSignupRoute;
   "/dashboard/analytics": typeof DashboardAnalyticsRoute;
+  "/dj/ai-assistant": typeof DjAiAssistantRoute;
+  "/dj/analytics": typeof DjAnalyticsRoute;
+  "/dj/automix-settings": typeof DjAutomixSettingsRoute;
+  "/dj/beat-sync": typeof DjBeatSyncRoute;
+  "/dj/controls": typeof DjControlsRoute;
+  "/dj/energy-analyzer": typeof DjEnergyAnalyzerRoute;
+  "/dj/energy-flow": typeof DjEnergyFlowRoute;
+  "/dj/genre-analyzer": typeof DjGenreAnalyzerRoute;
+  "/dj/harmonic-mixer": typeof DjHarmonicMixerRoute;
+  "/dj/mixer": typeof DjMixerRoute;
+  "/dj/playlist-generator": typeof DjPlaylistGeneratorRoute;
+  "/dj/queue": typeof DjQueueRoute;
+  "/dj/set-planner": typeof DjSetPlannerRoute;
+  "/dj/transition-effects": typeof DjTransitionEffectsRoute;
+  "/dj/transitions": typeof DjTransitionsRoute;
   "/downloads/history": typeof DownloadsHistoryRoute;
   "/downloads/status": typeof DownloadsStatusRoute;
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
   "/library/search": typeof LibrarySearchRoute;
   "/playlists/$id": typeof PlaylistsIdRoute;
   "/dashboard/": typeof DashboardIndexRoute;
+  "/dj": typeof DjIndexRoute;
   "/downloads": typeof DownloadsIndexRoute;
   "/playlists": typeof PlaylistsIndexRoute;
   "/settings": typeof SettingsIndexRoute;
@@ -378,12 +490,28 @@ export interface FileRoutesByTo {
   "/login": typeof authLoginRoute;
   "/signup": typeof authSignupRoute;
   "/dashboard/analytics": typeof DashboardAnalyticsRoute;
+  "/dj/ai-assistant": typeof DjAiAssistantRoute;
+  "/dj/analytics": typeof DjAnalyticsRoute;
+  "/dj/automix-settings": typeof DjAutomixSettingsRoute;
+  "/dj/beat-sync": typeof DjBeatSyncRoute;
+  "/dj/controls": typeof DjControlsRoute;
+  "/dj/energy-analyzer": typeof DjEnergyAnalyzerRoute;
+  "/dj/energy-flow": typeof DjEnergyFlowRoute;
+  "/dj/genre-analyzer": typeof DjGenreAnalyzerRoute;
+  "/dj/harmonic-mixer": typeof DjHarmonicMixerRoute;
+  "/dj/mixer": typeof DjMixerRoute;
+  "/dj/playlist-generator": typeof DjPlaylistGeneratorRoute;
+  "/dj/queue": typeof DjQueueRoute;
+  "/dj/set-planner": typeof DjSetPlannerRoute;
+  "/dj/transition-effects": typeof DjTransitionEffectsRoute;
+  "/dj/transitions": typeof DjTransitionsRoute;
   "/downloads/history": typeof DownloadsHistoryRoute;
   "/downloads/status": typeof DownloadsStatusRoute;
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
   "/library/search": typeof LibrarySearchRoute;
   "/playlists/$id": typeof PlaylistsIdRoute;
   "/dashboard": typeof DashboardIndexRoute;
+  "/dj": typeof DjIndexRoute;
   "/downloads": typeof DownloadsIndexRoute;
   "/playlists": typeof PlaylistsIndexRoute;
   "/settings": typeof SettingsIndexRoute;
@@ -400,12 +528,28 @@ export interface FileRoutesById {
   "/(auth)/login": typeof authLoginRoute;
   "/(auth)/signup": typeof authSignupRoute;
   "/dashboard/analytics": typeof DashboardAnalyticsRoute;
+  "/dj/ai-assistant": typeof DjAiAssistantRoute;
+  "/dj/analytics": typeof DjAnalyticsRoute;
+  "/dj/automix-settings": typeof DjAutomixSettingsRoute;
+  "/dj/beat-sync": typeof DjBeatSyncRoute;
+  "/dj/controls": typeof DjControlsRoute;
+  "/dj/energy-analyzer": typeof DjEnergyAnalyzerRoute;
+  "/dj/energy-flow": typeof DjEnergyFlowRoute;
+  "/dj/genre-analyzer": typeof DjGenreAnalyzerRoute;
+  "/dj/harmonic-mixer": typeof DjHarmonicMixerRoute;
+  "/dj/mixer": typeof DjMixerRoute;
+  "/dj/playlist-generator": typeof DjPlaylistGeneratorRoute;
+  "/dj/queue": typeof DjQueueRoute;
+  "/dj/set-planner": typeof DjSetPlannerRoute;
+  "/dj/transition-effects": typeof DjTransitionEffectsRoute;
+  "/dj/transitions": typeof DjTransitionsRoute;
   "/downloads/history": typeof DownloadsHistoryRoute;
   "/downloads/status": typeof DownloadsStatusRoute;
   "/library/artists": typeof LibraryArtistsRouteWithChildren;
   "/library/search": typeof LibrarySearchRoute;
   "/playlists/$id": typeof PlaylistsIdRoute;
   "/dashboard/": typeof DashboardIndexRoute;
+  "/dj/": typeof DjIndexRoute;
   "/downloads/": typeof DownloadsIndexRoute;
   "/playlists/": typeof PlaylistsIndexRoute;
   "/settings/": typeof SettingsIndexRoute;
@@ -422,12 +566,28 @@ export interface FileRouteTypes {
     | "/login"
     | "/signup"
     | "/dashboard/analytics"
+    | "/dj/ai-assistant"
+    | "/dj/analytics"
+    | "/dj/automix-settings"
+    | "/dj/beat-sync"
+    | "/dj/controls"
+    | "/dj/energy-analyzer"
+    | "/dj/energy-flow"
+    | "/dj/genre-analyzer"
+    | "/dj/harmonic-mixer"
+    | "/dj/mixer"
+    | "/dj/playlist-generator"
+    | "/dj/queue"
+    | "/dj/set-planner"
+    | "/dj/transition-effects"
+    | "/dj/transitions"
     | "/downloads/history"
     | "/downloads/status"
     | "/library/artists"
     | "/library/search"
     | "/playlists/$id"
     | "/dashboard/"
+    | "/dj"
     | "/downloads"
     | "/playlists"
     | "/settings"
@@ -441,12 +601,28 @@ export interface FileRouteTypes {
     | "/login"
     | "/signup"
     | "/dashboard/analytics"
+    | "/dj/ai-assistant"
+    | "/dj/analytics"
+    | "/dj/automix-settings"
+    | "/dj/beat-sync"
+    | "/dj/controls"
+    | "/dj/energy-analyzer"
+    | "/dj/energy-flow"
+    | "/dj/genre-analyzer"
+    | "/dj/harmonic-mixer"
+    | "/dj/mixer"
+    | "/dj/playlist-generator"
+    | "/dj/queue"
+    | "/dj/set-planner"
+    | "/dj/transition-effects"
+    | "/dj/transitions"
     | "/downloads/history"
     | "/downloads/status"
     | "/library/artists"
     | "/library/search"
     | "/playlists/$id"
     | "/dashboard"
+    | "/dj"
     | "/downloads"
     | "/playlists"
     | "/settings"
@@ -462,12 +638,28 @@ export interface FileRouteTypes {
     | "/(auth)/login"
     | "/(auth)/signup"
     | "/dashboard/analytics"
+    | "/dj/ai-assistant"
+    | "/dj/analytics"
+    | "/dj/automix-settings"
+    | "/dj/beat-sync"
+    | "/dj/controls"
+    | "/dj/energy-analyzer"
+    | "/dj/energy-flow"
+    | "/dj/genre-analyzer"
+    | "/dj/harmonic-mixer"
+    | "/dj/mixer"
+    | "/dj/playlist-generator"
+    | "/dj/queue"
+    | "/dj/set-planner"
+    | "/dj/transition-effects"
+    | "/dj/transitions"
     | "/downloads/history"
     | "/downloads/status"
     | "/library/artists"
     | "/library/search"
     | "/playlists/$id"
     | "/dashboard/"
+    | "/dj/"
     | "/downloads/"
     | "/playlists/"
     | "/settings/"
@@ -481,11 +673,27 @@ export interface RootRouteChildren {
   authRouteRoute: typeof authRouteRouteWithChildren;
   DashboardRouteRoute: typeof DashboardRouteRouteWithChildren;
   ConfigRoute: typeof ConfigRoute;
+  DjAiAssistantRoute: typeof DjAiAssistantRoute;
+  DjAnalyticsRoute: typeof DjAnalyticsRoute;
+  DjAutomixSettingsRoute: typeof DjAutomixSettingsRoute;
+  DjBeatSyncRoute: typeof DjBeatSyncRoute;
+  DjControlsRoute: typeof DjControlsRoute;
+  DjEnergyAnalyzerRoute: typeof DjEnergyAnalyzerRoute;
+  DjEnergyFlowRoute: typeof DjEnergyFlowRoute;
+  DjGenreAnalyzerRoute: typeof DjGenreAnalyzerRoute;
+  DjHarmonicMixerRoute: typeof DjHarmonicMixerRoute;
+  DjMixerRoute: typeof DjMixerRoute;
+  DjPlaylistGeneratorRoute: typeof DjPlaylistGeneratorRoute;
+  DjQueueRoute: typeof DjQueueRoute;
+  DjSetPlannerRoute: typeof DjSetPlannerRoute;
+  DjTransitionEffectsRoute: typeof DjTransitionEffectsRoute;
+  DjTransitionsRoute: typeof DjTransitionsRoute;
   DownloadsHistoryRoute: typeof DownloadsHistoryRoute;
   DownloadsStatusRoute: typeof DownloadsStatusRoute;
   LibraryArtistsRoute: typeof LibraryArtistsRouteWithChildren;
   LibrarySearchRoute: typeof LibrarySearchRoute;
   PlaylistsIdRoute: typeof PlaylistsIdRoute;
+  DjIndexRoute: typeof DjIndexRoute;
   DownloadsIndexRoute: typeof DownloadsIndexRoute;
   PlaylistsIndexRoute: typeof PlaylistsIndexRoute;
   SettingsIndexRoute: typeof SettingsIndexRoute;
@@ -790,6 +998,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DownloadsIndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/dj/": {
+      id: "/dj/";
+      path: "/dj";
+      fullPath: "/dj";
+      preLoaderRoute: typeof DjIndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/dashboard/": {
       id: "/dashboard/";
       path: "/";
@@ -830,6 +1045,111 @@ declare module "@tanstack/react-router" {
       path: "/downloads/history";
       fullPath: "/downloads/history";
       preLoaderRoute: typeof DownloadsHistoryRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/transitions": {
+      id: "/dj/transitions";
+      path: "/dj/transitions";
+      fullPath: "/dj/transitions";
+      preLoaderRoute: typeof DjTransitionsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/transition-effects": {
+      id: "/dj/transition-effects";
+      path: "/dj/transition-effects";
+      fullPath: "/dj/transition-effects";
+      preLoaderRoute: typeof DjTransitionEffectsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/set-planner": {
+      id: "/dj/set-planner";
+      path: "/dj/set-planner";
+      fullPath: "/dj/set-planner";
+      preLoaderRoute: typeof DjSetPlannerRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/queue": {
+      id: "/dj/queue";
+      path: "/dj/queue";
+      fullPath: "/dj/queue";
+      preLoaderRoute: typeof DjQueueRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/playlist-generator": {
+      id: "/dj/playlist-generator";
+      path: "/dj/playlist-generator";
+      fullPath: "/dj/playlist-generator";
+      preLoaderRoute: typeof DjPlaylistGeneratorRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/mixer": {
+      id: "/dj/mixer";
+      path: "/dj/mixer";
+      fullPath: "/dj/mixer";
+      preLoaderRoute: typeof DjMixerRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/harmonic-mixer": {
+      id: "/dj/harmonic-mixer";
+      path: "/dj/harmonic-mixer";
+      fullPath: "/dj/harmonic-mixer";
+      preLoaderRoute: typeof DjHarmonicMixerRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/genre-analyzer": {
+      id: "/dj/genre-analyzer";
+      path: "/dj/genre-analyzer";
+      fullPath: "/dj/genre-analyzer";
+      preLoaderRoute: typeof DjGenreAnalyzerRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/energy-flow": {
+      id: "/dj/energy-flow";
+      path: "/dj/energy-flow";
+      fullPath: "/dj/energy-flow";
+      preLoaderRoute: typeof DjEnergyFlowRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/energy-analyzer": {
+      id: "/dj/energy-analyzer";
+      path: "/dj/energy-analyzer";
+      fullPath: "/dj/energy-analyzer";
+      preLoaderRoute: typeof DjEnergyAnalyzerRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/controls": {
+      id: "/dj/controls";
+      path: "/dj/controls";
+      fullPath: "/dj/controls";
+      preLoaderRoute: typeof DjControlsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/beat-sync": {
+      id: "/dj/beat-sync";
+      path: "/dj/beat-sync";
+      fullPath: "/dj/beat-sync";
+      preLoaderRoute: typeof DjBeatSyncRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/automix-settings": {
+      id: "/dj/automix-settings";
+      path: "/dj/automix-settings";
+      fullPath: "/dj/automix-settings";
+      preLoaderRoute: typeof DjAutomixSettingsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/analytics": {
+      id: "/dj/analytics";
+      path: "/dj/analytics";
+      fullPath: "/dj/analytics";
+      preLoaderRoute: typeof DjAnalyticsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dj/ai-assistant": {
+      id: "/dj/ai-assistant";
+      path: "/dj/ai-assistant";
+      fullPath: "/dj/ai-assistant";
+      preLoaderRoute: typeof DjAiAssistantRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/dashboard/analytics": {
@@ -1218,11 +1538,27 @@ const rootRouteChildren: RootRouteChildren = {
   authRouteRoute: authRouteRouteWithChildren,
   DashboardRouteRoute: DashboardRouteRouteWithChildren,
   ConfigRoute: ConfigRoute,
+  DjAiAssistantRoute: DjAiAssistantRoute,
+  DjAnalyticsRoute: DjAnalyticsRoute,
+  DjAutomixSettingsRoute: DjAutomixSettingsRoute,
+  DjBeatSyncRoute: DjBeatSyncRoute,
+  DjControlsRoute: DjControlsRoute,
+  DjEnergyAnalyzerRoute: DjEnergyAnalyzerRoute,
+  DjEnergyFlowRoute: DjEnergyFlowRoute,
+  DjGenreAnalyzerRoute: DjGenreAnalyzerRoute,
+  DjHarmonicMixerRoute: DjHarmonicMixerRoute,
+  DjMixerRoute: DjMixerRoute,
+  DjPlaylistGeneratorRoute: DjPlaylistGeneratorRoute,
+  DjQueueRoute: DjQueueRoute,
+  DjSetPlannerRoute: DjSetPlannerRoute,
+  DjTransitionEffectsRoute: DjTransitionEffectsRoute,
+  DjTransitionsRoute: DjTransitionsRoute,
   DownloadsHistoryRoute: DownloadsHistoryRoute,
   DownloadsStatusRoute: DownloadsStatusRoute,
   LibraryArtistsRoute: LibraryArtistsRouteWithChildren,
   LibrarySearchRoute: LibrarySearchRoute,
   PlaylistsIdRoute: PlaylistsIdRoute,
+  DjIndexRoute: DjIndexRoute,
   DownloadsIndexRoute: DownloadsIndexRoute,
   PlaylistsIndexRoute: PlaylistsIndexRoute,
   SettingsIndexRoute: SettingsIndexRoute,

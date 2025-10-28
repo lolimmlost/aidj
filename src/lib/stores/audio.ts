@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import type { Song } from '@/components/ui/audio-player';
 import { usePreferencesStore } from './preferences';
 import { toast } from 'sonner';
+import type { DJSession, DJQueueItem, DJRecommendation } from '@/lib/services/dj-service';
+import type { DJTransition, DJMixerConfig } from '@/lib/services/dj-mixer';
+import { startDJSession, endDJSession, addToDJQueue, removeFromDJQueue, getDJRecommendations, setAutoMixing, autoMixNext, completeTransition } from '@/lib/services/dj-service';
 
 // Client-side helper functions (moved from ai-dj.ts to avoid server imports)
 function checkQueueThreshold(
@@ -30,6 +33,14 @@ interface AudioState {
   aiQueuedSongIds: Set<string>;
   aiDJIsLoading: boolean;
   aiDJError: string | null;
+  // DJ mixing state
+  djSession: DJSession | null;
+  djQueue: DJQueueItem[];
+  isAutoMixing: boolean;
+  isTransitioning: boolean;
+  currentTransition: DJTransition | null;
+  crossfadeEnabled: boolean;
+  crossfadeDuration: number;
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
@@ -51,6 +62,20 @@ interface AudioState {
   // AI DJ actions (Story 3.9)
   setAIDJEnabled: (enabled: boolean) => void;
   monitorQueueForAIDJ: () => Promise<void>;
+  // DJ mixing actions
+  startDJSession: (name: string, config?: DJMixerConfig) => DJSession;
+  endDJSession: () => DJSession | null;
+  addToDJQueue: (song: Song, position?: number, isAutoQueued?: boolean) => Promise<DJQueueItem>;
+  removeFromDJQueue: (position: number) => DJQueueItem | null;
+  getDJRecommendations: (candidateSongs: Song[], options?: {
+    maxResults?: number;
+    minCompatibility?: number;
+  }) => Promise<DJRecommendation[]>;
+  setAutoMixing: (enabled: boolean) => void;
+  autoMixNext: () => Promise<DJTransition | null>;
+  completeTransition: () => void;
+  setCrossfadeEnabled: (enabled: boolean) => void;
+  setCrossfadeDuration: (duration: number) => void;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -67,6 +92,14 @@ export const useAudioStore = create<AudioState>()(
     aiQueuedSongIds: new Set<string>(),
     aiDJIsLoading: false,
     aiDJError: null,
+    // DJ mixing initial state
+    djSession: null,
+    djQueue: [],
+    isAutoMixing: false,
+    isTransitioning: false,
+    currentTransition: null,
+    crossfadeEnabled: true,
+    crossfadeDuration: 8.0,
 
     setPlaylist: (songs: Song[]) => set({ playlist: songs, currentSongIndex: 0 }),
 
@@ -263,6 +296,12 @@ export const useAudioStore = create<AudioState>()(
     setAIDJEnabled: (enabled: boolean) => {
       set({ aiDJEnabled: enabled, aiDJError: null });
 
+      // Also update preferences to keep them in sync
+      usePreferencesStore.getState().setRecommendationSettings({ aiDJEnabled: enabled })
+        .catch(error => {
+          console.error('Failed to sync AI DJ setting to preferences:', error);
+        });
+
       // If enabled, trigger monitoring
       if (enabled) {
         const state = get();
@@ -302,15 +341,16 @@ export const useAudioStore = create<AudioState>()(
         return;
       }
 
-      // Check queue threshold
+      // Check queue threshold - provide fallback if undefined
+      const threshold = recommendationSettings.aiDJQueueThreshold ?? 2;
       const needsRefill = checkQueueThreshold(
         state.currentSongIndex,
         state.playlist.length,
-        recommendationSettings.aiDJQueueThreshold
+        threshold
       );
 
       if (!needsRefill) {
-        console.log(`🎵 AI DJ: Queue has enough songs (${state.playlist.length - state.currentSongIndex - 1} remaining, threshold: ${recommendationSettings.aiDJQueueThreshold})`);
+        // Removed console.log to prevent visual flashing during state changes
         return;
       }
 
@@ -377,7 +417,7 @@ export const useAudioStore = create<AudioState>()(
         // Add recommendations to queue
         const newPlaylist = [...state.playlist, ...recommendations];
         const newQueuedIds = new Set(state.aiQueuedSongIds);
-        recommendations.forEach(song => newQueuedIds.add(song.id));
+        recommendations.forEach((song: Song) => newQueuedIds.add(song.id));
 
         // Check if we need to start playback (empty queue case)
         const shouldStartPlayback = state.playlist.length === 0 || state.currentSongIndex === -1;
@@ -415,6 +455,84 @@ export const useAudioStore = create<AudioState>()(
           },
         });
       }
+    },
+
+    // DJ mixing actions
+    startDJSession: (name: string, config?: DJMixerConfig) => {
+      const session = startDJSession(name, config);
+      set({ djSession: session, djQueue: [] });
+      console.log(`🎧 DJ Session "${name}" started`);
+      return session;
+    },
+
+    endDJSession: () => {
+      const session = endDJSession();
+      set({ djSession: null, djQueue: [], isAutoMixing: false, isTransitioning: false, currentTransition: null });
+      console.log(`🎧 DJ Session ended`);
+      return session;
+    },
+
+    addToDJQueue: async (song: Song, position?: number, isAutoQueued: boolean = false) => {
+      const state = get();
+      if (!state.djSession) {
+        throw new Error('No active DJ session');
+      }
+      
+      const queueItem = await addToDJQueue(song, position, isAutoQueued);
+      set({ djQueue: [...state.djQueue, queueItem] });
+      return queueItem;
+    },
+
+    removeFromDJQueue: (position: number) => {
+      const state = get();
+      if (!state.djSession) return null;
+      
+      const removedItem = removeFromDJQueue(position);
+      if (removedItem) {
+        set({ djQueue: state.djQueue.filter((_, index) => index !== position) });
+      }
+      return removedItem;
+    },
+
+    getDJRecommendations: async (candidateSongs: Song[], options?: {
+      maxResults?: number;
+      minCompatibility?: number;
+    }) => {
+      const state = get();
+      if (!state.djSession) {
+        throw new Error('No active DJ session');
+      }
+      
+      return await getDJRecommendations(candidateSongs, options);
+    },
+
+    setAutoMixing: (enabled: boolean) => {
+      setAutoMixing(enabled);
+      set({ isAutoMixing: enabled });
+    },
+
+    autoMixNext: async () => {
+      const state = get();
+      if (!state.isAutoMixing || !state.djSession) return null;
+      
+      const transition = await autoMixNext();
+      if (transition) {
+        set({ isTransitioning: true, currentTransition: transition });
+      }
+      return transition;
+    },
+
+    completeTransition: () => {
+      completeTransition();
+      set({ isTransitioning: false, currentTransition: null });
+    },
+
+    setCrossfadeEnabled: (enabled: boolean) => {
+      set({ crossfadeEnabled: enabled });
+    },
+
+    setCrossfadeDuration: (duration: number) => {
+      set({ crossfadeDuration: duration });
     },
   })
 );

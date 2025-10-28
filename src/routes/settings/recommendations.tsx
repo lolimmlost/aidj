@@ -27,7 +27,8 @@ export function RecommendationSettings() {
     try {
       await setRecommendationSettings(localSettings);
       setMessage({ type: 'success', text: 'Recommendation settings saved successfully' });
-    } catch (error) {
+    } catch (err) {
+      console.error('Failed to save recommendation settings:', err);
       setMessage({ type: 'error', text: 'Failed to save recommendation settings' });
     } finally {
       setIsSaving(false);
@@ -126,6 +127,23 @@ export function RecommendationSettings() {
             checked={localSettings.useFeedbackForPersonalization}
             onCheckedChange={(checked) =>
               setLocalSettings({ ...localSettings, useFeedbackForPersonalization: checked })
+            }
+          />
+        </div>
+
+        {/* AI DJ Toggle (Story 3.9) */}
+        <div className="flex items-center justify-between pt-4 border-t border-border/50">
+          <div className="space-y-0.5">
+            <Label htmlFor="ai-dj-enabled">AI DJ Mode</Label>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Automatically add songs to your queue based on what you're listening to
+            </p>
+          </div>
+          <Switch
+            id="ai-dj-enabled"
+            checked={localSettings.aiDJEnabled}
+            onCheckedChange={(checked) =>
+              setLocalSettings({ ...localSettings, aiDJEnabled: checked })
             }
           />
         </div>

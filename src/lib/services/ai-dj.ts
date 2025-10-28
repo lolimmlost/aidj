@@ -142,30 +142,116 @@ export async function generateContextualRecommendations(
       } catch (error) {
         console.warn('⚠️ AI DJ: Genre filtering failed, using raw recommendations', error);
         // Fallback to basic recommendations without filtering
+        // Convert raw recommendations to expected format
+        rankedRecommendations = recommendations.recommendations.map(rec => ({
+          song: rec.song,
+          explanation: rec.explanation || '',
+          genreScore: 0.5 // Default score when filtering fails
+        }));
       }
     }
 
     // Convert recommendation names to actual Song objects
     const recommendedSongs: Song[] = [];
+    const allSongs = await getSongsGlobal(0, 1000); // Get larger sample to find matches
+    
     for (const rec of rankedRecommendations.slice(0, batchSize)) {
       try {
-        // Search for song in library by name
-        const songs = await getSongsGlobal(0, 500); // Get larger sample to find matches
-        const matchedSong = songs.find(s =>
-          s.name.toLowerCase().includes(rec.song.toLowerCase()) ||
-          rec.song.toLowerCase().includes(s.name.toLowerCase())
+        // Improved song matching with multiple strategies
+        let matchedSong: Song | undefined;
+        
+        // Strategy 1: Exact name match
+        matchedSong = allSongs.find(s =>
+          s.name.toLowerCase() === rec.song.toLowerCase() ||
+          (s.title && s.title.toLowerCase() === rec.song.toLowerCase())
         );
+        
+        // Strategy 2: Partial name match (contains)
+        if (!matchedSong) {
+          matchedSong = allSongs.find(s =>
+            s.name.toLowerCase().includes(rec.song.toLowerCase()) ||
+            rec.song.toLowerCase().includes(s.name.toLowerCase()) ||
+            (s.title && s.title.toLowerCase().includes(rec.song.toLowerCase())) ||
+            rec.song.toLowerCase().includes(s.title?.toLowerCase() || '')
+          );
+        }
+        
+        // Strategy 3: Try to parse "Artist - Title" format and match by artist
+        if (!matchedSong && rec.song.includes(' - ')) {
+          const [artistPart, titlePart] = rec.song.split(' - ');
+          const artist = artistPart.trim().toLowerCase();
+          const title = titlePart.trim().toLowerCase();
+          
+          matchedSong = allSongs.find(s =>
+            s.artist?.toLowerCase().includes(artist) && (
+              s.name.toLowerCase().includes(title) ||
+              (s.title && s.title.toLowerCase().includes(title))
+            )
+          );
+        }
+        
+        // Strategy 4: Fuzzy match by word similarity
+        if (!matchedSong) {
+          const recWords = rec.song.toLowerCase().split(/\s+/);
+          const bestMatch = allSongs.find(s => {
+            const songWords = (s.name || s.title || '').toLowerCase().split(/\s+/);
+            const commonWords = recWords.filter(word =>
+              word.length > 2 && songWords.some(songWord =>
+                songWord.includes(word) || word.includes(songWord)
+              )
+            );
+            return commonWords.length >= Math.min(2, recWords.length);
+          });
+          
+          if (bestMatch) {
+            matchedSong = bestMatch;
+          }
+        }
+        
+        // Strategy 5: Last resort - get any song from the same artist if artist is mentioned
+        if (!matchedSong) {
+          const recLower = rec.song.toLowerCase();
+          const artistMatch = allSongs.find(s =>
+            s.artist?.toLowerCase().split(/\s+/).some(artistWord =>
+              recLower.includes(artistWord) && artistWord.length > 2
+            )
+          );
+          
+          if (artistMatch) {
+            matchedSong = artistMatch;
+            console.log(`🎵 AI DJ: Using fallback artist match for "${rec.song}" -> "${artistMatch.name}" by ${artistMatch.artist}`);
+          }
+        }
 
         if (matchedSong) {
           recommendedSongs.push(matchedSong);
+          console.log(`✅ AI DJ: Matched "${rec.song}" to "${matchedSong.name}" by ${matchedSong.artist}`);
+        } else {
+          console.warn(`⚠️ AI DJ: Could not find song "${rec.song}" in library`);
         }
       } catch (error) {
-        console.warn(`⚠️ AI DJ: Could not find song "${rec.song}" in library`, error);
+        console.warn(`⚠️ AI DJ: Error matching song "${rec.song}":`, error);
+      }
+    }
+
+    // If we still have no matches, try to get any songs from library as fallback
+    if (recommendedSongs.length === 0) {
+      console.warn('⚠️ AI DJ: No exact matches found, using fallback songs from library');
+      try {
+        const fallbackSongs = await getSongsGlobal(0, Math.min(batchSize, 10));
+        if (fallbackSongs.length > 0) {
+          // Shuffle and take requested amount
+          const shuffled = fallbackSongs.sort(() => Math.random() - 0.5);
+          recommendedSongs.push(...shuffled.slice(0, batchSize));
+          console.log(`🎵 AI DJ: Using ${recommendedSongs.length} fallback songs from library`);
+        }
+      } catch (error) {
+        console.error('⚠️ AI DJ: Failed to get fallback songs:', error);
       }
     }
 
     if (recommendedSongs.length === 0) {
-      throw new ServiceError('AI_DJ_NO_MATCHES', 'AI DJ could not match recommendations to library songs');
+      throw new ServiceError('AI_DJ_NO_MATCHES', 'AI DJ could not match recommendations to library songs and no fallback songs available');
     }
 
     console.log(`🎵 AI DJ: Successfully generated ${recommendedSongs.length} contextual recommendations`);

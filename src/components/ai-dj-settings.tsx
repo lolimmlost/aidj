@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { usePreferencesStore } from '@/lib/stores/preferences';
+import { toast } from 'sonner';
 
 export function AIDJSettings() {
-  const { preferences } = usePreferencesStore();
+  const { preferences, setRecommendationSettings } = usePreferencesStore();
 
   const [threshold, setThreshold] = useState(
     preferences.recommendationSettings.aiDJQueueThreshold
@@ -23,10 +24,54 @@ export function AIDJSettings() {
 
   // Sync with preferences changes
   useEffect(() => {
-    setThreshold(preferences.recommendationSettings.aiDJQueueThreshold);
-    setBatchSize(preferences.recommendationSettings.aiDJBatchSize);
-    setUseContext(preferences.recommendationSettings.aiDJUseCurrentContext);
+    // Use setTimeout to avoid cascading renders
+    const timeoutId = setTimeout(() => {
+      setThreshold(preferences.recommendationSettings.aiDJQueueThreshold);
+      setBatchSize(preferences.recommendationSettings.aiDJBatchSize);
+      setUseContext(preferences.recommendationSettings.aiDJUseCurrentContext);
+    }, 0);
+    
+    return () => clearTimeout(timeoutId);
   }, [preferences.recommendationSettings]);
+
+  // Handle threshold change with immediate save
+  const handleThresholdChange = async (value: number) => {
+    setThreshold(value);
+    try {
+      await setRecommendationSettings({ aiDJQueueThreshold: value });
+    } catch (error) {
+      console.error('Failed to update threshold:', error);
+      toast.error('Failed to update queue threshold');
+      // Revert on error
+      setThreshold(preferences.recommendationSettings.aiDJQueueThreshold);
+    }
+  };
+
+  // Handle batch size change with immediate save
+  const handleBatchSizeChange = async (value: number) => {
+    setBatchSize(value);
+    try {
+      await setRecommendationSettings({ aiDJBatchSize: value });
+    } catch (error) {
+      console.error('Failed to update batch size:', error);
+      toast.error('Failed to update batch size');
+      // Revert on error
+      setBatchSize(preferences.recommendationSettings.aiDJBatchSize);
+    }
+  };
+
+  // Handle context change with immediate save
+  const handleContextChange = async (value: boolean) => {
+    setUseContext(value);
+    try {
+      await setRecommendationSettings({ aiDJUseCurrentContext: value });
+    } catch (error) {
+      console.error('Failed to update context setting:', error);
+      toast.error('Failed to update context setting');
+      // Revert on error
+      setUseContext(preferences.recommendationSettings.aiDJUseCurrentContext);
+    }
+  };
 
   const isAIDisabled = !preferences.recommendationSettings.aiEnabled;
   const isAIDJDisabled = !preferences.recommendationSettings.aiDJEnabled;
@@ -65,7 +110,7 @@ export function AIDJSettings() {
             max={5}
             step={1}
             value={[threshold]}
-            onValueChange={(value) => setThreshold(value[0])}
+            onValueChange={(value) => handleThresholdChange(value[0])}
             className="cursor-pointer"
             disabled={isAIDJDisabled}
             aria-label="Queue threshold"
@@ -91,7 +136,7 @@ export function AIDJSettings() {
             max={10}
             step={1}
             value={[batchSize]}
-            onValueChange={(value) => setBatchSize(value[0])}
+            onValueChange={(value) => handleBatchSizeChange(value[0])}
             className="cursor-pointer"
             disabled={isAIDJDisabled}
             aria-label="Batch size"
@@ -114,7 +159,7 @@ export function AIDJSettings() {
           <Switch
             id="ai-dj-context"
             checked={useContext}
-            onCheckedChange={setUseContext}
+            onCheckedChange={handleContextChange}
             disabled={isAIDJDisabled}
             aria-label="Use current context for recommendations"
           />
