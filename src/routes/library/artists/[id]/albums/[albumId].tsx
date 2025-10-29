@@ -25,7 +25,7 @@ export const Route = createFileRoute('/library/artists/id/albums/albumId')({
 
 function AlbumSongs() {
   const { albumId } = useParams({ from: '/library/artists/id/albums/albumId' }) as { albumId: string };
-  const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying } = useAudioStore();
+  const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress } = useAudioStore();
 
   const { data: songs = [], isLoading, error } = useQuery({
     queryKey: ['songs', albumId],
@@ -44,6 +44,7 @@ function AlbumSongs() {
   const handleAddToQueue = (song: typeof songs[0], position: 'now' | 'next' | 'end') => {
     const audioSong = {
       id: song.id,
+      name: song.name,
       title: song.name,
       artist: song.artist,
       album: song.album,
@@ -58,11 +59,15 @@ function AlbumSongs() {
       setIsPlaying(true);
       toast.success(`Now playing "${song.name}"`);
     } else if (position === 'next') {
+      setAIUserActionInProgress(true);
       addToQueueNext([audioSong]);
       toast.success(`Added "${song.name}" to play next`);
+      setTimeout(() => setAIUserActionInProgress(false), 2000);
     } else {
+      setAIUserActionInProgress(true);
       addToQueueEnd([audioSong]);
       toast.success(`Added "${song.name}" to end of queue`);
+      setTimeout(() => setAIUserActionInProgress(false), 2000);
     }
   };
 

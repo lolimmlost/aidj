@@ -6,6 +6,13 @@ import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { Play, Plus, ListPlus } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export const Route = createFileRoute('/dashboard/recommendations/id')({
   beforeLoad: async ({ context }) => {
@@ -20,6 +27,7 @@ function RecommendationDetail() {
   const search = useSearch({ from: '/dashboard/recommendations/id' });
   const { data: session } = authClient.useSession();
   const addToQueue = useAudioStore((state) => state.playSong);
+  const setAIUserActionInProgress = useAudioStore((state) => state.setAIUserActionInProgress);
   const queryClient = useQueryClient();
 
   // Local state for optimistic updates (must be before any early returns)
@@ -28,24 +36,6 @@ function RecommendationDetail() {
   // Get song name from search params (?song=Artist%20-%20Title)
   const song = (search as { song?: string }).song;
 
-  if (!song) {
-    return (
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Error</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-destructive">No song specified in URL</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              URL: {window.location.href}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   // Try to get cached recommendations from dashboard query
   const cachedRecs = queryClient.getQueryData(['recommendations', session?.user.id, 'similar']) ||
                      queryClient.getQueryData(['recommendations', session?.user.id, 'mood']);
@@ -53,14 +43,16 @@ function RecommendationDetail() {
   // Find this song's explanation in cached recommendations
   let explanation = 'This song was recommended based on your listening history and preferences.';
 
-  if (cachedRecs && (cachedRecs as any).data?.recommendations) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (cachedRecs && typeof cachedRecs === 'object' && cachedRecs && 'data' in cachedRecs && (cachedRecs as any).data?.recommendations) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const found = (cachedRecs as any).data.recommendations.find((r: any) => r.song === song);
     if (found && found.explanation) {
       explanation = found.explanation;
     }
   }
 
-  // Feedback mutation
+  // Feedback mutation (must be before any early returns)
   const feedbackMutation = useMutation({
     mutationFn: async (feedbackType: 'thumbs_up' | 'thumbs_down') => {
       const response = await fetch('/api/recommendations/feedback', {
@@ -83,8 +75,8 @@ function RecommendationDetail() {
       setOptimisticFeedback(feedbackType);
     },
     onSuccess: (_, feedbackType) => {
-      // Invalidate caches to refresh UI
-      queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+      // Only invalidate preference analytics, not recommendations to prevent auto-refresh
+      // This prevents the recommendations from refreshing when giving feedback
       queryClient.invalidateQueries({ queryKey: ['preference-analytics'] });
       const emoji = feedbackType === 'thumbs_up' ? '👍' : '👎';
       toast.success(`Feedback saved ${emoji}`, {
@@ -113,6 +105,24 @@ function RecommendationDetail() {
     },
   });
 
+  if (!song) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Error</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-destructive">No song specified in URL</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              URL: {window.location.href}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const handleFeedback = (type: 'up' | 'down') => {
     const feedbackType = type === 'up' ? 'thumbs_up' : 'thumbs_down';
     feedbackMutation.mutate(feedbackType);
@@ -124,13 +134,13 @@ function RecommendationDetail() {
     down: optimisticFeedback === 'thumbs_down',
   };
 
-  const handleQueue = (s: string) => {
+  const handleQueueAction = (s: string, position: 'now' | 'next' | 'end') => {
     // Parse "Artist - Title" format
     const parts = s.split(' - ');
     const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
     const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : s;
 
-    addToQueue(s, [{
+    const audioSong = {
       id: s,
       name: title,
       title: title,
@@ -139,7 +149,26 @@ function RecommendationDetail() {
       track: 1,
       url: '',
       artist: artist
-    }]);
+    };
+
+    // Set user action flag to prevent AI DJ auto-refresh
+    setAIUserActionInProgress(true);
+
+    if (position === 'now') {
+      addToQueue(s, [audioSong]);
+      toast.success(`Now playing: ${title}`);
+    } else if (position === 'next') {
+      const { addToQueueNext } = useAudioStore.getState();
+      addToQueueNext([audioSong]);
+      toast.success(`Added "${title}" to play next`);
+    } else {
+      const { addToQueueEnd } = useAudioStore.getState();
+      addToQueueEnd([audioSong]);
+      toast.success(`Added "${title}" to end of queue`);
+    }
+    
+    // Clear the flag after a short delay
+    setTimeout(() => setAIUserActionInProgress(false), 2000);
   };
 
   return (
@@ -175,9 +204,37 @@ function RecommendationDetail() {
             </Button>
           </div>
 
-          <Button variant="outline" onClick={() => handleQueue(song)}>
-            Add to Queue
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="min-h-[44px]" aria-label="Add to queue">
+                <ListPlus className="mr-2 h-4 w-4" />
+                Add to Queue
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuItem
+                onClick={() => handleQueueAction(song, 'now')}
+                className="min-h-[44px]"
+              >
+                <Play className="mr-2 h-4 w-4" />
+                Play Now
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleQueueAction(song, 'next')}
+                className="min-h-[44px]"
+              >
+                <Play className="mr-2 h-4 w-4" />
+                Play Next
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleQueueAction(song, 'end')}
+                className="min-h-[44px]"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add to End
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </CardContent>
       </Card>
     </div>

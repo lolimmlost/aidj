@@ -1,7 +1,7 @@
 import type { LibraryProfile } from "@/lib/db/schema";
 
-const GENRE_WEIGHT = 0.7;
-const KEYWORD_WEIGHT = 0.3;
+const GENRE_WEIGHT = 0.8; // Increased from 0.7 to prioritize genre matching
+const KEYWORD_WEIGHT = 0.2; // Decreased from 0.3 to balance
 
 /**
  * Recommendation with genre similarity score
@@ -212,7 +212,7 @@ export function calculateGenreSimilarity(
 export function rankRecommendations(
   libraryProfile: LibraryProfile,
   recommendations: Array<{ song: string; explanation: string }>,
-  threshold: number = 0.3
+  threshold: number = 0.5 // Increased from 0.3 to 0.5 for stricter filtering
 ): ScoredRecommendation[] {
   const scored: ScoredRecommendation[] = recommendations.map(rec => ({
     song: rec.song,
@@ -221,7 +221,21 @@ export function rankRecommendations(
   }));
 
   // Filter by threshold and sort by score (descending)
-  return scored
+  const filtered = scored
     .filter(rec => rec.genreScore >= threshold)
     .sort((a, b) => b.genreScore - a.genreScore);
+  
+  // If we have too few high-scoring recommendations, relax threshold slightly
+  if (filtered.length < 3) {
+    const relaxedThreshold = 0.4;
+    const relaxed = scored
+      .filter(rec => rec.genreScore >= relaxedThreshold)
+      .sort((a, b) => b.genreScore - a.genreScore);
+    
+    console.log(`📊 Relaxed genre threshold from ${threshold} to ${relaxedThreshold} - got ${relaxed.length} recommendations`);
+    return relaxed.slice(0, 5); // Limit to top 5 even when relaxed
+  }
+  
+  console.log(`📊 Genre filtering: ${filtered.length}/${recommendations.length} recommendations passed threshold ${threshold}`);
+  return filtered.slice(0, 5); // Limit to top 5 recommendations
 }

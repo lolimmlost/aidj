@@ -43,12 +43,14 @@ export async function buildLibraryIndex(forceRefresh = false): Promise<LibraryIn
     const artists: string[] = [];
 
     // Fetch more artists for better diversity
-    const allArtists = await getArtists(0, 200); // Fetch 200 artists for more variety
+    const allArtists = await getArtists(0, 300); // Increased from 200 to 300 artists
 
     console.log(`📚 Indexing ${allArtists.length} artists...`);
 
     let totalSongsIndexed = 0;
     const songsPerArtist = new Map<string, number>(); // Track songs per artist for balance
+    const MAX_SONGS_PER_ARTIST = 8; // Limit songs per artist for better diversity
+    const MAX_TOTAL_SONGS = 1500; // Increased from 800 to 1500 songs
 
     // Process each artist - limit processing to avoid timeouts
     for (const artist of allArtists) {
@@ -58,16 +60,18 @@ export async function buildLibraryIndex(forceRefresh = false): Promise<LibraryIn
 
       try {
         // Get albums for this artist
-        const albums = await getAlbums(artist.id, 0, 5); // Get first 5 albums
+        const albums = await getAlbums(artist.id, 0, 8); // Increased from 5 to 8 albums
 
         // Get songs from albums with diversity in mind
         for (const album of albums) {
           try {
             // Limit songs per album based on artist's current count
             const artistSongCount = songsPerArtist.get(artistName) || 0;
-            const maxSongsForArtist = artistSongCount < 3 ? 10 : 5; // Allow more songs from underrepresented artists
+            const remainingSlots = Math.max(0, MAX_SONGS_PER_ARTIST - artistSongCount);
             
-            const albumSongs = await getSongs(album.id, 0, Math.min(maxSongsForArtist, 15));
+            if (remainingSlots <= 0) break; // Skip if we have enough songs from this artist
+            
+            const albumSongs = await getSongs(album.id, 0, Math.min(remainingSlots, 12));
             artistTopSongs.push(...albumSongs);
 
             // Add to song index
@@ -91,9 +95,9 @@ export async function buildLibraryIndex(forceRefresh = false): Promise<LibraryIn
             console.warn(`⚠️ Failed to fetch songs for album ${album.name}:`, error);
           }
 
-          // Stop if we've indexed enough songs (increased limit for more variety)
-          if (totalSongsIndexed >= 800) {
-            console.log(`⚠️ Reached song limit (800), stopping indexing`);
+          // Stop if we've indexed enough songs
+          if (totalSongsIndexed >= MAX_TOTAL_SONGS) {
+            console.log(`⚠️ Reached song limit (${MAX_TOTAL_SONGS}), stopping indexing`);
             break;
           }
         }
@@ -104,7 +108,7 @@ export async function buildLibraryIndex(forceRefresh = false): Promise<LibraryIn
       }
 
       // Break early if we have enough
-      if (totalSongsIndexed >= 800) {
+      if (totalSongsIndexed >= MAX_TOTAL_SONGS) {
         break;
       }
     }
@@ -217,7 +221,7 @@ export async function getSongSampleForAI(limit: number = 100): Promise<string[]>
     
     const underrepresentedArtists = artistsByCount
       .filter(([artist, songs]) => {
-        const artistSongCount = diverseSample.filter(s => 
+        const artistSongCount = diverseSample.filter(s =>
           s.split(' - ')[0].toLowerCase() === artist
         ).length;
         return artistSongCount === 0 && songs.length > 0;
@@ -235,7 +239,7 @@ export async function getSongSampleForAI(limit: number = 100): Promise<string[]>
       }
     }
     
-    // If still need more songs, add from remaining artists (max 2 per artist)
+    // If still need more songs, add from remaining artists (max 1 per artist for better diversity)
     const allSongsShuffled = [...index.songList].sort(() => Math.random() - 0.5);
     for (const song of allSongsShuffled) {
       if (diverseSample.length >= limit) break;
@@ -243,8 +247,8 @@ export async function getSongSampleForAI(limit: number = 100): Promise<string[]>
       const artist = song.split(' - ')[0].toLowerCase();
       const artistSongCount = diverseSample.filter(s => s.split(' - ')[0].toLowerCase() === artist).length;
       
-      // Limit to max 2 songs per artist in sample
-      if (artistSongCount < 2) {
+      // Reduced from 2 to 1 song per artist in sample for maximum diversity
+      if (artistSongCount < 1) {
         if (!diverseSample.includes(song)) {
           diverseSample.push(song);
         }

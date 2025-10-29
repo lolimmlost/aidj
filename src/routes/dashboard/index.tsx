@@ -15,6 +15,14 @@ import { NavidromeErrorBoundary } from '@/components/navidrome-error-boundary';
 import { Skeleton } from '@/components/ui/skeleton';
 import { hasLegacyFeedback, migrateLegacyFeedback, isMigrationCompleted } from '@/lib/utils/feedback-migration';
 import { PreferenceInsights } from '@/components/recommendations/PreferenceInsights';
+import { Play, Plus, ListPlus } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import type { Song } from '@/components/ui/audio-player';
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context }) => {
@@ -31,25 +39,32 @@ function DashboardIndex() {
   const queryClient = useQueryClient();
   const addToQueue = useAudioStore((state) => state.playSong);
   const addPlaylist = useAudioStore((state) => state.addPlaylist);
+  const setAIUserActionInProgress = useAudioStore((state) => state.setAIUserActionInProgress);
   const { preferences, loadPreferences } = usePreferencesStore();
   const [style, setStyle] = useState('');
   const [debouncedStyle, setDebouncedStyle] = useState('');
   const [generationStage, setGenerationStage] = useState<'idle' | 'generating' | 'resolving' | 'retrying' | 'done'>('idle');
   const trimmedStyle = style.trim();
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const songCache = useRef<Map<string, unknown[]>>(new Map()); // Cache for song search results
+  // Define a proper type for the song cache
+  type CachedSong = Song & {
+    trackNumber?: number;
+  };
+  
+  const songCache = useRef<Map<string, CachedSong[]>>(new Map()); // Cache for song search results
 
   // Track feedback state per song (for optimistic updates)
   const [songFeedback, setSongFeedback] = useState<Record<string, 'thumbs_up' | 'thumbs_down' | null>>({});
 
   // Feedback mutation for inline buttons
   const feedbackMutation = useMutation({
-    mutationFn: async ({ song, feedbackType }: { song: string; feedbackType: 'thumbs_up' | 'thumbs_down' }) => {
+    mutationFn: async ({ song, feedbackType, songId }: { song: string; feedbackType: 'thumbs_up' | 'thumbs_down'; songId?: string }) => {
       const response = await fetch('/api/recommendations/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           songArtistTitle: song,
+          songId: songId || null,
           feedbackType,
           source: 'recommendation',
         }),
@@ -64,9 +79,9 @@ function DashboardIndex() {
       // Optimistic update
       setSongFeedback(prev => ({ ...prev, [song]: feedbackType }));
     },
-    onSuccess: (_, { song, feedbackType }) => {
-      // Invalidate caches to refresh UI
-      queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+    onSuccess: (_, { feedbackType }) => {
+      // Only invalidate preference analytics, not recommendations to prevent auto-refresh
+      // This prevents the recommendations from refreshing when giving feedback
       queryClient.invalidateQueries({ queryKey: ['preference-analytics'] });
       const emoji = feedbackType === 'thumbs_up' ? '👍' : '👎';
       toast.success(`Feedback saved ${emoji}`, {
@@ -206,6 +221,7 @@ function DashboardIndex() {
 
       let attempts = 0;
       const maxAttempts = 3;
+      let lastData: unknown = null;
 
       while (attempts < maxAttempts) {
         attempts++;
@@ -324,15 +340,15 @@ function DashboardIndex() {
 
       // If all attempts failed, return the last result but mark as low quality
       console.log(`⚠️ All attempts completed with low library matches, returning best available`);
-      return data;
+      return lastData as any;
     },
     enabled: !!session,
   });
 
   
-  const handleQueue = async (song: string) => {
+  const handleQueueAction = async (song: string, position: 'now' | 'next' | 'end') => {
     try {
-      console.log('🎯 Queuing recommendation:', song); // Debug log
+      console.log('🎯 Queuing recommendation:', song, 'position:', position); // Debug log
 
       // Check cache first - use consistent cache key
       const cacheKey = song.toLowerCase().trim();
@@ -366,7 +382,9 @@ function DashboardIndex() {
             // Limit cache size to prevent memory issues
             if (songCache.current.size > 50) {
               const firstKey = songCache.current.keys().next().value;
-              songCache.current.delete(firstKey);
+              if (firstKey) {
+                songCache.current.delete(firstKey);
+              }
             }
           } catch (searchError) {
             console.error('Search error:', searchError);
@@ -384,36 +402,54 @@ function DashboardIndex() {
 
       console.log('📋 Search results for queue:', songs.length, 'songs'); // Debug log
       if (songs && songs.length > 0) {
-        const realSong = songs[0];
+        const realSong = songs[0] as CachedSong;
         console.log('✅ Found song:', realSong); // Debug log
 
         // Ensure the song has all required properties for the audio player
-        const songForPlayer = {
+        const songForPlayer: Song = {
           id: realSong.id,
           name: realSong.name || realSong.title || song,
           albumId: realSong.albumId || '',
           duration: realSong.duration || 0,
           track: realSong.track || realSong.trackNumber || 1,
-          url: realSong.url,
+          url: realSong.url || '',
           artist: realSong.artist || 'Unknown Artist'
         };
 
         console.log('🎵 Song prepared for player:', songForPlayer); // Debug log
 
         try {
-          addToQueue(realSong.id, [songForPlayer]);
+          // Set user action flag to prevent AI DJ auto-refresh
+          setAIUserActionInProgress(true);
+          
+          if (position === 'now') {
+            addToQueue(realSong.id, [songForPlayer]);
+            toast.success(`Now playing: ${songForPlayer.name}`);
+          } else if (position === 'next') {
+            const { addToQueueNext } = useAudioStore.getState();
+            addToQueueNext([songForPlayer]);
+            toast.success(`Added "${songForPlayer.name}" to play next`);
+          } else {
+            const { addToQueueEnd } = useAudioStore.getState();
+            addToQueueEnd([songForPlayer]);
+            toast.success(`Added "${songForPlayer.name}" to end of queue`);
+          }
+          
           console.log('🚀 Queued song successfully'); // Debug log
-          toast.success('Queued');
+          
+          // Clear the flag after a short delay
+          setTimeout(() => setAIUserActionInProgress(false), 2000);
         } catch (queueError) {
           console.error('Queue error:', queueError);
           toast.error('Failed to add song to queue');
+          setAIUserActionInProgress(false);
         }
       } else {
         console.log('❌ No songs found for:', song);
         toast.error('Song not found in library');
       }
     } catch (error) {
-      console.error('💥 Unexpected error in handleQueue:', error);
+      console.error('💥 Unexpected error in handleQueueAction:', error);
       toast.error('An unexpected error occurred');
     }
   };
@@ -536,8 +572,13 @@ function DashboardIndex() {
       };
     });
     if (resolvedSongs.length > 0) {
+      // Set user action flag to prevent AI DJ auto-refresh
+      setAIUserActionInProgress(true);
       addPlaylist(resolvedSongs);
       toast.success('Playlist queued');
+      
+      // Clear the flag after a short delay
+      setTimeout(() => setAIUserActionInProgress(false), 2000);
     } else {
       toast.error('No songs available in library for this playlist.');
     }
@@ -572,7 +613,7 @@ function DashboardIndex() {
   useEffect(() => {
     if (recommendations && recommendations.data.recommendations) {
       // Pre-cache all recommended songs for faster queuing using the same 3-strategy search as validation
-      recommendations.data.recommendations.forEach((rec: { song: string; foundInLibrary?: boolean; actualSong?: Song }) => {
+      recommendations.data.recommendations.forEach((rec: { song: string; foundInLibrary?: boolean; actualSong?: CachedSong }) => {
         const cacheKey = rec.song.toLowerCase().trim();
 
         // If we already found it during validation, use that result
@@ -679,7 +720,7 @@ function DashboardIndex() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8">
               <div className="bg-background/50 backdrop-blur-sm rounded-xl p-4 border border-border/50">
                 <div className="text-2xl font-bold text-primary">
-                  {recommendations?.data?.recommendations?.filter((r: any) => r.foundInLibrary).length || 0}
+                  {recommendations?.data?.recommendations?.filter((r: { foundInLibrary?: boolean }) => r.foundInLibrary).length || 0}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">Available Recommendations</div>
               </div>
@@ -850,15 +891,14 @@ function DashboardIndex() {
                     <div>
                       <p className="text-sm font-medium">Based on your listening history</p>
                       <p className="text-xs text-muted-foreground">
-                        {recommendations.data.recommendations.filter((rec: any) => rec.foundInLibrary).length} of {recommendations.data.recommendations.length} songs in your library • Updated {new Date(recommendations.timestamp).toLocaleTimeString()}
+                        {recommendations.data.recommendations.filter((rec: { foundInLibrary?: boolean }) => rec.foundInLibrary).length} of {recommendations.data.recommendations.length} songs in your library • Updated {new Date(recommendations.timestamp).toLocaleTimeString()}
                       </p>
                     </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3">
-                  {recommendations.data.recommendations.map((rec: any, index: number) => {
-                    const songId = encodeURIComponent(rec.song);
+                  {recommendations.data.recommendations.map((rec: { song: string; foundInLibrary?: boolean; actualSong?: CachedSong; searchError?: boolean; explanation?: string }, index: number) => {
                     const isInLibrary = rec.foundInLibrary;
                     const hasSearchError = rec.searchError;
                     const currentFeedback = songFeedback[rec.song];
@@ -916,7 +956,7 @@ function DashboardIndex() {
                                 <Button
                                   variant={currentFeedback === 'thumbs_up' ? "default" : "ghost"}
                                   size="sm"
-                                  onClick={() => feedbackMutation.mutate({ song: rec.song, feedbackType: 'thumbs_up' })}
+                                  onClick={() => feedbackMutation.mutate({ song: rec.song, feedbackType: 'thumbs_up', songId: rec.actualSong?.id })}
                                   disabled={feedbackMutation.isPending || hasFeedback}
                                   className={`h-9 w-9 p-0 ${currentFeedback === 'thumbs_up' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
                                   title={hasFeedback ? "Already rated" : "Like this song"}
@@ -936,7 +976,7 @@ function DashboardIndex() {
                                 <Button
                                   variant={currentFeedback === 'thumbs_down' ? "default" : "ghost"}
                                   size="sm"
-                                  onClick={() => feedbackMutation.mutate({ song: rec.song, feedbackType: 'thumbs_down' })}
+                                  onClick={() => feedbackMutation.mutate({ song: rec.song, feedbackType: 'thumbs_down', songId: rec.actualSong?.id })}
                                   disabled={feedbackMutation.isPending || hasFeedback}
                                   className={`h-9 w-9 p-0 ${currentFeedback === 'thumbs_down' ? 'bg-red-600 hover:bg-red-700 text-white' : ''}`}
                                   title={hasFeedback ? "Already rated" : "Dislike this song"}
@@ -954,19 +994,56 @@ function DashboardIndex() {
                                   )}
                                 </Button>
                               </div>
-                              <Button
-                                variant={isInLibrary ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => handleQueue(rec.song)}
-                                disabled={!isInLibrary}
-                                className={`${!isInLibrary ? "opacity-50 cursor-not-allowed" : "bg-primary hover:bg-primary/90"}`}
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                                  <path d="M5 12h14"/>
-                                  <path d="M12 5v14"/>
-                                </svg>
-                                {isInLibrary ? "Queue" : "Unavailable"}
-                              </Button>
+                              {isInLibrary ? (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      className="bg-primary hover:bg-primary/90"
+                                    >
+                                      <ListPlus className="mr-1 h-4 w-4" />
+                                      Queue
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-40">
+                                    <DropdownMenuItem
+                                      onClick={() => handleQueueAction(rec.song, 'now')}
+                                      className="min-h-[44px]"
+                                    >
+                                      <Play className="mr-2 h-4 w-4" />
+                                      Play Now
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => handleQueueAction(rec.song, 'next')}
+                                      className="min-h-[44px]"
+                                    >
+                                      <Play className="mr-2 h-4 w-4" />
+                                      Play Next
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => handleQueueAction(rec.song, 'end')}
+                                      className="min-h-[44px]"
+                                    >
+                                      <Plus className="mr-2 h-4 w-4" />
+                                      Add to End
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled
+                                  className="opacity-50 cursor-not-allowed"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                                    <path d="M5 12h14"/>
+                                    <path d="M12 5v14"/>
+                                  </svg>
+                                  Unavailable
+                                </Button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1416,6 +1493,10 @@ function DashboardIndex() {
                                   artist: artist,
                                 }]);
                                 toast.success('Queued');
+                                
+                                // Set user action flag to prevent AI DJ auto-refresh
+                                setAIUserActionInProgress(true);
+                                setTimeout(() => setAIUserActionInProgress(false), 2000);
                               }}
                               className="bg-green-600 hover:bg-green-700"
                             >

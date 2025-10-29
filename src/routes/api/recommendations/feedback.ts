@@ -153,10 +153,16 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/feedback'
       let feedbackRecord;
 
       if (existingFeedback) {
-        // If feedback exists and is the same, return success (idempotent)
+        // If feedback exists and is the same, return conflict status (409) to indicate duplicate
         if (existingFeedback.feedbackType === validatedData.feedbackType) {
-          console.log(`✓ Feedback already exists with same type, skipping update`);
-          feedbackRecord = existingFeedback;
+          console.log(`✓ Feedback already exists with same type, returning 409`);
+          return new Response(JSON.stringify({
+            code: 'DUPLICATE_FEEDBACK',
+            message: 'Feedback already exists for this song'
+          }), {
+            status: 409,
+            headers: { 'Content-Type': 'application/json' }
+          });
         } else {
           // Update existing feedback with new type
           console.log(`🔄 Updating feedback from ${existingFeedback.feedbackType} to ${validatedData.feedbackType}`);
@@ -359,7 +365,7 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/feedback'
         return new Response(JSON.stringify({
           code: 'VALIDATION_ERROR',
           message: 'Invalid feedback data',
-          errors: error.errors,
+          errors: error.issues,
         }), {
           status: 400,
           headers: { 'Content-Type': 'application/json' }

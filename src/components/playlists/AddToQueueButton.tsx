@@ -28,15 +28,21 @@ export function AddToQueueButton({
   showLabel = false,
 }: AddToQueueButtonProps) {
   const [open, setOpen] = useState(false);
-  const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying } = useAudioStore();
+  const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress } = useAudioStore();
 
   const handleAddToQueue = (position: 'now' | 'next' | 'end') => {
     const audioSong = {
       id: songId,
-      title: songTitle,
+      name: songTitle, // Use 'name' instead of 'title' to match Song type
       artist: artistName,
+      albumId: '', // Add missing property
+      duration: 0, // Add missing property
+      track: 1, // Add missing property
       url: `/api/navidrome/stream/${songId}`,
     };
+
+    // Set user action flag to prevent AI DJ auto-refresh
+    setAIUserActionInProgress(true);
 
     if (position === 'now') {
       playSong(songId, [audioSong]);
@@ -49,7 +55,13 @@ export function AddToQueueButton({
       addToQueueEnd([audioSong]);
       toast.success(`Added "${songTitle}" to end of queue`);
     }
+    
     setOpen(false);
+    
+    // Clear the flag after a short delay
+    setTimeout(() => {
+      setAIUserActionInProgress(false);
+    }, 2000);
   };
 
   return (

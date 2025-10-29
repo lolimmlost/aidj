@@ -24,7 +24,7 @@ export const Route = createFileRoute('/library/search')({
 
 function SearchPage() {
   const [query, setQuery] = useState('');
-  const { playSong } = useAudioStore();
+  const { playSong, setAIUserActionInProgress } = useAudioStore();
 
   const { data: songs = [], isLoading, error } = useQuery({
     queryKey: ['search', query],
@@ -42,7 +42,9 @@ function SearchPage() {
   };
 
   const handleSongClick = (songId: string) => {
+    setAIUserActionInProgress(true);
     playSong(songId, songs);
+    setTimeout(() => setAIUserActionInProgress(false), 1000);
   };
 
   return (

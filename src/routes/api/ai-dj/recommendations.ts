@@ -9,7 +9,7 @@ export const ServerRoute = createServerFileRoute('/api/ai-dj/recommendations').m
   POST: async ({ request }: { request: Request }) => {
     try {
       const body = await request.json();
-      const { currentSong, recentQueue, fullPlaylist, currentSongIndex, batchSize, useFeedbackForPersonalization, excludeSongIds } = body as {
+      const { currentSong, recentQueue, fullPlaylist, currentSongIndex, batchSize, useFeedbackForPersonalization, excludeSongIds, excludeArtists, skipAutoRefresh } = body as {
         currentSong: Song;
         recentQueue: Song[];
         fullPlaylist?: Song[];
@@ -17,6 +17,8 @@ export const ServerRoute = createServerFileRoute('/api/ai-dj/recommendations').m
         batchSize: number;
         useFeedbackForPersonalization: boolean;
         excludeSongIds?: string[];
+        excludeArtists?: string[];
+        skipAutoRefresh?: boolean;
       };
 
       if (!currentSong) {
@@ -45,11 +47,15 @@ export const ServerRoute = createServerFileRoute('/api/ai-dj/recommendations').m
         batchSize || 3,
         userId,
         useFeedbackForPersonalization,
-        excludeSongIds || []
+        excludeSongIds || [],
+        excludeArtists || []
       );
 
       return new Response(
-        JSON.stringify({ recommendations }),
+        JSON.stringify({
+          recommendations,
+          skipAutoRefresh: skipAutoRefresh || false
+        }),
         {
           status: 200,
           headers: { 'Content-Type': 'application/json' },

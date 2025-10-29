@@ -38,6 +38,7 @@ interface ArtistRecommendationTracker {
   lastRecommended: number;
   countToday: number;
   countThisSession: number;
+  cooldownUntil: number; // New field for artist cooldown
 }
 
 // In-memory tracker for artist recommendations
@@ -51,6 +52,7 @@ const artistRecommendationTracker = new Map<string, ArtistRecommendationTracker>
 function shouldAvoidArtist(artist: string): boolean {
   const now = Date.now();
   const oneDayAgo = now - (24 * 60 * 60 * 1000); // 24 hours ago
+  const eightHoursAgo = now - (8 * 60 * 60 * 1000); // Increased from 4 to 8 hours for cooldown
   const tracker = artistRecommendationTracker.get(artist);
   
   if (!tracker) {
@@ -60,8 +62,15 @@ function shouldAvoidArtist(artist: string): boolean {
       lastRecommended: now,
       countToday: 1,
       countThisSession: 1,
+      cooldownUntil: now + eightHoursAgo, // Set initial cooldown for 8 hours
     });
     return false;
+  }
+  
+  // Check if artist is in cooldown period
+  if (now < tracker.cooldownUntil) {
+    console.log(`🎵 Artist "${artist}" is in cooldown until ${new Date(tracker.cooldownUntil).toLocaleTimeString()}`);
+    return true;
   }
   
   // Update tracking
@@ -73,17 +82,16 @@ function shouldAvoidArtist(artist: string): boolean {
     artist,
     lastRecommended: now,
     countToday,
-    countThisSession,
+    countThisSession: countSession,
+    cooldownUntil: now + eightHoursAgo, // Reset cooldown for 8 hours
   });
   
-  // Avoid if:
-  // - Recommended 3+ times today
-  // - Recommended 2+ times in current session
-  // - Last recommended within last 2 hours
-  const twoHoursAgo = now - (2 * 60 * 60 * 1000);
-  const recentlyRecommended = now - tracker.lastRecommended < twoHoursAgo;
+  // Much stricter avoidance rules:
+  // - Recommended 1+ times today (reduced from 2)
+  // - Recommended 1+ times in current session (same)
+  // - Last recommended within last 8 hours (increased from 4)
   
-  return countToday >= 3 || countSession >= 2 || recentlyRecommended;
+  return countToday >= 1 || countSession >= 1;
 }
 
 /**
@@ -223,7 +231,8 @@ export async function generateContextualRecommendations(
   batchSize: number,
   userId?: string,
   useFeedbackForPersonalization: boolean = true,
-  excludeSongIds: string[] = []
+  excludeSongIds: string[] = [],
+  excludeArtists: string[] = []
 ): Promise<Song[]> {
   try {
     // Build AI prompt with current context
@@ -235,9 +244,13 @@ export async function generateContextualRecommendations(
       ? buildExtendedContext(context.fullPlaylist, context.currentSongIndex, excludeSongIds)
       : '';
 
-    // Add excluded songs to the prompt for AI awareness
+    // Add excluded songs and artists to the prompt for AI awareness
     const excludeText = excludeSongIds.length > 0
       ? `IMPORTANT: Do NOT recommend these songs that were recently suggested: ${excludeSongIds.join(', ')}.`
+      : '';
+    
+    const excludeArtistsText = excludeArtists.length > 0
+      ? `CRITICAL: Do NOT recommend any songs by these artists (they were recently played): ${excludeArtists.join(', ')}.`
       : '';
 
     const prompt = [
@@ -245,6 +258,7 @@ export async function generateContextualRecommendations(
       recentContext,
       extendedContext,
       excludeText,
+      excludeArtistsText,
       `Recommend ${batchSize} similar songs from my library that match this vibe and flow naturally after the current song.`,
       'Focus on maintaining the current mood and energy level while ensuring variety.',
     ].filter(Boolean).join('. ');
@@ -261,6 +275,7 @@ export async function generateContextualRecommendations(
         prompt,
         userId,
         useFeedbackForPersonalization,
+        excludeArtists,
       });
     } finally {
       clearTimeout(timeoutId);
@@ -307,12 +322,54 @@ export async function generateContextualRecommendations(
 
     // Convert recommendation names to actual Song objects
     const recommendedSongs: Song[] = [];
-    const allSongs = await getSongsGlobal(0, 1000); // Get larger sample to find matches
+    const allSongs = await getSongsGlobal(0, 1500); // Increased sample size for better variety
     
-    // Filter out excluded songs from the recommendations
+    console.log(`🎵 Excluded artists:`, excludeArtists);
+    console.log(`🎵 Original recommendations count:`, rankedRecommendations.length);
+    
+    // Get list of artists to avoid for diversity
+    const artistsToAvoid = new Set<string>();
+    for (const [artist, tracker] of artistRecommendationTracker.entries()) {
+      if (shouldAvoidArtist(artist)) {
+        artistsToAvoid.add(artist.toLowerCase());
+        console.log(`🚫 Artist "${artist}" in cooldown (last: ${new Date(tracker.lastRecommended).toLocaleTimeString()}, today: ${tracker.countToday}, session: ${tracker.countThisSession})`);
+      }
+    }
+    
+    // Add specific exclusions for problematic artists
+    const problemArtists = ['earl sweatshirt', 'ghb'];
+    problemArtists.forEach(artist => {
+      if (!excludeArtists.includes(artist)) {
+        excludeArtists.push(artist);
+        console.log(`🚫 Added problem artist to exclusion list: "${artist}"`);
+      }
+    });
+    
+    // Filter out excluded songs and artists from the recommendations
     const filteredRecommendations = rankedRecommendations.filter(rec => {
-      // Check if this recommendation matches any excluded song
       const recLower = rec.song.toLowerCase();
+      
+      // Extract artist from recommendation if in "Artist - Title" format
+      const recArtist = recLower.split(' - ')[0]?.trim();
+      
+      // Skip if artist is in cooldown/avoid list
+      // Skip if artist is in explicit exclude list
+      if (recArtist && excludeArtists.some(excluded => recArtist.includes(excluded.toLowerCase()))) {
+        console.log(`🚫 Skipping recommendation "${rec.song}" - artist "${recArtist}" is explicitly excluded`);
+        return false;
+      }
+      if (recArtist && artistsToAvoid.has(recArtist)) {
+        console.log(`🚫 Skipping recommendation "${rec.song}" - artist "${recArtist}" is in cooldown`);
+        return false;
+      }
+      
+      // Additional check for problematic artists that might be spelled differently
+      if (recArtist && problemArtists.some(problem => recArtist.includes(problem))) {
+        console.log(`🚫 Skipping recommendation "${rec.song}" - artist "${recArtist}" matches problem artist pattern`);
+        return false;
+      }
+      
+      // Check if this recommendation matches any excluded song
       return !excludeSongIds.some(excludeId => {
         const song = allSongs.find(s => s.id === excludeId);
         if (!song) return false;
@@ -451,6 +508,13 @@ export async function generateContextualRecommendations(
           );
           
           if (!isDuplicate) {
+            // Update artist tracking when we successfully match and recommend a song
+            const artist = matchedSong.artist;
+            if (artist) {
+              // Force update the artist tracker to mark this artist as recently recommended
+              shouldAvoidArtist(artist); // This will update the cooldown
+            }
+            
             recommendedSongs.push(matchedSong);
             console.log(`✅ AI DJ: Matched "${rec.song}" to "${matchedSong.name || matchedSong.title}" by ${matchedSong.artist}`);
           } else {
@@ -467,23 +531,63 @@ export async function generateContextualRecommendations(
     // If we don't have enough matches, try to get more diverse songs from library as fallback
     if (recommendedSongs.length < batchSize) {
       const neededSongs = batchSize - recommendedSongs.length;
-      console.warn(`⚠️ AI DJ: Need ${neededSongs} more songs, using fallback from library`);
+      console.warn(`⚠️ AI DJ: Need ${neededSongs} more songs, using smart fallback from library`);
       try {
         // Get more songs for better variety
-        const fallbackSongs = await getSongsGlobal(0, Math.min(batchSize * 3, 50));
+        const fallbackSongs = await getSongsGlobal(0, Math.min(batchSize * 5, 100)); // Increased sample size
+        
         if (fallbackSongs.length > 0) {
           // Filter out songs already recommended and get diverse artists
           const existingIds = new Set(recommendedSongs.map(s => s.id));
           const existingArtists = new Set(recommendedSongs.map(s => s.artist?.toLowerCase()).filter(Boolean));
           
-          const diverseFallback = fallbackSongs
+          // Smart fallback with relevance scoring
+          const currentArtist = context.currentSong.artist?.toLowerCase() || '';
+          const currentTitle = (context.currentSong.title || context.currentSong.name || '').toLowerCase();
+          
+          // Score fallback songs based on relevance to current song
+          const scoredFallback = fallbackSongs
             .filter(song => !existingIds.has(song.id))
             .filter(song => !existingArtists.has(song.artist?.toLowerCase()))
-            .sort(() => Math.random() - 0.5)
-            .slice(0, neededSongs);
+            .map(song => {
+              let score = Math.random(); // Base randomness
+              
+              // Boost score for artists with similar style (but not same artist)
+              const songArtist = song.artist?.toLowerCase() || '';
+              if (songArtist !== currentArtist) {
+                // Simple heuristic: if artist names share words, might be similar style
+                const currentWords = currentArtist.split(/\s+/);
+                const songWords = songArtist.split(/\s+/);
+                const commonWords = currentWords.filter(word =>
+                  word.length > 2 && songWords.some(songWord =>
+                    songWord.includes(word) || word.includes(songWord)
+                  )
+                );
+                if (commonWords.length > 0) {
+                  score += 0.2; // Boost for similar style
+                }
+              }
+              
+              // Boost score for songs with similar title keywords
+              const titleWords = (song.title || song.name || '').toLowerCase().split(/\s+/);
+              const currentTitleWords = currentTitle.split(/\s+/);
+              const titleMatches = currentTitleWords.filter(word =>
+                word.length > 2 && titleWords.some(titleWord =>
+                  titleWord.includes(word) || word.includes(titleWord)
+                )
+              );
+              if (titleMatches.length > 0) {
+                score += 0.1; // Small boost for title similarity
+              }
+              
+              return { song, score };
+            })
+            .sort((a, b) => b.score - a.score)
+            .slice(0, neededSongs)
+            .map(item => item.song);
           
-          recommendedSongs.push(...diverseFallback);
-          console.log(`🎵 AI DJ: Added ${diverseFallback.length} diverse fallback songs from library`);
+          recommendedSongs.push(...scoredFallback);
+          console.log(`🎵 AI DJ: Added ${scoredFallback.length} smart fallback songs from library (relevance-scored)`);
         }
       } catch (error) {
         console.error('⚠️ AI DJ: Failed to get fallback songs:', error);
@@ -533,10 +637,10 @@ export function checkCooldown(lastQueueTime: number, cooldownMs: number = AI_DJ_
 export function getArtistRecommendationStats() {
   const now = Date.now();
   const oneDayAgo = now - (24 * 60 * 60 * 1000);
-  const twoHoursAgo = now - (2 * 60 * 60 * 1000);
   
   const recentArtists: string[] = [];
   const overRecommendedArtists: string[] = [];
+  const cooledDownArtists: string[] = [];
   
   for (const [artist, tracker] of artistRecommendationTracker.entries()) {
     if (now - tracker.lastRecommended < oneDayAgo) {
@@ -546,15 +650,21 @@ export function getArtistRecommendationStats() {
       }
     } else {
       // Older than a day, check if over-recommended
-      if (tracker.countToday >= 3 || tracker.countThisSession >= 2) {
+      if (tracker.countToday >= 2 || tracker.countThisSession >= 1) {
         overRecommendedArtists.push(artist);
       }
+    }
+    
+    // Check cooldown status
+    if (now >= tracker.cooldownUntil) {
+      cooledDownArtists.push(artist);
     }
   }
   
   return {
     recentArtists,
     overRecommendedArtists,
+    cooledDownArtists,
   };
 }
 

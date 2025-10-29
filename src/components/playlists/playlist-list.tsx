@@ -33,7 +33,6 @@ import {
 } from 'lucide-react';
 import { useAudioStore } from '@/lib/stores/audio';
 import { SmartPlaylistEditor } from './smart-playlist-editor';
-import { SmartPlaylistBuilder } from './smart-playlist-builder';
 
 interface SmartPlaylistCriteria {
   genre?: string[];
@@ -73,7 +72,7 @@ interface PlaylistListProps {
 export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
   const [expandedPlaylistId, setExpandedPlaylistId] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  const { addPlaylistToQueue, addToQueueNext, addToQueueEnd } = useAudioStore();
+  const { addToQueueNext, addToQueueEnd, setAIUserActionInProgress } = useAudioStore();
 
   // Fetch all playlists
   const { data, isLoading, error } = useQuery({
@@ -145,21 +144,29 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     // Convert playlist songs to audio store format
     const audioSongs = songs.map((song) => ({
       id: song.songId,
+      name: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
       title: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
       artist: song.songArtistTitle.split(' - ')[0] || 'Unknown Artist',
+      albumId: '',
+      duration: 0,
+      track: 1,
       url: `/api/navidrome/stream/${song.songId}`,
     }));
 
     if (position === 'next') {
+      setAIUserActionInProgress(true);
       addToQueueNext(audioSongs);
       toast.success(`Added ${songs.length} songs to play next`, {
         description: `From "${playlist.name}"`,
       });
+      setTimeout(() => setAIUserActionInProgress(false), 2000);
     } else {
+      setAIUserActionInProgress(true);
       addToQueueEnd(audioSongs);
       toast.success(`Added ${songs.length} songs to end of queue`, {
         description: `From "${playlist.name}"`,
       });
+      setTimeout(() => setAIUserActionInProgress(false), 2000);
     }
 
     onAddToQueue?.(playlist.id, songs);

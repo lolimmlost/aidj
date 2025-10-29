@@ -34,7 +34,9 @@ interface AudioState {
   aiDJIsLoading: boolean;
   aiDJError: string | null;
   // Track recently recommended songs for diversity
-  aiDJRecentlyRecommended: Array<{songId: string; timestamp: number}>;
+  aiDJRecentlyRecommended: Array<{songId: string; timestamp: number; artist?: string}>;
+  // Flag to prevent auto-refresh during user actions
+  aiDJUserActionInProgress: boolean;
   // DJ mixing state
   djSession: DJSession | null;
   djQueue: DJQueueItem[];
@@ -64,6 +66,7 @@ interface AudioState {
   // AI DJ actions (Story 3.9)
   setAIDJEnabled: (enabled: boolean) => void;
   monitorQueueForAIDJ: () => Promise<void>;
+  setAIUserActionInProgress: (inProgress: boolean) => void;
   // DJ mixing actions
   startDJSession: (name: string, config?: DJMixerConfig) => DJSession;
   endDJSession: () => DJSession | null;
@@ -95,6 +98,7 @@ export const useAudioStore = create<AudioState>()(
     aiDJIsLoading: false,
     aiDJError: null,
     aiDJRecentlyRecommended: [],
+    aiDJUserActionInProgress: false,
     // DJ mixing initial state
     djSession: null,
     djQueue: [],
@@ -103,6 +107,8 @@ export const useAudioStore = create<AudioState>()(
     currentTransition: null,
     crossfadeEnabled: true,
     crossfadeDuration: 8.0,
+
+    setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
     setPlaylist: (songs: Song[]) => set({ playlist: songs, currentSongIndex: 0 }),
 
@@ -153,8 +159,8 @@ export const useAudioStore = create<AudioState>()(
       const newIndex = (state.currentSongIndex + 1) % state.playlist.length;
       set({ currentSongIndex: newIndex });
 
-      // Trigger AI DJ monitoring when song changes
-      if (state.aiDJEnabled) {
+      // Trigger AI DJ monitoring when song changes (but not on initial load or manual skips)
+      if (state.aiDJEnabled && state.currentSongIndex > 0) {
         // Use setTimeout to avoid blocking the song change
         setTimeout(() => {
           get().monitorQueueForAIDJ().catch(error => {
@@ -194,6 +200,9 @@ export const useAudioStore = create<AudioState>()(
     // Add songs right after the currently playing song
     addToQueueNext: (songs: Song[]) => {
       const state = get();
+      // Set user action flag to prevent AI DJ auto-refresh
+      set({ aiDJUserActionInProgress: true });
+      
       if (state.playlist.length === 0 || state.currentSongIndex === -1) {
         // No playlist exists, just set it
         set({ playlist: songs, currentSongIndex: 0, isPlaying: true });
@@ -206,11 +215,19 @@ export const useAudioStore = create<AudioState>()(
         ];
         set({ playlist: newPlaylist });
       }
+      
+      // Clear the flag after a short delay
+      setTimeout(() => {
+        set({ aiDJUserActionInProgress: false });
+      }, 2000);
     },
 
     // Add songs to the end of the queue
     addToQueueEnd: (songs: Song[]) => {
       const state = get();
+      // Set user action flag to prevent AI DJ auto-refresh
+      set({ aiDJUserActionInProgress: true });
+      
       if (state.playlist.length === 0 || state.currentSongIndex === -1) {
         // No playlist exists, just set it
         set({ playlist: songs, currentSongIndex: 0, isPlaying: true });
@@ -219,6 +236,11 @@ export const useAudioStore = create<AudioState>()(
         const newPlaylist = [...state.playlist, ...songs];
         set({ playlist: newPlaylist });
       }
+      
+      // Clear the flag after a short delay
+      setTimeout(() => {
+        set({ aiDJUserActionInProgress: false });
+      }, 2000);
     },
 
     // Get the upcoming queue (songs after current)
@@ -328,6 +350,12 @@ export const useAudioStore = create<AudioState>()(
         return;
       }
 
+      // Skip if user is manually adding songs or giving feedback
+      if (state.aiDJUserActionInProgress) {
+        console.log('🎵 AI DJ: User action in progress, skipping monitoring');
+        return;
+      }
+
       // Get preferences
       const preferencesState = usePreferencesStore.getState();
       const { recommendationSettings } = preferencesState.preferences;
@@ -384,14 +412,28 @@ export const useAudioStore = create<AudioState>()(
 
         // Get recently recommended songs to avoid duplicates
         const recentlyRecommended = state.aiDJRecentlyRecommended
-          .filter(rec => Date.now() - rec.timestamp < 3600000) // Only consider last hour
+          .filter(rec => Date.now() - rec.timestamp < 14400000) // Increased from 2 hours to 4 hours
           .map(rec => rec.songId);
         
         // Also exclude recently played songs for more variety
         const recentlyPlayed = state.playlist.slice(
-          Math.max(0, state.currentSongIndex - 10),
+          Math.max(0, state.currentSongIndex - 20), // Increased from 15 to 20
           state.currentSongIndex + 5 // Include upcoming songs too
         ).map(song => song.id);
+
+        // Get recently recommended artists to avoid for diversity
+        const recentlyRecommendedArtists = new Set(
+          state.aiDJRecentlyRecommended
+            .filter(rec => Date.now() - rec.timestamp < 28800000) // Increased from 4 hours to 8 hours
+            .map(rec => rec.artist?.toLowerCase())
+            .filter(Boolean)
+        );
+        
+        // Add specific problematic artists to exclusion list
+        const problemArtists = ['earl sweatshirt', 'ghb'];
+        problemArtists.forEach(artist => {
+          recentlyRecommendedArtists.add(artist);
+        });
 
         // Combine all exclusions
         const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed])];
@@ -411,6 +453,8 @@ export const useAudioStore = create<AudioState>()(
             batchSize: recommendationSettings.aiDJBatchSize,
             useFeedbackForPersonalization: recommendationSettings.useFeedbackForPersonalization,
             excludeSongIds: allExclusions,
+            excludeArtists: Array.from(recentlyRecommendedArtists), // Pass excluded artists to API
+            skipAutoRefresh: true, // Add flag to prevent auto-refresh loops
           }),
         });
 
@@ -419,7 +463,7 @@ export const useAudioStore = create<AudioState>()(
           throw new Error(error.message || 'Failed to fetch AI DJ recommendations');
         }
 
-        const { recommendations } = await response.json();
+        const { recommendations, skipAutoRefresh } = await response.json();
 
         if (recommendations.length === 0) {
           console.warn('🎵 AI DJ: No recommendations generated');
@@ -439,16 +483,20 @@ export const useAudioStore = create<AudioState>()(
         const newQueuedIds = new Set(state.aiQueuedSongIds);
         const now = Date.now();
         
-        // Track newly recommended songs
+        // Track newly recommended songs with artist info
         const newRecentlyRecommended = [...state.aiDJRecentlyRecommended];
         recommendations.forEach((song: Song) => {
           newQueuedIds.add(song.id);
-          newRecentlyRecommended.push({ songId: song.id, timestamp: now });
+          newRecentlyRecommended.push({
+            songId: song.id,
+            timestamp: now,
+            artist: song.artist // Track artist for diversity enforcement
+          });
         });
 
-        // Clean up old recommendations (older than 2 hours)
+        // Clean up old recommendations (older than 8 hours)
         const cleanedRecentlyRecommended = newRecentlyRecommended.filter(
-          rec => now - rec.timestamp < 7200000
+          rec => now - rec.timestamp < 28800000
         );
 
         // Check if we need to start playback (empty queue case)
@@ -465,8 +513,12 @@ export const useAudioStore = create<AudioState>()(
           aiDJError: null,
         });
 
-        console.log(`✅ AI DJ: Added ${recommendations.length} songs to queue`);
-        toast.success(`✨ AI DJ added ${recommendations.length} ${recommendations.length === 1 ? 'song' : 'songs'} to your queue`);
+        // Only show toast if this wasn't an auto-refresh that should be silent
+        if (!skipAutoRefresh) {
+          console.log(`✅ AI DJ: Added ${recommendations.length} songs to queue`);
+          toast.success(`✨ AI DJ added ${recommendations.length} ${recommendations.length === 1 ? 'song' : 'songs'} to your queue`);
+        }
+
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'AI DJ failed to generate recommendations';
         console.error('🎵 AI DJ Error:', errorMessage);

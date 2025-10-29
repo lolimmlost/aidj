@@ -1,7 +1,6 @@
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { useState } from 'react';
 import { ListMusic, Play, Trash2, X, ListPlus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -56,7 +55,7 @@ function PlaylistDetailPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { setPlaylist, playSong, addToQueueNext, addToQueueEnd, setIsPlaying } = useAudioStore();
+  const { setPlaylist, playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress } = useAudioStore();
 
   const { data: playlist, isLoading, error } = useQuery({
     queryKey: ['playlist', id],
@@ -211,11 +210,15 @@ function PlaylistDetailPage() {
       };
 
       if (position === 'next') {
+        setAIUserActionInProgress(true);
         addToQueueNext([audioSong]);
         toast.success(`Added "${audioSong.title}" to play next`);
+        setTimeout(() => setAIUserActionInProgress(false), 2000);
       } else {
+        setAIUserActionInProgress(true);
         addToQueueEnd([audioSong]);
         toast.success(`Added "${audioSong.title}" to end of queue`);
+        setTimeout(() => setAIUserActionInProgress(false), 2000);
       }
     }
   };
@@ -236,21 +239,29 @@ function PlaylistDetailPage() {
 
     const audioSongs = playlist.songs.map((song) => ({
       id: song.songId,
+      name: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
       title: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
       artist: song.songArtistTitle.split(' - ')[0] || 'Unknown Artist',
+      albumId: '',
+      duration: 0,
+      track: 1,
       url: `/api/navidrome/stream/${song.songId}`,
     }));
 
     if (position === 'next') {
+      setAIUserActionInProgress(true);
       addToQueueNext(audioSongs);
       toast.success(`Added ${playlist.songs.length} songs to play next`, {
         description: `From "${playlist.name}"`,
       });
+      setTimeout(() => setAIUserActionInProgress(false), 2000);
     } else {
+      setAIUserActionInProgress(true);
       addToQueueEnd(audioSongs);
       toast.success(`Added ${playlist.songs.length} songs to end of queue`, {
         description: `From "${playlist.name}"`,
       });
+      setTimeout(() => setAIUserActionInProgress(false), 2000);
     }
   };
 

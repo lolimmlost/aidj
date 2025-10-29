@@ -45,6 +45,7 @@ interface RecommendationRequest {
   model?: string;
   userId?: string;
   useFeedbackForPersonalization?: boolean; // Privacy setting
+  excludeArtists?: string[]; // Artists to exclude from recommendations
 }
 
 interface RecommendationResponse {
@@ -71,7 +72,20 @@ async function retryFetch(fn: () => Promise<Response>, maxRetries = 3): Promise<
   throw lastError!;
 }
 
-export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, userId, useFeedbackForPersonalization = true }: RecommendationRequest & { userId?: string }): Promise<RecommendationResponse> {
+export async function generateRecommendations({
+  prompt,
+  model = DEFAULT_MODEL,
+  userId,
+  useFeedbackForPersonalization = true,
+  excludeArtists = []
+}: RecommendationRequest & {
+  userId?: string;
+  excludeArtists?: string[]
+}): Promise<RecommendationResponse> {
+  // Add debug logging for excluded artists
+  if (excludeArtists && excludeArtists.length > 0) {
+    console.log(`🚫 Ollama: Excluding ${excludeArtists.length} artists from recommendations:`, excludeArtists);
+  }
   // Performance monitoring - start timer
   const perfStart = Date.now();
   const perfTimings: Record<string, number> = {};
@@ -84,7 +98,7 @@ export async function generateRecommendations({ prompt, model = DEFAULT_MODEL, u
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout for better responsiveness
+  const timeoutId = setTimeout(() => controller.abort(), 20000); // Increased to 20s timeout for complex recommendations
 
   let enhancedPrompt = prompt;
   if (userId) {
@@ -223,6 +237,11 @@ GENRE MATCHING RULES:
     const timestamp = Date.now();
     const randomSeed = Math.random().toString(36).substring(7);
 
+    // Add excluded artists to prompt
+    const excludedArtistsText = excludeArtists.length > 0
+      ? `ABSOLUTELY FORBIDDEN ARTISTS (do not recommend any songs by these artists): ${excludeArtists.join(', ')}`
+      : '';
+
     enhancedPrompt = `${prompt}.
 
 USER'S LIBRARY (complete list of available songs - ONLY use songs from this list):
@@ -230,35 +249,51 @@ ${songListForPrompt}
 
 ARTISTS IN LIBRARY: ${artistsList}
 ${preferenceSection}${genreSection}${seasonalSection}
+${excludedArtistsText}
 IMPORTANT - Generate DIFFERENT recommendations each time. Session seed: ${randomSeed}_${timestamp}
 
-RULES:
+CRITICAL DIVERSITY RULES (STRICTLY ENFORCED - ZERO TOLERANCE):
 1. ONLY recommend songs from the library list above - copy the EXACT format "Artist - Title"
-2. Choose DIFFERENT songs each time - never repeat the same recommendations
-3. Select songs that match the mood/style requested in the prompt
-4. If no specific mood requested, recommend diverse songs from the library
-5. Format: "Artist - Title" exactly as shown in the library list
-6. USE USER PREFERENCES to personalize recommendations (prioritize liked artists, avoid disliked)
+2. NEVER recommend more than ONE song from the same artist in a single batch
+3. AVOID artists that have been recommended in the last 8 hours (increased from 4)
+4. If you've recommended an artist 1+ times today, choose DIFFERENT artists (reduced from 2)
+5. PRIORITIZE artists you haven't recommended in this session at all
+6. ENSURE each batch of recommendations has maximum artist diversity
+7. If you must repeat an artist, wait at least 8 hours between recommendations (increased from 6)
+8. ABSOLUTELY FORBIDDEN: NEVER recommend songs by excluded artists listed above
+9. ZERO TOLERANCE: Any violation of these rules will result in immediate rejection
+10. CRITICAL: NEVER recommend "Earl Sweatshirt" or any "GHB" artists more than once per day
+11. MANDATORY: Each recommendation must be from a DIFFERENT artist - no exceptions
 
-DIVERSITY REQUIREMENTS:
-- Select songs from DIFFERENT artists (avoid multiple songs from same artist)
-- Include songs from different genres when possible
-- Vary the energy levels and styles of recommended songs
-- Do not recommend songs that have been recently played or suggested
-- Ensure each recommendation provides a fresh listening experience
-- AVOID repeating artists from the last 10 songs played
-- PRIORITIZE artists you haven't recommended in this session
-- If you've recommended the same artist 3+ times today, choose others
-- BALANCE between familiar favorites and new discoveries
+RELEVANCE REQUIREMENTS:
+8. Select songs that match the mood/style requested in the prompt
+9. Consider the current song's energy, tempo, and emotional tone
+10. Choose songs that flow naturally from the current playing song
+11. If no specific mood requested, recommend diverse songs from the library
+12. Format: "Artist - Title" exactly as shown in the library list
+13. USE USER PREFERENCES to personalize recommendations (prioritize liked artists, avoid disliked)
+
+GENRE AND ENERGY BALANCE:
+14. Include songs from different genres when possible
+15. Vary the energy levels and styles of recommended songs
+16. Do not recommend songs that have been recently played or suggested
+17. Ensure each recommendation provides a fresh listening experience
+18. AVOID repeating artists from the last 15 songs played (increased from 10)
+19. BALANCE between familiar favorites and new discoveries
+20. CRITICAL: If you notice yourself recommending the same artists repeatedly, STOP and choose completely different artists
+21. MANDATORY: Check each recommendation - if artist appears in recent history, choose a different song
 
 CONTEXTUAL AWARENESS:
-- Consider the full listening session history for variety
-- If user has heard many songs from one genre, explore others
-- Mix up the tempo and mood between recommendations
-- Avoid suggesting songs that sound too similar to each other
-- Create a journey through different musical styles and emotions
+20. Consider the full listening session history for variety
+21. If user has heard many songs from one genre, explore others
+22. Mix up the tempo and mood between recommendations
+23. Avoid suggesting songs that sound too similar to each other
+24. Create a journey through different musical styles and emotions
 
-Your goal is to recommend songs from my ACTUAL library that I'll enjoy based on my preferences. Make sure each response is UNIQUE and DIVERSE.`;
+VIOLATION CONSEQUENCES:
+If you repeat artists or fail to provide diversity, the recommendations will be rejected.
+Your goal is to recommend songs from my ACTUAL library that I'll enjoy based on my preferences.
+Make sure each response is UNIQUE and DIVERSE with MAXIMUM ARTIST VARIETY.`;
   }
 
   const url = `${OLLAMA_BASE_URL}/api/generate`;
@@ -393,7 +428,7 @@ Your goal is to recommend songs from my ACTUAL library that I'll enjoy based on 
   } catch (error: unknown) {
     clearTimeout(timeoutId);
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new ServiceError('OLLAMA_TIMEOUT_ERROR', 'Ollama request timed out after 10s');
+      throw new ServiceError('OLLAMA_TIMEOUT_ERROR', 'Ollama request timed out after 20s');
     }
     if (error instanceof ServiceError && (error.code === 'OLLAMA_TIMEOUT_ERROR' || error.code === 'SERVER_ERROR' || error instanceof TypeError)) {
       throw error;
@@ -428,6 +463,7 @@ interface PlaylistRequest {
   style: string;
   userId?: string;
   useFeedbackForPersonalization?: boolean; // Privacy setting
+  excludeArtists?: string[]; // Artists to exclude from playlist
 }
 
 interface PlaylistSuggestion {
@@ -439,7 +475,14 @@ interface PlaylistResponse {
   playlist: PlaylistSuggestion[];
 }
 
-export async function generatePlaylist({ style, userId, useFeedbackForPersonalization = true }: PlaylistRequest): Promise<PlaylistResponse> {
+export async function generatePlaylist({
+  style,
+  userId,
+  useFeedbackForPersonalization = true,
+  excludeArtists = []
+}: PlaylistRequest & {
+  excludeArtists?: string[]
+}): Promise<PlaylistResponse> {
   // Rate limiting check
   if (!checkOllamaRateLimit('playlist_generation')) {
     console.warn('⚠️ Playlist generation rate limit reached, throttling request');
@@ -447,7 +490,7 @@ export async function generatePlaylist({ style, userId, useFeedbackForPersonaliz
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout per AC7
+  const timeoutId = setTimeout(() => controller.abort(), 20000); // Increased to 20s timeout for playlist generation
 
   // Get indexed library data for better context
   console.log('📚 Fetching indexed library data for AI context...');
@@ -462,6 +505,7 @@ export async function generatePlaylist({ style, userId, useFeedbackForPersonaliz
 
   // Fetch user preference data for personalization (if privacy setting allows)
   let preferenceSection = '';
+  let excludedArtistsText = '';
   if (userId && useFeedbackForPersonalization) {
     try {
       const profile = await buildUserPreferenceProfile(userId);
@@ -488,6 +532,11 @@ PERSONALIZATION: Prioritize songs from liked artists while matching the style. A
     console.log(`🔒 Privacy setting disabled feedback personalization for playlist`);
   }
 
+  // Add excluded artists to prompt if provided
+  if (excludeArtists.length > 0) {
+    excludedArtistsText = `FORBIDDEN ARTISTS: Do NOT include any songs by these artists: ${excludeArtists.join(', ')}`;
+  }
+
   const prompt = `You are a music playlist generator. You MUST ONLY use songs from the user's EXACT library listed below.
 
 USER'S LIBRARY (complete list of available songs):
@@ -495,6 +544,7 @@ ${songListForPrompt}
 
 ARTISTS IN LIBRARY: ${artistsList}
 ${preferenceSection}
+${excludedArtistsText}
 TASK: Create a 5-song playlist for style "${style}"
 
 RULES:
@@ -563,8 +613,8 @@ Generate exactly 5 songs now:`;
   } catch (error: unknown) {
     clearTimeout(timeoutId);
     if (error instanceof DOMException && error.name === 'AbortError') {
-      console.error('⏰ Ollama request timed out after 10s');
-      throw new ServiceError('OLLAMA_TIMEOUT_ERROR', 'Ollama request timed out after 10s');
+      console.error('⏰ Ollama request timed out after 20s');
+      throw new ServiceError('OLLAMA_TIMEOUT_ERROR', 'Ollama request timed out after 20s');
     }
     console.error('💥 Ollama playlist generation error:', error);
     throw error;

@@ -172,8 +172,13 @@ export function AudioPlayer() {
   const isLiked = feedbackData?.feedback?.[currentSong?.id] === 'thumbs_up';
 
   // Like/unlike mutation
+  const { setAIUserActionInProgress } = useAudioStore();
+  
   const likeMutation = useMutation({
     mutationFn: async (liked: boolean) => {
+      // Set user action flag to prevent AI DJ auto-refresh
+      setAIUserActionInProgress(true);
+      
       const response = await fetch('/api/recommendations/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -200,10 +205,16 @@ export function AudioPlayer() {
     onError: (error: Error) => {
       toast.error('Failed to update', { description: error.message });
     },
+    onSettled: () => {
+      // Clear the user action flag after the operation completes
+      setTimeout(() => {
+        setAIUserActionInProgress(false);
+      }, 1000);
+    },
   });
 
   const handleToggleLike = () => {
-    if (!currentSong) return;
+    if (!currentSong || likeMutation.isPending) return;
     likeMutation.mutate(!isLiked);
   };
 

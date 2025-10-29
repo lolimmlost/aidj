@@ -65,7 +65,7 @@ export function SongFeedbackButtons({
         duration: 2000,
       });
     },
-    onError: (error: Error, feedbackType) => {
+    onError: (error: Error) => {
       // Revert optimistic update
       setOptimisticFeedback(currentFeedback);
 
@@ -87,8 +87,8 @@ export function SongFeedbackButtons({
   });
 
   const handleFeedback = (feedbackType: 'thumbs_up' | 'thumbs_down') => {
-    // Prevent clicking the same feedback twice
-    if (optimisticFeedback === feedbackType) {
+    // Prevent clicking the same feedback twice or if already loading
+    if (optimisticFeedback === feedbackType || feedbackMutation.isPending) {
       return;
     }
 
