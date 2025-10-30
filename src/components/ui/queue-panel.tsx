@@ -161,7 +161,7 @@ export function QueuePanel() {
       return;
     }
 
-    // Find indices in the upcoming queue
+    // Find indices in upcoming queue
     const oldIndex = upcomingQueue.findIndex(song => song.id === active.id);
     const newIndex = upcomingQueue.findIndex(song => song.id === over.id);
 
@@ -184,7 +184,7 @@ export function QueuePanel() {
   if (!isOpen) {
     // Collapsed state - show count badge
     return (
-      <div className="fixed bottom-24 right-4 z-50">
+      <div className="fixed bottom-[calc(4rem+1rem)] right-4 z-50 md:bottom-[calc(5rem+1rem)]">
         <Button
           onClick={() => setIsOpen(true)}
           variant="outline"
@@ -204,7 +204,7 @@ export function QueuePanel() {
   }
 
   return (
-    <div className="fixed bottom-24 right-4 z-50 w-80 sm:w-96 animate-in slide-in-from-right duration-300">
+    <div className="fixed bottom-[calc(4rem+1rem)] right-4 z-50 w-80 sm:w-96 md:bottom-[calc(5rem+1rem)] animate-in slide-in-from-right duration-300">
       <Card className="shadow-2xl border-2 border-primary/10 bg-gradient-to-br from-background via-background to-primary/5 backdrop-blur-xl overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-purple-500 to-pink-500" />
         <CardHeader className="pb-3 bg-gradient-to-br from-primary/5 to-transparent">

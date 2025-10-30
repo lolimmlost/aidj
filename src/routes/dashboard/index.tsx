@@ -583,7 +583,7 @@ function DashboardIndex() {
     retry: false, // We handle retries ourselves
   });
 
-  const handlePlaylistQueue = () => {
+  const handlePlaylistQueueAction = (position: 'now' | 'next' | 'end') => {
     if (!playlistData) return;
     const resolvedSongs = (playlistData.data.playlist as PlaylistItem[]).filter((item) => item.songId).map((item) => {
       // Parse "Artist - Title" format
@@ -602,17 +602,33 @@ function DashboardIndex() {
         artist: artist,
       };
     });
-    if (resolvedSongs.length > 0) {
-      // Set user action flag to prevent AI DJ auto-refresh
-      setAIUserActionInProgress(true);
-      addPlaylist(resolvedSongs);
-      toast.success('Playlist queued');
-      
-      // Clear the flag after a short delay
-      setTimeout(() => setAIUserActionInProgress(false), 2000);
-    } else {
+    
+    if (resolvedSongs.length === 0) {
       toast.error('No songs available in library for this playlist.');
+      return;
     }
+
+    // Set user action flag to prevent AI DJ auto-refresh
+    setAIUserActionInProgress(true);
+
+    if (position === 'now') {
+      // Replace entire queue and start playing first song
+      addPlaylist(resolvedSongs);
+      toast.success(`Now playing playlist with ${resolvedSongs.length} songs`);
+    } else if (position === 'next') {
+      // Add to play next
+      const { addToQueueNext } = useAudioStore.getState();
+      addToQueueNext(resolvedSongs);
+      toast.success(`Added ${resolvedSongs.length} songs to play next`);
+    } else {
+      // Add to end
+      const { addToQueueEnd } = useAudioStore.getState();
+      addToQueueEnd(resolvedSongs);
+      toast.success(`Added ${resolvedSongs.length} songs to end of queue`);
+    }
+    
+    // Clear the flag after a short delay
+    setTimeout(() => setAIUserActionInProgress(false), 2000);
   };
 
   
@@ -1438,13 +1454,37 @@ function DashboardIndex() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button onClick={handlePlaylistQueue} size="sm" className="bg-green-600 hover:bg-green-700 text-white shadow-sm" aria-label="Add entire playlist to queue">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                    <path d="M5 12h14"/>
-                    <path d="M12 5v14"/>
-                  </svg>
-                  Queue All
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white shadow-sm" aria-label="Add playlist to queue">
+                      <ListPlus className="mr-1 h-4 w-4" />
+                      Queue
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem
+                      onClick={() => handlePlaylistQueueAction('now')}
+                      className="min-h-[44px]"
+                    >
+                      <Play className="mr-2 h-4 w-4" />
+                      Play Now
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handlePlaylistQueueAction('next')}
+                      className="min-h-[44px]"
+                    >
+                      <Play className="mr-2 h-4 w-4" />
+                      Play Next
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handlePlaylistQueueAction('end')}
+                      className="min-h-[44px]"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add to End
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button
                   variant="outline"
                   size="sm"

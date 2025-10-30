@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
-import { SkipBack, SkipForward, Play, Pause, Heart, Loader2, AlertCircle, Volume2, VolumeX } from 'lucide-react';
+import { SkipBack, SkipForward, Play, Pause, Heart, Loader2, AlertCircle, Volume2, VolumeX, Shuffle } from 'lucide-react';
 import { Button } from './button';
 import { Slider } from './slider';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -86,12 +86,14 @@ export function AudioPlayer() {
     currentTime,
     duration,
     volume,
+    isShuffled,
     setIsPlaying,
     setCurrentTime,
     setDuration,
     setVolume,
     nextSong,
     previousSong,
+    toggleShuffle,
     setAIUserActionInProgress,
   } = useAudioStore();
   const currentSong = useMemo(() => playlist[currentSongIndex] || null, [playlist, currentSongIndex]);
@@ -400,6 +402,11 @@ export function AudioPlayer() {
           e.preventDefault();
           handleToggleLike();
           break;
+        case 's':
+        case 'S':
+          e.preventDefault();
+          toggleShuffle();
+          break;
       }
     };
 
@@ -547,6 +554,20 @@ export function AudioPlayer() {
                 <Button
                   variant="ghost"
                   size="sm"
+                  className={cn(
+                    "rounded-full hover:bg-accent/20 transition-all duration-200",
+                    isShuffled ? "text-primary bg-primary/10 hover:bg-primary/20" : ""
+                  )}
+                  onClick={toggleShuffle}
+                  aria-label={isShuffled ? "Disable shuffle" : "Enable shuffle"}
+                  aria-pressed={isShuffled}
+                >
+                  <Shuffle className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="rounded-full hover:bg-accent/20"
                   onClick={previousSong}
                   aria-label="Previous song"
@@ -679,6 +700,20 @@ export function AudioPlayer() {
                 <Heart className={cn("h-5 w-5", isLiked ? "fill-current text-red-500" : "")} />
               </Button>
               
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "rounded-full hover:bg-accent/20 transition-all duration-200",
+                  isShuffled ? "text-primary bg-primary/10 hover:bg-primary/20" : ""
+                )}
+                onClick={toggleShuffle}
+                aria-label={isShuffled ? "Disable shuffle" : "Enable shuffle"}
+                aria-pressed={isShuffled}
+              >
+                <Shuffle className="h-5 w-5" />
+              </Button>
+
               <Button
                 variant="ghost"
                 size="sm"
