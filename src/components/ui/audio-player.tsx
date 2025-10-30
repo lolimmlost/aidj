@@ -119,6 +119,12 @@ export function AudioPlayer() {
       });
 
       if (!response.ok) {
+        // Handle 409 Conflict (duplicate feedback) gracefully
+        if (response.status === 409) {
+          await response.json(); // Consume response body
+          console.log('✓ Feedback already exists, continuing with recommendations');
+          return; // Return undefined to prevent error
+        }
         const error = await response.json();
         throw new Error(error.message || 'Failed to update feedback');
       }

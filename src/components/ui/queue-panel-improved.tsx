@@ -195,7 +195,7 @@ export function ImprovedQueuePanel() {
           icon={<Music className="h-5 w-5" />}
         />
         {upcomingQueue.length > 0 && (
-          <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full h-5 w-5 text-xs flex items-center justify-center font-medium">
+          <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full h-5 w-5 text-xs flex items-center justify-center font-medium z-10">
             {upcomingQueue.length}
           </span>
         )}

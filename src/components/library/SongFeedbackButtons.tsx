@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useSongFeedback } from '@/hooks/useSongFeedback';
 
 interface SongFeedbackButtonsProps {
   songId: string;
@@ -21,8 +22,14 @@ export function SongFeedbackButtons({
   source = 'search',
   size = 'sm',
 }: SongFeedbackButtonsProps) {
-  const [optimisticFeedback, setOptimisticFeedback] = useState<'thumbs_up' | 'thumbs_down' | null>(currentFeedback);
   const queryClient = useQueryClient();
+  
+  // Fetch existing feedback for this song
+  const { data: feedbackData } = useSongFeedback([songId]);
+  
+  // Use derived state instead of separate state
+  const existingFeedback = feedbackData?.feedback?.[songId] || null;
+  const [optimisticFeedback, setOptimisticFeedback] = useState<'thumbs_up' | 'thumbs_down' | null>(currentFeedback || existingFeedback);
 
   const feedbackMutation = useMutation({
     mutationFn: async (feedbackType: 'thumbs_up' | 'thumbs_down') => {

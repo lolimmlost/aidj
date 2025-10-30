@@ -344,9 +344,9 @@ function PlaylistDetailPage() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
-                  variant="outline"
+                  variant="default"
                   disabled={playlist.songs.length === 0}
-                  className="min-h-[44px]"
+                  className="min-h-[44px] bg-green-600 hover:bg-green-700 text-white shadow-sm"
                 >
                   <ListPlus className="mr-2 h-4 w-4" />
                   Add to Queue
@@ -448,9 +448,9 @@ function PlaylistDetailPage() {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
-                        variant="ghost"
+                        variant="default"
                         size="sm"
-                        className="h-9 w-9 p-0 flex-shrink-0"
+                        className="h-9 w-9 p-0 flex-shrink-0 bg-green-600 hover:bg-green-700 text-white shadow-sm"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <ListPlus className="h-4 w-4" />

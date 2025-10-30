@@ -459,8 +459,15 @@ export const useAudioStore = create<AudioState>()(
         });
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Failed to fetch AI DJ recommendations');
+          // Handle 409 Conflict (duplicate feedback) gracefully
+          if (response.status === 409) {
+            await response.json(); // Consume the response body
+            console.log('✓ Feedback already exists, continuing with recommendations');
+            // Don't throw an error for 409, just log and continue
+          } else {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to fetch AI DJ recommendations');
+          }
         }
 
         const { recommendations, skipAutoRefresh } = await response.json();

@@ -116,9 +116,9 @@ function AlbumSongs() {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
-                      variant="ghost"
+                      variant="default"
                       size="sm"
-                      className="h-9 w-9 p-0"
+                      className="h-9 w-9 p-0 bg-green-600 hover:bg-green-700 text-white shadow-sm"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <ListPlus className="h-4 w-4" />

@@ -120,6 +120,12 @@ export async function migrateLegacyFeedback(): Promise<MigrationResult> {
       });
 
       if (!response.ok) {
+        // Handle 409 Conflict (duplicate feedback) gracefully
+        if (response.status === 409) {
+          await response.json(); // Consume response body
+          console.log('✓ Feedback already exists during migration, skipping');
+          return result; // Skip this item during migration
+        }
         throw new Error(`API returned ${response.status}`);
       }
 

@@ -13,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useSongFeedback } from '@/hooks/useSongFeedback';
 
 export const Route = createFileRoute('/dashboard/recommendations/id')({
   beforeLoad: async ({ context }) => {
@@ -35,6 +36,13 @@ function RecommendationDetail() {
 
   // Get song name from search params (?song=Artist%20-%20Title)
   const song = (search as { song?: string }).song;
+  
+  // Fetch existing feedback for this song
+  const { data: feedbackData } = useSongFeedback(song ? [song] : []);
+  
+  // Use derived state instead of separate state
+  const existingFeedback = feedbackData?.feedback && song && feedbackData.feedback[song] ? feedbackData.feedback[song] : null;
+  const currentFeedbackState = optimisticFeedback || existingFeedback;
 
   // Try to get cached recommendations from dashboard query
   const cachedRecs = queryClient.getQueryData(['recommendations', session?.user.id, 'similar']) ||
@@ -65,6 +73,12 @@ function RecommendationDetail() {
         }),
       });
       if (!response.ok) {
+        // Handle 409 Conflict (duplicate feedback) gracefully
+        if (response.status === 409) {
+          await response.json(); // Consume response body
+          console.log('✓ Feedback already exists, continuing with recommendations');
+          return; // Return undefined to prevent error
+        }
         const error = await response.json();
         throw new Error(error.message || 'Failed to submit feedback');
       }
@@ -78,6 +92,8 @@ function RecommendationDetail() {
       // Only invalidate preference analytics, not recommendations to prevent auto-refresh
       // This prevents the recommendations from refreshing when giving feedback
       queryClient.invalidateQueries({ queryKey: ['preference-analytics'] });
+      // Also invalidate the feedback query to refresh feedback state
+      queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
       const emoji = feedbackType === 'thumbs_up' ? '👍' : '👎';
       toast.success(`Feedback saved ${emoji}`, {
         description: 'Your preferences help improve recommendations',
@@ -130,8 +146,8 @@ function RecommendationDetail() {
 
   // Display feedback state (optimistic or persisted)
   const feedback = {
-    up: optimisticFeedback === 'thumbs_up',
-    down: optimisticFeedback === 'thumbs_down',
+    up: currentFeedbackState === 'thumbs_up',
+    down: currentFeedbackState === 'thumbs_down',
   };
 
   const handleQueueAction = (s: string, position: 'now' | 'next' | 'end') => {
@@ -206,7 +222,7 @@ function RecommendationDetail() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="min-h-[44px]" aria-label="Add to queue">
+              <Button variant="default" className="min-h-[44px] bg-green-600 hover:bg-green-700 text-white shadow-sm" aria-label="Add to queue">
                 <ListPlus className="mr-2 h-4 w-4" />
                 Add to Queue
               </Button>

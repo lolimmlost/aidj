@@ -70,7 +70,7 @@ export function AddToQueueButton({
         <Button
           variant={variant}
           size={size}
-          className="min-h-[44px]"
+          className={`min-h-[44px] ${variant === 'default' ? 'bg-green-600 hover:bg-green-700 text-white shadow-sm' : ''}`}
           aria-label="Add to queue"
         >
           <ListPlus className={showLabel ? 'mr-2 h-4 w-4' : 'h-4 w-4'} />

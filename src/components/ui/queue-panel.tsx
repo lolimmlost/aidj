@@ -188,17 +188,17 @@ export function QueuePanel() {
         <Button
           onClick={() => setIsOpen(true)}
           variant="outline"
-          className="rounded-full h-14 w-14 p-0 shadow-2xl bg-gradient-to-br from-background via-background to-primary/5 border-2 border-primary/20 hover:border-primary/40 backdrop-blur-xl transition-all duration-300 hover:scale-110 hover:shadow-primary/30 group relative overflow-hidden"
+          className="rounded-full h-14 w-14 p-0 shadow-2xl bg-gradient-to-br from-background via-background to-primary/5 border-2 border-primary/20 hover:border-primary/40 backdrop-blur-xl transition-all duration-300 hover:scale-110 hover:shadow-primary/30 group relative"
           title="Show queue"
         >
           <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           <Music className="h-6 w-6 text-primary group-hover:scale-110 transition-transform relative z-10" />
-          {upcomingQueue.length > 0 && (
-            <span className="absolute -top-2 -right-2 bg-gradient-to-br from-primary via-purple-500 to-pink-500 text-primary-foreground rounded-full h-6 w-6 text-xs font-bold flex items-center justify-center shadow-lg shadow-primary/40 ring-2 ring-background animate-in zoom-in duration-300">
-              {upcomingQueue.length}
-            </span>
-          )}
         </Button>
+        {upcomingQueue.length > 0 && (
+          <span className="absolute top-0 right-0 bg-gradient-to-br from-primary via-purple-500 to-pink-500 text-primary-foreground rounded-full h-6 w-6 text-xs font-bold flex items-center justify-center shadow-lg shadow-primary/40 ring-2 ring-background animate-in zoom-in duration-300 z-20">
+            {upcomingQueue.length}
+          </span>
+        )}
       </div>
     );
   }

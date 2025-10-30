@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { Song } from '@/components/ui/audio-player';
+import { useSongFeedback } from '@/hooks/useSongFeedback';
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context }) => {
@@ -70,6 +71,12 @@ function DashboardIndex() {
         }),
       });
       if (!response.ok) {
+        // Handle 409 Conflict (duplicate feedback) gracefully
+        if (response.status === 409) {
+          await response.json(); // Consume response body
+          console.log('✓ Feedback already exists, continuing with recommendations');
+          return; // Return undefined to prevent error
+        }
         const error = await response.json();
         throw new Error(error.message || 'Failed to submit feedback');
       }
@@ -83,6 +90,8 @@ function DashboardIndex() {
       // Only invalidate preference analytics, not recommendations to prevent auto-refresh
       // This prevents the recommendations from refreshing when giving feedback
       queryClient.invalidateQueries({ queryKey: ['preference-analytics'] });
+      // Also invalidate the feedback query to refresh the feedback state
+      queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
       const emoji = feedbackType === 'thumbs_up' ? '👍' : '👎';
       toast.success(`Feedback saved ${emoji}`, {
         description: 'Your preferences help improve recommendations',
@@ -345,7 +354,29 @@ function DashboardIndex() {
     enabled: !!session,
   });
 
-  
+  // Fetch feedback for recommended songs
+  const recommendedSongIds = recommendations?.data?.recommendations?.map((rec: { song: string; actualSong?: { id?: string } }) => rec.actualSong?.id || rec.song).filter(Boolean) || [];
+  const { data: feedbackData } = useSongFeedback(recommendedSongIds);
+
+  // Update local songFeedback state when feedback data is fetched
+  useEffect(() => {
+    if (feedbackData?.feedback) {
+      setSongFeedback(prev => {
+        const updated = { ...prev };
+        
+        // Map song IDs to feedback and update state
+        recommendations?.data?.recommendations?.forEach((rec: { song: string; actualSong?: { id?: string } }) => {
+          const songId = rec.actualSong?.id || rec.song;
+          if (songId && feedbackData.feedback[songId]) {
+            updated[rec.song] = feedbackData.feedback[songId];
+          }
+        });
+        
+        return updated;
+      });
+    }
+  }, [feedbackData, recommendations]);
+
   const handleQueueAction = async (song: string, position: 'now' | 'next' | 'end') => {
     try {
       console.log('🎯 Queuing recommendation:', song, 'position:', position); // Debug log
@@ -1000,7 +1031,7 @@ function DashboardIndex() {
                                     <Button
                                       variant="default"
                                       size="sm"
-                                      className="bg-primary hover:bg-primary/90"
+                                      className="bg-green-600 hover:bg-green-700 text-white shadow-sm"
                                     >
                                       <ListPlus className="mr-1 h-4 w-4" />
                                       Queue
@@ -1407,7 +1438,7 @@ function DashboardIndex() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button onClick={handlePlaylistQueue} size="sm" className="bg-primary hover:bg-primary/90" aria-label="Add entire playlist to queue">
+                <Button onClick={handlePlaylistQueue} size="sm" className="bg-green-600 hover:bg-green-700 text-white shadow-sm" aria-label="Add entire playlist to queue">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
                     <path d="M5 12h14"/>
                     <path d="M12 5v14"/>
@@ -1474,38 +1505,103 @@ function DashboardIndex() {
 
                         <div className="flex items-center gap-2">
                           {hasSong ? (
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => {
-                                const parts = item.song.split(' - ');
-                                const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
-                                const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700 text-white shadow-sm"
+                                >
+                                  <ListPlus className="mr-1 h-4 w-4" />
+                                  Queue
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40">
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    const parts = item.song.split(' - ');
+                                    const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
+                                    const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
 
-                                addToQueue(item.songId!, [{
-                                  id: item.songId!,
-                                  name: title,
-                                  title: title,
-                                  albumId: '',
-                                  duration: 0,
-                                  track: 1,
-                                  url: item.url!,
-                                  artist: artist,
-                                }]);
-                                toast.success('Queued');
-                                
-                                // Set user action flag to prevent AI DJ auto-refresh
-                                setAIUserActionInProgress(true);
-                                setTimeout(() => setAIUserActionInProgress(false), 2000);
-                              }}
-                              className="bg-green-600 hover:bg-green-700"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                                <path d="M5 12h14"/>
-                                <path d="M12 5v14"/>
-                              </svg>
-                              Queue
-                            </Button>
+                                    addToQueue(item.songId!, [{
+                                      id: item.songId!,
+                                      name: title,
+                                      title: title,
+                                      albumId: '',
+                                      duration: 0,
+                                      track: 1,
+                                      url: item.url!,
+                                      artist: artist,
+                                    }]);
+                                    toast.success(`Now playing: ${title}`);
+                                    
+                                    // Set user action flag to prevent AI DJ auto-refresh
+                                    setAIUserActionInProgress(true);
+                                    setTimeout(() => setAIUserActionInProgress(false), 2000);
+                                  }}
+                                  className="min-h-[44px]"
+                                >
+                                  <Play className="mr-2 h-4 w-4" />
+                                  Play Now
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    const parts = item.song.split(' - ');
+                                    const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
+                                    const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
+                                    
+                                    const { addToQueueNext } = useAudioStore.getState();
+                                    addToQueueNext([{
+                                      id: item.songId!,
+                                      name: title,
+                                      title: title,
+                                      albumId: '',
+                                      duration: 0,
+                                      track: 1,
+                                      url: item.url!,
+                                      artist: artist,
+                                    }]);
+                                    toast.success(`Added "${title}" to play next`);
+                                    
+                                    // Set user action flag to prevent AI DJ auto-refresh
+                                    setAIUserActionInProgress(true);
+                                    setTimeout(() => setAIUserActionInProgress(false), 2000);
+                                  }}
+                                  className="min-h-[44px]"
+                                >
+                                  <Play className="mr-2 h-4 w-4" />
+                                  Play Next
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    const parts = item.song.split(' - ');
+                                    const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
+                                    const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
+
+                                    const { addToQueueEnd } = useAudioStore.getState();
+                                    addToQueueEnd([{
+                                      id: item.songId!,
+                                      name: title,
+                                      title: title,
+                                      albumId: '',
+                                      duration: 0,
+                                      track: 1,
+                                      url: item.url!,
+                                      artist: artist,
+                                    }]);
+                                    toast.success(`Added "${title}" to end of queue`);
+                                    
+                                    // Set user action flag to prevent AI DJ auto-refresh
+                                    setAIUserActionInProgress(true);
+                                    setTimeout(() => setAIUserActionInProgress(false), 2000);
+                                  }}
+                                  className="min-h-[44px]"
+                                >
+                                  <Plus className="mr-2 h-4 w-4" />
+                                  Add to End
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           ) : (
                             <Button
                               variant="outline"
