@@ -20,9 +20,10 @@ interface CreatePlaylistDialogProps {
   trigger?: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  onSubmit?: (data: { name: string; description?: string }) => void | Promise<void>;
 }
 
-export function CreatePlaylistDialog({ trigger, open: externalOpen, onOpenChange: externalOnOpenChange }: CreatePlaylistDialogProps) {
+export function CreatePlaylistDialog({ trigger, open: externalOpen, onOpenChange: externalOnOpenChange, onSubmit }: CreatePlaylistDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
 
   // Use external control if provided, otherwise use internal state
@@ -67,10 +68,22 @@ export function CreatePlaylistDialog({ trigger, open: externalOpen, onOpenChange
       toast.error('Please enter a playlist name');
       return;
     }
-    createMutation.mutate({
+    
+    const playlistData = {
       name: name.trim(),
       description: description.trim() || undefined,
-    });
+    };
+
+    if (onSubmit) {
+      // Use custom onSubmit handler if provided
+      onSubmit(playlistData);
+      setOpen(false);
+      setName('');
+      setDescription('');
+    } else {
+      // Use default mutation handler
+      createMutation.mutate(playlistData);
+    }
   };
 
   // Determine if we're in controlled mode (external open/onOpenChange provided)

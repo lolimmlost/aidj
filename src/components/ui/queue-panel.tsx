@@ -2,8 +2,11 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Music, Trash2, GripVertical } from 'lucide-react';
+import { X, Music, Trash2, GripVertical, Plus, RotateCcw } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { CreatePlaylistDialog } from '@/components/playlists/CreatePlaylistDialog';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   DndContext,
   closestCenter,
@@ -114,6 +117,7 @@ export function QueuePanel() {
     getUpcomingQueue,
     removeFromQueue,
     clearQueue,
+    undoClearQueue,
     reorderQueue,
     playSong,
     setIsPlaying,
@@ -121,9 +125,12 @@ export function QueuePanel() {
     aiDJEnabled,
     aiDJIsLoading,
     aiDJLastQueueTime,
+    lastClearedQueue,
   } = useAudioStore();
   const [isOpen, setIsOpen] = useState(false);
   const [timeSinceLastQueue, setTimeSinceLastQueue] = useState(0);
+  const [createPlaylistOpen, setCreatePlaylistOpen] = useState(false);
+  const queryClient = useQueryClient();
   
   // Update time since last queue periodically
   useEffect(() => {
@@ -178,6 +185,59 @@ export function QueuePanel() {
       const song = playlist[playlistIndex];
       playSong(song.id, playlist);
       setIsPlaying(true);
+    }
+  };
+
+  const handleCreatePlaylistFromQueue = async (playlistData: { name: string; description?: string }) => {
+    try {
+      // Get all songs from the queue (current song + upcoming queue)
+      const queueSongs = currentSong 
+        ? [currentSong, ...upcomingQueue]
+        : upcomingQueue;
+
+      if (queueSongs.length === 0) {
+        toast.error('Cannot create playlist from empty queue');
+        return;
+      }
+
+      // Create the playlist
+      const createResponse = await fetch('/api/playlists/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(playlistData),
+      });
+
+      if (!createResponse.ok) {
+        const error = await createResponse.json();
+        throw new Error(error.message || error.error || 'Failed to create playlist');
+      }
+
+      const { data: newPlaylist } = await createResponse.json();
+
+      // Add all songs to the playlist
+      const addSongsResponse = await fetch(`/api/playlists/${newPlaylist.id}/songs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          songs: queueSongs.map(song => song.id),
+        }),
+      });
+
+      if (!addSongsResponse.ok) {
+        const error = await addSongsResponse.json();
+        throw new Error(error.message || error.error || 'Failed to add songs to playlist');
+      }
+
+      // Invalidate playlists cache to refresh the list
+      queryClient.invalidateQueries({ queryKey: ['playlists'] });
+
+      toast.success(`Created playlist "${playlistData.name}" with ${queueSongs.length} songs`);
+      setCreatePlaylistOpen(false);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create playlist from queue';
+      toast.error('Failed to create playlist', {
+        description: errorMessage,
+      });
     }
   };
 
@@ -322,21 +382,56 @@ export function QueuePanel() {
                 </DndContext>
               </ScrollArea>
 
-              <div className="mt-3 pt-3 border-t border-border/50">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearQueue}
-                  className="w-full bg-gradient-to-r from-destructive/5 to-transparent hover:from-destructive/10 hover:to-transparent border-destructive/20 hover:border-destructive/30 text-destructive/80 hover:text-destructive transition-all duration-200 group"
-                >
-                  <Trash2 className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
-                  Clear Queue
-                </Button>
+              <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
+                {/* Create Playlist from Queue Button */}
+                {(currentSong || upcomingQueue.length > 0) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCreatePlaylistOpen(true)}
+                    className="w-full bg-gradient-to-r from-primary/5 to-transparent hover:from-primary/10 hover:to-transparent border-primary/20 hover:border-primary/30 text-primary/80 hover:text-primary transition-all duration-200 group"
+                  >
+                    <Plus className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
+                    Create Playlist from Queue
+                  </Button>
+                )}
+                
+                {lastClearedQueue && (Date.now() - lastClearedQueue.timestamp) < 300000 ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={undoClearQueue}
+                    className="w-full bg-gradient-to-r from-blue-500/5 to-transparent hover:from-blue-500/10 hover:to-transparent border-blue-500/20 hover:border-blue-500/30 text-blue-600/80 hover:text-blue-600 transition-all duration-200 group"
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
+                    Undo Clear Queue
+                    <span className="ml-auto text-xs text-blue-500/60">
+                      {Math.floor((300000 - (Date.now() - lastClearedQueue.timestamp)) / 1000 / 60)}m left
+                    </span>
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearQueue}
+                    className="w-full bg-gradient-to-r from-destructive/5 to-transparent hover:from-destructive/10 hover:to-transparent border-destructive/20 hover:border-destructive/30 text-destructive/80 hover:text-destructive transition-all duration-200 group"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
+                    Clear Queue
+                  </Button>
+                )}
               </div>
             </>
           )}
         </CardContent>
       </Card>
+      
+      {/* Create Playlist Dialog */}
+      <CreatePlaylistDialog
+        open={createPlaylistOpen}
+        onOpenChange={setCreatePlaylistOpen}
+        onSubmit={handleCreatePlaylistFromQueue}
+      />
     </div>
   );
 }

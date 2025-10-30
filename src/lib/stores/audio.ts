@@ -47,6 +47,11 @@ interface AudioState {
   currentTransition: DJTransition | null;
   crossfadeEnabled: boolean;
   crossfadeDuration: number;
+  // Undo state for clear queue
+  lastClearedQueue: {
+    songs: Song[];
+    timestamp: number;
+  } | null;
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
@@ -64,6 +69,7 @@ interface AudioState {
   getUpcomingQueue: () => Song[];
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
+  undoClearQueue: () => void;
   reorderQueue: (fromIndex: number, toIndex: number) => void;
   toggleShuffle: () => void;
   shufflePlaylist: () => void;
@@ -114,6 +120,7 @@ export const useAudioStore = create<AudioState>()(
     currentTransition: null,
     crossfadeEnabled: true,
     crossfadeDuration: 8.0,
+    lastClearedQueue: null,
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -308,12 +315,58 @@ export const useAudioStore = create<AudioState>()(
     // Clear everything after the current song
     clearQueue: () => {
       const state = get();
+      const upcomingSongs = state.getUpcomingQueue();
+      
+      // Save the cleared queue for undo (only if there are songs to clear)
+      if (upcomingSongs.length > 0) {
+        set({
+          lastClearedQueue: {
+            songs: upcomingSongs,
+            timestamp: Date.now(),
+          }
+        });
+      }
+      
       if (state.currentSongIndex === -1) {
         set({ playlist: [], currentSongIndex: -1, isPlaying: false });
       } else {
         const currentSong = state.playlist[state.currentSongIndex];
         set({ playlist: currentSong ? [currentSong] : [], currentSongIndex: currentSong ? 0 : -1 });
       }
+    },
+
+    // Undo the last clear queue operation
+    undoClearQueue: () => {
+      const state = get();
+      
+      if (!state.lastClearedQueue) {
+        console.warn('No cleared queue to undo');
+        return;
+      }
+      
+      // Check if the undo is within 5 minutes (300 seconds)
+      const timeSinceClear = (Date.now() - state.lastClearedQueue.timestamp) / 1000;
+      if (timeSinceClear > 300) {
+        console.warn('Undo window expired (5 minutes)');
+        set({ lastClearedQueue: null });
+        return;
+      }
+      
+      // Restore the cleared songs to the queue
+      const currentSong = state.currentSongIndex >= 0 ? state.playlist[state.currentSongIndex] : null;
+      const newPlaylist = currentSong 
+        ? [currentSong, ...state.lastClearedQueue.songs]
+        : state.lastClearedQueue.songs;
+      
+      set({
+        playlist: newPlaylist,
+        currentSongIndex: currentSong ? 0 : -1,
+        lastClearedQueue: null, // Clear the undo state after use
+      });
+      
+      toast.success('Queue restored', {
+        description: `Restored ${state.lastClearedQueue.songs.length} songs to your queue`,
+      });
     },
 
     // Reorder songs in the queue
