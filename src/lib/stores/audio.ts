@@ -55,6 +55,7 @@ interface AudioState {
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
+  playNow: (songId: string, song: Song) => void;
   setIsPlaying: (playing: boolean) => void;
   setCurrentTime: (time: number) => void;
   setDuration: (dur: number) => void;
@@ -162,6 +163,64 @@ export const useAudioStore = create<AudioState>()(
         currentSongIndex: index,
         isPlaying: true,
       });
+    },
+
+    playNow: (songId: string, song: Song) => {
+      const state = get();
+      // Set user action flag to prevent AI DJ auto-refresh
+      set({ aiDJUserActionInProgress: true });
+      
+      if (state.playlist.length === 0 || state.currentSongIndex === -1) {
+        // No existing playlist, just play the song
+        set({ 
+          playlist: [song], 
+          currentSongIndex: 0, 
+          isPlaying: true,
+          isShuffled: false,
+          originalPlaylist: []
+        });
+      } else {
+        // Replace the currently playing song with the new song
+        // but keep the entire rest of the queue intact
+        const newPlaylist = [
+          ...state.playlist.slice(0, state.currentSongIndex), // Keep songs before current
+          song, // New song to play now
+          ...state.playlist.slice(state.currentSongIndex + 1) // Keep songs after current
+        ];
+        
+        // Preserve shuffle state - if playlist was shuffled, keep it shuffled
+        // and update the original playlist to reflect the change
+        if (state.isShuffled && state.originalPlaylist.length > 0) {
+          // Update original playlist to replace the current song there
+          const updatedOriginalPlaylist = [...state.originalPlaylist];
+          const originalCurrentSongIndex = updatedOriginalPlaylist.findIndex(s => s.id === state.playlist[state.currentSongIndex]?.id);
+          if (originalCurrentSongIndex !== -1) {
+            updatedOriginalPlaylist[originalCurrentSongIndex] = song;
+          }
+          
+          set({ 
+            playlist: newPlaylist, 
+            currentSongIndex: state.currentSongIndex, // Stay at the same position
+            isPlaying: true,
+            isShuffled: true, // Keep shuffle enabled
+            originalPlaylist: updatedOriginalPlaylist // Update original playlist
+          });
+        } else {
+          // Not shuffled, just replace normally
+          set({ 
+            playlist: newPlaylist, 
+            currentSongIndex: state.currentSongIndex, // Stay at the same position
+            isPlaying: true,
+            isShuffled: false,
+            originalPlaylist: []
+          });
+        }
+      }
+      
+      // Clear the flag after a short delay
+      setTimeout(() => {
+        set({ aiDJUserActionInProgress: false });
+      }, 2000);
     },
 
     setIsPlaying: (playing: boolean) => set({ isPlaying: playing }),

@@ -39,7 +39,9 @@ function DashboardIndex() {
   const { data: session } = authClient.useSession();
   const queryClient = useQueryClient();
   const addToQueue = useAudioStore((state) => state.playSong);
-  const addPlaylist = useAudioStore((state) => state.addPlaylist);
+  const playNow = useAudioStore((state) => state.playNow);
+  const addToQueueNext = useAudioStore((state) => state.addToQueueNext);
+  const addToQueueEnd = useAudioStore((state) => state.addToQueueEnd);
   const setAIUserActionInProgress = useAudioStore((state) => state.setAIUserActionInProgress);
   const { preferences, loadPreferences } = usePreferencesStore();
   const [style, setStyle] = useState('');
@@ -454,7 +456,7 @@ function DashboardIndex() {
           setAIUserActionInProgress(true);
           
           if (position === 'now') {
-            addToQueue(realSong.id, [songForPlayer]);
+            playNow(realSong.id, songForPlayer);
             toast.success(`Now playing: ${songForPlayer.name}`);
           } else if (position === 'next') {
             const { addToQueueNext } = useAudioStore.getState();
@@ -612,8 +614,10 @@ function DashboardIndex() {
     setAIUserActionInProgress(true);
 
     if (position === 'now') {
-      // Replace entire queue and start playing first song
-      addPlaylist(resolvedSongs);
+      // Use playNow to preserve shuffle state
+      if (resolvedSongs.length > 0) {
+        playNow(resolvedSongs[0].id, resolvedSongs[0]);
+      }
       toast.success(`Now playing playlist with ${resolvedSongs.length} songs`);
     } else if (position === 'next') {
       // Add to play next
@@ -1461,27 +1465,27 @@ function DashboardIndex() {
                       Queue
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuContent align="end" className="w-48">
                     <DropdownMenuItem
                       onClick={() => handlePlaylistQueueAction('now')}
                       className="min-h-[44px]"
                     >
                       <Play className="mr-2 h-4 w-4" />
-                      Play Now
+                      Play Now (First Song)
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => handlePlaylistQueueAction('next')}
                       className="min-h-[44px]"
                     >
-                      <Play className="mr-2 h-4 w-4" />
-                      Play Next
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add All to Play Next
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => handlePlaylistQueueAction('end')}
                       className="min-h-[44px]"
                     >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add to End
+                      <ListPlus className="mr-2 h-4 w-4" />
+                      Add All to End
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -1563,7 +1567,7 @@ function DashboardIndex() {
                                     const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
                                     const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
 
-                                    addToQueue(item.songId!, [{
+                                    const songForPlayer = {
                                       id: item.songId!,
                                       name: title,
                                       title: title,
@@ -1572,7 +1576,10 @@ function DashboardIndex() {
                                       track: 1,
                                       url: item.url!,
                                       artist: artist,
-                                    }]);
+                                    };
+
+                                    // Use playNow to preserve shuffle state
+                                    playNow(item.songId!, songForPlayer);
                                     toast.success(`Now playing: ${title}`);
                                     
                                     // Set user action flag to prevent AI DJ auto-refresh

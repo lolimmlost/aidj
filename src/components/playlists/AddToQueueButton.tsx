@@ -28,7 +28,7 @@ export function AddToQueueButton({
   showLabel = false,
 }: AddToQueueButtonProps) {
   const [open, setOpen] = useState(false);
-  const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress } = useAudioStore();
+  const { playNow, addToQueueNext, addToQueueEnd, setAIUserActionInProgress } = useAudioStore();
 
   const handleAddToQueue = (position: 'now' | 'next' | 'end') => {
     const audioSong = {
@@ -45,8 +45,7 @@ export function AddToQueueButton({
     setAIUserActionInProgress(true);
 
     if (position === 'now') {
-      playSong(songId, [audioSong]);
-      setIsPlaying(true);
+      playNow(songId, audioSong);
       toast.success(`Now playing "${songTitle}"`);
     } else if (position === 'next') {
       addToQueueNext([audioSong]);
