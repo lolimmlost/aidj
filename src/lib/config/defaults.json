@@ -1,5 +1,11 @@
 {
+  "llmProvider": "ollama",
   "ollamaUrl": "http://10.0.0.30:30068",
+  "ollamaModel": "llama2",
+  "openrouterApiKey": "",
+  "openrouterModel": "anthropic/claude-3.5-sonnet",
+  "glmApiKey": "",
+  "glmModel": "glm-4-plus",
   "navidromeUrl": "http://10.0.0.30:4533",
   "lidarrUrl": "http://10.0.0.30:8686",
   "lidarrApiKey": "",

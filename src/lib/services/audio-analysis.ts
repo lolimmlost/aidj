@@ -39,7 +39,9 @@ export interface KeyCompatibility {
 export interface BPMCompatibility {
   bpm: number;
   compatibility: number; // 0.0-1.0, higher means better BPM match
-  relationship: 'exact_match' | 'close_match' | 'double_time' | 'half_time' | 'compatible' | 'needs_adjustment';
+  relationship: 'exact_match' | 'close_match' | 'double_time' | 'half_time' | 'one_point_five' | 'compatible' | 'needs_adjustment' | 'incompatible';
+  recommendedTechnique: 'direct_mix' | 'tempo_match' | 'tempo_adjust' | 'slight_adjust' | 'significant_adjust' | 'incompatible';
+  confidence: number; // 0.0-1.0, confidence in the compatibility assessment
 }
 
 // Energy flow analysis for DJ sets
@@ -232,60 +234,97 @@ function seededRandom(seed: number): () => number {
 /**
  * Calculate BPM compatibility between two songs
  */
-export function calculateBPMCompatibility(bpm1: number, bpm2: number): BPMCompatibility {
+export function calculateBPMCompatibility(bpm1: number, bpm2: number, genre?: string): BPMCompatibility {
   const ratio = bpm2 / bpm1;
   const diff = Math.abs(bpm1 - bpm2);
-  
+
   // Exact match
   if (diff < 1) {
     return {
       bpm: bpm2,
       compatibility: 1.0,
-      relationship: 'exact_match'
+      relationship: 'exact_match',
+      recommendedTechnique: 'direct_mix',
+      confidence: 0.95
     };
   }
-  
+
   // Double time (2x)
   if (Math.abs(ratio - 2) < 0.05) {
     return {
       bpm: bpm2,
       compatibility: 0.9,
-      relationship: 'double_time'
+      relationship: 'double_time',
+      recommendedTechnique: 'tempo_match',
+      confidence: 0.85
     };
   }
-  
+
   // Half time (0.5x)
   if (Math.abs(ratio - 0.5) < 0.05) {
     return {
       bpm: bpm2,
       compatibility: 0.9,
-      relationship: 'half_time'
+      relationship: 'half_time',
+      recommendedTechnique: 'tempo_match',
+      confidence: 0.85
     };
   }
-  
+
+  // 1.5x time (common in electronic music)
+  if (Math.abs(ratio - 1.5) < 0.05 || Math.abs(ratio - 0.67) < 0.05) {
+    return {
+      bpm: bpm2,
+      compatibility: 0.85,
+      relationship: 'one_point_five',
+      recommendedTechnique: 'tempo_adjust',
+      confidence: 0.8
+    };
+  }
+
   // Close match (within 5 BPM)
   if (diff <= 5) {
+    const baseCompatibility = 0.8 + (1 - diff / 5) * 0.1;
     return {
       bpm: bpm2,
-      compatibility: 0.8,
-      relationship: 'close_match'
+      compatibility: baseCompatibility,
+      relationship: 'close_match',
+      recommendedTechnique: 'slight_adjust',
+      confidence: 0.9
     };
   }
-  
+
   // Compatible (within 10 BPM)
   if (diff <= 10) {
+    // Genre consideration: electronic music is more forgiving
+    const genreBonus = genre && (genre.includes('electronic') || genre.includes('house') || genre.includes('techno')) ? 0.1 : 0;
     return {
       bpm: bpm2,
-      compatibility: 0.6,
-      relationship: 'compatible'
+      compatibility: 0.6 + genreBonus,
+      relationship: 'compatible',
+      recommendedTechnique: 'significant_adjust',
+      confidence: 0.7
     };
   }
-  
-  // Needs adjustment
+
+  // Needs adjustment (within 20 BPM)
+  if (diff <= 20) {
+    return {
+      bpm: bpm2,
+      compatibility: Math.max(0.3, 1.0 - (diff / 50)),
+      relationship: 'needs_adjustment',
+      recommendedTechnique: 'significant_adjust',
+      confidence: 0.5
+    };
+  }
+
+  // Incompatible
   return {
     bpm: bpm2,
-    compatibility: Math.max(0.1, 1.0 - (diff / 50)),
-    relationship: 'needs_adjustment'
+    compatibility: 0.1,
+    relationship: 'incompatible',
+    recommendedTechnique: 'incompatible',
+    confidence: 0.9
   };
 }
 
@@ -720,4 +759,123 @@ export async function analyzeLibrary(songs: Song[], options: {
   
   console.log(`🎵 Library analysis complete: ${results.analyzed.length} analyzed, ${results.failed.length} failed`);
   return results;
+}
+
+/**
+ * Calculate overall transition compatibility between two songs
+ */
+export interface TransitionCompatibility {
+  overallCompatibility: number;
+  bpmScore: number;
+  keyScore: number;
+  energyScore: number;
+  recommendation: 'excellent' | 'good' | 'moderate' | 'difficult' | 'avoid';
+  confidence: number;
+}
+
+export function calculateTransitionCompatibility(
+  analysis1: AudioAnalysis,
+  analysis2: AudioAnalysis
+): TransitionCompatibility {
+  // Calculate individual compatibility scores
+  const bpmComp = calculateBPMCompatibility(analysis1.bpm, analysis2.bpm);
+  const keyComp = calculateKeyCompatibility(analysis1.key, analysis2.key);
+  const energyFlow = analyzeEnergyFlow(analysis1, analysis2);
+
+  // Energy compatibility (smooth transitions are better)
+  const energyDiff = Math.abs(analysis1.energy - analysis2.energy);
+  const energyScore = Math.max(0, 1 - energyDiff);
+
+  // Weighted overall score
+  const overallCompatibility =
+    (bpmComp.compatibility * 0.4) +
+    (keyComp.compatibility * 0.4) +
+    (energyScore * 0.2);
+
+  // Determine recommendation
+  let recommendation: 'excellent' | 'good' | 'moderate' | 'difficult' | 'avoid';
+  if (overallCompatibility >= 0.85) recommendation = 'excellent';
+  else if (overallCompatibility >= 0.7) recommendation = 'good';
+  else if (overallCompatibility >= 0.5) recommendation = 'moderate';
+  else if (overallCompatibility >= 0.3) recommendation = 'difficult';
+  else recommendation = 'avoid';
+
+  // Calculate confidence based on analysis confidence
+  const confidence = (bpmComp.confidence + analysis1.keyConfidence + analysis2.keyConfidence) / 3;
+
+  return {
+    overallCompatibility,
+    bpmScore: bpmComp.compatibility,
+    keyScore: keyComp.compatibility,
+    energyScore,
+    recommendation,
+    confidence
+  };
+}
+
+/**
+ * Get recommended transition technique for a song pair
+ */
+export interface TransitionRecommendation {
+  technique: 'harmonic_mix' | 'beatmatch' | 'crossfade' | 'cut' | 'echo_out' | 'filter_sweep';
+  description: string;
+  difficulty: 'easy' | 'moderate' | 'advanced' | 'expert';
+  estimatedDuration: number; // seconds
+}
+
+export function getRecommendedTransition(
+  analysis1: AudioAnalysis,
+  analysis2: AudioAnalysis
+): TransitionRecommendation {
+  const compatibility = calculateTransitionCompatibility(analysis1, analysis2);
+  const bpmComp = calculateBPMCompatibility(analysis1.bpm, analysis2.bpm);
+  const keyComp = calculateKeyCompatibility(analysis1.key, analysis2.key);
+
+  // High BPM and key compatibility - harmonic transition
+  if (bpmComp.compatibility >= 0.8 && keyComp.compatibility >= 0.8) {
+    return {
+      technique: 'harmonic_mix',
+      description: 'Blend songs harmonically with long crossfade',
+      difficulty: 'easy',
+      estimatedDuration: 16
+    };
+  }
+
+  // High BPM compatibility - beatmatch
+  if (bpmComp.compatibility >= 0.85) {
+    return {
+      technique: 'beatmatch',
+      description: 'Match beats and blend tracks',
+      difficulty: 'moderate',
+      estimatedDuration: 8
+    };
+  }
+
+  // Moderate compatibility - crossfade
+  if (compatibility.overallCompatibility >= 0.5) {
+    return {
+      technique: 'crossfade',
+      description: 'Simple crossfade transition',
+      difficulty: 'easy',
+      estimatedDuration: 4
+    };
+  }
+
+  // Low compatibility - use effects
+  if (compatibility.overallCompatibility >= 0.3) {
+    return {
+      technique: 'filter_sweep',
+      description: 'Use low-pass filter sweep to mask incompatibility',
+      difficulty: 'advanced',
+      estimatedDuration: 8
+    };
+  }
+
+  // Very low compatibility - quick cut
+  return {
+    technique: 'cut',
+    description: 'Quick cut transition (songs are incompatible)',
+    difficulty: 'easy',
+    estimatedDuration: 0
+  };
 }

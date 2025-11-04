@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 
-export const Route = createFileRoute('/library/artists/id/albums/albumId')({
+export const Route = createFileRoute('/library/artists/$id/albums/$albumId')({
   beforeLoad: async ({ context }) => {
     if (!context.user) {
       throw redirect({ to: '/login' });
@@ -24,7 +24,7 @@ export const Route = createFileRoute('/library/artists/id/albums/albumId')({
 });
 
 function AlbumSongs() {
-  const { albumId } = useParams({ from: '/library/artists/id/albums/albumId' }) as { albumId: string };
+  const { albumId } = useParams({ from: '/library/artists/$id/albums/$albumId' }) as { albumId: string };
   const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress } = useAudioStore();
 
   const { data: songs = [], isLoading, error } = useQuery({

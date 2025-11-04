@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 
-export const Route = createFileRoute('/dashboard/recommendations/id')({
+export const Route = createFileRoute('/dashboard/recommendations/$id')({
   beforeLoad: async ({ context }) => {
     if (!context.user) {
       throw redirect({ to: '/login' });
@@ -25,7 +25,7 @@ export const Route = createFileRoute('/dashboard/recommendations/id')({
 });
 
 function RecommendationDetail() {
-  const search = useSearch({ from: '/dashboard/recommendations/id' });
+  const search = useSearch({ from: '/dashboard/recommendations/$id' });
   const { data: session } = authClient.useSession();
   const addToQueue = useAudioStore((state) => state.playSong);
   const setAIUserActionInProgress = useAudioStore((state) => state.setAIUserActionInProgress);

@@ -106,7 +106,7 @@ export function ArtistsList() {
             <Card key={artist.id} className="cursor-pointer transition-shadow hover:shadow-md border-border/50">
               <CardContent className="p-4 sm:p-6 hover:bg-accent hover:text-accent-foreground">
                 <Link
-                  to="/library/artists/id"
+                  to="/library/artists/$id"
                   params={{id: artist.id}}
                   className="flex items-center gap-3 h-full min-h-[44px]"
                 >

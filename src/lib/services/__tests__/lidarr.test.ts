@@ -20,6 +20,11 @@ import {
 import { getConfig } from '../../config/config';
 import { ServiceError } from '../../utils';
 
+// Mock config
+vi.mock('../../config/config', () => ({
+  getConfig: vi.fn()
+}));
+
 // Mock fetch
 global.fetch = vi.fn();
 

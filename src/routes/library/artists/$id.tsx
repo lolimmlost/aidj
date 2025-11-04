@@ -4,7 +4,7 @@ import { getAlbums } from '@/lib/services/navidrome';
 import { Loader2, Music } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 
-export const Route = createFileRoute('/library/artists/id')({
+export const Route = createFileRoute('/library/artists/$id')({
   beforeLoad: async ({ context }) => {
     if (!context.user) {
       throw redirect({ to: '/login' });
@@ -14,23 +14,40 @@ export const Route = createFileRoute('/library/artists/id')({
 });
 
 function ArtistAlbums() {
-  const { id } = useParams({ from: '/library/artists/id' }) as { id: string };
+  const { id } = useParams({ from: '/library/artists/$id' }) as { id: string };
   const navigate = useNavigate();
 
   const { data: albums = [], isLoading: loadingAlbums, error } = useQuery({
     queryKey: ['albums', id],
     queryFn: () => getAlbums(id, 0, 50),
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
 
+  console.log('Artist ID:', id);
+  console.log('Albums:', albums);
+  console.log('Loading:', loadingAlbums);
+  console.log('Error:', error);
+
   if (error) {
-    return <div className="container mx-auto p-6">Error loading albums: {error.message}</div>;
+    return (
+      <div className="container mx-auto p-6">
+        <Card className="p-6 bg-destructive/10 border-destructive">
+          <h2 className="text-xl font-bold text-destructive mb-2">Error loading albums</h2>
+          <p className="text-sm">{error.message}</p>
+          <Link to="/library/artists" className="text-primary hover:underline mt-4 inline-block">
+            ← Back to Artists
+          </Link>
+        </Card>
+      </div>
+    );
   }
 
   const sortedAlbums = [...albums].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="container mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
-      <Card className="fade-in">
+      <Card>
         <CardContent className="p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4 sm:mb-6">
             <div className="flex items-center gap-3 sm:gap-4">
@@ -64,29 +81,33 @@ function ArtistAlbums() {
           </CardContent>
         </Card>
       ) : (
-        <div className="fade-in">
+        <div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             {sortedAlbums.map((album) => (
               <Card key={album.id} className="cursor-pointer transition-shadow hover:shadow-md border-border/50 overflow-hidden">
                 <CardContent className="p-0">
                   <div
                     className="block p-3 sm:p-4 hover:bg-accent hover:text-accent-foreground transition-colors min-h-[44px]"
-                    onClick={() => navigate({ to: '/library/artists/id/albums/albumId', params: { id, albumId: album.id } })}
+                    onClick={() => navigate({ to: '/library/artists/$id/albums/$albumId', params: { id, albumId: album.id } })}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
-                        navigate({ to: '/library/artists/id/albums/albumId', params: { id, albumId: album.id } });
+                        navigate({ to: '/library/artists/$id/albums/$albumId', params: { id, albumId: album.id } });
                       }
                     }}
                   >
-                    <div className="aspect-square w-full rounded-lg mb-2 sm:mb-3 overflow-hidden bg-muted">
-                      <img
-                        src={album.artwork || '/placeholder-album.jpg'}
-                        alt={album.name}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
+                    <div className="aspect-square w-full rounded-lg mb-2 sm:mb-3 overflow-hidden bg-muted flex items-center justify-center">
+                      {album.artwork ? (
+                        <img
+                          src={album.artwork}
+                          alt={album.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <Music className="h-12 w-12 text-muted-foreground" />
+                      )}
                     </div>
                     <div className="space-y-1">
                       <div className="font-semibold line-clamp-2 text-xs sm:text-sm text-foreground">{album.name}</div>

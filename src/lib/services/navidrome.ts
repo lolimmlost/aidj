@@ -187,8 +187,8 @@ export async function getAuthToken(): Promise<string> {
     });
     clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      throw new ServiceError('NAVIDROME_AUTH_ERROR', `Login failed: ${response.statusText}`);
+    if (!response?.ok) {
+      throw new ServiceError('NAVIDROME_AUTH_ERROR', `Login failed: ${response?.statusText ?? 'unknown error'}`);
     }
 
     const data = await response.json();
@@ -309,7 +309,7 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<un
             });
             clearTimeout(timeoutId);
 
-            if (response.status === 401) {
+            if (response?.status === 401) {
               token = null; // Invalidate token
               clientId = null;
               authRetries++;
@@ -317,22 +317,34 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<un
               throw new ServiceError('NAVIDROME_AUTH_RETRY', 'Auth token expired, retrying with new token');
             }
 
-            if (!response.ok) {
+            if (!response?.ok) {
               // 5xx errors are retriable, 4xx are not (except 401 handled above)
-              const isRetriable = response.status >= 500;
+              const isRetriable = (response?.status ?? 0) >= 500;
               const error = new ServiceError(
                 'NAVIDROME_API_ERROR',
-                `API request failed: ${response.status} ${response.statusText}`
+                `API request failed: ${response?.status ?? 'unknown'} ${response?.statusText ?? 'unknown error'}`
               );
               (error as any).isRetriable = isRetriable;
               throw error;
             }
 
-            const contentType = response.headers.get('content-type');
+            if (!response) {
+              throw new ServiceError('NAVIDROME_NETWORK_ERROR', 'No response received from server');
+            }
+
+            const contentType = response.headers?.get('content-type');
             if (contentType && contentType.includes('application/json')) {
               return await response.json();
             }
-            return await response.text();
+            // Fallback: if no content-type header but response has json method, use it
+            if (typeof response.json === 'function') {
+              return await response.json();
+            }
+            // Final fallback to text if available
+            if (typeof response.text === 'function') {
+              return await response.text();
+            }
+            return response;
           } catch (error: unknown) {
             clearTimeout(timeoutId);
 
@@ -365,7 +377,7 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<un
     } catch (error: unknown) {
       // If it's an auth retry error, continue the auth retry loop
       if (error instanceof ServiceError && error.code === 'NAVIDROME_AUTH_RETRY') {
-        if (authRetries < maxAuthRetries) {
+        if (authRetries <= maxAuthRetries) {
           continue;
         }
       }
@@ -696,13 +708,13 @@ export async function starSong(songId: string): Promise<void> {
       method: 'GET',
     });
 
-    if (!response.ok) {
-      throw new ServiceError('NAVIDROME_API_ERROR', `Failed to star song: ${response.statusText}`);
+    if (!response?.ok) {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Failed to star song: ${response?.statusText ?? 'unknown error'}`);
     }
 
     const data = await response.json();
-    if (data['subsonic-response']?.status !== 'ok') {
-      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+    if (data?.['subsonic-response']?.status !== 'ok') {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data?.['subsonic-response']?.error?.message || 'Unknown error'}`);
     }
 
     console.log(`⭐ Starred song ${songId} in Navidrome`);
@@ -741,13 +753,13 @@ export async function unstarSong(songId: string): Promise<void> {
       method: 'GET',
     });
 
-    if (!response.ok) {
-      throw new ServiceError('NAVIDROME_API_ERROR', `Failed to unstar song: ${response.statusText}`);
+    if (!response?.ok) {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Failed to unstar song: ${response?.statusText ?? 'unknown error'}`);
     }
 
     const data = await response.json();
-    if (data['subsonic-response']?.status !== 'ok') {
-      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+    if (data?.['subsonic-response']?.status !== 'ok') {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data?.['subsonic-response']?.error?.message || 'Unknown error'}`);
     }
 
     console.log(`⭐ Unstarred song ${songId} in Navidrome`);
@@ -785,13 +797,13 @@ export async function getStarredSongs(): Promise<SubsonicSong[]> {
       method: 'GET',
     });
 
-    if (!response.ok) {
-      throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch starred songs: ${response.statusText}`);
+    if (!response?.ok) {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch starred songs: ${response?.statusText ?? 'unknown error'}`);
     }
 
     const data = await response.json();
-    if (data['subsonic-response']?.status !== 'ok') {
-      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+    if (data?.['subsonic-response']?.status !== 'ok') {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data?.['subsonic-response']?.error?.message || 'Unknown error'}`);
     }
 
     const starredSongs = data['subsonic-response']?.starred2?.song || [];
@@ -852,13 +864,13 @@ export async function scrobbleSong(songId: string, submission: boolean = true, t
       method: 'GET',
     });
 
-    if (!response.ok) {
-      throw new ServiceError('NAVIDROME_API_ERROR', `Failed to scrobble song: ${response.statusText}`);
+    if (!response?.ok) {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Failed to scrobble song: ${response?.statusText ?? 'unknown error'}`);
     }
 
     const data = await response.json();
-    if (data['subsonic-response']?.status !== 'ok') {
-      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+    if (data?.['subsonic-response']?.status !== 'ok') {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data?.['subsonic-response']?.error?.message || 'Unknown error'}`);
     }
 
     if (submission) {

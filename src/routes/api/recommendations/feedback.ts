@@ -20,9 +20,8 @@ const FeedbackSchema = z.object({
   songId: z.string().optional(), // Navidrome song ID for starring and storage
 });
 
-export const ServerRoute = createServerFileRoute('/api/recommendations/feedback').methods({
-  // GET /api/recommendations/feedback - Fetch user feedback for songs
-  GET: async ({ request }) => {
+// Exported GET handler for testing
+export async function GET({ request }: { request: Request }) {
     // Authentication middleware validation
     const session = await auth.api.getSession({
       headers: request.headers,
@@ -106,10 +105,10 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/feedback'
         headers: { 'Content-Type': 'application/json' }
       });
     }
-  },
+}
 
-  // POST /api/recommendations/feedback - Submit user feedback
-  POST: async ({ request }) => {
+// Exported POST handler for testing
+export async function POST({ request }: { request: Request }) {
     // Authentication middleware validation
     const session = await auth.api.getSession({
       headers: request.headers,
@@ -381,5 +380,10 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/feedback'
         headers: { 'Content-Type': 'application/json' }
       });
     }
-  },
+}
+
+// Route definition using exported handlers
+export const ServerRoute = createServerFileRoute('/api/recommendations/feedback').methods({
+  GET,
+  POST,
 });

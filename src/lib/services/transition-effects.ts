@@ -104,6 +104,104 @@ export const DEFAULT_CROSSFADE_CONFIG: CrossfadeConfig = {
 };
 
 /**
+ * Calculate overall transition compatibility from individual factors
+ * @param bpmComp BPM compatibility analysis
+ * @param keyComp Key compatibility analysis
+ * @param energyComp Energy compatibility score (0-1)
+ * @returns Transition compatibility scores and difficulty
+ */
+export function calculateTransitionCompatibility(
+  bpmComp: { compatibility: number; relationship: string },
+  keyComp: { compatibility: number; relationship: string },
+  energyComp: number
+): {
+  overall: number;
+  bpmScore: number;
+  keyScore: number;
+  energyScore: number;
+  difficulty: 'easy' | 'medium' | 'difficult' | 'expert';
+} {
+  // Weighted average: BPM 40%, Key 35%, Energy 25%
+  const overall = (bpmComp.compatibility * 0.4) + (keyComp.compatibility * 0.35) + (energyComp * 0.25);
+
+  // Determine difficulty based on overall compatibility
+  let difficulty: 'easy' | 'medium' | 'difficult' | 'expert';
+  if (overall >= 0.8) {
+    difficulty = 'easy';
+  } else if (overall >= 0.6) {
+    difficulty = 'medium';
+  } else if (overall >= 0.4) {
+    difficulty = 'difficult';
+  } else {
+    difficulty = 'expert';
+  }
+
+  return {
+    overall,
+    bpmScore: bpmComp.compatibility,
+    keyScore: keyComp.compatibility,
+    energyScore: energyComp,
+    difficulty
+  };
+}
+
+/**
+ * Recommend transition type based on compatibility scores
+ * @param overallComp Overall compatibility score (0-1)
+ * @param bpmComp BPM compatibility score (0-1)
+ * @param keyComp Key compatibility score (0-1)
+ * @returns Recommended transition parameters
+ */
+export function getRecommendedTransition(
+  overallComp: number,
+  bpmComp: number,
+  keyComp: number
+): {
+  type: string;
+  duration: number;
+  curve: string;
+  effects: string[];
+} {
+  // High overall compatibility -> harmonic transition
+  if (overallComp >= 0.8 && keyComp >= 0.7) {
+    return {
+      type: 'harmonic',
+      duration: 6000,
+      curve: 'sine',
+      effects: ['filter', 'reverb']
+    };
+  }
+
+  // High BPM compatibility -> beatmatch transition
+  if (bpmComp >= 0.8) {
+    return {
+      type: 'beatmatch',
+      duration: 4000,
+      curve: 'exponential',
+      effects: ['delay']
+    };
+  }
+
+  // Moderate compatibility -> crossfade
+  if (overallComp >= 0.5) {
+    return {
+      type: 'crossfade',
+      duration: 4000,
+      curve: 'linear',
+      effects: []
+    };
+  }
+
+  // Low compatibility -> quick cut
+  return {
+    type: 'cut',
+    duration: 500,
+    curve: 'linear',
+    effects: []
+  };
+}
+
+/**
  * Analyze transition compatibility between two songs
  */
 export async function analyzeTransition(

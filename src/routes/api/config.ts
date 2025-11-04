@@ -21,7 +21,7 @@ export const ServerRoute = createServerFileRoute("/api/config").methods({
 
         const test = async (label: string, url?: string) => {
           if (!url) {
-            statuses[label] = "Not configured";
+            statuses[label] = "not configured";
             return;
           }
           const controller = new AbortController();
@@ -29,13 +29,28 @@ export const ServerRoute = createServerFileRoute("/api/config").methods({
           try {
             const res = await fetch(url, { method: "GET", signal: controller.signal });
             clearTimeout(timeout);
-            statuses[label] = res.ok ? "reachable" : `http ${res.status}`;
+            statuses[label] = res.ok ? "connected" : `http ${res.status}`;
           } catch {
             statuses[label] = "unreachable";
           }
         };
 
+        // Test LLM Provider
+        const testLLMProvider = async () => {
+          const provider = cfg.llmProvider || 'ollama';
+          if (provider === 'ollama') {
+            statuses.llmProvider = cfg.ollamaUrl ? "configured (Ollama)" : "not configured";
+          } else if (provider === 'openrouter') {
+            statuses.llmProvider = cfg.openrouterApiKey ? "configured (OpenRouter)" : "not configured";
+          } else if (provider === 'glm') {
+            statuses.llmProvider = cfg.glmApiKey ? "configured (GLM)" : "not configured";
+          } else {
+            statuses.llmProvider = "not configured";
+          }
+        };
+
         await Promise.all([
+          testLLMProvider(),
           test("ollamaUrl", cfg.ollamaUrl),
           test("navidromeUrl", cfg.navidromeUrl),
           test("lidarrUrl", cfg.lidarrUrl),
@@ -48,8 +63,18 @@ export const ServerRoute = createServerFileRoute("/api/config").methods({
       }
 
       // Accept a subset of keys for configuration
-      const allowed: Partial<{ ollamaUrl: string; navidromeUrl: string; lidarrUrl: string; navidromeUsername: string; navidromePassword: string }> = {};
+      const allowed: Record<string, any> = {};
+
+      // LLM Provider configuration
+      if (typeof body.llmProvider === "string") allowed.llmProvider = body.llmProvider;
       if (typeof body.ollamaUrl === "string") allowed.ollamaUrl = body.ollamaUrl;
+      if (typeof body.ollamaModel === "string") allowed.ollamaModel = body.ollamaModel;
+      if (typeof body.openrouterApiKey === "string") allowed.openrouterApiKey = body.openrouterApiKey;
+      if (typeof body.openrouterModel === "string") allowed.openrouterModel = body.openrouterModel;
+      if (typeof body.glmApiKey === "string") allowed.glmApiKey = body.glmApiKey;
+      if (typeof body.glmModel === "string") allowed.glmModel = body.glmModel;
+
+      // Music services
       if (typeof body.navidromeUrl === "string") allowed.navidromeUrl = body.navidromeUrl;
       if (typeof body.lidarrUrl === "string") allowed.lidarrUrl = body.lidarrUrl;
       if (typeof body.navidromeUsername === "string") allowed.navidromeUsername = body.navidromeUsername;
@@ -79,14 +104,8 @@ export const ServerRoute = createServerFileRoute("/api/config").methods({
   }
 });
 
-async function saveConfigToDb(
-  cfg: Partial<{ ollamaUrl: string; navidromeUrl: string; lidarrUrl: string; navidromeUsername: string; navidromePassword: string }>
-): Promise<void> {
+async function saveConfigToDb(cfg: Record<string, any>): Promise<void> {
   if (!cfg || Object.keys(cfg).length === 0) return;
-  const hasAny = !!(cfg.ollamaUrl || cfg.navidromeUrl || cfg.lidarrUrl || cfg.navidromeUsername || cfg.navidromePassword);
-  if (!hasAny) return;
-
-  // fallback to local storage
 
   // Fallback to db/config.json
   try {
@@ -94,10 +113,10 @@ async function saveConfigToDb(
     const fsMod = await import("fs/promises");
     const CONFIG_PATH = pathMod.resolve(process.cwd(), "db", "config.json");
     await fsMod.mkdir(pathMod.dirname(CONFIG_PATH), { recursive: true });
-    let existing: Partial<{ ollamaUrl: string; navidromeUrl: string; lidarrUrl: string; navidromeUsername: string; navidromePassword: string }> = {};
+    let existing: Record<string, any> = {};
     try {
       const raw = await fsMod.readFile(CONFIG_PATH, "utf8");
-      existing = JSON.parse(raw) as Partial<{ ollamaUrl: string; navidromeUrl: string; lidarrUrl: string; navidromeUsername: string; navidromePassword: string }>;
+      existing = JSON.parse(raw) as Record<string, any>;
     } catch {
       existing = {};
     }

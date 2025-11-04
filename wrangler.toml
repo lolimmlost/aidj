@@ -1,0 +1,33 @@
+name = "aidj-music-interface"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = ".output/public"
+
+[env.production]
+name = "aidj-music-interface"
+
+[env.preview]
+name = "aidj-music-interface-preview"
+
+# Environment variables will be set via Cloudflare dashboard or wrangler CLI
+# Use: wrangler pages secret put <SECRET_NAME>
+# Or configure in Cloudflare dashboard under Pages > Settings > Environment Variables
+
+# Required secrets (set these in Cloudflare dashboard):
+# - DATABASE_URL (PostgreSQL connection string)
+# - AUTH_SECRET (Generate with: openssl rand -base64 32)
+# - NAVIDROME_URL
+# - NAVIDROME_USERNAME
+# - NAVIDROME_PASSWORD
+# - OLLAMA_URL
+# - OLLAMA_MODEL
+# - LIDARR_URL
+# - LIDARR_API_KEY
+
+# Public environment variables (VITE_ prefix, exposed to client):
+# These can be set in the dashboard as non-secret variables
+# - VITE_BASE_URL
+# - VITE_API_URL
+# - VITE_NAVIDROME_URL
+# - VITE_OLLAMA_URL
+# - VITE_OLLAMA_MODEL
+# - VITE_LIDARR_URL

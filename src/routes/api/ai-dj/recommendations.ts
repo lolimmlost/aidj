@@ -5,8 +5,8 @@ import { createServerFileRoute } from '@tanstack/react-start/server';
 import { generateContextualRecommendations, type AIContext } from '@/lib/services/ai-dj';
 import type { Song } from '@/components/ui/audio-player';
 
-export const ServerRoute = createServerFileRoute('/api/ai-dj/recommendations').methods({
-  POST: async ({ request }: { request: Request }) => {
+// Exported POST handler for testing
+export async function POST({ request }: { request: Request }) {
     try {
       const body = await request.json();
       const { currentSong, recentQueue, fullPlaylist, currentSongIndex, batchSize, useFeedbackForPersonalization, excludeSongIds, excludeArtists, skipAutoRefresh } = body as {
@@ -73,5 +73,8 @@ export const ServerRoute = createServerFileRoute('/api/ai-dj/recommendations').m
         }
       );
     }
-  }
+}
+
+export const ServerRoute = createServerFileRoute('/api/ai-dj/recommendations').methods({
+  POST
 });

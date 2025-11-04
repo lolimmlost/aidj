@@ -36,7 +36,8 @@ export default defineConfig({
       },
 
       // https://tanstack.com/start/latest/docs/framework/react/hosting#deployment
-      // target: "node-server",
+      // Use "cloudflare-pages" for Cloudflare deployment, "node-server" for Node.js
+      target: process.env.DEPLOY_TARGET === "cloudflare" ? "cloudflare-pages" : "node-server",
     }),
     viteReact({
       // https://react.dev/learn/react-compiler

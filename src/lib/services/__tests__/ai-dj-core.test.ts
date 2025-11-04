@@ -21,10 +21,14 @@ vi.mock('../library-profile', () => ({
 }))
 
 vi.mock('../ai-dj/context-builder', () => ({
-  extractSongContext: vi.fn(),
-  buildRecentQueueContext: vi.fn(),
-  buildExtendedContext: vi.fn(),
-  generatePromptVariations: vi.fn()
+  extractSongContext: vi.fn(() => 'Current song context'),
+  buildRecentQueueContext: vi.fn(() => 'Recent queue context'),
+  buildExtendedContext: vi.fn(() => 'Extended context'),
+  generatePromptVariations: vi.fn(() => [
+    'Recommend similar songs',
+    'Find songs with similar energy',
+    'Suggest tracks that match the mood'
+  ])
 }))
 
 vi.mock('../ai-dj/recommendation-matcher', () => ({
@@ -77,6 +81,14 @@ const mockLibrarySongs = [
   { ...mockSong2, id: '2', name: 'Song B', artist: 'Artist B' }
 ]
 
+const mockLibraryProfile = {
+  userId: 'user-123',
+  genres: [{ genre: 'Rock', count: 10 }],
+  artists: [{ artist: 'Test Artist', count: 5 }],
+  totalSongs: 100,
+  lastUpdated: new Date()
+}
+
 describe('AI DJ Core Service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -93,10 +105,12 @@ describe('AI DJ Core Service', () => {
       const { generateRecommendations } = await import('../ollama')
       const { rankRecommendations } = await import('../genre-matcher')
       const { matchRecommendationsToLibrary } = await import('../ai-dj/recommendation-matcher')
-      
+      const { getOrCreateLibraryProfile } = await import('../library-profile')
+
       vi.mocked(generateRecommendations).mockResolvedValue(mockRecommendations)
       vi.mocked(rankRecommendations).mockResolvedValue(mockRankedRecommendations)
       vi.mocked(matchRecommendationsToLibrary).mockResolvedValue(mockLibrarySongs)
+      vi.mocked(getOrCreateLibraryProfile).mockResolvedValue(mockLibraryProfile)
 
       const context: AIContext = {
         currentSong: mockSong,
@@ -112,7 +126,7 @@ describe('AI DJ Core Service', () => {
       expect(result[1]).toEqual(mockLibrarySongs[1])
       expect(generateRecommendations).toHaveBeenCalledWith(
         expect.objectContaining({
-          prompt: expect.stringContaining('Test Song'),
+          prompt: expect.stringContaining('Current song context'),
           userId: 'user-123',
           useFeedbackForPersonalization: true
         })
@@ -123,10 +137,12 @@ describe('AI DJ Core Service', () => {
       const { generateRecommendations } = await import('../ollama')
       const { rankRecommendations } = await import('../genre-matcher')
       const { matchRecommendationsToLibrary } = await import('../ai-dj/recommendation-matcher')
-      
+      const { getOrCreateLibraryProfile } = await import('../library-profile')
+
       vi.mocked(generateRecommendations).mockResolvedValue(mockRecommendations)
       vi.mocked(rankRecommendations).mockResolvedValue(mockRankedRecommendations)
       vi.mocked(matchRecommendationsToLibrary).mockResolvedValue(mockLibrarySongs)
+      vi.mocked(getOrCreateLibraryProfile).mockResolvedValue(mockLibraryProfile)
 
       const context: AIContext = {
         currentSong: mockSong,
@@ -153,17 +169,21 @@ describe('AI DJ Core Service', () => {
     })
 
     it('should retry on failed recommendations', async () => {
+      vi.useRealTimers() // Use real timers for this test to avoid timeout issues
+
       const { generateRecommendations } = await import('../ollama')
       const { rankRecommendations } = await import('../genre-matcher')
       const { matchRecommendationsToLibrary } = await import('../ai-dj/recommendation-matcher')
-      
+      const { getOrCreateLibraryProfile } = await import('../library-profile')
+
       // First call fails, second succeeds
       vi.mocked(generateRecommendations)
         .mockResolvedValueOnce({ recommendations: [] })
         .mockResolvedValueOnce(mockRecommendations)
-      
+
       vi.mocked(rankRecommendations).mockResolvedValue(mockRankedRecommendations)
       vi.mocked(matchRecommendationsToLibrary).mockResolvedValue(mockLibrarySongs)
+      vi.mocked(getOrCreateLibraryProfile).mockResolvedValue(mockLibraryProfile)
 
       const context: AIContext = {
         currentSong: mockSong,
@@ -176,7 +196,7 @@ describe('AI DJ Core Service', () => {
 
       expect(generateRecommendations).toHaveBeenCalledTimes(2)
       expect(result).toHaveLength(2)
-    })
+    }, 10000)
 
     it('should handle timeout errors', async () => {
       const { generateRecommendations } = await import('../ollama')
@@ -197,8 +217,10 @@ describe('AI DJ Core Service', () => {
     })
 
     it('should handle no recommendations returned', async () => {
+      vi.useRealTimers() // Use real timers for this test to avoid timeout issues
+
       const { generateRecommendations } = await import('../ollama')
-      
+
       vi.mocked(generateRecommendations).mockResolvedValue({ recommendations: [] })
 
       const context: AIContext = {
@@ -209,8 +231,8 @@ describe('AI DJ Core Service', () => {
       }
 
       await expect(generateContextualRecommendations(context, 3, 'user-123'))
-        .rejects.toThrow('AI DJ could not generate recommendations')
-    })
+        .rejects.toThrow('Failed to generate AI DJ recommendations')
+    }, 10000)
 
     it('should handle genre filtering failures gracefully', async () => {
       const { generateRecommendations } = await import('../ollama')
@@ -403,8 +425,10 @@ describe('AI DJ Core Service', () => {
     })
 
     it('should handle malformed recommendation responses', async () => {
+      vi.useRealTimers() // Use real timers for this test to avoid timeout issues
+
       const { generateRecommendations } = await import('../ollama')
-      
+
       vi.mocked(generateRecommendations).mockResolvedValue({ recommendations: [] })
 
       const context: AIContext = {
@@ -415,8 +439,8 @@ describe('AI DJ Core Service', () => {
       }
 
       await expect(generateContextualRecommendations(context, 3, 'user-123'))
-        .rejects.toThrow('AI DJ could not generate recommendations')
-    })
+        .rejects.toThrow('Failed to generate AI DJ recommendations')
+    }, 10000)
   })
 
   describe('Performance', () => {

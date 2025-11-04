@@ -25,6 +25,15 @@ vi.mock('../ollama/response-parser', () => ({
   parsePlaylistResponse: vi.fn()
 }))
 
+// Mock data used across tests
+const mockPlaylistResponse: PlaylistResponse = {
+  playlist: [
+    { song: 'Artist A - Song A', explanation: 'High energy track' },
+    { song: 'Artist B - Song B', explanation: 'Smooth transition' },
+    { song: 'Artist C - Song C', explanation: 'Similar mood' }
+  ]
+}
+
 describe('Ollama Playlist Generator', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -37,13 +46,6 @@ describe('Ollama Playlist Generator', () => {
   })
 
   describe('generatePlaylist', () => {
-    const mockPlaylistResponse: PlaylistResponse = {
-      playlist: [
-        { song: 'Artist A - Song A', explanation: 'High energy track' },
-        { song: 'Artist B - Song B', explanation: 'Smooth transition' },
-        { song: 'Artist C - Song C', explanation: 'Similar mood' }
-      ]
-    }
 
     it('should generate playlist with valid request', async () => {
       const { ollamaClient } = await import('../ollama/client')
@@ -346,10 +348,12 @@ describe('Ollama Playlist Generator', () => {
 
   describe('Performance', () => {
     it('should complete within reasonable time', async () => {
+      vi.useRealTimers() // Use real timers for setTimeout in mock
+
       const { ollamaClient } = await import('../ollama/client')
       const { buildPlaylistPrompt } = await import('../ollama/prompt-builder')
       const { parsePlaylistResponse } = await import('../ollama/response-parser')
-      
+
       vi.mocked(buildPlaylistPrompt).mockResolvedValue('Test prompt')
       vi.mocked(parsePlaylistResponse).mockReturnValue(mockPlaylistResponse)
       vi.mocked(ollamaClient.generate).mockImplementation(() =>
@@ -377,10 +381,12 @@ describe('Ollama Playlist Generator', () => {
     })
 
     it('should handle concurrent requests', async () => {
+      vi.useRealTimers() // Use real timers for setTimeout in mock
+
       const { ollamaClient } = await import('../ollama/client')
       const { buildPlaylistPrompt } = await import('../ollama/prompt-builder')
       const { parsePlaylistResponse } = await import('../ollama/response-parser')
-      
+
       vi.mocked(buildPlaylistPrompt).mockResolvedValue('Test prompt')
       vi.mocked(parsePlaylistResponse).mockReturnValue(mockPlaylistResponse)
       vi.mocked(ollamaClient.generate).mockImplementation(() =>

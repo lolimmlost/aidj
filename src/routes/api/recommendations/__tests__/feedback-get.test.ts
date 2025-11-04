@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ServerRoute } from '../feedback';
+import { GET } from '../feedback';
 
 // Mock dependencies
 vi.mock('~/lib/auth/auth', () => ({
@@ -40,7 +40,7 @@ describe('GET /api/recommendations/feedback', () => {
         method: 'GET',
       });
 
-      const response = await ServerRoute.GET({ request: mockRequest });
+      const response = await GET({ request: mockRequest });
 
       expect(response.status).toBe(401);
       const data = await response.json();
@@ -85,7 +85,7 @@ describe('GET /api/recommendations/feedback', () => {
         method: 'GET',
       });
 
-      const response = await ServerRoute.GET({ request: mockRequest });
+      const response = await GET({ request: mockRequest });
 
       expect(response.status).toBe(200);
       const data = await response.json();
@@ -125,7 +125,7 @@ describe('GET /api/recommendations/feedback', () => {
         method: 'GET',
       });
 
-      const response = await ServerRoute.GET({ request: mockRequest });
+      const response = await GET({ request: mockRequest });
 
       expect(response.status).toBe(400);
       const data = await response.json();
@@ -161,13 +161,13 @@ describe('GET /api/recommendations/feedback', () => {
         method: 'GET',
       });
 
-      const response = await ServerRoute.GET({ request: mockRequest });
+      const response = await GET({ request: mockRequest });
 
       expect(response.status).toBe(400);
       const data = await response.json();
       expect(data).toEqual({
-        code: 'INVALID_SONG_IDS',
-        message: 'At least one songId is required',
+        code: 'MISSING_SONG_IDS',
+        message: 'songIds query parameter is required',
       });
     });
   });
@@ -206,7 +206,7 @@ describe('GET /api/recommendations/feedback', () => {
         method: 'GET',
       });
 
-      const response = await ServerRoute.GET({ request: mockRequest });
+      const response = await GET({ request: mockRequest });
 
       expect(response.status).toBe(200);
       const data = await response.json();
@@ -252,7 +252,7 @@ describe('GET /api/recommendations/feedback', () => {
         method: 'GET',
       });
 
-      const response = await ServerRoute.GET({ request: mockRequest });
+      const response = await GET({ request: mockRequest });
 
       expect(response.status).toBe(200);
       expect(mockWhere).toHaveBeenCalled();
@@ -300,7 +300,7 @@ describe('GET /api/recommendations/feedback', () => {
         }
       );
 
-      const response = await ServerRoute.GET({ request: mockRequest });
+      const response = await GET({ request: mockRequest });
 
       expect(response.status).toBe(200);
       const data = await response.json();
@@ -352,7 +352,7 @@ describe('GET /api/recommendations/feedback', () => {
         method: 'GET',
       });
 
-      const response = await ServerRoute.GET({ request: mockRequest });
+      const response = await GET({ request: mockRequest });
 
       expect(response.status).toBe(200);
       const data = await response.json();
@@ -399,7 +399,7 @@ describe('GET /api/recommendations/feedback', () => {
         method: 'GET',
       });
 
-      const response = await ServerRoute.GET({ request: mockRequest });
+      const response = await GET({ request: mockRequest });
 
       expect(response.status).toBe(500);
       const data = await response.json();

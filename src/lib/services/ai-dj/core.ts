@@ -164,8 +164,8 @@ export async function generateContextualRecommendations(
     if (lastData) {
       console.log(`⚠️ AI DJ: Using best available recommendations after ${attempts} attempts`);
       const recommendations = lastData as { recommendations: RecommendationWithScore[] };
-      
-      if (!recommendations || recommendations.recommendations.length === 0) {
+
+      if (!recommendations || !recommendations.recommendations || recommendations.recommendations.length === 0) {
         console.warn('⚠️ AI DJ: No recommendations returned from Ollama');
         throw new ServiceError('AI_DJ_NO_RECOMMENDATIONS', 'AI DJ could not generate recommendations');
       }
@@ -191,12 +191,16 @@ export async function generateContextualRecommendations(
             rec => rec.genreScore !== undefined && rec.genreScore >= 0.4
           );
 
-          console.log(`✅ AI DJ: Genre filtering - ${rankedRecommendations.length}/${recommendations.recommendations.length} recommendations passed (avg score: ${(rankedRecommendations.reduce((sum, r) => sum + (r.genreScore || 0), 0) / rankedRecommendations.length).toFixed(2)})`);
+          const totalRecs = recommendations.recommendations?.length || 0;
+          const avgScore = rankedRecommendations.length > 0
+            ? (rankedRecommendations.reduce((sum, r) => sum + (r.genreScore || 0), 0) / rankedRecommendations.length).toFixed(2)
+            : '0.00';
+          console.log(`✅ AI DJ: Genre filtering - ${rankedRecommendations.length}/${totalRecs} recommendations passed (avg score: ${avgScore})`);
         } catch (error) {
           console.warn('⚠️ AI DJ: Genre filtering failed, using raw recommendations', error);
           // Fallback to basic recommendations without filtering
           // Convert raw recommendations to expected format
-          rankedRecommendations = recommendations.recommendations.map((rec: RecommendationWithScore) => ({
+          rankedRecommendations = (recommendations.recommendations || []).map((rec: RecommendationWithScore) => ({
             song: rec.song,
             explanation: rec.explanation || '',
             genreScore: 0.5 // Default score when filtering fails

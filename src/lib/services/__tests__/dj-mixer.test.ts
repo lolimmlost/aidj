@@ -2,13 +2,51 @@
 // Tests BPM matching, harmonic mixing, and transition effects
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Mock AudioBuffer for Node.js environment (not available in Node by default)
+class MockAudioBuffer {
+  length: number;
+  sampleRate: number;
+  numberOfChannels: number;
+  private channelData: Map<number, Float32Array>;
+
+  constructor(options: { length: number; sampleRate: number; numberOfChannels: number }) {
+    this.length = options.length;
+    this.sampleRate = options.sampleRate;
+    this.numberOfChannels = options.numberOfChannels;
+    this.channelData = new Map();
+
+    // Initialize empty channel data
+    for (let i = 0; i < this.numberOfChannels; i++) {
+      this.channelData.set(i, new Float32Array(this.length));
+    }
+  }
+
+  getChannelData(channel: number): Float32Array {
+    const data = this.channelData.get(channel);
+    if (!data) {
+      throw new Error(`Channel ${channel} does not exist`);
+    }
+    return data;
+  }
+}
+
+// Make AudioBuffer available globally for tests
+(global as any).AudioBuffer = MockAudioBuffer;
+
 import {
   analyzeSongForDJMixing,
   createTransitionPlan,
   planDJSet
 } from '../dj-mixer';
 import { calculateBPMCompatibility, calculateKeyCompatibility } from '../audio-analysis';
-import { analyzeTransition, applyCrossfade, applyTransitionEffects } from '../transition-effects';
+import {
+  analyzeTransition,
+  applyCrossfade,
+  applyTransitionEffects,
+  calculateTransitionCompatibility,
+  getRecommendedTransition
+} from '../transition-effects';
 import type { Song } from '@/components/ui/audio-player';
 import type { AudioAnalysis } from '../audio-analysis';
 

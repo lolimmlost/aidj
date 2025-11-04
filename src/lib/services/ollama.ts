@@ -1,12 +1,14 @@
-// Refactored Ollama service for AI recommendation generation
-// This file now serves as the main entry point, delegating to specialized modules
+// LLM service for AI recommendation generation
+// Now provider-agnostic - works with Ollama, OpenRouter, or GLM
+// This file maintains backward compatibility while using the provider factory
 
-import { ollamaClient } from './ollama/client';
+import { getLLMProvider } from './llm/factory';
 import { checkOllamaRateLimit } from './ollama/rate-limiter';
 import { buildRecommendationPrompt } from './ollama/prompt-builder';
 import { parseRecommendationsResponse } from './ollama/response-parser';
 import { generatePlaylist as generatePlaylistService } from './ollama/playlist-generator';
 import { ServiceError } from '../utils';
+import type { LLMGenerateRequest } from './llm/types';
 
 // Re-export types for backward compatibility
 export interface RecommendationRequest {
@@ -61,34 +63,38 @@ export async function generateRecommendations({
   });
   perfTimings.promptBuild = Date.now() - promptStart;
 
-  // Generate recommendations
-  const ollamaStart = Date.now();
-  const response = await ollamaClient.generate({
-    model: model || ollamaClient.getDefaultModel(),
+  // Generate recommendations using the configured LLM provider
+  const llmStart = Date.now();
+  const provider = getLLMProvider();
+
+  const llmRequest: LLMGenerateRequest = {
+    model: model || provider.getDefaultModel(),
     prompt: `Respond ONLY with valid JSON. No other text, explanations, or conversation. Generate 5 music recommendations based on: ${enhancedPrompt}. JSON: {"recommendations": [{"song": "Artist - Title", "explanation": "brief reason why recommended"}, ...]}`,
     stream: false,
-  }, 20000); // 20s timeout for complex recommendations
-  perfTimings.ollamaCall = Date.now() - ollamaStart;
+  };
 
-  console.log('🤖 Raw Ollama response:', JSON.stringify(response).substring(0, 500));
+  const response = await provider.generate(llmRequest, 20000); // 20s timeout for complex recommendations
+  perfTimings.llmCall = Date.now() - llmStart;
 
-  if (!response.response) {
-    console.error('❌ No response field from Ollama:', response);
-    throw new ServiceError('OLLAMA_PARSE_ERROR', 'No response from Ollama');
+  console.log(`🤖 Raw ${provider.getMetadata().name} response:`, JSON.stringify(response).substring(0, 500));
+
+  if (!response.content) {
+    console.error(`❌ No content from ${provider.getMetadata().name}:`, response);
+    throw new ServiceError('LLM_PARSE_ERROR', `No response from ${provider.getMetadata().name}`);
   }
 
-  console.log('🤖 Ollama response text (first 500 chars):', response.response.substring(0, 500));
+  console.log(`🤖 ${provider.getMetadata().name} response text (first 500 chars):`, response.content.substring(0, 500));
 
   // Parse the response
   const parseStart = Date.now();
-  const result = parseRecommendationsResponse(response.response);
+  const result = parseRecommendationsResponse(response.content);
   perfTimings.parse = Date.now() - parseStart;
 
   // Performance summary logging
   perfTimings.total = Date.now() - perfStart;
   console.log('⏱️ Performance breakdown:', {
     promptBuild: `${perfTimings.promptBuild || 0}ms`,
-    ollamaCall: `${perfTimings.ollamaCall || 0}ms`,
+    llmCall: `${perfTimings.llmCall || 0}ms`,
     parse: `${perfTimings.parse || 0}ms`,
     total: `${perfTimings.total}ms`,
   });
@@ -96,9 +102,10 @@ export async function generateRecommendations({
   return result;
 }
 
-// Model availability check (re-exported for backward compatibility)
+// Model availability check (now uses configured provider)
 export async function checkModelAvailability(model: string): Promise<boolean> {
-  return await ollamaClient.checkModelAvailability(model, 5000);
+  const provider = getLLMProvider();
+  return await provider.checkModelAvailability(model, 5000);
 }
 
 // Playlist generation (re-exported for backward compatibility)

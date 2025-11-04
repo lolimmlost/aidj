@@ -1,5 +1,4 @@
-import { createFileRoute, redirect } from '@tanstack/react-router';
-import { ArtistsList } from '@/components/library/ArtistsList';
+import { createFileRoute, redirect, Outlet } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/library/artists')({
   beforeLoad: async ({ context }) => {
@@ -10,5 +9,13 @@ export const Route = createFileRoute('/library/artists')({
   loader: async () => {
     return {};
   },
-  component: ArtistsList,
+  component: ArtistsLayout,
 });
+
+function ArtistsLayout() {
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <Outlet />
+    </div>
+  );
+}

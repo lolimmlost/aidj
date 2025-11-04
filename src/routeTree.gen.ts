@@ -43,9 +43,10 @@ import { Route as DjAiAssistantRouteImport } from "./routes/dj/ai-assistant";
 import { Route as DashboardAnalyticsRouteImport } from "./routes/dashboard/analytics";
 import { Route as authSignupRouteImport } from "./routes/(auth)/signup";
 import { Route as authLoginRouteImport } from "./routes/(auth)/login";
-import { Route as LibraryArtistsIdRouteImport } from "./routes/library/artists/[id]";
-import { Route as DashboardRecommendationsIdRouteImport } from "./routes/dashboard/recommendations/[id]";
-import { Route as LibraryArtistsIdAlbumsAlbumIdRouteImport } from "./routes/library/artists/[id]/albums/[albumId]";
+import { Route as LibraryArtistsIndexRouteImport } from "./routes/library/artists/index";
+import { Route as LibraryArtistsIdRouteImport } from "./routes/library/artists/$id";
+import { Route as DashboardRecommendationsIdRouteImport } from "./routes/dashboard/recommendations/$id";
+import { Route as LibraryArtistsIdAlbumsAlbumIdRouteImport } from "./routes/library/artists/$id/albums/$albumId";
 import { ServerRoute as ApiSearchServerRouteImport } from "./routes/api/search";
 import { ServerRoute as ApiRecommendationsServerRouteImport } from "./routes/api/recommendations";
 import { ServerRoute as ApiPreferencesServerRouteImport } from "./routes/api/preferences";
@@ -242,21 +243,26 @@ const authLoginRoute = authLoginRouteImport.update({
   path: "/login",
   getParentRoute: () => authRouteRoute,
 } as any);
+const LibraryArtistsIndexRoute = LibraryArtistsIndexRouteImport.update({
+  id: "/",
+  path: "/",
+  getParentRoute: () => LibraryArtistsRoute,
+} as any);
 const LibraryArtistsIdRoute = LibraryArtistsIdRouteImport.update({
-  id: "/id",
-  path: "/id",
+  id: "/$id",
+  path: "/$id",
   getParentRoute: () => LibraryArtistsRoute,
 } as any);
 const DashboardRecommendationsIdRoute =
   DashboardRecommendationsIdRouteImport.update({
-    id: "/recommendations/id",
-    path: "/recommendations/id",
+    id: "/recommendations/$id",
+    path: "/recommendations/$id",
     getParentRoute: () => DashboardRouteRoute,
   } as any);
 const LibraryArtistsIdAlbumsAlbumIdRoute =
   LibraryArtistsIdAlbumsAlbumIdRouteImport.update({
-    id: "/albums/albumId",
-    path: "/albums/albumId",
+    id: "/albums/$albumId",
+    path: "/albums/$albumId",
     getParentRoute: () => LibraryArtistsIdRoute,
   } as any);
 const ApiSearchServerRoute = ApiSearchServerRouteImport.update({
@@ -480,9 +486,10 @@ export interface FileRoutesByFullPath {
   "/downloads": typeof DownloadsIndexRoute;
   "/playlists": typeof PlaylistsIndexRoute;
   "/settings": typeof SettingsIndexRoute;
-  "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
-  "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
-  "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
+  "/dashboard/recommendations/$id": typeof DashboardRecommendationsIdRoute;
+  "/library/artists/$id": typeof LibraryArtistsIdRouteWithChildren;
+  "/library/artists/": typeof LibraryArtistsIndexRoute;
+  "/library/artists/$id/albums/$albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof authRouteRouteWithChildren;
@@ -507,7 +514,6 @@ export interface FileRoutesByTo {
   "/dj/transitions": typeof DjTransitionsRoute;
   "/downloads/history": typeof DownloadsHistoryRoute;
   "/downloads/status": typeof DownloadsStatusRoute;
-  "/library/artists": typeof LibraryArtistsRouteWithChildren;
   "/library/search": typeof LibrarySearchRoute;
   "/playlists/$id": typeof PlaylistsIdRoute;
   "/dashboard": typeof DashboardIndexRoute;
@@ -515,9 +521,10 @@ export interface FileRoutesByTo {
   "/downloads": typeof DownloadsIndexRoute;
   "/playlists": typeof PlaylistsIndexRoute;
   "/settings": typeof SettingsIndexRoute;
-  "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
-  "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
-  "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
+  "/dashboard/recommendations/$id": typeof DashboardRecommendationsIdRoute;
+  "/library/artists/$id": typeof LibraryArtistsIdRouteWithChildren;
+  "/library/artists": typeof LibraryArtistsIndexRoute;
+  "/library/artists/$id/albums/$albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -553,9 +560,10 @@ export interface FileRoutesById {
   "/downloads/": typeof DownloadsIndexRoute;
   "/playlists/": typeof PlaylistsIndexRoute;
   "/settings/": typeof SettingsIndexRoute;
-  "/dashboard/recommendations/id": typeof DashboardRecommendationsIdRoute;
-  "/library/artists/id": typeof LibraryArtistsIdRouteWithChildren;
-  "/library/artists/id/albums/albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
+  "/dashboard/recommendations/$id": typeof DashboardRecommendationsIdRoute;
+  "/library/artists/$id": typeof LibraryArtistsIdRouteWithChildren;
+  "/library/artists/": typeof LibraryArtistsIndexRoute;
+  "/library/artists/$id/albums/$albumId": typeof LibraryArtistsIdAlbumsAlbumIdRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -591,9 +599,10 @@ export interface FileRouteTypes {
     | "/downloads"
     | "/playlists"
     | "/settings"
-    | "/dashboard/recommendations/id"
-    | "/library/artists/id"
-    | "/library/artists/id/albums/albumId";
+    | "/dashboard/recommendations/$id"
+    | "/library/artists/$id"
+    | "/library/artists/"
+    | "/library/artists/$id/albums/$albumId";
   fileRoutesByTo: FileRoutesByTo;
   to:
     | "/"
@@ -618,7 +627,6 @@ export interface FileRouteTypes {
     | "/dj/transitions"
     | "/downloads/history"
     | "/downloads/status"
-    | "/library/artists"
     | "/library/search"
     | "/playlists/$id"
     | "/dashboard"
@@ -626,9 +634,10 @@ export interface FileRouteTypes {
     | "/downloads"
     | "/playlists"
     | "/settings"
-    | "/dashboard/recommendations/id"
-    | "/library/artists/id"
-    | "/library/artists/id/albums/albumId";
+    | "/dashboard/recommendations/$id"
+    | "/library/artists/$id"
+    | "/library/artists"
+    | "/library/artists/$id/albums/$albumId";
   id:
     | "__root__"
     | "/"
@@ -663,9 +672,10 @@ export interface FileRouteTypes {
     | "/downloads/"
     | "/playlists/"
     | "/settings/"
-    | "/dashboard/recommendations/id"
-    | "/library/artists/id"
-    | "/library/artists/id/albums/albumId";
+    | "/dashboard/recommendations/$id"
+    | "/library/artists/$id"
+    | "/library/artists/"
+    | "/library/artists/$id/albums/$albumId";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -1173,24 +1183,31 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof authLoginRouteImport;
       parentRoute: typeof authRouteRoute;
     };
-    "/library/artists/id": {
-      id: "/library/artists/id";
-      path: "/id";
-      fullPath: "/library/artists/id";
+    "/library/artists/": {
+      id: "/library/artists/";
+      path: "/";
+      fullPath: "/library/artists/";
+      preLoaderRoute: typeof LibraryArtistsIndexRouteImport;
+      parentRoute: typeof LibraryArtistsRoute;
+    };
+    "/library/artists/$id": {
+      id: "/library/artists/$id";
+      path: "/$id";
+      fullPath: "/library/artists/$id";
       preLoaderRoute: typeof LibraryArtistsIdRouteImport;
       parentRoute: typeof LibraryArtistsRoute;
     };
-    "/dashboard/recommendations/id": {
-      id: "/dashboard/recommendations/id";
-      path: "/recommendations/id";
-      fullPath: "/dashboard/recommendations/id";
+    "/dashboard/recommendations/$id": {
+      id: "/dashboard/recommendations/$id";
+      path: "/recommendations/$id";
+      fullPath: "/dashboard/recommendations/$id";
       preLoaderRoute: typeof DashboardRecommendationsIdRouteImport;
       parentRoute: typeof DashboardRouteRoute;
     };
-    "/library/artists/id/albums/albumId": {
-      id: "/library/artists/id/albums/albumId";
-      path: "/albums/albumId";
-      fullPath: "/library/artists/id/albums/albumId";
+    "/library/artists/$id/albums/$albumId": {
+      id: "/library/artists/$id/albums/$albumId";
+      path: "/albums/$albumId";
+      fullPath: "/library/artists/$id/albums/$albumId";
       preLoaderRoute: typeof LibraryArtistsIdAlbumsAlbumIdRouteImport;
       parentRoute: typeof LibraryArtistsIdRoute;
     };
@@ -1482,10 +1499,12 @@ const LibraryArtistsIdRouteWithChildren =
 
 interface LibraryArtistsRouteChildren {
   LibraryArtistsIdRoute: typeof LibraryArtistsIdRouteWithChildren;
+  LibraryArtistsIndexRoute: typeof LibraryArtistsIndexRoute;
 }
 
 const LibraryArtistsRouteChildren: LibraryArtistsRouteChildren = {
   LibraryArtistsIdRoute: LibraryArtistsIdRouteWithChildren,
+  LibraryArtistsIndexRoute: LibraryArtistsIndexRoute,
 };
 
 const LibraryArtistsRouteWithChildren = LibraryArtistsRoute._addFileChildren(
