@@ -1,6 +1,7 @@
 # AIDJ 2025 Roadmap - Comprehensive Feature & Improvement Plan
 
 **Generated:** 2025-11-17
+**Updated:** 2025-11-29
 **Status:** Planning Phase
 **Current Version:** Post-Halloween MVP (v0.9)
 **Target Version:** v1.0 Production Release + v1.x Feature Enhancements
@@ -30,11 +31,13 @@ This roadmap outlines a comprehensive plan to elevate AIDJ from its current post
 - Responsive design foundation
 - CI/CD pipeline with security scanning
 
-### ⚠️ What Needs Attention
-- Test stability (87.8% pass rate on Navidrome tests)
+### ⚠️ What Needs Attention (Updated 2025-11-29)
+- Test stability (73% pass rate: 515 passed / 188 failed / 711 total)
 - Incomplete Lidarr integration (search exists, availability checks missing)
 - Large component files (>700 lines) reducing maintainability
-- DJ features incomplete (27 tests deferred)
+- DJ mixer tests failing (BPM/key compatibility calculations)
+- Audio player tests have uncaught exceptions (`setAIDJEnabled is not a function`)
+- Zustand store mocking issues in component tests
 - Documentation gaps and outdated references
 - Mobile optimization needs polish
 - Preview deployment limitations (signup disabled)
@@ -58,13 +61,20 @@ This roadmap outlines a comprehensive plan to elevate AIDJ from its current post
 
 ### 1.1 Test Stability & Technical Debt
 - **Priority:** CRITICAL
-- Fix 5 failing Navidrome integration tests (87.8% → 95%+ pass rate)
-- Address 27 deferred DJ mixer tests (define scope or remove)
-- Fix 7 audio player DJ performance tests
-- Resolve 12 Navidrome test assertion mismatches
-- Achieve 90%+ overall test coverage
+- Fix Zustand store mocking in component tests (`setAIDJEnabled is not a function` error)
+- Fix DJ mixer BPM/key compatibility test assertions (6 failing in dj-mixer.test.ts)
+- Fix audio player uncaught exceptions (async state updates cleanup)
+- Address async timeout cleanup in AI DJ toggle tests
+- Resolve Ollama/Navidrome service test assertion mismatches
+- Achieve 90%+ overall test coverage (currently 73%)
 - **Impact:** Blocks production deployment
 - **Effort:** 5-7 days
+
+#### Specific Test Failures (Updated 2025-11-29)
+- `src/lib/services/__tests__/dj-mixer.test.ts`: 6 failures (BPM/key compatibility)
+- `src/components/ui/__tests__/audio-player.test.tsx`: Uncaught exceptions
+- `src/components/ai-dj-toggle.tsx:55`: `setAIDJEnabled is not a function`
+- 20 test files failing, 21 passing, 1 skipped
 
 ### 1.2 Code Quality & Refactoring
 - **Priority:** HIGH
@@ -610,6 +620,6 @@ This roadmap outlines a comprehensive plan to elevate AIDJ from its current post
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2025-11-17
+**Document Version:** 1.1
+**Last Updated:** 2025-11-29
 **Next Review:** After Phase 1 completion

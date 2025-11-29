@@ -20,10 +20,10 @@ Phase 1 issues must be created **MANUALLY** and prioritized **IMMEDIATELY**. The
 
 ---
 
-## Issue 1: Fix Navidrome Integration Test Stability
+## Issue 1: Fix Test Suite Stability (73% → 90%+)
 
 ### Title
-`[Phase 1] Fix Navidrome Integration Test Stability (87.8% → 95%)`
+`[Phase 1] Fix Test Suite Stability (73% → 90%+)`
 
 ### Labels
 - `priority:critical`
@@ -34,50 +34,73 @@ Phase 1 issues must be created **MANUALLY** and prioritized **IMMEDIATELY**. The
 
 ### Description
 
-**Goal:** Achieve 95%+ pass rate on Navidrome integration tests to unblock production deployment.
+**Goal:** Achieve 90%+ pass rate across all tests to unblock production deployment.
 
-**Current State:**
-- 41 Navidrome integration tests
-- 36 passing, 5 failing (87.8% pass rate)
+**Current State (Updated 2025-11-29):**
+- 711 total tests
+- 515 passing, 188 failing (73% pass rate)
+- 20 test files failing, 21 passing, 1 skipped
 - Blocking production deployment
+
+**Key Failure Areas:**
+1. **Zustand Store Mocking**: `setAIDJEnabled is not a function` in ai-dj-toggle.tsx:55
+2. **DJ Mixer Tests**: 6 failures in BPM/key compatibility calculations
+3. **Audio Player Tests**: Uncaught exceptions from async state updates
+4. **Component Tests**: Store not properly mocked
 
 **Impact:**
 - Blocks production release
-- Indicates potential reliability issues with music library integration
+- Indicates potential reliability issues
 - Prevents confidence in core feature stability
 
 **Effort Estimate:** 5-7 days
 
 ### Tasks
 
-- [ ] Analyze 5 failing Navidrome tests
-- [ ] Fix retry count assertion mismatches
-- [ ] Resolve mock expectation failures
-- [ ] Update test fixtures if API changed
-- [ ] Verify auth retry logic works correctly
+- [ ] Fix Zustand store mocking in component tests (critical)
+- [ ] Fix async timeout cleanup in AI DJ toggle tests
+- [ ] Fix DJ mixer BPM compatibility test assertions
+- [ ] Fix DJ mixer key compatibility test assertions
+- [ ] Fix audio player uncaught exceptions
+- [ ] Add proper afterEach cleanup for async operations
 - [ ] Run full test suite 10 times to confirm stability
 - [ ] Document root causes and fixes
-- [ ] Update test documentation
+
+### Specific Failing Tests
+
+```
+src/lib/services/__tests__/dj-mixer.test.ts (6 failures):
+  - calculateBPMCompatibility > should return low compatibility for incompatible BPM
+  - calculateBPMCompatibility > should consider genre in BPM compatibility
+  - calculateKeyCompatibility > should return perfect compatibility for exact key match
+  - calculateKeyCompatibility > should return high compatibility for relative minor/major
+  (+ 2 more)
+
+src/components/ai-dj-toggle.tsx:55:
+  TypeError: setAIDJEnabled is not a function
+
+src/components/ui/__tests__/audio-player.test.tsx:
+  Uncaught exceptions from async state updates
+```
 
 ### Acceptance Criteria
 
-- [ ] 95%+ Navidrome test pass rate (38+/41 tests)
+- [ ] 90%+ overall test pass rate (640+/711 tests)
 - [ ] All tests pass 10 consecutive times
 - [ ] No flaky tests (inconsistent pass/fail)
 - [ ] Root causes documented
-- [ ] Test coverage for auth flows maintained
 - [ ] CI pipeline green
 - [ ] No regressions in existing functionality
 
 ### Files to Review
 
-- `/home/user/aidj/docs/qa/gates/technical-debt.phase-4-test-stability.yml` - Current status
-- `/home/user/aidj/src/lib/services/navidrome.ts` - Navidrome service
-- `/home/user/aidj/src/lib/services/navidrome.test.ts` - Test file
+- `src/lib/services/__tests__/dj-mixer.test.ts` - DJ mixer test failures
+- `src/components/ai-dj-toggle.tsx` - Store function error
+- `src/components/ui/__tests__/audio-player.test.tsx` - Async cleanup issues
+- `src/lib/stores/audio.ts` - Zustand store to mock
 
 ### Related Documentation
 
-- [Technical Debt: Phase 4 Test Stability](../../docs/qa/gates/technical-debt.phase-4-test-stability.yml)
 - [Roadmap Phase 1.1](../../docs/roadmap-2025.md#11-test-stability--technical-debt)
 
 ---
@@ -545,6 +568,6 @@ PRODUCTION READY
 
 ---
 
-**Last Updated:** 2025-11-17
+**Last Updated:** 2025-11-29
 **Status:** Ready for creation
 **Priority:** CRITICAL - Create these issues FIRST
