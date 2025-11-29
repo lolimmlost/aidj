@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { getArtists } from '@/lib/services/navidrome';
-import { Loader2, User } from 'lucide-react';
+import { Users, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -10,9 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@tanstack/react-router';
-import { Skeleton } from '@/components/ui/skeleton';
+import { PageLayout, PageSection, EmptyState, LoadingGrid } from '@/components/ui/page-layout';
+import { cn } from '@/lib/utils';
 
 export function ArtistsList() {
   const [genre, setGenre] = useState('all');
@@ -24,10 +24,21 @@ export function ArtistsList() {
   });
 
   if (error) {
-    return <div>Error loading artists: {error.message}</div>;
+    return (
+      <PageLayout
+        title="Artists"
+        icon={<Users className="h-5 w-5" />}
+        backLink="/dashboard"
+        backLabel="Dashboard"
+      >
+        <div className="p-6 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive">
+          Error loading artists: {error.message}
+        </div>
+      </PageLayout>
+    );
   }
 
-  // Sort alphabetically
+  // Filter and sort
   let filteredArtists = artists;
   if (genre !== 'all') {
     filteredArtists = artists.filter(a => a.name.toLowerCase().includes(genre.toLowerCase()));
@@ -39,102 +50,131 @@ export function ArtistsList() {
   };
 
   return (
-    <div className="container mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
-      <Card>
-        <CardContent className="p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-4">
-            <div className="flex items-center gap-3">
-              <User className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground" />
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Artists</h1>
+    <PageLayout
+      title="Artists"
+      description={`${sortedArtists.length} artists in your library`}
+      icon={<Users className="h-5 w-5" />}
+      backLink="/dashboard"
+      backLabel="Dashboard"
+      actions={
+        <Button
+          variant="outline"
+          onClick={() => setShowFilters(!showFilters)}
+          className="min-h-[44px] gap-2"
+        >
+          {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
+          {showFilters ? 'Hide Filters' : 'Filters'}
+        </Button>
+      }
+    >
+      {/* Filters Panel */}
+      {showFilters && (
+        <div className="p-4 sm:p-5 rounded-xl bg-muted/50 border border-border space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 max-w-xs">
+              <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                Filter by name
+              </label>
+              <Select value={genre} onValueChange={setGenre}>
+                <SelectTrigger className="min-h-[44px]">
+                  <SelectValue placeholder="Filter by genre" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Artists</SelectItem>
+                  <SelectItem value="rock">Rock</SelectItem>
+                  <SelectItem value="pop">Pop</SelectItem>
+                  <SelectItem value="jazz">Jazz</SelectItem>
+                  <SelectItem value="classical">Classical</SelectItem>
+                  <SelectItem value="hip hop">Hip Hop</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Link to="/dashboard" className="text-primary hover:underline text-sm min-h-[44px] flex items-center">
-              ← Dashboard
-            </Link>
-          </div>
-
-          <Button
-            variant="outline"
-            onClick={() => setShowFilters(!showFilters)}
-            className="mb-4 min-h-[44px] w-full sm:w-auto"
-          >
-            {showFilters ? 'Hide' : 'Show'} Filters
-          </Button>
-
-          {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Select value={genre} onValueChange={setGenre}>
-                  <SelectTrigger className="min-h-[44px]">
-                    <SelectValue placeholder="Filter by genre" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Genres</SelectItem>
-                    <SelectItem value="rock">Rock</SelectItem>
-                    <SelectItem value="pop">Pop</SelectItem>
-                    <SelectItem value="jazz">Jazz</SelectItem>
-                    <SelectItem value="classical">Classical</SelectItem>
-                    <SelectItem value="hip hop">Hip Hop</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-end gap-2">
-                <Button variant="outline" onClick={handleClearFilters} className="min-h-[44px]">
-                  Clear Filters
+            {genre !== 'all' && (
+              <div className="flex items-end">
+                <Button
+                  variant="ghost"
+                  onClick={handleClearFilters}
+                  className="min-h-[44px] text-muted-foreground hover:text-foreground"
+                >
+                  Clear filters
                 </Button>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4" aria-busy="true" aria-live="polite">
-          {[...Array(12)].map((_, index) => (
-            <Card key={index}>
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center gap-3">
-                  <Skeleton className="w-10 h-10 sm:w-12 sm:h-12 rounded-full" />
-                  <Skeleton className="h-5 w-32 sm:w-40" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+            )}
+          </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {sortedArtists.map((artist) => (
-            <Card key={artist.id} className="cursor-pointer transition-shadow hover:shadow-md border-border/50">
-              <CardContent className="p-4 sm:p-6 hover:bg-accent hover:text-accent-foreground">
-                <Link
-                  to="/library/artists/$id"
-                  params={{id: artist.id}}
-                  className="flex items-center gap-3 h-full min-h-[44px]"
-                >
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
-                    <User className="h-5 w-5 text-muted-foreground" />
+      )}
+
+      {/* Artists Grid */}
+      <PageSection>
+        {isLoading ? (
+          <LoadingGrid count={12} />
+        ) : sortedArtists.length === 0 ? (
+          <EmptyState
+            title="No artists found"
+            description="Try adjusting your filters or check your library configuration."
+            icon={<Users className="h-6 w-6" />}
+            action={
+              genre !== 'all' && (
+                <Button variant="outline" onClick={handleClearFilters}>
+                  Clear Filters
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+            {sortedArtists.map((artist) => (
+              <Link
+                key={artist.id}
+                to="/library/artists/$id"
+                params={{ id: artist.id }}
+                className="group"
+              >
+                <div className={cn(
+                  'flex items-center gap-4 p-4 sm:p-5 rounded-xl border transition-all duration-200',
+                  'bg-card border-border hover:border-primary/30',
+                  'hover:shadow-md hover:-translate-y-0.5'
+                )}>
+                  {/* Artist Avatar */}
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center flex-shrink-0 group-hover:from-primary/30 group-hover:to-primary/10 transition-colors">
+                    <span className="text-lg font-semibold text-primary">
+                      {artist.name.charAt(0).toUpperCase()}
+                    </span>
                   </div>
+
+                  {/* Artist Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate text-sm sm:text-base">{artist.name}</div>
+                    <h3 className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                      {artist.name}
+                    </h3>
+                    {artist.albumCount && (
+                      <p className="text-sm text-muted-foreground">
+                        {artist.albumCount} album{artist.albumCount !== 1 ? 's' : ''}
+                      </p>
+                    )}
                   </div>
-                </Link>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-      
-      {sortedArtists.length === 0 && !isLoading && (
-        <Card className="text-center py-12">
-          <CardContent>
-            <p className="text-muted-foreground">No artists found.</p>
-            <p className="text-sm mt-2 text-muted-foreground">Try adjusting your filters or check your library configuration.</p>
-          </CardContent>
-        </Card>
-      )}
 
-      <div className="text-center pt-4 border-t">
-        <Link to="/dashboard" className="text-primary hover:underline">← Back to Dashboard</Link>
-      </div>
-    </div>
+                  {/* Arrow indicator */}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-muted-foreground/50 group-hover:text-primary group-hover:translate-x-0.5 transition-all"
+                  >
+                    <path d="m9 18 6-6-6-6"/>
+                  </svg>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </PageSection>
+    </PageLayout>
   );
 }

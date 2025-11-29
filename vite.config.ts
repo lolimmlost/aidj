@@ -15,7 +15,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',  // Allow access from any IP on the local network
     port: 3003,
-    allowedHosts: ['dev2.appahouse.com', 'localhost'],
+    allowedHosts: ['dev3.appahouse.com', 'localhost'],
     cors: {
       origin: true,  // Allow all origins in development
       credentials: true,

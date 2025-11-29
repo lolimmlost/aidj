@@ -170,3 +170,125 @@
     @apply transition-all duration-300 ease-in-out;
   }
 }
+
+/* ===========================================
+   AIDJ Design System Utilities
+   Consistent spacing, colors, and effects
+   =========================================== */
+
+@layer components {
+  /* Consistent section spacing */
+  .section-spacing {
+    @apply space-y-6 sm:space-y-8;
+  }
+
+  /* Glass morphism effect for cards */
+  .glass-card {
+    @apply bg-background/80 backdrop-blur-sm border border-border/50 shadow-sm;
+  }
+
+  /* Gradient text utility */
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent;
+  }
+
+  /* Interactive card base */
+  .interactive-card {
+    @apply rounded-xl border border-border bg-card p-4 sm:p-5
+           transition-all duration-200
+           hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5;
+  }
+
+  /* Status badges */
+  .badge-success {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+           bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300;
+  }
+
+  .badge-warning {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+           bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300;
+  }
+
+  .badge-info {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+           bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300;
+  }
+
+  .badge-purple {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+           bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300;
+  }
+
+  /* Icon containers */
+  .icon-container {
+    @apply flex items-center justify-center w-10 h-10 rounded-lg;
+  }
+
+  .icon-container-sm {
+    @apply flex items-center justify-center w-8 h-8 rounded-lg;
+  }
+
+  .icon-container-lg {
+    @apply flex items-center justify-center w-12 h-12 rounded-xl;
+  }
+
+  /* Audio player specific */
+  .audio-player-bar {
+    @apply fixed bottom-0 left-0 right-0 z-50
+           bg-background/95 backdrop-blur-md
+           border-t border-border/50
+           shadow-lg shadow-black/5;
+  }
+
+  /* Touch-friendly minimum sizes */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Consistent input styling */
+  .input-enhanced {
+    @apply min-h-[44px] bg-background/50 border-border/50
+           focus:border-primary/50 transition-all;
+  }
+
+  /* Feature card variants */
+  .feature-card-blue {
+    @apply bg-blue-500/5 border-blue-500/20 hover:border-blue-500/40;
+  }
+
+  .feature-card-purple {
+    @apply bg-purple-500/5 border-purple-500/20 hover:border-purple-500/40;
+  }
+
+  .feature-card-green {
+    @apply bg-green-500/5 border-green-500/20 hover:border-green-500/40;
+  }
+
+  .feature-card-orange {
+    @apply bg-orange-500/5 border-orange-500/20 hover:border-orange-500/40;
+  }
+
+  /* Loading shimmer effect */
+  .shimmer {
+    @apply relative overflow-hidden;
+  }
+
+  .shimmer::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.1),
+      transparent
+    );
+    animation: shimmer 2s infinite;
+  }
+
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+}
