@@ -5,13 +5,12 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
 import { usePreferencesStore } from '@/lib/stores/preferences';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { search } from '@/lib/services/navidrome';
 import { OllamaErrorBoundary } from '@/components/ollama-error-boundary';
-import { NavidromeErrorBoundary } from '@/components/navidrome-error-boundary';
 import { Skeleton } from '@/components/ui/skeleton';
 import { hasLegacyFeedback, migrateLegacyFeedback, isMigrationCompleted } from '@/lib/utils/feedback-migration';
 import { PreferenceInsights } from '@/components/recommendations/PreferenceInsights';
@@ -24,6 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { Song } from '@/components/ui/audio-player';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
+import { DashboardHero, DJFeatures, MoreFeatures } from '@/components/dashboard';
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context }) => {
@@ -744,120 +744,19 @@ function DashboardIndex() {
     }
   }, [recommendations]);
 
-  // Get time-based greeting
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
-  };
+  // Calculate stats for hero
+  const availableRecommendations = recommendations?.data?.recommendations?.filter((r: { foundInLibrary?: boolean }) => r.foundInLibrary).length || 0;
+  const playlistSongsReady = playlistData ? (playlistData.data.playlist as PlaylistItem[]).filter(item => item.songId).length : 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
-        {/* Hero Section with Personalized Greeting */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/20 p-8 sm:p-12">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl -z-10" />
-          <div className="relative z-10">
-            <p className="text-sm font-medium text-primary mb-2 tracking-wide uppercase">Your Music Hub</p>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-3 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-              {getGreeting()}, {session?.user?.name || 'Music Lover'}
-            </h1>
-            <p className="text-base sm:text-lg text-muted-foreground max-w-2xl">
-              Discover new music, create intelligent playlists, and explore your library with AI-powered recommendations
-            </p>
-
-            {/* Quick Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8">
-              <div className="bg-background/50 backdrop-blur-sm rounded-xl p-4 border border-border/50">
-                <div className="text-2xl font-bold text-primary">
-                  {recommendations?.data?.recommendations?.filter((r: { foundInLibrary?: boolean }) => r.foundInLibrary).length || 0}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">Available Recommendations</div>
-              </div>
-              <div className="bg-background/50 backdrop-blur-sm rounded-xl p-4 border border-border/50">
-                <div className="text-2xl font-bold text-green-600">
-                  {playlistData ? (playlistData.data.playlist as PlaylistItem[]).filter(item => item.songId).length : 0}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">Playlist Songs Ready</div>
-              </div>
-              <div className="bg-background/50 backdrop-blur-sm rounded-xl p-4 border border-border/50">
-                <div className="text-2xl font-bold text-blue-600">AI</div>
-                <div className="text-xs text-muted-foreground mt-1">Powered</div>
-              </div>
-              <div className="bg-background/50 backdrop-blur-sm rounded-xl p-4 border border-border/50">
-                <div className="text-2xl font-bold text-purple-600">DJ</div>
-                <div className="text-xs text-muted-foreground mt-1">Tools Available</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Link to="/library/search" className="group">
-            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 hover:border-blue-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/10 hover:-translate-y-1">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-3 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
-                    <circle cx="11" cy="11" r="8"/>
-                    <path d="m21 21-4.35-4.35"/>
-                  </svg>
-                </div>
-              </div>
-              <h3 className="text-lg font-semibold mb-1">Search Library</h3>
-              <p className="text-sm text-muted-foreground">Find your favorite songs instantly</p>
-            </div>
-          </Link>
-
-          <Link to="/library/artists" className="group">
-            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 hover:-translate-y-1">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-3 bg-purple-500/10 rounded-xl group-hover:bg-purple-500/20 transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-600">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                    <circle cx="9" cy="7" r="4"/>
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                  </svg>
-                </div>
-              </div>
-              <h3 className="text-lg font-semibold mb-1">Browse Artists</h3>
-              <p className="text-sm text-muted-foreground">Explore your music collection</p>
-            </div>
-          </Link>
-
-          <Link to="/playlists" className="group">
-            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-green-500/10 to-green-600/5 border border-green-500/20 hover:border-green-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/10 hover:-translate-y-1">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-3 bg-green-500/10 rounded-xl group-hover:bg-green-500/20 transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
-                    <path d="M9 18V5l12-2v13"/>
-                    <circle cx="6" cy="18" r="3"/>
-                    <circle cx="18" cy="16" r="3"/>
-                  </svg>
-                </div>
-              </div>
-              <h3 className="text-lg font-semibold mb-1">My Playlists</h3>
-              <p className="text-sm text-muted-foreground">Manage your collections</p>
-            </div>
-          </Link>
-
-          <Link to="/settings" className="group">
-            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-orange-500/10 to-orange-600/5 border border-orange-500/20 hover:border-orange-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/10 hover:-translate-y-1">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-3 bg-orange-500/10 rounded-xl group-hover:bg-orange-500/20 transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-orange-600">
-                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                </div>
-              </div>
-              <h3 className="text-lg font-semibold mb-1">Settings</h3>
-              <p className="text-sm text-muted-foreground">Customize your experience</p>
-            </div>
-          </Link>
-        </div>
+    <div className="min-h-screen bg-background pb-24 md:pb-20">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8">
+        {/* Hero Section */}
+        <DashboardHero
+          userName={session?.user?.name}
+          availableRecommendations={availableRecommendations}
+          playlistSongsReady={playlistSongsReady}
+        />
 
       {/* AI Recommendations Section - conditionally rendered based on user preferences */}
       {preferences.dashboardLayout.showRecommendations && (
@@ -1114,216 +1013,7 @@ function DashboardIndex() {
       )}
 
       {/* DJ Features Section */}
-      <section className="space-y-6">
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
-              <path d="M9 18V5l12-2v13"/>
-              <circle cx="6" cy="18" r="3"/>
-              <circle cx="18" cy="16" r="3"/>
-            </svg>
-            <span className="text-sm font-medium text-blue-600 dark:text-blue-400">Professional Tools</span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-            DJ Features
-          </h2>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
-            Elevate your mixing experience with professional-grade tools powered by AI and advanced audio processing
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-          {/* DJ Mixer - Featured Card */}
-          <Link to="/dj/mixer" className="group md:col-span-2">
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600/10 via-purple-600/5 to-pink-600/10 border-2 border-blue-500/20 hover:border-blue-500/40 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-1 p-8">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full blur-3xl -z-10" />
-
-              <div className="flex flex-col sm:flex-row gap-6 items-start">
-                <div className="flex-shrink-0 p-4 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl shadow-lg group-hover:scale-110 transition-transform duration-300">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M12 2a10 10 0 0 0 10 10"/>
-                  </svg>
-                </div>
-
-                <div className="flex-1 space-y-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-2xl font-bold">DJ Mixer</h3>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                      NEW
-                    </span>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-400 to-orange-500 text-white">
-                      ⭐ Pro
-                    </span>
-                  </div>
-                  <p className="text-base text-muted-foreground">
-                    Professional DJ mixing interface with dual decks, crossfader, real-time audio visualization, and beat-matching technology for seamless transitions
-                  </p>
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                      Dual Decks
-                    </div>
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                      Live Waveforms
-                    </div>
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                      Effects
-                    </div>
-                  </div>
-                </div>
-
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all">
-                  <path d="M5 12h14"/>
-                  <path d="m12 5 7 7-7 7"/>
-                </svg>
-              </div>
-            </div>
-          </Link>
-
-          {/* DJ Queue Manager */}
-          <Link to="/dj/queue" className="group">
-            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-green-500/10 to-emerald-600/5 border-2 border-green-500/20 hover:border-green-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/10 hover:-translate-y-1">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-md group-hover:scale-110 transition-transform">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 18V5l12-2v13"/>
-                    <path d="m9 9 6 6"/>
-                    <circle cx="6" cy="18" r="3"/>
-                    <circle cx="18" cy="16" r="3"/>
-                  </svg>
-                </div>
-                <div className="flex gap-2">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                    Auto
-                  </span>
-                </div>
-              </div>
-              <h3 className="text-xl font-bold mb-2">Queue Manager</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Smart queue management with auto-mixing, priority settings, and AI-powered song recommendations
-              </p>
-              <div className="flex items-center text-xs text-muted-foreground">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                  <path d="M5 12h14"/>
-                  <path d="m12 5 7 7-7 7"/>
-                </svg>
-                Explore feature
-              </div>
-            </div>
-          </Link>
-
-          {/* AI DJ Assistant */}
-          <Link to="/dj/ai-assistant" className="group">
-            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-purple-500/10 to-pink-600/5 border-2 border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 hover:-translate-y-1">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl shadow-md group-hover:scale-110 transition-transform">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4.9 19.1C1 15.5 1 10.5 4.9 6.9"/>
-                    <path d="M16.6 6.9C20.4 10.5 20 15.5 16.6 19.1"/>
-                    <path d="M12 2v6"/>
-                    <path d="M12 16v6"/>
-                    <path d="M8 12h8"/>
-                  </svg>
-                </div>
-                <div className="flex gap-2">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
-                    AI
-                  </span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
-                    BETA
-                  </span>
-                </div>
-              </div>
-              <h3 className="text-xl font-bold mb-2">AI DJ Assistant</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                AI-powered assistant that analyzes your library and creates intelligent, seamless mixes automatically
-              </p>
-              <div className="flex items-center text-xs text-muted-foreground">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                  <path d="M5 12h14"/>
-                  <path d="m12 5 7 7-7 7"/>
-                </svg>
-                Try AI mixing
-              </div>
-            </div>
-          </Link>
-
-          {/* DJ Controls */}
-          <Link to="/dj/controls" className="group">
-            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-orange-500/10 to-red-600/5 border-2 border-orange-500/20 hover:border-orange-500/40 transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/10 hover:-translate-y-1">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-gradient-to-br from-orange-600 to-red-600 rounded-xl shadow-md group-hover:scale-110 transition-transform">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2v20"/>
-                    <path d="M8 10h8"/>
-                    <path d="M8 14h8"/>
-                  </svg>
-                </div>
-              </div>
-              <h3 className="text-xl font-bold mb-2">DJ Controls</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Essential DJ controls for playback, crossfading, and comprehensive session management
-              </p>
-              <div className="flex items-center text-xs text-muted-foreground">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                  <path d="M5 12h14"/>
-                  <path d="m12 5 7 7-7 7"/>
-                </svg>
-                Access controls
-              </div>
-            </div>
-          </Link>
-
-          {/* More Tools Link */}
-          <Link to="/dj" className="group">
-            <div className="h-full p-6 rounded-2xl bg-gradient-to-br from-gray-500/10 to-gray-600/5 border-2 border-dashed border-gray-500/30 hover:border-gray-500/50 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center space-y-2">
-                  <div className="inline-flex p-3 bg-gray-500/10 rounded-xl">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600">
-                      <path d="M12 5v14"/>
-                      <path d="M5 12h14"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-1">More DJ Tools</h3>
-                    <p className="text-sm text-muted-foreground">Explore additional features</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Link>
-        </div>
-
-        <div className="p-6 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 border border-blue-500/10 rounded-2xl">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-blue-500/10 rounded-lg flex-shrink-0">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
-                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
-                <path d="M5 3v4"/>
-                <path d="M19 17v4"/>
-                <path d="M3 5h4"/>
-                <path d="M17 19h4"/>
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-1 text-sm">Pro Tip</h3>
-              <p className="text-sm text-muted-foreground">
-                Start with <span className="font-medium text-foreground">DJ Mixer</span> for the complete mixing experience. Features marked with "Pro" offer advanced capabilities for professional DJs. All tools integrate seamlessly with your music library.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+      <DJFeatures />
 
       <OllamaErrorBoundary>
         <section className="space-y-6">
@@ -1687,44 +1377,7 @@ function DashboardIndex() {
       </OllamaErrorBoundary>
 
       {/* Additional Features - Compact Grid */}
-      <section className="space-y-4">
-        <div className="text-center">
-          <h3 className="text-lg font-semibold text-muted-foreground">More Features</h3>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          <Link to="/downloads" className="group p-4 rounded-xl border border-border/50 hover:border-primary/50 bg-card/50 hover:bg-card transition-all duration-200 hover:-translate-y-0.5">
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" x2="12" y1="15" y2="3"/>
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Downloads</p>
-                <p className="text-xs text-muted-foreground">Manage music</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link to="/dashboard/analytics" className="group p-4 rounded-xl border border-border/50 hover:border-primary/50 bg-card/50 hover:bg-card transition-all duration-200 hover:-translate-y-0.5">
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-                  <line x1="12" x2="12" y1="20" y2="10"/>
-                  <line x1="18" x2="18" y1="20" y2="4"/>
-                  <line x1="6" x2="6" y1="20" y2="16"/>
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Analytics</p>
-                <p className="text-xs text-muted-foreground">View insights</p>
-              </div>
-            </div>
-          </Link>
-        </div>
-      </section>
+      <MoreFeatures />
 
       </div>
     </div>
