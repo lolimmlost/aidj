@@ -4,6 +4,7 @@
 import type { Song } from '@/components/ui/audio-player';
 import { getSongsGlobal } from '../navidrome';
 import { shouldAvoidArtist } from './artist-tracker';
+import { isArtistBlocked } from '../artist-blocklist';
 import type { AIContext } from './context-builder';
 
 // Extended recommendation type with genreScore
@@ -19,7 +20,8 @@ export interface RecommendationWithScore {
  * @param batchSize - Number of songs to match
  * @param context - Current playback context
  * @param excludeSongIds - Song IDs to exclude
- * @param excludeArtists - Artists to exclude
+ * @param excludeArtists - Artists to exclude (from session or explicit request)
+ * @param userBlocklist - Optional user blocklist for personalized filtering
  * @returns Array of matched Song objects
  */
 export async function matchRecommendationsToLibrary(
@@ -27,63 +29,66 @@ export async function matchRecommendationsToLibrary(
   batchSize: number,
   context: AIContext,
   excludeSongIds: string[] = [],
-  excludeArtists: string[] = []
+  excludeArtists: string[] = [],
+  userBlocklist?: Set<string>
 ): Promise<Song[]> {
   const recommendedSongs: Song[] = [];
   const allSongs = await getSongsGlobal(0, 1500); // Increased sample size for better variety
-  
+
   console.log(`🎵 Excluded artists:`, excludeArtists);
   console.log(`🎵 Original recommendations count:`, recommendations.length);
-  
-  // Get list of artists to avoid for diversity
+
+  // Get list of artists to avoid for diversity (from cooldown tracker)
   const artistsToAvoid = new Set<string>();
   for (const artist of Array.from(allSongs.map(s => s.artist).filter((a): a is string => Boolean(a)))) {
     if (shouldAvoidArtist(artist)) {
       artistsToAvoid.add(artist.toLowerCase());
     }
   }
-  
-  // Add specific exclusions for problematic artists
-  const problemArtists = ['earl sweatshirt', 'ghb'];
-  problemArtists.forEach(artist => {
-    if (!excludeArtists.includes(artist)) {
-      excludeArtists.push(artist);
-      console.log(`🚫 Added problem artist to exclusion list: "${artist}"`);
+
+  // Add blocklisted artists to the exclude list
+  if (userBlocklist && userBlocklist.size > 0) {
+    for (const blockedArtist of userBlocklist) {
+      if (!excludeArtists.includes(blockedArtist)) {
+        excludeArtists.push(blockedArtist);
+      }
     }
-  });
+    console.log(`🚫 Added ${userBlocklist.size} user-blocklisted artists to exclusion list`);
+  }
   
   // Filter out excluded songs and artists from the recommendations
   const filteredRecommendations = recommendations.filter(rec => {
     const recLower = rec.song.toLowerCase();
-    
+
     // Extract artist from recommendation if in "Artist - Title" format
     const recArtist = recLower.split(' - ')[0]?.trim();
-    
-    // Skip if artist is in cooldown/avoid list
-    // Skip if artist is in explicit exclude list
+
+    // Skip if artist is in explicit exclude list (includes user blocklist)
     if (recArtist && excludeArtists.some(excluded => recArtist.includes(excluded.toLowerCase()))) {
       console.log(`🚫 Skipping recommendation "${rec.song}" - artist "${recArtist}" is explicitly excluded`);
       return false;
     }
+
+    // Skip if artist is in cooldown/avoid list
     if (recArtist && artistsToAvoid.has(recArtist)) {
       console.log(`🚫 Skipping recommendation "${rec.song}" - artist "${recArtist}" is in cooldown`);
       return false;
     }
-    
-    // Additional check for problematic artists that might be spelled differently
-    if (recArtist && problemArtists.some(problem => recArtist.includes(problem))) {
-      console.log(`🚫 Skipping recommendation "${rec.song}" - artist "${recArtist}" matches problem artist pattern`);
+
+    // Check against system-level blocklist patterns
+    if (recArtist && isArtistBlocked(recArtist, userBlocklist)) {
+      console.log(`🚫 Skipping recommendation "${rec.song}" - artist "${recArtist}" is blocklisted`);
       return false;
     }
-    
+
     // Check if this recommendation matches any excluded song
     return !excludeSongIds.some(excludeId => {
       const song = allSongs.find(s => s.id === excludeId);
       if (!song) return false;
-      
+
       const songTitle = (song.title || song.name || '').toLowerCase();
       const songArtist = (song.artist || '').toLowerCase();
-      
+
       // Check if recommendation matches excluded song by title/artist
       return recLower.includes(songTitle) ||
              recLower.includes(songArtist) ||

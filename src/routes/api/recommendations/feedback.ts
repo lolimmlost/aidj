@@ -6,6 +6,7 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { starSong, unstarSong, getStarredSongs } from '../../../lib/services/navidrome';
 import { clearPreferenceCache } from '../../../lib/services/preferences';
+import { clearAnalyticsCache } from '../../../lib/services/recommendation-analytics';
 import { extractTemporalMetadata } from '../../../lib/utils/temporal';
 import { userPlaylists, playlistSongs } from '../../../lib/db/schema';
 
@@ -203,8 +204,9 @@ export async function POST({ request }: { request: Request }) {
         await db.insert(recommendationFeedback).values(feedbackRecord);
       }
 
-      // Clear preference cache to ensure fresh data on next fetch
+      // Clear preference and analytics caches to ensure fresh data on next fetch
       clearPreferenceCache(session.user.id);
+      clearAnalyticsCache(session.user.id);
 
       // Sync to Navidrome (star/unstar) if enabled and songId provided
       if (validatedData.songId) {
@@ -307,6 +309,7 @@ export async function POST({ request }: { request: Request }) {
       }
 
       // Update recommendation cache quality score if cache ID provided
+      // Uses incremental update for better performance (avoids fetching all feedback)
       if (validatedData.recommendationCacheId) {
         try {
           // Fetch current cache record
@@ -323,23 +326,43 @@ export async function POST({ request }: { request: Request }) {
             .then(rows => rows[0]);
 
           if (cacheRecord) {
-            // Fetch all feedback for this recommendation cache
-            const allFeedback = await db
-              .select()
-              .from(recommendationFeedback)
-              .where(eq(recommendationFeedback.recommendationCacheId, validatedData.recommendationCacheId));
+            // Incremental update: use current feedback count and calculate delta
+            // This is O(1) instead of O(n) where n = total feedback count
+            const currentFeedbackCount = cacheRecord.feedbackCount || 0;
+            const currentQualityScore = cacheRecord.qualityScore || 0;
 
-            // Calculate quality score (ratio of thumbs_up to total feedback)
-            const thumbsUpCount = allFeedback.filter(f => f.feedbackType === 'thumbs_up').length;
-            const totalCount = allFeedback.length;
-            const qualityScore = totalCount > 0 ? thumbsUpCount / totalCount : null;
+            // Calculate new values incrementally
+            const currentThumbsUp = Math.round(currentQualityScore * currentFeedbackCount);
+            const isNewFeedback = !existingFeedback;
+            const isChangingType = existingFeedback && existingFeedback.feedbackType !== validatedData.feedbackType;
+
+            let newThumbsUp = currentThumbsUp;
+            let newFeedbackCount = currentFeedbackCount;
+
+            if (isNewFeedback) {
+              // New feedback entry
+              newFeedbackCount = currentFeedbackCount + 1;
+              if (validatedData.feedbackType === 'thumbs_up') {
+                newThumbsUp = currentThumbsUp + 1;
+              }
+            } else if (isChangingType) {
+              // Changing feedback type (thumbs_up <-> thumbs_down)
+              if (validatedData.feedbackType === 'thumbs_up') {
+                newThumbsUp = currentThumbsUp + 1;
+              } else {
+                newThumbsUp = Math.max(0, currentThumbsUp - 1);
+              }
+            }
+            // If same type (duplicate), we already returned 409 above
+
+            const qualityScore = newFeedbackCount > 0 ? newThumbsUp / newFeedbackCount : null;
 
             // Update cache with new quality metrics
             await db
               .update(recommendationsCache)
               .set({
                 qualityScore,
-                feedbackCount: totalCount,
+                feedbackCount: newFeedbackCount,
               })
               .where(eq(recommendationsCache.id, validatedData.recommendationCacheId));
           }

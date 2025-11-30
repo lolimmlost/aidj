@@ -43,6 +43,12 @@ const { mockUseAudioStore, mockSong, mockSong2 } = vi.hoisted(() => {
       currentTime: 0,
       duration: 180,
       isShuffled: false,
+      // AI DJ state (Story 3.9)
+      aiDJEnabled: false,
+      aiDJLastQueueTime: 0,
+      aiQueuedSongIds: new Set<string>(),
+      aiDJIsLoading: false,
+      aiDJError: null,
       // Playback actions
       setIsPlaying: vi.fn(),
       setCurrentTime: vi.fn(),
@@ -52,6 +58,9 @@ const { mockUseAudioStore, mockSong, mockSong2 } = vi.hoisted(() => {
       previousSong: vi.fn(),
       toggleShuffle: vi.fn(),
       setAIUserActionInProgress: vi.fn(),
+      // AI DJ actions (Story 3.9)
+      setAIDJEnabled: vi.fn(),
+      monitorQueueForAIDJ: vi.fn().mockResolvedValue(undefined),
       // Other actions (for compatibility)
       play: vi.fn(),
       pause: vi.fn(),
@@ -81,6 +90,22 @@ vi.mock('../playlists/AddToPlaylistButton', () => ({
 
 vi.mock('../ai-dj-toggle', () => ({
   AIDJToggle: () => null
+}))
+
+vi.mock('@/lib/stores/preferences', () => ({
+  usePreferencesStore: vi.fn(() => ({
+    preferences: {
+      recommendationSettings: {
+        aiEnabled: true,
+        aiDJEnabled: false,
+        aiDJQueueThreshold: 2,
+        aiDJBatchSize: 3,
+        aiDJUseCurrentContext: true,
+        useFeedbackForPersonalization: true,
+      },
+    },
+    setRecommendationSettings: vi.fn().mockResolvedValue(undefined),
+  })),
 }))
 
 vi.mock('@/lib/services/navidrome', () => ({
@@ -177,11 +202,14 @@ const renderWithQueryClient = (component: React.ReactElement) => {
 describe('Audio Player Component', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers()
     // Mock audio element
     createMockAudio()
   })
 
   afterEach(() => {
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -597,15 +625,15 @@ describe('Audio Player Component', () => {
     describe('DJ Performance Requirements', () => {
       it('should meet DJ latency requirements', async () => {
         renderWithQueryClient(<AudioPlayer />)
-        
-        const playButton = screen.getByLabelText('Play')
+
+        const playButton = screen.getAllByLabelText('Play')[0]
         const startTime = performance.now()
-        
+
         fireEvent.click(playButton)
-        
+
         const endTime = performance.now()
         const responseTime = endTime - startTime
-        
+
         // DJ controls should respond within 10ms
         expect(responseTime).toBeLessThan(10)
       })
@@ -658,20 +686,20 @@ describe('Audio Player Component', () => {
 
     it('should handle rapid state changes', async () => {
       renderWithQueryClient(<AudioPlayer />)
-      
-      const playButton = screen.getByLabelText('Play')
+
+      const playButton = screen.getAllByLabelText('Play')[0]
       const startTime = performance.now()
-      
+
       // Rapid state changes
       for (let i = 0; i < 100; i++) {
         fireEvent.click(playButton)
-        await new Promise(resolve => setTimeout(resolve, 1))
+        await vi.advanceTimersByTimeAsync(1)
       }
-      
+
       // Should handle rapid changes without performance degradation
       const endTime = performance.now()
       const totalTime = endTime - startTime
-      
+
       expect(totalTime).toBeLessThan(500) // Should handle 100 clicks within 500ms
     })
   })

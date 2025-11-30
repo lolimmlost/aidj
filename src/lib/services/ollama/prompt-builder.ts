@@ -183,15 +183,14 @@ IMPORTANT - Generate DIFFERENT recommendations each time. Session seed: ${random
 CRITICAL DIVERSITY RULES (STRICTLY ENFORCED - ZERO TOLERANCE):
 1. ONLY recommend songs from the library list above - copy the EXACT format "Artist - Title"
 2. NEVER recommend more than ONE song from the same artist in a single batch
-3. AVOID artists that have been recommended in the last 8 hours (increased from 4)
-4. If you've recommended an artist 1+ times today, choose DIFFERENT artists (reduced from 2)
+3. AVOID artists that have been recommended in the last 8 hours
+4. If you've recommended an artist 1+ times today, choose DIFFERENT artists
 5. PRIORITIZE artists you haven't recommended in this session at all
 6. ENSURE each batch of recommendations has maximum artist diversity
-7. If you must repeat an artist, wait at least 8 hours between recommendations (increased from 6)
+7. If you must repeat an artist, wait at least 8 hours between recommendations
 8. ABSOLUTELY FORBIDDEN: NEVER recommend songs by excluded artists listed above
 9. ZERO TOLERANCE: Any violation of these rules will result in immediate rejection
-10. CRITICAL: NEVER recommend "Earl Sweatshirt" or any "GHB" artists more than once per day
-11. MANDATORY: Each recommendation must be from a DIFFERENT artist - no exceptions
+10. MANDATORY: Each recommendation must be from a DIFFERENT artist - no exceptions
 
 RELEVANCE REQUIREMENTS:
 8. Select songs that match the mood/style requested in the prompt

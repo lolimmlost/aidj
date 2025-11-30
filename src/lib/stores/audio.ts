@@ -615,16 +615,12 @@ export const useAudioStore = create<AudioState>()(
         // Get recently recommended artists to avoid for diversity
         const recentlyRecommendedArtists = new Set(
           state.aiDJRecentlyRecommended
-            .filter(rec => Date.now() - rec.timestamp < 28800000) // Increased from 4 hours to 8 hours
+            .filter(rec => Date.now() - rec.timestamp < 28800000) // 8 hour cooldown
             .map(rec => rec.artist?.toLowerCase())
             .filter(Boolean)
         );
-        
-        // Add specific problematic artists to exclusion list
-        const problemArtists = ['earl sweatshirt', 'ghb'];
-        problemArtists.forEach(artist => {
-          recentlyRecommendedArtists.add(artist);
-        });
+        // Note: User-specific artist blocklist is loaded server-side in the recommendations API
+        // using the artist-blocklist service for consistent filtering
 
         // Combine all exclusions
         const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed])];
