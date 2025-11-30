@@ -76,6 +76,7 @@ import { ServerRoute as ApiAiDjRecommendationsServerRouteImport } from "./routes
 import { ServerRoute as ApiPlaylistsSmartIndexServerRouteImport } from "./routes/api/playlists/smart/index";
 import { ServerRoute as ApiPlaylistsSmartPreviewServerRouteImport } from "./routes/api/playlists/smart/preview";
 import { ServerRoute as ApiPlaylistsLikedSongsSyncServerRouteImport } from "./routes/api/playlists/liked-songs/sync";
+import { ServerRoute as ApiPlaylistsIdReorderServerRouteImport } from "./routes/api/playlists/$id/reorder";
 import { ServerRoute as ApiNavidromeStreamIdServerRouteImport } from "./routes/api/navidrome/stream/$id";
 import { ServerRoute as ApiNavidromeAuthLoginServerRouteImport } from "./routes/api/navidrome/auth/login";
 import { ServerRoute as ApiNavidromeApiSongServerRouteImport } from "./routes/api/navidrome/api/song";
@@ -428,6 +429,12 @@ const ApiPlaylistsLikedSongsSyncServerRoute =
     id: "/api/playlists/liked-songs/sync",
     path: "/api/playlists/liked-songs/sync",
     getParentRoute: () => rootServerRouteImport,
+  } as any);
+const ApiPlaylistsIdReorderServerRoute =
+  ApiPlaylistsIdReorderServerRouteImport.update({
+    id: "/reorder",
+    path: "/reorder",
+    getParentRoute: () => ApiPlaylistsIdServerRoute,
   } as any);
 const ApiNavidromeStreamIdServerRoute =
   ApiNavidromeStreamIdServerRouteImport.update({
@@ -783,6 +790,7 @@ export interface FileServerRoutesByFullPath {
   "/api/navidrome/api/song": typeof ApiNavidromeApiSongServerRoute;
   "/api/navidrome/auth/login": typeof ApiNavidromeAuthLoginServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
+  "/api/playlists/$id/reorder": typeof ApiPlaylistsIdReorderServerRoute;
   "/api/playlists/liked-songs/sync": typeof ApiPlaylistsLikedSongsSyncServerRoute;
   "/api/playlists/smart/preview": typeof ApiPlaylistsSmartPreviewServerRoute;
   "/api/playlists/smart": typeof ApiPlaylistsSmartIndexServerRoute;
@@ -825,6 +833,7 @@ export interface FileServerRoutesByTo {
   "/api/navidrome/api/song": typeof ApiNavidromeApiSongServerRoute;
   "/api/navidrome/auth/login": typeof ApiNavidromeAuthLoginServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
+  "/api/playlists/$id/reorder": typeof ApiPlaylistsIdReorderServerRoute;
   "/api/playlists/liked-songs/sync": typeof ApiPlaylistsLikedSongsSyncServerRoute;
   "/api/playlists/smart/preview": typeof ApiPlaylistsSmartPreviewServerRoute;
   "/api/playlists/smart": typeof ApiPlaylistsSmartIndexServerRoute;
@@ -868,6 +877,7 @@ export interface FileServerRoutesById {
   "/api/navidrome/api/song": typeof ApiNavidromeApiSongServerRoute;
   "/api/navidrome/auth/login": typeof ApiNavidromeAuthLoginServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
+  "/api/playlists/$id/reorder": typeof ApiPlaylistsIdReorderServerRoute;
   "/api/playlists/liked-songs/sync": typeof ApiPlaylistsLikedSongsSyncServerRoute;
   "/api/playlists/smart/preview": typeof ApiPlaylistsSmartPreviewServerRoute;
   "/api/playlists/smart/": typeof ApiPlaylistsSmartIndexServerRoute;
@@ -912,6 +922,7 @@ export interface FileServerRouteTypes {
     | "/api/navidrome/api/song"
     | "/api/navidrome/auth/login"
     | "/api/navidrome/stream/$id"
+    | "/api/playlists/$id/reorder"
     | "/api/playlists/liked-songs/sync"
     | "/api/playlists/smart/preview"
     | "/api/playlists/smart"
@@ -954,6 +965,7 @@ export interface FileServerRouteTypes {
     | "/api/navidrome/api/song"
     | "/api/navidrome/auth/login"
     | "/api/navidrome/stream/$id"
+    | "/api/playlists/$id/reorder"
     | "/api/playlists/liked-songs/sync"
     | "/api/playlists/smart/preview"
     | "/api/playlists/smart"
@@ -996,6 +1008,7 @@ export interface FileServerRouteTypes {
     | "/api/navidrome/api/song"
     | "/api/navidrome/auth/login"
     | "/api/navidrome/stream/$id"
+    | "/api/playlists/$id/reorder"
     | "/api/playlists/liked-songs/sync"
     | "/api/playlists/smart/preview"
     | "/api/playlists/smart/"
@@ -1500,6 +1513,13 @@ declare module "@tanstack/react-start/server" {
       preLoaderRoute: typeof ApiPlaylistsLikedSongsSyncServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
+    "/api/playlists/$id/reorder": {
+      id: "/api/playlists/$id/reorder";
+      path: "/reorder";
+      fullPath: "/api/playlists/$id/reorder";
+      preLoaderRoute: typeof ApiPlaylistsIdReorderServerRouteImport;
+      parentRoute: typeof ApiPlaylistsIdServerRoute;
+    };
     "/api/navidrome/stream/$id": {
       id: "/api/navidrome/stream/$id";
       path: "/api/navidrome/stream/$id";
@@ -1664,11 +1684,13 @@ const ApiRecommendationsServerRouteWithChildren =
   );
 
 interface ApiPlaylistsIdServerRouteChildren {
+  ApiPlaylistsIdReorderServerRoute: typeof ApiPlaylistsIdReorderServerRoute;
   ApiPlaylistsIdSongsSongIdServerRoute: typeof ApiPlaylistsIdSongsSongIdServerRoute;
   ApiPlaylistsIdSongsIndexServerRoute: typeof ApiPlaylistsIdSongsIndexServerRoute;
 }
 
 const ApiPlaylistsIdServerRouteChildren: ApiPlaylistsIdServerRouteChildren = {
+  ApiPlaylistsIdReorderServerRoute: ApiPlaylistsIdReorderServerRoute,
   ApiPlaylistsIdSongsSongIdServerRoute: ApiPlaylistsIdSongsSongIdServerRoute,
   ApiPlaylistsIdSongsIndexServerRoute: ApiPlaylistsIdSongsIndexServerRoute,
 };

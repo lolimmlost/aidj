@@ -3,14 +3,30 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Link } from '@tanstack/react-router';
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,9 +46,313 @@ import {
   WifiOff,
   Play,
   ListPlus,
+  Heart,
+  Music,
+  MoreHorizontal,
+  GripVertical,
 } from 'lucide-react';
 import { useAudioStore } from '@/lib/stores/audio';
-import { SmartPlaylistEditor } from './smart-playlist-editor';
+
+// Sortable playlist card props
+interface SortablePlaylistCardProps {
+  playlist: Playlist;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  expandedPlaylistData: (Playlist & { songs: PlaylistSong[] }) | null | undefined;
+  isLoadingSongs: boolean;
+  onAddToQueue: (playlist: Playlist, songs: PlaylistSong[], position: 'next' | 'end') => void;
+  onPlayFromSong: (playlist: Playlist, songs: PlaylistSong[], startIndex: number) => void;
+  formatDuration: (seconds?: number | null) => string;
+  formatLastSynced: (date?: Date | null) => string | null;
+  getSyncStatus: (playlist: Playlist) => { icon: typeof CheckCircle2; text: string; color: string } | null;
+}
+
+function SortablePlaylistCard({
+  playlist,
+  isExpanded,
+  onToggleExpand,
+  expandedPlaylistData,
+  isLoadingSongs,
+  onAddToQueue,
+  onPlayFromSong,
+  formatDuration,
+  formatLastSynced,
+  getSyncStatus,
+}: SortablePlaylistCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: playlist.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : 'auto',
+  };
+
+  const syncStatus = getSyncStatus(playlist);
+  const displaySongCount = playlist.songCount ?? playlist.actualSongCount ?? 0;
+  const isLikedSongs = playlist.name === 'Liked Songs' || playlist.description?.includes('starred songs');
+  const isSmartPlaylist = !!playlist.smartPlaylistCriteria;
+
+  const getPlaylistIcon = () => {
+    if (isLikedSongs) return <Heart className="h-4 w-4 text-red-500 fill-red-500" />;
+    if (isSmartPlaylist) return <Sparkles className="h-4 w-4 text-primary" />;
+    return <ListMusic className="h-4 w-4 text-muted-foreground" />;
+  };
+
+  const getPlaylistType = () => {
+    if (isLikedSongs) return 'Liked Songs';
+    if (isSmartPlaylist) {
+      const criteria = playlist.smartPlaylistCriteria as { sort?: string };
+      if (criteria?.sort === 'random') return 'Smart playlist: random';
+      if (criteria?.sort === 'artist') return 'Smart playlist: artist';
+      if (criteria?.sort) return `Smart playlist: ${criteria.sort}`;
+      return 'Smart playlist: custom rules';
+    }
+    return null;
+  };
+
+  return (
+    <Card
+      ref={setNodeRef}
+      style={style}
+      className={`group hover:shadow-lg transition-all duration-200 overflow-hidden ${
+        isLikedSongs ? 'ring-1 ring-red-500/20' : ''
+      } ${isDragging ? 'shadow-2xl ring-2 ring-primary' : ''}`}
+    >
+      <CardContent className="p-0">
+        {/* Card Header */}
+        <div className="p-4 pb-3">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            {/* Drag Handle - Always visible on mobile, hover on desktop */}
+            <button
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing p-1 -ml-1 hover:bg-accent rounded opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-none"
+              aria-label="Drag to reorder"
+            >
+              <GripVertical className="h-4 w-4 text-muted-foreground" />
+            </button>
+
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {getPlaylistIcon()}
+              <h3 className="font-semibold truncate">{playlist.name}</h3>
+            </div>
+
+            {/* Actions Menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem asChild>
+                  <Link to="/playlists/$id" params={{ id: playlist.id }}>
+                    View Details
+                  </Link>
+                </DropdownMenuItem>
+                {expandedPlaylistData?.songs && expandedPlaylistData.songs.length > 0 && isExpanded && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => onAddToQueue(playlist, expandedPlaylistData.songs, 'next')}
+                    >
+                      <Play className="mr-2 h-4 w-4" />
+                      Play Next
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onAddToQueue(playlist, expandedPlaylistData.songs, 'end')}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add to Queue
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Playlist Type Label */}
+          {getPlaylistType() && (
+            <p className="text-xs text-muted-foreground mb-3">
+              {getPlaylistType()}
+            </p>
+          )}
+
+          {/* Description for regular playlists */}
+          {playlist.description && !isLikedSongs && !isSmartPlaylist && (
+            <p className="text-sm text-muted-foreground line-clamp-1 mb-3">
+              {playlist.description}
+            </p>
+          )}
+
+          {/* Stats Row */}
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <Music className="h-3.5 w-3.5" />
+              <span>{displaySongCount} {displaySongCount === 1 ? 'song' : 'songs'}</span>
+            </div>
+            {!!playlist.totalDuration && (
+              <>
+                <span className="text-muted-foreground/50">·</span>
+                <span>{formatDuration(playlist.totalDuration)}</span>
+              </>
+            )}
+          </div>
+
+          {/* Smart Playlist Filters */}
+          {isSmartPlaylist && playlist.smartPlaylistCriteria?.genre && playlist.smartPlaylistCriteria.genre.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {playlist.smartPlaylistCriteria.genre.slice(0, 3).map((g) => (
+                <Badge key={g} variant="secondary" className="text-xs">
+                  {g}
+                </Badge>
+              ))}
+              {playlist.smartPlaylistCriteria.genre.length > 3 && (
+                <Badge variant="outline" className="text-xs">
+                  +{playlist.smartPlaylistCriteria.genre.length - 3}
+                </Badge>
+              )}
+            </div>
+          )}
+
+          {/* Sync Status */}
+          {syncStatus && playlist.lastSynced && (
+            <div className="flex items-center gap-1 mt-3 text-xs text-muted-foreground">
+              <syncStatus.icon className={`h-3 w-3 ${syncStatus.color}`} />
+              <span>Last synced: {formatLastSynced(playlist.lastSynced)}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Action Bar - Desktop: Show Songs | Play, Mobile: View | Play */}
+        <div className="flex border-t border-border/50">
+          {/* On mobile: direct link to detail page. On desktop: expand songs */}
+          <Link
+            to="/playlists/$id"
+            params={{ id: playlist.id }}
+            className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium hover:bg-accent transition-colors sm:hidden"
+          >
+            <ListMusic className="h-4 w-4" />
+            <span>View</span>
+          </Link>
+          <button
+            onClick={onToggleExpand}
+            className="hidden sm:flex flex-1 items-center justify-center gap-2 py-3 text-sm font-medium hover:bg-accent transition-colors"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="h-4 w-4" />
+                <span>Hide Songs</span>
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4" />
+                <span>Show Songs</span>
+              </>
+            )}
+          </button>
+          <div className="w-px bg-border/50" />
+          <Link
+            to="/playlists/$id"
+            params={{ id: playlist.id }}
+            className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium hover:bg-accent transition-colors"
+          >
+            <Play className="h-4 w-4" />
+            <span>Play</span>
+          </Link>
+        </div>
+
+        {/* Expanded Song List - Desktop only */}
+        {isExpanded && (
+          <div className="hidden sm:block border-t border-border/50 bg-muted/30">
+            {isLoadingSongs ? (
+              <div className="p-4 space-y-2">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-3/4" />
+              </div>
+            ) : expandedPlaylistData?.songs && expandedPlaylistData.songs.length > 0 ? (
+              <>
+                <div className="max-h-56 overflow-y-auto">
+                  {expandedPlaylistData.songs.slice(0, 10).map((song, index) => (
+                    <div
+                      key={song.id}
+                      className="group/song flex items-center gap-3 px-4 py-2.5 hover:bg-accent/50 cursor-pointer transition-colors"
+                      onClick={() => onPlayFromSong(playlist, expandedPlaylistData.songs, index)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onPlayFromSong(playlist, expandedPlaylistData.songs, index);
+                        }
+                      }}
+                    >
+                      <span className="text-xs text-muted-foreground w-5 text-right">
+                        {index + 1}
+                      </span>
+                      <span className="text-sm truncate flex-1">{song.songArtistTitle}</span>
+                      <Play className="h-3.5 w-3.5 opacity-0 group-hover/song:opacity-100 transition-opacity text-primary flex-shrink-0" />
+                    </div>
+                  ))}
+                  {expandedPlaylistData.songs.length > 10 && (
+                    <Link
+                      to="/playlists/$id"
+                      params={{ id: playlist.id }}
+                      className="block px-4 py-3 text-sm text-center text-primary hover:bg-accent/50 transition-colors font-medium"
+                    >
+                      View all {expandedPlaylistData.songs.length} songs
+                    </Link>
+                  )}
+                </div>
+
+                {/* Quick Add to Queue */}
+                <div className="p-3 pt-0">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => onAddToQueue(playlist, expandedPlaylistData.songs, 'next')}
+                    >
+                      <Play className="mr-1.5 h-3.5 w-3.5" />
+                      Play Next
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => onAddToQueue(playlist, expandedPlaylistData.songs, 'end')}
+                    >
+                      <ListPlus className="mr-1.5 h-3.5 w-3.5" />
+                      Add to Queue
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="py-8 text-center text-muted-foreground">
+                <Music className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No songs in this playlist</p>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 interface SmartPlaylistCriteria {
   genre?: string[];
@@ -71,8 +391,27 @@ interface PlaylistListProps {
 
 export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
   const [expandedPlaylistId, setExpandedPlaylistId] = useState<string | null>(null);
+  const [orderedPlaylistIds, setOrderedPlaylistIds] = useState<string[]>([]);
   const queryClient = useQueryClient();
   const { addToQueueNext, addToQueueEnd, setAIUserActionInProgress } = useAudioStore();
+
+  // DnD sensors - includes TouchSensor for mobile support
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Fetch all playlists
   const { data, isLoading, error } = useQuery({
@@ -252,8 +591,78 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     return { icon: Clock, text: formatLastSynced(playlist.lastSynced), color: 'text-yellow-500' };
   };
 
-  const playlists = data?.playlists || [];
+  const rawPlaylists = data?.playlists || [];
   const navidromeAvailable = data?.navidromeAvailable ?? true;
+
+  // Sync ordered IDs when playlists change
+  // Use localStorage to persist order
+  const storageKey = 'playlist-order';
+
+  // Initialize order from localStorage or use default
+  const getOrderedPlaylists = (): Playlist[] => {
+    if (rawPlaylists.length === 0) return [];
+
+    // Try to get saved order from localStorage
+    let savedOrder: string[] = [];
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        savedOrder = JSON.parse(saved);
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+
+    // If we have a saved order, use it
+    if (savedOrder.length > 0) {
+      const playlistMap = new Map(rawPlaylists.map(p => [p.id, p]));
+      const ordered: Playlist[] = [];
+
+      // Add playlists in saved order
+      for (const id of savedOrder) {
+        const playlist = playlistMap.get(id);
+        if (playlist) {
+          ordered.push(playlist);
+          playlistMap.delete(id);
+        }
+      }
+
+      // Add any new playlists not in saved order
+      for (const playlist of playlistMap.values()) {
+        ordered.push(playlist);
+      }
+
+      return ordered;
+    }
+
+    return rawPlaylists;
+  };
+
+  const playlists = getOrderedPlaylists();
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = playlists.findIndex((p) => p.id === active.id);
+      const newIndex = playlists.findIndex((p) => p.id === over.id);
+
+      const newOrder = arrayMove(playlists, oldIndex, newIndex);
+      const newOrderIds = newOrder.map((p) => p.id);
+
+      // Save to localStorage
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(newOrderIds));
+      } catch {
+        // Ignore localStorage errors
+      }
+
+      // Force re-render by updating a state
+      setOrderedPlaylistIds(newOrderIds);
+
+      toast.success('Playlist order updated');
+    }
+  };
 
   if (isLoading) {
     return (
@@ -287,7 +696,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
 
   return (
     <div className="space-y-4">
-      {/* Header with Actions */}
+      {/* Status Bar */}
       <div className="flex flex-wrap justify-between items-center gap-3">
         <div className="flex items-center gap-3">
           {!navidromeAvailable && (
@@ -296,30 +705,23 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
               <span>Offline - Showing cached playlists</span>
             </div>
           )}
+          {navidromeAvailable && (
+            <p className="text-sm text-muted-foreground">
+              {playlists.length} {playlists.length === 1 ? 'playlist' : 'playlists'}
+            </p>
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* New Smart Playlist Editor */}
-          <SmartPlaylistEditor
-            trigger={
-              <Button className="min-h-[44px]">
-                <Sparkles className="mr-2 h-4 w-4" />
-                New Smart Playlist
-              </Button>
-            }
-          />
-
-          {/* Sync Button */}
-          <Button
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending || !navidromeAvailable}
-            variant="outline"
-            className="min-h-[44px]"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
-            {syncMutation.isPending ? 'Syncing...' : 'Sync Navidrome'}
-          </Button>
-        </div>
+        {/* Sync Button - Only action here, main create buttons are in page header */}
+        <Button
+          onClick={() => syncMutation.mutate()}
+          disabled={syncMutation.isPending || !navidromeAvailable}
+          variant="outline"
+          size="sm"
+        >
+          <RefreshCw className={`mr-2 h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+          {syncMutation.isPending ? 'Syncing...' : 'Sync'}
+        </Button>
       </div>
 
       {/* Fallback suggestion when Navidrome is offline and no cached playlists */}
@@ -344,180 +746,35 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
         </Card>
       )}
 
-      {/* Playlist Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {playlists.map((playlist) => {
-          const isExpanded = expandedPlaylistId === playlist.id;
-          const syncStatus = getSyncStatus(playlist);
-          const displaySongCount = playlist.songCount ?? playlist.actualSongCount ?? 0;
-
-          return (
-            <Card key={playlist.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    {playlist.smartPlaylistCriteria ? (
-                      <Sparkles className="h-5 w-5 text-primary flex-shrink-0" />
-                    ) : (
-                      <ListMusic className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                    )}
-                    <CardTitle className="truncate text-base">{playlist.name}</CardTitle>
-                  </div>
-                  {syncStatus && (
-                    <div className="flex items-center gap-1 text-xs">
-                      <syncStatus.icon className={`h-4 w-4 ${syncStatus.color}`} />
-                      <span className={syncStatus.color}>{syncStatus.text}</span>
-                    </div>
-                  )}
-                </div>
-                {playlist.description && (
-                  <CardDescription className="line-clamp-2 text-sm">
-                    {playlist.description}
-                  </CardDescription>
-                )}
-              </CardHeader>
-
-              <CardContent>
-                <div className="space-y-3">
-                  {/* Metadata */}
-                  <div className="text-sm text-muted-foreground space-y-1">
-                    <p>{displaySongCount} {displaySongCount === 1 ? 'song' : 'songs'}</p>
-                    {!!playlist.totalDuration && (
-                      <p>Duration: {formatDuration(playlist.totalDuration)}</p>
-                    )}
-                    {!!playlist.lastSynced && (
-                      <p className="text-xs">
-                        Last synced: {formatLastSynced(playlist.lastSynced)}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Smart Playlist Criteria Display */}
-                  {!!playlist.smartPlaylistCriteria && (
-                    <div className="text-xs text-muted-foreground">
-                      <p className="font-medium mb-1">Filters:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {playlist.smartPlaylistCriteria.genre?.map((g) => (
-                          <span key={g} className="px-2 py-0.5 bg-primary/10 rounded">
-                            {g}
-                          </span>
-                        ))}
-                        {!!(playlist.smartPlaylistCriteria.yearFrom && playlist.smartPlaylistCriteria.yearTo) && (
-                          <span className="px-2 py-0.5 bg-primary/10 rounded">
-                            {playlist.smartPlaylistCriteria.yearFrom}-{playlist.smartPlaylistCriteria.yearTo}
-                          </span>
-                        )}
-                        {!!playlist.smartPlaylistCriteria.rating && (
-                          <span className="px-2 py-0.5 bg-primary/10 rounded">
-                            ⭐ {playlist.smartPlaylistCriteria.rating}+
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-2">
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleToggleExpand(playlist.id)}
-                      className="flex-1 min-h-[44px]"
-                    >
-                      {isExpanded ? (
-                        <>
-                          <ChevronUp className="mr-2 h-4 w-4" />
-                          Collapse
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="mr-2 h-4 w-4" />
-                          Expand
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      asChild
-                      className="min-h-[44px] px-3"
-                    >
-                      <Link to="/playlists/$id" params={{ id: playlist.id }}>
-                        View
-                      </Link>
-                    </Button>
-                  </div>
-
-                  {/* Expanded Song List */}
-                  {isExpanded && (
-                    <div className="pt-3 border-t space-y-2">
-                      {isLoadingSongs ? (
-                        <Skeleton className="h-20" />
-                      ) : expandedPlaylistData?.songs && expandedPlaylistData.songs.length > 0 ? (
-                        <>
-                          <div className="max-h-48 overflow-y-auto space-y-1">
-                            {expandedPlaylistData.songs.map((song, index) => (
-                              <div
-                                key={song.id}
-                                className="group text-sm p-2 hover:bg-accent rounded flex items-center gap-2 cursor-pointer transition-colors"
-                                onClick={() => handlePlayFromSong(playlist, expandedPlaylistData.songs, index)}
-                                role="button"
-                                tabIndex={0}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    handlePlayFromSong(playlist, expandedPlaylistData.songs, index);
-                                  }
-                                }}
-                              >
-                                <span className="text-muted-foreground w-6">{index + 1}.</span>
-                                <span className="truncate flex-1">{song.songArtistTitle}</span>
-                                <Play className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity text-primary flex-shrink-0" />
-                              </div>
-                            ))}
-                          </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                className="w-full min-h-[44px]"
-                              >
-                                <ListPlus className="mr-2 h-4 w-4" />
-                                Add to Queue
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="center" className="w-48">
-                              <DropdownMenuItem
-                                onClick={() => handleAddToQueue(playlist, expandedPlaylistData.songs, 'next')}
-                                className="min-h-[44px]"
-                              >
-                                <Play className="mr-2 h-4 w-4" />
-                                Play Next
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleAddToQueue(playlist, expandedPlaylistData.songs, 'end')}
-                                className="min-h-[44px]"
-                              >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add to End
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </>
-                      ) : (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          No songs in this playlist
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {/* Playlist Cards with Drag & Drop */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={playlists.map((p) => p.id)}
+          strategy={rectSortingStrategy}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {playlists.map((playlist) => (
+              <SortablePlaylistCard
+                key={playlist.id}
+                playlist={playlist}
+                isExpanded={expandedPlaylistId === playlist.id}
+                onToggleExpand={() => handleToggleExpand(playlist.id)}
+                expandedPlaylistData={expandedPlaylistId === playlist.id ? expandedPlaylistData : undefined}
+                isLoadingSongs={isLoadingSongs && expandedPlaylistId === playlist.id}
+                onAddToQueue={handleAddToQueue}
+                onPlayFromSong={handlePlayFromSong}
+                formatDuration={formatDuration}
+                formatLastSynced={formatLastSynced}
+                getSyncStatus={getSyncStatus}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }
