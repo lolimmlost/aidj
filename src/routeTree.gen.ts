@@ -77,10 +77,16 @@ import { ServerRoute as ApiPlaylistsSmartIndexServerRouteImport } from "./routes
 import { ServerRoute as ApiPlaylistsSmartPreviewServerRouteImport } from "./routes/api/playlists/smart/preview";
 import { ServerRoute as ApiPlaylistsLikedSongsSyncServerRouteImport } from "./routes/api/playlists/liked-songs/sync";
 import { ServerRoute as ApiNavidromeStreamIdServerRouteImport } from "./routes/api/navidrome/stream/$id";
+import { ServerRoute as ApiNavidromeAuthLoginServerRouteImport } from "./routes/api/navidrome/auth/login";
+import { ServerRoute as ApiNavidromeApiSongServerRouteImport } from "./routes/api/navidrome/api/song";
+import { ServerRoute as ApiNavidromeApiArtistServerRouteImport } from "./routes/api/navidrome/api/artist";
+import { ServerRoute as ApiNavidromeApiAlbumServerRouteImport } from "./routes/api/navidrome/api/album";
 import { ServerRoute as ApiNavidromeChar91DotPathChar93ServerRouteImport } from "./routes/api/navidrome/[...path]";
 import { ServerRoute as ApiPlaylistsIdSongsIndexServerRouteImport } from "./routes/api/playlists/$id/songs/index";
 import { ServerRoute as ApiPlaylistsIdSongsSongIdServerRouteImport } from "./routes/api/playlists/$id/songs/$songId";
 import { ServerRoute as ApiNavidromeStreamIdIdServerRouteImport } from "./routes/api/navidrome/stream/[id]/[id]";
+import { ServerRoute as ApiNavidromeApiArtistIdServerRouteImport } from "./routes/api/navidrome/api/artist/$id";
+import { ServerRoute as ApiNavidromeApiAlbumIdServerRouteImport } from "./routes/api/navidrome/api/album/$id";
 
 const rootServerRouteImport = createServerRootRoute();
 
@@ -429,6 +435,30 @@ const ApiNavidromeStreamIdServerRoute =
     path: "/api/navidrome/stream/$id",
     getParentRoute: () => rootServerRouteImport,
   } as any);
+const ApiNavidromeAuthLoginServerRoute =
+  ApiNavidromeAuthLoginServerRouteImport.update({
+    id: "/api/navidrome/auth/login",
+    path: "/api/navidrome/auth/login",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
+const ApiNavidromeApiSongServerRoute =
+  ApiNavidromeApiSongServerRouteImport.update({
+    id: "/api/navidrome/api/song",
+    path: "/api/navidrome/api/song",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
+const ApiNavidromeApiArtistServerRoute =
+  ApiNavidromeApiArtistServerRouteImport.update({
+    id: "/api/navidrome/api/artist",
+    path: "/api/navidrome/api/artist",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
+const ApiNavidromeApiAlbumServerRoute =
+  ApiNavidromeApiAlbumServerRouteImport.update({
+    id: "/api/navidrome/api/album",
+    path: "/api/navidrome/api/album",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
 const ApiNavidromeChar91DotPathChar93ServerRoute =
   ApiNavidromeChar91DotPathChar93ServerRouteImport.update({
     id: "/api/navidrome/[./path]",
@@ -452,6 +482,18 @@ const ApiNavidromeStreamIdIdServerRoute =
     id: "/api/navidrome/stream/id/id",
     path: "/api/navidrome/stream/id/id",
     getParentRoute: () => rootServerRouteImport,
+  } as any);
+const ApiNavidromeApiArtistIdServerRoute =
+  ApiNavidromeApiArtistIdServerRouteImport.update({
+    id: "/$id",
+    path: "/$id",
+    getParentRoute: () => ApiNavidromeApiArtistServerRoute,
+  } as any);
+const ApiNavidromeApiAlbumIdServerRoute =
+  ApiNavidromeApiAlbumIdServerRouteImport.update({
+    id: "/$id",
+    path: "/$id",
+    getParentRoute: () => ApiNavidromeApiAlbumServerRoute,
   } as any);
 
 export interface FileRoutesByFullPath {
@@ -736,10 +778,16 @@ export interface FileServerRoutesByFullPath {
   "/api/recommendations/seasonal-playlist": typeof ApiRecommendationsSeasonalPlaylistServerRoute;
   "/api/playlists": typeof ApiPlaylistsIndexServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
+  "/api/navidrome/api/album": typeof ApiNavidromeApiAlbumServerRouteWithChildren;
+  "/api/navidrome/api/artist": typeof ApiNavidromeApiArtistServerRouteWithChildren;
+  "/api/navidrome/api/song": typeof ApiNavidromeApiSongServerRoute;
+  "/api/navidrome/auth/login": typeof ApiNavidromeAuthLoginServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/playlists/liked-songs/sync": typeof ApiPlaylistsLikedSongsSyncServerRoute;
   "/api/playlists/smart/preview": typeof ApiPlaylistsSmartPreviewServerRoute;
   "/api/playlists/smart": typeof ApiPlaylistsSmartIndexServerRoute;
+  "/api/navidrome/api/album/$id": typeof ApiNavidromeApiAlbumIdServerRoute;
+  "/api/navidrome/api/artist/$id": typeof ApiNavidromeApiArtistIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
   "/api/playlists/$id/songs/$songId": typeof ApiPlaylistsIdSongsSongIdServerRoute;
   "/api/playlists/$id/songs": typeof ApiPlaylistsIdSongsIndexServerRoute;
@@ -772,10 +820,16 @@ export interface FileServerRoutesByTo {
   "/api/recommendations/seasonal-playlist": typeof ApiRecommendationsSeasonalPlaylistServerRoute;
   "/api/playlists": typeof ApiPlaylistsIndexServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
+  "/api/navidrome/api/album": typeof ApiNavidromeApiAlbumServerRouteWithChildren;
+  "/api/navidrome/api/artist": typeof ApiNavidromeApiArtistServerRouteWithChildren;
+  "/api/navidrome/api/song": typeof ApiNavidromeApiSongServerRoute;
+  "/api/navidrome/auth/login": typeof ApiNavidromeAuthLoginServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/playlists/liked-songs/sync": typeof ApiPlaylistsLikedSongsSyncServerRoute;
   "/api/playlists/smart/preview": typeof ApiPlaylistsSmartPreviewServerRoute;
   "/api/playlists/smart": typeof ApiPlaylistsSmartIndexServerRoute;
+  "/api/navidrome/api/album/$id": typeof ApiNavidromeApiAlbumIdServerRoute;
+  "/api/navidrome/api/artist/$id": typeof ApiNavidromeApiArtistIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
   "/api/playlists/$id/songs/$songId": typeof ApiPlaylistsIdSongsSongIdServerRoute;
   "/api/playlists/$id/songs": typeof ApiPlaylistsIdSongsIndexServerRoute;
@@ -809,10 +863,16 @@ export interface FileServerRoutesById {
   "/api/recommendations/seasonal-playlist": typeof ApiRecommendationsSeasonalPlaylistServerRoute;
   "/api/playlists/": typeof ApiPlaylistsIndexServerRoute;
   "/api/navidrome/[./path]": typeof ApiNavidromeChar91DotPathChar93ServerRoute;
+  "/api/navidrome/api/album": typeof ApiNavidromeApiAlbumServerRouteWithChildren;
+  "/api/navidrome/api/artist": typeof ApiNavidromeApiArtistServerRouteWithChildren;
+  "/api/navidrome/api/song": typeof ApiNavidromeApiSongServerRoute;
+  "/api/navidrome/auth/login": typeof ApiNavidromeAuthLoginServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/playlists/liked-songs/sync": typeof ApiPlaylistsLikedSongsSyncServerRoute;
   "/api/playlists/smart/preview": typeof ApiPlaylistsSmartPreviewServerRoute;
   "/api/playlists/smart/": typeof ApiPlaylistsSmartIndexServerRoute;
+  "/api/navidrome/api/album/$id": typeof ApiNavidromeApiAlbumIdServerRoute;
+  "/api/navidrome/api/artist/$id": typeof ApiNavidromeApiArtistIdServerRoute;
   "/api/navidrome/stream/id/id": typeof ApiNavidromeStreamIdIdServerRoute;
   "/api/playlists/$id/songs/$songId": typeof ApiPlaylistsIdSongsSongIdServerRoute;
   "/api/playlists/$id/songs/": typeof ApiPlaylistsIdSongsIndexServerRoute;
@@ -847,10 +907,16 @@ export interface FileServerRouteTypes {
     | "/api/recommendations/seasonal-playlist"
     | "/api/playlists"
     | "/api/navidrome/[./path]"
+    | "/api/navidrome/api/album"
+    | "/api/navidrome/api/artist"
+    | "/api/navidrome/api/song"
+    | "/api/navidrome/auth/login"
     | "/api/navidrome/stream/$id"
     | "/api/playlists/liked-songs/sync"
     | "/api/playlists/smart/preview"
     | "/api/playlists/smart"
+    | "/api/navidrome/api/album/$id"
+    | "/api/navidrome/api/artist/$id"
     | "/api/navidrome/stream/id/id"
     | "/api/playlists/$id/songs/$songId"
     | "/api/playlists/$id/songs";
@@ -883,10 +949,16 @@ export interface FileServerRouteTypes {
     | "/api/recommendations/seasonal-playlist"
     | "/api/playlists"
     | "/api/navidrome/[./path]"
+    | "/api/navidrome/api/album"
+    | "/api/navidrome/api/artist"
+    | "/api/navidrome/api/song"
+    | "/api/navidrome/auth/login"
     | "/api/navidrome/stream/$id"
     | "/api/playlists/liked-songs/sync"
     | "/api/playlists/smart/preview"
     | "/api/playlists/smart"
+    | "/api/navidrome/api/album/$id"
+    | "/api/navidrome/api/artist/$id"
     | "/api/navidrome/stream/id/id"
     | "/api/playlists/$id/songs/$songId"
     | "/api/playlists/$id/songs";
@@ -919,10 +991,16 @@ export interface FileServerRouteTypes {
     | "/api/recommendations/seasonal-playlist"
     | "/api/playlists/"
     | "/api/navidrome/[./path]"
+    | "/api/navidrome/api/album"
+    | "/api/navidrome/api/artist"
+    | "/api/navidrome/api/song"
+    | "/api/navidrome/auth/login"
     | "/api/navidrome/stream/$id"
     | "/api/playlists/liked-songs/sync"
     | "/api/playlists/smart/preview"
     | "/api/playlists/smart/"
+    | "/api/navidrome/api/album/$id"
+    | "/api/navidrome/api/artist/$id"
     | "/api/navidrome/stream/id/id"
     | "/api/playlists/$id/songs/$songId"
     | "/api/playlists/$id/songs/";
@@ -950,6 +1028,10 @@ export interface RootServerRouteChildren {
   ApiPlaylistsSyncServerRoute: typeof ApiPlaylistsSyncServerRoute;
   ApiPlaylistsIndexServerRoute: typeof ApiPlaylistsIndexServerRoute;
   ApiNavidromeChar91DotPathChar93ServerRoute: typeof ApiNavidromeChar91DotPathChar93ServerRoute;
+  ApiNavidromeApiAlbumServerRoute: typeof ApiNavidromeApiAlbumServerRouteWithChildren;
+  ApiNavidromeApiArtistServerRoute: typeof ApiNavidromeApiArtistServerRouteWithChildren;
+  ApiNavidromeApiSongServerRoute: typeof ApiNavidromeApiSongServerRoute;
+  ApiNavidromeAuthLoginServerRoute: typeof ApiNavidromeAuthLoginServerRoute;
   ApiNavidromeStreamIdServerRoute: typeof ApiNavidromeStreamIdServerRoute;
   ApiPlaylistsLikedSongsSyncServerRoute: typeof ApiPlaylistsLikedSongsSyncServerRoute;
   ApiPlaylistsSmartPreviewServerRoute: typeof ApiPlaylistsSmartPreviewServerRoute;
@@ -1425,6 +1507,34 @@ declare module "@tanstack/react-start/server" {
       preLoaderRoute: typeof ApiNavidromeStreamIdServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
+    "/api/navidrome/auth/login": {
+      id: "/api/navidrome/auth/login";
+      path: "/api/navidrome/auth/login";
+      fullPath: "/api/navidrome/auth/login";
+      preLoaderRoute: typeof ApiNavidromeAuthLoginServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/navidrome/api/song": {
+      id: "/api/navidrome/api/song";
+      path: "/api/navidrome/api/song";
+      fullPath: "/api/navidrome/api/song";
+      preLoaderRoute: typeof ApiNavidromeApiSongServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/navidrome/api/artist": {
+      id: "/api/navidrome/api/artist";
+      path: "/api/navidrome/api/artist";
+      fullPath: "/api/navidrome/api/artist";
+      preLoaderRoute: typeof ApiNavidromeApiArtistServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/navidrome/api/album": {
+      id: "/api/navidrome/api/album";
+      path: "/api/navidrome/api/album";
+      fullPath: "/api/navidrome/api/album";
+      preLoaderRoute: typeof ApiNavidromeApiAlbumServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
     "/api/navidrome/[./path]": {
       id: "/api/navidrome/[./path]";
       path: "/api/navidrome/[./path]";
@@ -1452,6 +1562,20 @@ declare module "@tanstack/react-start/server" {
       fullPath: "/api/navidrome/stream/id/id";
       preLoaderRoute: typeof ApiNavidromeStreamIdIdServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/navidrome/api/artist/$id": {
+      id: "/api/navidrome/api/artist/$id";
+      path: "/$id";
+      fullPath: "/api/navidrome/api/artist/$id";
+      preLoaderRoute: typeof ApiNavidromeApiArtistIdServerRouteImport;
+      parentRoute: typeof ApiNavidromeApiArtistServerRoute;
+    };
+    "/api/navidrome/api/album/$id": {
+      id: "/api/navidrome/api/album/$id";
+      path: "/$id";
+      fullPath: "/api/navidrome/api/album/$id";
+      preLoaderRoute: typeof ApiNavidromeApiAlbumIdServerRouteImport;
+      parentRoute: typeof ApiNavidromeApiAlbumServerRoute;
     };
   }
 }
@@ -1552,6 +1676,34 @@ const ApiPlaylistsIdServerRouteChildren: ApiPlaylistsIdServerRouteChildren = {
 const ApiPlaylistsIdServerRouteWithChildren =
   ApiPlaylistsIdServerRoute._addFileChildren(ApiPlaylistsIdServerRouteChildren);
 
+interface ApiNavidromeApiAlbumServerRouteChildren {
+  ApiNavidromeApiAlbumIdServerRoute: typeof ApiNavidromeApiAlbumIdServerRoute;
+}
+
+const ApiNavidromeApiAlbumServerRouteChildren: ApiNavidromeApiAlbumServerRouteChildren =
+  {
+    ApiNavidromeApiAlbumIdServerRoute: ApiNavidromeApiAlbumIdServerRoute,
+  };
+
+const ApiNavidromeApiAlbumServerRouteWithChildren =
+  ApiNavidromeApiAlbumServerRoute._addFileChildren(
+    ApiNavidromeApiAlbumServerRouteChildren,
+  );
+
+interface ApiNavidromeApiArtistServerRouteChildren {
+  ApiNavidromeApiArtistIdServerRoute: typeof ApiNavidromeApiArtistIdServerRoute;
+}
+
+const ApiNavidromeApiArtistServerRouteChildren: ApiNavidromeApiArtistServerRouteChildren =
+  {
+    ApiNavidromeApiArtistIdServerRoute: ApiNavidromeApiArtistIdServerRoute,
+  };
+
+const ApiNavidromeApiArtistServerRouteWithChildren =
+  ApiNavidromeApiArtistServerRoute._addFileChildren(
+    ApiNavidromeApiArtistServerRouteChildren,
+  );
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   authRouteRoute: authRouteRouteWithChildren,
@@ -1608,6 +1760,11 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiPlaylistsIndexServerRoute: ApiPlaylistsIndexServerRoute,
   ApiNavidromeChar91DotPathChar93ServerRoute:
     ApiNavidromeChar91DotPathChar93ServerRoute,
+  ApiNavidromeApiAlbumServerRoute: ApiNavidromeApiAlbumServerRouteWithChildren,
+  ApiNavidromeApiArtistServerRoute:
+    ApiNavidromeApiArtistServerRouteWithChildren,
+  ApiNavidromeApiSongServerRoute: ApiNavidromeApiSongServerRoute,
+  ApiNavidromeAuthLoginServerRoute: ApiNavidromeAuthLoginServerRoute,
   ApiNavidromeStreamIdServerRoute: ApiNavidromeStreamIdServerRoute,
   ApiPlaylistsLikedSongsSyncServerRoute: ApiPlaylistsLikedSongsSyncServerRoute,
   ApiPlaylistsSmartPreviewServerRoute: ApiPlaylistsSmartPreviewServerRoute,
