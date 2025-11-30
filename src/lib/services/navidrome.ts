@@ -151,6 +151,27 @@ export function resetAuthState() {
   tokenExpiry = 0;
 }
 
+/**
+ * Check if we're running in a browser environment
+ */
+function isBrowser(): boolean {
+  return typeof window !== 'undefined' && typeof window.document !== 'undefined';
+}
+
+/**
+ * Get the base URL for API calls
+ * In browser: use the proxy at /api/navidrome
+ * On server: use direct Navidrome URL
+ */
+function getApiBaseUrl(): string {
+  if (isBrowser()) {
+    // Use the server-side proxy to avoid CORS issues
+    return '/api/navidrome';
+  }
+  const config = getConfig();
+  return config.navidromeUrl || '';
+}
+
 const TOKEN_REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 minutes before expiry
 
 export async function getAuthToken(): Promise<string> {
@@ -175,8 +196,13 @@ export async function getAuthToken(): Promise<string> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), adaptiveTimeout);
 
+  // Use proxy in browser, direct URL on server
+  const authUrl = isBrowser()
+    ? '/api/navidrome/auth/login'
+    : `${config.navidromeUrl}/auth/login`;
+
   try {
-    const response = await fetch(`${config.navidromeUrl}/auth/login`, {
+    const response = await fetch(authUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -267,7 +293,8 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<un
               throw new ServiceError('NAVIDROME_CLIENT_ERROR', 'Client ID not available');
             }
 
-            let url = `${config.navidromeUrl}${endpoint}`;
+            const baseUrl = getApiBaseUrl();
+            let url = `${baseUrl}${endpoint}`;
             let headers: Record<string, string> = {};
             if (options.headers) {
               if (options.headers instanceof Headers) {
@@ -415,6 +442,22 @@ export async function getArtistDetail(id: string): Promise<ArtistDetail> {
   }
 }
 
+export type AlbumDetail = Album & {
+  artist?: string;
+  songCount?: number;
+  duration?: number;
+  genres?: string[];
+};
+
+export async function getAlbumDetail(id: string): Promise<AlbumDetail> {
+  try {
+    const data = await apiFetch(`/api/album/${id}`) as AlbumDetail;
+    return data;
+  } catch (error) {
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch album detail: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
 export async function getArtistsWithDetails(start: number = 0, limit: number = 1000): Promise<ArtistWithDetails[]> {
   try {
     const basicArtists = await getArtists(start, limit);
@@ -449,6 +492,19 @@ export async function getSongs(albumId: string, start: number = 0, limit: number
     return songs || [];
   } catch (error) {
     throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch songs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+export async function getSongsByArtist(artistId: string, start: number = 0, limit: number = 100): Promise<Song[]> {
+  try {
+    const data = await apiFetch(`/api/song?artist_id=${artistId}&_start=${start}&_end=${start + limit - 1}&_sort=title&_order=ASC`) as RawSong[];
+    const songs = data.map((song) => ({
+      ...song,
+      url: `/api/navidrome/stream/${song.id}`,
+    })) as Song[];
+    return songs || [];
+  } catch (error) {
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch artist songs: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
