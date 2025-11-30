@@ -220,7 +220,7 @@ export async function POST({ request }: { request: Request }) {
             .then(rows => rows[0]);
 
           // Default to enabled if no preference set
-          const syncEnabled = prefs?.recommendationSettings?.useFeedbackForPersonalization !== false;
+          const syncEnabled = prefs?.recommendationSettings?.syncFeedbackToNavidrome !== false;
 
           if (syncEnabled) {
             if (validatedData.feedbackType === 'thumbs_up') {

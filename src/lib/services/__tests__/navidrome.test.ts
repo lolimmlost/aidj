@@ -1467,4 +1467,197 @@ describe('Navidrome Service Integration Tests', () => {
       });
     });
   });
+
+  describe('Star/Unstar Song Functions (Story 3.9)', () => {
+    beforeEach(async () => {
+      vi.clearAllMocks();
+      vi.resetModules();
+      global.fetch = mockFetch;
+      mockGetConfig.mockReturnValue({
+        navidromeUrl: 'http://localhost:4533',
+        navidromeUsername: 'testuser',
+        navidromePassword: 'testpass',
+      });
+    });
+
+    describe('starSong', () => {
+      it('should star a song successfully', async () => {
+        const { starSong, resetAuthState } = await import('../navidrome');
+        resetAuthState();
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const starResponse = new Response(JSON.stringify({
+          'subsonic-response': {
+            status: 'ok'
+          }
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(starResponse);
+
+        await starSong('song-123');
+
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('/rest/star'), expect.any(Object));
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('id=song-123'), expect.any(Object));
+      });
+
+      it('should throw error when Navidrome URL not configured', async () => {
+        const { starSong } = await import('../navidrome');
+
+        mockGetConfig.mockReturnValueOnce({
+          // No navidromeUrl
+          navidromeUsername: 'testuser',
+          navidromePassword: 'testpass',
+        });
+
+        await expect(starSong('song-123')).rejects.toThrow('Navidrome URL not configured');
+        expect(mockFetch).not.toHaveBeenCalled();
+      });
+
+      it('should throw error on API failure', async () => {
+        const { starSong, resetAuthState } = await import('../navidrome');
+        resetAuthState();
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const errorResponse = new Response(null, { status: 500, statusText: 'Server Error' });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(errorResponse);
+
+        await expect(starSong('song-123')).rejects.toThrow('Failed to star song');
+      });
+
+      it('should throw error on Subsonic API error response', async () => {
+        const { starSong, resetAuthState } = await import('../navidrome');
+        resetAuthState();
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const errorResponse = new Response(JSON.stringify({
+          'subsonic-response': {
+            status: 'failed',
+            error: {
+              message: 'Song not found'
+            }
+          }
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(errorResponse);
+
+        await expect(starSong('invalid-song')).rejects.toThrow('Subsonic API error');
+      });
+    });
+
+    describe('unstarSong', () => {
+      it('should unstar a song successfully', async () => {
+        const { unstarSong, resetAuthState } = await import('../navidrome');
+        resetAuthState();
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const unstarResponse = new Response(JSON.stringify({
+          'subsonic-response': {
+            status: 'ok'
+          }
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(unstarResponse);
+
+        await unstarSong('song-123');
+
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('/rest/unstar'), expect.any(Object));
+        expect(mockFetch).toHaveBeenNthCalledWith(2, expect.stringContaining('id=song-123'), expect.any(Object));
+      });
+
+      it('should throw error when Navidrome URL not configured', async () => {
+        const { unstarSong } = await import('../navidrome');
+
+        mockGetConfig.mockReturnValueOnce({
+          // No navidromeUrl
+          navidromeUsername: 'testuser',
+          navidromePassword: 'testpass',
+        });
+
+        await expect(unstarSong('song-123')).rejects.toThrow('Navidrome URL not configured');
+        expect(mockFetch).not.toHaveBeenCalled();
+      });
+
+      it('should throw error on API failure', async () => {
+        const { unstarSong, resetAuthState } = await import('../navidrome');
+        resetAuthState();
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const errorResponse = new Response(null, { status: 500, statusText: 'Server Error' });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(errorResponse);
+
+        await expect(unstarSong('song-123')).rejects.toThrow('Failed to unstar song');
+      });
+
+      it('should throw error on Subsonic API error response', async () => {
+        const { unstarSong, resetAuthState } = await import('../navidrome');
+        resetAuthState();
+
+        const validLoginResponse = new Response(JSON.stringify({
+          token: 'test-token',
+          id: 'test-client',
+          subsonicToken: 'test-subsonic',
+          subsonicSalt: 'test-salt',
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        const errorResponse = new Response(JSON.stringify({
+          'subsonic-response': {
+            status: 'failed',
+            error: {
+              message: 'Song not found'
+            }
+          }
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+        mockFetch
+          .mockResolvedValueOnce(validLoginResponse)
+          .mockResolvedValueOnce(errorResponse);
+
+        await expect(unstarSong('invalid-song')).rejects.toThrow('Subsonic API error');
+      });
+    });
+  });
 });

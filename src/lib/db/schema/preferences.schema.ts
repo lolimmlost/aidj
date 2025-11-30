@@ -15,6 +15,7 @@ export const userPreferences = pgTable("user_preferences", {
     styleBasedPlaylists: boolean;
     useFeedbackForPersonalization: boolean; // Privacy: Use feedback to improve recommendations
     enableSeasonalRecommendations: boolean; // Story 3.11: Seasonal adjustments
+    syncFeedbackToNavidrome: boolean; // Story 3.9: Sync thumbs up/down to Navidrome star
     // Story 3.9: AI DJ Mode
     aiDJEnabled: boolean; // AI DJ specific toggle
     aiDJQueueThreshold: number; // Queue remaining songs trigger (1-5)
@@ -26,6 +27,7 @@ export const userPreferences = pgTable("user_preferences", {
     styleBasedPlaylists: true,
     useFeedbackForPersonalization: true,
     enableSeasonalRecommendations: true,
+    syncFeedbackToNavidrome: true,
     aiDJEnabled: false,
     aiDJQueueThreshold: 2,
     aiDJBatchSize: 3,

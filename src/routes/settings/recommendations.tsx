@@ -131,6 +131,23 @@ export function RecommendationSettings() {
           />
         </div>
 
+        {/* Navidrome Sync */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="sync-navidrome">Sync Feedback to Navidrome</Label>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Star/unstar songs in Navidrome when you give thumbs up/down
+            </p>
+          </div>
+          <Switch
+            id="sync-navidrome"
+            checked={localSettings.syncFeedbackToNavidrome ?? true}
+            onCheckedChange={(checked) =>
+              setLocalSettings({ ...localSettings, syncFeedbackToNavidrome: checked })
+            }
+          />
+        </div>
+
         {/* AI DJ Toggle (Story 3.9) */}
         <div className="flex items-center justify-between pt-4 border-t border-border/50">
           <div className="space-y-0.5">

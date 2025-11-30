@@ -8,6 +8,7 @@ export interface RecommendationSettings {
   styleBasedPlaylists: boolean;
   useFeedbackForPersonalization: boolean;
   enableSeasonalRecommendations?: boolean;
+  syncFeedbackToNavidrome?: boolean; // Story 3.9: Sync thumbs up/down to Navidrome star
   // Story 3.9: AI DJ Mode
   aiDJEnabled: boolean;
   aiDJQueueThreshold: number;
@@ -67,6 +68,7 @@ const defaultPreferences: UserPreferences = {
     styleBasedPlaylists: true,
     useFeedbackForPersonalization: true,
     enableSeasonalRecommendations: true,
+    syncFeedbackToNavidrome: true,
     aiDJEnabled: false,
     aiDJQueueThreshold: 2,
     aiDJBatchSize: 3,
