@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-type LLMProviderType = 'ollama' | 'openrouter' | 'glm';
+type LLMProviderType = 'ollama' | 'openrouter' | 'glm' | 'anthropic';
 
 export function ServicesSettings() {
   const [config, setConfig] = useState<{
@@ -22,6 +22,9 @@ export function ServicesSettings() {
     openrouterModel?: string;
     glmApiKey?: string;
     glmModel?: string;
+    anthropicApiKey?: string;
+    anthropicModel?: string;
+    anthropicBaseUrl?: string;
     navidromeUrl?: string;
     lidarrUrl?: string;
   }>({});
@@ -52,6 +55,9 @@ export function ServicesSettings() {
             openrouterModel: data.config.openrouterModel,
             glmApiKey: data.config.glmApiKey,
             glmModel: data.config.glmModel,
+            anthropicApiKey: data.config.anthropicApiKey,
+            anthropicModel: data.config.anthropicModel,
+            anthropicBaseUrl: data.config.anthropicBaseUrl,
             navidromeUrl: data.config.navidromeUrl,
             lidarrUrl: data.config.lidarrUrl,
           });
@@ -86,6 +92,9 @@ export function ServicesSettings() {
       openrouterModel: config.openrouterModel,
       glmApiKey: config.glmApiKey,
       glmModel: config.glmModel,
+      anthropicApiKey: config.anthropicApiKey,
+      anthropicModel: config.anthropicModel,
+      anthropicBaseUrl: config.anthropicBaseUrl,
       navidromeUrl: config.navidromeUrl,
       lidarrUrl: config.lidarrUrl,
     };
@@ -166,6 +175,14 @@ export function ServicesSettings() {
     'glm-4-flash',
     'glm-3-turbo'
   ];
+  const anthropicModels = [
+    'claude-sonnet-4-5-20250514',
+    'claude-3-5-sonnet-20241022',
+    'claude-3-5-haiku-20241022',
+    'claude-3-opus-20240229',
+    'claude-3-sonnet-20240229',
+    'claude-3-haiku-20240307',
+  ];
 
   return (
     <Card className="p-6">
@@ -200,6 +217,7 @@ export function ServicesSettings() {
                   <SelectItem value="ollama">Ollama (Local)</SelectItem>
                   <SelectItem value="openrouter">OpenRouter (Cloud)</SelectItem>
                   <SelectItem value="glm">GLM / Zhipu AI (Cloud)</SelectItem>
+                  <SelectItem value="anthropic">Anthropic / z.ai (Cloud)</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -345,6 +363,63 @@ export function ServicesSettings() {
                 </div>
               </>
             )}
+
+            {/* Anthropic Configuration */}
+            {config.llmProvider === 'anthropic' && (
+              <>
+                <div>
+                  <Label htmlFor="anthropicApiKey">API Key</Label>
+                  <Input
+                    id="anthropicApiKey"
+                    name="anthropicApiKey"
+                    type="password"
+                    placeholder="sk-ant-..."
+                    value={config.anthropicApiKey ?? ''}
+                    onChange={(e) => update('anthropicApiKey', e.target.value)}
+                    className="mt-2"
+                  />
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Your Anthropic or z.ai API key
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="anthropicBaseUrl">API Base URL</Label>
+                  <Input
+                    id="anthropicBaseUrl"
+                    name="anthropicBaseUrl"
+                    type="url"
+                    placeholder="https://api.anthropic.com/v1"
+                    value={config.anthropicBaseUrl ?? 'https://api.anthropic.com/v1'}
+                    onChange={(e) => update('anthropicBaseUrl', e.target.value)}
+                    className="mt-2"
+                  />
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Use <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">https://api.z.ai/api/anthropic</code> for z.ai proxy
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="anthropicModel">Model</Label>
+                  <Select
+                    value={config.anthropicModel || 'claude-sonnet-4-5-20250514'}
+                    onValueChange={(value) => update('anthropicModel', value)}
+                  >
+                    <SelectTrigger className="mt-2 w-full">
+                      <SelectValue placeholder="Select model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {anthropicModels.map((model) => (
+                        <SelectItem key={model} value={model}>
+                          {model}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Claude models (Haiku is fastest/cheapest, Opus is most capable)
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Music Services Section */}
@@ -465,7 +540,7 @@ export function ServicesSettings() {
               </div>
               <div className="text-center">
                 <div className="font-medium mb-1">
-                  {config.llmProvider === 'ollama' ? 'Ollama' : config.llmProvider === 'openrouter' ? 'OpenRouter' : 'GLM'}
+                  {config.llmProvider === 'ollama' ? 'Ollama' : config.llmProvider === 'openrouter' ? 'OpenRouter' : config.llmProvider === 'anthropic' ? 'Anthropic' : 'GLM'}
                 </div>
                 <div
                   className={`text-sm px-2 py-1 rounded ${

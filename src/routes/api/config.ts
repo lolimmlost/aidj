@@ -44,6 +44,8 @@ export const ServerRoute = createServerFileRoute("/api/config").methods({
             statuses.llmProvider = cfg.openrouterApiKey ? "configured (OpenRouter)" : "not configured";
           } else if (provider === 'glm') {
             statuses.llmProvider = cfg.glmApiKey ? "configured (GLM)" : "not configured";
+          } else if (provider === 'anthropic') {
+            statuses.llmProvider = cfg.anthropicApiKey ? "configured (Anthropic)" : "not configured";
           } else {
             statuses.llmProvider = "not configured";
           }
@@ -73,6 +75,9 @@ export const ServerRoute = createServerFileRoute("/api/config").methods({
       if (typeof body.openrouterModel === "string") allowed.openrouterModel = body.openrouterModel;
       if (typeof body.glmApiKey === "string") allowed.glmApiKey = body.glmApiKey;
       if (typeof body.glmModel === "string") allowed.glmModel = body.glmModel;
+      if (typeof body.anthropicApiKey === "string") allowed.anthropicApiKey = body.anthropicApiKey;
+      if (typeof body.anthropicModel === "string") allowed.anthropicModel = body.anthropicModel;
+      if (typeof body.anthropicBaseUrl === "string") allowed.anthropicBaseUrl = body.anthropicBaseUrl;
 
       // Music services
       if (typeof body.navidromeUrl === "string") allowed.navidromeUrl = body.navidromeUrl;

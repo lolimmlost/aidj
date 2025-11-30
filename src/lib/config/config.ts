@@ -1,6 +1,6 @@
 import defaults from './defaults.json' with { type: 'json' };
 
-export type LLMProviderType = 'ollama' | 'openrouter' | 'glm';
+export type LLMProviderType = 'ollama' | 'openrouter' | 'glm' | 'anthropic';
 
 interface ServiceConfig {
   // LLM Provider Configuration
@@ -18,6 +18,11 @@ interface ServiceConfig {
   glmApiKey: string;
   glmModel: string;
 
+  // Anthropic Configuration (cloud - supports z.ai proxy)
+  anthropicApiKey: string;
+  anthropicModel: string;
+  anthropicBaseUrl: string;
+
   // Other Services
   navidromeUrl: string;
   lidarrUrl: string;
@@ -28,7 +33,7 @@ interface ServiceConfig {
   lidarrRootFolderPath?: string;
 }
 
-let currentConfig: ServiceConfig = { ...defaults, lidarrApiKey: '', openrouterApiKey: '', glmApiKey: '' };
+let currentConfig: ServiceConfig = { ...defaults, lidarrApiKey: '', openrouterApiKey: '', glmApiKey: '', anthropicApiKey: '', anthropicBaseUrl: 'https://api.anthropic.com/v1' };
 
 if (typeof window !== 'undefined') {
   // Client side - load from localStorage
@@ -43,27 +48,36 @@ if (typeof window !== 'undefined') {
     }
   }
 } else {
-  // Server side - load sensitive config from process.env
+  // Server side - load from db/config.json first, then override with env vars
+  let fileConfig: Partial<ServiceConfig> = {};
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const configPath = path.resolve(process.cwd(), 'db', 'config.json');
+    if (fs.existsSync(configPath)) {
+      const raw = fs.readFileSync(configPath, 'utf8');
+      fileConfig = JSON.parse(raw);
+    }
+  } catch {
+    // Ignore file read errors
+  }
+
   currentConfig = {
     ...defaults,
-    // LLM Provider selection
-    llmProvider: (process.env.LLM_PROVIDER as LLMProviderType) || defaults.llmProvider,
-
-    // Ollama config
-    ollamaModel: process.env.OLLAMA_MODEL || defaults.ollamaModel,
-
-    // OpenRouter config (server-side API key from env)
-    openrouterApiKey: process.env.OPENROUTER_API_KEY || '',
-    openrouterModel: process.env.OPENROUTER_MODEL || defaults.openrouterModel,
-
-    // GLM config (server-side API key from env)
-    glmApiKey: process.env.GLM_API_KEY || '',
-    glmModel: process.env.GLM_MODEL || defaults.glmModel,
-
-    // Other services
-    lidarrApiKey: process.env.LIDARR_API_KEY || '',
-    navidromeUsername: process.env.NAVIDROME_USERNAME || defaults.navidromeUsername,
-    navidromePassword: process.env.NAVIDROME_PASSWORD || defaults.navidromePassword,
+    ...fileConfig, // Load from db/config.json
+    // Override with environment variables if set
+    llmProvider: (process.env.LLM_PROVIDER as LLMProviderType) || fileConfig.llmProvider || defaults.llmProvider,
+    ollamaModel: process.env.OLLAMA_MODEL || fileConfig.ollamaModel || defaults.ollamaModel,
+    openrouterApiKey: process.env.OPENROUTER_API_KEY || fileConfig.openrouterApiKey || '',
+    openrouterModel: process.env.OPENROUTER_MODEL || fileConfig.openrouterModel || defaults.openrouterModel,
+    glmApiKey: process.env.GLM_API_KEY || fileConfig.glmApiKey || '',
+    glmModel: process.env.GLM_MODEL || fileConfig.glmModel || defaults.glmModel,
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY || fileConfig.anthropicApiKey || '',
+    anthropicModel: process.env.ANTHROPIC_MODEL || fileConfig.anthropicModel || defaults.anthropicModel || 'claude-sonnet-4-5-20250514',
+    anthropicBaseUrl: process.env.ANTHROPIC_BASE_URL || fileConfig.anthropicBaseUrl || defaults.anthropicBaseUrl || 'https://api.anthropic.com/v1',
+    lidarrApiKey: process.env.LIDARR_API_KEY || fileConfig.lidarrApiKey || '',
+    navidromeUsername: process.env.NAVIDROME_USERNAME || fileConfig.navidromeUsername || defaults.navidromeUsername,
+    navidromePassword: process.env.NAVIDROME_PASSWORD || fileConfig.navidromePassword || defaults.navidromePassword,
   };
 }
 
@@ -80,7 +94,7 @@ export function setConfig(cfg: Partial<ServiceConfig>): void {
 }
 
 export function resetConfig(): void {
-  currentConfig = { ...defaults, lidarrApiKey: '', openrouterApiKey: '', glmApiKey: '' };
+  currentConfig = { ...defaults, lidarrApiKey: '', openrouterApiKey: '', glmApiKey: '', anthropicApiKey: '', anthropicBaseUrl: 'https://api.anthropic.com/v1' };
   if (typeof window !== 'undefined') {
     localStorage.removeItem('serviceConfig');
   }

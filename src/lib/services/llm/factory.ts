@@ -4,6 +4,7 @@ import { getConfig } from '../../config/config';
 import { OllamaClient } from './providers/ollama';
 import { OpenRouterClient } from './providers/openrouter';
 import { GLMClient } from './providers/glm';
+import { AnthropicClient } from './providers/anthropic';
 import { ServiceError } from '../../utils';
 import type { LLMProvider } from './types';
 import type { LLMProviderType } from '../../config/config';
@@ -52,6 +53,21 @@ export function createLLMProvider(providerType: LLMProviderType): LLMProvider {
         throw new ServiceError(
           'PROVIDER_CONFIG_ERROR',
           'GLM provider is not configured. Please set glmApiKey in configuration or GLM_API_KEY environment variable.'
+        );
+      }
+      return client;
+    }
+
+    case 'anthropic': {
+      const client = new AnthropicClient(
+        config.anthropicApiKey,
+        config.anthropicModel,
+        config.anthropicBaseUrl
+      );
+      if (!client.isConfigured()) {
+        throw new ServiceError(
+          'PROVIDER_CONFIG_ERROR',
+          'Anthropic provider is not configured. Please set anthropicApiKey in configuration or ANTHROPIC_API_KEY environment variable.'
         );
       }
       return client;
@@ -136,6 +152,13 @@ export function getProviderInfo() {
       isConfigured = !!config.glmApiKey;
       configStatus = isConfigured
         ? `Using ${config.glmModel}`
+        : 'Not configured - API key required';
+      break;
+
+    case 'anthropic':
+      isConfigured = !!config.anthropicApiKey;
+      configStatus = isConfigured
+        ? `Using ${config.anthropicModel} via ${config.anthropicBaseUrl.includes('z.ai') ? 'z.ai proxy' : 'Anthropic API'}`
         : 'Not configured - API key required';
       break;
   }

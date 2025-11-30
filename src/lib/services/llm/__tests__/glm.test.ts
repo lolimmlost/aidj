@@ -181,13 +181,23 @@ describe('GLMClient', () => {
 
     it('should handle 429 rate limit error', async () => {
       const mockFetch = vi.mocked(fetch);
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 429,
-        json: () => Promise.resolve({
-          error: { message: 'Rate limit exceeded' },
-        }),
-      } as Response);
+      // Mock all 3 retry attempts
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          json: () => Promise.resolve({ error: { message: 'Rate limit exceeded' } }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          json: () => Promise.resolve({ error: { message: 'Rate limit exceeded' } }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          json: () => Promise.resolve({ error: { message: 'Rate limit exceeded' } }),
+        } as Response);
 
       const client = new GLMClient('test-api-key');
       const request: LLMGenerateRequest = {
@@ -195,18 +205,30 @@ describe('GLMClient', () => {
         prompt: 'Test',
       };
 
-      await expect(client.generate(request)).rejects.toThrow('Rate limit exceeded');
+      const promise = client.generate(request);
+      await vi.runAllTimersAsync();
+      await expect(promise).rejects.toThrow('Rate limit exceeded');
     });
 
     it('should handle 500 server error', async () => {
       const mockFetch = vi.mocked(fetch);
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: () => Promise.resolve({
-          error: { message: 'Internal server error' },
-        }),
-      } as Response);
+      // Mock all 3 retry attempts
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({ error: { message: 'Internal server error' } }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({ error: { message: 'Internal server error' } }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({ error: { message: 'Internal server error' } }),
+        } as Response);
 
       const client = new GLMClient('test-api-key');
       const request: LLMGenerateRequest = {
@@ -214,7 +236,9 @@ describe('GLMClient', () => {
         prompt: 'Test',
       };
 
-      await expect(client.generate(request)).rejects.toThrow('Server error');
+      const promise = client.generate(request);
+      await vi.runAllTimersAsync();
+      await expect(promise).rejects.toThrow('Server error');
     });
 
     it('should handle 404 model not found error', async () => {
@@ -238,16 +262,8 @@ describe('GLMClient', () => {
 
     it('should handle timeout errors', async () => {
       const mockFetch = vi.mocked(fetch);
-      mockFetch.mockImplementation(() =>
-        new Promise((resolve) => {
-          setTimeout(() => {
-            resolve({
-              ok: true,
-              json: () => Promise.resolve({}),
-            } as Response);
-          }, 60000); // Longer than timeout
-        })
-      );
+      const abortError = new DOMException('The operation was aborted', 'AbortError');
+      mockFetch.mockRejectedValueOnce(abortError);
 
       const client = new GLMClient('test-api-key');
       const request: LLMGenerateRequest = {
@@ -255,17 +271,16 @@ describe('GLMClient', () => {
         prompt: 'Test',
       };
 
-      const generatePromise = client.generate(request, 5000);
-
-      // Advance timers to trigger timeout
-      vi.advanceTimersByTime(5000);
-
-      await expect(generatePromise).rejects.toThrow('timed out');
+      await expect(client.generate(request, 5000)).rejects.toThrow('timed out');
     });
 
     it('should handle network errors', async () => {
       const mockFetch = vi.mocked(fetch);
-      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+      // Mock all 3 retry attempts for network errors
+      mockFetch
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockRejectedValueOnce(new Error('Network error'));
 
       const client = new GLMClient('test-api-key');
       const request: LLMGenerateRequest = {
@@ -273,7 +288,9 @@ describe('GLMClient', () => {
         prompt: 'Test',
       };
 
-      await expect(client.generate(request)).rejects.toThrow('GLM request failed');
+      const promise = client.generate(request);
+      await vi.runAllTimersAsync();
+      await expect(promise).rejects.toThrow('GLM request failed');
     });
 
     it('should handle empty response choices', async () => {

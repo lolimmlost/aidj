@@ -2,10 +2,13 @@
   "ollamaUrl": "http://10.0.0.30:30068",
   "navidromeUrl": "http://10.0.0.30:4533",
   "lidarrUrl": "http://10.0.0.30:8686",
-  "llmProvider": "openrouter",
-  "ollamaModel": "qwen2.5",
-  "openrouterApiKey": "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",
-  "openrouterModel": "nvidia/nemotron-nano-12b-v2-vl:free",
+  "llmProvider": "ollama",
+  "ollamaModel": "qwen2.5:7b",
+  "openrouterApiKey": "",
+  "openrouterModel": "anthropic/claude-3.5-sonnet",
   "glmApiKey": "",
-  "glmModel": "glm-4-plus"
+  "glmModel": "glm-4-plus",
+  "anthropicApiKey": "",
+  "anthropicModel": "claude-sonnet-4-5-20250514",
+  "anthropicBaseUrl": "https://api.anthropic.com/v1"
 }
