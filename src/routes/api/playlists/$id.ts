@@ -3,6 +3,7 @@ import { auth } from '../../../lib/auth/auth';
 import { db } from '../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../lib/db/schema/playlists.schema';
 import { eq, and, asc } from 'drizzle-orm';
+import { getSongsByIds } from '../../../lib/services/navidrome';
 
 export const ServerRoute = createServerFileRoute('/api/playlists/$id').methods({
   // GET /api/playlists/[id] - Get playlist details
@@ -52,10 +53,35 @@ export const ServerRoute = createServerFileRoute('/api/playlists/$id').methods({
         .where(eq(playlistSongs.playlistId, id))
         .orderBy(asc(playlistSongs.position));
 
+      // Try to enrich songs with Navidrome metadata (duration, album, etc.)
+      let enrichedSongs = songs.map(s => ({ ...s, duration: null as number | null, album: null as string | null }));
+
+      try {
+        const songIds = songs.map(s => s.songId);
+
+        if (songIds.length > 0) {
+          // Fetch song details from Navidrome
+          const songDetails = await getSongsByIds(songIds);
+          const songMap = new Map(songDetails.map(s => [s.id, s]));
+
+          enrichedSongs = songs.map(s => {
+            const details = songMap.get(s.songId);
+            return {
+              ...s,
+              duration: details?.duration ?? null,
+              album: details?.album ?? null,
+            };
+          });
+        }
+      } catch (navidromeError) {
+        // If Navidrome is unavailable, continue with basic song data
+        console.warn('Could not fetch song details from Navidrome:', navidromeError);
+      }
+
       return new Response(JSON.stringify({
         data: {
           ...playlist,
-          songs,
+          songs: enrichedSongs,
         }
       }), {
         status: 200,

@@ -60,6 +60,8 @@ interface PlaylistSong {
   songArtistTitle: string;
   position: number;
   addedAt: Date;
+  duration?: number | null;
+  album?: string | null;
 }
 
 interface PlaylistDetail {
@@ -110,146 +112,125 @@ function SortableSongRow({
     ? song.songArtistTitle.split(' - ')
     : ['Unknown Artist', song.songArtistTitle];
 
+  // Format duration as mm:ss
+  const formatDuration = (seconds?: number | null) => {
+    if (!seconds) return null;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group grid grid-cols-[auto_auto_1fr_auto] sm:grid-cols-[24px_40px_1fr_100px_auto] gap-2 sm:gap-4 px-2 sm:px-4 py-3 rounded-md transition-colors",
-        isCurrentSong
-          ? "bg-accent"
-          : "hover:bg-accent/50",
+        "group flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-1.5 sm:py-2.5 hover:bg-accent/50 rounded-sm transition-colors",
+        isCurrentSong && "bg-accent/30",
         isDragging && "opacity-50 bg-accent shadow-lg"
       )}
     >
-      {/* Drag Handle */}
+      {/* Drag Handle - visible on mobile, hover on desktop */}
       <div
         {...attributes}
         {...listeners}
-        className="flex items-center justify-center cursor-grab active:cursor-grabbing touch-none"
+        className="cursor-grab active:cursor-grabbing touch-none shrink-0 sm:opacity-0 sm:group-hover:opacity-100"
       >
-        <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+        <GripVertical className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground/50" />
       </div>
 
-      {/* Track Number / Play Icon */}
-      <div className="flex items-center justify-center w-6 sm:w-auto">
-        <button
-          type="button"
-          onClick={() => onPlayFromSong(index)}
-          className="relative w-6 h-6 flex items-center justify-center"
-          aria-label={`Play ${song.songArtistTitle}`}
-        >
-          <span className={cn(
-            "text-sm tabular-nums transition-opacity",
-            isCurrentSong
-              ? "text-primary font-medium"
-              : "text-muted-foreground",
-            "group-hover:opacity-0"
-          )}>
-            {isCurrentSong && isPlaying ? (
-              <Music2 className="h-4 w-4 text-primary animate-pulse" />
-            ) : (
-              index + 1
-            )}
-          </span>
-          <Play className="h-4 w-4 absolute opacity-0 group-hover:opacity-100 transition-opacity text-foreground" />
-        </button>
-      </div>
+      {/* Track Number */}
+      <span className={cn(
+        "w-5 sm:w-6 text-xs sm:text-sm tabular-nums text-right shrink-0",
+        isCurrentSong ? "text-primary" : "text-muted-foreground"
+      )}>
+        {isCurrentSong && isPlaying ? (
+          <Music2 className="h-3 w-3 sm:h-4 sm:w-4 text-primary animate-pulse" />
+        ) : (
+          index + 1
+        )}
+      </span>
 
-      {/* Song Info */}
-      <div
-        className="min-w-0 cursor-pointer"
+      {/* Song Info - clickable */}
+      <button
+        type="button"
         onClick={() => onPlayFromSong(index)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onPlayFromSong(index);
-          }
-        }}
+        className="min-w-0 flex-1 text-left"
       >
+        {/* Mobile: single line */}
         <p className={cn(
-          "font-medium truncate",
+          "text-sm truncate sm:hidden",
+          isCurrentSong && "text-primary"
+        )}>
+          <span className="font-medium">{title}</span>
+          <span className="text-muted-foreground"> — {artist}</span>
+        </p>
+        {/* Desktop: two lines */}
+        <p className={cn(
+          "hidden sm:block text-sm font-medium truncate",
           isCurrentSong && "text-primary"
         )}>
           {title}
         </p>
-        <p className="text-sm text-muted-foreground truncate">
+        <p className="hidden sm:block text-xs text-muted-foreground truncate">
           {artist}
         </p>
-      </div>
+      </button>
 
-      {/* Date Added (hidden on mobile) */}
-      <div className="hidden sm:flex items-center justify-end text-sm text-muted-foreground">
+      {/* Album - desktop only */}
+      <span className="hidden md:block text-xs text-muted-foreground truncate shrink-0 w-32 lg:w-48">
+        {song.album || '—'}
+      </span>
+
+      {/* Duration - desktop only */}
+      <span className="hidden sm:block text-xs text-muted-foreground tabular-nums shrink-0 w-12 text-right">
+        {formatDuration(song.duration) || '—'}
+      </span>
+
+      {/* Date added - large desktop only */}
+      <span className="hidden xl:block text-xs text-muted-foreground shrink-0 w-24 text-right">
         {new Date(song.addedAt).toLocaleDateString(undefined, {
           month: 'short',
           day: 'numeric',
           year: 'numeric'
         })}
-      </div>
+      </span>
 
-      {/* Actions */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <ListPlus className="h-4 w-4" />
-              <span className="sr-only">Add to queue</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40">
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddSongToQueue(song, 'now');
-              }}
-              className="min-h-[44px]"
-            >
-              <Play className="mr-2 h-4 w-4" />
-              Play Now
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddSongToQueue(song, 'next');
-              }}
-              className="min-h-[44px]"
-            >
-              <Play className="mr-2 h-4 w-4" />
-              Play Next
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddSongToQueue(song, 'end');
-              }}
-              className="min-h-[44px]"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add to End
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemoveSong(song.songId);
-          }}
-          disabled={isRemovePending}
-          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-          aria-label="Remove song"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
+      {/* Actions menu */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 sm:h-8 sm:w-8 p-0 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreHorizontal className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'now'); }}>
+            <Play className="mr-2 h-4 w-4" />
+            Play Now
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'next'); }}>
+            <Play className="mr-2 h-4 w-4" />
+            Play Next
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'end'); }}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add to End
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={(e) => { e.stopPropagation(); onRemoveSong(song.songId); }}
+            disabled={isRemovePending}
+            className="text-destructive focus:text-destructive"
+          >
+            <X className="mr-2 h-4 w-4" />
+            Remove
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
@@ -788,14 +769,16 @@ function PlaylistDetailPage() {
             </Button>
           </div>
         ) : (
-          <div className="space-y-1">
-            {/* Table Header */}
-            <div className="grid grid-cols-[auto_auto_1fr_auto] sm:grid-cols-[24px_40px_1fr_100px_auto] gap-2 sm:gap-4 px-2 sm:px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b">
-              <span className="w-4" />
-              <span className="text-center">#</span>
-              <span>Title</span>
-              <span className="hidden sm:block text-right">Added</span>
-              <span className="w-20" />
+          <div>
+            {/* Column Headers - desktop only */}
+            <div className="hidden sm:flex items-center gap-3 px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b border-border/50 mb-1">
+              <span className="w-4" /> {/* Drag handle space */}
+              <span className="w-6 text-right">#</span>
+              <span className="flex-1">Title</span>
+              <span className="hidden md:block w-32 lg:w-48">Album</span>
+              <span className="w-12 text-right">Time</span>
+              <span className="hidden xl:block w-24 text-right">Added</span>
+              <span className="w-8" /> {/* Actions space */}
             </div>
 
             {/* Song Rows with Drag and Drop */}

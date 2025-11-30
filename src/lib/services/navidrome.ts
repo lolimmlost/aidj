@@ -509,6 +509,27 @@ export async function getSongsByArtist(artistId: string, start: number = 0, limi
 }
 
 /**
+ * Get songs by their IDs
+ * Uses Navidrome's filter syntax to fetch multiple songs at once
+ */
+export async function getSongsByIds(songIds: string[]): Promise<Song[]> {
+  if (songIds.length === 0) return [];
+
+  try {
+    // Navidrome API supports id filter with multiple values
+    const idFilter = songIds.map(id => `id=${id}`).join('&');
+    const data = await apiFetch(`/api/song?${idFilter}&_start=0&_end=${songIds.length}`) as RawSong[];
+    const songs = data.map((song) => ({
+      ...song,
+      url: `/api/navidrome/stream/${song.id}`,
+    })) as Song[];
+    return songs || [];
+  } catch (error) {
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch songs by IDs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
  * Search for songs with prioritization logic:
  * 1. Search for albums with name containing the query
  * 2. If albums found, return all songs from those albums
