@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
-import { usePreferencesStore } from '@/lib/stores/preferences';
+import { usePreferencesStore, type SourceMode } from '@/lib/stores/preferences';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,7 +14,7 @@ import { OllamaErrorBoundary } from '@/components/ollama-error-boundary';
 import { Skeleton } from '@/components/ui/skeleton';
 import { hasLegacyFeedback, migrateLegacyFeedback, isMigrationCompleted } from '@/lib/utils/feedback-migration';
 import { PreferenceInsights } from '@/components/recommendations/PreferenceInsights';
-import { Play, Plus, ListPlus } from 'lucide-react';
+import { Play, Plus, ListPlus, Download } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +24,7 @@ import {
 import type { Song } from '@/components/ui/audio-player';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 import { DashboardHero, DJFeatures, MoreFeatures } from '@/components/dashboard';
+import { SourceModeSelector, SourceBadge } from '@/components/playlist/source-mode-selector';
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context }) => {
@@ -49,6 +50,9 @@ function DashboardIndex() {
   const [generationStage, setGenerationStage] = useState<'idle' | 'generating' | 'resolving' | 'retrying' | 'done'>('idle');
   const trimmedStyle = style.trim();
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Story 7.1: Source mode state
+  const [sourceMode, setSourceMode] = useState<SourceMode>(preferences.recommendationSettings.sourceMode || 'library');
+  const [mixRatio, setMixRatio] = useState(preferences.recommendationSettings.mixRatio || 70);
   // Define a proper type for the song cache
   type CachedSong = Song & {
     trackNumber?: number;
@@ -493,15 +497,20 @@ function DashboardIndex() {
     songId?: string;
     url?: string;
     missing?: boolean;
+    // Story 7.1: Source mode fields
+    isDiscovery?: boolean;
+    inLibrary?: boolean;
   }
 
   const { data: playlistData, isLoading: playlistLoading, error: playlistError, refetch: refetchPlaylist } = useQuery({
-    queryKey: ['playlist', debouncedStyle],
+    // Story 7.1: Include sourceMode and mixRatio in query key
+    queryKey: ['playlist', debouncedStyle, sourceMode, mixRatio],
     queryFn: async () => {
-      const cacheKey = `playlist-${debouncedStyle}`; // Use debounced style
+      // Story 7.1: Include sourceMode in cache key
+      const cacheKey = `playlist-${debouncedStyle}-${sourceMode}-${mixRatio}`;
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
-        console.log(`📦 Returning cached playlist for "${debouncedStyle}"`);
+        console.log(`📦 Returning cached playlist for "${debouncedStyle}" (${sourceMode})`);
         setGenerationStage('done');
         return JSON.parse(cached);
       }
@@ -520,13 +529,14 @@ function DashboardIndex() {
           setGenerationStage('retrying');
         }
 
-        console.log(`🎯 Playlist generation attempt ${attempts}/${maxAttempts} for style: "${debouncedStyle}"`);
+        console.log(`🎯 Playlist generation attempt ${attempts}/${maxAttempts} for style: "${debouncedStyle}" (${sourceMode})`);
 
         try {
           const response = await fetch('/api/playlist', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ style: debouncedStyle }),
+            // Story 7.1: Pass sourceMode and mixRatio to API
+            body: JSON.stringify({ style: debouncedStyle, sourceMode, mixRatio }),
           });
 
           if (!response.ok) {
@@ -537,13 +547,25 @@ function DashboardIndex() {
           const data = await response.json();
           console.log(`✨ Generated playlist attempt ${attempts}:`, data);
 
-          // Count how many songs were successfully resolved
-          const resolvedCount = (data.data.playlist as PlaylistItem[]).filter(item => item.songId && !item.missing).length;
-          console.log(`📊 Resolution results: ${resolvedCount}/5 songs found in library`);
+          // Story 7.1: Count songs based on source mode
+          // For library mode: count songs found in library
+          // For discovery mode: all songs are valid (not expected in library)
+          // For mix mode: count both library songs and discovery songs
+          const playlistItems = data.data.playlist as PlaylistItem[];
+          const librarySongsCount = playlistItems.filter(item => item.songId && !item.missing && item.inLibrary).length;
+          const discoverySongsCount = playlistItems.filter(item => item.isDiscovery).length;
+          const validCount = sourceMode === 'discovery'
+            ? playlistItems.length // All discovery songs are valid
+            : sourceMode === 'mix'
+              ? librarySongsCount + discoverySongsCount // Both types are valid in mix
+              : librarySongsCount; // Only library songs for library mode
 
-          // If at least 3 songs found, accept this playlist
-          if (resolvedCount >= 3) {
-            console.log(`✅ Accepting playlist with ${resolvedCount} resolved songs`);
+          console.log(`📊 Resolution results: ${librarySongsCount} library, ${discoverySongsCount} discovery (${validCount} valid for ${sourceMode} mode)`);
+
+          // Story 7.1: Adjust threshold based on source mode
+          const minRequired = sourceMode === 'library' ? 3 : sourceMode === 'discovery' ? 5 : 2;
+          if (validCount >= minRequired) {
+            console.log(`✅ Accepting playlist with ${validCount} valid songs for ${sourceMode} mode`);
             setGenerationStage('done');
             localStorage.setItem(cacheKey, JSON.stringify(data));
             return data;
@@ -551,7 +573,7 @@ function DashboardIndex() {
 
           // Save this result in case all attempts fail
           lastData = data;
-          console.log(`🔄 Only ${resolvedCount} songs resolved, regenerating...`);
+          console.log(`🔄 Only ${validCount} valid songs for ${sourceMode} mode, regenerating...`);
 
           // Small delay before retry
           if (attempts < maxAttempts) {
@@ -1037,7 +1059,18 @@ function DashboardIndex() {
             </Button>
           </div>
 
-        <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-500/5 to-cyan-500/5 border border-blue-500/20">
+        <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-500/5 to-cyan-500/5 border border-blue-500/20 space-y-4">
+          {/* Story 7.1: Source Mode Selector */}
+          <div>
+            <label className="text-sm font-medium mb-2 block">Source</label>
+            <SourceModeSelector
+              value={sourceMode}
+              onChange={setSourceMode}
+              mixRatio={mixRatio}
+              onMixRatioChange={setMixRatio}
+            />
+          </div>
+
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
@@ -1053,9 +1086,10 @@ function DashboardIndex() {
             </div>
             <Button
               onClick={() => {
-                const cacheKey = `playlist-${trimmedStyle}`;
+                // Story 7.1: Include sourceMode in cache key
+                const cacheKey = `playlist-${trimmedStyle}-${sourceMode}-${mixRatio}`;
                 localStorage.removeItem(cacheKey);
-                queryClient.invalidateQueries({ queryKey: ['playlist', trimmedStyle] });
+                queryClient.invalidateQueries({ queryKey: ['playlist', trimmedStyle, sourceMode, mixRatio] });
                 refetchPlaylist();
               }}
               disabled={!trimmedStyle}
@@ -1142,8 +1176,18 @@ function DashboardIndex() {
                 </div>
                 <div>
                   <p className="text-sm font-medium">Generated Playlist: "{debouncedStyle || style}"</p>
+                  {/* Story 7.1: Show source mode info in summary */}
                   <p className="text-xs text-muted-foreground">
-                    {(playlistData.data.playlist as PlaylistItem[]).filter(item => item.songId).length} of 5 songs found in your library
+                    {sourceMode === 'library' ? (
+                      `${(playlistData.data.playlist as PlaylistItem[]).filter(item => item.songId).length} of 5 songs found in your library`
+                    ) : sourceMode === 'discovery' ? (
+                      `${(playlistData.data.playlist as PlaylistItem[]).length} new discoveries to explore`
+                    ) : (
+                      `${(playlistData.data.playlist as PlaylistItem[]).filter(item => item.inLibrary).length} library + ${(playlistData.data.playlist as PlaylistItem[]).filter(item => item.isDiscovery).length} discoveries`
+                    )}
+                    {' '}<span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-muted">
+                      {sourceMode === 'library' ? 'Library Only' : sourceMode === 'discovery' ? 'Discovery' : `Mix ${mixRatio}/${100-mixRatio}`}
+                    </span>
                   </p>
                 </div>
               </div>
@@ -1183,9 +1227,10 @@ function DashboardIndex() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const cacheKey = `playlist-${debouncedStyle}`;
+                    // Story 7.1: Include sourceMode in cache key
+                    const cacheKey = `playlist-${debouncedStyle}-${sourceMode}-${mixRatio}`;
                     localStorage.removeItem(cacheKey);
-                    console.log(`🗑️ Cleared cache for "${debouncedStyle}", regenerating...`);
+                    console.log(`🗑️ Cleared cache for "${debouncedStyle}" (${sourceMode}), regenerating...`);
                     refetchPlaylist();
                   }}
                   aria-label="Regenerate playlist"
@@ -1204,37 +1249,42 @@ function DashboardIndex() {
             <div className="grid grid-cols-1 gap-3">
               {(playlistData.data.playlist as PlaylistItem[]).map((item, index: number) => {
                 const hasSong = !!item.songId;
+                const isDiscovery = item.isDiscovery || false;
+                // Story 7.1: Determine card styling based on source
+                const cardStyle = hasSong
+                  ? 'border-green-500/30 bg-gradient-to-br from-green-500/5 to-green-600/5 hover:border-green-500/50'
+                  : isDiscovery
+                    ? 'border-purple-500/30 bg-gradient-to-br from-purple-500/5 to-pink-500/5 hover:border-purple-500/50'
+                    : 'border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-red-500/5 hover:border-orange-500/50';
+
                 return (
                   <div
                     key={index}
-                    className={`group rounded-xl border transition-all duration-300 hover:shadow-md ${
-                      hasSong
-                        ? 'border-green-500/30 bg-gradient-to-br from-green-500/5 to-green-600/5 hover:border-green-500/50'
-                        : 'border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-red-500/5 hover:border-orange-500/50'
-                    }`}
+                    className={`group rounded-xl border transition-all duration-300 hover:shadow-md ${cardStyle}`}
                   >
                     <div className="p-4 sm:p-5">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                         <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-background/80 text-xs font-medium">
                               {index + 1}
                             </span>
                             <span className="font-semibold text-base">{item.song}</span>
-                            {hasSong ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                                  <polyline points="20 6 9 17 4 12"/>
-                                </svg>
-                                Available
-                              </span>
-                            ) : (
+                            {/* Story 7.1: Use SourceBadge component */}
+                            <SourceBadge inLibrary={hasSong} isDiscovery={isDiscovery && !hasSong} />
+                            {!hasSong && !isDiscovery && (
                               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
-                                Not in Library
+                                Not Found
                               </span>
                             )}
                           </div>
                           <p className="text-sm text-muted-foreground">{item.explanation}</p>
+                          {/* Story 7.1: Show discovery info */}
+                          {isDiscovery && !hasSong && (
+                            <p className="text-xs text-purple-600 dark:text-purple-400">
+                              New discovery - search or add to your library
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -1339,6 +1389,24 @@ function DashboardIndex() {
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
+                          ) : isDiscovery ? (
+                            /* Story 7.1: Discovery song - show Download button */
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const parts = item.song.split(' - ');
+                                const artist = parts.length >= 2 ? parts[0].trim() : '';
+                                const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
+                                // Navigate to download/search page with artist and title
+                                window.location.href = `/library?search=${encodeURIComponent(item.song)}`;
+                                toast.info(`Search for "${title}" by ${artist} to add to your library`);
+                              }}
+                              className="border-purple-500/30 hover:bg-purple-500/10 text-purple-700 dark:text-purple-300"
+                            >
+                              <Download className="mr-1 h-4 w-4" />
+                              Find & Download
+                            </Button>
                           ) : (
                             <Button
                               variant="outline"

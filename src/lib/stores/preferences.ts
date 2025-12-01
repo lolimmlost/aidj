@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 // Types matching database schema
+// Story 7.1: Source mode for recommendations
+export type SourceMode = 'library' | 'discovery' | 'mix';
+
 export interface RecommendationSettings {
   aiEnabled: boolean;
   frequency: 'always' | 'daily' | 'weekly';
@@ -14,6 +17,9 @@ export interface RecommendationSettings {
   aiDJQueueThreshold: number;
   aiDJBatchSize: number;
   aiDJUseCurrentContext: boolean;
+  // Story 7.1: Source Mode Toggle
+  sourceMode: SourceMode;
+  mixRatio: number; // Percentage of library songs in mix mode (0-100)
 }
 
 export interface PlaybackSettings {
@@ -73,6 +79,9 @@ const defaultPreferences: UserPreferences = {
     aiDJQueueThreshold: 2,
     aiDJBatchSize: 3,
     aiDJUseCurrentContext: true,
+    // Story 7.1: Default to library mode for backwards compatibility
+    sourceMode: 'library',
+    mixRatio: 70, // 70% library, 30% discovery
   },
   playbackSettings: {
     volume: 0.5,

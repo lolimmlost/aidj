@@ -15,11 +15,17 @@ export interface RecommendationPromptOptions {
   basePrompt: string;
 }
 
+// Story 7.1: Source mode for playlist generation
+export type SourceMode = 'library' | 'discovery' | 'mix';
+
 export interface PlaylistPromptOptions {
   userId?: string;
   useFeedbackForPersonalization?: boolean;
   excludeArtists?: string[];
   style: string;
+  // Story 7.1: Source mode configuration
+  sourceMode?: SourceMode;
+  mixRatio?: number; // For mix mode: percentage of library songs (0-100)
 }
 
 export async function buildRecommendationPrompt(options: RecommendationPromptOptions): Promise<string> {
@@ -232,7 +238,9 @@ export async function buildPlaylistPrompt(options: PlaylistPromptOptions): Promi
     userId,
     useFeedbackForPersonalization = true,
     excludeArtists = [],
-    style
+    style,
+    sourceMode = 'library',
+    mixRatio = 70
   } = options;
 
   // Get indexed library data for better context
@@ -245,11 +253,12 @@ export async function buildPlaylistPrompt(options: PlaylistPromptOptions): Promi
   const artistsList = artists.slice(0, 30).join(', ');
 
   console.log(`🎵 Using ${songSample.length} indexed songs and ${artists.length} artists for context`);
+  console.log(`🎯 Source mode: ${sourceMode}, Mix ratio: ${mixRatio}%`);
 
   // Fetch user preference data for personalization (if privacy setting allows)
   let preferenceSection = '';
   let excludedArtistsText = '';
-  
+
   if (userId && useFeedbackForPersonalization) {
     try {
       const profile = await buildUserPreferenceProfile(userId);
@@ -281,21 +290,73 @@ PERSONALIZATION: Prioritize songs from liked artists while matching the style. A
     excludedArtistsText = `FORBIDDEN ARTISTS: Do NOT include any songs by these artists: ${excludeArtists.join(', ')}`;
   }
 
-  return `You are a music playlist generator. You MUST ONLY use songs from the user's EXACT library listed below.
+  // Story 7.1: Build source mode instructions
+  let sourceModeInstructions = '';
+  let libraryConstraint = '';
 
-USER'S LIBRARY (complete list of available songs):
+  switch (sourceMode) {
+    case 'library':
+      sourceModeInstructions = `
+SOURCE MODE: LIBRARY ONLY
+- ONLY suggest songs from the user's library listed above
+- Do NOT suggest any songs that are not in this list
+- Copy the EXACT format "Artist - Title" from the library list`;
+      libraryConstraint = 'You MUST ONLY use songs from the user\'s EXACT library listed below.';
+      break;
+
+    case 'discovery':
+      sourceModeInstructions = `
+SOURCE MODE: DISCOVERY
+- Suggest songs the user likely doesn't have but would enjoy
+- Based on their library (artists: ${artistsList}), recommend SIMILAR artists and tracks
+- Focus on variety and new discoveries that match their taste
+- Do NOT include songs from their existing library
+- Format: "Artist - Title" (even for songs not in library)
+- Include well-known songs by similar artists for easier lookup`;
+      libraryConstraint = 'Suggest NEW songs the user does NOT have, based on their taste profile.';
+      break;
+
+    case 'mix': {
+      const librarySongs = Math.round(5 * (mixRatio / 100));
+      const discoverySongs = 5 - librarySongs;
+      sourceModeInstructions = `
+SOURCE MODE: MIX (${mixRatio}% library / ${100 - mixRatio}% discovery)
+CRITICAL REQUIREMENTS:
+- You MUST include EXACTLY ${librarySongs} songs from the library list above
+- You MUST include EXACTLY ${discoverySongs} NEW discovery songs that are NOT in the library
+- For library songs: copy the EXACT "Artist - Title" format from the list, set isDiscovery: false
+- For discovery songs: suggest well-known songs by DIFFERENT artists not in the library, set isDiscovery: true
+- Discovery songs should be popular tracks that match the user's taste but from artists they don't have
+- Mark each song with "(library)" or "(discovery)" suffix in the song name
+
+MANDATORY: Your playlist MUST have exactly ${discoverySongs} songs with isDiscovery: true`;
+      libraryConstraint = `IMPORTANT: Create a mix with EXACTLY ${librarySongs} library songs and EXACTLY ${discoverySongs} new discoveries.`;
+      break;
+    }
+  }
+
+  // Build the final prompt based on source mode
+  const basePrompt = `You are a music playlist generator. ${libraryConstraint}
+
+USER'S LIBRARY (available songs):
 ${songListForPrompt}
 
 ARTISTS IN LIBRARY: ${artistsList}
 ${preferenceSection}
 ${excludedArtistsText}
+${sourceModeInstructions}
+
 TASK: Create a 5-song playlist for style "${style}"
 
 RULES:
-1. ONLY use songs from the library list above - copy the EXACT format "Artist - Title"
+1. ${sourceMode === 'library' ? 'ONLY use songs from the library list above - copy the EXACT format "Artist - Title"' :
+     sourceMode === 'discovery' ? 'Suggest songs NOT in the library that match the user\'s taste' :
+     `Mix ${Math.round(5 * (mixRatio / 100))} library songs with ${5 - Math.round(5 * (mixRatio / 100))} discoveries`}
 2. Each song must genuinely match the "${style}" theme/mood
 3. No duplicates
-4. No songs not in the list above
+4. ${sourceMode === 'library' ? 'No songs not in the list above' :
+     sourceMode === 'discovery' ? 'Focus on popular, well-known songs for easier discovery' :
+     'Clearly indicate source for each song'}
 
 For style "${style}":
 - If Halloween: choose spooky, dark, mysterious, or horror-themed songs
@@ -305,7 +366,9 @@ For style "${style}":
 - Match the mood appropriately for other styles
 
 OUTPUT FORMAT (valid JSON only, no other text):
-{"playlist": [{"song": "Artist - Title", "explanation": "Why this fits ${style}"}, ...]}
+{"playlist": [{"song": "Artist - Title${sourceMode === 'mix' ? ' (library)' : ''}", "explanation": "Why this fits ${style}"${sourceMode !== 'library' ? ', "isDiscovery": true/false' : ''}}, ...]}
 
 Generate exactly 5 songs now:`;
+
+  return basePrompt;
 }

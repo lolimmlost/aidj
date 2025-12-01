@@ -8,6 +8,7 @@ export interface RecommendationResponse {
 export interface PlaylistSuggestion {
   song: string; // "Artist - Title"
   explanation: string;
+  isDiscovery?: boolean; // Story 7.1: true if this is a discovery suggestion
 }
 
 export interface PlaylistResponse {
@@ -102,24 +103,36 @@ export function parseRecommendationsResponse(responseText: string): Recommendati
 }
 
 export function parsePlaylistResponse(responseText: string): PlaylistResponse {
+  // Clean up response: remove markdown code blocks if present
+  let cleanedResponse = responseText.trim();
+  if (cleanedResponse.startsWith('```json')) {
+    cleanedResponse = cleanedResponse.replace(/^```json\s*/i, '').replace(/\s*```\s*$/, '');
+    console.log('🧹 Removed markdown code blocks from playlist response');
+  } else if (cleanedResponse.startsWith('```')) {
+    cleanedResponse = cleanedResponse.replace(/^```\s*/i, '').replace(/\s*```\s*$/, '');
+    console.log('🧹 Removed markdown code blocks from playlist response');
+  }
+
   let parsed;
   try {
-    parsed = JSON.parse(responseText) as { playlist: PlaylistSuggestion[] };
+    parsed = JSON.parse(cleanedResponse) as { playlist: PlaylistSuggestion[] };
+    console.log('✅ Successfully parsed playlist:', parsed.playlist?.length || 0, 'songs');
   } catch (parseError) {
-    console.error('JSON parse error:', parseError, 'Response:', responseText);
+    console.error('JSON parse error:', parseError, 'Response:', cleanedResponse.substring(0, 500));
     // Fallback: extract from text
-    const fallback = responseText.match(/song["']?\s*:\s*["']([^"']+)["']/gi) || [];
+    const fallback = cleanedResponse.match(/song["']?\s*:\s*["']([^"']+)["']/gi) || [];
     const recs = fallback.slice(0, 5).map((match: string) => {
       const song = match.replace(/song["']?\s*:\s*["']/, '').replace(/["']$/, '');
-      return { song, explanation: 'Fits the requested style based on your library' };
+      return { song, explanation: 'Fits the requested style based on your library', isDiscovery: false };
     });
+    console.log('🔧 Fallback extracted:', recs.length, 'songs from partial response');
     return { playlist: recs };
   }
-  
+
   if (!parsed.playlist || !Array.isArray(parsed.playlist)) {
     throw new ServiceError('OLLAMA_PARSE_ERROR', 'Invalid playlist format');
   }
-  
+
   return {
     playlist: parsed.playlist.slice(0, 5), // MVP: Ensure max 5
   };
