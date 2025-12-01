@@ -7,11 +7,16 @@ export interface ArtistRecommendationTracker {
   lastRecommended: number;
   countToday: number;
   countThisSession: number;
-  cooldownUntil: number; // New field for artist cooldown
+  cooldownUntil: number; // Timestamp when cooldown expires
 }
 
 // In-memory tracker for artist recommendations
 const artistRecommendationTracker = new Map<string, ArtistRecommendationTracker>();
+
+// Cooldown duration constants (configurable for variety)
+const ARTIST_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours cooldown (reduced from 8 for more variety)
+const MAX_DAILY_RECOMMENDATIONS = 3; // Allow up to 3 recommendations per artist per day
+const MAX_SESSION_RECOMMENDATIONS = 2; // Allow up to 2 per session before cooldown
 
 /**
  * Check if artist has been recommended too frequently
@@ -20,47 +25,47 @@ const artistRecommendationTracker = new Map<string, ArtistRecommendationTracker>
  */
 export function shouldAvoidArtist(artist: string): boolean {
   const now = Date.now();
-  const oneDayAgo = now - (24 * 60 * 60 * 1000); // 24 hours ago
-  const eightHoursAgo = now - (8 * 60 * 60 * 1000); // Increased from 4 to 8 hours for cooldown
+  const oneDayMs = 24 * 60 * 60 * 1000;
   const tracker = artistRecommendationTracker.get(artist);
-  
+
   if (!tracker) {
-    // First time seeing this artist
+    // First time seeing this artist - allow it and start tracking
     artistRecommendationTracker.set(artist, {
       artist,
       lastRecommended: now,
       countToday: 1,
       countThisSession: 1,
-      cooldownUntil: now + eightHoursAgo, // Set initial cooldown for 8 hours
+      cooldownUntil: now + ARTIST_COOLDOWN_MS,
     });
     return false;
   }
-  
+
   // Check if artist is in cooldown period
   if (now < tracker.cooldownUntil) {
     console.log(`🎵 Artist "${artist}" is in cooldown until ${new Date(tracker.cooldownUntil).toLocaleTimeString()}`);
     return true;
   }
-  
-  // Update tracking
-  const isNewDay = now > tracker.lastRecommended + oneDayAgo;
+
+  // Check if it's a new day - reset daily count
+  const isNewDay = now - tracker.lastRecommended > oneDayMs;
   const countToday = isNewDay ? 1 : tracker.countToday + 1;
   const countSession = tracker.countThisSession + 1;
-  
+
+  // Update tracking with new cooldown
   artistRecommendationTracker.set(artist, {
     artist,
     lastRecommended: now,
     countToday,
     countThisSession: countSession,
-    cooldownUntil: now + eightHoursAgo, // Reset cooldown for 8 hours
+    cooldownUntil: now + ARTIST_COOLDOWN_MS,
   });
-  
-  // Much stricter avoidance rules:
-  // - Recommended 1+ times today (reduced from 2)
-  // - Recommended 1+ times in current session (same)
-  // - Last recommended within last 8 hours (increased from 4)
-  
-  return countToday >= 1 || countSession >= 1;
+
+  // Balanced avoidance rules for variety:
+  // - Allow up to MAX_DAILY_RECOMMENDATIONS per day
+  // - Allow up to MAX_SESSION_RECOMMENDATIONS per session
+  // After these limits, artist goes into cooldown
+
+  return countToday > MAX_DAILY_RECOMMENDATIONS || countSession > MAX_SESSION_RECOMMENDATIONS;
 }
 
 /**

@@ -206,13 +206,37 @@ export function calculateGenreSimilarity(
 }
 
 /**
- * Rank recommendations by genre similarity score
- * Filters out recommendations below threshold and sorts by score (highest first)
+ * Calculate artist diversity penalty for recommendations
+ * Penalizes having too many songs from the same artist in results
+ */
+function calculateDiversityBonus(
+  recommendations: ScoredRecommendation[],
+  currentRec: ScoredRecommendation
+): number {
+  // Extract artist from "Artist - Title" format
+  const currentArtist = currentRec.song.split(' - ')[0]?.toLowerCase().trim();
+  if (!currentArtist) return 0;
+
+  // Count how many times this artist appears in existing recommendations
+  const artistCount = recommendations.filter(rec => {
+    const artist = rec.song.split(' - ')[0]?.toLowerCase().trim();
+    return artist === currentArtist;
+  }).length;
+
+  // Give bonus to underrepresented artists, penalty to overrepresented
+  if (artistCount === 0) return 0.15; // Bonus for new artist
+  if (artistCount === 1) return 0;    // Neutral for second occurrence
+  return -0.2 * artistCount;          // Penalty for 3+ occurrences
+}
+
+/**
+ * Rank recommendations by genre similarity score with diversity weighting
+ * Filters out recommendations below threshold, applies diversity scoring, and sorts
  */
 export function rankRecommendations(
   libraryProfile: LibraryProfile,
   recommendations: Array<{ song: string; explanation: string }>,
-  threshold: number = 0.5 // Increased from 0.3 to 0.5 for stricter filtering
+  threshold: number = 0.3 // Lowered from 0.5 to 0.3 for more variety
 ): ScoredRecommendation[] {
   const scored: ScoredRecommendation[] = recommendations.map(rec => ({
     song: rec.song,
@@ -220,22 +244,47 @@ export function rankRecommendations(
     genreScore: calculateGenreSimilarity(libraryProfile, rec),
   }));
 
-  // Filter by threshold and sort by score (descending)
-  const filtered = scored
-    .filter(rec => rec.genreScore >= threshold)
-    .sort((a, b) => b.genreScore - a.genreScore);
-  
-  // If we have too few high-scoring recommendations, relax threshold slightly
-  if (filtered.length < 3) {
-    const relaxedThreshold = 0.4;
+  // Sort by initial score first
+  scored.sort((a, b) => b.genreScore - a.genreScore);
+
+  // Apply diversity-weighted selection
+  const diverseSelection: ScoredRecommendation[] = [];
+  const candidates = [...scored];
+
+  // Select recommendations prioritizing both score and diversity
+  while (diverseSelection.length < 10 && candidates.length > 0) {
+    // Calculate adjusted scores with diversity bonus
+    const adjustedCandidates = candidates.map(rec => ({
+      rec,
+      adjustedScore: rec.genreScore + calculateDiversityBonus(diverseSelection, rec)
+    }));
+
+    // Sort by adjusted score
+    adjustedCandidates.sort((a, b) => b.adjustedScore - a.adjustedScore);
+
+    // Take the best adjusted candidate
+    const best = adjustedCandidates[0];
+    if (best && best.adjustedScore >= threshold) {
+      diverseSelection.push(best.rec);
+      // Remove from candidates
+      const idx = candidates.indexOf(best.rec);
+      if (idx > -1) candidates.splice(idx, 1);
+    } else {
+      break; // No more candidates above threshold
+    }
+  }
+
+  // If we have too few recommendations, relax threshold
+  if (diverseSelection.length < 3) {
+    const relaxedThreshold = 0.2;
     const relaxed = scored
       .filter(rec => rec.genreScore >= relaxedThreshold)
       .sort((a, b) => b.genreScore - a.genreScore);
-    
+
     console.log(`📊 Relaxed genre threshold from ${threshold} to ${relaxedThreshold} - got ${relaxed.length} recommendations`);
-    return relaxed.slice(0, 5); // Limit to top 5 even when relaxed
+    return relaxed.slice(0, 10); // Return up to 10 recommendations
   }
-  
-  console.log(`📊 Genre filtering: ${filtered.length}/${recommendations.length} recommendations passed threshold ${threshold}`);
-  return filtered.slice(0, 5); // Limit to top 5 recommendations
+
+  console.log(`📊 Genre filtering with diversity: ${diverseSelection.length}/${recommendations.length} recommendations selected (threshold ${threshold})`);
+  return diverseSelection;
 }

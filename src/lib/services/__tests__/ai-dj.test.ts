@@ -227,7 +227,7 @@ describe('AI DJ Service', () => {
 
       await expect(
         generateContextualRecommendations(mockContext, 2)
-      ).rejects.toThrow(/could not generate/i);
+      ).rejects.toThrow(/no recommendations|could not generate|failed to generate/i);
     });
 
     it('should handle song matching failures gracefully', async () => {

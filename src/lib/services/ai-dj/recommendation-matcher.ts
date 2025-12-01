@@ -33,7 +33,7 @@ export async function matchRecommendationsToLibrary(
   userBlocklist?: Set<string>
 ): Promise<Song[]> {
   const recommendedSongs: Song[] = [];
-  const allSongs = await getSongsGlobal(0, 1500); // Increased sample size for better variety
+  const allSongs = await getSongsGlobal(0, 2000); // Further increased sample size for maximum variety
 
   console.log(`🎵 Excluded artists:`, excludeArtists);
   console.log(`🎵 Original recommendations count:`, recommendations.length);
@@ -245,8 +245,8 @@ export async function matchRecommendationsToLibrary(
     const neededSongs = batchSize - recommendedSongs.length;
     console.warn(`⚠️ AI DJ: Need ${neededSongs} more songs, using smart fallback from library`);
     try {
-      // Get more songs for better variety
-      const fallbackSongs = await getSongsGlobal(0, Math.min(batchSize * 5, 100)); // Increased sample size
+      // Get more songs for better variety - significantly increased pool
+      const fallbackSongs = await getSongsGlobal(0, Math.max(batchSize * 20, 200)); // Much larger sample for variety
       
       if (fallbackSongs.length > 0) {
         // Filter out songs already recommended and get diverse artists

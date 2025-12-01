@@ -67,13 +67,17 @@ export async function generateRecommendations({
   const llmStart = Date.now();
   const provider = getLLMProvider();
 
+  // Request 8 recommendations to have a larger pool for diversity selection
+  // Use higher temperature (0.85) to encourage more creative/varied responses
   const llmRequest: LLMGenerateRequest = {
     model: model || provider.getDefaultModel(),
-    prompt: `Respond ONLY with valid JSON. No other text, explanations, or conversation. Generate 5 music recommendations based on: ${enhancedPrompt}. JSON: {"recommendations": [{"song": "Artist - Title", "explanation": "brief reason why recommended"}, ...]}`,
+    prompt: `Respond ONLY with valid JSON. No other text, explanations, or conversation. Generate 8 DIVERSE music recommendations based on: ${enhancedPrompt}. Ensure variety - different artists, genres, and styles. JSON: {"recommendations": [{"song": "Artist - Title", "explanation": "brief reason why recommended"}, ...]}`,
     stream: false,
+    temperature: 0.85, // Higher temperature for more variety
+    maxTokens: 1536,   // Enough tokens for 8 recommendations
   };
 
-  const response = await provider.generate(llmRequest, 20000); // 20s timeout for complex recommendations
+  const response = await provider.generate(llmRequest, 45000); // 45s timeout for local LLM
   perfTimings.llmCall = Date.now() - llmStart;
 
   console.log(`🤖 Raw ${provider.getMetadata().name} response:`, JSON.stringify(response).substring(0, 500));

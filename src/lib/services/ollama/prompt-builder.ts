@@ -39,11 +39,12 @@ export async function buildRecommendationPrompt(options: RecommendationPromptOpt
   
   if (userId) {
     // Use library index instead of summary for accurate song data
-    const songSample = await getSongSampleForAI(100); // Increased sample size for more variety
+    // Balance between variety and prompt size for local LLMs
+    const songSample = await getSongSampleForAI(150); // Good sample size for variety
     const artists = await getIndexedArtists();
 
-    const songListForPrompt = songSample.slice(0, 80).join('\n'); // Show 80 songs instead of 40
-    const artistsList = artists.slice(0, 50).join(', '); // Show 50 artists instead of 30
+    const songListForPrompt = songSample.slice(0, 100).join('\n'); // 100 songs - balance of variety vs prompt size
+    const artistsList = artists.slice(0, 60).join(', '); // 60 artists for more options
 
     console.log(`🎵 Using ${songSample.length} indexed songs and ${artists.length} artists for recommendations`);
 

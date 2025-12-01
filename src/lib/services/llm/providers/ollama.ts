@@ -23,6 +23,10 @@ export interface OllamaGenerateRequest {
   model: string;
   prompt: string;
   stream?: boolean;
+  options?: {
+    temperature?: number;
+    num_predict?: number; // max tokens equivalent
+  };
 }
 
 export interface OllamaGenerateResponse {
@@ -87,6 +91,18 @@ export class OllamaClient implements LLMProvider {
       stream: request.stream || false,
     };
 
+    // Add options for temperature and max tokens if provided
+    const llmRequest = request as LLMGenerateRequest;
+    if (llmRequest.temperature !== undefined || llmRequest.maxTokens !== undefined) {
+      ollamaRequest.options = {};
+      if (llmRequest.temperature !== undefined) {
+        ollamaRequest.options.temperature = llmRequest.temperature;
+      }
+      if (llmRequest.maxTokens !== undefined) {
+        ollamaRequest.options.num_predict = llmRequest.maxTokens;
+      }
+    }
+
     const ollamaResponse = await this.generateOllama(ollamaRequest, timeoutMs);
 
     // Always return the new LLMGenerateResponse format for consistency
@@ -134,8 +150,8 @@ export class OllamaClient implements LLMProvider {
       supportedFeatures: {
         streaming: true,
         systemPrompt: false, // Ollama uses prompt only
-        temperature: false,   // Can be added later if needed
-        maxTokens: false,     // Can be added later if needed
+        temperature: true,    // Now supported for variety
+        maxTokens: true,      // Now supported
       },
     };
   }
@@ -155,14 +171,22 @@ export class OllamaClient implements LLMProvider {
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
+      // Build request body with optional options
+      const requestBody: Record<string, unknown> = {
+        model: request.model || this.defaultModel,
+        prompt: request.prompt,
+        stream: request.stream || false,
+      };
+
+      // Add options (temperature, num_predict) if provided
+      if (request.options) {
+        requestBody.options = request.options;
+      }
+
       const response = await retryFetch(() => fetch(`${this.baseUrl}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: request.model || this.defaultModel,
-          prompt: request.prompt,
-          stream: request.stream || false,
-        }),
+        body: JSON.stringify(requestBody),
         signal: controller.signal,
       }));
 
