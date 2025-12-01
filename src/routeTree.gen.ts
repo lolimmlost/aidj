@@ -69,6 +69,11 @@ import { ServerRoute as ApiLidarrCancelServerRouteImport } from "./routes/api/li
 import { ServerRoute as ApiLidarrAvailabilityServerRouteImport } from "./routes/api/lidarr/availability";
 import { ServerRoute as ApiLidarrAddServerRouteImport } from "./routes/api/lidarr/add";
 import { ServerRoute as ApiLibraryProfileAnalyzeServerRouteImport } from "./routes/api/library-profile/analyze";
+import { ServerRoute as ApiLastfmTopTracksServerRouteImport } from "./routes/api/lastfm/top-tracks";
+import { ServerRoute as ApiLastfmTestServerRouteImport } from "./routes/api/lastfm/test";
+import { ServerRoute as ApiLastfmSimilarTracksServerRouteImport } from "./routes/api/lastfm/similar-tracks";
+import { ServerRoute as ApiLastfmSimilarArtistsServerRouteImport } from "./routes/api/lastfm/similar-artists";
+import { ServerRoute as ApiLastfmSearchServerRouteImport } from "./routes/api/lastfm/search";
 import { ServerRoute as ApiAuthRegisterServerRouteImport } from "./routes/api/auth/register";
 import { ServerRoute as ApiAuthLoginServerRouteImport } from "./routes/api/auth/login";
 import { ServerRoute as ApiAuthSplatServerRouteImport } from "./routes/api/auth/$";
@@ -391,6 +396,34 @@ const ApiLibraryProfileAnalyzeServerRoute =
     path: "/api/library-profile/analyze",
     getParentRoute: () => rootServerRouteImport,
   } as any);
+const ApiLastfmTopTracksServerRoute =
+  ApiLastfmTopTracksServerRouteImport.update({
+    id: "/api/lastfm/top-tracks",
+    path: "/api/lastfm/top-tracks",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
+const ApiLastfmTestServerRoute = ApiLastfmTestServerRouteImport.update({
+  id: "/api/lastfm/test",
+  path: "/api/lastfm/test",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
+const ApiLastfmSimilarTracksServerRoute =
+  ApiLastfmSimilarTracksServerRouteImport.update({
+    id: "/api/lastfm/similar-tracks",
+    path: "/api/lastfm/similar-tracks",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
+const ApiLastfmSimilarArtistsServerRoute =
+  ApiLastfmSimilarArtistsServerRouteImport.update({
+    id: "/api/lastfm/similar-artists",
+    path: "/api/lastfm/similar-artists",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
+const ApiLastfmSearchServerRoute = ApiLastfmSearchServerRouteImport.update({
+  id: "/api/lastfm/search",
+  path: "/api/lastfm/search",
+  getParentRoute: () => rootServerRouteImport,
+} as any);
 const ApiAuthRegisterServerRoute = ApiAuthRegisterServerRouteImport.update({
   id: "/api/auth/register",
   path: "/api/auth/register",
@@ -768,6 +801,11 @@ export interface FileServerRoutesByFullPath {
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
+  "/api/lastfm/search": typeof ApiLastfmSearchServerRoute;
+  "/api/lastfm/similar-artists": typeof ApiLastfmSimilarArtistsServerRoute;
+  "/api/lastfm/similar-tracks": typeof ApiLastfmSimilarTracksServerRoute;
+  "/api/lastfm/test": typeof ApiLastfmTestServerRoute;
+  "/api/lastfm/top-tracks": typeof ApiLastfmTopTracksServerRoute;
   "/api/library-profile/analyze": typeof ApiLibraryProfileAnalyzeServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
   "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
@@ -811,6 +849,11 @@ export interface FileServerRoutesByTo {
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
+  "/api/lastfm/search": typeof ApiLastfmSearchServerRoute;
+  "/api/lastfm/similar-artists": typeof ApiLastfmSimilarArtistsServerRoute;
+  "/api/lastfm/similar-tracks": typeof ApiLastfmSimilarTracksServerRoute;
+  "/api/lastfm/test": typeof ApiLastfmTestServerRoute;
+  "/api/lastfm/top-tracks": typeof ApiLastfmTopTracksServerRoute;
   "/api/library-profile/analyze": typeof ApiLibraryProfileAnalyzeServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
   "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
@@ -855,6 +898,11 @@ export interface FileServerRoutesById {
   "/api/auth/$": typeof ApiAuthSplatServerRoute;
   "/api/auth/login": typeof ApiAuthLoginServerRoute;
   "/api/auth/register": typeof ApiAuthRegisterServerRoute;
+  "/api/lastfm/search": typeof ApiLastfmSearchServerRoute;
+  "/api/lastfm/similar-artists": typeof ApiLastfmSimilarArtistsServerRoute;
+  "/api/lastfm/similar-tracks": typeof ApiLastfmSimilarTracksServerRoute;
+  "/api/lastfm/test": typeof ApiLastfmTestServerRoute;
+  "/api/lastfm/top-tracks": typeof ApiLastfmTopTracksServerRoute;
   "/api/library-profile/analyze": typeof ApiLibraryProfileAnalyzeServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
   "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
@@ -900,6 +948,11 @@ export interface FileServerRouteTypes {
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
+    | "/api/lastfm/search"
+    | "/api/lastfm/similar-artists"
+    | "/api/lastfm/similar-tracks"
+    | "/api/lastfm/test"
+    | "/api/lastfm/top-tracks"
     | "/api/library-profile/analyze"
     | "/api/lidarr/add"
     | "/api/lidarr/availability"
@@ -943,6 +996,11 @@ export interface FileServerRouteTypes {
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
+    | "/api/lastfm/search"
+    | "/api/lastfm/similar-artists"
+    | "/api/lastfm/similar-tracks"
+    | "/api/lastfm/test"
+    | "/api/lastfm/top-tracks"
     | "/api/library-profile/analyze"
     | "/api/lidarr/add"
     | "/api/lidarr/availability"
@@ -986,6 +1044,11 @@ export interface FileServerRouteTypes {
     | "/api/auth/$"
     | "/api/auth/login"
     | "/api/auth/register"
+    | "/api/lastfm/search"
+    | "/api/lastfm/similar-artists"
+    | "/api/lastfm/similar-tracks"
+    | "/api/lastfm/test"
+    | "/api/lastfm/top-tracks"
     | "/api/library-profile/analyze"
     | "/api/lidarr/add"
     | "/api/lidarr/availability"
@@ -1030,6 +1093,11 @@ export interface RootServerRouteChildren {
   ApiAuthSplatServerRoute: typeof ApiAuthSplatServerRoute;
   ApiAuthLoginServerRoute: typeof ApiAuthLoginServerRoute;
   ApiAuthRegisterServerRoute: typeof ApiAuthRegisterServerRoute;
+  ApiLastfmSearchServerRoute: typeof ApiLastfmSearchServerRoute;
+  ApiLastfmSimilarArtistsServerRoute: typeof ApiLastfmSimilarArtistsServerRoute;
+  ApiLastfmSimilarTracksServerRoute: typeof ApiLastfmSimilarTracksServerRoute;
+  ApiLastfmTestServerRoute: typeof ApiLastfmTestServerRoute;
+  ApiLastfmTopTracksServerRoute: typeof ApiLastfmTopTracksServerRoute;
   ApiLibraryProfileAnalyzeServerRoute: typeof ApiLibraryProfileAnalyzeServerRoute;
   ApiLidarrAddServerRoute: typeof ApiLidarrAddServerRoute;
   ApiLidarrAvailabilityServerRoute: typeof ApiLidarrAvailabilityServerRoute;
@@ -1464,6 +1532,41 @@ declare module "@tanstack/react-start/server" {
       preLoaderRoute: typeof ApiLibraryProfileAnalyzeServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
+    "/api/lastfm/top-tracks": {
+      id: "/api/lastfm/top-tracks";
+      path: "/api/lastfm/top-tracks";
+      fullPath: "/api/lastfm/top-tracks";
+      preLoaderRoute: typeof ApiLastfmTopTracksServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/lastfm/test": {
+      id: "/api/lastfm/test";
+      path: "/api/lastfm/test";
+      fullPath: "/api/lastfm/test";
+      preLoaderRoute: typeof ApiLastfmTestServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/lastfm/similar-tracks": {
+      id: "/api/lastfm/similar-tracks";
+      path: "/api/lastfm/similar-tracks";
+      fullPath: "/api/lastfm/similar-tracks";
+      preLoaderRoute: typeof ApiLastfmSimilarTracksServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/lastfm/similar-artists": {
+      id: "/api/lastfm/similar-artists";
+      path: "/api/lastfm/similar-artists";
+      fullPath: "/api/lastfm/similar-artists";
+      preLoaderRoute: typeof ApiLastfmSimilarArtistsServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/lastfm/search": {
+      id: "/api/lastfm/search";
+      path: "/api/lastfm/search";
+      fullPath: "/api/lastfm/search";
+      preLoaderRoute: typeof ApiLastfmSearchServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
     "/api/auth/register": {
       id: "/api/auth/register";
       path: "/api/auth/register";
@@ -1770,6 +1873,11 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiAuthSplatServerRoute: ApiAuthSplatServerRoute,
   ApiAuthLoginServerRoute: ApiAuthLoginServerRoute,
   ApiAuthRegisterServerRoute: ApiAuthRegisterServerRoute,
+  ApiLastfmSearchServerRoute: ApiLastfmSearchServerRoute,
+  ApiLastfmSimilarArtistsServerRoute: ApiLastfmSimilarArtistsServerRoute,
+  ApiLastfmSimilarTracksServerRoute: ApiLastfmSimilarTracksServerRoute,
+  ApiLastfmTestServerRoute: ApiLastfmTestServerRoute,
+  ApiLastfmTopTracksServerRoute: ApiLastfmTopTracksServerRoute,
   ApiLibraryProfileAnalyzeServerRoute: ApiLibraryProfileAnalyzeServerRoute,
   ApiLidarrAddServerRoute: ApiLidarrAddServerRoute,
   ApiLidarrAvailabilityServerRoute: ApiLidarrAvailabilityServerRoute,

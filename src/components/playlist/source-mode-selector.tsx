@@ -118,15 +118,21 @@ export function SourceModeSelector({
 }
 
 /**
+ * Discovery source type - tracks where the recommendation came from
+ */
+export type DiscoverySource = 'lastfm' | 'ollama' | 'library';
+
+/**
  * Source badge component to display on recommendation cards
  */
 interface SourceBadgeProps {
   inLibrary: boolean;
   isDiscovery?: boolean; // Explicitly mark as discovery (not just "not in library")
+  discoverySource?: DiscoverySource; // Story 7.2: Track where discovery came from
   className?: string;
 }
 
-export function SourceBadge({ inLibrary, isDiscovery, className }: SourceBadgeProps) {
+export function SourceBadge({ inLibrary, isDiscovery, discoverySource, className }: SourceBadgeProps) {
   // Only show badge for library songs or explicit discoveries
   if (inLibrary) {
     return (
@@ -156,8 +162,28 @@ export function SourceBadge({ inLibrary, isDiscovery, className }: SourceBadgePr
     );
   }
 
-  // Only show Discovery badge if explicitly marked as discovery
+  // Show Discovery badge with source indicator
   if (isDiscovery) {
+    // Last.fm discovery - red/pink badge
+    if (discoverySource === 'lastfm') {
+      return (
+        <span
+          className={cn(
+            'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium',
+            'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+            className
+          )}
+        >
+          {/* Last.fm logo simplified */}
+          <svg className="mr-1 h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M10.584 17.21l-.88-2.392s-1.43 1.594-3.573 1.594c-1.897 0-3.244-1.649-3.244-4.288 0-3.381 1.704-4.591 3.381-4.591 2.42 0 3.189 1.567 3.849 3.574l.88 2.749c.88 2.666 2.529 4.81 7.285 4.81 3.409 0 5.718-1.044 5.718-3.793 0-2.227-1.265-3.381-3.63-3.931l-1.758-.385c-1.21-.275-1.567-.77-1.567-1.594 0-.935.742-1.484 1.952-1.484 1.32 0 2.034.495 2.144 1.677l2.749-.33c-.22-2.474-1.924-3.492-4.729-3.492-2.474 0-4.893.935-4.893 3.932 0 1.87.907 3.051 3.189 3.601l1.87.44c1.402.33 1.869.825 1.869 1.677 0 1.044-1.016 1.484-2.914 1.484-2.83 0-4.015-1.484-4.675-3.52l-.907-2.749c-1.155-3.574-2.997-4.894-6.653-4.894C2.144 5.333 0 7.89 0 12.233c0 4.18 2.144 6.434 5.993 6.434 3.024 0 4.591-1.457 4.591-1.457z"/>
+          </svg>
+          Last.fm
+        </span>
+      );
+    }
+
+    // AI/Ollama discovery - purple badge (default)
     return (
       <span
         className={cn(
@@ -167,7 +193,7 @@ export function SourceBadge({ inLibrary, isDiscovery, className }: SourceBadgePr
         )}
       >
         <Compass className="mr-1 h-3 w-3" />
-        Discovery
+        AI Discovery
       </span>
     );
   }

@@ -500,6 +500,8 @@ function DashboardIndex() {
     // Story 7.1: Source mode fields
     isDiscovery?: boolean;
     inLibrary?: boolean;
+    // Story 7.2: Discovery source tracking
+    discoverySource?: 'lastfm' | 'ollama' | 'library';
   }
 
   const { data: playlistData, isLoading: playlistLoading, error: playlistError, refetch: refetchPlaylist } = useQuery({
@@ -1251,10 +1253,14 @@ function DashboardIndex() {
                 const hasSong = !!item.songId;
                 const isDiscovery = item.isDiscovery || false;
                 // Story 7.1: Determine card styling based on source
+                // Story 7.2: Different colors for Last.fm vs AI discoveries
+                const isLastFm = item.discoverySource === 'lastfm';
                 const cardStyle = hasSong
                   ? 'border-green-500/30 bg-gradient-to-br from-green-500/5 to-green-600/5 hover:border-green-500/50'
                   : isDiscovery
-                    ? 'border-purple-500/30 bg-gradient-to-br from-purple-500/5 to-pink-500/5 hover:border-purple-500/50'
+                    ? isLastFm
+                      ? 'border-red-500/30 bg-gradient-to-br from-red-500/5 to-pink-500/5 hover:border-red-500/50'
+                      : 'border-purple-500/30 bg-gradient-to-br from-purple-500/5 to-pink-500/5 hover:border-purple-500/50'
                     : 'border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-red-500/5 hover:border-orange-500/50';
 
                 return (
@@ -1270,8 +1276,12 @@ function DashboardIndex() {
                               {index + 1}
                             </span>
                             <span className="font-semibold text-base">{item.song}</span>
-                            {/* Story 7.1: Use SourceBadge component */}
-                            <SourceBadge inLibrary={hasSong} isDiscovery={isDiscovery && !hasSong} />
+                            {/* Story 7.2: Use SourceBadge with discoverySource */}
+                            <SourceBadge
+                              inLibrary={hasSong}
+                              isDiscovery={isDiscovery && !hasSong}
+                              discoverySource={item.discoverySource}
+                            />
                             {!hasSong && !isDiscovery && (
                               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
                                 Not Found
@@ -1281,8 +1291,8 @@ function DashboardIndex() {
                           <p className="text-sm text-muted-foreground">{item.explanation}</p>
                           {/* Story 7.1: Show discovery info */}
                           {isDiscovery && !hasSong && (
-                            <p className="text-xs text-purple-600 dark:text-purple-400">
-                              New discovery - search or add to your library
+                            <p className={`text-xs ${isLastFm ? 'text-red-600 dark:text-red-400' : 'text-purple-600 dark:text-purple-400'}`}>
+                              {isLastFm ? 'From Last.fm - similar to artists in your library' : 'AI discovery - search or add to your library'}
                             </p>
                           )}
                         </div>

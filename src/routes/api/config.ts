@@ -85,6 +85,9 @@ export const ServerRoute = createServerFileRoute("/api/config").methods({
       if (typeof body.navidromeUsername === "string") allowed.navidromeUsername = body.navidromeUsername;
       if (typeof body.navidromePassword === "string") allowed.navidromePassword = body.navidromePassword;
 
+      // Discovery services (Story 7.2)
+      if (typeof body.lastfmApiKey === "string") allowed.lastfmApiKey = body.lastfmApiKey;
+
       if (!Object.keys(allowed).length) {
         // No keys provided; return current config without error
         return new Response(JSON.stringify({ ok: true, config: getConfig() }), {

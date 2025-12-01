@@ -31,9 +31,12 @@ interface ServiceConfig {
   navidromePassword: string;
   lidarrQualityProfileId?: number;
   lidarrRootFolderPath?: string;
+
+  // Last.fm Configuration (Story 7.2)
+  lastfmApiKey: string;
 }
 
-let currentConfig: ServiceConfig = { ...defaults, lidarrApiKey: '', openrouterApiKey: '', glmApiKey: '', anthropicApiKey: '', anthropicBaseUrl: 'https://api.anthropic.com/v1' };
+let currentConfig: ServiceConfig = { ...defaults, lidarrApiKey: '', openrouterApiKey: '', glmApiKey: '', anthropicApiKey: '', anthropicBaseUrl: 'https://api.anthropic.com/v1', lastfmApiKey: '' };
 
 if (typeof window !== 'undefined') {
   // Client side - load from localStorage
@@ -78,10 +81,67 @@ if (typeof window !== 'undefined') {
     lidarrApiKey: process.env.LIDARR_API_KEY || fileConfig.lidarrApiKey || '',
     navidromeUsername: process.env.NAVIDROME_USERNAME || fileConfig.navidromeUsername || defaults.navidromeUsername,
     navidromePassword: process.env.NAVIDROME_PASSWORD || fileConfig.navidromePassword || defaults.navidromePassword,
+    lastfmApiKey: process.env.LASTFM_API_KEY || fileConfig.lastfmApiKey || '',
   };
 }
 
+// Cache for server-side config loaded asynchronously
+let serverConfigLoaded = false;
+
+// Server-side async config loader
+async function loadServerConfigAsync(): Promise<void> {
+  if (typeof window !== 'undefined' || serverConfigLoaded) {
+    return;
+  }
+
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    const configPath = path.resolve(process.cwd(), 'db', 'config.json');
+
+    if (fs.existsSync(configPath)) {
+      const raw = fs.readFileSync(configPath, 'utf8');
+      const fileConfig = JSON.parse(raw) as Partial<ServiceConfig>;
+      console.log('[Config] Loaded lastfmApiKey length:', fileConfig.lastfmApiKey?.length || 0);
+
+      currentConfig = {
+        ...defaults,
+        ...fileConfig,
+        llmProvider: (process.env.LLM_PROVIDER as LLMProviderType) || fileConfig.llmProvider || defaults.llmProvider,
+        ollamaModel: process.env.OLLAMA_MODEL || fileConfig.ollamaModel || defaults.ollamaModel,
+        openrouterApiKey: process.env.OPENROUTER_API_KEY || fileConfig.openrouterApiKey || '',
+        openrouterModel: process.env.OPENROUTER_MODEL || fileConfig.openrouterModel || defaults.openrouterModel,
+        glmApiKey: process.env.GLM_API_KEY || fileConfig.glmApiKey || '',
+        glmModel: process.env.GLM_MODEL || fileConfig.glmModel || defaults.glmModel,
+        anthropicApiKey: process.env.ANTHROPIC_API_KEY || fileConfig.anthropicApiKey || '',
+        anthropicModel: process.env.ANTHROPIC_MODEL || fileConfig.anthropicModel || defaults.anthropicModel || 'claude-sonnet-4-5-20250514',
+        anthropicBaseUrl: process.env.ANTHROPIC_BASE_URL || fileConfig.anthropicBaseUrl || defaults.anthropicBaseUrl || 'https://api.anthropic.com/v1',
+        lidarrApiKey: process.env.LIDARR_API_KEY || fileConfig.lidarrApiKey || '',
+        navidromeUsername: process.env.NAVIDROME_USERNAME || fileConfig.navidromeUsername || defaults.navidromeUsername,
+        navidromePassword: process.env.NAVIDROME_PASSWORD || fileConfig.navidromePassword || defaults.navidromePassword,
+        lastfmApiKey: process.env.LASTFM_API_KEY || fileConfig.lastfmApiKey || '',
+      };
+      serverConfigLoaded = true;
+    }
+  } catch (err) {
+    console.error('[Config] Error loading config:', err);
+  }
+}
+
+// Eagerly load config on server startup
+if (typeof window === 'undefined') {
+  loadServerConfigAsync();
+}
+
 export function getConfig(): ServiceConfig {
+  return currentConfig;
+}
+
+// Async version for ensuring config is loaded before use
+export async function getConfigAsync(): Promise<ServiceConfig> {
+  if (typeof window === 'undefined' && !serverConfigLoaded) {
+    await loadServerConfigAsync();
+  }
   return currentConfig;
 }
 
@@ -94,7 +154,7 @@ export function setConfig(cfg: Partial<ServiceConfig>): void {
 }
 
 export function resetConfig(): void {
-  currentConfig = { ...defaults, lidarrApiKey: '', openrouterApiKey: '', glmApiKey: '', anthropicApiKey: '', anthropicBaseUrl: 'https://api.anthropic.com/v1' };
+  currentConfig = { ...defaults, lidarrApiKey: '', openrouterApiKey: '', glmApiKey: '', anthropicApiKey: '', anthropicBaseUrl: 'https://api.anthropic.com/v1', lastfmApiKey: '' };
   if (typeof window !== 'undefined') {
     localStorage.removeItem('serviceConfig');
   }

@@ -27,6 +27,7 @@ export function ServicesSettings() {
     anthropicBaseUrl?: string;
     navidromeUrl?: string;
     lidarrUrl?: string;
+    lastfmApiKey?: string;
   }>({});
 
   const [loading, setLoading] = useState(false);
@@ -38,8 +39,10 @@ export function ServicesSettings() {
     ollamaUrl?: string;
     navidromeUrl?: string;
     lidarrUrl?: string;
+    lastfmApiKey?: string;
   } | null>(null);
   const [testing, setTesting] = useState(false);
+  const [lastfmTesting, setLastfmTesting] = useState(false);
 
   // Load existing config on mount
   useEffect(() => {
@@ -60,6 +63,7 @@ export function ServicesSettings() {
             anthropicBaseUrl: data.config.anthropicBaseUrl,
             navidromeUrl: data.config.navidromeUrl,
             lidarrUrl: data.config.lidarrUrl,
+            lastfmApiKey: data.config.lastfmApiKey,
           });
         }
       })
@@ -97,6 +101,7 @@ export function ServicesSettings() {
       anthropicBaseUrl: config.anthropicBaseUrl,
       navidromeUrl: config.navidromeUrl,
       lidarrUrl: config.lidarrUrl,
+      lastfmApiKey: config.lastfmApiKey,
     };
 
     try {
@@ -136,6 +141,7 @@ export function ServicesSettings() {
           ollamaUrl: 'unreachable',
           navidromeUrl: 'unreachable',
           lidarrUrl: 'unreachable',
+          lastfmApiKey: 'unreachable',
         });
       }
     } catch {
@@ -144,9 +150,37 @@ export function ServicesSettings() {
         ollamaUrl: 'unreachable',
         navidromeUrl: 'unreachable',
         lidarrUrl: 'unreachable',
+        lastfmApiKey: 'unreachable',
       });
     } finally {
       setTesting(false);
+    }
+  };
+
+  // Test Last.fm connection specifically
+  const testLastFmConnection = async () => {
+    setLastfmTesting(true);
+    try {
+      const res = await fetch('/api/lastfm/test', { method: 'POST' });
+      const json = await res.json();
+      if (json.success) {
+        setTestStatuses(prev => ({
+          ...prev,
+          lastfmApiKey: 'connected',
+        }));
+      } else {
+        setTestStatuses(prev => ({
+          ...prev,
+          lastfmApiKey: json.code === 'LASTFM_NOT_CONFIGURED' ? 'not configured' : 'error',
+        }));
+      }
+    } catch {
+      setTestStatuses(prev => ({
+        ...prev,
+        lastfmApiKey: 'unreachable',
+      }));
+    } finally {
+      setLastfmTesting(false);
     }
   };
 
@@ -458,6 +492,73 @@ export function ServicesSettings() {
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 Automatic music collection management
               </p>
+            </div>
+          </div>
+
+          {/* Discovery Services Section - Story 7.2 */}
+          <div className="p-4 border rounded-lg space-y-4 bg-purple-50 dark:bg-purple-900/10">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              Discovery Services
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Optional services to help you discover new music similar to what you already enjoy.
+            </p>
+
+            {/* Last.fm API Key */}
+            <div>
+              <Label htmlFor="lastfmApiKey">Last.fm API Key</Label>
+              <div className="flex gap-2 mt-2">
+                <Input
+                  id="lastfmApiKey"
+                  name="lastfmApiKey"
+                  type="password"
+                  placeholder="Your Last.fm API key"
+                  value={config.lastfmApiKey ?? ''}
+                  onChange={(e) => update('lastfmApiKey', e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={testLastFmConnection}
+                  disabled={lastfmTesting || !config.lastfmApiKey}
+                >
+                  {lastfmTesting ? 'Testing...' : 'Test'}
+                </Button>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Get your free API key from{' '}
+                <a
+                  href="https://www.last.fm/api/account/create"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-purple-600 dark:text-purple-400 hover:underline"
+                >
+                  last.fm/api
+                </a>
+                {' '}- Used for Discovery mode recommendations
+              </p>
+              {testStatuses?.lastfmApiKey && (
+                <div
+                  className={`mt-2 text-sm px-2 py-1 rounded inline-block ${
+                    testStatuses.lastfmApiKey === 'connected'
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      : testStatuses.lastfmApiKey === 'not configured'
+                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                  }`}
+                >
+                  {testStatuses.lastfmApiKey === 'connected'
+                    ? 'Connected successfully'
+                    : testStatuses.lastfmApiKey === 'not configured'
+                    ? 'Not configured'
+                    : 'Connection failed - check API key'}
+                </div>
+              )}
             </div>
           </div>
 

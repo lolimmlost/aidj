@@ -28,6 +28,9 @@ coverage/
 .env.test.local
 .env.production.local
 
+# Config with secrets
+db/config.json
+
 # OS / Editor
 .DS_Store
 Thumbs.db
