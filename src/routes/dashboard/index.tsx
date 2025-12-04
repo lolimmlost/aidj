@@ -62,8 +62,6 @@ function DashboardIndex() {
 
   // Track feedback state per song (for optimistic updates)
   const [songFeedback, setSongFeedback] = useState<Record<string, 'thumbs_up' | 'thumbs_down' | null>>({});
-  // Track feedback state for playlist items separately
-  const [playlistFeedback, setPlaylistFeedback] = useState<Record<string, 'thumbs_up' | 'thumbs_down' | null>>({});
 
   // Feedback mutation for inline buttons
   const feedbackMutation = useMutation({
@@ -114,61 +112,6 @@ function DashboardIndex() {
       // Check if it's a duplicate feedback error
       const isDuplicate = error instanceof Error && error.message.includes('already rated');
 
-      if (isDuplicate) {
-        toast.info('Already rated', {
-          description: 'You have already provided feedback for this song',
-          duration: 2000,
-        });
-      } else {
-        toast.error('Failed to save feedback', {
-          description: error instanceof Error ? error.message : 'Please try again',
-          duration: 3000,
-        });
-      }
-    },
-  });
-
-  // Feedback mutation for playlist items (same API, separate state tracking)
-  const playlistFeedbackMutation = useMutation({
-    mutationFn: async ({ song, feedbackType, songId }: { song: string; feedbackType: 'thumbs_up' | 'thumbs_down'; songId?: string }) => {
-      const response = await fetch('/api/recommendations/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          songArtistTitle: song,
-          songId: songId || null,
-          feedbackType,
-          source: 'playlist_generator',
-        }),
-      });
-      if (!response.ok) {
-        if (response.status === 409) {
-          await response.json();
-          console.log('✓ Playlist feedback already exists');
-          return;
-        }
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to submit feedback');
-      }
-      return response.json();
-    },
-    onMutate: async ({ song, feedbackType }) => {
-      setPlaylistFeedback(prev => ({ ...prev, [song]: feedbackType }));
-    },
-    onSuccess: (_, { feedbackType }) => {
-      queryClient.invalidateQueries({ queryKey: ['preference-analytics'] });
-      const emoji = feedbackType === 'thumbs_up' ? '👍' : '👎';
-      const message = feedbackType === 'thumbs_up' ? 'Good recommendation!' : 'Bad recommendation';
-      toast.success(`${message} ${emoji}`, {
-        description: 'Your feedback helps improve future playlists',
-        duration: 2000,
-      });
-    },
-    onError: (error, { song }) => {
-      console.error('Failed to submit playlist feedback:', error);
-      setPlaylistFeedback(prev => ({ ...prev, [song]: null }));
-
-      const isDuplicate = error instanceof Error && error.message.includes('already rated');
       if (isDuplicate) {
         toast.info('Already rated', {
           description: 'You have already provided feedback for this song',
@@ -1372,55 +1315,6 @@ function DashboardIndex() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          {/* Feedback buttons for playlist items */}
-                          {(() => {
-                            const currentFeedback = playlistFeedback[item.song];
-                            const hasFeedback = currentFeedback !== undefined && currentFeedback !== null;
-                            return (
-                              <div className="flex items-center gap-1 bg-background/50 rounded-lg p-1">
-                                <Button
-                                  variant={currentFeedback === 'thumbs_up' ? "default" : "ghost"}
-                                  size="sm"
-                                  onClick={() => playlistFeedbackMutation.mutate({ song: item.song, feedbackType: 'thumbs_up', songId: item.songId || undefined })}
-                                  disabled={playlistFeedbackMutation.isPending || hasFeedback}
-                                  className={`h-8 w-8 p-0 ${currentFeedback === 'thumbs_up' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
-                                  title={hasFeedback ? (currentFeedback === 'thumbs_up' ? 'Good recommendation' : 'Already rated') : 'Good recommendation'}
-                                >
-                                  {playlistFeedbackMutation.isPending && currentFeedback === 'thumbs_up' ? (
-                                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                                    </svg>
-                                  ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M7 10v12"/>
-                                      <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/>
-                                    </svg>
-                                  )}
-                                </Button>
-                                <Button
-                                  variant={currentFeedback === 'thumbs_down' ? "default" : "ghost"}
-                                  size="sm"
-                                  onClick={() => playlistFeedbackMutation.mutate({ song: item.song, feedbackType: 'thumbs_down', songId: item.songId || undefined })}
-                                  disabled={playlistFeedbackMutation.isPending || hasFeedback}
-                                  className={`h-8 w-8 p-0 ${currentFeedback === 'thumbs_down' ? 'bg-red-600 hover:bg-red-700 text-white' : ''}`}
-                                  title={hasFeedback ? (currentFeedback === 'thumbs_down' ? 'Bad recommendation' : 'Already rated') : 'Bad recommendation'}
-                                >
-                                  {playlistFeedbackMutation.isPending && currentFeedback === 'thumbs_down' ? (
-                                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                                    </svg>
-                                  ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M17 14V2"/>
-                                      <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z"/>
-                                    </svg>
-                                  )}
-                                </Button>
-                              </div>
-                            );
-                          })()}
                           {hasSong ? (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -1454,7 +1348,7 @@ function DashboardIndex() {
                                     // Use playNow to preserve shuffle state
                                     playNow(item.songId!, songForPlayer);
                                     toast.success(`Now playing: ${title}`);
-
+                                    
                                     // Set user action flag to prevent AI DJ auto-refresh
                                     setAIUserActionInProgress(true);
                                     setTimeout(() => setAIUserActionInProgress(false), 2000);
