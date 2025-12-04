@@ -6,12 +6,16 @@ import { Button } from '@/components/ui/button';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 
 interface SongFeedbackButtonsProps {
-  songId: string;
+  songId?: string;
   artistName: string;
   songTitle: string;
   currentFeedback?: 'thumbs_up' | 'thumbs_down' | null;
-  source?: 'search' | 'library' | 'recommendation' | 'playlist';
+  source?: 'search' | 'library' | 'recommendation' | 'playlist' | 'playlist_generator';
   size?: 'default' | 'sm' | 'lg' | 'icon';
+  /** Custom success message for thumbs up (default: "Liked") */
+  likeMessage?: string;
+  /** Custom success message for thumbs down (default: "Disliked") */
+  dislikeMessage?: string;
 }
 
 export function SongFeedbackButtons({
@@ -21,14 +25,16 @@ export function SongFeedbackButtons({
   currentFeedback = null,
   source = 'search',
   size = 'sm',
+  likeMessage = 'Liked',
+  dislikeMessage = 'Disliked',
 }: SongFeedbackButtonsProps) {
   const queryClient = useQueryClient();
-  
-  // Fetch existing feedback for this song
-  const { data: feedbackData } = useSongFeedback([songId]);
+
+  // Fetch existing feedback for this song (only if songId exists)
+  const { data: feedbackData } = useSongFeedback(songId ? [songId] : []);
   
   // Use derived state instead of separate state
-  const existingFeedback = feedbackData?.feedback?.[songId] || null;
+  const existingFeedback = songId ? (feedbackData?.feedback?.[songId] || null) : null;
   const [optimisticFeedback, setOptimisticFeedback] = useState<'thumbs_up' | 'thumbs_down' | null>(currentFeedback || existingFeedback);
 
   const feedbackMutation = useMutation({
@@ -64,9 +70,10 @@ export function SongFeedbackButtons({
     onSuccess: (_, feedbackType) => {
       // Invalidate feedback queries to refetch updated state
       queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
+      queryClient.invalidateQueries({ queryKey: ['preference-analytics'] });
 
-      // Show success toast
-      const action = feedbackType === 'thumbs_up' ? 'Liked' : 'Disliked';
+      // Show success toast with custom messages
+      const action = feedbackType === 'thumbs_up' ? likeMessage : dislikeMessage;
       toast.success(`${action} "${songTitle}"`, {
         description: artistName,
         duration: 2000,

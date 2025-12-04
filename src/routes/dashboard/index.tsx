@@ -25,6 +25,7 @@ import type { Song } from '@/components/ui/audio-player';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 import { DashboardHero, DJFeatures, MoreFeatures } from '@/components/dashboard';
 import { SourceModeSelector, SourceBadge } from '@/components/playlist/source-mode-selector';
+import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context }) => {
@@ -1315,6 +1316,16 @@ function DashboardIndex() {
                         </div>
 
                         <div className="flex items-center gap-2">
+                          {/* Feedback buttons for playlist recommendations */}
+                          <SongFeedbackButtons
+                            songId={item.songId || undefined}
+                            artistName={item.song.split(' - ')[0] || 'Unknown'}
+                            songTitle={item.song.split(' - ').slice(1).join(' - ') || item.song}
+                            source="playlist_generator"
+                            likeMessage="Good recommendation"
+                            dislikeMessage="Bad recommendation"
+                            size="sm"
+                          />
                           {hasSong ? (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
