@@ -430,188 +430,112 @@ export function AudioPlayer() {
         <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-purple-500/5 pointer-events-none" />
 
         <div className="relative w-full max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
-          {/* Mobile Layout (< 768px) */}
-          <div className="md:hidden space-y-3" role="group" aria-label="Mobile audio controls">
+          {/* Mobile Layout (< 768px) - Compact single-row design */}
+          <div className="md:hidden space-y-2" role="group" aria-label="Mobile audio controls">
             {/* Error Display */}
             {error && (
-              <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300 text-sm shadow-md animate-in slide-in-from-top-2 duration-300" role="alert">
-                <div className="p-1.5 bg-red-100 dark:bg-red-900/40 rounded-lg">
-                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                </div>
-                <span className="flex-1">{error}</span>
+              <div className="flex items-center gap-2 px-3 py-2 bg-red-900/20 border border-red-800 rounded-lg text-red-300 text-xs" role="alert">
+                <AlertCircle className="h-3 w-3 flex-shrink-0" />
+                <span className="flex-1 truncate">{error}</span>
               </div>
             )}
-            
-            {/* Album Artwork + Song Info */}
-            <div className="flex items-start gap-3" role="group" aria-label="Song information">
-              {/* Album Artwork */}
+
+            {/* Progress Bar at top */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono text-muted-foreground w-8 text-right">
+                {formatTime(currentTime)}
+              </span>
+              <Slider
+                value={[isFinite(currentTime) ? currentTime : 0]}
+                max={isFinite(duration) && duration > 0 ? duration : 100}
+                step={0.1}
+                onValueChange={([newValue]) => seek(newValue)}
+                className="flex-1 h-1"
+                aria-label="Seek position"
+              />
+              <span className="text-[10px] font-mono text-muted-foreground w-8">
+                {formatTime(duration)}
+              </span>
+            </div>
+
+            {/* Main row: Album art, song info, controls */}
+            <div className="flex items-center gap-3">
+              {/* Small Album Artwork */}
               <div className="relative flex-shrink-0">
-                <div className="w-16 h-16 bg-gradient-to-br from-primary/20 via-purple-500/10 to-pink-500/10 rounded-lg flex items-center justify-center overflow-hidden shadow-md ring-2 ring-primary/10 transition-all duration-300">
+                <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-lg flex items-center justify-center overflow-hidden">
                   {currentSong.artist && (
-                    <span className="font-bold text-primary/70 truncate px-2 text-center text-sm">
+                    <span className="font-bold text-primary/70 text-xs">
                       {currentSong.artist.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                     </span>
                   )}
                   {isPlaying && (
-                    <>
-                      <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-purple-500/20 animate-pulse rounded-lg" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="flex gap-0.5">
-                          <div className="w-0.5 h-2 bg-primary/60 animate-[wave_1s_ease-in-out_infinite]" style={{animationDelay: '0s'}} />
-                          <div className="w-0.5 h-3 bg-primary/60 animate-[wave_1s_ease-in-out_infinite]" style={{animationDelay: '0.1s'}} />
-                          <div className="w-0.5 h-2 bg-primary/60 animate-[wave_1s_ease-in-out_infinite]" style={{animationDelay: '0.2s'}} />
-                        </div>
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <div className="flex gap-0.5">
+                        <div className="w-0.5 h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" />
+                        <div className="w-0.5 h-3 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{animationDelay: '0.1s'}} />
+                        <div className="w-0.5 h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{animationDelay: '0.2s'}} />
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
-                {/* Glow effect on playing */}
-                {isPlaying && (
-                  <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full -z-10 animate-pulse" />
-                )}
               </div>
-              
+
               {/* Song Info */}
               <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-base truncate block hover:text-primary transition-colors leading-tight" title={currentSong.name || currentSong.title || 'Unknown Song'}>
+                <h3 className="font-medium text-sm truncate">
                   {currentSong.name || currentSong.title || 'Unknown Song'}
                 </h3>
-                <p className="font-medium text-sm text-foreground/70 truncate mt-1">
-                  <span className="hover:text-primary transition-colors cursor-pointer" title={currentSong.artist || 'Unknown Artist'}>
-                    {currentSong.artist || 'Unknown Artist'}
-                  </span>
-                  {currentSong.album && (
-                    <>
-                      {' • '}
-                      <span className="hover:text-primary transition-colors cursor-pointer" title={currentSong.album}>
-                        {currentSong.album}
-                      </span>
-                    </>
-                  )}
+                <p className="text-xs text-muted-foreground truncate">
+                  {currentSong.artist || 'Unknown Artist'}
                 </p>
               </div>
-            </div>
 
-            {/* Controls */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <div className="min-h-[44px] min-w-[44px] flex items-center">
-                <AddToPlaylistButton
-                  songId={currentSong.id}
-                  artistName={currentSong.artist || 'Unknown Artist'}
-                  songTitle={currentSong.name}
-                  size="icon"
-                />
-              </div>
-            </div>
-
-            {/* Progress Bar */}
-            <div role="group" aria-label="Playback progress">
-              <div className="flex items-center gap-2 px-1">
-                <span className="text-xs font-mono text-muted-foreground min-w-[2.5rem]">
-                  {formatTime(currentTime)}
-                </span>
-                <Slider
-                  value={[isFinite(currentTime) ? currentTime : 0]}
-                  max={isFinite(duration) && duration > 0 ? duration : 100}
-                  step={0.1}
-                  onValueChange={([newValue]) => seek(newValue)}
-                  className="flex-1 h-2"
-                  aria-label="Seek position"
-                  aria-valuemax={isFinite(duration) && duration > 0 ? duration : 100}
-                  aria-valuenow={Math.round(isFinite(currentTime) ? currentTime : 0)}
-                />
-                <span className="text-xs font-mono text-muted-foreground min-w-[2.5rem]">
-                  {formatTime(duration)}
-                </span>
-              </div>
-            </div>
-
-            {/* Mobile Controls */}
-            <div className="flex items-center justify-between gap-2" role="group" aria-label="Playback controls">
-              <div className="flex items-center gap-2">
+              {/* Compact Controls */}
+              <div className="flex items-center gap-1">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="rounded-full hover:bg-accent/20"
+                  className="h-8 w-8 p-0"
                   onClick={handleToggleLike}
                   disabled={isLikePending}
-                  aria-label={isLiked ? 'Unlike song' : 'Like song'}
                 >
-                  <Heart className={cn("h-4 w-4", isLiked ? "fill-current text-red-500" : "")} />
-                </Button>
-                
-                <div className="min-h-[44px] min-w-[44px] flex items-center">
-                  <AddToPlaylistButton
-                    songId={currentSong.id}
-                    artistName={currentSong.artist || 'Unknown Artist'}
-                    songTitle={currentSong.name}
-                    size="icon"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "rounded-full hover:bg-accent/20 transition-all duration-200",
-                    isShuffled ? "text-primary bg-primary/10 hover:bg-primary/20" : ""
-                  )}
-                  onClick={toggleShuffle}
-                  aria-label={isShuffled ? "Disable shuffle" : "Enable shuffle"}
-                  aria-pressed={isShuffled}
-                >
-                  <Shuffle className="h-4 w-4" />
+                  <Heart className={cn("h-4 w-4", isLiked && "fill-current text-red-500")} />
                 </Button>
 
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="rounded-full hover:bg-accent/20"
+                  className="h-8 w-8 p-0"
                   onClick={previousSong}
-                  aria-label="Previous song"
                 >
                   <SkipBack className="h-4 w-4" />
                 </Button>
 
                 <Button
-                  variant="ghost"
+                  variant="default"
                   size="sm"
-                  className="rounded-full transition-all duration-300 shadow-lg hover:scale-105 relative"
+                  className="h-10 w-10 p-0 rounded-full"
                   onClick={togglePlayPause}
                   disabled={isLoading}
-                  aria-label={isPlaying ? "Pause" : "Play"}
-                  aria-busy={isLoading}
                 >
-                  {isPlaying && (
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full blur-md -z-10 animate-pulse" />
-                  )}
                   {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-5 w-5 animate-spin" />
                   ) : isPlaying ? (
-                    <Pause className="h-4 w-4" />
+                    <Pause className="h-5 w-5" />
                   ) : (
-                    <Play className="h-4 w-4 ml-0.5" />
+                    <Play className="h-5 w-5 ml-0.5" />
                   )}
                 </Button>
 
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="rounded-full hover:bg-accent/20"
+                  className="h-8 w-8 p-0"
                   onClick={nextSong}
-                  aria-label="Next song"
                 >
                   <SkipForward className="h-4 w-4" />
                 </Button>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <VolumeControl
-                  volume={volume}
-                  onChange={changeVolume}
-                />
+
                 <AIDJToggle compact />
               </div>
             </div>

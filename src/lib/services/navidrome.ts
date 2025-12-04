@@ -1361,3 +1361,103 @@ export async function addSongsToPlaylist(playlistId: string, songIds: string[]):
     throw new ServiceError('NAVIDROME_API_ERROR', `Failed to add songs to playlist: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
+
+/**
+ * Get top artists by play count
+ * Uses Navidrome's getArtists endpoint sorted by play count
+ */
+export async function getTopArtists(limit: number = 5): Promise<ArtistWithDetails[]> {
+  try {
+    // Fetch all artists with details
+    const artists = await getArtistsWithDetails(0, 100);
+
+    // Sort by song count (proxy for play count) and return top N
+    const sorted = artists.sort((a, b) => (b.songCount || 0) - (a.songCount || 0));
+
+    console.log(`🎨 Top ${limit} artists fetched`);
+    return sorted.slice(0, limit);
+  } catch (error) {
+    console.error('Failed to get top artists:', error);
+    return [];
+  }
+}
+
+/**
+ * Get most played songs
+ * Uses Navidrome's getSongsByFrequent or falls back to starred songs
+ */
+export async function getMostPlayedSongs(limit: number = 5): Promise<SubsonicSong[]> {
+  try {
+    // Try to get frequently played songs first
+    const endpoint = `/rest/getAlbumList2?type=frequent&size=${limit}`;
+    const data = await apiFetch(endpoint) as any;
+
+    const albums = data['subsonic-response']?.albumList2?.album || data.albumList2?.album || [];
+
+    if (albums.length > 0) {
+      // Get songs from the most played albums
+      const songs: SubsonicSong[] = [];
+      for (const album of albums.slice(0, 3)) {
+        const albumSongs = await getSongs(album.id, 0, 2);
+        songs.push(...albumSongs.map(s => ({
+          id: s.id,
+          title: s.name || s.title || '',
+          artist: s.artist || '',
+          albumId: s.albumId,
+          album: s.album,
+          duration: String(s.duration),
+          track: String(s.track),
+        })));
+      }
+      console.log(`🎵 Fetched ${songs.length} most played songs`);
+      return songs.slice(0, limit);
+    }
+
+    // Fallback to starred songs
+    const starred = await getStarredSongs();
+    console.log(`🎵 Fallback: ${starred.length} starred songs`);
+    return starred.slice(0, limit);
+  } catch (error) {
+    console.error('Failed to get most played songs:', error);
+    return [];
+  }
+}
+
+/**
+ * Get recently played songs
+ * Uses Navidrome's getNowPlaying or getAlbumList2 with type=recent
+ */
+export async function getRecentlyPlayedSongs(limit: number = 10): Promise<SubsonicSong[]> {
+  try {
+    // Get recently played albums
+    const endpoint = `/rest/getAlbumList2?type=recent&size=${Math.min(limit, 10)}`;
+    const data = await apiFetch(endpoint) as any;
+
+    const albums = data['subsonic-response']?.albumList2?.album || data.albumList2?.album || [];
+
+    if (albums.length > 0) {
+      // Get songs from the recently played albums
+      const songs: SubsonicSong[] = [];
+      for (const album of albums) {
+        const albumSongs = await getSongs(album.id, 0, 2);
+        songs.push(...albumSongs.map(s => ({
+          id: s.id,
+          title: s.name || s.title || '',
+          artist: s.artist || '',
+          albumId: s.albumId,
+          album: s.album,
+          duration: String(s.duration),
+          track: String(s.track),
+        })));
+        if (songs.length >= limit) break;
+      }
+      console.log(`🕐 Fetched ${songs.length} recently played songs`);
+      return songs.slice(0, limit);
+    }
+
+    return [];
+  } catch (error) {
+    console.error('Failed to get recently played songs:', error);
+    return [];
+  }
+}

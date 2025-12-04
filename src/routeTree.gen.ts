@@ -68,6 +68,8 @@ import { ServerRoute as ApiLidarrHistoryServerRouteImport } from "./routes/api/l
 import { ServerRoute as ApiLidarrCancelServerRouteImport } from "./routes/api/lidarr/cancel";
 import { ServerRoute as ApiLidarrAvailabilityServerRouteImport } from "./routes/api/lidarr/availability";
 import { ServerRoute as ApiLidarrAddServerRouteImport } from "./routes/api/lidarr/add";
+import { ServerRoute as ApiLibraryTopArtistsServerRouteImport } from "./routes/api/library/top-artists";
+import { ServerRoute as ApiLibraryMostPlayedServerRouteImport } from "./routes/api/library/most-played";
 import { ServerRoute as ApiLibraryProfileAnalyzeServerRouteImport } from "./routes/api/library-profile/analyze";
 import { ServerRoute as ApiLastfmTopTracksServerRouteImport } from "./routes/api/lastfm/top-tracks";
 import { ServerRoute as ApiLastfmTestServerRouteImport } from "./routes/api/lastfm/test";
@@ -390,6 +392,18 @@ const ApiLidarrAddServerRoute = ApiLidarrAddServerRouteImport.update({
   path: "/api/lidarr/add",
   getParentRoute: () => rootServerRouteImport,
 } as any);
+const ApiLibraryTopArtistsServerRoute =
+  ApiLibraryTopArtistsServerRouteImport.update({
+    id: "/api/library/top-artists",
+    path: "/api/library/top-artists",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
+const ApiLibraryMostPlayedServerRoute =
+  ApiLibraryMostPlayedServerRouteImport.update({
+    id: "/api/library/most-played",
+    path: "/api/library/most-played",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
 const ApiLibraryProfileAnalyzeServerRoute =
   ApiLibraryProfileAnalyzeServerRouteImport.update({
     id: "/api/library-profile/analyze",
@@ -807,6 +821,8 @@ export interface FileServerRoutesByFullPath {
   "/api/lastfm/test": typeof ApiLastfmTestServerRoute;
   "/api/lastfm/top-tracks": typeof ApiLastfmTopTracksServerRoute;
   "/api/library-profile/analyze": typeof ApiLibraryProfileAnalyzeServerRoute;
+  "/api/library/most-played": typeof ApiLibraryMostPlayedServerRoute;
+  "/api/library/top-artists": typeof ApiLibraryTopArtistsServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
   "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
   "/api/lidarr/cancel": typeof ApiLidarrCancelServerRoute;
@@ -855,6 +871,8 @@ export interface FileServerRoutesByTo {
   "/api/lastfm/test": typeof ApiLastfmTestServerRoute;
   "/api/lastfm/top-tracks": typeof ApiLastfmTopTracksServerRoute;
   "/api/library-profile/analyze": typeof ApiLibraryProfileAnalyzeServerRoute;
+  "/api/library/most-played": typeof ApiLibraryMostPlayedServerRoute;
+  "/api/library/top-artists": typeof ApiLibraryTopArtistsServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
   "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
   "/api/lidarr/cancel": typeof ApiLidarrCancelServerRoute;
@@ -904,6 +922,8 @@ export interface FileServerRoutesById {
   "/api/lastfm/test": typeof ApiLastfmTestServerRoute;
   "/api/lastfm/top-tracks": typeof ApiLastfmTopTracksServerRoute;
   "/api/library-profile/analyze": typeof ApiLibraryProfileAnalyzeServerRoute;
+  "/api/library/most-played": typeof ApiLibraryMostPlayedServerRoute;
+  "/api/library/top-artists": typeof ApiLibraryTopArtistsServerRoute;
   "/api/lidarr/add": typeof ApiLidarrAddServerRoute;
   "/api/lidarr/availability": typeof ApiLidarrAvailabilityServerRoute;
   "/api/lidarr/cancel": typeof ApiLidarrCancelServerRoute;
@@ -954,6 +974,8 @@ export interface FileServerRouteTypes {
     | "/api/lastfm/test"
     | "/api/lastfm/top-tracks"
     | "/api/library-profile/analyze"
+    | "/api/library/most-played"
+    | "/api/library/top-artists"
     | "/api/lidarr/add"
     | "/api/lidarr/availability"
     | "/api/lidarr/cancel"
@@ -1002,6 +1024,8 @@ export interface FileServerRouteTypes {
     | "/api/lastfm/test"
     | "/api/lastfm/top-tracks"
     | "/api/library-profile/analyze"
+    | "/api/library/most-played"
+    | "/api/library/top-artists"
     | "/api/lidarr/add"
     | "/api/lidarr/availability"
     | "/api/lidarr/cancel"
@@ -1050,6 +1074,8 @@ export interface FileServerRouteTypes {
     | "/api/lastfm/test"
     | "/api/lastfm/top-tracks"
     | "/api/library-profile/analyze"
+    | "/api/library/most-played"
+    | "/api/library/top-artists"
     | "/api/lidarr/add"
     | "/api/lidarr/availability"
     | "/api/lidarr/cancel"
@@ -1099,6 +1125,8 @@ export interface RootServerRouteChildren {
   ApiLastfmTestServerRoute: typeof ApiLastfmTestServerRoute;
   ApiLastfmTopTracksServerRoute: typeof ApiLastfmTopTracksServerRoute;
   ApiLibraryProfileAnalyzeServerRoute: typeof ApiLibraryProfileAnalyzeServerRoute;
+  ApiLibraryMostPlayedServerRoute: typeof ApiLibraryMostPlayedServerRoute;
+  ApiLibraryTopArtistsServerRoute: typeof ApiLibraryTopArtistsServerRoute;
   ApiLidarrAddServerRoute: typeof ApiLidarrAddServerRoute;
   ApiLidarrAvailabilityServerRoute: typeof ApiLidarrAvailabilityServerRoute;
   ApiLidarrCancelServerRoute: typeof ApiLidarrCancelServerRoute;
@@ -1525,6 +1553,20 @@ declare module "@tanstack/react-start/server" {
       preLoaderRoute: typeof ApiLidarrAddServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
+    "/api/library/top-artists": {
+      id: "/api/library/top-artists";
+      path: "/api/library/top-artists";
+      fullPath: "/api/library/top-artists";
+      preLoaderRoute: typeof ApiLibraryTopArtistsServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/library/most-played": {
+      id: "/api/library/most-played";
+      path: "/api/library/most-played";
+      fullPath: "/api/library/most-played";
+      preLoaderRoute: typeof ApiLibraryMostPlayedServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
     "/api/library-profile/analyze": {
       id: "/api/library-profile/analyze";
       path: "/api/library-profile/analyze";
@@ -1879,6 +1921,8 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiLastfmTestServerRoute: ApiLastfmTestServerRoute,
   ApiLastfmTopTracksServerRoute: ApiLastfmTopTracksServerRoute,
   ApiLibraryProfileAnalyzeServerRoute: ApiLibraryProfileAnalyzeServerRoute,
+  ApiLibraryMostPlayedServerRoute: ApiLibraryMostPlayedServerRoute,
+  ApiLibraryTopArtistsServerRoute: ApiLibraryTopArtistsServerRoute,
   ApiLidarrAddServerRoute: ApiLidarrAddServerRoute,
   ApiLidarrAvailabilityServerRoute: ApiLidarrAvailabilityServerRoute,
   ApiLidarrCancelServerRoute: ApiLidarrCancelServerRoute,

@@ -5,6 +5,7 @@ import {
   HeadContent,
   Outlet,
   Scripts,
+  useRouterState,
 } from "@tanstack/react-router";
 
 import { TanStackDevtools } from "@tanstack/react-devtools";
@@ -19,6 +20,7 @@ import { Toaster } from "~/components/ui/sonner";
 import { AudioPlayer } from "~/components/ui/audio-player";
 import { QueuePanel } from "~/components/ui/queue-panel";
 import { MobileNav } from "~/components/ui/mobile-nav";
+import { AppLayout } from "~/components/layout";
 import { useAudioStore } from "~/lib/stores/audio";
 
 export const Route = createRootRouteWithContext<{
@@ -91,18 +93,44 @@ export const Route = createRootRouteWithContext<{
 function RootComponent() {
   const { isPlaying, playlist, currentSongIndex } = useAudioStore();
   const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
+  const routerState = useRouterState();
+  const currentPath = routerState.location.pathname;
+
+  // Use new AppLayout for main app routes (dashboard, library, playlists, dj, settings)
+  const useNewLayout = currentPath.startsWith('/dashboard') ||
+                       currentPath.startsWith('/library') ||
+                       currentPath.startsWith('/playlists') ||
+                       currentPath.startsWith('/dj') ||
+                       currentPath.startsWith('/downloads') ||
+                       currentPath.startsWith('/settings');
+
+  // Routes that should NOT have the new layout (landing, auth pages)
+  const isAuthPage = currentPath.startsWith('/login') ||
+                     currentPath.startsWith('/signup') ||
+                     currentPath === '/';
+
   return (
     <RootDocument>
-      <MobileNav />
-      <div className={`transition-all duration-300 ${hasActiveSong ? 'pb-20 md:pb-16' : ''}`}>
-        <Outlet />
-      </div>
-      {hasActiveSong && (
+      {useNewLayout ? (
+        // New three-column layout for main app
+        <AppLayout>
+          <Outlet />
+        </AppLayout>
+      ) : (
+        // Legacy layout for landing/auth pages
         <>
-          <div className={`transition-all duration-300 fixed bottom-0 left-0 right-0 z-50 ${isPlaying ? 'bg-background border-t' : 'opacity-50'}`}>
-            <AudioPlayer />
+          {!isAuthPage && <MobileNav />}
+          <div className={`transition-all duration-300 ${hasActiveSong && !isAuthPage ? 'pb-20 md:pb-16' : ''}`}>
+            <Outlet />
           </div>
-          <QueuePanel />
+          {hasActiveSong && !isAuthPage && (
+            <>
+              <div className={`transition-all duration-300 fixed bottom-0 left-0 right-0 z-50 ${isPlaying ? 'bg-background border-t' : 'opacity-50'}`}>
+                <AudioPlayer />
+              </div>
+              <QueuePanel />
+            </>
+          )}
         </>
       )}
     </RootDocument>

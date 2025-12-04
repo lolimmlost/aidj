@@ -1,0 +1,528 @@
+import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import {
+  SkipBack,
+  SkipForward,
+  Play,
+  Pause,
+  Heart,
+  Loader2,
+  Volume2,
+  VolumeX,
+  Shuffle,
+  Repeat,
+  ListMusic,
+  Maximize2,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
+import { useAudioStore } from '@/lib/stores/audio';
+import { AIDJToggle } from '@/components/ai-dj-toggle';
+import { scrobbleSong } from '@/lib/services/navidrome';
+import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+
+// Helper function for time formatting
+const formatTime = (time: number) => {
+  if (!isFinite(time) || time < 0) return '0:00';
+  const minutes = Math.floor(time / 60);
+  const seconds = Math.floor(time % 60);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
+/**
+ * Compact Player Bar for the new three-column layout
+ * Fixed at the bottom of the screen
+ */
+export function PlayerBar() {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const hasScrobbledRef = useRef<boolean>(false);
+  const scrobbleThresholdReachedRef = useRef<boolean>(false);
+  const currentSongIdRef = useRef<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const {
+    playlist,
+    currentSongIndex,
+    isPlaying,
+    currentTime,
+    duration,
+    volume,
+    isShuffled,
+    setIsPlaying,
+    setCurrentTime,
+    setDuration,
+    setVolume,
+    nextSong,
+    previousSong,
+    toggleShuffle,
+    setAIUserActionInProgress,
+    toggleQueuePanel,
+  } = useAudioStore();
+
+  const currentSong = useMemo(() => playlist[currentSongIndex] || null, [playlist, currentSongIndex]);
+  const queryClient = useQueryClient();
+
+  // Fetch feedback for current song
+  const { data: feedbackData } = useSongFeedback(currentSong ? [currentSong.id] : []);
+  const isLiked = useMemo(() => feedbackData?.feedback?.[currentSong?.id] === 'thumbs_up', [feedbackData, currentSong?.id]);
+
+  // Like/unlike mutation
+  const { mutate: likeMutate, isPending: isLikePending } = useMutation({
+    mutationFn: async (liked: boolean) => {
+      setAIUserActionInProgress(true);
+      const response = await fetch('/api/recommendations/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          songId: currentSong.id,
+          songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
+          feedbackType: liked ? 'thumbs_up' : 'thumbs_down',
+          source: 'library',
+        }),
+      });
+      if (!response.ok && response.status !== 409) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update feedback');
+      }
+      return response.json();
+    },
+    onSuccess: (_, liked) => {
+      queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
+      toast.success(liked ? '❤️ Liked' : '💔 Unliked', { duration: 1500 });
+    },
+    onError: (error: Error) => {
+      toast.error('Failed', { description: error.message });
+    },
+    onSettled: () => {
+      setTimeout(() => setAIUserActionInProgress(false), 1000);
+    },
+  });
+
+  const handleToggleLike = useCallback(() => {
+    if (!currentSong || isLikePending) return;
+    likeMutate(!isLiked);
+  }, [currentSong, isLikePending, isLiked, likeMutate]);
+
+  const loadSong = useCallback((song: typeof currentSong) => {
+    const audio = audioRef.current;
+    if (audio && song) {
+      audio.src = song.url;
+      audio.load();
+      setCurrentTime(0);
+      setDuration(0);
+      hasScrobbledRef.current = false;
+      scrobbleThresholdReachedRef.current = false;
+      currentSongIdRef.current = song.id;
+    }
+  }, [setCurrentTime, setDuration]);
+
+  const togglePlayPause = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      if (isPlaying) {
+        audio.pause();
+      } else {
+        setIsLoading(true);
+        audio.play().catch((e) => {
+          setIsLoading(false);
+          console.error('Play failed:', e);
+        }).finally(() => setIsLoading(false));
+      }
+      setIsPlaying(!isPlaying);
+    }
+  }, [isPlaying, setIsPlaying]);
+
+  const seek = useCallback((time: number) => {
+    const audio = audioRef.current;
+    if (audio && !isNaN(time) && isFinite(time)) {
+      audio.currentTime = time;
+      setCurrentTime(time);
+    }
+  }, [setCurrentTime]);
+
+  const changeVolume = useCallback((newVolume: number) => {
+    const clampedVolume = Math.max(0, Math.min(1, newVolume));
+    setVolume(clampedVolume);
+    if (audioRef.current) {
+      audioRef.current.volume = clampedVolume;
+    }
+  }, [setVolume]);
+
+  // Audio event listeners
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const updateTime = () => {
+      setCurrentTime(audio.currentTime);
+      if (audio.duration > 0 && currentSong) {
+        const playedPercentage = (audio.currentTime / audio.duration) * 100;
+        if (playedPercentage >= 50 && !scrobbleThresholdReachedRef.current) {
+          scrobbleThresholdReachedRef.current = true;
+        }
+      }
+    };
+
+    const updateDuration = () => setDuration(audio.duration);
+    const onCanPlay = () => setIsLoading(false);
+    const onWaiting = () => setIsLoading(true);
+    const onEnded = () => {
+      if (currentSongIdRef.current && !hasScrobbledRef.current) {
+        hasScrobbledRef.current = true;
+        scrobbleSong(currentSongIdRef.current, true).catch(console.error);
+      }
+      nextSong();
+    };
+
+    audio.addEventListener('timeupdate', updateTime);
+    audio.addEventListener('loadedmetadata', updateDuration);
+    audio.addEventListener('canplay', onCanPlay);
+    audio.addEventListener('waiting', onWaiting);
+    audio.addEventListener('ended', onEnded);
+    audio.volume = volume;
+
+    return () => {
+      audio.removeEventListener('timeupdate', updateTime);
+      audio.removeEventListener('loadedmetadata', updateDuration);
+      audio.removeEventListener('canplay', onCanPlay);
+      audio.removeEventListener('waiting', onWaiting);
+      audio.removeEventListener('ended', onEnded);
+    };
+  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong]);
+
+  // Load song when it changes
+  useEffect(() => {
+    if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {
+      const song = playlist[currentSongIndex];
+      const audio = audioRef.current;
+      if (audio && song && currentSongIdRef.current !== song.id) {
+        const handleCanPlay = () => {
+          setIsLoading(false);
+          if (isPlaying) {
+            audio.play().catch(console.error);
+          }
+          audio.removeEventListener('canplay', handleCanPlay);
+        };
+        audio.addEventListener('canplay', handleCanPlay);
+        loadSong(song);
+
+        return () => {
+          audio.removeEventListener('canplay', handleCanPlay);
+          if (scrobbleThresholdReachedRef.current && !hasScrobbledRef.current && currentSongIdRef.current) {
+            hasScrobbledRef.current = true;
+            scrobbleSong(currentSongIdRef.current, true).catch(console.error);
+          }
+        };
+      }
+    }
+  }, [currentSongIndex, playlist, isPlaying, loadSong]);
+
+  // Handle play/pause state changes
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !audio.src || audio.readyState < 2) return;
+
+    if (isPlaying) {
+      audio.play().catch(console.error);
+    } else {
+      audio.pause();
+    }
+  }, [isPlaying]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName || '')) return;
+
+      switch (e.key) {
+        case ' ':
+          e.preventDefault();
+          togglePlayPause();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          seek(Math.max(0, currentTime - 5));
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          seek(Math.min(duration, currentTime + 5));
+          break;
+        case 'm':
+        case 'M':
+          e.preventDefault();
+          changeVolume(volume > 0 ? 0 : 0.5);
+          break;
+        case 'l':
+        case 'L':
+          e.preventDefault();
+          handleToggleLike();
+          break;
+        case 's':
+        case 'S':
+          e.preventDefault();
+          toggleShuffle();
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [togglePlayPause, seek, changeVolume, handleToggleLike, currentTime, duration, volume, toggleShuffle]);
+
+  if (!currentSong) return null;
+
+  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  return (
+    <>
+      {/* Mobile Layout */}
+      <div className="md:hidden px-3 py-2 space-y-2">
+        {/* Progress bar at top */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-muted-foreground w-8 text-right">
+            {formatTime(currentTime)}
+          </span>
+          <Slider
+            value={[isFinite(currentTime) ? currentTime : 0]}
+            max={isFinite(duration) && duration > 0 ? duration : 100}
+            step={0.1}
+            onValueChange={([newValue]) => seek(newValue)}
+            className="flex-1 h-1"
+          />
+          <span className="text-[10px] font-mono text-muted-foreground w-8">
+            {formatTime(duration)}
+          </span>
+        </div>
+
+        {/* Main row: Album art, song info, controls */}
+        <div className="flex items-center gap-3">
+          {/* Small Album Artwork */}
+          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 relative overflow-hidden">
+            <span className="font-bold text-xs text-primary/60">
+              {currentSong.artist?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '♪'}
+            </span>
+            {isPlaying && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                <div className="flex gap-0.5">
+                  <div className="w-0.5 h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" />
+                  <div className="w-0.5 h-3 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
+                  <div className="w-0.5 h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Song Info */}
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-sm truncate">{currentSong.name || currentSong.title}</p>
+            <p className="text-xs text-muted-foreground truncate">{currentSong.artist || 'Unknown'}</p>
+          </div>
+
+          {/* Compact Controls */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={handleToggleLike}
+              disabled={isLikePending}
+            >
+              <Heart className={cn("h-4 w-4", isLiked && "fill-current text-red-500")} />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={previousSong}
+            >
+              <SkipBack className="h-4 w-4" />
+            </Button>
+
+            <Button
+              variant="default"
+              size="sm"
+              className="h-10 w-10 p-0 rounded-full"
+              onClick={togglePlayPause}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : isPlaying ? (
+                <Pause className="h-5 w-5" />
+              ) : (
+                <Play className="h-5 w-5 ml-0.5" />
+              )}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={nextSong}
+            >
+              <SkipForward className="h-4 w-4" />
+            </Button>
+
+            <AIDJToggle compact />
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Layout */}
+      <div className="hidden md:flex h-20 px-4 items-center gap-4 relative">
+        {/* Progress bar - thin line at top */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-muted">
+          <div
+            className="h-full bg-primary transition-all duration-100"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+
+        {/* Left: Song Info */}
+        <div className="flex items-center gap-3 w-72 min-w-0">
+          {/* Mini Album Art */}
+          <div className="w-14 h-14 rounded-md bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 relative">
+            <span className="font-bold text-lg text-primary/60">
+              {currentSong.artist?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '♪'}
+            </span>
+            {isPlaying && (
+              <div className="absolute inset-0 bg-primary/10 animate-pulse rounded-md" />
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="font-medium truncate text-sm">{currentSong.name || currentSong.title}</p>
+            <p className="text-xs text-muted-foreground truncate">{currentSong.artist || 'Unknown'}</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 flex-shrink-0"
+            onClick={handleToggleLike}
+            disabled={isLikePending}
+          >
+            <Heart className={cn("h-4 w-4", isLiked && "fill-current text-red-500")} />
+          </Button>
+        </div>
+
+        {/* Center: Controls + Progress */}
+        <div className="flex-1 flex flex-col items-center justify-center max-w-2xl mx-auto gap-1">
+          {/* Playback Controls */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-8 w-8 p-0",
+                isShuffled && "text-primary"
+              )}
+              onClick={toggleShuffle}
+            >
+              <Shuffle className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={previousSong}
+            >
+              <SkipBack className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              className="h-10 w-10 p-0 rounded-full"
+              onClick={togglePlayPause}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : isPlaying ? (
+                <Pause className="h-5 w-5" />
+              ) : (
+                <Play className="h-5 w-5 ml-0.5" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={nextSong}
+            >
+              <SkipForward className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-muted-foreground"
+            >
+              <Repeat className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="flex items-center gap-2 w-full">
+            <span className="text-xs text-muted-foreground w-10 text-right font-mono">
+              {formatTime(currentTime)}
+            </span>
+            <Slider
+              value={[isFinite(currentTime) ? currentTime : 0]}
+              max={isFinite(duration) && duration > 0 ? duration : 100}
+              step={0.1}
+              onValueChange={([newValue]) => seek(newValue)}
+              className="flex-1"
+            />
+            <span className="text-xs text-muted-foreground w-10 font-mono">
+              {formatTime(duration)}
+            </span>
+          </div>
+        </div>
+
+        {/* Right: Volume + Queue + AI DJ */}
+        <div className="flex items-center gap-2 w-72 justify-end">
+          <AIDJToggle compact />
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={toggleQueuePanel}
+          >
+            <ListMusic className="h-4 w-4" />
+          </Button>
+
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => changeVolume(volume > 0 ? 0 : 0.5)}
+            >
+              {volume > 0 ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            </Button>
+            <Slider
+              value={[volume * 100]}
+              max={100}
+              step={1}
+              onValueChange={([newValue]) => changeVolume(newValue / 100)}
+              className="w-24"
+            />
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Hidden Audio Element - shared between mobile and desktop */}
+      <audio ref={audioRef} preload="metadata" className="hidden" />
+    </>
+  );
+}
