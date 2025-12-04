@@ -35,6 +35,17 @@ export async function evaluateSmartPlaylistRules(rules: SmartPlaylistRules): Pro
     const allSongs = await getSongsGlobal(0, 10000);
     console.log(`📚 Retrieved ${allSongs.length} songs from library`);
 
+    // Log genre distribution for debugging (only first time or periodically)
+    const genreCounts = new Map<string, number>();
+    for (const song of allSongs) {
+      const genre = song.genre || 'Unknown';
+      genreCounts.set(genre, (genreCounts.get(genre) || 0) + 1);
+    }
+    const topGenres = Array.from(genreCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15);
+    console.log('🎵 Top genres in library:', topGenres.map(([g, c]) => `${g} (${c})`).join(', '));
+
     // Filter songs based on rules
     let filteredSongs = allSongs.map(song => ({
       id: song.id,

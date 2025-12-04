@@ -169,8 +169,9 @@ export function PlayerBar() {
     const onCanPlay = () => setIsLoading(false);
     const onWaiting = () => setIsLoading(true);
     const onEnded = () => {
-      if (currentSongIdRef.current && !hasScrobbledRef.current) {
+      if (currentSongIdRef.current && !hasScrobbledRef.current && currentSong) {
         hasScrobbledRef.current = true;
+        // Scrobble to Navidrome
         scrobbleSong(currentSongIdRef.current, true)
           .then(() => {
             // Invalidate most-played and top-artists queries since play counts changed
@@ -178,6 +179,30 @@ export function PlayerBar() {
             queryClient.invalidateQueries({ queryKey: ['top-artists'] });
           })
           .catch(console.error);
+
+        // Record in listening history for compound scoring (Phase 4)
+        fetch('/api/listening-history/record', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            songId: currentSongIdRef.current,
+            artist: currentSong.artist || 'Unknown',
+            title: currentSong.name || currentSong.title || 'Unknown',
+            album: currentSong.album,
+            genre: currentSong.genre,
+            duration: audio.duration,
+            playDuration: audio.currentTime,
+          }),
+        })
+          .then(res => {
+            if (!res.ok) {
+              return res.json().then(data => {
+                console.warn('Listening history API error:', data);
+              });
+            }
+            console.log('📊 Recorded listening history');
+          })
+          .catch(err => console.warn('Failed to record listening history:', err));
       }
       nextSong();
     };

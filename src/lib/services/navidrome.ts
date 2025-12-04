@@ -183,6 +183,12 @@ export interface RawSong {
   duration: number;
   track: number;
   trackNumber?: number; // From search2
+  genre?: string; // Genre tag from Navidrome
+  genres?: Array<{ id: string; name: string }>; // Multi-genre from Navidrome native API
+  year?: number;
+  playCount?: number;
+  rating?: number;
+  starred?: boolean; // Navidrome's "loved" field
 }
 
 interface SubsonicSearchResponse {
@@ -225,6 +231,12 @@ export interface SubsonicSong {
   album?: string;
   duration: string;
   track: string;
+  genre?: string;
+  year?: number;
+  playCount?: number;
+  rating?: number;
+  loved?: boolean;
+  bitrate?: number;
 }
 
 export interface NavidromePlaylist {
@@ -264,6 +276,11 @@ export type Song = {
   trackNumber?: number;
   explicitContent?: 'true' | 'false' | boolean;
   discNumber?: string | number;
+  genre?: string; // Genre tag
+  year?: number;
+  playCount?: number;
+  rating?: number;
+  loved?: boolean; // Starred/favorited
 };
 
 
@@ -848,6 +865,11 @@ export async function getSongsGlobal(start: number = 0, limit: number = 50): Pro
     const songs = data.map((song) => ({
       ...song,
       url: `/api/navidrome/stream/${song.id}`,
+      // Map genre - Navidrome native API returns genres as array of {id, name}
+      genre: song.genre || (song.genres && song.genres.length > 0
+        ? song.genres.map(g => g.name).join(', ')
+        : ''),
+      loved: song.starred || false,
     })) as Song[];
     return songs || [];
   } catch (error) {
@@ -1081,6 +1103,53 @@ export async function getStarredSongs(): Promise<SubsonicSong[]> {
  * @param time - Optional timestamp (defaults to now)
  */
 export async function scrobbleSong(songId: string, submission: boolean = true, time?: Date): Promise<void> {
+  // Check if we're on the client side - if so, use the API proxy
+  const isClient = typeof window !== 'undefined';
+
+  if (isClient) {
+    // Client-side: use the API proxy to avoid CORS issues
+    try {
+      const params = new URLSearchParams({
+        id: songId,
+        submission: submission.toString(),
+        v: '1.16.1',
+        c: 'aidj',
+        f: 'json',
+      });
+
+      if (time) {
+        params.append('time', time.getTime().toString());
+      }
+
+      const response = await fetch(`/api/navidrome/rest/scrobble?${params.toString()}`, {
+        method: 'GET',
+      });
+
+      if (!response?.ok) {
+        const errorText = await response.text();
+        console.error('Failed to scrobble song:', errorText);
+        return;
+      }
+
+      const data = await response.json();
+      if (data?.['subsonic-response']?.status !== 'ok') {
+        console.error('Subsonic API error:', data?.['subsonic-response']?.error?.message || 'Unknown error');
+        return;
+      }
+
+      if (submission) {
+        console.log(`🎵 Scrobbled song ${songId} in Navidrome (play count updated)`);
+      } else {
+        console.log(`▶️ Updated now playing status for song ${songId} in Navidrome`);
+      }
+    } catch (error) {
+      console.error('Failed to scrobble song in Navidrome:', error);
+      // Don't throw error - scrobbling should fail silently to not disrupt playback
+    }
+    return;
+  }
+
+  // Server-side: direct access to Navidrome
   const config = getConfig();
   if (!config.navidromeUrl) {
     throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');

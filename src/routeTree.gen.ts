@@ -62,6 +62,8 @@ import { ServerRoute as ApiRecommendationsClearServerRouteImport } from "./route
 import { ServerRoute as ApiRecommendationsAnalyticsServerRouteImport } from "./routes/api/recommendations/analytics";
 import { ServerRoute as ApiPlaylistsSyncServerRouteImport } from "./routes/api/playlists/sync";
 import { ServerRoute as ApiPlaylistsIdServerRouteImport } from "./routes/api/playlists/$id";
+import { ServerRoute as ApiListeningHistoryRecordServerRouteImport } from "./routes/api/listening-history/record";
+import { ServerRoute as ApiListeningHistoryCompoundScoresServerRouteImport } from "./routes/api/listening-history/compound-scores";
 import { ServerRoute as ApiLidarrStatusServerRouteImport } from "./routes/api/lidarr/status";
 import { ServerRoute as ApiLidarrSearchServerRouteImport } from "./routes/api/lidarr/search";
 import { ServerRoute as ApiLidarrHistoryServerRouteImport } from "./routes/api/lidarr/history";
@@ -85,6 +87,7 @@ import { ServerRoute as ApiPlaylistsSmartPreviewServerRouteImport } from "./rout
 import { ServerRoute as ApiPlaylistsLikedSongsSyncServerRouteImport } from "./routes/api/playlists/liked-songs/sync";
 import { ServerRoute as ApiPlaylistsIdReorderServerRouteImport } from "./routes/api/playlists/$id/reorder";
 import { ServerRoute as ApiNavidromeStreamIdServerRouteImport } from "./routes/api/navidrome/stream/$id";
+import { ServerRoute as ApiNavidromeRestScrobbleServerRouteImport } from "./routes/api/navidrome/rest/scrobble";
 import { ServerRoute as ApiNavidromeAuthLoginServerRouteImport } from "./routes/api/navidrome/auth/login";
 import { ServerRoute as ApiNavidromeApiSongServerRouteImport } from "./routes/api/navidrome/api/song";
 import { ServerRoute as ApiNavidromeApiArtistServerRouteImport } from "./routes/api/navidrome/api/artist";
@@ -361,6 +364,18 @@ const ApiPlaylistsIdServerRoute = ApiPlaylistsIdServerRouteImport.update({
   path: "/api/playlists/$id",
   getParentRoute: () => rootServerRouteImport,
 } as any);
+const ApiListeningHistoryRecordServerRoute =
+  ApiListeningHistoryRecordServerRouteImport.update({
+    id: "/api/listening-history/record",
+    path: "/api/listening-history/record",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
+const ApiListeningHistoryCompoundScoresServerRoute =
+  ApiListeningHistoryCompoundScoresServerRouteImport.update({
+    id: "/api/listening-history/compound-scores",
+    path: "/api/listening-history/compound-scores",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
 const ApiLidarrStatusServerRoute = ApiLidarrStatusServerRouteImport.update({
   id: "/api/lidarr/status",
   path: "/api/lidarr/status",
@@ -487,6 +502,12 @@ const ApiNavidromeStreamIdServerRoute =
   ApiNavidromeStreamIdServerRouteImport.update({
     id: "/api/navidrome/stream/$id",
     path: "/api/navidrome/stream/$id",
+    getParentRoute: () => rootServerRouteImport,
+  } as any);
+const ApiNavidromeRestScrobbleServerRoute =
+  ApiNavidromeRestScrobbleServerRouteImport.update({
+    id: "/api/navidrome/rest/scrobble",
+    path: "/api/navidrome/rest/scrobble",
     getParentRoute: () => rootServerRouteImport,
   } as any);
 const ApiNavidromeAuthLoginServerRoute =
@@ -829,6 +850,8 @@ export interface FileServerRoutesByFullPath {
   "/api/lidarr/history": typeof ApiLidarrHistoryServerRoute;
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
+  "/api/listening-history/compound-scores": typeof ApiListeningHistoryCompoundScoresServerRoute;
+  "/api/listening-history/record": typeof ApiListeningHistoryRecordServerRoute;
   "/api/playlists/$id": typeof ApiPlaylistsIdServerRouteWithChildren;
   "/api/playlists/sync": typeof ApiPlaylistsSyncServerRoute;
   "/api/recommendations/analytics": typeof ApiRecommendationsAnalyticsServerRoute;
@@ -843,6 +866,7 @@ export interface FileServerRoutesByFullPath {
   "/api/navidrome/api/artist": typeof ApiNavidromeApiArtistServerRouteWithChildren;
   "/api/navidrome/api/song": typeof ApiNavidromeApiSongServerRoute;
   "/api/navidrome/auth/login": typeof ApiNavidromeAuthLoginServerRoute;
+  "/api/navidrome/rest/scrobble": typeof ApiNavidromeRestScrobbleServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/playlists/$id/reorder": typeof ApiPlaylistsIdReorderServerRoute;
   "/api/playlists/liked-songs/sync": typeof ApiPlaylistsLikedSongsSyncServerRoute;
@@ -879,6 +903,8 @@ export interface FileServerRoutesByTo {
   "/api/lidarr/history": typeof ApiLidarrHistoryServerRoute;
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
+  "/api/listening-history/compound-scores": typeof ApiListeningHistoryCompoundScoresServerRoute;
+  "/api/listening-history/record": typeof ApiListeningHistoryRecordServerRoute;
   "/api/playlists/$id": typeof ApiPlaylistsIdServerRouteWithChildren;
   "/api/playlists/sync": typeof ApiPlaylistsSyncServerRoute;
   "/api/recommendations/analytics": typeof ApiRecommendationsAnalyticsServerRoute;
@@ -893,6 +919,7 @@ export interface FileServerRoutesByTo {
   "/api/navidrome/api/artist": typeof ApiNavidromeApiArtistServerRouteWithChildren;
   "/api/navidrome/api/song": typeof ApiNavidromeApiSongServerRoute;
   "/api/navidrome/auth/login": typeof ApiNavidromeAuthLoginServerRoute;
+  "/api/navidrome/rest/scrobble": typeof ApiNavidromeRestScrobbleServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/playlists/$id/reorder": typeof ApiPlaylistsIdReorderServerRoute;
   "/api/playlists/liked-songs/sync": typeof ApiPlaylistsLikedSongsSyncServerRoute;
@@ -930,6 +957,8 @@ export interface FileServerRoutesById {
   "/api/lidarr/history": typeof ApiLidarrHistoryServerRoute;
   "/api/lidarr/search": typeof ApiLidarrSearchServerRoute;
   "/api/lidarr/status": typeof ApiLidarrStatusServerRoute;
+  "/api/listening-history/compound-scores": typeof ApiListeningHistoryCompoundScoresServerRoute;
+  "/api/listening-history/record": typeof ApiListeningHistoryRecordServerRoute;
   "/api/playlists/$id": typeof ApiPlaylistsIdServerRouteWithChildren;
   "/api/playlists/sync": typeof ApiPlaylistsSyncServerRoute;
   "/api/recommendations/analytics": typeof ApiRecommendationsAnalyticsServerRoute;
@@ -944,6 +973,7 @@ export interface FileServerRoutesById {
   "/api/navidrome/api/artist": typeof ApiNavidromeApiArtistServerRouteWithChildren;
   "/api/navidrome/api/song": typeof ApiNavidromeApiSongServerRoute;
   "/api/navidrome/auth/login": typeof ApiNavidromeAuthLoginServerRoute;
+  "/api/navidrome/rest/scrobble": typeof ApiNavidromeRestScrobbleServerRoute;
   "/api/navidrome/stream/$id": typeof ApiNavidromeStreamIdServerRoute;
   "/api/playlists/$id/reorder": typeof ApiPlaylistsIdReorderServerRoute;
   "/api/playlists/liked-songs/sync": typeof ApiPlaylistsLikedSongsSyncServerRoute;
@@ -982,6 +1012,8 @@ export interface FileServerRouteTypes {
     | "/api/lidarr/history"
     | "/api/lidarr/search"
     | "/api/lidarr/status"
+    | "/api/listening-history/compound-scores"
+    | "/api/listening-history/record"
     | "/api/playlists/$id"
     | "/api/playlists/sync"
     | "/api/recommendations/analytics"
@@ -996,6 +1028,7 @@ export interface FileServerRouteTypes {
     | "/api/navidrome/api/artist"
     | "/api/navidrome/api/song"
     | "/api/navidrome/auth/login"
+    | "/api/navidrome/rest/scrobble"
     | "/api/navidrome/stream/$id"
     | "/api/playlists/$id/reorder"
     | "/api/playlists/liked-songs/sync"
@@ -1032,6 +1065,8 @@ export interface FileServerRouteTypes {
     | "/api/lidarr/history"
     | "/api/lidarr/search"
     | "/api/lidarr/status"
+    | "/api/listening-history/compound-scores"
+    | "/api/listening-history/record"
     | "/api/playlists/$id"
     | "/api/playlists/sync"
     | "/api/recommendations/analytics"
@@ -1046,6 +1081,7 @@ export interface FileServerRouteTypes {
     | "/api/navidrome/api/artist"
     | "/api/navidrome/api/song"
     | "/api/navidrome/auth/login"
+    | "/api/navidrome/rest/scrobble"
     | "/api/navidrome/stream/$id"
     | "/api/playlists/$id/reorder"
     | "/api/playlists/liked-songs/sync"
@@ -1082,6 +1118,8 @@ export interface FileServerRouteTypes {
     | "/api/lidarr/history"
     | "/api/lidarr/search"
     | "/api/lidarr/status"
+    | "/api/listening-history/compound-scores"
+    | "/api/listening-history/record"
     | "/api/playlists/$id"
     | "/api/playlists/sync"
     | "/api/recommendations/analytics"
@@ -1096,6 +1134,7 @@ export interface FileServerRouteTypes {
     | "/api/navidrome/api/artist"
     | "/api/navidrome/api/song"
     | "/api/navidrome/auth/login"
+    | "/api/navidrome/rest/scrobble"
     | "/api/navidrome/stream/$id"
     | "/api/playlists/$id/reorder"
     | "/api/playlists/liked-songs/sync"
@@ -1133,6 +1172,8 @@ export interface RootServerRouteChildren {
   ApiLidarrHistoryServerRoute: typeof ApiLidarrHistoryServerRoute;
   ApiLidarrSearchServerRoute: typeof ApiLidarrSearchServerRoute;
   ApiLidarrStatusServerRoute: typeof ApiLidarrStatusServerRoute;
+  ApiListeningHistoryCompoundScoresServerRoute: typeof ApiListeningHistoryCompoundScoresServerRoute;
+  ApiListeningHistoryRecordServerRoute: typeof ApiListeningHistoryRecordServerRoute;
   ApiPlaylistsIdServerRoute: typeof ApiPlaylistsIdServerRouteWithChildren;
   ApiPlaylistsSyncServerRoute: typeof ApiPlaylistsSyncServerRoute;
   ApiPlaylistsIndexServerRoute: typeof ApiPlaylistsIndexServerRoute;
@@ -1141,6 +1182,7 @@ export interface RootServerRouteChildren {
   ApiNavidromeApiArtistServerRoute: typeof ApiNavidromeApiArtistServerRouteWithChildren;
   ApiNavidromeApiSongServerRoute: typeof ApiNavidromeApiSongServerRoute;
   ApiNavidromeAuthLoginServerRoute: typeof ApiNavidromeAuthLoginServerRoute;
+  ApiNavidromeRestScrobbleServerRoute: typeof ApiNavidromeRestScrobbleServerRoute;
   ApiNavidromeStreamIdServerRoute: typeof ApiNavidromeStreamIdServerRoute;
   ApiPlaylistsLikedSongsSyncServerRoute: typeof ApiPlaylistsLikedSongsSyncServerRoute;
   ApiPlaylistsSmartPreviewServerRoute: typeof ApiPlaylistsSmartPreviewServerRoute;
@@ -1511,6 +1553,20 @@ declare module "@tanstack/react-start/server" {
       preLoaderRoute: typeof ApiPlaylistsIdServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
+    "/api/listening-history/record": {
+      id: "/api/listening-history/record";
+      path: "/api/listening-history/record";
+      fullPath: "/api/listening-history/record";
+      preLoaderRoute: typeof ApiListeningHistoryRecordServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/listening-history/compound-scores": {
+      id: "/api/listening-history/compound-scores";
+      path: "/api/listening-history/compound-scores";
+      fullPath: "/api/listening-history/compound-scores";
+      preLoaderRoute: typeof ApiListeningHistoryCompoundScoresServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
     "/api/lidarr/status": {
       id: "/api/lidarr/status";
       path: "/api/lidarr/status";
@@ -1670,6 +1726,13 @@ declare module "@tanstack/react-start/server" {
       path: "/api/navidrome/stream/$id";
       fullPath: "/api/navidrome/stream/$id";
       preLoaderRoute: typeof ApiNavidromeStreamIdServerRouteImport;
+      parentRoute: typeof rootServerRouteImport;
+    };
+    "/api/navidrome/rest/scrobble": {
+      id: "/api/navidrome/rest/scrobble";
+      path: "/api/navidrome/rest/scrobble";
+      fullPath: "/api/navidrome/rest/scrobble";
+      preLoaderRoute: typeof ApiNavidromeRestScrobbleServerRouteImport;
       parentRoute: typeof rootServerRouteImport;
     };
     "/api/navidrome/auth/login": {
@@ -1929,6 +1992,9 @@ const rootServerRouteChildren: RootServerRouteChildren = {
   ApiLidarrHistoryServerRoute: ApiLidarrHistoryServerRoute,
   ApiLidarrSearchServerRoute: ApiLidarrSearchServerRoute,
   ApiLidarrStatusServerRoute: ApiLidarrStatusServerRoute,
+  ApiListeningHistoryCompoundScoresServerRoute:
+    ApiListeningHistoryCompoundScoresServerRoute,
+  ApiListeningHistoryRecordServerRoute: ApiListeningHistoryRecordServerRoute,
   ApiPlaylistsIdServerRoute: ApiPlaylistsIdServerRouteWithChildren,
   ApiPlaylistsSyncServerRoute: ApiPlaylistsSyncServerRoute,
   ApiPlaylistsIndexServerRoute: ApiPlaylistsIndexServerRoute,
@@ -1939,6 +2005,7 @@ const rootServerRouteChildren: RootServerRouteChildren = {
     ApiNavidromeApiArtistServerRouteWithChildren,
   ApiNavidromeApiSongServerRoute: ApiNavidromeApiSongServerRoute,
   ApiNavidromeAuthLoginServerRoute: ApiNavidromeAuthLoginServerRoute,
+  ApiNavidromeRestScrobbleServerRoute: ApiNavidromeRestScrobbleServerRoute,
   ApiNavidromeStreamIdServerRoute: ApiNavidromeStreamIdServerRoute,
   ApiPlaylistsLikedSongsSyncServerRoute: ApiPlaylistsLikedSongsSyncServerRoute,
   ApiPlaylistsSmartPreviewServerRoute: ApiPlaylistsSmartPreviewServerRoute,

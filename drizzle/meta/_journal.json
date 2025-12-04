@@ -50,6 +50,13 @@
       "when": 1761597103988,
       "tag": "0006_massive_oracle",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1764824299964,
+      "tag": "0007_listening-history",
+      "breakpoints": true
     }
   ]
 }

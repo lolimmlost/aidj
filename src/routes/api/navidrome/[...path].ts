@@ -1,7 +1,7 @@
 import { createServerFileRoute } from '@tanstack/react-start/server';
 import { ServiceError } from '../../../lib/utils';
 import { getConfig } from '@/lib/config/config';
-import { getAuthToken, token, clientId } from '@/lib/services/navidrome';
+import { getAuthToken, token, clientId, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
 
 export const ServerRoute = createServerFileRoute('/api/navidrome/[./path]').methods({
   GET: async ({ params, request }) => {
@@ -24,6 +24,14 @@ export const ServerRoute = createServerFileRoute('/api/navidrome/[./path]').meth
 
       const url = new URL(`${config.navidromeUrl}/${path}`);
       url.search = new URL(request.url).search;
+
+      // For Subsonic API endpoints (/rest/*), add subsonic auth params
+      const isSubsonicApi = path.startsWith('rest/');
+      if (isSubsonicApi && subsonicToken && subsonicSalt) {
+        url.searchParams.set('u', config.navidromeUsername || '');
+        url.searchParams.set('t', subsonicToken);
+        url.searchParams.set('s', subsonicSalt);
+      }
 
       const headers = new Headers(request.headers);
       // Remove host-related headers if needed

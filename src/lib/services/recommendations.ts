@@ -21,6 +21,10 @@ import { getSongsGlobal, type SubsonicSong } from './navidrome';
 import { translateMoodToQuery, toEvaluatorFormat } from './mood-translator';
 import type { Song } from '@/components/ui/audio-player';
 import { getConfigAsync } from '@/lib/config/config';
+import {
+  applyCompoundScoreBoost,
+  getCompoundScoredRecommendations,
+} from './compound-scoring';
 
 /**
  * Get the Last.fm client, initializing with API key from config if needed
@@ -37,7 +41,7 @@ async function getLastFmClientWithConfig() {
 // Types
 // ============================================================================
 
-export type RecommendationMode = 'similar' | 'discovery' | 'mood';
+export type RecommendationMode = 'similar' | 'discovery' | 'mood' | 'personalized';
 
 export interface RecommendationRequest {
   mode: RecommendationMode;
@@ -51,17 +55,25 @@ export interface RecommendationRequest {
   excludeSongIds?: string[];
   /** Artist names to exclude (for diversity) */
   excludeArtists?: string[];
+  /** User ID for personalized compound scoring (Phase 4) */
+  userId?: string;
+  /** Weight for compound score boost (0-1, default 0.3) */
+  compoundScoreWeight?: number;
 }
 
 export interface RecommendationResult {
   songs: Song[];
-  source: 'lastfm' | 'smart-playlist' | 'fallback';
+  source: 'lastfm' | 'smart-playlist' | 'fallback' | 'compound';
   mode: RecommendationMode;
   /** Optional metadata about the recommendation */
   metadata?: {
     totalCandidates?: number;
     filteredCount?: number;
     fallbackReason?: string;
+    /** Whether compound scoring was applied */
+    compoundScoreApplied?: boolean;
+    /** Number of songs that had compound scores */
+    compoundScoredCount?: number;
   };
 }
 
@@ -110,6 +122,8 @@ export async function getRecommendations(
       return getDiscoverySongs(request);
     case 'mood':
       return getMoodBasedSongs(request);
+    case 'personalized':
+      return getPersonalizedSongs(request);
     default: {
       const exhaustiveCheck: never = mode;
       throw new Error(`Unknown recommendation mode: ${exhaustiveCheck}`);
@@ -125,6 +139,9 @@ export async function getRecommendations(
  * Get similar songs that exist in the user's library
  * Uses Last.fm getSimilarTracks API with library enrichment
  *
+ * Phase 4 Enhancement: When userId is provided, applies compound scoring
+ * based on the user's listening history for better personalization.
+ *
  * This replaces:
  * - AI DJ auto-queue functionality
  * - Auto recommendations from ollama.ts
@@ -132,7 +149,14 @@ export async function getRecommendations(
 async function getSimilarSongs(
   request: RecommendationRequest
 ): Promise<RecommendationResult> {
-  const { currentSong, limit = 10, excludeSongIds = [], excludeArtists = [] } = request;
+  const {
+    currentSong,
+    limit = 10,
+    excludeSongIds = [],
+    excludeArtists = [],
+    userId,
+    compoundScoreWeight = 0.3,
+  } = request;
 
   if (!currentSong) {
     throw new Error('currentSong required for similar mode');
@@ -173,13 +197,39 @@ async function getSimilarSongs(
       return fallbackToGenreRandom(currentSong, limit, 'no_library_matches');
     }
 
+    // Convert to Song format
+    let songs = diverse.slice(0, limit).map(enrichedTrackToSong);
+
+    // Phase 4: Apply compound score boost if userId is provided
+    let compoundScoreApplied = false;
+    let compoundScoredCount = 0;
+
+    if (userId && compoundScoreWeight > 0) {
+      try {
+        const originalOrder = songs.map(s => s.id);
+        songs = await applyCompoundScoreBoost(userId, songs, compoundScoreWeight);
+        compoundScoreApplied = true;
+
+        // Count how many songs changed position (indicates compound scoring was effective)
+        compoundScoredCount = songs.filter((s, i) => s.id !== originalOrder[i]).length;
+
+        if (compoundScoredCount > 0) {
+          console.log(`📊 [Recommendations] Compound scoring reordered ${compoundScoredCount} songs`);
+        }
+      } catch (error) {
+        console.warn('⚠️ [Recommendations] Compound scoring failed, using original order:', error);
+      }
+    }
+
     return {
-      songs: diverse.slice(0, limit).map(enrichedTrackToSong),
+      songs,
       source: 'lastfm',
       mode: 'similar',
       metadata: {
         totalCandidates: similar.length,
         filteredCount: inLibrary.length,
+        compoundScoreApplied,
+        compoundScoredCount,
       },
     };
   } catch (error) {
@@ -292,6 +342,88 @@ async function getMoodBasedSongs(
     console.error('❌ [Recommendations] Smart playlist error:', error);
     // Fallback to random high-rated songs
     return fallbackToRandom(limit, 'smart_playlist_error');
+  }
+}
+
+// ============================================================================
+// Personalized Recommendations (Compound Score Only)
+// ============================================================================
+
+/**
+ * Get personalized recommendations based purely on listening history
+ * Uses compound scoring - songs suggested by multiple played songs rank higher
+ *
+ * Phase 4: This mode doesn't require a seed song - it's based entirely on
+ * the user's listening history and accumulated similarity data.
+ *
+ * @example
+ * const result = await getRecommendations({
+ *   mode: 'personalized',
+ *   userId: 'user-123',
+ *   limit: 20,
+ * });
+ */
+async function getPersonalizedSongs(
+  request: RecommendationRequest
+): Promise<RecommendationResult> {
+  const {
+    limit = 20,
+    excludeSongIds = [],
+    excludeArtists = [],
+    userId,
+  } = request;
+
+  if (!userId) {
+    throw new Error('userId required for personalized mode');
+  }
+
+  console.log(`📊 [Recommendations] Getting personalized recommendations for user ${userId}`);
+
+  try {
+    // Get compound-scored recommendations
+    const recommendations = await getCompoundScoredRecommendations(userId, {
+      limit: limit * 2, // Get extra to account for filtering
+      excludeSongIds,
+      excludeArtists,
+      minSourceCount: 2, // Require at least 2 source songs for stronger signal
+    });
+
+    if (recommendations.length === 0) {
+      console.log('⚠️ [Recommendations] No compound scores available, using fallback');
+      return fallbackToRandom(limit, 'no_compound_scores');
+    }
+
+    // Convert compound scores to Song objects
+    // We need to fetch actual song data from Navidrome
+    const songs: Song[] = [];
+    for (const rec of recommendations.slice(0, limit)) {
+      songs.push({
+        id: rec.songId,
+        title: rec.title,
+        name: rec.title,
+        artist: rec.artist,
+        album: '',
+        duration: '0',
+        track: '0',
+        url: `/api/navidrome/stream/${rec.songId}`,
+      });
+    }
+
+    console.log(`✅ [Recommendations] Returning ${songs.length} personalized recommendations`);
+
+    return {
+      songs,
+      source: 'compound',
+      mode: 'personalized',
+      metadata: {
+        totalCandidates: recommendations.length,
+        compoundScoreApplied: true,
+        compoundScoredCount: songs.length,
+      },
+    };
+  } catch (error) {
+    console.error('❌ [Recommendations] Compound scoring error:', error);
+    return fallbackToRandom(limit, 'compound_scoring_error');
   }
 }
 
