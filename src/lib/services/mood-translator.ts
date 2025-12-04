@@ -106,12 +106,28 @@ const EXAMPLE_QUERIES = `Examples:
 export async function translateMoodToQuery(moodDescription: string): Promise<SmartPlaylistQuery> {
   console.log(`🎭 [MoodTranslator] Translating: "${moodDescription}"`);
 
+  // Phase 3: Check keyword fallback FIRST for common terms
+  // This is faster and produces better variety than AI for simple moods
+  const keywordResult = keywordFallback(moodDescription);
+
+  // If keyword fallback found a specific match (not the default "random"), use it
+  // The default has empty "all" array, so check if we have actual conditions
+  const hasKeywordMatch = (keywordResult.any && keywordResult.any.length > 0) ||
+                          (keywordResult.all && keywordResult.all.length > 0 &&
+                           keywordResult.all.some(c => c.field !== 'rating'));
+
+  if (hasKeywordMatch) {
+    console.log(`✅ [MoodTranslator] Using keyword match for better variety`);
+    return keywordResult;
+  }
+
+  // For complex/unusual moods, use AI translation
   let provider: LLMProvider;
   try {
     provider = getLLMProvider();
   } catch {
     console.warn('⚠️ [MoodTranslator] LLM provider not available, using keyword fallback');
-    return keywordFallback(moodDescription);
+    return keywordResult;
   }
 
   const prompt = `${SYSTEM_PROMPT}
@@ -140,7 +156,7 @@ JSON query:`;
     return query;
   } catch (error) {
     console.warn('⚠️ [MoodTranslator] AI translation failed, using keyword fallback:', error);
-    return keywordFallback(moodDescription);
+    return keywordResult;
   }
 }
 
@@ -400,12 +416,15 @@ function keywordFallback(mood: string): SmartPlaylistQuery {
     };
   }
 
-  // Favorites/ratings
+  // Favorites/ratings - try loved first, then fall back to playCount
   if (moodLower.includes('favorite') || moodLower.includes('best') || moodLower.includes('loved')) {
     return {
-      all: [{ field: 'rating', operator: 'gt', value: 4 }],
+      any: [
+        { field: 'loved', operator: 'is', value: true },
+        { field: 'playCount', operator: 'gt', value: 5 } // Frequently played = likely favorites
+      ],
       limit: 50,
-      sort: 'rating',
+      sort: 'playCount',
     };
   }
 
@@ -418,10 +437,11 @@ function keywordFallback(mood: string): SmartPlaylistQuery {
     };
   }
 
-  // Default: highly rated songs
-  console.log('ℹ️ [MoodTranslator] No keyword match, defaulting to highly rated songs');
+  // Default: random songs from the library (no filters)
+  // Previously defaulted to rating > 3, but most libraries don't have rated songs
+  console.log('ℹ️ [MoodTranslator] No keyword match, defaulting to random songs');
   return {
-    all: [{ field: 'rating', operator: 'gt', value: 3 }],
+    all: [], // No filters - just return random songs
     limit: 25,
     sort: 'random',
   };

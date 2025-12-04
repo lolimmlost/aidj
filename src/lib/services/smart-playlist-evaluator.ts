@@ -55,6 +55,7 @@ export async function evaluateSmartPlaylistRules(rules: SmartPlaylistRules): Pro
     }));
 
     // Apply 'all' conditions (AND logic)
+    // If rules.all is empty or undefined, no filtering is applied (all songs pass)
     if (rules.all && rules.all.length > 0) {
       for (const condition of rules.all) {
         filteredSongs = applyCondition(filteredSongs, condition);
@@ -121,33 +122,43 @@ function applyCondition(songs: SubsonicSong[], condition: RuleCondition): Subson
   console.log(`  📌 Applying condition: ${operator} ${field} ${JSON.stringify(value)}`);
 
   return songs.filter(song => {
+    const songValue = getSongField(song, field);
+
     switch (operator) {
       case 'is':
-        return getSongField(song, field) === value;
+        // For text fields like genre/artist/album, use case-insensitive contains matching
+        // This is more flexible than exact match and handles multi-value genre fields
+        if (typeof songValue === 'string' && typeof value === 'string') {
+          return songValue.toLowerCase().includes(value.toLowerCase());
+        }
+        return songValue === value;
 
       case 'isNot':
-        return getSongField(song, field) !== value;
+        if (typeof songValue === 'string' && typeof value === 'string') {
+          return !songValue.toLowerCase().includes(value.toLowerCase());
+        }
+        return songValue !== value;
 
       case 'gt':
-        return Number(getSongField(song, field)) > Number(value);
+        return Number(songValue) > Number(value);
 
       case 'lt':
-        return Number(getSongField(song, field)) < Number(value);
+        return Number(songValue) < Number(value);
 
       case 'contains':
-        return String(getSongField(song, field)).toLowerCase().includes(String(value).toLowerCase());
+        return String(songValue).toLowerCase().includes(String(value).toLowerCase());
 
       case 'notContains':
-        return !String(getSongField(song, field)).toLowerCase().includes(String(value).toLowerCase());
+        return !String(songValue).toLowerCase().includes(String(value).toLowerCase());
 
       case 'startsWith':
-        return String(getSongField(song, field)).toLowerCase().startsWith(String(value).toLowerCase());
+        return String(songValue).toLowerCase().startsWith(String(value).toLowerCase());
 
       case 'endsWith':
-        return String(getSongField(song, field)).toLowerCase().endsWith(String(value).toLowerCase());
+        return String(songValue).toLowerCase().endsWith(String(value).toLowerCase());
 
       case 'inTheRange': {
-        const numValue = Number(getSongField(song, field));
+        const numValue = Number(songValue);
         return numValue >= value[0] && numValue <= value[1];
       }
 

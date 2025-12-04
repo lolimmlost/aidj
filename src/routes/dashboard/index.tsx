@@ -275,6 +275,23 @@ function DashboardIndex() {
 
         for (const rec of data.data.recommendations) {
           try {
+            // Phase 3: Check if recommendation already has songId (pre-resolved from smart playlist)
+            if (rec.songId && rec.url) {
+              foundInLibrary++;
+              validatedRecommendations.push({
+                ...rec,
+                foundInLibrary: true,
+                actualSong: {
+                  id: rec.songId,
+                  url: rec.url,
+                  name: rec.song.split(' - ').slice(1).join(' - ') || rec.song,
+                  artist: rec.song.split(' - ')[0] || 'Unknown',
+                }
+              });
+              console.log(`✅ Pre-resolved: ${rec.song}`);
+              continue;
+            }
+
             // Parse "Artist - Title" format and use multi-strategy search
             const parts = rec.song.split(' - ');
             let foundSong = null;

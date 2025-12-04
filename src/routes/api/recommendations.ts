@@ -1,8 +1,9 @@
+// API endpoint for mood-based recommendations
+// Phase 3: Updated to use unified recommendations service (AI mood translation)
+
 import { createServerFileRoute } from '@tanstack/react-start/server';
 import { ServiceError } from '../../lib/utils';
-import { generateRecommendations } from '../../lib/services/ollama';
-import { getOrCreateLibraryProfile } from '../../lib/services/library-profile';
-import { rankRecommendations } from '../../lib/services/genre-matcher';
+import { getRecommendations } from '../../lib/services/recommendations';
 import { auth } from '../../lib/auth/auth';
 
 export const ServerRoute = createServerFileRoute('/api/recommendations').methods({
@@ -23,8 +24,10 @@ export const ServerRoute = createServerFileRoute('/api/recommendations').methods
     }
 
     try {
-      const { prompt, model, useGenreFiltering } = await request.json() as {
+      const { prompt, limit = 20 } = await request.json() as {
         prompt: string;
+        limit?: number;
+        // Deprecated: These are no longer used
         model?: string;
         useGenreFiltering?: boolean;
       };
@@ -36,53 +39,38 @@ export const ServerRoute = createServerFileRoute('/api/recommendations').methods
         });
       }
 
-      // Generate base recommendations from Ollama
-      const recommendations = await generateRecommendations({
-        prompt,
-        model,
-        userId: session.user.id
+      console.log(`🎭 Generating mood-based recommendations for: "${prompt}"`);
+
+      // Use the unified recommendations service with 'mood' mode
+      // AI translates the mood to a smart playlist query, then Navidrome evaluates it
+      const result = await getRecommendations({
+        mode: 'mood',
+        moodDescription: prompt,
+        limit,
       });
 
-      // Apply genre-based filtering and ranking if requested (Story 3.7)
-      if (useGenreFiltering && session.user.id) {
-        try {
-          // Get library profile for genre matching
-          const libraryProfile = await getOrCreateLibraryProfile(session.user.id, false);
+      console.log(`✅ Got ${result.songs.length} recommendations from ${result.source}`);
 
-          if (libraryProfile && Object.keys(libraryProfile.genreDistribution).length > 0) {
-            // Apply genre similarity scoring and ranking
-            const scoredRecommendations = rankRecommendations(
-              libraryProfile,
-              recommendations.recommendations,
-              0.3 // Threshold: filter out scores < 0.3
-            );
+      // Transform to legacy format for backward compatibility
+      const recommendations = result.songs.map(song => ({
+        song: `${song.artist} - ${song.title}`,
+        explanation: `Matched your mood: "${prompt}"`,
+        songId: song.id,
+        url: song.url,
+        inLibrary: true,
+      }));
 
-            console.log(`🎯 Genre filtering: ${recommendations.recommendations.length} → ${scoredRecommendations.length} recommendations after filtering`);
-
-            return new Response(JSON.stringify({
-              data: {
-                recommendations: scoredRecommendations
-              }
-            }), {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' }
-            });
-          } else {
-            console.log(`⚠️ No genre profile available, returning unfiltered recommendations`);
-          }
-        } catch (genreError) {
-          // Graceful fallback: if genre filtering fails, return basic recommendations
-          console.warn('⚠️ Genre filtering failed, falling back to basic recommendations:', genreError);
+      return new Response(JSON.stringify({
+        data: {
+          recommendations,
+          source: result.source,
+          mode: result.mode,
         }
-      }
-
-      // Return basic recommendations (no genre filtering)
-      return new Response(JSON.stringify({ data: recommendations }), {
+      }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
     } catch (error: unknown) {
-      // Standardized error (AC3 stub)
       console.error('Recommendation generation failed:', error);
       let code = 'GENERAL_API_ERROR';
       let message = 'Failed to generate recommendations';

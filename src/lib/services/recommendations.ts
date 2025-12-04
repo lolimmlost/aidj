@@ -20,6 +20,18 @@ import { evaluateSmartPlaylistRules } from './smart-playlist-evaluator';
 import { getSongsGlobal, type SubsonicSong } from './navidrome';
 import { translateMoodToQuery, toEvaluatorFormat } from './mood-translator';
 import type { Song } from '@/components/ui/audio-player';
+import { getConfigAsync } from '@/lib/config/config';
+
+/**
+ * Get the Last.fm client, initializing with API key from config if needed
+ */
+async function getLastFmClientWithConfig() {
+  const config = await getConfigAsync();
+  if (!config.lastfmApiKey) {
+    return null;
+  }
+  return getLastFmClient(config.lastfmApiKey);
+}
 
 // ============================================================================
 // Types
@@ -126,7 +138,7 @@ async function getSimilarSongs(
     throw new Error('currentSong required for similar mode');
   }
 
-  const lastFm = getLastFmClient();
+  const lastFm = await getLastFmClientWithConfig();
 
   if (!lastFm) {
     console.log('⚠️ [Recommendations] Last.fm not configured, using fallback');
@@ -195,10 +207,10 @@ async function getDiscoverySongs(
     throw new Error('currentSong required for discovery mode');
   }
 
-  const lastFm = getLastFmClient();
+  const lastFm = await getLastFmClientWithConfig();
 
   if (!lastFm) {
-    throw new Error('Last.fm required for discovery mode');
+    throw new Error('Last.fm API key not configured. Please add your Last.fm API key in Settings → Services.');
   }
 
   try {
