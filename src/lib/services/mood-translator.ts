@@ -437,6 +437,504 @@ function keywordFallback(mood: string): SmartPlaylistQuery {
     };
   }
 
+  // ============================================================================
+  // Genre-specific keywords (expanded)
+  // ============================================================================
+
+  // Rock variants
+  if (moodLower.includes('rock') && !moodLower.includes('workout')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'rock' },
+        { field: 'genre', operator: 'contains', value: 'alternative' },
+        { field: 'genre', operator: 'contains', value: 'grunge' },
+        { field: 'genre', operator: 'contains', value: 'punk' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  // Metal variants
+  if (moodLower.includes('metal') || moodLower.includes('heavy')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'metal' },
+        { field: 'genre', operator: 'contains', value: 'heavy' },
+        { field: 'genre', operator: 'contains', value: 'thrash' },
+        { field: 'genre', operator: 'contains', value: 'death' },
+        { field: 'genre', operator: 'contains', value: 'black metal' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  // Electronic/EDM variants
+  if (moodLower.includes('electronic') || moodLower.includes('edm') || moodLower.includes('techno') || moodLower.includes('house')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'electronic' },
+        { field: 'genre', operator: 'contains', value: 'techno' },
+        { field: 'genre', operator: 'contains', value: 'house' },
+        { field: 'genre', operator: 'contains', value: 'trance' },
+        { field: 'genre', operator: 'contains', value: 'edm' },
+        { field: 'genre', operator: 'contains', value: 'synth' },
+      ],
+      limit: 35,
+      sort: 'random',
+    };
+  }
+
+  // Hip-hop/Rap
+  if (moodLower.includes('hip hop') || moodLower.includes('hip-hop') || moodLower.includes('rap') || moodLower.includes('hiphop')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'hip-hop' },
+        { field: 'genre', operator: 'contains', value: 'hip hop' },
+        { field: 'genre', operator: 'contains', value: 'rap' },
+        { field: 'genre', operator: 'contains', value: 'r&b' },
+        { field: 'genre', operator: 'contains', value: 'trap' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  // Jazz variants
+  if (moodLower.includes('jazz') && !moodLower.includes('chill')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'jazz' },
+        { field: 'genre', operator: 'contains', value: 'swing' },
+        { field: 'genre', operator: 'contains', value: 'bebop' },
+        { field: 'genre', operator: 'contains', value: 'fusion' },
+        { field: 'genre', operator: 'contains', value: 'smooth jazz' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  // Classical
+  if (moodLower.includes('classical') || moodLower.includes('orchestra') || moodLower.includes('symphony')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'classical' },
+        { field: 'genre', operator: 'contains', value: 'orchestra' },
+        { field: 'genre', operator: 'contains', value: 'symphony' },
+        { field: 'genre', operator: 'contains', value: 'chamber' },
+        { field: 'genre', operator: 'contains', value: 'baroque' },
+        { field: 'genre', operator: 'contains', value: 'romantic' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  // Country/Folk
+  if (moodLower.includes('country') || moodLower.includes('folk') || moodLower.includes('bluegrass') || moodLower.includes('americana')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'country' },
+        { field: 'genre', operator: 'contains', value: 'folk' },
+        { field: 'genre', operator: 'contains', value: 'bluegrass' },
+        { field: 'genre', operator: 'contains', value: 'americana' },
+        { field: 'genre', operator: 'contains', value: 'western' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  // Blues
+  if (moodLower.includes('blues')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'blues' },
+        { field: 'genre', operator: 'contains', value: 'soul' },
+        { field: 'genre', operator: 'contains', value: 'rhythm' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  // R&B/Soul
+  if (moodLower.includes('r&b') || moodLower.includes('rnb') || moodLower.includes('soul') || moodLower.includes('motown')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'r&b' },
+        { field: 'genre', operator: 'contains', value: 'soul' },
+        { field: 'genre', operator: 'contains', value: 'motown' },
+        { field: 'genre', operator: 'contains', value: 'funk' },
+        { field: 'genre', operator: 'contains', value: 'neo-soul' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  // Reggae/Ska
+  if (moodLower.includes('reggae') || moodLower.includes('ska') || moodLower.includes('dub')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'reggae' },
+        { field: 'genre', operator: 'contains', value: 'ska' },
+        { field: 'genre', operator: 'contains', value: 'dub' },
+        { field: 'genre', operator: 'contains', value: 'dancehall' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  // Indie
+  if (moodLower.includes('indie') && !moodLower.includes('sad')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'indie' },
+        { field: 'genre', operator: 'contains', value: 'alternative' },
+        { field: 'genre', operator: 'contains', value: 'lo-fi' },
+        { field: 'genre', operator: 'contains', value: 'shoegaze' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  // Pop
+  if (moodLower.includes('pop') && !moodLower.includes('party')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'pop' },
+        { field: 'genre', operator: 'contains', value: 'synth-pop' },
+        { field: 'genre', operator: 'contains', value: 'dance-pop' },
+        { field: 'genre', operator: 'contains', value: 'electropop' },
+      ],
+      limit: 35,
+      sort: 'random',
+    };
+  }
+
+  // Punk
+  if (moodLower.includes('punk')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'punk' },
+        { field: 'genre', operator: 'contains', value: 'hardcore' },
+        { field: 'genre', operator: 'contains', value: 'post-punk' },
+        { field: 'genre', operator: 'contains', value: 'emo' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  // ============================================================================
+  // Mood/Activity keywords (expanded)
+  // ============================================================================
+
+  // Romantic/Love
+  if (moodLower.includes('romantic') || moodLower.includes('love') || moodLower.includes('romance') || moodLower.includes('date')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'soul' },
+        { field: 'genre', operator: 'contains', value: 'r&b' },
+        { field: 'genre', operator: 'contains', value: 'jazz' },
+        { field: 'genre', operator: 'contains', value: 'ballad' },
+        { field: 'genre', operator: 'contains', value: 'romantic' },
+      ],
+      limit: 25,
+      sort: 'random',
+    };
+  }
+
+  // Sleep/Night
+  if (moodLower.includes('sleep') || moodLower.includes('night') || moodLower.includes('bedtime') || moodLower.includes('lullaby')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'ambient' },
+        { field: 'genre', operator: 'contains', value: 'classical' },
+        { field: 'genre', operator: 'contains', value: 'new age' },
+        { field: 'genre', operator: 'contains', value: 'meditation' },
+      ],
+      limit: 20,
+      sort: 'random',
+    };
+  }
+
+  // Morning/Wake up
+  if (moodLower.includes('morning') || moodLower.includes('wake up') || moodLower.includes('sunrise') || moodLower.includes('breakfast')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'acoustic' },
+        { field: 'genre', operator: 'contains', value: 'folk' },
+        { field: 'genre', operator: 'contains', value: 'indie' },
+        { field: 'genre', operator: 'contains', value: 'pop' },
+      ],
+      limit: 25,
+      sort: 'random',
+    };
+  }
+
+  // Driving/Road trip
+  if (moodLower.includes('driving') || moodLower.includes('road trip') || moodLower.includes('car') || moodLower.includes('highway')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'rock' },
+        { field: 'genre', operator: 'contains', value: 'classic rock' },
+        { field: 'genre', operator: 'contains', value: 'indie' },
+        { field: 'genre', operator: 'contains', value: 'pop' },
+        { field: 'genre', operator: 'contains', value: 'country' },
+      ],
+      limit: 40,
+      sort: 'random',
+    };
+  }
+
+  // Cooking/Dinner
+  if (moodLower.includes('cooking') || moodLower.includes('dinner') || moodLower.includes('kitchen') || moodLower.includes('food')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'jazz' },
+        { field: 'genre', operator: 'contains', value: 'bossa nova' },
+        { field: 'genre', operator: 'contains', value: 'soul' },
+        { field: 'genre', operator: 'contains', value: 'lounge' },
+      ],
+      limit: 25,
+      sort: 'random',
+    };
+  }
+
+  // Angry/Intense
+  if (moodLower.includes('angry') || moodLower.includes('intense') || moodLower.includes('aggressive') || moodLower.includes('rage')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'metal' },
+        { field: 'genre', operator: 'contains', value: 'hardcore' },
+        { field: 'genre', operator: 'contains', value: 'punk' },
+        { field: 'genre', operator: 'contains', value: 'industrial' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  // Summer/Beach
+  if (moodLower.includes('summer') || moodLower.includes('beach') || moodLower.includes('tropical') || moodLower.includes('vacation')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'reggae' },
+        { field: 'genre', operator: 'contains', value: 'pop' },
+        { field: 'genre', operator: 'contains', value: 'tropical' },
+        { field: 'genre', operator: 'contains', value: 'latin' },
+        { field: 'genre', operator: 'contains', value: 'dance' },
+      ],
+      limit: 35,
+      sort: 'random',
+    };
+  }
+
+  // Rainy/Cozy
+  if (moodLower.includes('rainy') || moodLower.includes('cozy') || moodLower.includes('rain') || moodLower.includes('coffee')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'acoustic' },
+        { field: 'genre', operator: 'contains', value: 'folk' },
+        { field: 'genre', operator: 'contains', value: 'indie' },
+        { field: 'genre', operator: 'contains', value: 'jazz' },
+        { field: 'genre', operator: 'contains', value: 'lo-fi' },
+      ],
+      limit: 25,
+      sort: 'random',
+    };
+  }
+
+  // ============================================================================
+  // More decade keywords
+  // ============================================================================
+
+  if (moodLower.includes('60s') || moodLower.includes('sixties')) {
+    return {
+      all: [{ field: 'year', operator: 'between', value: [1960, 1969] }],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  if (moodLower.includes('70s') || moodLower.includes('seventies')) {
+    return {
+      all: [{ field: 'year', operator: 'between', value: [1970, 1979] }],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  if (moodLower.includes('2010s') || moodLower.includes('10s') || moodLower.includes('tens')) {
+    return {
+      all: [{ field: 'year', operator: 'between', value: [2010, 2019] }],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  if (moodLower.includes('2020s') || moodLower.includes('20s') || moodLower.includes('recent') || moodLower.includes('new music')) {
+    return {
+      all: [{ field: 'year', operator: 'between', value: [2020, 2029] }],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  // Old/Classic/Vintage
+  if (moodLower.includes('classic') || moodLower.includes('vintage') || moodLower.includes('oldies') || moodLower.includes('retro')) {
+    return {
+      all: [{ field: 'year', operator: 'between', value: [1950, 1989] }],
+      limit: 40,
+      sort: 'random',
+    };
+  }
+
+  // ============================================================================
+  // World music keywords
+  // ============================================================================
+
+  if (moodLower.includes('latin') || moodLower.includes('spanish') || moodLower.includes('salsa') || moodLower.includes('latino')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'latin' },
+        { field: 'genre', operator: 'contains', value: 'salsa' },
+        { field: 'genre', operator: 'contains', value: 'reggaeton' },
+        { field: 'genre', operator: 'contains', value: 'bachata' },
+        { field: 'genre', operator: 'contains', value: 'spanish' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  if (moodLower.includes('french') || moodLower.includes('paris') || moodLower.includes('chanson')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'french' },
+        { field: 'genre', operator: 'contains', value: 'chanson' },
+        { field: 'artist', operator: 'contains', value: 'french' },
+      ],
+      limit: 25,
+      sort: 'random',
+    };
+  }
+
+  if (moodLower.includes('african') || moodLower.includes('afrobeat') || moodLower.includes('afro')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'african' },
+        { field: 'genre', operator: 'contains', value: 'afrobeat' },
+        { field: 'genre', operator: 'contains', value: 'world' },
+      ],
+      limit: 25,
+      sort: 'random',
+    };
+  }
+
+  if (moodLower.includes('japanese') || moodLower.includes('j-pop') || moodLower.includes('anime')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'japanese' },
+        { field: 'genre', operator: 'contains', value: 'j-pop' },
+        { field: 'genre', operator: 'contains', value: 'anime' },
+        { field: 'genre', operator: 'contains', value: 'jpop' },
+      ],
+      limit: 25,
+      sort: 'random',
+    };
+  }
+
+  if (moodLower.includes('korean') || moodLower.includes('k-pop') || moodLower.includes('kpop')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'korean' },
+        { field: 'genre', operator: 'contains', value: 'k-pop' },
+        { field: 'genre', operator: 'contains', value: 'kpop' },
+      ],
+      limit: 25,
+      sort: 'random',
+    };
+  }
+
+  // ============================================================================
+  // Instrumental keywords
+  // ============================================================================
+
+  if (moodLower.includes('instrumental') || moodLower.includes('no vocals') || moodLower.includes('no singing')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'instrumental' },
+        { field: 'genre', operator: 'contains', value: 'classical' },
+        { field: 'genre', operator: 'contains', value: 'soundtrack' },
+        { field: 'genre', operator: 'contains', value: 'post-rock' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  if (moodLower.includes('piano') || moodLower.includes('keyboard')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'piano' },
+        { field: 'genre', operator: 'contains', value: 'classical' },
+        { field: 'genre', operator: 'contains', value: 'instrumental' },
+      ],
+      limit: 25,
+      sort: 'random',
+    };
+  }
+
+  if (moodLower.includes('guitar') || moodLower.includes('acoustic guitar')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'acoustic' },
+        { field: 'genre', operator: 'contains', value: 'folk' },
+        { field: 'genre', operator: 'contains', value: 'guitar' },
+        { field: 'genre', operator: 'contains', value: 'flamenco' },
+      ],
+      limit: 25,
+      sort: 'random',
+    };
+  }
+
+  // Soundtrack/Score
+  if (moodLower.includes('soundtrack') || moodLower.includes('movie') || moodLower.includes('film') || moodLower.includes('score') || moodLower.includes('cinematic')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'soundtrack' },
+        { field: 'genre', operator: 'contains', value: 'score' },
+        { field: 'genre', operator: 'contains', value: 'film' },
+        { field: 'genre', operator: 'contains', value: 'cinematic' },
+        { field: 'genre', operator: 'contains', value: 'orchestral' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
+  // Video game music
+  if (moodLower.includes('video game') || moodLower.includes('gaming') || moodLower.includes('game music') || moodLower.includes('chiptune')) {
+    return {
+      any: [
+        { field: 'genre', operator: 'contains', value: 'game' },
+        { field: 'genre', operator: 'contains', value: 'chiptune' },
+        { field: 'genre', operator: 'contains', value: 'video game' },
+        { field: 'genre', operator: 'contains', value: '8-bit' },
+        { field: 'genre', operator: 'contains', value: 'electronic' },
+      ],
+      limit: 30,
+      sort: 'random',
+    };
+  }
+
   // Default: random songs from the library (no filters)
   // Previously defaulted to rating > 3, but most libraries don't have rated songs
   console.log('ℹ️ [MoodTranslator] No keyword match, defaulting to random songs');
