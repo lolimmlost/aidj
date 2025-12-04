@@ -57,35 +57,59 @@ export const ServerRoute = createServerFileRoute('/api/playlist').methods({
 
       if (sourceMode === 'discovery') {
         // Discovery mode: Find songs NOT in library using Last.fm
-        // First, we need a seed song - use mood to get one from library
+        // Use MULTIPLE seed songs matching the mood for better variety
         console.log('🔮 Discovery mode: Finding similar songs not in library');
 
-        // Get a library song matching the mood to use as seed
+        // Get several library songs matching the mood to use as seeds
         const moodResult = await getRecommendations({
           mode: 'mood',
           moodDescription: style,
-          limit: 1,
+          limit: 5, // Get multiple seeds for variety
         });
 
         if (moodResult.songs.length > 0) {
-          const seedSong = moodResult.songs[0];
+          // Use multiple seed songs to get diverse discovery results
+          const allDiscoveries: typeof suggestions = [];
+          const seenSongs = new Set<string>();
 
-          // Use that song to find discoveries
-          const discoveryResult = await getRecommendations({
-            mode: 'discovery',
-            currentSong: { artist: seedSong.artist, title: seedSong.title },
-            limit,
-          });
+          // Query Last.fm for each seed song (up to 3 for performance)
+          const seedsToUse = moodResult.songs.slice(0, 3);
+          console.log(`🌱 Using ${seedsToUse.length} seed songs:`, seedsToUse.map(s => `${s.artist} - ${s.title}`));
 
-          suggestions = discoveryResult.songs.map(song => ({
-            song: `${song.artist} - ${song.title}`,
-            explanation: `Discovered via Last.fm - similar to "${seedSong.artist}"`,
-            isDiscovery: true,
-            discoverySource: 'lastfm' as DiscoverySource,
-            songId: null, // Discovery songs aren't in library
-            url: song.url || null,
-            inLibrary: false,
-          }));
+          for (const seedSong of seedsToUse) {
+            try {
+              const discoveryResult = await getRecommendations({
+                mode: 'discovery',
+                currentSong: { artist: seedSong.artist, title: seedSong.title },
+                limit: Math.ceil(limit / seedsToUse.length) + 2, // Get extra to account for duplicates
+              });
+
+              for (const song of discoveryResult.songs) {
+                const key = `${song.artist.toLowerCase()}-${song.title.toLowerCase()}`;
+                if (!seenSongs.has(key)) {
+                  seenSongs.add(key);
+                  allDiscoveries.push({
+                    song: `${song.artist} - ${song.title}`,
+                    explanation: `Discovered via Last.fm - similar to "${seedSong.artist}"`,
+                    isDiscovery: true,
+                    discoverySource: 'lastfm' as DiscoverySource,
+                    songId: null,
+                    url: song.url || null,
+                    inLibrary: false,
+                  });
+                }
+              }
+            } catch (err) {
+              console.warn(`⚠️ Failed to get discoveries for seed "${seedSong.artist} - ${seedSong.title}":`, err);
+            }
+          }
+
+          // Shuffle and limit the results for variety
+          suggestions = allDiscoveries
+            .sort(() => Math.random() - 0.5)
+            .slice(0, limit);
+
+          console.log(`🎵 Combined ${allDiscoveries.length} discoveries from ${seedsToUse.length} seeds, returning ${suggestions.length}`);
         }
 
         // Fall back to mood-based if no discoveries found
@@ -131,25 +155,44 @@ export const ServerRoute = createServerFileRoute('/api/playlist').methods({
           inLibrary: true,
         }));
 
-        // Get discoveries using the first library song as seed
+        // Get discoveries using multiple library songs as seeds for variety
         let discoverySongs: typeof librarySongs = [];
         if (libraryResult.songs.length > 0 && discoveryCount > 0) {
-          const seedSong = libraryResult.songs[0];
-          const discoveryResult = await getRecommendations({
-            mode: 'discovery',
-            currentSong: { artist: seedSong.artist, title: seedSong.title },
-            limit: discoveryCount,
-          });
+          const seenSongs = new Set<string>();
+          const seedsToUse = libraryResult.songs.slice(0, Math.min(3, libraryResult.songs.length));
 
-          discoverySongs = discoveryResult.songs.map(song => ({
-            song: `${song.artist} - ${song.title}`,
-            explanation: `Discovered via Last.fm - similar to "${seedSong.artist}"`,
-            isDiscovery: true,
-            discoverySource: 'lastfm' as DiscoverySource,
-            songId: null,
-            url: song.url || null,
-            inLibrary: false,
-          }));
+          for (const seedSong of seedsToUse) {
+            try {
+              const discoveryResult = await getRecommendations({
+                mode: 'discovery',
+                currentSong: { artist: seedSong.artist, title: seedSong.title },
+                limit: Math.ceil(discoveryCount / seedsToUse.length) + 1,
+              });
+
+              for (const song of discoveryResult.songs) {
+                const key = `${song.artist.toLowerCase()}-${song.title.toLowerCase()}`;
+                if (!seenSongs.has(key)) {
+                  seenSongs.add(key);
+                  discoverySongs.push({
+                    song: `${song.artist} - ${song.title}`,
+                    explanation: `Discovered via Last.fm - similar to "${seedSong.artist}"`,
+                    isDiscovery: true,
+                    discoverySource: 'lastfm' as DiscoverySource,
+                    songId: null,
+                    url: song.url || null,
+                    inLibrary: false,
+                  });
+                }
+              }
+            } catch (err) {
+              console.warn(`⚠️ Failed to get mix discoveries for "${seedSong.artist}":`, err);
+            }
+          }
+
+          // Shuffle and limit discoveries
+          discoverySongs = discoverySongs
+            .sort(() => Math.random() - 0.5)
+            .slice(0, discoveryCount);
         }
 
         // Interleave library and discovery songs for variety
