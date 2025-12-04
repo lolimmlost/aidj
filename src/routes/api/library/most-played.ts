@@ -26,7 +26,17 @@ export const ServerRoute = createServerFileRoute('/api/library/most-played').met
 
       const songs = await getMostPlayedSongs(limit);
 
-      return new Response(JSON.stringify({ songs }), {
+      // Map to a simpler format for the UI
+      const formattedSongs = songs.map(song => ({
+        id: song.id,
+        name: song.title,
+        artist: song.artist,
+        album: song.album,
+        albumId: song.albumId,
+        url: `/api/navidrome/stream/${song.id}`,
+      }));
+
+      return new Response(JSON.stringify({ songs: formattedSongs }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });

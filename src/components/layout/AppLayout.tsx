@@ -325,7 +325,7 @@ function LeftSidebar() {
  * - Recommendations at bottom
  */
 function RightSidebar() {
-  const { playlist, currentSongIndex, isPlaying } = useAudioStore();
+  const { playlist, currentSongIndex, isPlaying, playNow } = useAudioStore();
   const currentSong = playlist[currentSongIndex];
 
   // Fetch top artists
@@ -336,6 +336,18 @@ function RightSidebar() {
       if (!response.ok) return [];
       const data = await response.json();
       return data.artists || [];
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  // Fetch most played songs
+  const { data: mostPlayedSongs } = useQuery({
+    queryKey: ['most-played-songs'],
+    queryFn: async () => {
+      const response = await fetch('/api/library/most-played?limit=5');
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.songs || [];
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
@@ -408,7 +420,7 @@ function RightSidebar() {
             </div>
             <div className="space-y-1">
               {topArtists?.length > 0 ? (
-                topArtists.slice(0, 5).map((artist: { id: string; name: string; albumCount?: number; songCount?: number }, index: number) => (
+                topArtists.slice(0, 5).map((artist: { id: string; name: string; albumCount?: number; songCount?: number; totalPlays?: number }, index: number) => (
                   <Link
                     key={artist.id}
                     to={`/library/artists/${artist.id}`}
@@ -427,11 +439,66 @@ function RightSidebar() {
                         {artist.name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {artist.songCount || artist.albumCount || 0} {artist.songCount ? 'plays' : 'albums'}
+                        {artist.totalPlays ? `${artist.totalPlays} plays` : `${artist.songCount || 0} songs`}
                       </p>
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </Link>
+                ))
+              ) : (
+                // Loading placeholder
+                [...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 p-2 animate-pulse">
+                    <div className="w-5 h-5 bg-muted rounded" />
+                    <div className="w-10 h-10 rounded-md bg-muted" />
+                    <div className="flex-1 space-y-1">
+                      <div className="h-3 bg-muted rounded w-3/4" />
+                      <div className="h-2 bg-muted rounded w-1/2" />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Most Played Songs */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Most Played
+              </h3>
+            </div>
+            <div className="space-y-1">
+              {mostPlayedSongs?.length > 0 ? (
+                mostPlayedSongs.slice(0, 5).map((song: { id: string; name: string; artist: string; album?: string; url: string }, index: number) => (
+                  <div
+                    key={song.id}
+                    onClick={() => playNow(song.id, {
+                      id: song.id,
+                      name: song.name,
+                      artist: song.artist,
+                      url: song.url,
+                      albumId: '',
+                      duration: 0,
+                      track: 0,
+                    })}
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors cursor-pointer group"
+                  >
+                    <span className={cn("font-bold text-lg w-5", rankColors[index])}>
+                      {index + 1}
+                    </span>
+                    <div className="w-10 h-10 rounded-md bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-semibold text-green-500/70">
+                        {song.artist?.slice(0, 2).toUpperCase() || '♪'}
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+                        {song.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
+                    </div>
+                  </div>
                 ))
               ) : (
                 // Loading placeholder
@@ -521,7 +588,7 @@ interface Recommendation {
 }
 
 function RecommendationsSection({ recommendations }: { recommendations: any }) {
-  const { addToQueueEnd, setPlaylist, setCurrentSongIndex, setIsPlaying } = useAudioStore();
+  const { addToQueueEnd, addPlaylist } = useAudioStore();
 
   const handleAddToQueue = useCallback((rec: Recommendation) => {
     if (rec.actualSong || (rec.songId && rec.url)) {
@@ -552,14 +619,13 @@ function RecommendationsSection({ recommendations }: { recommendations: any }) {
         duration: 0,
         track: 0,
       };
-      setPlaylist([song]);
-      setCurrentSongIndex(0);
-      setIsPlaying(true);
+      // Use addPlaylist which sets playlist, currentSongIndex, and isPlaying atomically
+      addPlaylist([song]);
       toast.success(`Now playing: ${song.name}`);
     } else {
       toast.error('Song not available in library');
     }
-  }, [setPlaylist, setCurrentSongIndex, setIsPlaying]);
+  }, [addPlaylist]);
 
   return (
     <div className="space-y-2">

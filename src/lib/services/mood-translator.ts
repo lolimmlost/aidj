@@ -326,13 +326,25 @@ function keywordFallback(mood: string): SmartPlaylistQuery {
     };
   }
 
-  if (moodLower.includes('party') || moodLower.includes('dance') || moodLower.includes('club')) {
+  if (moodLower.includes('party') || moodLower.includes('dance') || moodLower.includes('club') || moodLower.includes('rave')) {
     return {
       any: [
         { field: 'genre', operator: 'contains', value: 'dance' },
         { field: 'genre', operator: 'contains', value: 'electronic' },
-        { field: 'genre', operator: 'contains', value: 'pop' },
         { field: 'genre', operator: 'contains', value: 'edm' },
+        { field: 'genre', operator: 'contains', value: 'techno' },
+        { field: 'genre', operator: 'contains', value: 'house' },
+        { field: 'genre', operator: 'contains', value: 'acid' },
+        { field: 'genre', operator: 'contains', value: 'trance' },
+        { field: 'genre', operator: 'contains', value: 'hardstyle' },
+        { field: 'genre', operator: 'contains', value: 'hardcore' },
+        { field: 'genre', operator: 'contains', value: 'drum and bass' },
+        { field: 'genre', operator: 'contains', value: 'dnb' },
+        { field: 'genre', operator: 'contains', value: 'dubstep' },
+        { field: 'genre', operator: 'contains', value: 'riddim' },
+        { field: 'genre', operator: 'contains', value: 'breakbeat' },
+        { field: 'genre', operator: 'contains', value: 'jungle' },
+        { field: 'genre', operator: 'contains', value: 'gabber' },
       ],
       limit: 40,
       sort: 'random',

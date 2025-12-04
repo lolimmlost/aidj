@@ -171,7 +171,13 @@ export function PlayerBar() {
     const onEnded = () => {
       if (currentSongIdRef.current && !hasScrobbledRef.current) {
         hasScrobbledRef.current = true;
-        scrobbleSong(currentSongIdRef.current, true).catch(console.error);
+        scrobbleSong(currentSongIdRef.current, true)
+          .then(() => {
+            // Invalidate most-played and top-artists queries since play counts changed
+            queryClient.invalidateQueries({ queryKey: ['most-played-songs'] });
+            queryClient.invalidateQueries({ queryKey: ['top-artists'] });
+          })
+          .catch(console.error);
       }
       nextSong();
     };
@@ -190,26 +196,53 @@ export function PlayerBar() {
       audio.removeEventListener('waiting', onWaiting);
       audio.removeEventListener('ended', onEnded);
     };
-  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong]);
+  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong, queryClient]);
+
+  // Track the canplay handler so we can manage it properly
+  const canPlayHandlerRef = useRef<(() => void) | null>(null);
+  const errorHandlerRef = useRef<((e: Event) => void) | null>(null);
 
   // Load song when it changes
   useEffect(() => {
     if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {
       const song = playlist[currentSongIndex];
       const audio = audioRef.current;
+
       if (audio && song && currentSongIdRef.current !== song.id) {
+        // Capture isPlaying at this moment - store sets isPlaying: true when playNow is called
+        const shouldAutoPlay = isPlaying;
+
+        // Remove old handlers if any
+        if (canPlayHandlerRef.current) {
+          audio.removeEventListener('canplay', canPlayHandlerRef.current);
+        }
+        if (errorHandlerRef.current) {
+          audio.removeEventListener('error', errorHandlerRef.current);
+        }
+
         const handleCanPlay = () => {
           setIsLoading(false);
-          if (isPlaying) {
+          if (shouldAutoPlay) {
             audio.play().catch(console.error);
           }
-          audio.removeEventListener('canplay', handleCanPlay);
         };
+
+        const handleError = (e: Event) => {
+          console.error('Audio load error:', (e.target as HTMLAudioElement)?.error);
+          setIsLoading(false);
+        };
+
+        canPlayHandlerRef.current = handleCanPlay;
+        errorHandlerRef.current = handleError;
+
         audio.addEventListener('canplay', handleCanPlay);
+        audio.addEventListener('error', handleError);
+        setIsLoading(true);
         loadSong(song);
 
         return () => {
-          audio.removeEventListener('canplay', handleCanPlay);
+          // Only scrobble on cleanup, don't remove listeners here
+          // (they'll be removed when a new song loads or component unmounts)
           if (scrobbleThresholdReachedRef.current && !hasScrobbledRef.current && currentSongIdRef.current) {
             hasScrobbledRef.current = true;
             scrobbleSong(currentSongIdRef.current, true).catch(console.error);
@@ -219,16 +252,34 @@ export function PlayerBar() {
     }
   }, [currentSongIndex, playlist, isPlaying, loadSong]);
 
-  // Handle play/pause state changes
+  // Cleanup listeners on unmount
+  useEffect(() => {
+    return () => {
+      const audio = audioRef.current;
+      if (audio) {
+        if (canPlayHandlerRef.current) {
+          audio.removeEventListener('canplay', canPlayHandlerRef.current);
+        }
+        if (errorHandlerRef.current) {
+          audio.removeEventListener('error', errorHandlerRef.current);
+        }
+      }
+    };
+  }, []);
+
+  // Handle play/pause state changes (for toggling on existing loaded song)
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !audio.src || audio.readyState < 2) return;
+    if (!audio || !audio.src) return;
 
-    if (isPlaying) {
-      audio.play().catch(console.error);
-    } else {
+    // Only handle pause immediately; play is handled by canplay listener or when ready
+    if (!isPlaying) {
       audio.pause();
+    } else if (audio.readyState >= 2) {
+      // Only try to play if audio is ready (has enough data)
+      audio.play().catch(console.error);
     }
+    // If isPlaying is true but readyState < 2, the canplay handler will start playback
   }, [isPlaying]);
 
   // Keyboard shortcuts
