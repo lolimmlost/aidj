@@ -368,7 +368,7 @@ export function PlayerBar() {
             className="flex-1 h-1"
           />
           <span className="text-[10px] font-mono text-muted-foreground w-8">
-            {formatTime(duration)}
+            -{formatTime(Math.max(0, duration - currentTime))}
           </span>
         </div>
 
@@ -551,7 +551,7 @@ export function PlayerBar() {
               className="flex-1"
             />
             <span className="text-xs text-muted-foreground w-10 font-mono">
-              {formatTime(duration)}
+              -{formatTime(Math.max(0, duration - currentTime))}
             </span>
           </div>
         </div>

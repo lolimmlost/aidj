@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Song } from '@/components/ui/audio-player';
 import { usePreferencesStore } from './preferences';
 import { toast } from 'sonner';
@@ -52,6 +53,8 @@ interface AudioState {
     songs: Song[];
     timestamp: number;
   } | null;
+  // Queue panel visibility
+  queuePanelOpen: boolean;
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
@@ -93,9 +96,11 @@ interface AudioState {
   completeTransition: () => void;
   setCrossfadeEnabled: (enabled: boolean) => void;
   setCrossfadeDuration: (duration: number) => void;
+  toggleQueuePanel: () => void;
 }
 
 export const useAudioStore = create<AudioState>()(
+  persist(
   (set, get): AudioState => ({
     playlist: [],
     currentSongIndex: -1,
@@ -122,6 +127,7 @@ export const useAudioStore = create<AudioState>()(
     crossfadeEnabled: true,
     crossfadeDuration: 8.0,
     lastClearedQueue: null,
+    queuePanelOpen: false,
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -813,5 +819,41 @@ export const useAudioStore = create<AudioState>()(
     setCrossfadeDuration: (duration: number) => {
       set({ crossfadeDuration: duration });
     },
-  })
+
+    toggleQueuePanel: () => {
+      set(state => ({ queuePanelOpen: !state.queuePanelOpen }));
+    },
+  }),
+  {
+    name: 'audio-player-storage',
+    storage: createJSONStorage(() => localStorage),
+    // Only persist essential playback state, not transient state
+    partialize: (state) => ({
+      playlist: state.playlist,
+      currentSongIndex: state.currentSongIndex,
+      currentTime: state.currentTime,
+      volume: state.volume,
+      isShuffled: state.isShuffled,
+      originalPlaylist: state.originalPlaylist,
+      aiDJEnabled: state.aiDJEnabled,
+      crossfadeEnabled: state.crossfadeEnabled,
+      crossfadeDuration: state.crossfadeDuration,
+    }),
+    // Don't restore isPlaying - let user manually resume
+    onRehydrateStorage: () => (state) => {
+      if (state) {
+        // Reset transient state on rehydration
+        state.isPlaying = false;
+        state.aiDJIsLoading = false;
+        state.aiDJError = null;
+        state.aiDJUserActionInProgress = false;
+        state.isTransitioning = false;
+        state.currentTransition = null;
+        // Reinitialize Set (can't be serialized in JSON)
+        state.aiQueuedSongIds = new Set<string>();
+        console.log('🎵 Audio state restored from storage');
+      }
+    },
+  }
+  )
 );
