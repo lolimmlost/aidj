@@ -16,7 +16,7 @@ const FeedbackSchema = z.object({
   feedbackType: z.enum(['thumbs_up', 'thumbs_down'], {
     errorMap: () => ({ message: 'Feedback type must be thumbs_up or thumbs_down' }),
   }),
-  source: z.enum(['recommendation', 'playlist', 'search', 'library']).optional().default('recommendation'),
+  source: z.enum(['recommendation', 'playlist', 'playlist_generator', 'search', 'library']).optional().default('recommendation'),
   recommendationCacheId: z.number().int().positive().optional(),
   songId: z.string().optional(), // Navidrome song ID for starring and storage
 });
