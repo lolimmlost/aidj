@@ -119,9 +119,19 @@ describe('SourceBadge', () => {
     expect(screen.getByText('In Library')).toBeInTheDocument();
   });
 
-  it('renders "Discovery" badge when inLibrary is false', () => {
-    render(<SourceBadge inLibrary={false} />);
-    expect(screen.getByText('Discovery')).toBeInTheDocument();
+  it('renders "AI Discovery" badge when isDiscovery is true', () => {
+    render(<SourceBadge inLibrary={false} isDiscovery={true} />);
+    expect(screen.getByText('AI Discovery')).toBeInTheDocument();
+  });
+
+  it('renders "Last.fm" badge when discoverySource is lastfm', () => {
+    render(<SourceBadge inLibrary={false} isDiscovery={true} discoverySource="lastfm" />);
+    expect(screen.getByText('Last.fm')).toBeInTheDocument();
+  });
+
+  it('renders nothing when inLibrary is false and isDiscovery is false', () => {
+    const { container } = render(<SourceBadge inLibrary={false} isDiscovery={false} />);
+    expect(container.firstChild).toBeNull();
   });
 
   it('applies correct styling for library badge', () => {
@@ -130,9 +140,15 @@ describe('SourceBadge', () => {
     expect(badge).toHaveClass('bg-green-100');
   });
 
-  it('applies correct styling for discovery badge', () => {
-    render(<SourceBadge inLibrary={false} />);
-    const badge = screen.getByText('Discovery');
+  it('applies correct styling for AI discovery badge', () => {
+    render(<SourceBadge inLibrary={false} isDiscovery={true} />);
+    const badge = screen.getByText('AI Discovery');
     expect(badge).toHaveClass('bg-purple-100');
+  });
+
+  it('applies correct styling for Last.fm discovery badge', () => {
+    render(<SourceBadge inLibrary={false} isDiscovery={true} discoverySource="lastfm" />);
+    const badge = screen.getByText('Last.fm');
+    expect(badge).toHaveClass('bg-red-100');
   });
 });
