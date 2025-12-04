@@ -18,6 +18,7 @@ import { getLastFmClient } from './lastfm';
 import type { EnrichedTrack } from './lastfm/types';
 import { evaluateSmartPlaylistRules } from './smart-playlist-evaluator';
 import { getSongsGlobal, type SubsonicSong } from './navidrome';
+import { translateMoodToQuery, toEvaluatorFormat } from './mood-translator';
 import type { Song } from '@/components/ui/audio-player';
 
 // ============================================================================
@@ -237,8 +238,7 @@ async function getDiscoverySongs(
  * Get songs based on mood/style description
  * Uses AI to translate mood to smart playlist query, then evaluates against library
  *
- * NOTE: Phase 2 will implement the mood-translator.ts service.
- * For now, this uses a simple keyword-based approach as a placeholder.
+ * Phase 2: Now uses mood-translator.ts for AI-powered mood→query translation
  */
 async function getMoodBasedSongs(
   request: RecommendationRequest
@@ -251,17 +251,19 @@ async function getMoodBasedSongs(
 
   console.log(`🎭 [Recommendations] Processing mood: "${moodDescription}"`);
 
-  // Phase 1: Simple keyword-based query building
-  // Phase 2 will replace this with AI translation via mood-translator.ts
-  const query = buildSimpleMoodQuery(moodDescription);
-
-  console.log(`📝 [Recommendations] Generated query:`, JSON.stringify(query));
-
   try {
+    // Use AI-powered mood translator (falls back to keywords if LLM unavailable)
+    const moodQuery = await translateMoodToQuery(moodDescription);
+
+    // Convert to evaluator format
+    const evaluatorQuery = toEvaluatorFormat(moodQuery);
+
+    console.log(`📝 [Recommendations] Generated query:`, JSON.stringify(evaluatorQuery));
+
     // Evaluate smart playlist rules against library
     const songs = await evaluateSmartPlaylistRules({
-      ...query,
-      limit,
+      ...evaluatorQuery,
+      limit: moodQuery.limit || limit,
     });
 
     console.log(`✅ [Recommendations] Smart playlist returned ${songs.length} songs`);
@@ -356,102 +358,6 @@ function subsonicSongToSong(song: SubsonicSong): Song {
   };
 }
 
-// Type for mood query conditions - supports string, number, and tuples for ranges
-type MoodQueryCondition = Record<string, Record<string, string | number | [number, number]>>;
-
-/**
- * Simple keyword-based mood query builder
- * This is a placeholder - Phase 2 will implement proper AI translation
- */
-function buildSimpleMoodQuery(mood: string): {
-  all?: MoodQueryCondition[];
-  any?: MoodQueryCondition[];
-  sort?: string;
-} {
-  const moodLower = mood.toLowerCase();
-
-  // Check for common mood keywords and build appropriate query
-  const query: {
-    all?: MoodQueryCondition[];
-    any?: MoodQueryCondition[];
-    sort?: string;
-  } = {
-    sort: 'random',
-  };
-
-  // Energy-based keywords
-  if (moodLower.includes('chill') || moodLower.includes('relax') || moodLower.includes('calm')) {
-    query.any = [
-      { contains: { genre: 'ambient' } },
-      { contains: { genre: 'chill' } },
-      { contains: { genre: 'acoustic' } },
-      { contains: { genre: 'jazz' } },
-    ];
-  } else if (moodLower.includes('party') || moodLower.includes('energy') || moodLower.includes('dance')) {
-    query.any = [
-      { contains: { genre: 'dance' } },
-      { contains: { genre: 'electronic' } },
-      { contains: { genre: 'pop' } },
-      { contains: { genre: 'edm' } },
-    ];
-  } else if (moodLower.includes('workout') || moodLower.includes('gym') || moodLower.includes('exercise')) {
-    query.any = [
-      { contains: { genre: 'rock' } },
-      { contains: { genre: 'metal' } },
-      { contains: { genre: 'electronic' } },
-      { contains: { genre: 'hip-hop' } },
-    ];
-  } else if (moodLower.includes('focus') || moodLower.includes('study') || moodLower.includes('work')) {
-    query.any = [
-      { contains: { genre: 'classical' } },
-      { contains: { genre: 'ambient' } },
-      { contains: { genre: 'instrumental' } },
-      { contains: { genre: 'lo-fi' } },
-    ];
-  } else if (moodLower.includes('sad') || moodLower.includes('melancholy')) {
-    query.any = [
-      { contains: { genre: 'indie' } },
-      { contains: { genre: 'folk' } },
-      { contains: { genre: 'acoustic' } },
-      { contains: { genre: 'singer-songwriter' } },
-    ];
-  } else if (moodLower.includes('happy') || moodLower.includes('upbeat') || moodLower.includes('joy')) {
-    query.any = [
-      { contains: { genre: 'pop' } },
-      { contains: { genre: 'indie' } },
-      { contains: { genre: 'funk' } },
-      { contains: { genre: 'soul' } },
-    ];
-  }
-
-  // Decade-based keywords
-  if (moodLower.includes('80s') || moodLower.includes('eighties')) {
-    query.all = [
-      ...(query.all || []),
-      { inTheRange: { year: [1980, 1989] } },
-    ];
-  } else if (moodLower.includes('90s') || moodLower.includes('nineties')) {
-    query.all = [
-      ...(query.all || []),
-      { inTheRange: { year: [1990, 1999] } },
-    ];
-  } else if (moodLower.includes('2000s')) {
-    query.all = [
-      ...(query.all || []),
-      { inTheRange: { year: [2000, 2009] } },
-    ];
-  }
-
-  // If no specific mood detected, default to highly rated songs
-  if (!query.all && !query.any) {
-    query.all = [
-      { gt: { rating: 3 } },
-    ];
-  }
-
-  return query;
-}
-
 /**
  * Fallback to genre-based random songs from library
  * Used when Last.fm is unavailable or returns no matches
@@ -540,5 +446,4 @@ export {
   enrichedTrackToSong,
   enrichedTrackToDiscoverySong,
   subsonicSongToSong,
-  buildSimpleMoodQuery,
 };

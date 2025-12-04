@@ -5,11 +5,11 @@ import {
   enrichedTrackToSong,
   enrichedTrackToDiscoverySong,
   subsonicSongToSong,
-  buildSimpleMoodQuery,
 } from '../recommendations';
 import * as lastfm from '../lastfm';
 import * as smartPlaylistEvaluator from '../smart-playlist-evaluator';
 import * as navidrome from '../navidrome';
+import * as moodTranslator from '../mood-translator';
 import type { EnrichedTrack } from '../lastfm/types';
 import type { SubsonicSong } from '../navidrome';
 
@@ -17,6 +17,7 @@ import type { SubsonicSong } from '../navidrome';
 vi.mock('../lastfm');
 vi.mock('../smart-playlist-evaluator');
 vi.mock('../navidrome');
+vi.mock('../mood-translator');
 
 describe('Unified Recommendation Service', () => {
   // Mock data
@@ -130,6 +131,19 @@ describe('Unified Recommendation Service', () => {
     vi.spyOn(navidrome, 'getSongsGlobal').mockResolvedValue(
       mockSubsonicSongs.map(s => ({ ...s, name: s.title }))
     );
+
+    // Setup mood translator mock
+    vi.spyOn(moodTranslator, 'translateMoodToQuery').mockResolvedValue({
+      any: [{ field: 'genre', operator: 'contains', value: 'ambient' }],
+      limit: 25,
+      sort: 'random',
+    });
+
+    vi.spyOn(moodTranslator, 'toEvaluatorFormat').mockReturnValue({
+      any: [{ contains: { genre: 'ambient' } }],
+      limit: 25,
+      sort: 'random',
+    });
   });
 
   afterEach(() => {
@@ -353,16 +367,20 @@ describe('Unified Recommendation Service', () => {
       ).rejects.toThrow('moodDescription required for mood mode');
     });
 
-    it('should call smart playlist evaluator with correct query', async () => {
+    it('should call mood translator and smart playlist evaluator', async () => {
       await getRecommendations({
         mode: 'mood',
         moodDescription: 'chill vibes',
         limit: 15,
       });
 
+      // Verify mood translator was called
+      expect(moodTranslator.translateMoodToQuery).toHaveBeenCalledWith('chill vibes');
+      expect(moodTranslator.toEvaluatorFormat).toHaveBeenCalled();
+
+      // Verify smart playlist evaluator was called with the translated query
       expect(smartPlaylistEvaluator.evaluateSmartPlaylistRules).toHaveBeenCalled();
       const callArgs = vi.mocked(smartPlaylistEvaluator.evaluateSmartPlaylistRules).mock.calls[0][0];
-      expect(callArgs.limit).toBe(15);
       expect(callArgs.sort).toBe('random');
     });
 
@@ -495,69 +513,8 @@ describe('Unified Recommendation Service', () => {
     });
   });
 
-  describe('buildSimpleMoodQuery', () => {
-    it('should build query for chill mood', () => {
-      const query = buildSimpleMoodQuery('chill evening vibes');
-
-      expect(query.sort).toBe('random');
-      expect(query.any).toBeDefined();
-      expect(query.any?.some(c => 'contains' in c && c.contains.genre === 'ambient')).toBe(true);
-    });
-
-    it('should build query for party mood', () => {
-      const query = buildSimpleMoodQuery('party music');
-
-      expect(query.any).toBeDefined();
-      expect(query.any?.some(c => 'contains' in c && c.contains.genre === 'dance')).toBe(true);
-    });
-
-    it('should build query for workout mood', () => {
-      const query = buildSimpleMoodQuery('gym workout');
-
-      expect(query.any).toBeDefined();
-      expect(query.any?.some(c => 'contains' in c && c.contains.genre === 'rock')).toBe(true);
-    });
-
-    it('should build query for focus mood', () => {
-      const query = buildSimpleMoodQuery('study focus music');
-
-      expect(query.any).toBeDefined();
-      expect(query.any?.some(c => 'contains' in c && c.contains.genre === 'classical')).toBe(true);
-    });
-
-    it('should build query for 80s music', () => {
-      const query = buildSimpleMoodQuery('80s hits');
-
-      expect(query.all).toBeDefined();
-      expect(query.all?.some(c => 'inTheRange' in c)).toBe(true);
-    });
-
-    it('should build query for 90s music', () => {
-      const query = buildSimpleMoodQuery('nineties rock');
-
-      expect(query.all).toBeDefined();
-      expect(query.all?.some(c =>
-        'inTheRange' in c && Array.isArray(c.inTheRange.year) &&
-        c.inTheRange.year[0] === 1990
-      )).toBe(true);
-    });
-
-    it('should default to high-rated songs for unknown mood', () => {
-      const query = buildSimpleMoodQuery('something completely random');
-
-      expect(query.all).toBeDefined();
-      expect(query.all?.some(c => 'gt' in c && c.gt.rating === 3)).toBe(true);
-    });
-
-    it('should be case-insensitive', () => {
-      const queryLower = buildSimpleMoodQuery('chill');
-      const queryUpper = buildSimpleMoodQuery('CHILL');
-      const queryMixed = buildSimpleMoodQuery('ChIlL');
-
-      expect(queryLower.any?.length).toBe(queryUpper.any?.length);
-      expect(queryLower.any?.length).toBe(queryMixed.any?.length);
-    });
-  });
+  // Note: buildSimpleMoodQuery tests have been moved to mood-translator.test.ts
+  // The mood translation is now handled by the mood-translator service
 
   // ============================================================================
   // Edge Cases and Error Handling
@@ -587,14 +544,15 @@ describe('Unified Recommendation Service', () => {
       );
     });
 
-    it('should use default limit of 20 for mood mode', async () => {
+    it('should use limit from mood translator for mood mode', async () => {
       await getRecommendations({
         mode: 'mood',
         moodDescription: 'chill vibes',
       });
 
+      // The mood translator mock returns limit: 25
       const callArgs = vi.mocked(smartPlaylistEvaluator.evaluateSmartPlaylistRules).mock.calls[0][0];
-      expect(callArgs.limit).toBe(20);
+      expect(callArgs.limit).toBe(25);
     });
 
     it('should handle empty exclude arrays', async () => {
