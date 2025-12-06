@@ -1,8 +1,10 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../lib/auth/auth';
 import { getTopArtists } from '../../../lib/services/navidrome';
 
-export const ServerRoute = createServerFileRoute('/api/library/top-artists').methods({
+export const Route = createFileRoute("/api/library/top-artists")({
+  server: {
+    handlers: {
   /**
    * GET /api/library/top-artists
    * Returns top artists based on play count from Navidrome
@@ -40,5 +42,7 @@ export const ServerRoute = createServerFileRoute('/api/library/top-artists').met
         headers: { 'Content-Type': 'application/json' },
       });
     }
+  },
+    },
   },
 });

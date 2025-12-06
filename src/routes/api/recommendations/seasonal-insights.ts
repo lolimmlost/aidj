@@ -3,11 +3,13 @@
  * Story 3.11: Task 4 - Endpoint for seasonal pattern data
  */
 
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../lib/auth/auth';
 import { detectSeasonalPreferences } from '../../../lib/services/seasonal-patterns';
 
-export const ServerRoute = createServerFileRoute('/api/recommendations/seasonal-insights').methods({
+export const Route = createFileRoute("/api/recommendations/seasonal-insights")({
+  server: {
+    handlers: {
   // GET /api/recommendations/seasonal-insights - Get user's seasonal patterns
   GET: async ({ request }) => {
     const session = await auth.api.getSession({
@@ -53,5 +55,7 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/seasonal-
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

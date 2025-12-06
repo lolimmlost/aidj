@@ -1,7 +1,7 @@
 // API endpoint for playlist generation
 // Phase 3: Updated to use unified recommendations service
 
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { ServiceError } from '../../lib/utils';
 import { getRecommendations } from '../../lib/services/recommendations';
 import { search } from '../../lib/services/navidrome';
@@ -15,7 +15,9 @@ interface PlaylistRequestBody {
   mixRatio?: number;
 }
 
-export const ServerRoute = createServerFileRoute('/api/playlist').methods({
+export const Route = createFileRoute("/api/playlist")({
+  server: {
+    handlers: {
   POST: async ({ request }) => {
     // Auth check (protected route)
     const { auth } = await import('../../lib/auth/server');
@@ -308,5 +310,7 @@ export const ServerRoute = createServerFileRoute('/api/playlist').methods({
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

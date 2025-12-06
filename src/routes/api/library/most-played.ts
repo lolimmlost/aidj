@@ -1,8 +1,10 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../lib/auth/auth';
 import { getMostPlayedSongs } from '../../../lib/services/navidrome';
 
-export const ServerRoute = createServerFileRoute('/api/library/most-played').methods({
+export const Route = createFileRoute("/api/library/most-played")({
+  server: {
+    handlers: {
   /**
    * GET /api/library/most-played
    * Returns most played songs from Navidrome
@@ -50,5 +52,7 @@ export const ServerRoute = createServerFileRoute('/api/library/most-played').met
         headers: { 'Content-Type': 'application/json' },
       });
     }
+  },
+    },
   },
 });

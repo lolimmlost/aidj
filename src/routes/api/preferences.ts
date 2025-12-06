@@ -1,4 +1,4 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../lib/auth/auth';
 import { db } from '../../lib/db';
 import { userPreferences } from '../../lib/db/schema/preferences.schema';
@@ -37,7 +37,9 @@ const PreferencesSchema = z.object({
   }).optional(),
 });
 
-export const ServerRoute = createServerFileRoute('/api/preferences').methods({
+export const Route = createFileRoute("/api/preferences")({
+  server: {
+    handlers: {
   // GET /api/preferences - Fetch user preferences
   GET: async ({ request }) => {
     // Authentication middleware validation
@@ -271,5 +273,7 @@ export const ServerRoute = createServerFileRoute('/api/preferences').methods({
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

@@ -1,7 +1,9 @@
-import { createServerFileRoute } from "@tanstack/react-start/server";
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from "~/lib/auth/auth";
 
-export const ServerRoute = createServerFileRoute("/api/auth/register").methods({
+export const Route = createFileRoute("/api/auth/register")({
+  server: {
+    handlers: {
   POST: async ({ request }) => {
     try {
       const body = await request.json();
@@ -26,4 +28,6 @@ export const ServerRoute = createServerFileRoute("/api/auth/register").methods({
       });
     }
   }
+    },
+  },
 });

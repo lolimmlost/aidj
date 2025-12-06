@@ -6,11 +6,13 @@
  * Returns top tracks by the given artist, enriched with library status
  */
 
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 import { LastFmClient } from '@/lib/services/lastfm';
 
-export const ServerRoute = createServerFileRoute('/api/lastfm/top-tracks').methods({
+export const Route = createFileRoute("/api/lastfm/top-tracks")({
+  server: {
+    handlers: {
   GET: async ({ request }) => {
     try {
       const url = new URL(request.url);
@@ -55,5 +57,7 @@ export const ServerRoute = createServerFileRoute('/api/lastfm/top-tracks').metho
         headers: { 'Content-Type': 'application/json' },
       });
     }
+  },
+    },
   },
 });

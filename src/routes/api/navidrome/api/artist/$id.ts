@@ -1,8 +1,10 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 import { getAuthToken, token, clientId } from '@/lib/services/navidrome';
 
-export const ServerRoute = createServerFileRoute('/api/navidrome/api/artist/$id').methods({
+export const Route = createFileRoute("/api/navidrome/api/artist/$id")({
+  server: {
+    handlers: {
   GET: async ({ params, request }) => {
     try {
       const config = getConfig();
@@ -48,5 +50,7 @@ export const ServerRoute = createServerFileRoute('/api/navidrome/api/artist/$id'
         headers: { 'Content-Type': 'application/json' },
       });
     }
+  },
+    },
   },
 });

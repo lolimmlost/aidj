@@ -1,8 +1,10 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { ServiceError } from '../../../lib/utils';
 import { getDownloadHistory, exportDownloadHistory, clearDownloadHistory } from '../../../lib/services/lidarr';
 
-export const ServerRoute = createServerFileRoute('/api/lidarr/history').methods({
+export const Route = createFileRoute("/api/lidarr/history")({
+  server: {
+    handlers: {
   GET: async ({ request }: { request: Request }) => {
     try {
       // Auth check (protected route)
@@ -111,5 +113,7 @@ export const ServerRoute = createServerFileRoute('/api/lidarr/history').methods(
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

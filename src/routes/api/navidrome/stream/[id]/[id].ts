@@ -1,8 +1,10 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 import { getAuthToken, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
 
-export const ServerRoute = createServerFileRoute('/api/navidrome/stream/id/id').methods({
+export const Route = createFileRoute("/api/navidrome/stream/id/id")({
+  server: {
+    handlers: {
   GET: async ({ params, request }) => {
     const config = getConfig();
     if (!config.navidromeUrl || !config.navidromeUsername) {
@@ -94,5 +96,7 @@ export const ServerRoute = createServerFileRoute('/api/navidrome/stream/id/id').
       statusText: response.statusText,
       headers: clonedHeaders,
     });
+  },
+    },
   },
 });

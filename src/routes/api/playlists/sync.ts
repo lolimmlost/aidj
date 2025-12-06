@@ -1,8 +1,10 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../lib/auth/auth';
 import { syncNavidromePlaylists } from '../../../lib/services/playlist-sync';
 
-export const ServerRoute = createServerFileRoute('/api/playlists/sync').methods({
+export const Route = createFileRoute("/api/playlists/sync")({
+  server: {
+    handlers: {
   // POST /api/playlists/sync - Trigger Navidrome playlist sync
   POST: async ({ request }) => {
     const session = await auth.api.getSession({
@@ -68,5 +70,7 @@ export const ServerRoute = createServerFileRoute('/api/playlists/sync').methods(
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

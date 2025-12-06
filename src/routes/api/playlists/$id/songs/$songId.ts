@@ -1,11 +1,13 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../../../lib/auth/auth';
 import { db } from '../../../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../../../lib/db/schema/playlists.schema';
 import { eq, and, gt } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
-export const ServerRoute = createServerFileRoute('/api/playlists/$id/songs/$songId').methods({
+export const Route = createFileRoute("/api/playlists/$id/songs/$songId")({
+  server: {
+    handlers: {
   // DELETE /api/playlists/[id]/songs/[songId] - Remove song from playlist
   DELETE: async ({ request, params }) => {
     const session = await auth.api.getSession({
@@ -105,5 +107,7 @@ export const ServerRoute = createServerFileRoute('/api/playlists/$id/songs/$song
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

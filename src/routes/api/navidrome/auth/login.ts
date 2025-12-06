@@ -1,7 +1,9 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 
-export const ServerRoute = createServerFileRoute('/api/navidrome/auth/login').methods({
+export const Route = createFileRoute("/api/navidrome/auth/login")({
+  server: {
+    handlers: {
   POST: async ({ request }) => {
     try {
       const config = getConfig();
@@ -40,5 +42,7 @@ export const ServerRoute = createServerFileRoute('/api/navidrome/auth/login').me
         headers: { 'Content-Type': 'application/json' },
       });
     }
+  },
+    },
   },
 });

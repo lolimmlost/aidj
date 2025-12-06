@@ -1,4 +1,4 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { ServiceError } from '../../../lib/utils';
 import { searchArtistsFull, addArtistToQueue, isArtistAdded } from '../../../lib/services/lidarr';
 import { search as searchNavidrome } from '../../../lib/services/navidrome';
@@ -19,7 +19,9 @@ async function checkArtistAvailability(artistName: string): Promise<{ inNavidrom
   }
 }
 
-export const ServerRoute = createServerFileRoute('/api/lidarr/add').methods({
+export const Route = createFileRoute("/api/lidarr/add")({
+  server: {
+    handlers: {
   POST: async ({ request }) => {
     // Auth check (protected route)
     const { auth } = await import('../../../lib/auth/server');
@@ -107,5 +109,7 @@ export const ServerRoute = createServerFileRoute('/api/lidarr/add').methods({
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

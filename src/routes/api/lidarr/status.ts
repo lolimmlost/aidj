@@ -1,8 +1,10 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { ServiceError } from '../../../lib/utils';
 import { monitorDownloads } from '../../../lib/services/lidarr';
 
-export const ServerRoute = createServerFileRoute('/api/lidarr/status').methods({
+export const Route = createFileRoute("/api/lidarr/status")({
+  server: {
+    handlers: {
   GET: async ({ request }: { request: Request }) => {
     try {
       // Auth check (protected route)
@@ -46,5 +48,7 @@ export const ServerRoute = createServerFileRoute('/api/lidarr/status').methods({
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { GalleryVerticalEnd, LoaderCircle } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -12,6 +13,8 @@ export const Route = createFileRoute("/(auth)/login")({
 
 function LoginForm() {
   const { redirectUrl } = Route.useRouteContext();
+  const router = useRouter();
+  const queryClient = useQueryClient();
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -39,12 +42,12 @@ function LoginForm() {
           setErrorMessage(ctx.error.message);
           setIsLoading(false);
         },
-        // better-auth seems to trigger a hard navigation on login,
-        // so we don't have to revalidate & navigate ourselves
-        // onSuccess: () => {
-        //   queryClient.removeQueries({ queryKey: authQueryOptions().queryKey });
-        //   navigate({ to: redirectUrl });
-        // },
+        onSuccess: async () => {
+          // Clear the user query cache completely so it refetches on navigation
+          queryClient.removeQueries({ queryKey: ["user"] });
+          // Use window.location for a full page reload to ensure fresh auth state
+          window.location.href = redirectUrl;
+        },
       },
     );
   };

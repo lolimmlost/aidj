@@ -1,11 +1,13 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../../lib/auth/auth';
 import { db } from '../../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../../lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { getStarredSongs } from '../../../../lib/services/navidrome';
 
-export const ServerRoute = createServerFileRoute('/api/playlists/liked-songs/sync').methods({
+export const Route = createFileRoute("/api/playlists/liked-songs/sync")({
+  server: {
+    handlers: {
   /**
    * POST /api/playlists/liked-songs/sync
    * Syncs the special "Liked Songs" playlist with Navidrome starred songs
@@ -127,5 +129,7 @@ export const ServerRoute = createServerFileRoute('/api/playlists/liked-songs/syn
         }
       );
     }
+  },
+    },
   },
 });

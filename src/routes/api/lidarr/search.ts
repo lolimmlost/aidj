@@ -1,8 +1,10 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { ServiceError } from '../../../lib/utils';
 import { search } from '@/lib/services/lidarr';
 
-export const ServerRoute = createServerFileRoute('/api/lidarr/search').methods({
+export const Route = createFileRoute("/api/lidarr/search")({
+  server: {
+    handlers: {
   POST: async ({ request }) => {
     try {
       const { query } = await request.json() as { query: string };
@@ -34,5 +36,7 @@ export const ServerRoute = createServerFileRoute('/api/lidarr/search').methods({
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

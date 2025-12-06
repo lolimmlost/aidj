@@ -1,4 +1,4 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../lib/auth/auth';
 import { buildUserPreferenceProfile } from '../../../lib/services/preferences';
 import {
@@ -76,7 +76,9 @@ export interface EnhancedAnalyticsResponse {
   };
 }
 
-export const ServerRoute = createServerFileRoute('/api/recommendations/analytics').methods({
+export const Route = createFileRoute("/api/recommendations/analytics")({
+  server: {
+    handlers: {
   // GET /api/recommendations/analytics - Retrieve user preference analytics
   // Query params: ?period=30d|90d|1y  &metrics=quality,activity,taste,discovery
   GET: async ({ request }) => {
@@ -180,5 +182,7 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/analytics
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

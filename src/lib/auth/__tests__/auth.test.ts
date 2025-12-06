@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as authFunctions from '~/lib/auth/functions';
 import { $getUser } from '~/lib/auth/functions';
 import { authQueryOptions } from '~/lib/auth/queries';
-import { getWebRequest } from "@tanstack/react-start/server";
+import { getRequest } from "@tanstack/react-start/server";
 import { QueryClient } from '@tanstack/react-query';
 
-// Mock serverOnly to allow execution in test environment
+// Mock createServerOnlyFn to allow execution in test environment
 vi.mock("@tanstack/react-start", () => ({
-  serverOnly: vi.fn((fn) => fn),
+  createServerOnlyFn: vi.fn((fn) => fn),
   createServerFn: vi.fn(() => ({
     handler: vi.fn((handlerFn) => vi.fn(handlerFn))
   })),
@@ -29,10 +29,10 @@ vi.mock('~/lib/db', () => ({
 }));
 
 vi.mock("@tanstack/react-start/server", () => ({
-  getWebRequest: vi.fn(),
+  getRequest: vi.fn(),
 }));
 
-const mockGetWebRequest = vi.mocked(getWebRequest);
+const mockGetRequest = vi.mocked(getRequest);
 
 // Mock the auth module using factory function to avoid hoisting issues
 vi.mock('~/lib/auth/auth', () => ({
@@ -126,7 +126,7 @@ describe('$getUser Server Function', () => {
     mockGetSession.mockResolvedValue(mockSession);
 
     const mockHeaders = new Headers({ cookie: 'better-auth.session=valid-token' });
-    mockGetWebRequest.mockReturnValue({ headers: mockHeaders } as unknown as ReturnType<typeof getWebRequest>);
+    mockGetRequest.mockReturnValue({ headers: mockHeaders } as unknown as ReturnType<typeof getRequest>);
 
     const user = await $getUser();
     expect(mockGetSession).toHaveBeenCalledWith({ headers: mockHeaders });
@@ -137,7 +137,7 @@ describe('$getUser Server Function', () => {
     mockGetSession.mockResolvedValue(null);
 
     const mockHeaders = new Headers({ cookie: '' });
-    mockGetWebRequest.mockReturnValue({ headers: mockHeaders } as unknown as ReturnType<typeof getWebRequest>);
+    mockGetRequest.mockReturnValue({ headers: mockHeaders } as unknown as ReturnType<typeof getRequest>);
 
     const user = await $getUser();
     expect(mockGetSession).toHaveBeenCalledWith({ headers: mockHeaders });
@@ -149,7 +149,7 @@ describe('$getUser Server Function', () => {
     mockGetSession.mockRejectedValue(error);
 
     const mockHeaders = new Headers({ cookie: '' });
-    mockGetWebRequest.mockReturnValue({ headers: mockHeaders } as unknown as ReturnType<typeof getWebRequest>);
+    mockGetRequest.mockReturnValue({ headers: mockHeaders } as unknown as ReturnType<typeof getRequest>);
 
     await expect($getUser()).rejects.toThrow('Session expired');
     expect(mockGetSession).toHaveBeenCalledWith({ headers: mockHeaders });
@@ -180,7 +180,7 @@ describe('Auth Query Options', () => {
     };
 
     const mockHeaders = new Headers({ cookie: 'better-auth.session=valid-token' });
-    mockGetWebRequest.mockReturnValue({ headers: mockHeaders } as unknown as ReturnType<typeof getWebRequest>);
+    mockGetRequest.mockReturnValue({ headers: mockHeaders } as unknown as ReturnType<typeof getRequest>);
 
     const mockSessionData = {
       id: 'session-1',

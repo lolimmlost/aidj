@@ -1,4 +1,4 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../../lib/auth/auth';
 import { db } from '../../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../../lib/db/schema/playlists.schema';
@@ -30,7 +30,9 @@ const SmartPlaylistSchema = z.object({
   }),
 });
 
-export const ServerRoute = createServerFileRoute('/api/playlists/smart/').methods({
+export const Route = createFileRoute("/api/playlists/smart/")({
+  server: {
+    handlers: {
   // POST /api/playlists/smart - Create smart playlist using Navidrome rules
   POST: async ({ request }) => {
     const session = await auth.api.getSession({
@@ -149,5 +151,7 @@ export const ServerRoute = createServerFileRoute('/api/playlists/smart/').method
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

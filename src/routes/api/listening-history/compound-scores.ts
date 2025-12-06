@@ -4,14 +4,16 @@
  * GET /api/listening-history/compound-scores - Get recommendations ranked by compound score
  * POST /api/listening-history/compound-scores - Trigger compound score calculation
  */
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import {
   calculateCompoundScores,
   getCompoundScoredRecommendations,
 } from '../../../lib/services/compound-scoring';
 import { auth } from '../../../lib/auth/auth';
 
-export const ServerRoute = createServerFileRoute('/api/listening-history/compound-scores').methods({
+export const Route = createFileRoute("/api/listening-history/compound-scores")({
+  server: {
+    handlers: {
   // Get compound-scored recommendations
   GET: async ({ request }) => {
     try {
@@ -89,5 +91,7 @@ export const ServerRoute = createServerFileRoute('/api/listening-history/compoun
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
+  },
+    },
   },
 });

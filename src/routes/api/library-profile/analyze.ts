@@ -1,9 +1,11 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { ServiceError } from '../../../lib/utils';
 import { getOrCreateLibraryProfile } from '../../../lib/services/library-profile';
 import { auth } from '../../../lib/auth/auth';
 
-export const ServerRoute = createServerFileRoute('/api/library-profile/analyze').methods({
+export const Route = createFileRoute("/api/library-profile/analyze")({
+  server: {
+    handlers: {
   POST: async ({ request }) => {
     // Auth check (protected route)
     const session = await auth.api.getSession({
@@ -54,5 +56,7 @@ export const ServerRoute = createServerFileRoute('/api/library-profile/analyze')
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

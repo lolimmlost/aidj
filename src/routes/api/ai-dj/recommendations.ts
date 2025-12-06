@@ -2,7 +2,7 @@
 // Story 3.9: AI DJ Toggle Mode
 // Phase 3: Updated to use unified recommendations service (Last.fm-based)
 
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { getRecommendations } from '@/lib/services/recommendations';
 import type { Song } from '@/components/ui/audio-player';
 
@@ -74,6 +74,10 @@ export async function POST({ request }: { request: Request }) {
     }
 }
 
-export const ServerRoute = createServerFileRoute('/api/ai-dj/recommendations').methods({
+export const Route = createFileRoute("/api/ai-dj/recommendations")({
+  server: {
+    handlers: {
   POST
+    },
+  },
 });

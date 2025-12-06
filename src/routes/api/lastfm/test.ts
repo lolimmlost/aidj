@@ -6,11 +6,13 @@
  * Tests the Last.fm API connection with the configured API key
  */
 
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 import { LastFmClient } from '@/lib/services/lastfm';
 
-export const ServerRoute = createServerFileRoute('/api/lastfm/test').methods({
+export const Route = createFileRoute("/api/lastfm/test")({
+  server: {
+    handlers: {
   POST: async () => {
     try {
       const config = getConfig();
@@ -72,5 +74,7 @@ export const ServerRoute = createServerFileRoute('/api/lastfm/test').methods({
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
+  },
+    },
   },
 });

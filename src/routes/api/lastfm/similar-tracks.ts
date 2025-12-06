@@ -6,11 +6,13 @@
  * Returns tracks similar to the given artist/track, enriched with library status
  */
 
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 import { LastFmClient } from '@/lib/services/lastfm';
 
-export const ServerRoute = createServerFileRoute('/api/lastfm/similar-tracks').methods({
+export const Route = createFileRoute("/api/lastfm/similar-tracks")({
+  server: {
+    handlers: {
   GET: async ({ request }) => {
     try {
       const url = new URL(request.url);
@@ -56,5 +58,7 @@ export const ServerRoute = createServerFileRoute('/api/lastfm/similar-tracks').m
         headers: { 'Content-Type': 'application/json' },
       });
     }
+  },
+    },
   },
 });

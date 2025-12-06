@@ -1,11 +1,13 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../lib/auth/auth';
 import { db } from '../../../lib/db';
 import { recommendationFeedback } from '../../../lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { clearPreferenceCache } from '../../../lib/services/preferences';
 
-export const ServerRoute = createServerFileRoute('/api/recommendations/clear').methods({
+export const Route = createFileRoute("/api/recommendations/clear")({
+  server: {
+    handlers: {
   // DELETE /api/recommendations/clear - Delete all user feedback data
   DELETE: async ({ request }) => {
     // Authentication middleware validation
@@ -60,5 +62,7 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/clear').m
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

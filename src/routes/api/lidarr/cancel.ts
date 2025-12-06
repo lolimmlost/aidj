@@ -1,8 +1,10 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { ServiceError } from '../../../lib/utils';
 import { cancelDownload } from '../../../lib/services/lidarr';
 
-export const ServerRoute = createServerFileRoute('/api/lidarr/cancel').methods({
+export const Route = createFileRoute("/api/lidarr/cancel")({
+  server: {
+    handlers: {
   POST: async ({ request }: { request: Request }) => {
     try {
       // Auth check (protected route)
@@ -60,5 +62,7 @@ export const ServerRoute = createServerFileRoute('/api/lidarr/cancel').methods({
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

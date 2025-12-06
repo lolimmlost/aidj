@@ -1,8 +1,10 @@
-import { createServerFileRoute } from "@tanstack/react-start/server";
+import { createFileRoute } from "@tanstack/react-router";
 import { getConfig, setConfig } from "~/lib/config/config";
 
 
-export const ServerRoute = createServerFileRoute("/api/config").methods({
+export const Route = createFileRoute("/api/config")({
+  server: {
+    handlers: {
   GET: async () => {
     const cfg = getConfig();
     return new Response(JSON.stringify({ ok: true, config: cfg }), {
@@ -110,6 +112,8 @@ export const ServerRoute = createServerFileRoute("/api/config").methods({
       });
     }
   }
+    },
+  },
 });
 
 async function saveConfigToDb(cfg: Record<string, any>): Promise<void> {

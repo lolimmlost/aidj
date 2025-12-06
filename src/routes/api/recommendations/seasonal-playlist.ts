@@ -3,7 +3,7 @@
  * Story 3.11: Task 5 - Generate playlists from seasonal patterns
  */
 
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../lib/auth/auth';
 import { db } from '../../../lib/db';
 import { recommendationFeedback } from '../../../lib/db/schema';
@@ -16,7 +16,9 @@ const SeasonalPlaylistSchema = z.object({
   month: z.number().int().min(1).max(12).optional(),
 });
 
-export const ServerRoute = createServerFileRoute('/api/recommendations/seasonal-playlist').methods({
+export const Route = createFileRoute("/api/recommendations/seasonal-playlist")({
+  server: {
+    handlers: {
   // POST /api/recommendations/seasonal-playlist - Generate seasonal playlist
   POST: async ({ request }) => {
     const session = await auth.api.getSession({
@@ -108,6 +110,8 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/seasonal-
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });
 

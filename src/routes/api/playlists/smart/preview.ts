@@ -1,8 +1,10 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../../lib/auth/auth';
 import { evaluateSmartPlaylistRules } from '../../../../lib/services/smart-playlist-evaluator';
 
-export const ServerRoute = createServerFileRoute('/api/playlists/smart/preview').methods({
+export const Route = createFileRoute("/api/playlists/smart/preview")({
+  server: {
+    handlers: {
   // POST /api/playlists/smart/preview - Preview songs matching smart playlist rules
   POST: async ({ request }) => {
     const session = await auth.api.getSession({
@@ -60,5 +62,7 @@ export const ServerRoute = createServerFileRoute('/api/playlists/smart/preview')
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

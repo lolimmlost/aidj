@@ -1,9 +1,11 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 import { getAuthToken, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
 import { createHash } from 'crypto';
 
-export const ServerRoute = createServerFileRoute('/api/navidrome/stream/id').methods({
+export const Route = createFileRoute("/api/navidrome/stream/id")({
+  server: {
+    handlers: {
   async GET({ request }) {
     console.log('Stream route hit:', request.url);
     
@@ -137,5 +139,7 @@ export const ServerRoute = createServerFileRoute('/api/navidrome/stream/id').met
     headers.set('Access-Control-Max-Age', '86400');
     
     return new Response(null, { status: 204, headers });
+  },
+    },
   },
 });

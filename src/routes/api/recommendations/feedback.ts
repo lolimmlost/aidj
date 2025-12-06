@@ -1,4 +1,4 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../lib/auth/auth';
 import { db } from '../../../lib/db';
 import { recommendationFeedback, recommendationsCache, userPreferences } from '../../../lib/db/schema';
@@ -406,7 +406,11 @@ export async function POST({ request }: { request: Request }) {
 }
 
 // Route definition using exported handlers
-export const ServerRoute = createServerFileRoute('/api/recommendations/feedback').methods({
+export const Route = createFileRoute("/api/recommendations/feedback")({
+  server: {
+    handlers: {
   GET,
   POST,
+    },
+  },
 });

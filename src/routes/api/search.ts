@@ -1,8 +1,10 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { ServiceError } from '../../lib/utils';
 import { search } from '../../lib/services/navidrome';
 
-export const ServerRoute = createServerFileRoute('/api/search').methods({
+export const Route = createFileRoute("/api/search")({
+  server: {
+    handlers: {
   POST: async ({ request }) => {
     // Auth check (protected route)
     const { auth } = await import('../../lib/auth/server');
@@ -49,5 +51,7 @@ export const ServerRoute = createServerFileRoute('/api/search').methods({
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

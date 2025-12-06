@@ -1,12 +1,12 @@
-import { serverOnly } from "@tanstack/react-start";
+import { createServerOnlyFn } from "@tanstack/react-start";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { reactStartCookies } from "better-auth/react-start";
+import { tanstackStartCookies } from "better-auth/tanstack-start";
 
 import { env } from "~/env/server";
 import { db } from "~/lib/db";
 
-const getAuthConfig = serverOnly(() =>
+const getAuthConfig = createServerOnlyFn(() =>
   betterAuth({
     baseURL: env.VITE_BASE_URL,
     database: drizzleAdapter(db, {
@@ -14,7 +14,7 @@ const getAuthConfig = serverOnly(() =>
     }),
 
     // https://www.better-auth.com/docs/integrations/tanstack#usage-tips
-    plugins: [reactStartCookies()],
+    plugins: [tanstackStartCookies()],
 
     // https://www.better-auth.com/docs/concepts/session-management#session-caching
     session: {

@@ -1,10 +1,12 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../lib/auth/auth';
 import { db } from '../../../lib/db';
 import { recommendationFeedback } from '../../../lib/db/schema';
 import { eq } from 'drizzle-orm';
 
-export const ServerRoute = createServerFileRoute('/api/recommendations/export').methods({
+export const Route = createFileRoute("/api/recommendations/export")({
+  server: {
+    handlers: {
   // GET /api/recommendations/export - Export all user feedback data as JSON
   GET: async ({ request }) => {
     // Authentication middleware validation
@@ -62,5 +64,7 @@ export const ServerRoute = createServerFileRoute('/api/recommendations/export').
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

@@ -1,8 +1,10 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { ServiceError } from '../../../lib/utils';
 import { checkArtistAvailability, checkAlbumAvailability, checkSongAvailability } from '../../../lib/services/lidarr-navidrome';
 
-export const ServerRoute = createServerFileRoute('/api/lidarr/availability').methods({
+export const Route = createFileRoute("/api/lidarr/availability")({
+  server: {
+    handlers: {
   POST: async ({ request }) => {
     try {
       const { type, artist, album, song } = await request.json() as {
@@ -48,5 +50,7 @@ export const ServerRoute = createServerFileRoute('/api/lidarr/availability').met
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

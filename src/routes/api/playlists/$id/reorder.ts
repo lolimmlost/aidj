@@ -1,10 +1,12 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../../lib/auth/auth';
 import { db } from '../../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../../lib/db/schema/playlists.schema';
 import { eq, and } from 'drizzle-orm';
 
-export const ServerRoute = createServerFileRoute('/api/playlists/$id/reorder').methods({
+export const Route = createFileRoute("/api/playlists/$id/reorder")({
+  server: {
+    handlers: {
   // PUT /api/playlists/[id]/reorder - Reorder songs in a playlist
   PUT: async ({ request, params }) => {
     const session = await auth.api.getSession({
@@ -93,5 +95,7 @@ export const ServerRoute = createServerFileRoute('/api/playlists/$id/reorder').m
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

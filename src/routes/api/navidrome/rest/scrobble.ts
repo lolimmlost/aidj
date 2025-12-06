@@ -4,11 +4,13 @@
  *
  * GET /api/navidrome/rest/scrobble
  */
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '../../../../lib/config/config';
 import { getAuthToken, subsonicToken, subsonicSalt } from '../../../../lib/services/navidrome';
 
-export const ServerRoute = createServerFileRoute('/api/navidrome/rest/scrobble').methods({
+export const Route = createFileRoute("/api/navidrome/rest/scrobble")({
+  server: {
+    handlers: {
   GET: async ({ request }) => {
     try {
       const config = getConfig();
@@ -81,5 +83,7 @@ export const ServerRoute = createServerFileRoute('/api/navidrome/rest/scrobble')
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
+  },
+    },
   },
 });

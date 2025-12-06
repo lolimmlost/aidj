@@ -4,11 +4,13 @@
  *
  * POST /api/listening-history/record
  */
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { recordSongPlay } from '../../../lib/services/listening-history';
 import { auth } from '../../../lib/auth/auth';
 
-export const ServerRoute = createServerFileRoute('/api/listening-history/record').methods({
+export const Route = createFileRoute("/api/listening-history/record")({
+  server: {
+    handlers: {
   POST: async ({ request }) => {
     try {
       // Get session from auth
@@ -55,5 +57,7 @@ export const ServerRoute = createServerFileRoute('/api/listening-history/record'
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
+  },
+    },
   },
 });

@@ -1,4 +1,4 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../../../lib/auth/auth';
 import { db } from '../../../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../../../lib/db/schema/playlists.schema';
@@ -12,7 +12,9 @@ const AddSongSchema = z.object({
   songTitle: z.string().min(1),
 });
 
-export const ServerRoute = createServerFileRoute('/api/playlists/$id/songs/').methods({
+export const Route = createFileRoute("/api/playlists/$id/songs/")({
+  server: {
+    handlers: {
   // POST /api/playlists/[id]/songs - Add song to playlist
   POST: async ({ request, params }) => {
     const session = await auth.api.getSession({
@@ -136,5 +138,7 @@ export const ServerRoute = createServerFileRoute('/api/playlists/$id/songs/').me
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

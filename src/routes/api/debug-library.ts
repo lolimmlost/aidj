@@ -1,7 +1,9 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { buildLibraryIndex, getLibraryIndexStats } from '../../lib/services/library-index';
 
-export const ServerRoute = createServerFileRoute('/api/debug-library').methods({
+export const Route = createFileRoute("/api/debug-library")({
+  server: {
+    handlers: {
   GET: async () => {
     try {
       // Force rebuild index
@@ -33,5 +35,7 @@ export const ServerRoute = createServerFileRoute('/api/debug-library').methods({
         headers: { 'Content-Type': 'application/json' },
       });
     }
+  },
+    },
   },
 });

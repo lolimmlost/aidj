@@ -72,6 +72,8 @@ const VolumeControl = ({ volume, onChange }: {
 };
 
 export function AudioPlayer() {
+  console.log('🎵 AudioPlayer component rendering');
+
   const audioRef = useRef<HTMLAudioElement>(null);
   const hasScrobbledRef = useRef<boolean>(false);
   const scrobbleThresholdReachedRef = useRef<boolean>(false);
@@ -79,6 +81,10 @@ export function AudioPlayer() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Track if we were playing before an iOS interruption (notification, call, etc.)
+  const wasPlayingBeforeInterruptionRef = useRef<boolean>(false);
+  const isUserInitiatedPauseRef = useRef<boolean>(false);
+
   const {
     playlist,
     currentSongIndex,
@@ -173,8 +179,11 @@ export function AudioPlayer() {
     if (audio) {
       setError(null);
       if (isPlaying) {
+        // Mark this as a user-initiated pause so we don't auto-resume
+        isUserInitiatedPauseRef.current = true;
         audio.pause();
       } else {
+        isUserInitiatedPauseRef.current = false;
         setIsLoading(true);
         audio.play().catch((e) => {
           setError('Failed to play audio');
@@ -387,6 +396,116 @@ export function AudioPlayer() {
     }
   }, [isPlaying]);
 
+  // iOS audio interruption handling (notifications, calls, Siri, etc.)
+  // Scenarios:
+  // 1. Screen unlocked, notification comes in → pause briefly → should resume
+  // 2. Screen locked, music playing in background, notification comes in → should resume
+  // 3. User locks screen or switches apps → should NOT auto-resume when they return
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    let interruptionTimestamp: number | null = null;
+    let wasHiddenBeforePause = document.visibilityState === 'hidden';
+
+    // Handle system-initiated pause (iOS notification, phone call, etc.)
+    const handlePause = () => {
+      // Only track if we were playing and this wasn't user-initiated
+      if (isPlaying && !isUserInitiatedPauseRef.current) {
+        // Record when the interruption happened and visibility state
+        interruptionTimestamp = Date.now();
+        wasHiddenBeforePause = document.visibilityState === 'hidden';
+        wasPlayingBeforeInterruptionRef.current = true;
+        console.log(`🔔 Audio paused (wasHidden: ${wasHiddenBeforePause})`);
+
+        // If we were already in background (screen locked), try to resume after a short delay
+        // This handles notifications while screen is locked
+        if (wasHiddenBeforePause) {
+          setTimeout(() => {
+            if (wasPlayingBeforeInterruptionRef.current && audio.paused) {
+              console.log('🔔 Attempting background resume after interruption...');
+              audio.play()
+                .then(() => {
+                  console.log('🔔 Background playback resumed');
+                  wasPlayingBeforeInterruptionRef.current = false;
+                  interruptionTimestamp = null;
+                })
+                .catch((e) => {
+                  console.log('🔔 Background resume failed:', e.message);
+                  // Keep the flag - will try again when page becomes visible
+                });
+            }
+          }, 500);
+        }
+      }
+    };
+
+    // Handle visibility change - distinguish between brief interruptions and intentional backgrounding
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // Page going hidden - only clear flag if there's no active interruption
+        // (i.e., user is intentionally leaving, not a notification while playing)
+        if (wasPlayingBeforeInterruptionRef.current && interruptionTimestamp) {
+          const elapsed = Date.now() - interruptionTimestamp;
+          // If the pause happened more than 1 second ago, user probably locked screen intentionally
+          if (elapsed > 1000) {
+            console.log('🔔 Page hidden after pause - user left intentionally');
+            wasPlayingBeforeInterruptionRef.current = false;
+            interruptionTimestamp = null;
+          }
+          // Otherwise keep the flag - this might be a notification causing both pause and hide
+        }
+      } else if (document.visibilityState === 'visible') {
+        // Page becoming visible - try to resume if we have a pending interruption
+        if (wasPlayingBeforeInterruptionRef.current && interruptionTimestamp) {
+          const elapsed = Date.now() - interruptionTimestamp;
+          // Resume if interruption was within last 30 seconds (generous for lock screen scenarios)
+          if (elapsed < 30000) {
+            console.log(`🔔 Page visible, interruption ${elapsed}ms ago, attempting resume...`);
+            setTimeout(() => {
+              if (audio && wasPlayingBeforeInterruptionRef.current && audio.paused) {
+                audio.play()
+                  .then(() => {
+                    console.log('🔔 Playback resumed successfully');
+                    wasPlayingBeforeInterruptionRef.current = false;
+                    interruptionTimestamp = null;
+                    setIsPlaying(true);
+                  })
+                  .catch((e) => {
+                    console.log('🔔 Resume failed, may need user interaction:', e.message);
+                    // Clear the flag - user will need to manually press play
+                    wasPlayingBeforeInterruptionRef.current = false;
+                    interruptionTimestamp = null;
+                  });
+              }
+            }, 100);
+          } else {
+            console.log(`🔔 Interruption too old (${elapsed}ms), not auto-resuming`);
+            wasPlayingBeforeInterruptionRef.current = false;
+            interruptionTimestamp = null;
+          }
+        }
+      }
+    };
+
+    // iOS-specific: handle the 'playing' event which fires when playback actually starts
+    const handlePlaying = () => {
+      wasPlayingBeforeInterruptionRef.current = false;
+      isUserInitiatedPauseRef.current = false;
+      interruptionTimestamp = null;
+    };
+
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('playing', handlePlaying);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('playing', handlePlaying);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isPlaying, setIsPlaying]);
+
   // Keyboard navigation handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -437,6 +556,152 @@ export function AudioPlayer() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [togglePlayPause, seek, changeVolume, handleToggleLike, currentTime, duration, volume]);
+
+  // Media Session API for lock screen / notification controls
+  // Set up once when component mounts, update metadata when song changes
+  useEffect(() => {
+    console.log('🎛️ Media Session effect running, currentSong:', currentSong?.name);
+
+    if (!('mediaSession' in navigator)) {
+      console.log('🎛️ Media Session API not available in this browser');
+      return;
+    }
+
+    const audio = audioRef.current;
+    if (!audio) {
+      console.log('🎛️ Audio ref not ready yet');
+      return;
+    }
+
+    console.log('🎛️ Audio ref ready, setting up Media Session');
+
+    const setupMediaSession = () => {
+      if (!currentSong) return;
+
+      console.log('🎛️ Setting up Media Session for:', currentSong.name || currentSong.title);
+
+      // Set metadata for lock screen display
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentSong.name || currentSong.title || 'Unknown Song',
+        artist: currentSong.artist || 'Unknown Artist',
+        album: currentSong.album || '',
+      });
+
+      // Update position state for iOS
+      if (audio.duration && isFinite(audio.duration)) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: audio.duration,
+            playbackRate: audio.playbackRate,
+            position: audio.currentTime,
+          });
+        } catch (e) {
+          // Position state not supported
+        }
+      }
+    };
+
+    // iOS quirk: You cannot have both seek and track actions together.
+    // We must explicitly disable seek actions to show next/previous track buttons.
+    // See: https://stackoverflow.com/questions/73993512/web-audio-player-ios-next-song-previous-song-buttons-are-not-in-control-cent
+    const setupHandlers = () => {
+      try {
+        // Disable seek buttons to enable track buttons on iOS
+        navigator.mediaSession.setActionHandler('seekbackward', null);
+        navigator.mediaSession.setActionHandler('seekforward', null);
+        navigator.mediaSession.setActionHandler('seekto', null);
+      } catch (e) {
+        // Some browsers don't support all actions
+      }
+
+      try {
+        navigator.mediaSession.setActionHandler('play', () => {
+          console.log('🎛️ Media Session: play');
+          audio.play();
+          setIsPlaying(true);
+        });
+
+        navigator.mediaSession.setActionHandler('pause', () => {
+          console.log('🎛️ Media Session: pause');
+          isUserInitiatedPauseRef.current = true;
+          audio.pause();
+          setIsPlaying(false);
+        });
+
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+          console.log('🎛️ Media Session: previoustrack');
+          previousSong();
+        });
+
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+          console.log('🎛️ Media Session: nexttrack');
+          nextSong();
+        });
+
+        console.log('🎛️ Media Session handlers registered');
+      } catch (e) {
+        console.error('🎛️ Failed to set media session handlers:', e);
+      }
+    };
+
+    // Set up handlers immediately
+    setupHandlers();
+
+    // Set up metadata when song changes or audio starts playing
+    const handlePlay = () => {
+      setupMediaSession();
+      navigator.mediaSession.playbackState = 'playing';
+    };
+
+    const handlePause = () => {
+      navigator.mediaSession.playbackState = 'paused';
+    };
+
+    const handleLoadedMetadata = () => {
+      setupMediaSession();
+    };
+
+    // Update position periodically for lock screen progress
+    const handleTimeUpdate = () => {
+      if (audio.duration && isFinite(audio.duration) && isFinite(audio.currentTime)) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: audio.duration,
+            playbackRate: audio.playbackRate,
+            position: audio.currentTime,
+          });
+        } catch (e) {
+          // Ignore position state errors
+        }
+      }
+    };
+
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+
+    // Initial setup if song is already loaded
+    if (currentSong) {
+      setupMediaSession();
+    }
+
+    return () => {
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+
+      try {
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('previoustrack', null);
+        navigator.mediaSession.setActionHandler('nexttrack', null);
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    };
+  }, [currentSong, setIsPlaying, previousSong, nextSong]);
 
   if (playlist.length === 0 || currentSongIndex === -1) return null;
 

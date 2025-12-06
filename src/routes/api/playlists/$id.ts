@@ -1,11 +1,13 @@
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../lib/auth/auth';
 import { db } from '../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../lib/db/schema/playlists.schema';
 import { eq, and, asc } from 'drizzle-orm';
 import { getSongsByIds } from '../../../lib/services/navidrome';
 
-export const ServerRoute = createServerFileRoute('/api/playlists/$id').methods({
+export const Route = createFileRoute("/api/playlists/$id")({
+  server: {
+    handlers: {
   // GET /api/playlists/[id] - Get playlist details
   GET: async ({ request, params }) => {
     const session = await auth.api.getSession({
@@ -160,5 +162,7 @@ export const ServerRoute = createServerFileRoute('/api/playlists/$id').methods({
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getWebRequest } from "@tanstack/react-start/server";
+import { getRequest } from "@tanstack/react-start/server";
 import { auth } from "~/lib/auth/auth";
 import { integratedSearch, enhancedSearch } from "~/lib/services/lidarr-navidrome";
 import { ServiceError } from "~/lib/utils";
@@ -12,7 +12,7 @@ export const $integratedSearch = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       // Check if user is authenticated
-      const session = await auth.api.getSession({ headers: getWebRequest().headers });
+      const session = await auth.api.getSession({ headers: getRequest().headers });
       if (!session) {
         throw new ServiceError('UNAUTHORIZED', 'Authentication required');
       }
@@ -50,7 +50,7 @@ export const $checkAvailability = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       // Check if user is authenticated
-      const session = await auth.api.getSession({ headers: getWebRequest().headers });
+      const session = await auth.api.getSession({ headers: getRequest().headers });
       if (!session) {
         throw new ServiceError('UNAUTHORIZED', 'Authentication required');
       }

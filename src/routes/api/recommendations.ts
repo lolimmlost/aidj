@@ -1,12 +1,14 @@
 // API endpoint for mood-based recommendations
 // Phase 3: Updated to use unified recommendations service (AI mood translation)
 
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from "@tanstack/react-router";
 import { ServiceError } from '../../lib/utils';
 import { getRecommendations } from '../../lib/services/recommendations';
 import { auth } from '../../lib/auth/auth';
 
-export const ServerRoute = createServerFileRoute('/api/recommendations').methods({
+export const Route = createFileRoute("/api/recommendations")({
+  server: {
+    handlers: {
   POST: async ({ request }) => {
     // Auth check (protected route)
     const session = await auth.api.getSession({
@@ -85,5 +87,7 @@ export const ServerRoute = createServerFileRoute('/api/recommendations').methods
         headers: { 'Content-Type': 'application/json' }
       });
     }
+  },
+    },
   },
 });
