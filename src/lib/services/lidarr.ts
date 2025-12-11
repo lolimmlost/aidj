@@ -148,13 +148,20 @@ async function getAuthToken(): Promise<string> {
 /**
  * Execute API request with retry logic and error handling
  */
-async function apiFetch(endpoint: string, options: RequestInit = {}, retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG): Promise<unknown> {
+async function apiFetch(
+  endpoint: string,
+  options: RequestInit = {},
+  retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG,
+  customTimeout?: number
+): Promise<unknown> {
   const config = getConfig();
   if (!config.lidarrUrl) {
     throw new ServiceError('LIDARR_CONFIG_ERROR', 'Lidarr URL not configured');
   }
 
-  const adaptiveTimeout = mobileOptimization.getAdaptiveTimeout();
+  // Use custom timeout if provided, otherwise use adaptive timeout
+  // Album lookups need more time (15s) since they query external databases
+  const adaptiveTimeout = customTimeout ?? mobileOptimization.getAdaptiveTimeout();
   let lastError: Error;
 
   for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++) {
@@ -241,12 +248,18 @@ export async function searchArtists(query: string): Promise<Artist[]> {
     // Use mobile-optimized batched requests for multiple lookups
     const cacheKey = `lidarr_artists_${query}`;
     const cached = mobileOptimization.getCache<Artist[]>(cacheKey);
-    
+
     if (cached) {
       return cached;
     }
 
-    const data = await apiFetch(`/artist/lookup?term=${encodeURIComponent(query)}`) as LidarrArtist[];
+    // Use 15 second timeout - artist lookups query external MusicBrainz database
+    const data = await apiFetch(
+      `/artist/lookup?term=${encodeURIComponent(query)}`,
+      {},
+      DEFAULT_RETRY_CONFIG,
+      15000
+    ) as LidarrArtist[];
     const result = data.map(artist => ({
       id: artist.id.toString(),
       name: artist.artistName,
@@ -256,7 +269,7 @@ export async function searchArtists(query: string): Promise<Artist[]> {
 
     // Cache results for mobile devices
     mobileOptimization.setCache(cacheKey, result, 300000); // 5 minutes
-    
+
     return result;
   } catch (error) {
     console.error('Error searching artists:', error);
@@ -266,7 +279,13 @@ export async function searchArtists(query: string): Promise<Artist[]> {
 
 export async function searchArtistsFull(query: string): Promise<LidarrArtist[]> {
   try {
-    const data = await apiFetch(`/artist/lookup?term=${encodeURIComponent(query)}`) as LidarrArtist[];
+    // Use 15 second timeout - artist lookups query external MusicBrainz database
+    const data = await apiFetch(
+      `/artist/lookup?term=${encodeURIComponent(query)}`,
+      {},
+      DEFAULT_RETRY_CONFIG,
+      15000
+    ) as LidarrArtist[];
     return data;
   } catch (error) {
     console.error('Error searching artists full:', error);
@@ -279,12 +298,18 @@ export async function searchAlbums(query: string): Promise<Album[]> {
     // Use mobile-optimized batched requests for multiple lookups
     const cacheKey = `lidarr_albums_${query}`;
     const cached = mobileOptimization.getCache<Album[]>(cacheKey);
-    
+
     if (cached) {
       return cached;
     }
 
-    const data = await apiFetch(`/album/lookup?term=${encodeURIComponent(query)}`) as LidarrAlbum[];
+    // Use 15 second timeout - album lookups query external MusicBrainz database
+    const data = await apiFetch(
+      `/album/lookup?term=${encodeURIComponent(query)}`,
+      {},
+      DEFAULT_RETRY_CONFIG,
+      15000
+    ) as LidarrAlbum[];
     const result = data.map(album => ({
       id: album.id.toString(),
       title: album.title,
@@ -295,7 +320,7 @@ export async function searchAlbums(query: string): Promise<Album[]> {
 
     // Cache results for mobile devices
     mobileOptimization.setCache(cacheKey, result, 300000); // 5 minutes
-    
+
     return result;
   } catch (error) {
     console.error('Error searching albums:', error);
@@ -347,11 +372,46 @@ export async function search(query: string): Promise<{ artists: Artist[]; albums
 // Alias for backward compatibility
 export const searchArtist = searchArtists;
 
-export async function addArtist(artist: LidarrArtist): Promise<void> {
+export async function addArtist(artist: LidarrArtist, options?: { monitorAll?: boolean }): Promise<void> {
   try {
+    const config = getConfig();
+
+    // Get root folder to use default settings
+    const rootFolders = await apiFetch('/rootFolder') as Array<{
+      id: number;
+      path: string;
+      defaultQualityProfileId: number;
+      defaultMetadataProfileId: number;
+    }>;
+
+    const rootFolder = rootFolders[0];
+    if (!rootFolder) {
+      throw new ServiceError('LIDARR_CONFIG_ERROR', 'No root folder configured in Lidarr');
+    }
+
+    // By default, only monitor the artist (not all albums) to avoid downloading entire discographies
+    // Use 'none' to add artist unmonitored, then selectively enable albums
+    const shouldMonitorAll = options?.monitorAll ?? false;
+
+    // Build the artist payload with required fields for adding
+    const artistPayload = {
+      foreignArtistId: artist.foreignArtistId,
+      artistName: artist.artistName,
+      qualityProfileId: config.lidarrQualityProfileId || rootFolder.defaultQualityProfileId || 1,
+      metadataProfileId: rootFolder.defaultMetadataProfileId || 1,
+      rootFolderPath: config.lidarrRootFolderPath || rootFolder.path,
+      monitored: true,
+      monitorNewItems: shouldMonitorAll ? 'all' : 'none', // Don't auto-monitor future albums
+      tags: [],
+      addOptions: {
+        monitor: shouldMonitorAll ? 'all' : 'none', // Don't monitor any albums initially
+        searchForMissingAlbums: shouldMonitorAll, // Only search if monitoring all
+      },
+    };
+
     await apiFetch('/artist', {
       method: 'POST',
-      body: JSON.stringify(artist),
+      body: JSON.stringify(artistPayload),
     });
   } catch (error) {
     console.error('Error adding artist:', error);
@@ -361,6 +421,104 @@ export async function addArtist(artist: LidarrArtist): Promise<void> {
 
 // Alias for the route
 export const addArtistToQueue = addArtist;
+
+/**
+ * Search for an album by song title to find which album contains the song
+ * Uses a longer timeout (15s) since album lookups query external MusicBrainz database
+ */
+export async function searchAlbumByTitle(songTitle: string, artistName?: string): Promise<LidarrAlbum[]> {
+  try {
+    const query = artistName ? `${artistName} ${songTitle}` : songTitle;
+    // Use 15 second timeout for album lookups - they query external databases
+    const data = await apiFetch(
+      `/album/lookup?term=${encodeURIComponent(query)}`,
+      {},
+      DEFAULT_RETRY_CONFIG,
+      15000
+    ) as LidarrAlbum[];
+    return data;
+  } catch (error) {
+    console.error('Error searching album by title:', error);
+    return [];
+  }
+}
+
+/**
+ * Get all albums for an artist in Lidarr
+ */
+export async function getArtistAlbums(artistId: number): Promise<LidarrAlbum[]> {
+  try {
+    const data = await apiFetch(`/album?artistId=${artistId}`) as LidarrAlbum[];
+    return data;
+  } catch (error) {
+    console.error('Error fetching artist albums:', error);
+    return [];
+  }
+}
+
+/**
+ * Monitor a specific album to trigger download
+ */
+export async function monitorAlbum(albumId: number, monitor: boolean = true): Promise<boolean> {
+  try {
+    // Get the current album data first
+    const album = await apiFetch(`/album/${albumId}`) as LidarrAlbum & {
+      monitored: boolean;
+      anyReleaseOk: boolean;
+      releases: unknown[];
+    };
+
+    // Update the monitored status
+    await apiFetch(`/album/${albumId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        ...album,
+        monitored: monitor,
+      }),
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error monitoring album:', error);
+    return false;
+  }
+}
+
+/**
+ * Trigger a search for a specific album
+ */
+export async function searchForAlbum(albumId: number): Promise<boolean> {
+  try {
+    await apiFetch('/command', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'AlbumSearch',
+        albumIds: [albumId],
+      }),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error searching for album:', error);
+    return false;
+  }
+}
+
+/**
+ * Find the artist ID for an artist name in Lidarr's local database
+ */
+export async function findArtistByName(artistName: string): Promise<LidarrArtist | null> {
+  try {
+    const artists = await getArtists();
+    // Case-insensitive match
+    const artist = artists.find(a =>
+      a.artistName.toLowerCase() === artistName.toLowerCase()
+    );
+    return artist || null;
+  } catch (error) {
+    console.error('Error finding artist by name:', error);
+    return null;
+  }
+}
 
 export async function getArtists(): Promise<LidarrArtist[]> {
   try {
@@ -409,33 +567,68 @@ export interface DownloadHistory {
 
 /**
  * Get current download queue
+ * Lidarr API returns paginated data: { page, pageSize, totalRecords, records: [...] }
  */
 export async function getDownloadQueue(): Promise<DownloadQueueItem[]> {
   try {
-    const data = await apiFetch('/queue') as Array<{
-      id: number | string;
-      artistName?: string;
-      foreignArtistId: string;
-      status?: string;
-      progress?: number;
-      estimatedCompletion?: string;
-      addedAt?: string;
-      startedAt?: string;
-      completedAt?: string;
-      errorMessage?: string;
-    }>;
-    return data.map(item => ({
-      id: item.id.toString(),
-      artistName: item.artistName || 'Unknown Artist',
-      foreignArtistId: item.foreignArtistId,
-      status: (item.status as DownloadQueueItem['status']) || 'queued',
-      progress: item.progress || 0,
-      estimatedCompletion: item.estimatedCompletion,
-      addedAt: item.addedAt || new Date().toISOString(),
-      startedAt: item.startedAt,
-      completedAt: item.completedAt,
-      errorMessage: item.errorMessage,
-    }));
+    const response = await apiFetch('/queue?pageSize=50') as {
+      page: number;
+      pageSize: number;
+      totalRecords: number;
+      records: Array<{
+        id: number | string;
+        title?: string;
+        status?: string;
+        trackedDownloadStatus?: string;
+        trackedDownloadState?: string;
+        statusMessages?: Array<{ title: string; messages: string[] }>;
+        errorMessage?: string;
+        sizeleft?: number;
+        size?: number;
+        timeleft?: string;
+        estimatedCompletionTime?: string;
+        added?: string;
+        artist?: { artistName: string; foreignArtistId: string };
+        album?: { title: string };
+        quality?: { quality: { name: string } };
+        downloadClient?: string;
+        outputPath?: string;
+      }>;
+    };
+
+    return response.records.map(item => {
+      // Calculate progress from size and sizeleft
+      const progress = item.size && item.sizeleft !== undefined
+        ? Math.round(((item.size - item.sizeleft) / item.size) * 100)
+        : 0;
+
+      // Determine status from Lidarr's tracking fields
+      let status: DownloadQueueItem['status'] = 'queued';
+      if (item.trackedDownloadState === 'downloading' || item.status === 'downloading') {
+        status = 'downloading';
+      } else if (item.trackedDownloadStatus === 'warning' || item.trackedDownloadStatus === 'error') {
+        status = 'failed';
+      } else if (item.status === 'completed' || item.trackedDownloadState === 'importPending') {
+        status = 'downloaded';
+      }
+
+      // Extract error messages
+      const errorMessages = item.statusMessages?.flatMap(sm => sm.messages) || [];
+      const errorMessage = item.errorMessage || errorMessages.join('; ') || undefined;
+
+      return {
+        id: item.id.toString(),
+        artistName: item.artist?.artistName || item.title || 'Unknown Artist',
+        foreignArtistId: item.artist?.foreignArtistId || '',
+        status,
+        progress,
+        estimatedCompletion: item.estimatedCompletionTime || item.timeleft,
+        addedAt: item.added || new Date().toISOString(),
+        startedAt: item.added,
+        completedAt: undefined,
+        errorMessage,
+      };
+    });
   } catch (error) {
     console.error('Error fetching download queue:', error);
     return [];
@@ -444,29 +637,76 @@ export async function getDownloadQueue(): Promise<DownloadQueueItem[]> {
 
 /**
  * Get download history
+ * Lidarr API returns paginated data with various eventTypes.
+ * We filter for download-related events: grabbed, downloadFailed, downloadFolderImported, trackFileImported
  */
 export async function getDownloadHistory(): Promise<DownloadHistory[]> {
   try {
-    const data = await apiFetch('/history') as Array<{
-      id: number | string;
-      artistName?: string;
-      foreignArtistId: string;
-      status?: string;
-      addedAt?: string;
-      completedAt?: string;
-      size?: number;
-      errorMessage?: string;
-    }>;
-    return data.map(item => ({
-      id: item.id.toString(),
-      artistName: item.artistName || 'Unknown Artist',
-      foreignArtistId: item.foreignArtistId,
-      status: (item.status as DownloadHistory['status']) || 'completed',
-      addedAt: item.addedAt || new Date().toISOString(),
-      completedAt: item.completedAt || new Date().toISOString(),
-      size: item.size,
-      errorMessage: item.errorMessage,
-    }));
+    // Fetch more records to find actual download events (not just file retagging)
+    const response = await apiFetch('/history?pageSize=100&sortKey=date&sortDirection=descending') as {
+      page: number;
+      pageSize: number;
+      totalRecords: number;
+      records: Array<{
+        id: number | string;
+        artistId?: number;
+        albumId?: number;
+        trackId?: number;
+        sourceTitle?: string;
+        quality?: { quality: { name: string } };
+        date?: string;
+        eventType: string;
+        data?: {
+          droppedPath?: string;
+          importedPath?: string;
+          downloadClient?: string;
+          downloadClientName?: string;
+          message?: string;
+          reason?: string;
+          nzbInfoUrl?: string;
+          downloadUrl?: string;
+          size?: string;
+        };
+        downloadId?: string;
+        album?: { title: string; artistId?: number };
+        artist?: { artistName: string; foreignArtistId: string };
+      }>;
+    };
+
+    // Filter for download-related events only
+    const downloadEvents = ['grabbed', 'downloadFailed', 'downloadFolderImported', 'trackFileImported', 'albumImportIncomplete'];
+
+    return response.records
+      .filter(item => downloadEvents.includes(item.eventType))
+      .map(item => {
+        // Map Lidarr eventType to our status
+        let status: DownloadHistory['status'] = 'completed';
+        if (item.eventType === 'downloadFailed' || item.eventType === 'albumImportIncomplete') {
+          status = 'failed';
+        } else if (item.eventType === 'grabbed') {
+          status = 'completed'; // Grabbed means download started successfully
+        }
+
+        // Extract error message for failed downloads
+        let errorMessage: string | undefined;
+        if (status === 'failed') {
+          errorMessage = item.data?.message || item.data?.reason || 'Download failed';
+        }
+
+        // Parse size if available
+        const size = item.data?.size ? parseInt(item.data.size, 10) : undefined;
+
+        return {
+          id: item.id.toString(),
+          artistName: item.artist?.artistName || item.sourceTitle?.split('/')[0] || 'Unknown Artist',
+          foreignArtistId: item.artist?.foreignArtistId || '',
+          status,
+          addedAt: item.date || new Date().toISOString(),
+          completedAt: item.date || new Date().toISOString(),
+          size: isNaN(size as number) ? undefined : size,
+          errorMessage,
+        };
+      });
   } catch (error) {
     console.error('Error fetching download history:', error);
     return [];
@@ -478,13 +718,85 @@ export async function getDownloadHistory(): Promise<DownloadHistory[]> {
  */
 export async function cancelDownload(downloadId: string): Promise<boolean> {
   try {
-    await apiFetch(`/queue/${downloadId}`, {
+    await apiFetch(`/queue/${downloadId}?removeFromClient=true&blocklist=false`, {
       method: 'DELETE',
     });
     return true;
   } catch (error) {
     console.error('Error cancelling download:', error);
     return false;
+  }
+}
+
+/**
+ * Retry a failed download by removing it from queue and triggering a new search
+ */
+export async function retryDownload(downloadId: string, artistId?: string): Promise<boolean> {
+  try {
+    // First remove the failed download from queue (without blocklisting)
+    await apiFetch(`/queue/${downloadId}?removeFromClient=true&blocklist=false`, {
+      method: 'DELETE',
+    });
+
+    // If we have an artistId, trigger a search for missing albums
+    if (artistId) {
+      await apiFetch('/command', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'ArtistSearch',
+          artistId: parseInt(artistId, 10),
+        }),
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error retrying download:', error);
+    return false;
+  }
+}
+
+/**
+ * Get wanted/missing albums (albums Lidarr is searching for but hasn't found)
+ */
+export interface WantedAlbum {
+  id: string;
+  title: string;
+  artistName: string;
+  artistId: string;
+  releaseDate?: string;
+  monitored: boolean;
+}
+
+export async function getWantedMissing(): Promise<WantedAlbum[]> {
+  try {
+    const response = await apiFetch('/wanted/missing?pageSize=50&sortKey=releaseDate&sortDirection=descending') as {
+      page: number;
+      pageSize: number;
+      totalRecords: number;
+      records: Array<{
+        id: number;
+        title: string;
+        artistId: number;
+        releaseDate?: string;
+        monitored: boolean;
+        artist?: {
+          artistName: string;
+        };
+      }>;
+    };
+
+    return response.records.map(album => ({
+      id: album.id.toString(),
+      title: album.title,
+      artistName: album.artist?.artistName || 'Unknown Artist',
+      artistId: album.artistId.toString(),
+      releaseDate: album.releaseDate,
+      monitored: album.monitored,
+    }));
+  } catch (error) {
+    console.error('Error fetching wanted/missing:', error);
+    return [];
   }
 }
 
@@ -496,17 +808,22 @@ export async function getDownloadStats(): Promise<{
   totalDownloading: number;
   totalCompleted: number;
   totalFailed: number;
+  totalWanted: number;
   totalSize: number;
 }> {
   try {
-    const queue = await getDownloadQueue();
-    const history = await getDownloadHistory();
-    
+    const [queue, history, wanted] = await Promise.all([
+      getDownloadQueue(),
+      getDownloadHistory(),
+      getWantedMissing(),
+    ]);
+
     return {
       totalQueued: queue.filter(item => item.status === 'queued').length,
       totalDownloading: queue.filter(item => item.status === 'downloading').length,
       totalCompleted: history.filter(item => item.status === 'completed').length,
-      totalFailed: history.filter(item => item.status === 'failed').length,
+      totalFailed: queue.filter(item => item.status === 'failed').length + history.filter(item => item.status === 'failed').length,
+      totalWanted: wanted.length,
       totalSize: history.reduce((sum, item) => sum + (item.size || 0), 0),
     };
   } catch (error) {
@@ -516,6 +833,7 @@ export async function getDownloadStats(): Promise<{
       totalDownloading: 0,
       totalCompleted: 0,
       totalFailed: 0,
+      totalWanted: 0,
       totalSize: 0,
     };
   }
@@ -527,26 +845,30 @@ export async function getDownloadStats(): Promise<{
 export async function monitorDownloads(): Promise<{
   queue: DownloadQueueItem[];
   history: DownloadHistory[];
+  wanted: WantedAlbum[];
   stats: Awaited<ReturnType<typeof getDownloadStats>>;
 }> {
   try {
-    const [queue, history, stats] = await Promise.all([
+    const [queue, history, wanted, stats] = await Promise.all([
       getDownloadQueue(),
       getDownloadHistory(),
+      getWantedMissing(),
       getDownloadStats(),
     ]);
 
-    return { queue, history, stats };
+    return { queue, history, wanted, stats };
   } catch (error) {
     console.error('Error monitoring downloads:', error);
     return {
       queue: [],
       history: [],
+      wanted: [],
       stats: {
         totalQueued: 0,
         totalDownloading: 0,
         totalCompleted: 0,
         totalFailed: 0,
+        totalWanted: 0,
         totalSize: 0,
       },
     };

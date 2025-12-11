@@ -26,6 +26,8 @@ import { useSongFeedback } from '@/hooks/useSongFeedback';
 import { DashboardHero, DJFeatures, MoreFeatures } from '@/components/dashboard';
 import { SourceModeSelector, SourceBadge } from '@/components/playlist/source-mode-selector';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
+import { DiscoveryQueuePanel } from '@/components/discovery/DiscoveryQueuePanel';
+import { useDiscoveryQueueStore } from '@/lib/stores/discovery-queue';
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context }) => {
@@ -47,6 +49,7 @@ function DashboardIndex() {
   const addToQueueEnd = useAudioStore((state) => state.addToQueueEnd);
   const setAIUserActionInProgress = useAudioStore((state) => state.setAIUserActionInProgress);
   const { preferences, loadPreferences } = usePreferencesStore();
+  const addDiscovery = useDiscoveryQueueStore((state) => state.addDiscovery);
   const [style, setStyle] = useState('');
   const [debouncedStyle, setDebouncedStyle] = useState('');
   const [generationStage, setGenerationStage] = useState<'idle' | 'generating' | 'resolving' | 'retrying' | 'done'>('idle');
@@ -1055,6 +1058,9 @@ function DashboardIndex() {
         <PreferenceInsights />
       )}
 
+      {/* Story 7.3: Discovery Queue Panel */}
+      <DiscoveryQueuePanel />
+
       {/* DJ Features Section */}
       <DJFeatures />
 
@@ -1454,9 +1460,17 @@ function DashboardIndex() {
                                   const data = await response.json();
 
                                   if (response.ok) {
+                                    // Story 7.3: Track discovery in queue
+                                    addDiscovery({
+                                      song: item.song,
+                                      artist,
+                                      title,
+                                      source: item.discoverySource === 'lastfm' ? 'lastfm' : 'ollama',
+                                      lidarrArtistId: data.artistId,
+                                    });
                                     toast.success(`✅ ${data.message || `Found and added "${title}" to download queue`}`, {
                                       id: toastId,
-                                      description: 'Check Downloads > Status for progress',
+                                      description: 'Tracking in Discovery Queue',
                                       duration: 5000,
                                     });
                                   } else {

@@ -1,9 +1,16 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { getDownloadHistory, exportDownloadHistory, clearDownloadHistory } from '@/lib/services/lidarr'
+import { exportDownloadHistory, clearDownloadHistory } from '@/lib/services/lidarr'
+import {
+  type DownloadHistoryItem,
+  formatFileSize,
+  formatDate,
+  getStatusColor,
+  calculateHistoryStats,
+} from '@/lib/utils/downloads'
 
 export const Route = createFileRoute('/downloads/history')({
   beforeLoad: async ({ context }) => {
@@ -14,34 +21,34 @@ export const Route = createFileRoute('/downloads/history')({
   component: DownloadHistoryPage,
 })
 
-interface DownloadHistoryItem {
-  id: string
-  artistName: string
-  foreignArtistId: string
-  status: 'completed' | 'failed'
-  addedAt: string
-  completedAt: string
-  size?: number
-  errorMessage?: string
-}
-
 function DownloadHistoryPage() {
+  const navigate = useNavigate()
   const [history, setHistory] = useState<DownloadHistoryItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [isClearing, setIsClearing] = useState(false)
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
-      const data = await getDownloadHistory()
-      setHistory(data)
+      // Fetch from status endpoint which has richer data
+      const response = await fetch('/api/lidarr/status')
+      if (!response.ok) {
+        throw new Error('Failed to fetch download status')
+      }
+      const data = await response.json()
+      setHistory(data.history || [])
     } catch (error) {
       console.error('Error fetching download history:', error)
       toast.error('Failed to fetch download history')
     } finally {
       setIsLoading(false)
+      setIsRefreshing(false)
     }
-  }
+  }, [])
+
+  // Memoize statistics to avoid recalculating on every render
+  const stats = useMemo(() => calculateHistoryStats(history), [history])
 
   const handleExportHistory = async () => {
     setIsExporting(true)
@@ -87,27 +94,14 @@ function DownloadHistoryPage() {
     }
   }
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
-  }
-
-  const getStatusColor = (status: string) => {
-    return status === 'completed' 
-      ? 'bg-green-100 text-green-800' 
-      : 'bg-red-100 text-red-800'
+  const handleRefresh = () => {
+    setIsRefreshing(true)
+    fetchHistory()
   }
 
   useEffect(() => {
     fetchHistory()
-  }, [])
+  }, [fetchHistory])
 
   if (isLoading) {
     return (
@@ -124,56 +118,57 @@ function DownloadHistoryPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold">Download History</h1>
-        <p className="text-muted-foreground">
-          View and manage your download history
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold">Download History</h1>
+          <p className="text-muted-foreground">
+            View and manage your completed downloads
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => navigate({ to: '/dashboard' })}
+          >
+            ← Dashboard
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate({ to: '/downloads' })}
+          >
+            Search Music
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate({ to: '/downloads/status' })}
+          >
+            Queue & Status
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </div>
       </div>
-
-      {/* Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>History Management</CardTitle>
-          <CardDescription>
-            Export or clear your download history
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            <Button
-              onClick={handleExportHistory}
-              disabled={isExporting || history.length === 0}
-              variant="outline"
-            >
-              {isExporting ? 'Exporting...' : 'Export to CSV'}
-            </Button>
-            <Button
-              onClick={handleClearHistory}
-              disabled={isClearing || history.length === 0}
-              variant="destructive"
-            >
-              {isClearing ? 'Clearing...' : 'Clear History'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Statistics */}
       {history.length > 0 && (
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardContent className="p-4">
-              <div className="text-2xl font-bold text-green-600">
-                {history.filter(h => h.status === 'completed').length}
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                {stats.completedCount}
               </div>
               <p className="text-sm text-muted-foreground">Completed</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="text-2xl font-bold text-red-600">
-                {history.filter(h => h.status === 'failed').length}
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                {stats.failedCount}
               </div>
               <p className="text-sm text-muted-foreground">Failed</p>
             </CardContent>
@@ -181,7 +176,7 @@ function DownloadHistoryPage() {
           <Card>
             <CardContent className="p-4">
               <div className="text-2xl font-bold">
-                {formatFileSize(history.reduce((sum, item) => sum + (item.size || 0), 0))}
+                {formatFileSize(stats.totalSize)}
               </div>
               <p className="text-sm text-muted-foreground">Total Size</p>
             </CardContent>
@@ -189,40 +184,70 @@ function DownloadHistoryPage() {
         </div>
       )}
 
+      {/* Actions */}
+      {history.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>History Management</CardTitle>
+            <CardDescription>
+              Export or clear your download history
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
+              <Button
+                onClick={handleExportHistory}
+                disabled={isExporting}
+                variant="outline"
+              >
+                {isExporting ? 'Exporting...' : 'Export to CSV'}
+              </Button>
+              <Button
+                onClick={handleClearHistory}
+                disabled={isClearing}
+                variant="destructive"
+              >
+                {isClearing ? 'Clearing...' : 'Clear History'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* History List */}
       {history.length > 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>Download History</CardTitle>
+            <CardTitle>Recent Downloads</CardTitle>
             <CardDescription>
               Showing {history.length} download records
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {history.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div key={item.id} className="flex items-start justify-between p-4 border border-border/50 rounded-lg bg-card/50">
                   <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium">{item.artistName}</h3>
-                      <span className={`text-xs px-2 py-1 rounded ${getStatusColor(item.status)}`}>
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-foreground">{item.artistName}</h3>
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${getStatusColor(item.status)}`}>
                         {item.status}
                       </span>
                     </div>
-                    
-                    {item.size && (
+
+                    {item.size !== undefined && item.size > 0 && (
                       <p className="text-sm text-muted-foreground">
                         Size: {formatFileSize(item.size)}
                       </p>
                     )}
-                    
-                    <div className="text-xs text-muted-foreground space-y-1">
-                      <p>Added: {formatDate(item.addedAt)}</p>
-                      <p>Completed: {formatDate(item.completedAt)}</p>
+
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span>Added: {formatDate(item.addedAt)}</span>
+                      <span>Completed: {formatDate(item.completedAt)}</span>
                     </div>
-                    
+
                     {item.errorMessage && (
-                      <p className="text-xs text-red-600">
+                      <p className="text-xs text-red-500 dark:text-red-400">
                         Error: {item.errorMessage}
                       </p>
                     )}
@@ -240,7 +265,7 @@ function DownloadHistoryPage() {
             <p className="text-muted-foreground mb-4">
               Your download history is empty. Downloads will appear here once they complete.
             </p>
-            <Button onClick={() => window.location.href = '/downloads'}>
+            <Button onClick={() => navigate({ to: '/downloads' })}>
               Browse Music
             </Button>
           </CardContent>

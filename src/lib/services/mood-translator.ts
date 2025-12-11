@@ -958,6 +958,133 @@ function keywordFallback(mood: string): SmartPlaylistQuery {
 }
 
 // ============================================================================
+// Last.fm Tag Extraction for Discovery Mode
+// ============================================================================
+
+/**
+ * Map of mood/style keywords to Last.fm tags
+ * These tags are used for tag.gettoptracks API calls in discovery mode
+ */
+const MOOD_TO_LASTFM_TAGS: Record<string, string[]> = {
+  // Energy-based
+  chill: ['chill', 'chillout', 'relaxing', 'ambient', 'downtempo'],
+  relax: ['relaxing', 'chill', 'ambient', 'easy listening', 'soft'],
+  calm: ['calm', 'peaceful', 'ambient', 'new age', 'meditation'],
+  mellow: ['mellow', 'soft rock', 'easy listening', 'acoustic'],
+  party: ['party', 'dance', 'club', 'edm', 'electronic'],
+  dance: ['dance', 'electronic', 'edm', 'house', 'disco'],
+  club: ['club', 'house', 'techno', 'edm', 'dance'],
+  rave: ['rave', 'techno', 'trance', 'hardstyle', 'electronic'],
+  workout: ['workout', 'gym', 'energy', 'power', 'electronic'],
+  gym: ['gym', 'workout', 'power', 'metal', 'electronic'],
+  energy: ['energetic', 'upbeat', 'power', 'rock', 'electronic'],
+  focus: ['focus', 'study', 'instrumental', 'ambient', 'classical'],
+  study: ['study', 'focus', 'lo-fi', 'ambient', 'instrumental'],
+  concentrate: ['focus', 'instrumental', 'classical', 'ambient'],
+
+  // Emotions
+  sad: ['sad', 'melancholy', 'emotional', 'ballad', 'melancholic'],
+  melancholy: ['melancholy', 'sad', 'atmospheric', 'post-rock', 'shoegaze'],
+  happy: ['happy', 'upbeat', 'feel good', 'fun', 'summer'],
+  upbeat: ['upbeat', 'happy', 'energetic', 'pop', 'dance'],
+  romantic: ['romantic', 'love', 'ballad', 'slow', 'soul'],
+  love: ['love', 'romantic', 'ballad', 'rnb', 'soul'],
+  angry: ['angry', 'aggressive', 'metal', 'hardcore', 'punk'],
+  intense: ['intense', 'heavy', 'metal', 'industrial', 'hardcore'],
+
+  // Activities
+  driving: ['driving', 'road trip', 'rock', 'classic rock', 'indie'],
+  'road trip': ['road trip', 'driving', 'rock', 'summer', 'indie'],
+  cooking: ['cooking', 'dinner', 'jazz', 'bossa nova', 'lounge'],
+  dinner: ['dinner', 'jazz', 'lounge', 'smooth jazz', 'soul'],
+  sleep: ['sleep', 'ambient', 'relaxing', 'new age', 'meditation'],
+  morning: ['morning', 'acoustic', 'folk', 'indie', 'coffee'],
+  summer: ['summer', 'beach', 'tropical', 'reggae', 'pop'],
+  rainy: ['rainy day', 'melancholy', 'acoustic', 'indie', 'lo-fi'],
+  cozy: ['cozy', 'acoustic', 'folk', 'indie', 'coffee shop'],
+
+  // Genres (direct mappings)
+  rock: ['rock', 'alternative', 'indie rock', 'classic rock'],
+  metal: ['metal', 'heavy metal', 'thrash metal', 'death metal'],
+  electronic: ['electronic', 'electronica', 'synth', 'edm'],
+  techno: ['techno', 'minimal techno', 'detroit techno', 'tech house'],
+  house: ['house', 'deep house', 'tech house', 'progressive house'],
+  'hip hop': ['hip-hop', 'rap', 'hip hop', 'trap', 'rnb'],
+  'hip-hop': ['hip-hop', 'rap', 'hip hop', 'trap', 'rnb'],
+  rap: ['rap', 'hip-hop', 'trap', 'underground hip-hop'],
+  jazz: ['jazz', 'smooth jazz', 'bebop', 'jazz fusion', 'swing'],
+  classical: ['classical', 'orchestral', 'symphony', 'piano', 'baroque'],
+  country: ['country', 'americana', 'bluegrass', 'folk', 'country rock'],
+  folk: ['folk', 'acoustic', 'singer-songwriter', 'indie folk'],
+  blues: ['blues', 'blues rock', 'rhythm and blues', 'soul blues'],
+  'r&b': ['rnb', 'r&b', 'soul', 'neo-soul', 'contemporary rnb'],
+  soul: ['soul', 'neo-soul', 'motown', 'rnb', 'funk'],
+  reggae: ['reggae', 'dub', 'dancehall', 'roots reggae', 'ska'],
+  indie: ['indie', 'indie rock', 'indie pop', 'alternative', 'lo-fi'],
+  pop: ['pop', 'synth-pop', 'indie pop', 'dance pop', 'electropop'],
+  punk: ['punk', 'punk rock', 'hardcore punk', 'post-punk', 'pop punk'],
+  ambient: ['ambient', 'atmospheric', 'drone', 'soundscape', 'ethereal'],
+  'lo-fi': ['lo-fi', 'lofi', 'chillhop', 'lo-fi hip hop', 'bedroom pop'],
+
+  // Decades
+  '60s': ['60s', '1960s', 'classic rock', 'psychedelic', 'british invasion'],
+  '70s': ['70s', '1970s', 'disco', 'classic rock', 'punk'],
+  '80s': ['80s', '1980s', 'new wave', 'synth-pop', 'glam metal'],
+  '90s': ['90s', '1990s', 'grunge', 'britpop', 'alternative rock'],
+  '2000s': ['2000s', 'emo', 'pop punk', 'indie rock', 'nu metal'],
+  '2010s': ['2010s', 'edm', 'indie', 'trap', 'synth-pop'],
+
+  // World music
+  latin: ['latin', 'reggaeton', 'salsa', 'bachata', 'latin pop'],
+  japanese: ['japanese', 'j-pop', 'j-rock', 'anime', 'city pop'],
+  korean: ['korean', 'k-pop', 'kpop', 'k-rock'],
+  french: ['french', 'chanson', 'french pop', 'french house'],
+  african: ['african', 'afrobeat', 'afropop', 'world music'],
+
+  // Instrumental
+  instrumental: ['instrumental', 'post-rock', 'soundtrack', 'classical'],
+  piano: ['piano', 'classical piano', 'instrumental', 'solo piano'],
+  guitar: ['acoustic', 'guitar', 'fingerstyle', 'flamenco'],
+  soundtrack: ['soundtrack', 'film score', 'cinematic', 'orchestral'],
+  gaming: ['video game music', 'chiptune', '8-bit', 'game soundtrack'],
+};
+
+/**
+ * Extract Last.fm tags from a mood/style description
+ * Used for discovery mode to query tag.gettoptracks
+ *
+ * @param moodDescription - Natural language description
+ * @returns Array of Last.fm tags to query
+ *
+ * @example
+ * extractLastFmTags("chill evening vibes") // ['chill', 'chillout', 'relaxing', 'ambient', 'downtempo']
+ * extractLastFmTags("90s rock") // ['90s', '1990s', 'grunge', 'britpop', 'rock', 'alternative', 'indie rock', 'classic rock']
+ */
+export function extractLastFmTags(moodDescription: string): string[] {
+  const moodLower = moodDescription.toLowerCase();
+  const tags = new Set<string>();
+
+  // Check each keyword and add matching tags
+  for (const [keyword, keywordTags] of Object.entries(MOOD_TO_LASTFM_TAGS)) {
+    if (moodLower.includes(keyword)) {
+      keywordTags.forEach(tag => tags.add(tag));
+    }
+  }
+
+  // If no matches, try to use the mood description itself as a tag
+  if (tags.size === 0) {
+    // Split into words and use as potential tags
+    const words = moodLower.split(/\s+/).filter(w => w.length > 2);
+    words.forEach(word => tags.add(word));
+
+    // Also add some safe defaults
+    tags.add('popular');
+  }
+
+  return Array.from(tags);
+}
+
+// ============================================================================
 // Exports for Testing
 // ============================================================================
 
@@ -967,6 +1094,7 @@ export {
   isValidCondition,
   conditionToEvaluatorFormat,
   keywordFallback,
+  MOOD_TO_LASTFM_TAGS,
   SYSTEM_PROMPT,
   EXAMPLE_QUERIES,
 };

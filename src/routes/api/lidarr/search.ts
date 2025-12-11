@@ -7,6 +7,22 @@ export const Route = createFileRoute("/api/lidarr/search")({
     handlers: {
   POST: async ({ request }) => {
     try {
+      // Auth check (protected route)
+      const { auth } = await import('../../../lib/auth/server');
+      const session = await auth.api.getSession({
+        headers: request.headers,
+        query: {
+          disableCookieCache: true,
+        },
+      });
+
+      if (!session) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
       const { query } = await request.json() as { query: string };
 
       if (!query?.trim()) {

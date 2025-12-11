@@ -4,7 +4,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { getRecommendations } from '@/lib/services/recommendations';
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 
 // Exported POST handler for testing
 export async function POST({ request }: { request: Request }) {

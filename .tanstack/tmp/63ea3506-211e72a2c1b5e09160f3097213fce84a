@@ -1,9 +1,0 @@
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/api/ai-dj/recommendations')({
-  component: RouteComponent,
-})
-
-function RouteComponent() {
-  return <div>Hello "/api/ai-dj/recommendations"!</div>
-}

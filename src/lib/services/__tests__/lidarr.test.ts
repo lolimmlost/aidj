@@ -364,7 +364,11 @@ describe('Lidarr Service', () => {
           status: 'active',
         };
 
-        vi.mocked(fetch).mockResolvedValueOnce(createMockResponse({}));
+        // Mock rootFolder response first, then the add artist response
+        const mockRootFolders = [{ id: 1, path: '/music', defaultQualityProfileId: 1, defaultMetadataProfileId: 1 }];
+        vi.mocked(fetch)
+          .mockResolvedValueOnce(createMockResponse(mockRootFolders))
+          .mockResolvedValueOnce(createMockResponse({}));
 
         await expect(addArtist(mockArtist)).resolves.not.toThrow();
       });
@@ -380,7 +384,11 @@ describe('Lidarr Service', () => {
           status: 'active',
         };
 
-        vi.mocked(fetch).mockRejectedValue(new Error('Network error'));
+        // Mock rootFolder to succeed, then artist add to fail
+        const mockRootFolders = [{ id: 1, path: '/music', defaultQualityProfileId: 1, defaultMetadataProfileId: 1 }];
+        vi.mocked(fetch)
+          .mockResolvedValueOnce(createMockResponse(mockRootFolders))
+          .mockRejectedValueOnce(new Error('Network error'));
 
         const resultPromise = addArtist(mockArtist);
         await vi.runAllTimersAsync();
@@ -392,16 +400,27 @@ describe('Lidarr Service', () => {
   describe('Download Management', () => {
     describe('getDownloadQueue', () => {
       it('should return download queue', async () => {
-        const mockResponse = [
-          {
-            id: 1,
-            artistName: 'Test Artist',
-            foreignArtistId: 'test-id-123',
-            status: 'queued',
-            progress: 0,
-            addedAt: '2023-01-01T00:00:00Z',
-          },
-        ];
+        // Lidarr API returns paginated data with records array
+        const mockResponse = {
+          page: 1,
+          pageSize: 50,
+          totalRecords: 1,
+          records: [
+            {
+              id: 1,
+              title: 'Test Album',
+              status: 'queued',
+              trackedDownloadState: 'downloading',
+              size: 100000000,
+              sizeleft: 50000000,
+              added: '2023-01-01T00:00:00Z',
+              artist: {
+                artistName: 'Test Artist',
+                foreignArtistId: 'test-id-123',
+              },
+            },
+          ],
+        };
 
         vi.mocked(fetch).mockResolvedValueOnce(createMockResponse(mockResponse));
 
@@ -412,9 +431,13 @@ describe('Lidarr Service', () => {
             id: '1',
             artistName: 'Test Artist',
             foreignArtistId: 'test-id-123',
-            status: 'queued',
-            progress: 0,
+            status: 'downloading',
+            progress: 50,
+            estimatedCompletion: undefined,
             addedAt: '2023-01-01T00:00:00Z',
+            startedAt: '2023-01-01T00:00:00Z',
+            completedAt: undefined,
+            errorMessage: undefined,
           },
         ]);
       });
@@ -432,31 +455,48 @@ describe('Lidarr Service', () => {
 
     describe('getDownloadHistory', () => {
       it('should return download history', async () => {
-        const mockResponse = [
-          {
-            id: 1,
-            artistName: 'Test Artist',
-            foreignArtistId: 'test-id-123',
-            status: 'completed',
-            addedAt: '2023-01-01T00:00:00Z',
-            completedAt: '2023-01-01T01:00:00Z',
-            size: 1024000000,
-          },
-        ];
+        // Lidarr history API returns paginated data with eventType filtering
+        const mockResponse = {
+          page: 1,
+          pageSize: 100,
+          totalRecords: 2,
+          records: [
+            {
+              id: 1,
+              eventType: 'downloadFolderImported',
+              date: '2023-01-01T01:00:00Z',
+              artist: {
+                artistName: 'Test Artist',
+                foreignArtistId: 'test-id-123',
+              },
+              data: {
+                size: '1024000000',
+              },
+            },
+            {
+              id: 2,
+              eventType: 'trackFileRetagged', // Should be filtered out
+              date: '2023-01-01T00:30:00Z',
+              sourceTitle: '/music/Other/test.mp3',
+            },
+          ],
+        };
 
         vi.mocked(fetch).mockResolvedValueOnce(createMockResponse(mockResponse));
 
         const result = await getDownloadHistory();
 
+        // Should only include the import event, not the retagging event
         expect(result).toEqual([
           {
             id: '1',
             artistName: 'Test Artist',
             foreignArtistId: 'test-id-123',
             status: 'completed',
-            addedAt: '2023-01-01T00:00:00Z',
+            addedAt: '2023-01-01T01:00:00Z',
             completedAt: '2023-01-01T01:00:00Z',
             size: 1024000000,
+            errorMessage: undefined,
           },
         ]);
       });
@@ -480,7 +520,7 @@ describe('Lidarr Service', () => {
 
         expect(result).toBe(true);
         expect(fetch).toHaveBeenCalledWith(
-          'http://localhost:8686/api/v1/queue/1',
+          'http://localhost:8686/api/v1/queue/1?removeFromClient=true&blocklist=false',
           expect.objectContaining({ method: 'DELETE' })
         );
       });
@@ -498,15 +538,42 @@ describe('Lidarr Service', () => {
 
     describe('getDownloadStats', () => {
       it('should return download statistics', async () => {
+        // Queue response - paginated format
+        const mockQueueResponse = {
+          page: 1,
+          pageSize: 50,
+          totalRecords: 2,
+          records: [
+            { id: 1, status: 'queued', artist: { artistName: 'Artist1', foreignArtistId: 'id1' } },
+            { id: 2, trackedDownloadState: 'downloading', artist: { artistName: 'Artist2', foreignArtistId: 'id2' } },
+          ],
+        };
+
+        // History response - paginated format with eventType
+        const mockHistoryResponse = {
+          page: 1,
+          pageSize: 100,
+          totalRecords: 2,
+          records: [
+            { id: 1, eventType: 'downloadFolderImported', date: '2023-01-01T00:00:00Z', artist: { artistName: 'Artist3', foreignArtistId: 'id3' }, data: { size: '1024000000' } },
+            { id: 2, eventType: 'downloadFailed', date: '2023-01-01T00:00:00Z', artist: { artistName: 'Artist4', foreignArtistId: 'id4' }, data: { message: 'Failed' } },
+          ],
+        };
+
+        // Wanted response
+        const mockWantedResponse = {
+          page: 1,
+          pageSize: 50,
+          totalRecords: 1,
+          records: [
+            { id: 1, title: 'Missing Album', artistId: 1, monitored: true, artist: { artistName: 'Artist5' } },
+          ],
+        };
+
         vi.mocked(fetch)
-          .mockResolvedValueOnce(createMockResponse([
-            { id: 1, status: 'queued' },
-            { id: 2, status: 'downloading' },
-          ]))
-          .mockResolvedValueOnce(createMockResponse([
-            { id: 1, status: 'completed', size: 1024000000 },
-            { id: 2, status: 'failed' },
-          ]));
+          .mockResolvedValueOnce(createMockResponse(mockQueueResponse))
+          .mockResolvedValueOnce(createMockResponse(mockHistoryResponse))
+          .mockResolvedValueOnce(createMockResponse(mockWantedResponse));
 
         const result = await getDownloadStats();
 
@@ -515,6 +582,7 @@ describe('Lidarr Service', () => {
           totalDownloading: 1,
           totalCompleted: 1,
           totalFailed: 1,
+          totalWanted: 1,
           totalSize: 1024000000,
         });
       });
@@ -531,6 +599,7 @@ describe('Lidarr Service', () => {
           totalDownloading: 0,
           totalCompleted: 0,
           totalFailed: 0,
+          totalWanted: 0,
           totalSize: 0,
         });
       });
@@ -538,21 +607,40 @@ describe('Lidarr Service', () => {
 
     describe('monitorDownloads', () => {
       it('should monitor downloads successfully', async () => {
-        const mockQueue = [{ id: 1, status: 'queued' }];
-        const mockHistory = [{ id: 1, status: 'completed' }];
+        const mockQueueResponse = {
+          page: 1,
+          pageSize: 50,
+          totalRecords: 1,
+          records: [{ id: 1, status: 'queued', artist: { artistName: 'Test', foreignArtistId: 'id1' } }],
+        };
+        const mockHistoryResponse = {
+          page: 1,
+          pageSize: 100,
+          totalRecords: 1,
+          records: [{ id: 1, eventType: 'downloadFolderImported', date: '2023-01-01T00:00:00Z', artist: { artistName: 'Test', foreignArtistId: 'id1' } }],
+        };
+        const mockWantedResponse = {
+          page: 1,
+          pageSize: 50,
+          totalRecords: 1,
+          records: [{ id: 1, title: 'Test Album', artistId: 1, monitored: true, artist: { artistName: 'Test' } }],
+        };
 
-        // monitorDownloads calls getDownloadQueue, getDownloadHistory, and getDownloadStats
-        // getDownloadStats itself calls getDownloadQueue and getDownloadHistory
+        // monitorDownloads calls getDownloadQueue, getDownloadHistory, getWantedMissing, and getDownloadStats
+        // getDownloadStats itself calls getDownloadQueue, getDownloadHistory, and getWantedMissing
         vi.mocked(fetch)
-          .mockResolvedValueOnce(createMockResponse(mockQueue)) // queue
-          .mockResolvedValueOnce(createMockResponse(mockHistory)) // history
-          .mockResolvedValueOnce(createMockResponse(mockQueue)) // stats -> queue
-          .mockResolvedValueOnce(createMockResponse(mockHistory)); // stats -> history
+          .mockResolvedValueOnce(createMockResponse(mockQueueResponse)) // queue
+          .mockResolvedValueOnce(createMockResponse(mockHistoryResponse)) // history
+          .mockResolvedValueOnce(createMockResponse(mockWantedResponse)) // wanted
+          .mockResolvedValueOnce(createMockResponse(mockQueueResponse)) // stats -> queue
+          .mockResolvedValueOnce(createMockResponse(mockHistoryResponse)) // stats -> history
+          .mockResolvedValueOnce(createMockResponse(mockWantedResponse)); // stats -> wanted
 
         const result = await monitorDownloads();
 
         expect(result.queue).toEqual(expect.arrayContaining([expect.objectContaining({ id: '1' })]));
         expect(result.history).toEqual(expect.arrayContaining([expect.objectContaining({ id: '1' })]));
+        expect(result.wanted).toEqual(expect.arrayContaining([expect.objectContaining({ id: '1' })]));
       });
 
       it('should handle errors gracefully', async () => {
@@ -565,11 +653,13 @@ describe('Lidarr Service', () => {
         expect(result).toEqual({
           queue: [],
           history: [],
+          wanted: [],
           stats: {
             totalQueued: 0,
             totalDownloading: 0,
             totalCompleted: 0,
             totalFailed: 0,
+            totalWanted: 0,
             totalSize: 0,
           },
         });
@@ -578,19 +668,27 @@ describe('Lidarr Service', () => {
 
     describe('exportDownloadHistory', () => {
       it('should export download history as CSV', async () => {
-        const mockHistory = [
-          {
-            id: '1',
-            artistName: 'Test Artist',
-            foreignArtistId: 'test-123',
-            status: 'completed',
-            addedAt: '2023-01-01T00:00:00Z',
-            completedAt: '2023-01-01T01:00:00Z',
-            size: 1024000000,
-          },
-        ];
+        const mockHistoryResponse = {
+          page: 1,
+          pageSize: 100,
+          totalRecords: 1,
+          records: [
+            {
+              id: 1,
+              eventType: 'downloadFolderImported',
+              date: '2023-01-01T01:00:00Z',
+              artist: {
+                artistName: 'Test Artist',
+                foreignArtistId: 'test-123',
+              },
+              data: {
+                size: '1024000000',
+              },
+            },
+          ],
+        };
 
-        vi.mocked(fetch).mockResolvedValueOnce(createMockResponse(mockHistory));
+        vi.mocked(fetch).mockResolvedValueOnce(createMockResponse(mockHistoryResponse));
 
         const result = await exportDownloadHistory();
 

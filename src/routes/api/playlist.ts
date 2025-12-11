@@ -59,59 +59,40 @@ export const Route = createFileRoute("/api/playlist")({
 
       if (sourceMode === 'discovery') {
         // Discovery mode: Find songs NOT in library using Last.fm
-        // Use MULTIPLE seed songs matching the mood for better variety
-        console.log('🔮 Discovery mode: Finding similar songs not in library');
+        // NEW: Uses genre-first approach via tag.gettoptracks + artist.getsimilar
+        console.log('🔮 Discovery mode: Finding new music via genre-first approach');
 
-        // Get several library songs matching the mood to use as seeds
+        // Get a seed song from library for artist similarity (secondary strategy)
         const moodResult = await getRecommendations({
           mode: 'mood',
           moodDescription: style,
-          limit: 5, // Get multiple seeds for variety
+          limit: 1, // Just need one seed for artist similarity
         });
 
-        if (moodResult.songs.length > 0) {
-          // Use multiple seed songs to get diverse discovery results
-          const allDiscoveries: typeof suggestions = [];
-          const seenSongs = new Set<string>();
+        const seedSong = moodResult.songs[0];
 
-          // Query Last.fm for each seed song (up to 3 for performance)
-          const seedsToUse = moodResult.songs.slice(0, 3);
-          console.log(`🌱 Using ${seedsToUse.length} seed songs:`, seedsToUse.map(s => `${s.artist} - ${s.title}`));
+        // Call discovery with BOTH moodDescription (for tag-based) AND currentSong (for artist-based)
+        try {
+          const discoveryResult = await getRecommendations({
+            mode: 'discovery',
+            moodDescription: style, // NEW: Enables genre-first discovery via tags
+            currentSong: seedSong ? { artist: seedSong.artist, title: seedSong.title } : undefined,
+            limit: limit + 2, // Get extra to account for filtering
+          });
 
-          for (const seedSong of seedsToUse) {
-            try {
-              const discoveryResult = await getRecommendations({
-                mode: 'discovery',
-                currentSong: { artist: seedSong.artist, title: seedSong.title },
-                limit: Math.ceil(limit / seedsToUse.length) + 2, // Get extra to account for duplicates
-              });
+          suggestions = discoveryResult.songs.map(song => ({
+            song: `${song.artist} - ${song.title}`,
+            explanation: `Discovered via Last.fm - matches "${style}" style`,
+            isDiscovery: true,
+            discoverySource: 'lastfm' as DiscoverySource,
+            songId: null,
+            url: song.url || null,
+            inLibrary: false,
+          }));
 
-              for (const song of discoveryResult.songs) {
-                const key = `${song.artist.toLowerCase()}-${song.title.toLowerCase()}`;
-                if (!seenSongs.has(key)) {
-                  seenSongs.add(key);
-                  allDiscoveries.push({
-                    song: `${song.artist} - ${song.title}`,
-                    explanation: `Discovered via Last.fm - similar to "${seedSong.artist}"`,
-                    isDiscovery: true,
-                    discoverySource: 'lastfm' as DiscoverySource,
-                    songId: null,
-                    url: song.url || null,
-                    inLibrary: false,
-                  });
-                }
-              }
-            } catch (err) {
-              console.warn(`⚠️ Failed to get discoveries for seed "${seedSong.artist} - ${seedSong.title}":`, err);
-            }
-          }
-
-          // Shuffle and limit the results for variety
-          suggestions = allDiscoveries
-            .sort(() => Math.random() - 0.5)
-            .slice(0, limit);
-
-          console.log(`🎵 Combined ${allDiscoveries.length} discoveries from ${seedsToUse.length} seeds, returning ${suggestions.length}`);
+          console.log(`🎵 Genre-first discovery returned ${suggestions.length} songs`);
+        } catch (err) {
+          console.warn('⚠️ Discovery failed:', err);
         }
 
         // Fall back to mood-based if no discoveries found
@@ -135,6 +116,7 @@ export const Route = createFileRoute("/api/playlist")({
         }
       } else if (sourceMode === 'mix') {
         // Mix mode: Blend library songs with discoveries
+        // NEW: Uses genre-first approach for discoveries
         const libraryCount = Math.round(limit * (mixRatio / 100));
         const discoveryCount = limit - libraryCount;
 
@@ -157,44 +139,34 @@ export const Route = createFileRoute("/api/playlist")({
           inLibrary: true,
         }));
 
-        // Get discoveries using multiple library songs as seeds for variety
+        // Get discoveries using genre-first approach
         let discoverySongs: typeof librarySongs = [];
-        if (libraryResult.songs.length > 0 && discoveryCount > 0) {
-          const seenSongs = new Set<string>();
-          const seedsToUse = libraryResult.songs.slice(0, Math.min(3, libraryResult.songs.length));
+        if (discoveryCount > 0) {
+          const seedSong = libraryResult.songs[0];
 
-          for (const seedSong of seedsToUse) {
-            try {
-              const discoveryResult = await getRecommendations({
-                mode: 'discovery',
-                currentSong: { artist: seedSong.artist, title: seedSong.title },
-                limit: Math.ceil(discoveryCount / seedsToUse.length) + 1,
-              });
+          try {
+            const discoveryResult = await getRecommendations({
+              mode: 'discovery',
+              moodDescription: style, // NEW: Enables genre-first discovery via tags
+              currentSong: seedSong ? { artist: seedSong.artist, title: seedSong.title } : undefined,
+              limit: discoveryCount + 2,
+            });
 
-              for (const song of discoveryResult.songs) {
-                const key = `${song.artist.toLowerCase()}-${song.title.toLowerCase()}`;
-                if (!seenSongs.has(key)) {
-                  seenSongs.add(key);
-                  discoverySongs.push({
-                    song: `${song.artist} - ${song.title}`,
-                    explanation: `Discovered via Last.fm - similar to "${seedSong.artist}"`,
-                    isDiscovery: true,
-                    discoverySource: 'lastfm' as DiscoverySource,
-                    songId: null,
-                    url: song.url || null,
-                    inLibrary: false,
-                  });
-                }
-              }
-            } catch (err) {
-              console.warn(`⚠️ Failed to get mix discoveries for "${seedSong.artist}":`, err);
-            }
+            discoverySongs = discoveryResult.songs.map(song => ({
+              song: `${song.artist} - ${song.title}`,
+              explanation: `Discovered via Last.fm - matches "${style}" style`,
+              isDiscovery: true,
+              discoverySource: 'lastfm' as DiscoverySource,
+              songId: null,
+              url: song.url || null,
+              inLibrary: false,
+            }));
+
+            // Limit discoveries
+            discoverySongs = discoverySongs.slice(0, discoveryCount);
+          } catch (err) {
+            console.warn('⚠️ Failed to get mix discoveries:', err);
           }
-
-          // Shuffle and limit discoveries
-          discoverySongs = discoverySongs
-            .sort(() => Math.random() - 0.5)
-            .slice(0, discoveryCount);
         }
 
         // Interleave library and discovery songs for variety

@@ -1,9 +1,15 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { monitorDownloads, cancelDownload } from '@/lib/services/lidarr'
+import {
+  type DownloadStatus,
+  formatFileSize,
+  formatDate,
+  getStatusColor,
+  STATUS_REFRESH_INTERVAL,
+} from '@/lib/utils/downloads'
 
 export const Route = createFileRoute('/downloads/status')({
   beforeLoad: async ({ context }) => {
@@ -14,56 +20,33 @@ export const Route = createFileRoute('/downloads/status')({
   component: DownloadStatusPage,
 })
 
-interface DownloadStatus {
-  queue: Array<{
-    id: string
-    artistName: string
-    foreignArtistId: string
-    status: 'queued' | 'downloaded' | 'failed' | 'downloading'
-    progress?: number
-    estimatedCompletion?: string
-    addedAt: string
-    startedAt?: string
-    completedAt?: string
-    errorMessage?: string
-  }>
-  history: Array<{
-    id: string
-    artistName: string
-    foreignArtistId: string
-    status: 'completed' | 'failed'
-    addedAt: string
-    completedAt: string
-    size?: number
-    errorMessage?: string
-  }>
-  stats: {
-    totalQueued: number
-    totalDownloading: number
-    totalCompleted: number
-    totalFailed: number
-    totalSize: number
-  }
-}
-
 function DownloadStatusPage() {
+  const navigate = useNavigate()
   const [status, setStatus] = useState<DownloadStatus>({
     queue: [],
     history: [],
+    wanted: [],
     stats: {
       totalQueued: 0,
       totalDownloading: 0,
       totalCompleted: 0,
       totalFailed: 0,
+      totalWanted: 0,
       totalSize: 0,
     }
   })
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     try {
-      const data = await monitorDownloads()
+      const response = await fetch('/api/lidarr/status')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || 'Failed to fetch download status')
+      }
+      const data = await response.json()
       setStatus(data)
     } catch (error) {
       console.error('Error fetching download status:', error)
@@ -72,16 +55,21 @@ function DownloadStatusPage() {
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }
+  }, [])
 
   const handleCancelDownload = async (downloadId: string) => {
     try {
-      const success = await cancelDownload(downloadId)
-      if (success) {
+      const response = await fetch('/api/lidarr/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ downloadId }),
+      })
+      if (response.ok) {
         toast.success('Download cancelled successfully')
         await fetchStatus() // Refresh status
       } else {
-        toast.error('Failed to cancel download')
+        const errorData = await response.json().catch(() => ({}))
+        toast.error(errorData.message || 'Failed to cancel download')
       }
     } catch (error) {
       console.error('Error cancelling download:', error)
@@ -89,40 +77,88 @@ function DownloadStatusPage() {
     }
   }
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'queued':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'downloading':
-        return 'bg-blue-100 text-blue-800'
-      case 'downloaded':
-      case 'completed':
-        return 'bg-green-100 text-green-800'
-      case 'failed':
-        return 'bg-red-100 text-red-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
+  const handleRetryDownload = async (downloadId: string, artistName: string) => {
+    try {
+      toast.loading(`Retrying download for ${artistName}...`, { id: 'retry-download' })
+      const response = await fetch('/api/lidarr/retry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ downloadId }),
+      })
+      if (response.ok) {
+        toast.success(`Retry initiated for ${artistName}`, { id: 'retry-download' })
+        await fetchStatus() // Refresh status
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        toast.error(errorData.message || 'Failed to retry download', { id: 'retry-download' })
+      }
+    } catch (error) {
+      console.error('Error retrying download:', error)
+      toast.error('Failed to retry download', { id: 'retry-download' })
     }
   }
 
-  // Auto-refresh every 30 seconds
+  const handleSearchAlbum = async (albumId: string, albumTitle: string) => {
+    try {
+      toast.loading(`Searching for "${albumTitle}"...`, { id: 'album-search' })
+      const response = await fetch('/api/lidarr/search-album', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ albumId }),
+      })
+
+      if (response.ok) {
+        toast.success(`Search initiated for "${albumTitle}"`, { id: 'album-search' })
+        // Refresh after a short delay to allow search to start
+        // Clean up any existing timeout first
+        if (searchTimeoutRef.current) {
+          clearTimeout(searchTimeoutRef.current)
+        }
+        searchTimeoutRef.current = setTimeout(() => fetchStatus(), 2000)
+      } else {
+        const data = await response.json()
+        toast.error(data.message || 'Failed to search', { id: 'album-search' })
+      }
+    } catch (error) {
+      console.error('Error searching album:', error)
+      toast.error('Failed to trigger search', { id: 'album-search' })
+    }
+  }
+
+  const handleUnmonitorAlbum = async (albumId: string, albumTitle: string) => {
+    try {
+      toast.loading(`Unmonitoring "${albumTitle}"...`, { id: 'unmonitor-album' })
+      const response = await fetch('/api/lidarr/unmonitor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ albumId }),
+      })
+
+      if (response.ok) {
+        toast.success(`"${albumTitle}" unmonitored - it will no longer be downloaded`, { id: 'unmonitor-album' })
+        await fetchStatus() // Refresh to remove from wanted list
+      } else {
+        const data = await response.json()
+        toast.error(data.error || 'Failed to unmonitor album', { id: 'unmonitor-album' })
+      }
+    } catch (error) {
+      console.error('Error unmonitoring album:', error)
+      toast.error('Failed to unmonitor album', { id: 'unmonitor-album' })
+    }
+  }
+
+  // Auto-refresh and cleanup
   useEffect(() => {
     fetchStatus()
-    const interval = setInterval(fetchStatus, 30000)
-    return () => clearInterval(interval)
-  }, [])
+    const interval = setInterval(fetchStatus, STATUS_REFRESH_INTERVAL)
+    return () => {
+      clearInterval(interval)
+      // Clean up search timeout on unmount
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [fetchStatus])
 
   if (isLoading) {
     return (
@@ -139,15 +175,41 @@ function DownloadStatusPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold">Download Status</h1>
-        <p className="text-muted-foreground">
-          Monitor your download queue and history
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold">Download Status</h1>
+          <p className="text-muted-foreground">
+            Monitor your download queue and history
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => navigate({ to: '/dashboard' })}
+          >
+            ← Dashboard
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate({ to: '/downloads' })}
+          >
+            Search Music
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setIsRefreshing(true)
+              fetchStatus()
+            }}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </div>
       </div>
 
       {/* Statistics */}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-yellow-600">{status.stats.totalQueued}</div>
@@ -158,6 +220,12 @@ function DownloadStatusPage() {
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-blue-600">{status.stats.totalDownloading}</div>
             <p className="text-sm text-muted-foreground">Downloading</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-orange-600">{status.stats.totalWanted}</div>
+            <p className="text-sm text-muted-foreground">Searching</p>
           </CardContent>
         </Card>
         <Card>
@@ -184,79 +252,76 @@ function DownloadStatusPage() {
       {status.queue.length > 0 && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Download Queue</CardTitle>
-                <CardDescription>
-                  Currently {status.queue.length} item(s) in queue
-                </CardDescription>
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => {
-                  setIsRefreshing(true)
-                  fetchStatus()
-                }}
-                disabled={isRefreshing}
-              >
-                {isRefreshing ? 'Refreshing...' : 'Refresh'}
-              </Button>
-            </div>
+            <CardTitle>Download Queue</CardTitle>
+            <CardDescription>
+              Currently {status.queue.length} item(s) in queue
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {status.queue.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div key={item.id} className="flex items-start justify-between gap-4 p-4 border border-border/50 rounded-lg bg-card/50">
                   <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium">{item.artistName}</h3>
-                      <span className={`text-xs px-2 py-1 rounded ${getStatusColor(item.status)}`}>
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-foreground">{item.artistName}</h3>
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${getStatusColor(item.status)}`}>
                         {item.status}
                       </span>
                     </div>
-                    
+
                     {item.progress !== undefined && (
                       <div className="space-y-1">
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-sm text-muted-foreground">
                           <span>Progress</span>
                           <span>{item.progress}%</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        <div className="w-full bg-muted rounded-full h-2">
+                          <div
+                            className="bg-primary h-2 rounded-full transition-all duration-300"
                             style={{ width: `${item.progress}%` }}
                           ></div>
                         </div>
                       </div>
                     )}
-                    
+
                     {item.estimatedCompletion && (
                       <p className="text-sm text-muted-foreground">
                         Estimated completion: {formatDate(item.estimatedCompletion)}
                       </p>
                     )}
-                    
+
                     <p className="text-xs text-muted-foreground">
                       Added: {formatDate(item.addedAt)}
                     </p>
-                    
+
                     {item.errorMessage && (
-                      <p className="text-xs text-red-600">
+                      <p className="text-xs text-red-500 dark:text-red-400">
                         Error: {item.errorMessage}
                       </p>
                     )}
                   </div>
-                  
-                  {item.status === 'queued' && (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleCancelDownload(item.id)}
-                    >
-                      Cancel
-                    </Button>
-                  )}
+
+                  <div className="flex gap-2 flex-shrink-0">
+                    {item.status === 'failed' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRetryDownload(item.id, item.artistName)}
+                        className="border-orange-500/50 text-orange-600 hover:bg-orange-500/10 dark:text-orange-400"
+                      >
+                        Retry
+                      </Button>
+                    )}
+                    {(item.status === 'queued' || item.status === 'downloading' || item.status === 'failed') && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleCancelDownload(item.id)}
+                      >
+                        {item.status === 'failed' ? 'Remove' : 'Cancel'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -264,43 +329,79 @@ function DownloadStatusPage() {
         </Card>
       )}
 
-      {/* Download History */}
+      {/* Download History Link */}
       {status.history.length > 0 && (
         <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">{status.history.length} completed downloads</p>
+                <p className="text-sm text-muted-foreground">View your full download history</p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => navigate({ to: '/downloads/history' })}
+              >
+                View History
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Wanted/Missing Albums */}
+      {status.wanted.length > 0 && (
+        <Card>
           <CardHeader>
-            <CardTitle>Download History</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <span>Searching for Albums</span>
+              <span className="text-xs px-2 py-1 rounded bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                {status.wanted.length} missing
+              </span>
+            </CardTitle>
             <CardDescription>
-              Recently completed downloads
+              Albums that Lidarr is searching for but hasn't found yet
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {status.history.slice(0, 10).map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="space-y-3">
+              {status.wanted.slice(0, 20).map((album) => (
+                <div key={album.id} className="flex items-center justify-between p-4 border border-orange-200 dark:border-orange-900/50 rounded-lg bg-orange-50/50 dark:bg-orange-900/10">
                   <div className="flex-1 space-y-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-medium">{item.artistName}</h3>
-                      <span className={`text-xs px-2 py-1 rounded ${getStatusColor(item.status)}`}>
-                        {item.status}
-                      </span>
+                      <h3 className="font-medium">{album.title}</h3>
+                      {album.monitored && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                          Monitored
+                        </span>
+                      )}
                     </div>
-                    
-                    {item.size && (
-                      <p className="text-sm text-muted-foreground">
-                        Size: {formatFileSize(item.size)}
+                    <p className="text-sm text-muted-foreground">
+                      by {album.artistName}
+                    </p>
+                    {album.releaseDate && (
+                      <p className="text-xs text-muted-foreground">
+                        Released: {new Date(album.releaseDate).toLocaleDateString()}
                       </p>
                     )}
-                    
-                    <div className="text-xs text-muted-foreground">
-                      <p>Added: {formatDate(item.addedAt)}</p>
-                      <p>Completed: {formatDate(item.completedAt)}</p>
-                    </div>
-                    
-                    {item.errorMessage && (
-                      <p className="text-xs text-red-600">
-                        Error: {item.errorMessage}
-                      </p>
-                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSearchAlbum(album.id, album.title)}
+                      className="border-orange-500/50 text-orange-600 hover:bg-orange-500/10"
+                    >
+                      Search Again
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleUnmonitorAlbum(album.id, album.title)}
+                      className="border-red-500/50 text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                    >
+                      Unmonitor
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -310,7 +411,7 @@ function DownloadStatusPage() {
       )}
 
       {/* Empty State */}
-      {status.queue.length === 0 && status.history.length === 0 && (
+      {status.queue.length === 0 && status.history.length === 0 && status.wanted.length === 0 && (
         <Card>
           <CardContent className="text-center py-12">
             <div className="text-6xl mb-4">📁</div>
@@ -318,7 +419,7 @@ function DownloadStatusPage() {
             <p className="text-muted-foreground mb-4">
               Your download queue is empty. Start by adding some music to download.
             </p>
-            <Button onClick={() => window.location.href = '/downloads'}>
+            <Button onClick={() => navigate({ to: '/downloads' })}>
               Browse Music
             </Button>
           </CardContent>

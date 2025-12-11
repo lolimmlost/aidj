@@ -877,6 +877,28 @@ export async function getSongsGlobal(start: number = 0, limit: number = 50): Pro
   }
 }
 
+/**
+ * Get random songs from the library for DJ set planning
+ * Uses Navidrome's random sort to get diverse tracks
+ */
+export async function getRandomSongs(count: number = 100): Promise<Song[]> {
+  try {
+    // Use _sort=random to get random songs from Navidrome
+    const data = await apiFetch(`/api/song?_start=0&_end=${count}&_sort=random&_order=ASC`) as RawSong[];
+    const songs = data.map((song) => ({
+      ...song,
+      url: `/api/navidrome/stream/${song.id}`,
+      genre: song.genre || (song.genres && song.genres.length > 0
+        ? song.genres.map(g => g.name).join(', ')
+        : ''),
+      loved: song.starred || false,
+    })) as Song[];
+    return songs || [];
+  } catch (error) {
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch random songs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
 export interface LibrarySummary {
   artists: Array<{ name: string; genres: string }>;
   songs: string[];

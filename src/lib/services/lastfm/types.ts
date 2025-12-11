@@ -110,6 +110,45 @@ export interface LastFmTagTopTracksResponse {
   message?: string;
 }
 
+// track.getInfo response - includes album metadata
+export interface LastFmTrackInfoResponse {
+  track?: {
+    name: string;
+    url: string;
+    duration?: string;
+    listeners?: string;
+    playcount?: string;
+    artist: {
+      name: string;
+      mbid?: string;
+      url: string;
+    };
+    album?: {
+      artist: string;
+      title: string;
+      mbid?: string;
+      url: string;
+      image?: LastFmImage[];
+      '@attr'?: {
+        position: string;
+      };
+    };
+    toptags?: {
+      tag: Array<{
+        name: string;
+        url: string;
+      }>;
+    };
+    wiki?: {
+      published: string;
+      summary: string;
+      content: string;
+    };
+  };
+  error?: number;
+  message?: string;
+}
+
 // Enriched types with library status
 export interface EnrichedTrack {
   name: string;
@@ -119,6 +158,8 @@ export interface EnrichedTrack {
   match?: number; // 0-1 similarity score
   duration?: number;
   image?: string; // Largest available image URL
+  album?: string; // Album name from Last.fm (for Lidarr downloads)
+  albumMbid?: string; // MusicBrainz album ID (for precise Lidarr matching)
   inLibrary: boolean;
   navidromeId?: string;
   navidromeAlbum?: string;

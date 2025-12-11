@@ -47,7 +47,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-background">
+    <div className="h-[100dvh] flex flex-col overflow-hidden bg-background">
       {/* Main content area with sidebars */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Navigation & Playlists */}
@@ -70,8 +70,9 @@ export function AppLayout({ children }: AppLayoutProps) {
       </div>
 
       {/* Bottom Player Bar - Always visible when song is active */}
+      {/* Uses safe-area-inset-bottom for iOS home indicator */}
       {hasActiveSong && (
-        <div className="flex-shrink-0 border-t bg-background/95 backdrop-blur-xl">
+        <div className="flex-shrink-0 border-t bg-background/95 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
           <PlayerBar />
         </div>
       )}

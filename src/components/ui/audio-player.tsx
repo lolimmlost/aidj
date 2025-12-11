@@ -66,6 +66,8 @@ export function AudioPlayer() {
   console.log('🎵 AudioPlayer component rendering');
 
   const audioRef = useRef<HTMLAudioElement>(null);
+  const preloadAudioRef = useRef<HTMLAudioElement | null>(null); // For preloading next song
+  const preloadedSongIdRef = useRef<string | null>(null); // Track what's preloaded
   const hasScrobbledRef = useRef<boolean>(false);
   const scrobbleThresholdReachedRef = useRef<boolean>(false);
   const currentSongIdRef = useRef<string | null>(null);
@@ -228,6 +230,29 @@ export function AudioPlayer() {
           scrobbleThresholdReachedRef.current = true;
           console.log(`📊 50% threshold reached for: ${currentSong.name}`);
         }
+
+        // iOS FIX: Preload next song when 10 seconds from end (or 90% through)
+        // This ensures the next song is ready to play instantly when current ends
+        const timeRemaining = audio.duration - audio.currentTime;
+        if (timeRemaining <= 10 || playedPercentage >= 90) {
+          const state = useAudioStore.getState();
+          const nextIndex = (state.currentSongIndex + 1) % state.playlist.length;
+          const nextTrack = state.playlist[nextIndex];
+
+          // Only preload if we haven't already preloaded this song
+          if (nextTrack && preloadedSongIdRef.current !== nextTrack.id) {
+            console.log('🔄 Preloading next song:', nextTrack.name || nextTrack.title);
+            preloadedSongIdRef.current = nextTrack.id;
+
+            // Create or reuse preload audio element
+            if (!preloadAudioRef.current) {
+              preloadAudioRef.current = new Audio();
+              preloadAudioRef.current.preload = 'auto';
+            }
+            preloadAudioRef.current.src = nextTrack.url;
+            preloadAudioRef.current.load();
+          }
+        }
       }
     };
 
@@ -262,9 +287,8 @@ export function AudioPlayer() {
       // or within an active audio session. By calling play() here before any state updates,
       // we maintain the audio session continuity from the ended event.
       const state = useAudioStore.getState();
-      const nextIndex = state.isShuffled
-        ? Math.floor(Math.random() * state.playlist.length)
-        : (state.currentSongIndex + 1) % state.playlist.length;
+      // Match store's nextSong logic exactly (playlist is already shuffled if shuffle is on)
+      const nextIndex = (state.currentSongIndex + 1) % state.playlist.length;
       const nextTrack = state.playlist[nextIndex];
 
       if (nextTrack && state.playlist.length > 0) {
@@ -632,11 +656,24 @@ export function AudioPlayer() {
 
       console.log('🎛️ Setting up Media Session for:', currentSong.name || currentSong.title);
 
+      // Build artwork array - iOS needs this for full control center display
+      const artwork: MediaImage[] = [];
+      if (currentSong.albumId) {
+        // Navidrome cover art endpoint
+        const coverUrl = `/api/navidrome/rest/getCoverArt?id=${currentSong.albumId}&size=512`;
+        artwork.push(
+          { src: coverUrl, sizes: '512x512', type: 'image/jpeg' },
+          { src: coverUrl.replace('size=512', 'size=256'), sizes: '256x256', type: 'image/jpeg' },
+          { src: coverUrl.replace('size=512', 'size=128'), sizes: '128x128', type: 'image/jpeg' },
+        );
+      }
+
       // Set metadata for lock screen display
       navigator.mediaSession.metadata = new MediaMetadata({
         title: currentSong.name || currentSong.title || 'Unknown Song',
         artist: currentSong.artist || 'Unknown Artist',
         album: currentSong.album || '',
+        artwork: artwork.length > 0 ? artwork : undefined,
       });
 
       // Update position state for iOS
@@ -680,18 +717,44 @@ export function AudioPlayer() {
 
         // iOS: previoustrack and nexttrack - these will show as skip buttons
         // Do NOT set seekbackward/seekforward or these won't appear!
+        // IMPORTANT: Must load and play SYNCHRONOUSLY like onEnded handler
         navigator.mediaSession.setActionHandler('previoustrack', () => {
           console.log('🎛️ Media Session: previoustrack');
+          const state = useAudioStore.getState();
+          const prevIndex = state.currentSongIndex > 0
+            ? state.currentSongIndex - 1
+            : state.playlist.length - 1;
+          const prevTrack = state.playlist[prevIndex];
+
+          if (prevTrack) {
+            // Load and play IMMEDIATELY - same pattern as onEnded
+            audio.src = prevTrack.url;
+            hasScrobbledRef.current = false;
+            scrobbleThresholdReachedRef.current = false;
+            currentSongIdRef.current = prevTrack.id;
+            audio.play().catch(e => console.error('🎛️ Previous track play failed:', e));
+          }
+          // Sync state after starting playback
           previousSong();
-          // Ensure playback continues after skip
-          audio.play();
         });
 
         navigator.mediaSession.setActionHandler('nexttrack', () => {
           console.log('🎛️ Media Session: nexttrack');
+          const state = useAudioStore.getState();
+          // Match store's nextSong logic exactly (playlist is already shuffled if shuffle is on)
+          const nextIndex = (state.currentSongIndex + 1) % state.playlist.length;
+          const nextTrack = state.playlist[nextIndex];
+
+          if (nextTrack) {
+            // Load and play IMMEDIATELY - same pattern as onEnded
+            audio.src = nextTrack.url;
+            hasScrobbledRef.current = false;
+            scrobbleThresholdReachedRef.current = false;
+            currentSongIdRef.current = nextTrack.id;
+            audio.play().catch(e => console.error('🎛️ Next track play failed:', e));
+          }
+          // Sync state after starting playback
           nextSong();
-          // Ensure playback continues after skip
-          audio.play();
         });
 
         // seekto is OK - it doesn't conflict with track buttons

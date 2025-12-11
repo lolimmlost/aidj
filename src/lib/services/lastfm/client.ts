@@ -18,6 +18,7 @@ import type {
   LastFmTopTracksResponse,
   LastFmSearchResponse,
   LastFmTagTopTracksResponse,
+  LastFmTrackInfoResponse,
   EnrichedTrack,
   EnrichedArtist,
   CacheEntry,
@@ -445,6 +446,60 @@ export class LastFmClient {
     this.setCache(cacheKey, enriched);
 
     return enriched;
+  }
+
+  /**
+   * Get detailed track info including album metadata
+   * This is useful for Lidarr integration to find the correct album
+   * @param artist - Artist name
+   * @param track - Track name
+   */
+  async getTrackInfo(artist: string, track: string): Promise<{
+    name: string;
+    artist: string;
+    album?: string;
+    albumMbid?: string;
+    duration?: number;
+  } | null> {
+    const cacheKey = `track-info:${artist}:${track}`;
+    const cached = this.getFromCache<{
+      name: string;
+      artist: string;
+      album?: string;
+      albumMbid?: string;
+      duration?: number;
+    }>(cacheKey);
+    if (cached) return cached;
+
+    console.log(`[Last.fm] Getting track info for "${artist} - ${track}"`);
+
+    try {
+      const response = await this.request<LastFmTrackInfoResponse>('track.getInfo', {
+        artist,
+        track,
+      });
+
+      if (!response.track) {
+        console.warn(`[Last.fm] Track not found: "${artist} - ${track}"`);
+        return null;
+      }
+
+      const result = {
+        name: response.track.name,
+        artist: response.track.artist.name,
+        album: response.track.album?.title,
+        albumMbid: response.track.album?.mbid,
+        duration: response.track.duration ? parseInt(response.track.duration, 10) : undefined,
+      };
+
+      console.log(`[Last.fm] Track info: album="${result.album}", mbid="${result.albumMbid}"`);
+      this.setCache(cacheKey, result);
+
+      return result;
+    } catch (error) {
+      console.warn(`[Last.fm] Failed to get track info for "${artist} - ${track}":`, error);
+      return null;
+    }
   }
 
   /**

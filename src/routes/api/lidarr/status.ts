@@ -23,11 +23,12 @@ export const Route = createFileRoute("/api/lidarr/status")({
         });
       }
 
-      const { queue, history, stats } = await monitorDownloads();
+      const { queue, history, wanted, stats } = await monitorDownloads();
 
       return new Response(JSON.stringify({
         queue,
         history,
+        wanted,
         stats,
         lastUpdated: new Date().toISOString(),
       }), {

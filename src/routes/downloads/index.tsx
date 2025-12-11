@@ -1,16 +1,22 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useState } from 'react'
+import { createFileRoute, redirect, useSearch, useNavigate, Link } from '@tanstack/react-router'
+import { useState, useEffect } from 'react'
 import { search } from '@/lib/services/lidarr'
 import { search as searchNavidrome } from '@/lib/services/navidrome'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 
 export const Route = createFileRoute('/downloads/')({
   beforeLoad: async ({ context }) => {
     if (!context.user) {
       throw redirect({ to: '/login' });
+    }
+  },
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      search: (search.search as string) || '',
     }
   },
   component: DownloadsPage,
@@ -29,7 +35,9 @@ interface SearchResult {
 }
 
 function DownloadsPage() {
-  const [searchQuery, setSearchQuery] = useState('')
+  const { search: initialSearch } = useSearch({ from: '/downloads/' })
+  const navigate = useNavigate()
+  const [searchQuery, setSearchQuery] = useState(initialSearch || '')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [isAdding, setIsAdding] = useState<string | null>(null)
@@ -96,7 +104,11 @@ function DownloadsPage() {
     if (isAdding) return
 
     setIsAdding(item.id)
+    const toastId = `lidarr-add-${item.id}`
+
     try {
+      toast.loading(`🔍 Searching for "${item.name}"...`, { id: toastId, duration: Infinity })
+
       const response = await fetch('/api/lidarr/add', {
         method: 'POST',
         headers: {
@@ -108,33 +120,70 @@ function DownloadsPage() {
       const data = await response.json()
 
       if (response.ok) {
-        toast.success(data.message || 'Added to Lidarr queue')
+        toast.success(`✅ ${data.message || 'Added to download queue'}`, {
+          id: toastId,
+          description: 'Check Downloads > Status for progress',
+          duration: 5000,
+        })
         // Remove from results if successfully added
         setSearchResults(prev => prev.filter(r => r.id !== item.id))
       } else {
-        toast.error(data.message || 'Failed to add to Lidarr')
+        toast.error(`❌ ${data.message || 'Failed to add to Lidarr'}`, {
+          id: toastId,
+          duration: 4000,
+        })
       }
     } catch (error) {
       console.error('Add to Lidarr error:', error)
-      toast.error('Failed to add to Lidarr. Please try again.')
+      toast.error('Failed to add to Lidarr. Please try again.', { id: toastId })
     } finally {
       setIsAdding(null)
     }
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSearch()
     }
   }
 
+  // Auto-search when page loads with search param
+  useEffect(() => {
+    if (initialSearch && initialSearch.trim()) {
+      handleSearch()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run on mount
+
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold">Download Music</h1>
-        <p className="text-muted-foreground">
-          Search for artists and albums to add to your download queue
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold">Download Music</h1>
+          <p className="text-muted-foreground">
+            Search for artists and albums to add to your download queue
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => navigate({ to: '/dashboard' })}
+          >
+            ← Dashboard
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate({ to: '/downloads/status' })}
+          >
+            View Queue & Status
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate({ to: '/downloads/history' })}
+          >
+            History
+          </Button>
+        </div>
       </div>
 
       {/* Search Interface */}
@@ -151,7 +200,7 @@ function DownloadsPage() {
               placeholder="Search for artists or albums..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyDown}
               disabled={isSearching}
             />
             <Button 
@@ -164,8 +213,37 @@ function DownloadsPage() {
         </CardContent>
       </Card>
 
+      {/* Search Loading Skeleton */}
+      {isSearching && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+              <CardTitle>Searching...</CardTitle>
+            </div>
+            <CardDescription>
+              Looking for "{searchQuery}" in Lidarr and your library
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {[...Array(6)].map((_, i) => (
+                <Card key={i} className="overflow-hidden">
+                  <Skeleton className="aspect-square" />
+                  <CardContent className="p-4 space-y-2">
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                    <Skeleton className="h-9 w-full" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Search Results */}
-      {searchResults.length > 0 && (
+      {!isSearching && searchResults.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Search Results</CardTitle>

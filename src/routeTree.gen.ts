@@ -26,6 +26,7 @@ import { Route as DownloadsHistoryRouteImport } from './routes/downloads/history
 import { Route as DjTransitionsRouteImport } from './routes/dj/transitions'
 import { Route as DjTransitionEffectsRouteImport } from './routes/dj/transition-effects'
 import { Route as DjSetPlannerRouteImport } from './routes/dj/set-planner'
+import { Route as DjSetBuilderRouteImport } from './routes/dj/set-builder'
 import { Route as DjQueueRouteImport } from './routes/dj/queue'
 import { Route as DjPlaylistGeneratorRouteImport } from './routes/dj/playlist-generator'
 import { Route as DjMixerRouteImport } from './routes/dj/mixer'
@@ -179,6 +180,11 @@ const DjTransitionEffectsRoute = DjTransitionEffectsRouteImport.update({
 const DjSetPlannerRoute = DjSetPlannerRouteImport.update({
   id: '/dj/set-planner',
   path: '/dj/set-planner',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DjSetBuilderRoute = DjSetBuilderRouteImport.update({
+  id: '/dj/set-builder',
+  path: '/dj/set-builder',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DjQueueRoute = DjQueueRouteImport.update({
@@ -573,6 +579,7 @@ export interface FileRoutesByFullPath {
   '/dj/mixer': typeof DjMixerRoute
   '/dj/playlist-generator': typeof DjPlaylistGeneratorRoute
   '/dj/queue': typeof DjQueueRoute
+  '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/set-planner': typeof DjSetPlannerRoute
   '/dj/transition-effects': typeof DjTransitionEffectsRoute
   '/dj/transitions': typeof DjTransitionsRoute
@@ -660,6 +667,7 @@ export interface FileRoutesByTo {
   '/dj/mixer': typeof DjMixerRoute
   '/dj/playlist-generator': typeof DjPlaylistGeneratorRoute
   '/dj/queue': typeof DjQueueRoute
+  '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/set-planner': typeof DjSetPlannerRoute
   '/dj/transition-effects': typeof DjTransitionEffectsRoute
   '/dj/transitions': typeof DjTransitionsRoute
@@ -749,6 +757,7 @@ export interface FileRoutesById {
   '/dj/mixer': typeof DjMixerRoute
   '/dj/playlist-generator': typeof DjPlaylistGeneratorRoute
   '/dj/queue': typeof DjQueueRoute
+  '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/set-planner': typeof DjSetPlannerRoute
   '/dj/transition-effects': typeof DjTransitionEffectsRoute
   '/dj/transitions': typeof DjTransitionsRoute
@@ -839,6 +848,7 @@ export interface FileRouteTypes {
     | '/dj/mixer'
     | '/dj/playlist-generator'
     | '/dj/queue'
+    | '/dj/set-builder'
     | '/dj/set-planner'
     | '/dj/transition-effects'
     | '/dj/transitions'
@@ -926,6 +936,7 @@ export interface FileRouteTypes {
     | '/dj/mixer'
     | '/dj/playlist-generator'
     | '/dj/queue'
+    | '/dj/set-builder'
     | '/dj/set-planner'
     | '/dj/transition-effects'
     | '/dj/transitions'
@@ -1014,6 +1025,7 @@ export interface FileRouteTypes {
     | '/dj/mixer'
     | '/dj/playlist-generator'
     | '/dj/queue'
+    | '/dj/set-builder'
     | '/dj/set-planner'
     | '/dj/transition-effects'
     | '/dj/transitions'
@@ -1101,6 +1113,7 @@ export interface RootRouteChildren {
   DjMixerRoute: typeof DjMixerRoute
   DjPlaylistGeneratorRoute: typeof DjPlaylistGeneratorRoute
   DjQueueRoute: typeof DjQueueRoute
+  DjSetBuilderRoute: typeof DjSetBuilderRoute
   DjSetPlannerRoute: typeof DjSetPlannerRoute
   DjTransitionEffectsRoute: typeof DjTransitionEffectsRoute
   DjTransitionsRoute: typeof DjTransitionsRoute
@@ -1268,6 +1281,13 @@ declare module '@tanstack/react-router' {
       path: '/dj/set-planner'
       fullPath: '/dj/set-planner'
       preLoaderRoute: typeof DjSetPlannerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dj/set-builder': {
+      id: '/dj/set-builder'
+      path: '/dj/set-builder'
+      fullPath: '/dj/set-builder'
+      preLoaderRoute: typeof DjSetBuilderRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dj/queue': {
@@ -1904,6 +1924,7 @@ const rootRouteChildren: RootRouteChildren = {
   DjMixerRoute: DjMixerRoute,
   DjPlaylistGeneratorRoute: DjPlaylistGeneratorRoute,
   DjQueueRoute: DjQueueRoute,
+  DjSetBuilderRoute: DjSetBuilderRoute,
   DjSetPlannerRoute: DjSetPlannerRoute,
   DjTransitionEffectsRoute: DjTransitionEffectsRoute,
   DjTransitionsRoute: DjTransitionsRoute,

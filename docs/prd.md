@@ -44,6 +44,18 @@ Each epic has been separated into its own document:
   **File:** `docs/prd-epic-5.md`
   Stories: Responsive Design Implementation, UI Polish and Consistency, User Preferences and Settings
 
+- **Epic 6: Multi-LLM Provider Support** — Planned
+  **File:** `docs/prd-epic-6.md` (definition in stories)
+  Stories: Multi-LLM Provider Support
+
+- **Epic 7: Pro DJ Features & Discovery Mode** — Planned
+  **File:** `docs/prd-epic-7.md`
+  Stories: Source Mode Toggle, Last.fm Integration, Discovery Pipeline, Dashboard Refactor, Harmonic Mixing, Set Builder
+
+- **Epic 8: iOS Companion App** — New
+  **File:** `docs/prd-epic-8.md`
+  Stories: Project Setup & Audio Foundation, Navidrome Auth, Library Browser, Playback Controls, Queue & Playlists, Search & Discovery, Lidarr Integration, Settings
+
 ## Related Documentation
 These sharded PRD documents work in conjunction with other project documentation:
 - `docs/project-brief.md` - High-level project overview
