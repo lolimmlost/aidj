@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 import { usePreferencesStore } from './preferences';
 import { toast } from 'sonner';
 import type { DJSession, DJQueueItem, DJRecommendation } from '@/lib/services/dj-service';

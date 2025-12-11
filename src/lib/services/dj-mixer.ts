@@ -1,7 +1,7 @@
 // DJ Mixer Service for professional DJ-style mixing
 // Handles BPM matching, harmonic mixing, transitions, and auto-mixing
 
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 import type { AudioAnalysis, BPMCompatibility, KeyCompatibility, EnergyFlow } from './audio-analysis';
 import { analyzeAudioFeatures, calculateBPMCompatibility, calculateKeyCompatibility, analyzeEnergyFlow } from './audio-analysis';
 import { ServiceError } from '../utils';

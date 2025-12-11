@@ -39,7 +39,7 @@ import type {
   AutoMixOptions 
 } from '@/lib/services/dj-queue-manager';
 import { createDJQueueManager } from '@/lib/services/dj-queue-manager';
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 
 // Props for DJ Queue Interface
 interface DJQueueInterfaceProps {

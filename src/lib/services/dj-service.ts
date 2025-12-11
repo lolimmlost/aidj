@@ -1,7 +1,7 @@
 // DJ Service for auto-mixing and queue management
 // Integrates with audio store to provide professional DJ features
 
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 import type { DJTransition, DJSetPlan, DJMixerConfig } from './dj-mixer';
 import type { AudioAnalysis } from './audio-analysis';
 import { createTransitionPlan, DEFAULT_DJ_MIXER_CONFIG } from './dj-mixer';

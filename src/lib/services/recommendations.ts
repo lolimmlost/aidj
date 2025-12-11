@@ -18,8 +18,8 @@ import { getLastFmClient } from './lastfm';
 import type { EnrichedTrack } from './lastfm/types';
 import { evaluateSmartPlaylistRules } from './smart-playlist-evaluator';
 import { getSongsGlobal, type SubsonicSong } from './navidrome';
-import { translateMoodToQuery, toEvaluatorFormat } from './mood-translator';
-import type { Song } from '@/components/ui/audio-player';
+import { translateMoodToQuery, toEvaluatorFormat, extractLastFmTags } from './mood-translator';
+import type { Song } from '@/lib/types/song';
 import { getConfigAsync } from '@/lib/config/config';
 import {
   applyCompoundScoreBoost,
@@ -47,7 +47,7 @@ export interface RecommendationRequest {
   mode: RecommendationMode;
   /** For 'similar' and 'discovery' modes - the seed song */
   currentSong?: { artist: string; title: string };
-  /** For 'mood' mode - natural language description */
+  /** For 'mood' and 'discovery' modes - natural language description for genre-first discovery */
   moodDescription?: string;
   /** Maximum number of songs to return */
   limit?: number;
@@ -239,23 +239,23 @@ async function getSimilarSongs(
 }
 
 // ============================================================================
-// Discovery Songs (Not in Library)
+// Discovery Songs (Not in Library) - Genre-First Approach
 // ============================================================================
 
 /**
- * Get similar songs that are NOT in the user's library
- * These are candidates for Lidarr download or manual acquisition
+ * Get discovery songs that are NOT in the user's library
+ * Uses a genre-first approach for better variety:
  *
- * This replaces the discovery mode from Story 7.2
+ * 1. PRIMARY: tag.gettoptracks - Get popular tracks by genre/mood tags
+ * 2. SECONDARY: artist.getsimilar → artist.gettoptracks - Find similar artists, then their top tracks
+ * 3. FALLBACK: track.getsimilar - Original approach for variety
+ *
+ * This replaces the old approach that only used track.getsimilar (too narrow)
  */
 async function getDiscoverySongs(
   request: RecommendationRequest
 ): Promise<RecommendationResult> {
-  const { currentSong, limit = 10 } = request;
-
-  if (!currentSong) {
-    throw new Error('currentSong required for discovery mode');
-  }
+  const { currentSong, limit = 10, moodDescription } = request;
 
   const lastFm = await getLastFmClientWithConfig();
 
@@ -263,31 +263,105 @@ async function getDiscoverySongs(
     throw new Error('Last.fm API key not configured. Please add your Last.fm API key in Settings → Services.');
   }
 
+  const allDiscoveries: EnrichedTrack[] = [];
+  const seenKeys = new Set<string>();
+
+  // Helper to add unique tracks
+  const addUniqueTracks = (tracks: EnrichedTrack[]) => {
+    for (const track of tracks) {
+      const key = `${track.artist.toLowerCase()}-${track.name.toLowerCase()}`;
+      if (!seenKeys.has(key) && !track.inLibrary) {
+        seenKeys.add(key);
+        allDiscoveries.push(track);
+      }
+    }
+  };
+
   try {
-    const similar = await lastFm.getSimilarTracks(
-      currentSong.artist,
-      currentSong.title,
-      limit * 3
-    );
+    // =========================================================================
+    // STRATEGY 1: Genre/Tag-based discovery (PRIMARY)
+    // Query Last.fm tag.gettoptracks for mood-matching tags
+    // =========================================================================
+    if (moodDescription) {
+      const tags = extractLastFmTags(moodDescription);
+      console.log(`🏷️ [Recommendations] Extracted tags for "${moodDescription}":`, tags.slice(0, 5));
 
-    // Filter to songs NOT in library, sorted by match score
-    const notInLibrary = similar
-      .filter(t => !t.inLibrary)
-      .sort((a, b) => (b.match || 0) - (a.match || 0));
+      // Query up to 3 tags for variety
+      const tagsToQuery = tags.slice(0, 3);
+      for (const tag of tagsToQuery) {
+        try {
+          const tagTracks = await lastFm.getTopTracksByTag(tag, Math.ceil(limit * 2));
+          const notInLibrary = tagTracks.filter(t => !t.inLibrary);
+          addUniqueTracks(notInLibrary);
+          console.log(`🎵 [Recommendations] Tag "${tag}": ${notInLibrary.length} discoveries`);
+        } catch (err) {
+          console.warn(`⚠️ [Recommendations] Failed to get tracks for tag "${tag}":`, err);
+        }
+      }
+    }
 
-    console.log(`🔍 [Recommendations] Found ${notInLibrary.length} discovery candidates`);
+    // =========================================================================
+    // STRATEGY 2: Similar Artists → Top Tracks (SECONDARY)
+    // Find artists similar to the seed, then get their popular tracks
+    // =========================================================================
+    if (currentSong && allDiscoveries.length < limit * 2) {
+      try {
+        console.log(`🎤 [Recommendations] Finding similar artists to "${currentSong.artist}"`);
+        const similarArtists = await lastFm.getSimilarArtists(currentSong.artist, 5);
+
+        // Get top tracks from similar artists (not in library)
+        for (const artist of similarArtists.filter(a => !a.inLibrary).slice(0, 3)) {
+          try {
+            const topTracks = await lastFm.getTopTracks(artist.name, Math.ceil(limit));
+            const notInLibrary = topTracks.filter(t => !t.inLibrary);
+            addUniqueTracks(notInLibrary);
+            console.log(`🎵 [Recommendations] Similar artist "${artist.name}": ${notInLibrary.length} discoveries`);
+          } catch (err) {
+            console.warn(`⚠️ [Recommendations] Failed to get top tracks for "${artist.name}":`, err);
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ [Recommendations] Failed to get similar artists:', err);
+      }
+    }
+
+    // =========================================================================
+    // STRATEGY 3: Similar Tracks (FALLBACK for variety)
+    // Original approach - use sparingly for additional variety
+    // =========================================================================
+    if (currentSong && allDiscoveries.length < limit) {
+      try {
+        console.log(`🔍 [Recommendations] Fallback: Getting similar tracks to "${currentSong.artist} - ${currentSong.title}"`);
+        const similarTracks = await lastFm.getSimilarTracks(
+          currentSong.artist,
+          currentSong.title,
+          limit * 2
+        );
+        const notInLibrary = similarTracks.filter(t => !t.inLibrary);
+        addUniqueTracks(notInLibrary);
+        console.log(`🎵 [Recommendations] Similar tracks fallback: ${notInLibrary.length} discoveries`);
+      } catch (err) {
+        console.warn('⚠️ [Recommendations] Failed to get similar tracks:', err);
+      }
+    }
+
+    // Shuffle and limit results
+    const shuffled = allDiscoveries.sort(() => Math.random() - 0.5);
+    const finalResults = shuffled.slice(0, limit);
+
+    console.log(`✅ [Recommendations] Discovery complete: ${finalResults.length} unique tracks from ${allDiscoveries.length} candidates`);
 
     return {
-      songs: notInLibrary.slice(0, limit).map(enrichedTrackToDiscoverySong),
+      songs: finalResults.map(enrichedTrackToDiscoverySong),
       source: 'lastfm',
       mode: 'discovery',
       metadata: {
-        totalCandidates: similar.length,
-        filteredCount: notInLibrary.length,
+        totalCandidates: allDiscoveries.length,
+        filteredCount: finalResults.length,
       },
     };
   } catch (error) {
-    console.error('❌ [Recommendations] Last.fm error in discovery mode:', error);
+    console.error('❌ [Recommendations] Discovery mode error:', error);
     throw error;
   }
 }

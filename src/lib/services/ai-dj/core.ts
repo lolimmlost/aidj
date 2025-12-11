@@ -1,7 +1,7 @@
 // AI DJ Service Core
 // Phase 3: Updated to use unified recommendations service (Last.fm-based)
 
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 import { getRecommendations } from '../recommendations';
 import { ServiceError } from '../../utils';
 

@@ -20,7 +20,7 @@ import {
   type CompoundScoreInsert,
 } from '../db/schema';
 import { eq, and, gte, desc, sql, inArray } from 'drizzle-orm';
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 
 // ============================================================================
 // Constants

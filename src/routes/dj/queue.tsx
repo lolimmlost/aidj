@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { DJQueueInterface } from "@/components/dj/dj-queue-interface";
-import type { Song } from "@/components/ui/audio-player";
+import type { Song } from "@/lib/types/song";
 
 export const Route = createFileRoute("/dj/queue")({
   beforeLoad: async ({ context }) => {

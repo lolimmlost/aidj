@@ -1,7 +1,7 @@
 // Advanced Harmonic Mixing Service
 // Provides sophisticated key detection and harmonic mixing for DJ sets
 
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 import type { AudioAnalysis, MusicalKey } from './audio-analysis';
 import { ServiceError } from '../utils';
 import { analyzeAudioFeatures, calculateKeyCompatibility } from './audio-analysis';

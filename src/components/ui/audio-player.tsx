@@ -11,17 +11,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-export type Song = {
-  id: string;
-  name: string;
-  title?: string; // Alternative name field from API
-  albumId: string;
-  album?: string; // Album name for display
-  duration: number;
-  track: number;
-  url: string;
-  artist?: string; // Optional for display
-};
+// Re-export Song type from centralized location for backwards compatibility
+export type { Song } from '@/lib/types/song';
 
 
 // Helper function for time formatting
@@ -80,10 +71,12 @@ export function AudioPlayer() {
   const currentSongIdRef = useRef<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Track if we were playing before an iOS interruption (notification, call, etc.)
   const wasPlayingBeforeInterruptionRef = useRef<boolean>(false);
   const isUserInitiatedPauseRef = useRef<boolean>(false);
+  // Track if we should auto-play the next song (set to true when current song ends)
+  const shouldAutoPlayRef = useRef<boolean>(false);
 
   const {
     playlist,
@@ -254,11 +247,51 @@ export function AudioPlayer() {
       console.error('Audio error:', audio.error);
     };
     const onEnded = () => {
-      // Scrobble on song end if we haven't already
-      if (currentSongIdRef.current && !hasScrobbledRef.current && currentSong) {
-        hasScrobbledRef.current = true;
-        console.log(`🎵 Song ended, scrobbling: ${currentSongIdRef.current}`);
-        scrobbleSong(currentSongIdRef.current, true).catch(err =>
+      console.log('🔴 SONG ENDED EVENT FIRED - advancing to next song');
+      // Mark as user-initiated to prevent iOS interruption handler from interfering
+      isUserInitiatedPauseRef.current = true;
+
+      // Capture the ended song's info BEFORE we change anything
+      const endedSongId = currentSongIdRef.current;
+      const endedSong = currentSong;
+      const endedDuration = audio.duration;
+      const endedPlayTime = audio.currentTime;
+
+      // iOS FIX: Start playback of next song IMMEDIATELY and SYNCHRONOUSLY
+      // iOS requires play() to be called in the same execution context as a user gesture
+      // or within an active audio session. By calling play() here before any state updates,
+      // we maintain the audio session continuity from the ended event.
+      const state = useAudioStore.getState();
+      const nextIndex = state.isShuffled
+        ? Math.floor(Math.random() * state.playlist.length)
+        : (state.currentSongIndex + 1) % state.playlist.length;
+      const nextTrack = state.playlist[nextIndex];
+
+      if (nextTrack && state.playlist.length > 0) {
+        console.log('🔴 iOS FIX: Loading next song SYNCHRONOUSLY:', nextTrack.name || nextTrack.title);
+        // Change src and play IMMEDIATELY - this keeps play() in same sync context
+        audio.src = nextTrack.url;
+        // Reset scrobble tracking for new song
+        hasScrobbledRef.current = false;
+        scrobbleThresholdReachedRef.current = false;
+        currentSongIdRef.current = nextTrack.id;
+
+        audio.play()
+          .then(() => {
+            console.log('🟢 iOS: Immediate play SUCCESS');
+            isUserInitiatedPauseRef.current = false;
+          })
+          .catch((e) => {
+            console.error('🔴 iOS: Immediate play FAILED:', e);
+            // Fall back to letting the effect handle it
+            shouldAutoPlayRef.current = true;
+          });
+      }
+
+      // Scrobble the song that just ended (async, after starting next song)
+      if (endedSongId && endedSong) {
+        console.log(`🎵 Song ended, scrobbling: ${endedSongId}`);
+        scrobbleSong(endedSongId, true).catch(err =>
           console.error('Failed to scrobble on song end:', err)
         );
 
@@ -267,13 +300,13 @@ export function AudioPlayer() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            songId: currentSongIdRef.current,
-            artist: currentSong.artist || 'Unknown',
-            title: currentSong.name || currentSong.title || 'Unknown',
-            album: currentSong.album,
-            genre: currentSong.genre,
-            duration: audio.duration,
-            playDuration: audio.currentTime,
+            songId: endedSongId,
+            artist: endedSong.artist || 'Unknown',
+            title: endedSong.name || endedSong.title || 'Unknown',
+            album: endedSong.album,
+            genre: endedSong.genre,
+            duration: endedDuration,
+            playDuration: endedPlayTime,
           }),
         })
           .then(res => {
@@ -286,7 +319,11 @@ export function AudioPlayer() {
           })
           .catch(err => console.warn('Failed to record listening history:', err));
       }
+
+      // Now update state (this syncs the UI, playback already started above)
+      console.log('🔴 Calling nextSong() to sync state');
       nextSong();
+      setIsPlaying(true);
     };
 
     audio.addEventListener('timeupdate', updateTime);
@@ -306,7 +343,7 @@ export function AudioPlayer() {
       audio.removeEventListener('error', onError);
       audio.removeEventListener('ended', onEnded);
     };
-  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong]);
+  }, [volume, currentSongIndex, setCurrentTime, setDuration, setIsPlaying, nextSong, currentSong]);
 
   useEffect(() => {
     if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {
@@ -316,15 +353,29 @@ export function AudioPlayer() {
       if (audio && currentSong) {
         // Only load if the song ID has actually changed
         if (currentSongIdRef.current !== currentSong.id) {
+          console.log('🔵 Song changed effect - loading new song:', currentSong.name || currentSong.title, 'prevId:', currentSongIdRef.current, 'newId:', currentSong.id);
           // Set up one-time canplay listener to handle autoplay
           const handleCanPlay = () => {
+            console.log('🟢 handleCanPlay fired - isPlaying:', isPlaying, 'shouldAutoPlayRef:', shouldAutoPlayRef.current);
             setIsLoading(false);
             setError(null);
-            if (isPlaying) {
-              audio.play().catch((e) => {
-                setError('Auto-play failed');
-                console.error('Auto-play failed:', e);
-              });
+            // Auto-play if: currently playing OR we should auto-play from song end
+            if (isPlaying || shouldAutoPlayRef.current) {
+              console.log('🟢 Auto-playing next song...');
+              shouldAutoPlayRef.current = false; // Reset the flag
+              // NOTE: Don't reset isUserInitiatedPauseRef here - let handlePlaying do it
+              // This prevents the iOS pause handler from interfering if play() fails
+              audio.play()
+                .then(() => {
+                  console.log('🟢 Auto-play SUCCESS');
+                  isUserInitiatedPauseRef.current = false; // Reset now that playback started
+                })
+                .catch((e) => {
+                  setError('Auto-play failed');
+                  console.error('🔴 Auto-play FAILED:', e);
+                });
+            } else {
+              console.log('🟡 NOT auto-playing - isPlaying is false and shouldAutoPlayRef is false');
             }
             audio.removeEventListener('canplay', handleCanPlay);
           };
@@ -558,7 +609,8 @@ export function AudioPlayer() {
   }, [togglePlayPause, seek, changeVolume, handleToggleLike, currentTime, duration, volume]);
 
   // Media Session API for lock screen / notification controls
-  // Set up once when component mounts, update metadata when song changes
+  // iOS FIX: Action handlers MUST be set inside the 'playing' event, not during setup
+  // See: https://stackoverflow.com/questions/73993512/web-audio-player-ios-next-song-previous-song-buttons-are-not-in-control-cent/78001443#78001443
   useEffect(() => {
     console.log('🎛️ Media Session effect running, currentSong:', currentSong?.name);
 
@@ -601,18 +653,16 @@ export function AudioPlayer() {
       }
     };
 
-    // iOS quirk: You cannot have both seek and track actions together.
-    // We must explicitly disable seek actions to show next/previous track buttons.
-    // See: https://stackoverflow.com/questions/73993512/web-audio-player-ios-next-song-previous-song-buttons-are-not-in-control-cent
-    const setupHandlers = () => {
-      try {
-        // Disable seek buttons to enable track buttons on iOS
-        navigator.mediaSession.setActionHandler('seekbackward', null);
-        navigator.mediaSession.setActionHandler('seekforward', null);
-        navigator.mediaSession.setActionHandler('seekto', null);
-      } catch (e) {
-        // Some browsers don't support all actions
-      }
+    // iOS FIX: Set action handlers inside the 'playing' event
+    // Key insights:
+    // 1. Do NOT set seekbackward/seekforward handlers - iOS shows seek OR track buttons, not both
+    // 2. Set handlers AFTER audio starts playing, not during component mount
+    // 3. Call audio.play() after skip to ensure playback continues
+    const handlePlaying = () => {
+      console.log('🎛️ Audio playing - setting up Media Session handlers for iOS');
+
+      setupMediaSession();
+      navigator.mediaSession.playbackState = 'playing';
 
       try {
         navigator.mediaSession.setActionHandler('play', () => {
@@ -628,29 +678,34 @@ export function AudioPlayer() {
           setIsPlaying(false);
         });
 
+        // iOS: previoustrack and nexttrack - these will show as skip buttons
+        // Do NOT set seekbackward/seekforward or these won't appear!
         navigator.mediaSession.setActionHandler('previoustrack', () => {
           console.log('🎛️ Media Session: previoustrack');
           previousSong();
+          // Ensure playback continues after skip
+          audio.play();
         });
 
         navigator.mediaSession.setActionHandler('nexttrack', () => {
           console.log('🎛️ Media Session: nexttrack');
           nextSong();
+          // Ensure playback continues after skip
+          audio.play();
         });
 
-        console.log('🎛️ Media Session handlers registered');
+        // seekto is OK - it doesn't conflict with track buttons
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (details.seekTime !== undefined && isFinite(details.seekTime)) {
+            console.log('🎛️ Media Session: seekto', details.seekTime);
+            audio.currentTime = details.seekTime;
+          }
+        });
+
+        console.log('🎛️ Media Session handlers registered (inside playing event)');
       } catch (e) {
         console.error('🎛️ Failed to set media session handlers:', e);
       }
-    };
-
-    // Set up handlers immediately
-    setupHandlers();
-
-    // Set up metadata when song changes or audio starts playing
-    const handlePlay = () => {
-      setupMediaSession();
-      navigator.mediaSession.playbackState = 'playing';
     };
 
     const handlePause = () => {
@@ -676,18 +731,21 @@ export function AudioPlayer() {
       }
     };
 
-    audio.addEventListener('play', handlePlay);
+    // Use 'playing' event instead of 'play' - this fires when playback actually starts
+    audio.addEventListener('playing', handlePlaying);
     audio.addEventListener('pause', handlePause);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('timeupdate', handleTimeUpdate);
 
-    // Initial setup if song is already loaded
-    if (currentSong) {
+    // Initial setup if song is already loaded and playing
+    if (currentSong && !audio.paused) {
+      handlePlaying();
+    } else if (currentSong) {
       setupMediaSession();
     }
 
     return () => {
-      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('playing', handlePlaying);
       audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
@@ -697,6 +755,7 @@ export function AudioPlayer() {
         navigator.mediaSession.setActionHandler('pause', null);
         navigator.mediaSession.setActionHandler('previoustrack', null);
         navigator.mediaSession.setActionHandler('nexttrack', null);
+        navigator.mediaSession.setActionHandler('seekto', null);
       } catch (e) {
         // Ignore cleanup errors
       }
@@ -780,13 +839,14 @@ export function AudioPlayer() {
               </div>
 
               {/* Compact Controls */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0"
+                  className="h-9 w-9 p-0"
                   onClick={handleToggleLike}
                   disabled={isLikePending}
+                  aria-label={isLiked ? 'Unlike song' : 'Like song'}
                 >
                   <Heart className={cn("h-4 w-4", isLiked && "fill-current text-red-500")} />
                 </Button>
@@ -794,18 +854,20 @@ export function AudioPlayer() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0"
+                  className="h-10 w-10 p-0 active:scale-95 transition-transform"
                   onClick={previousSong}
+                  aria-label="Previous song"
                 >
-                  <SkipBack className="h-4 w-4" />
+                  <SkipBack className="h-5 w-5" />
                 </Button>
 
                 <Button
                   variant="default"
                   size="sm"
-                  className="h-10 w-10 p-0 rounded-full"
+                  className="h-11 w-11 p-0 rounded-full mx-0.5"
                   onClick={togglePlayPause}
                   disabled={isLoading}
+                  aria-label={isPlaying ? 'Pause' : 'Play'}
                 >
                   {isLoading ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -819,10 +881,11 @@ export function AudioPlayer() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0"
+                  className="h-10 w-10 p-0 active:scale-95 transition-transform"
                   onClick={nextSong}
+                  aria-label="Next song"
                 >
-                  <SkipForward className="h-4 w-4" />
+                  <SkipForward className="h-5 w-5" />
                 </Button>
 
                 <AIDJToggle compact />
@@ -982,8 +1045,14 @@ export function AudioPlayer() {
         </div>
       </div>
 
-      {/* Hidden Audio Element */}
-      <audio ref={audioRef} preload="metadata" />
+      {/* Hidden Audio Element - iOS-optimized attributes */}
+      <audio
+        ref={audioRef}
+        preload="metadata"
+        playsInline // Required for iOS to not go fullscreen
+        webkit-playsinline="true" // Legacy iOS support
+        x-webkit-airplay="allow" // Enable AirPlay on iOS
+      />
     </div>
   );
 }

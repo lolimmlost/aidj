@@ -1,7 +1,7 @@
 // Web Audio API Integration Service
 // Provides real-time audio processing and visualization capabilities
 
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 import type { BufferAnalysis } from './audio-buffer-analyzer';
 import { ServiceError } from '../utils';
 

@@ -1,7 +1,7 @@
 // Audio Analysis Service for DJ features
 // Implements BPM detection, key detection, and energy level analysis
 
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 import { ServiceError } from '../utils';
 
 // Audio analysis metadata for a song

@@ -1,7 +1,7 @@
 // DJ-Style Queue Management Service
 // Provides advanced queue management with auto-mixing capabilities
 
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 import type { AudioAnalysis } from './audio-analysis';
 import type { TransitionParameters, TransitionType } from './transition-effects';
 import type { HarmonicMode } from './harmonic-mixer';

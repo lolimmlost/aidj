@@ -1,7 +1,7 @@
 // Enhanced DJ Mixer Service with advanced BPM matching and transition algorithms
 // Provides professional DJ-style mixing with sophisticated compatibility analysis
 
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 import type { AudioAnalysis, BPMCompatibility, KeyCompatibility, EnergyFlow, MusicalKey } from './audio-analysis';
 import { analyzeAudioFeatures, calculateKeyCompatibility, analyzeEnergyFlow } from './audio-analysis';
 import { ServiceError } from '../utils';

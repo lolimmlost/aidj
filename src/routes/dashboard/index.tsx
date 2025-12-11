@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { toast } from 'sonner';
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
@@ -21,7 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 import { DashboardHero, DJFeatures, MoreFeatures } from '@/components/dashboard';
 import { SourceModeSelector, SourceBadge } from '@/components/playlist/source-mode-selector';
@@ -40,6 +40,7 @@ function DashboardIndex() {
   const [type, setType] = useState<'similar' | 'mood'>('similar');
   const { data: session } = authClient.useSession();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const addToQueue = useAudioStore((state) => state.playSong);
   const playNow = useAudioStore((state) => state.playNow);
   const addToQueueNext = useAudioStore((state) => state.addToQueueNext);
@@ -1109,6 +1110,8 @@ function DashboardIndex() {
                 // Story 7.1: Include sourceMode in cache key
                 const cacheKey = `playlist-${trimmedStyle}-${sourceMode}-${mixRatio}`;
                 localStorage.removeItem(cacheKey);
+                // Reset generation stage to show loading immediately
+                setGenerationStage('generating');
                 queryClient.invalidateQueries({ queryKey: ['playlist', trimmedStyle, sourceMode, mixRatio] });
                 refetchPlaylist();
               }}
@@ -1250,6 +1253,8 @@ function DashboardIndex() {
                     // Story 7.1: Include sourceMode in cache key
                     const cacheKey = `playlist-${debouncedStyle}-${sourceMode}-${mixRatio}`;
                     localStorage.removeItem(cacheKey);
+                    // Reset generation stage to show loading immediately
+                    setGenerationStage('generating');
                     console.log(`🗑️ Cleared cache for "${debouncedStyle}" (${sourceMode}), regenerating...`);
                     refetchPlaylist();
                   }}
@@ -1432,13 +1437,48 @@ function DashboardIndex() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => {
+                              onClick={async () => {
                                 const parts = item.song.split(' - ');
                                 const artist = parts.length >= 2 ? parts[0].trim() : '';
                                 const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
-                                // Navigate to download/search page with artist and title
-                                window.location.href = `/library?search=${encodeURIComponent(item.song)}`;
-                                toast.info(`Search for "${title}" by ${artist} to add to your library`);
+                                const toastId = `lidarr-add-${index}`;
+
+                                // Try to add directly to Lidarr
+                                try {
+                                  toast.loading(`🔍 Searching for "${title}" by ${artist}...`, { id: toastId, duration: Infinity });
+                                  const response = await fetch('/api/lidarr/add', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ song: item.song }),
+                                  });
+                                  const data = await response.json();
+
+                                  if (response.ok) {
+                                    toast.success(`✅ ${data.message || `Found and added "${title}" to download queue`}`, {
+                                      id: toastId,
+                                      description: 'Check Downloads > Status for progress',
+                                      duration: 5000,
+                                    });
+                                  } else {
+                                    // If adding failed, navigate to downloads page to search manually
+                                    toast.error(`❌ ${data.message || data.error || 'Could not find automatically'}`, {
+                                      id: toastId,
+                                      description: 'Opening downloads page for manual search...',
+                                      duration: 3000,
+                                    });
+                                    setTimeout(() => navigate({ to: '/downloads', search: { search: artist } }), 1500);
+                                  }
+                                } catch (error) {
+                                  console.error('Lidarr add error:', error);
+                                  toast.error('Failed to search', {
+                                    id: toastId,
+                                    description: 'Opening downloads page...',
+                                    duration: 3000,
+                                  });
+                                  setTimeout(() => {
+                                    window.location.href = `/downloads?search=${encodeURIComponent(artist)}`;
+                                  }, 1500);
+                                }
                               }}
                               className="border-purple-500/30 hover:bg-purple-500/10 text-purple-700 dark:text-purple-300"
                             >
@@ -1452,7 +1492,7 @@ function DashboardIndex() {
                               onClick={() => {
                                 const [artistPart] = item.song.split(' - ');
                                 if (artistPart) {
-                                  window.location.href = `/library?search=${encodeURIComponent(artistPart.trim())}`;
+                                  navigate({ to: '/library', search: { search: artistPart.trim() } });
                                 }
                               }}
                               className="border-orange-500/30 hover:bg-orange-500/10"

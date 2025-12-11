@@ -1,7 +1,7 @@
 // Advanced Energy Flow Analysis Service
 // Provides sophisticated energy level detection and flow management for DJ sets
 
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 import type { AudioAnalysis } from './audio-analysis';
 import { ServiceError } from '../utils';
 import { analyzeAudioFeatures } from './audio-analysis';

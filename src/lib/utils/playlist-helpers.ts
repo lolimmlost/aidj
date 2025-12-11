@@ -1,4 +1,4 @@
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 
 interface PlaylistSong {
   id: string;
