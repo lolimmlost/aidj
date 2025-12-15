@@ -34,6 +34,11 @@ const formatTime = (time: number) => {
 /**
  * Compact Player Bar for the new three-column layout
  * Fixed at the bottom of the screen
+ *
+ * iOS Background Playback Notes:
+ * - Background audio playback works in Opera Mobile on iOS (non-PWA web app)
+ * - Media Session API: seek works, but skip forward/back buttons not showing (only seek)
+ * - Tested: 2024-12-15
  */
 export function PlayerBar() {
   const audioRef = useRef<HTMLAudioElement>(null);

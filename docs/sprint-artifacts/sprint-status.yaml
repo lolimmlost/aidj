@@ -1,0 +1,158 @@
+# Sprint Status Tracking - AIDJ Mobile
+# generated: 2025-12-14
+# project: AIDJ Mobile
+# tracking_system: file-system
+# story_location: docs/sprint-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - drafted: Story file created in stories folder
+#   - ready-for-dev: Draft approved and story context created
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - completed: Retrospective has been done
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically drafts next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2025-12-14
+project: AIDJ Mobile
+tracking_system: file-system
+story_location: docs/sprint-artifacts
+
+development_status:
+  # ============================================
+  # Epic 1: Foundation & Security (5 stories - all P0 GATE)
+  # ============================================
+  epic-1: in-progress
+  1-1-project-initialization-with-security-patches: done
+  1-2-boot-sequence-infrastructure: backlog
+  1-3-provider-composition-pattern: backlog
+  1-4-code-conventions-and-linting: backlog
+  1-5-project-structure-and-path-aliases: backlog
+  epic-1-retrospective: optional
+
+  # ============================================
+  # Epic 2: Auth & Server Connection (11 stories - 9 P0, 2 P1)
+  # ============================================
+  epic-2: backlog
+  2-1-zustand-auth-store: backlog
+  2-2-better-auth-integration: backlog
+  2-3-navidrome-connection-status-store: backlog
+  2-4-navidrome-server-configuration-screen: backlog
+  2-5-navidrome-connection-validation: backlog
+  2-6-basic-navidrome-service: backlog
+  2-7-skippable-onboarding-flow: backlog
+  2-8-settings-screen-with-connection-info: backlog
+  2-9-log-out-and-disconnect: backlog
+  2-10-empty-states-with-ctas: backlog
+  2-11-graceful-degradation-tiers: backlog  # P1
+  epic-2-retrospective: optional
+
+  # ============================================
+  # Epic 3: Library Browsing (10 stories - 8 P0, 1 P1, 1 P2)
+  # ============================================
+  epic-3: backlog
+  3-1-query-keys-and-tanstack-query-setup: backlog
+  3-2-artists-list-screen: backlog
+  3-3-a-z-quick-scroll-index: backlog  # P1
+  3-4-artist-detail-screen: backlog
+  3-5-album-detail-screen: backlog
+  3-6-album-art-component: backlog
+  3-7-skeleton-loading-components: backlog
+  3-8-pull-to-refresh: backlog
+  3-9-navigation-tab-bar: backlog
+  3-10-recently-played: backlog  # P2
+  epic-3-retrospective: optional
+
+  # ============================================
+  # Epic 4: Core Audio Playback (12 stories - 11 P0, 1 P1)
+  # ============================================
+  epic-4: backlog
+  4-1-track-player-registration: backlog
+  4-2-playback-service-implementation: backlog
+  4-3-track-player-setup: backlog
+  4-4-player-store: backlog
+  4-5-play-pause-toggle: backlog
+  4-6-skip-next-previous: backlog
+  4-7-seek-within-song: backlog
+  4-8-background-audio-playback: backlog
+  4-9-lock-screen-controls-ios: backlog
+  4-10-notification-controls-android: backlog
+  4-11-headphone-button-support: backlog  # P1
+  4-12-audio-interruption-handling: backlog
+  epic-4-retrospective: optional
+
+  # ============================================
+  # Epic 5: Queue Management (10 stories - 6 P0, 4 P1)
+  # ============================================
+  epic-5: backlog
+  5-1-queue-store: backlog
+  5-2-queue-screen: backlog
+  5-3-drag-to-reorder-queue: backlog
+  5-4-remove-song-from-queue: backlog
+  5-5-add-to-queue: backlog
+  5-6-play-next: backlog
+  5-7-queue-persistence: backlog
+  5-8-shuffle-toggle: backlog  # P1
+  5-9-repeat-modes: backlog  # P1
+  5-10-clear-queue: backlog  # P1
+  epic-5-retrospective: optional
+
+  # ============================================
+  # Epic 6: Now Playing Experience (6 stories - 5 P0, 1 P1)
+  # ============================================
+  epic-6: backlog
+  6-1-full-now-playing-screen: backlog
+  6-2-dynamic-background-color: backlog
+  6-3-mini-player: backlog
+  6-4-mini-to-full-player-transition: backlog
+  6-5-playback-controls-styling: backlog
+  6-6-swipe-gestures-for-skip: backlog  # P1
+  epic-6-retrospective: optional
+
+  # ============================================
+  # Epic 7: Search (6 stories - 4 P0, 1 P1, 1 P2)
+  # ============================================
+  epic-7: backlog
+  7-1-search-screen: backlog
+  7-2-search-results-categorized: backlog
+  7-3-search-queries-to-navidrome: backlog
+  7-4-instant-search-debounced: backlog  # P1
+  7-5-recent-searches: backlog
+  7-6-clear-recent-searches: backlog  # P2
+  epic-7-retrospective: optional
+
+  # ============================================
+  # Epic 8: Scrobbling & Release (9 stories - 4 P0, 3 P1, 2 P2)
+  # ============================================
+  epic-8: backlog
+  8-1-scrobble-to-navidrome: backlog  # P1
+  8-2-scrobble-threshold-logic: backlog  # P1
+  8-3-now-playing-submission: backlog  # P2
+  8-4-app-icon-and-splash-screen: backlog
+  8-5-app-version-display: backlog  # P2
+  8-6-haptic-feedback-audit: backlog
+  8-7-error-display-timing: backlog
+  8-8-testflight-play-store-beta-distribution: backlog
+  8-9-day-in-the-life-test: backlog
+  epic-8-retrospective: optional

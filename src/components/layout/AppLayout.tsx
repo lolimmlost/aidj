@@ -69,10 +69,9 @@ export function AppLayout({ children }: AppLayoutProps) {
         <RightSidebar />
       </div>
 
-      {/* Bottom Player Bar - Always visible when song is active */}
-      {/* Uses safe-area-inset-bottom for iOS home indicator */}
+      {/* Bottom Player Bar - Fixed to viewport bottom on all screen sizes */}
       {hasActiveSong && (
-        <div className="flex-shrink-0 border-t bg-background/95 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
+        <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
           <PlayerBar />
         </div>
       )}
