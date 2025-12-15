@@ -35,10 +35,40 @@ const formatTime = (time: number) => {
  * Compact Player Bar for the new three-column layout
  * Fixed at the bottom of the screen
  *
- * iOS Background Playback Notes:
- * - Background audio playback works in Opera Mobile on iOS (non-PWA web app)
- * - Media Session API: seek works, but skip forward/back buttons not showing (only seek)
- * - Tested: 2024-12-15
+ * ============================================================================
+ * iOS BACKGROUND PLAYBACK & LOCK SCREEN CONTROLS - WORKING IMPLEMENTATION
+ * ============================================================================
+ *
+ * Tested: 2024-12-15 on Opera Mobile (iOS, non-PWA web app)
+ *
+ * KEY REQUIREMENTS FOR iOS MEDIA SESSION API:
+ *
+ * 1. Set action handlers INSIDE the 'playing' event, NOT on component mount
+ *    - iOS ignores handlers set before audio actually plays
+ *    - Use audio.addEventListener('playing', handlePlaying) pattern
+ *
+ * 2. Do NOT set seekbackward/seekforward handlers
+ *    - iOS shows EITHER seek controls OR track skip buttons, not both
+ *    - If you set seekbackward/seekforward, skip buttons disappear
+ *    - Only set 'seekto' for scrubbing (works alongside track buttons)
+ *
+ * 3. Required handlers for full lock screen controls:
+ *    - 'play' / 'pause' - play/pause button
+ *    - 'previoustrack' / 'nexttrack' - skip buttons (⏮ ⏭)
+ *    - 'seekto' - scrubber/progress bar seeking
+ *
+ * 4. Update position state periodically:
+ *    - Call setPositionState() on 'timeupdate' events
+ *    - Enables progress bar on lock screen
+ *
+ * 5. Set metadata with artwork for lock screen display:
+ *    - Include multiple artwork sizes (128, 256, 512)
+ *    - iOS will pick appropriate size
+ *
+ * References:
+ * - https://stackoverflow.com/questions/73993512/web-audio-player-ios-next-song-previous-song-buttons-are-not-in-control-cent/78001443#78001443
+ * - https://developer.mozilla.org/en-US/docs/Web/API/Media_Session_API
+ * ============================================================================
  */
 export function PlayerBar() {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -351,6 +381,149 @@ export function PlayerBar() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [togglePlayPause, seek, changeVolume, handleToggleLike, currentTime, duration, volume, toggleShuffle]);
+
+  // Media Session API for iOS lock screen / notification controls
+  // iOS requires handlers to be set during 'playing' event, not on mount
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    const audio = audioRef.current;
+    if (!audio || !currentSong) return;
+
+    const setupMediaSession = () => {
+      // Build artwork array for lock screen display
+      const artwork: MediaImage[] = [];
+      if (currentSong.albumId) {
+        const coverUrl = `/api/navidrome/rest/getCoverArt?id=${currentSong.albumId}&size=512`;
+        artwork.push(
+          { src: coverUrl, sizes: '512x512', type: 'image/jpeg' },
+          { src: coverUrl.replace('size=512', 'size=256'), sizes: '256x256', type: 'image/jpeg' },
+        );
+      }
+
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentSong.name || currentSong.title || 'Unknown Song',
+        artist: currentSong.artist || 'Unknown Artist',
+        album: currentSong.album || '',
+        artwork: artwork.length > 0 ? artwork : undefined,
+      });
+
+      // Update position state
+      if (audio.duration && isFinite(audio.duration)) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: audio.duration,
+            playbackRate: audio.playbackRate,
+            position: audio.currentTime,
+          });
+        } catch (e) {
+          // Position state not supported
+        }
+      }
+    };
+
+    // iOS FIX: Set action handlers inside 'playing' event
+    // Key: Do NOT set seekbackward/seekforward - iOS shows seek OR track buttons, not both
+    const handlePlaying = () => {
+      console.log('🎛️ PlayerBar: Audio playing - setting up Media Session');
+      setupMediaSession();
+      navigator.mediaSession.playbackState = 'playing';
+
+      try {
+        navigator.mediaSession.setActionHandler('play', () => {
+          console.log('🎛️ Media Session: play');
+          audio.play();
+          setIsPlaying(true);
+        });
+
+        navigator.mediaSession.setActionHandler('pause', () => {
+          console.log('🎛️ Media Session: pause');
+          audio.pause();
+          setIsPlaying(false);
+        });
+
+        // previoustrack and nexttrack - shows as skip buttons on iOS
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+          console.log('🎛️ Media Session: previoustrack');
+          previousSong();
+          // Need to trigger play after state update
+          setTimeout(() => {
+            const newAudio = audioRef.current;
+            if (newAudio) newAudio.play().catch(console.error);
+          }, 100);
+        });
+
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+          console.log('🎛️ Media Session: nexttrack');
+          nextSong();
+          // Need to trigger play after state update
+          setTimeout(() => {
+            const newAudio = audioRef.current;
+            if (newAudio) newAudio.play().catch(console.error);
+          }, 100);
+        });
+
+        // seekto works alongside track buttons
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (details.seekTime !== undefined && isFinite(details.seekTime)) {
+            console.log('🎛️ Media Session: seekto', details.seekTime);
+            audio.currentTime = details.seekTime;
+          }
+        });
+
+        console.log('🎛️ Media Session handlers registered');
+      } catch (e) {
+        console.error('🎛️ Failed to set media session handlers:', e);
+      }
+    };
+
+    const handlePause = () => {
+      navigator.mediaSession.playbackState = 'paused';
+    };
+
+    const handleTimeUpdate = () => {
+      if (audio.duration && isFinite(audio.duration) && isFinite(audio.currentTime)) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: audio.duration,
+            playbackRate: audio.playbackRate,
+            position: audio.currentTime,
+          });
+        } catch (e) {
+          // Ignore
+        }
+      }
+    };
+
+    audio.addEventListener('playing', handlePlaying);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('loadedmetadata', setupMediaSession);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+
+    // Initial setup if already playing
+    if (!audio.paused) {
+      handlePlaying();
+    } else {
+      setupMediaSession();
+    }
+
+    return () => {
+      audio.removeEventListener('playing', handlePlaying);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('loadedmetadata', setupMediaSession);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+
+      try {
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('previoustrack', null);
+        navigator.mediaSession.setActionHandler('nexttrack', null);
+        navigator.mediaSession.setActionHandler('seekto', null);
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    };
+  }, [currentSong, setIsPlaying, previousSong, nextSong]);
 
   if (!currentSong) return null;
 
