@@ -1,12 +1,18 @@
 // AI DJ Toggle Component
 // Story 3.9: AI DJ Toggle Mode
+//
+// Simple tap-to-toggle button for AI DJ
+// Feedback on AI recommendations is given in the Queue Panel (like/dislike individual songs)
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { useAudioStore } from '@/lib/stores/audio';
 import { usePreferencesStore } from '@/lib/stores/preferences';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Wand2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface AIDJToggleProps {
   compact?: boolean;
@@ -29,6 +35,29 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
 
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Handle toggle - turn AI DJ on/off
+  const handleToggle = useCallback(async () => {
+    if (isUpdating) return;
+
+    setIsUpdating(true);
+    const newState = !aiDJEnabled;
+
+    try {
+      // Update local store immediately for responsive UI
+      setAIDJEnabled(newState);
+      // Persist to database
+      await setRecommendationSettings({ aiDJEnabled: newState });
+      toast.success(newState ? 'AI DJ enabled' : 'AI DJ disabled', { duration: 1500 });
+    } catch (error) {
+      console.error('Failed to update AI DJ setting:', error);
+      // Revert on error
+      setAIDJEnabled(!newState);
+      toast.error('Failed to toggle AI DJ');
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [aiDJEnabled, isUpdating, setAIDJEnabled, setRecommendationSettings]);
+
   // Sync with preferences on mount and when preferences change
   useEffect(() => {
     // Use setTimeout to avoid cascading renders and potential visual flashing
@@ -37,21 +66,19 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
         setAIDJEnabled(preferences.recommendationSettings.aiDJEnabled);
       }
     }, 0);
-    
+
     return () => clearTimeout(timeoutId);
   }, [preferences.recommendationSettings.aiDJEnabled, aiDJEnabled, setAIDJEnabled]);
 
-  const handleToggle = async (checked: boolean) => {
+  // Switch toggle handler for full mode
+  const handleSwitchToggle = async (checked: boolean) => {
     setIsUpdating(true);
     try {
-      // Update local store immediately for responsive UI
       setAIDJEnabled(checked);
-
-      // Persist to database
       await setRecommendationSettings({ aiDJEnabled: checked });
+      toast.success(checked ? 'AI DJ enabled' : 'AI DJ disabled', { duration: 1500 });
     } catch (error) {
       console.error('Failed to update AI DJ setting:', error);
-      // Revert on error
       setAIDJEnabled(!checked);
     } finally {
       setIsUpdating(false);
@@ -122,46 +149,76 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
   }
 
   // Compact mode (for mobile/audio player)
+  // Simple tap-to-toggle button
   if (compact) {
+    const isDisabled = isUpdating;
+    const showLoading = aiDJIsLoading;
+    const hasError = !!aiDJError;
+
+    // Button tooltip based on state
+    const getTooltip = () => {
+      if (showLoading) return 'AI DJ is finding songs...';
+      if (hasError) return `AI DJ error: ${aiDJError}`;
+      if (aiDJEnabled) return 'AI DJ is on - tap to turn off';
+      return 'AI DJ is off - tap to turn on';
+    };
+
     return (
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1 min-w-0">
-          <Label
-            htmlFor="ai-dj-toggle"
-            className="text-xs font-medium cursor-pointer select-none whitespace-nowrap"
-            title="AI DJ automatically adds songs to your queue"
-          >
-            ✨ AI
-          </Label>
-          {aiDJIsLoading && (
-            <Loader2 className="w-3 h-3 animate-spin text-yellow-600 dark:text-yellow-400" />
-          )}
-          {aiDJEnabled && aiQueuedSongIds.size > 0 && (
-            <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-              ({aiQueuedSongIds.size})
-            </span>
-          )}
-        </div>
-        <Switch
-          id="ai-dj-toggle"
-          checked={aiDJEnabled}
-          onCheckedChange={handleToggle}
-          disabled={isUpdating || aiDJIsLoading}
-          aria-label="Toggle AI DJ Mode"
-        />
-      </div>
+      <button
+        className={cn(
+          'relative flex items-center justify-center rounded-full transition-all duration-200',
+          'h-9 w-9 select-none',
+          // Off state
+          !aiDJEnabled && !showLoading && 'bg-muted/50 text-muted-foreground hover:bg-muted',
+          // On state - subtle glow
+          aiDJEnabled && !showLoading && !hasError && 'bg-primary/10 text-primary hover:bg-primary/20',
+          // Loading state
+          showLoading && 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+          // Error state
+          hasError && 'bg-red-500/10 text-red-600 dark:text-red-400',
+          // Disabled
+          isDisabled && 'opacity-50 cursor-not-allowed',
+        )}
+        disabled={isDisabled}
+        title={getTooltip()}
+        aria-label={getTooltip()}
+        onClick={handleToggle}
+      >
+        {/* Icon */}
+        {showLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Wand2 className={cn(
+            'h-4 w-4 transition-transform',
+            aiDJEnabled && 'drop-shadow-sm',
+          )} />
+        )}
+
+        {/* AI DJ enabled indicator - small dot */}
+        {aiDJEnabled && !showLoading && (
+          <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+        )}
+
+        {/* Queue count badge */}
+        {aiDJEnabled && aiQueuedSongIds.size > 0 && !showLoading && (
+          <span className="absolute -bottom-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center">
+            {aiQueuedSongIds.size > 9 ? '9+' : aiQueuedSongIds.size}
+          </span>
+        )}
+      </button>
     );
   }
 
   // Full mode (for settings page)
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
+      {/* Header row with toggle */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
+          <Wand2 className="h-4 w-4 text-primary" />
           <Label
-            htmlFor="ai-dj-toggle"
+            htmlFor="ai-dj-toggle-full"
             className="text-sm font-medium cursor-pointer select-none"
-            title="AI DJ automatically adds songs to your queue based on what you're listening to"
           >
             AI DJ Mode
           </Label>
@@ -170,37 +227,30 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
           )}
         </div>
         <Switch
-          id="ai-dj-toggle"
+          id="ai-dj-toggle-full"
           checked={aiDJEnabled}
-          onCheckedChange={handleToggle}
+          onCheckedChange={handleSwitchToggle}
           disabled={isUpdating || aiDJIsLoading}
           aria-label="Toggle AI DJ Mode"
         />
       </div>
 
-      {/* Status Indicator */}
+      {/* Status indicator */}
       <div
-        className={`px-3 py-2 rounded-md text-xs ${status.bgColor} ${status.color} transition-colors`}
+        className={cn(
+          'px-3 py-2 rounded-lg text-xs font-medium transition-colors',
+          status.bgColor,
+          status.color,
+        )}
         role="status"
         aria-live="polite"
       >
         {status.text}
       </div>
 
-      {/* AI Queue Badge */}
-      {aiDJEnabled && aiQueuedSongIds.size > 0 && (
-        <div
-          className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium self-start"
-          title={`${aiQueuedSongIds.size} songs added by AI DJ`}
-        >
-          <span className="text-base leading-none">✨</span>
-          <span>{aiQueuedSongIds.size} AI songs in queue</span>
-        </div>
-      )}
-
       {/* Help Text */}
-      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-        AI DJ automatically adds songs to your queue based on what you&apos;re listening to
+      <p className="text-xs text-muted-foreground">
+        When enabled, AI DJ automatically adds similar songs to your queue. Like or dislike AI recommendations in the queue panel to improve suggestions.
       </p>
     </div>
   );

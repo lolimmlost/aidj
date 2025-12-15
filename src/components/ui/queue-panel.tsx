@@ -2,8 +2,8 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Music, Trash2, GripVertical, Plus, RotateCcw } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { X, Music, Trash2, GripVertical, Plus, RotateCcw, ThumbsUp, ThumbsDown, Shuffle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
 import { CreatePlaylistDialog } from '@/components/playlists/CreatePlaylistDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -25,15 +25,16 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 
 interface SortableQueueItemProps {
-  song: { id: string; title?: string; artist?: string };
+  song: { id: string; title?: string; name?: string; artist?: string };
   index: number;
   actualIndex: number;
   onRemove: (index: number) => void;
   onPlay: (index: number) => void;
   isAIQueued?: boolean;
+  onFeedback?: (songId: string, songTitle: string, artist: string, type: 'thumbs_up' | 'thumbs_down') => void;
 }
 
-function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued }: SortableQueueItemProps) {
+function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued, onFeedback }: SortableQueueItemProps) {
   const {
     attributes,
     listeners,
@@ -49,16 +50,19 @@ function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQue
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const songTitle = song.title || song.name || 'Unknown';
+  const songArtist = song.artist || 'Unknown Artist';
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex items-start gap-3 p-3 rounded-lg transition-all duration-200 hover:scale-[1.02] ${
+      className={`group flex items-start gap-2 p-3 rounded-lg transition-all duration-200 hover:scale-[1.02] ${
         isAIQueued
           ? 'bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-950/30 dark:to-purple-950/30 border border-blue-200/30 dark:border-blue-800/30 shadow-sm'
           : 'bg-gradient-to-r from-background to-muted/20 hover:from-muted/10 hover:to-muted/30 border border-border/30 hover:border-border/50 shadow-sm'
       }`}
-      title={isAIQueued ? 'Added by AI DJ' : ''}
+      title={isAIQueued ? 'Added by AI DJ - give feedback to improve recommendations' : ''}
     >
       <button
         className="text-muted-foreground/70 hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5 flex-shrink-0 touch-none hover:scale-110 transition-transform"
@@ -85,15 +89,44 @@ function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQue
         }}
       >
         <div className="flex items-center gap-2">
-          <p className="font-semibold text-sm truncate">{song.title}</p>
+          <p className="font-semibold text-sm truncate">{songTitle}</p>
           {isAIQueued && (
-            <div className="p-1 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/40 dark:to-purple-900/40 rounded-full flex-shrink-0 animate-pulse">
-              <span className="block h-3 w-3 text-blue-600 dark:text-blue-300">✨</span>
-            </div>
+            <span className="text-xs text-blue-600 dark:text-blue-300 flex-shrink-0">✨</span>
           )}
         </div>
-        <p className="text-xs text-muted-foreground/80 truncate mt-0.5">{song.artist}</p>
+        <p className="text-xs text-muted-foreground/80 truncate mt-0.5">{songArtist}</p>
       </div>
+
+      {/* Feedback buttons for AI-queued songs */}
+      {isAIQueued && onFeedback && (
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onFeedback(song.id, songTitle, songArtist, 'thumbs_up');
+            }}
+            className="h-7 w-7 p-0 hover:bg-green-500/10 hover:text-green-600 rounded-full"
+            title="Good recommendation - more like this"
+          >
+            <ThumbsUp className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onFeedback(song.id, songTitle, songArtist, 'thumbs_down');
+            }}
+            className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-600 rounded-full"
+            title="Bad recommendation - less like this"
+          >
+            <ThumbsDown className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
+
       <Button
         variant="ghost"
         size="sm"
@@ -126,11 +159,49 @@ export function QueuePanel() {
     aiDJIsLoading,
     aiDJLastQueueTime,
     lastClearedQueue,
+    isShuffled,
+    toggleShuffle,
   } = useAudioStore();
   const [isOpen, setIsOpen] = useState(false);
   const [timeSinceLastQueue, setTimeSinceLastQueue] = useState(0);
   const [createPlaylistOpen, setCreatePlaylistOpen] = useState(false);
   const queryClient = useQueryClient();
+
+  // Handle feedback on AI-recommended songs
+  const handleAIFeedback = useCallback(async (
+    songId: string,
+    songTitle: string,
+    artist: string,
+    feedbackType: 'thumbs_up' | 'thumbs_down'
+  ) => {
+    try {
+      const response = await fetch('/api/recommendations/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          songId,
+          songArtistTitle: `${artist} - ${songTitle}`,
+          feedbackType,
+          source: 'ai_dj', // Track that this came from AI DJ queue
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit feedback');
+      }
+
+      toast.success(
+        feedbackType === 'thumbs_up'
+          ? `Liked "${songTitle}" - AI will learn from this`
+          : `Disliked "${songTitle}" - AI will avoid similar songs`,
+        { duration: 2000 }
+      );
+    } catch (error) {
+      console.error('Failed to submit AI feedback:', error);
+      toast.error('Failed to save feedback');
+    }
+  }, []);
   
   // Update time since last queue periodically
   useEffect(() => {
@@ -374,6 +445,7 @@ export function QueuePanel() {
                             onRemove={removeFromQueue}
                             onPlay={handlePlaySong}
                             isAIQueued={isAIQueued}
+                            onFeedback={handleAIFeedback}
                           />
                         );
                       })}
@@ -383,19 +455,38 @@ export function QueuePanel() {
               </ScrollArea>
 
               <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
-                {/* Create Playlist from Queue Button */}
-                {(currentSong || upcomingQueue.length > 0) && (
+                {/* Shuffle and Create Playlist row */}
+                <div className="flex gap-2">
+                  {/* Shuffle Button */}
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCreatePlaylistOpen(true)}
-                    className="w-full bg-gradient-to-r from-primary/5 to-transparent hover:from-primary/10 hover:to-transparent border-primary/20 hover:border-primary/30 text-primary/80 hover:text-primary transition-all duration-200 group"
+                    onClick={toggleShuffle}
+                    className={`flex-1 transition-all duration-200 group ${
+                      isShuffled
+                        ? 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20 border-purple-500/30 hover:border-purple-500/40 text-purple-600 dark:text-purple-400'
+                        : 'bg-gradient-to-r from-muted/5 to-transparent hover:from-muted/10 hover:to-transparent border-border/50 hover:border-border text-muted-foreground hover:text-foreground'
+                    }`}
+                    title={isShuffled ? 'Turn off shuffle' : 'Shuffle queue'}
                   >
-                    <Plus className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
-                    Create Playlist from Queue
+                    <Shuffle className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
+                    {isShuffled ? 'Shuffled' : 'Shuffle'}
                   </Button>
-                )}
-                
+
+                  {/* Create Playlist from Queue Button */}
+                  {(currentSong || upcomingQueue.length > 0) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCreatePlaylistOpen(true)}
+                      className="flex-1 bg-gradient-to-r from-primary/5 to-transparent hover:from-primary/10 hover:to-transparent border-primary/20 hover:border-primary/30 text-primary/80 hover:text-primary transition-all duration-200 group"
+                    >
+                      <Plus className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
+                      Save
+                    </Button>
+                  )}
+                </div>
+
                 {lastClearedQueue && (Date.now() - lastClearedQueue.timestamp) < 300000 ? (
                   <Button
                     variant="outline"

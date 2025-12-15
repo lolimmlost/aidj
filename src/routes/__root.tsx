@@ -193,7 +193,9 @@ function RootDocument({ children }: { readonly children: React.ReactNode }) {
           <Toaster richColors />
         </ThemeProvider>
 
+        {/* Devtools positioned at top-left to avoid covering player bar */}
         <TanStackDevtools
+          position="top-left"
           plugins={[
             {
               name: "TanStack Query",

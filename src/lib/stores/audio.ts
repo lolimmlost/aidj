@@ -82,6 +82,8 @@ interface AudioState {
   setAIDJEnabled: (enabled: boolean) => void;
   monitorQueueForAIDJ: () => Promise<void>;
   setAIUserActionInProgress: (inProgress: boolean) => void;
+  // Nudge mode - "more like this" for current song (Story 3.9 enhancement)
+  nudgeMoreLikeThis: () => Promise<void>;
   // DJ mixing actions
   startDJSession: (name: string, config?: DJMixerConfig) => DJSession;
   endDJSession: () => DJSession | null;
@@ -304,7 +306,7 @@ export const useAudioStore = create<AudioState>()(
       const state = get();
       // Set user action flag to prevent AI DJ auto-refresh
       set({ aiDJUserActionInProgress: true });
-      
+
       if (state.playlist.length === 0 || state.currentSongIndex === -1) {
         // No playlist exists, just set it
         set({ playlist: songs, currentSongIndex: 0, isPlaying: true });
@@ -315,9 +317,16 @@ export const useAudioStore = create<AudioState>()(
           ...songs,
           ...state.playlist.slice(state.currentSongIndex + 1),
         ];
-        set({ playlist: newPlaylist });
+
+        // If shuffled, also add to originalPlaylist so unshuffle preserves them
+        let newOriginalPlaylist = state.originalPlaylist;
+        if (state.isShuffled && state.originalPlaylist.length > 0) {
+          newOriginalPlaylist = [...state.originalPlaylist, ...songs];
+        }
+
+        set({ playlist: newPlaylist, originalPlaylist: newOriginalPlaylist });
       }
-      
+
       // Clear the flag after a short delay
       setTimeout(() => {
         set({ aiDJUserActionInProgress: false });
@@ -329,16 +338,23 @@ export const useAudioStore = create<AudioState>()(
       const state = get();
       // Set user action flag to prevent AI DJ auto-refresh
       set({ aiDJUserActionInProgress: true });
-      
+
       if (state.playlist.length === 0 || state.currentSongIndex === -1) {
         // No playlist exists, just set it
         set({ playlist: songs, currentSongIndex: 0, isPlaying: true });
       } else {
         // Append to end
         const newPlaylist = [...state.playlist, ...songs];
-        set({ playlist: newPlaylist });
+
+        // If shuffled, also add to originalPlaylist so unshuffle preserves them
+        let newOriginalPlaylist = state.originalPlaylist;
+        if (state.isShuffled && state.originalPlaylist.length > 0) {
+          newOriginalPlaylist = [...state.originalPlaylist, ...songs];
+        }
+
+        set({ playlist: newPlaylist, originalPlaylist: newOriginalPlaylist });
       }
-      
+
       // Clear the flag after a short delay
       setTimeout(() => {
         set({ aiDJUserActionInProgress: false });
@@ -477,24 +493,30 @@ export const useAudioStore = create<AudioState>()(
 
     shufflePlaylist: () => {
       const state = get();
-      if (state.playlist.length <= 1) return;
+      const upcomingCount = state.playlist.length - state.currentSongIndex - 1;
+      if (upcomingCount <= 1) return; // Nothing to shuffle
 
-      // Store current song and original playlist if not already stored
       const currentSong = state.playlist[state.currentSongIndex];
-      const originalPlaylist = state.originalPlaylist.length > 0 ? state.originalPlaylist : [...state.playlist];
 
-      // Create a shuffled copy of the playlist (excluding current song)
-      const otherSongs = state.playlist.filter((_, index) => index !== state.currentSongIndex);
-      const shuffledOthers = [...otherSongs].sort(() => Math.random() - 0.5);
+      // Only get UPCOMING songs (after current), not already played ones
+      const upcomingSongs = state.playlist.slice(state.currentSongIndex + 1);
 
-      // Create new playlist with current song at the beginning
-      const newPlaylist = currentSong ? [currentSong, ...shuffledOthers] : shuffledOthers;
+      // Store the original upcoming order (only if not already stored)
+      const originalUpcoming = state.originalPlaylist.length > 0
+        ? state.originalPlaylist
+        : [...upcomingSongs];
+
+      // Shuffle the upcoming songs
+      const shuffledUpcoming = [...upcomingSongs].sort(() => Math.random() - 0.5);
+
+      // New playlist: just current song + shuffled upcoming (discard played songs)
+      const newPlaylist = currentSong ? [currentSong, ...shuffledUpcoming] : shuffledUpcoming;
 
       set({
         playlist: newPlaylist,
         currentSongIndex: currentSong ? 0 : -1,
         isShuffled: true,
-        originalPlaylist: originalPlaylist
+        originalPlaylist: originalUpcoming // Store original upcoming order for unshuffle
       });
     },
 
@@ -502,13 +524,16 @@ export const useAudioStore = create<AudioState>()(
       const state = get();
       if (state.originalPlaylist.length === 0) return;
 
-      // Find the current song in the original playlist
       const currentSong = state.playlist[state.currentSongIndex];
-      const currentSongIndexInOriginal = state.originalPlaylist.findIndex(song => song.id === currentSong?.id);
+
+      // Restore original upcoming order (current song + original upcoming)
+      const newPlaylist = currentSong
+        ? [currentSong, ...state.originalPlaylist]
+        : state.originalPlaylist;
 
       set({
-        playlist: state.originalPlaylist,
-        currentSongIndex: currentSongIndexInOriginal,
+        playlist: newPlaylist,
+        currentSongIndex: currentSong ? 0 : -1,
         isShuffled: false,
         originalPlaylist: []
       });
@@ -702,8 +727,15 @@ export const useAudioStore = create<AudioState>()(
         // Check if we need to start playback (empty queue case)
         const shouldStartPlayback = state.playlist.length === 0 || state.currentSongIndex === -1;
 
+        // If shuffled, also add to originalPlaylist so unshuffle preserves them
+        let newOriginalPlaylist = state.originalPlaylist;
+        if (state.isShuffled && state.originalPlaylist.length > 0) {
+          newOriginalPlaylist = [...state.originalPlaylist, ...recommendations];
+        }
+
         set({
           playlist: newPlaylist,
+          originalPlaylist: newOriginalPlaylist,
           currentSongIndex: shouldStartPlayback ? 0 : state.currentSongIndex,
           isPlaying: shouldStartPlayback ? true : state.isPlaying,
           aiDJLastQueueTime: now,
@@ -739,6 +771,185 @@ export const useAudioStore = create<AudioState>()(
             },
           },
         });
+      }
+    },
+
+    /**
+     * Nudge Mode - "More like this" for current song
+     *
+     * This is the primary way users can steer the AI DJ's direction.
+     * When a user nudges, it means "I like this - give me more similar songs!"
+     *
+     * Behavior:
+     * 1. Records a "thumbs_up" feedback for the current song (learns preferences)
+     * 2. Fetches similar songs using that song as the seed
+     * 3. Inserts songs at RANDOM positions in the upcoming queue (not just at end)
+     *    This creates a more natural "DJ" feel where recommendations blend in
+     * 4. Bypasses normal AI DJ cooldown for instant response
+     */
+    nudgeMoreLikeThis: async () => {
+      const state = get();
+
+      if (state.aiDJIsLoading) {
+        console.log('🎵 Nudge: Already loading, skipping');
+        return;
+      }
+
+      const currentSong = state.playlist[state.currentSongIndex];
+      if (!currentSong) {
+        console.warn('🎵 Nudge: No current song');
+        toast.error('No song playing', { description: 'Play a song first to get similar recommendations' });
+        return;
+      }
+
+      console.log(`🎵 Nudge: Getting more songs like "${currentSong.artist} - ${currentSong.title || currentSong.name}"`);
+      set({ aiDJIsLoading: true, aiDJError: null });
+
+      try {
+        // 1. Record the nudge as positive feedback to learn user preferences
+        // This helps the AI DJ understand what the user likes
+        try {
+          await fetch('/api/recommendations/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              songId: currentSong.id,
+              songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
+              feedbackType: 'thumbs_up',
+              source: 'nudge', // Special source to track nudge-based feedback
+            }),
+          });
+          console.log('🎵 Nudge: Recorded positive feedback for learning');
+        } catch (feedbackError) {
+          // Don't fail the nudge if feedback recording fails
+          console.warn('🎵 Nudge: Failed to record feedback (non-critical):', feedbackError);
+        }
+
+        // 2. Get preferences for batch size
+        const preferencesState = usePreferencesStore.getState();
+        const { recommendationSettings } = preferencesState.preferences;
+
+        // Build exclusions list - recent songs in queue
+        const recentlyPlayed = state.playlist.slice(
+          Math.max(0, state.currentSongIndex - 10),
+          state.currentSongIndex + 5
+        ).map(song => song.id);
+
+        const recentlyRecommended = state.aiDJRecentlyRecommended
+          .filter(rec => Date.now() - rec.timestamp < 7200000) // 2 hour window
+          .map(rec => rec.songId);
+
+        const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed])];
+
+        // Call API - use larger batch for nudge mode
+        const batchSize = Math.max(recommendationSettings.aiDJBatchSize || 3, 5);
+
+        const response = await fetch('/api/ai-dj/recommendations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            currentSong,
+            batchSize,
+            excludeSongIds: allExclusions,
+            skipAutoRefresh: true, // User-initiated, show toast
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to get similar songs');
+        }
+
+        const { recommendations } = await response.json();
+
+        if (recommendations.length === 0) {
+          set({ aiDJIsLoading: false, aiDJError: 'No similar songs found' });
+          toast.info('No similar songs found', {
+            description: `Couldn't find more songs like "${currentSong.artist}"`
+          });
+          return;
+        }
+
+        // 3. Insert songs at RANDOM positions in the upcoming queue
+        // This creates a more natural DJ feel where recommendations blend in
+        const upcomingStart = state.currentSongIndex + 1;
+        const upcomingLength = state.playlist.length - upcomingStart;
+
+        // Create new playlist with songs inserted at random positions
+        let newPlaylist = [...state.playlist];
+        const newQueuedIds = new Set(state.aiQueuedSongIds);
+        const now = Date.now();
+        const newRecentlyRecommended = [...state.aiDJRecentlyRecommended];
+
+        // Shuffle recommendations first for variety
+        const shuffledRecs = [...recommendations].sort(() => Math.random() - 0.5);
+
+        shuffledRecs.forEach((song: Song, i: number) => {
+          // Calculate insertion position:
+          // - First song: insert 1-3 positions after current (play soon)
+          // - Other songs: spread randomly throughout upcoming queue
+          let insertPos: number;
+
+          if (i === 0 && upcomingLength > 0) {
+            // First recommendation plays soon (within next 1-3 songs)
+            insertPos = upcomingStart + Math.floor(Math.random() * Math.min(3, upcomingLength + 1));
+          } else if (upcomingLength === 0) {
+            // No upcoming songs, just append
+            insertPos = newPlaylist.length;
+          } else {
+            // Spread other songs randomly in the upcoming queue
+            const maxPos = newPlaylist.length;
+            insertPos = upcomingStart + Math.floor(Math.random() * (maxPos - upcomingStart + 1));
+          }
+
+          // Insert song at calculated position
+          newPlaylist = [
+            ...newPlaylist.slice(0, insertPos),
+            song,
+            ...newPlaylist.slice(insertPos),
+          ];
+
+          // Track the song
+          newQueuedIds.add(song.id);
+          newRecentlyRecommended.push({
+            songId: song.id,
+            timestamp: now,
+            artist: song.artist,
+          });
+        });
+
+        // Clean up old recommendations
+        const cleanedRecentlyRecommended = newRecentlyRecommended.filter(
+          rec => now - rec.timestamp < 28800000 // 8 hours
+        );
+
+        // If shuffled, also add to originalPlaylist so unshuffle preserves them
+        let newOriginalPlaylist = state.originalPlaylist;
+        if (state.isShuffled && state.originalPlaylist.length > 0) {
+          newOriginalPlaylist = [...state.originalPlaylist, ...recommendations];
+        }
+
+        set({
+          playlist: newPlaylist,
+          originalPlaylist: newOriginalPlaylist,
+          aiDJLastQueueTime: now,
+          aiQueuedSongIds: newQueuedIds,
+          aiDJRecentlyRecommended: cleanedRecentlyRecommended,
+          aiDJIsLoading: false,
+          aiDJError: null,
+        });
+
+        toast.success(`✨ Added ${recommendations.length} similar songs`, {
+          description: `Blended into queue based on "${currentSong.artist}"`,
+        });
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to get similar songs';
+        console.error('🎵 Nudge Error:', errorMessage);
+        set({ aiDJIsLoading: false, aiDJError: errorMessage });
+        toast.error('Nudge failed', { description: errorMessage });
       }
     },
 
