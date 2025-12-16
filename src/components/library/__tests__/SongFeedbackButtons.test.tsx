@@ -218,7 +218,7 @@ describe('SongFeedbackButtons', () => {
       expect(screen.getByLabelText('Like song')).toBeInTheDocument();
     });
 
-    it('handles duplicate feedback gracefully', async () => {
+    it('handles duplicate feedback gracefully without showing toast', async () => {
       const user = userEvent.setup();
       const { toast } = await import('sonner');
 
@@ -233,12 +233,14 @@ describe('SongFeedbackButtons', () => {
       const likeButton = screen.getByLabelText('Like song');
       await user.click(likeButton);
 
+      // Wait for mutation to complete
       await waitFor(() => {
-        expect(toast.info).toHaveBeenCalledWith('Already rated', {
-          description: `You've already rated "Test Song"`,
-          duration: 2000,
-        });
+        expect(global.fetch).toHaveBeenCalled();
       });
+
+      // Should NOT show any toast - the button state is enough feedback
+      expect(toast.info).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
     });
   });
 

@@ -34,6 +34,18 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
   } = usePreferencesStore();
 
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showLoading, setShowLoading] = useState(false);
+
+  // Delay showing loading spinner to avoid flicker for fast operations
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    if (aiDJIsLoading) {
+      timeout = setTimeout(() => setShowLoading(true), 500); // Only show after 500ms
+    } else {
+      setShowLoading(false);
+    }
+    return () => clearTimeout(timeout);
+  }, [aiDJIsLoading]);
 
   // Handle toggle - turn AI DJ on/off
   const handleToggle = useCallback(async () => {
@@ -47,7 +59,7 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
       setAIDJEnabled(newState);
       // Persist to database
       await setRecommendationSettings({ aiDJEnabled: newState });
-      toast.success(newState ? 'AI DJ enabled' : 'AI DJ disabled', { duration: 1500 });
+      // No toast - the button state change is enough visual feedback
     } catch (error) {
       console.error('Failed to update AI DJ setting:', error);
       // Revert on error
@@ -76,10 +88,11 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
     try {
       setAIDJEnabled(checked);
       await setRecommendationSettings({ aiDJEnabled: checked });
-      toast.success(checked ? 'AI DJ enabled' : 'AI DJ disabled', { duration: 1500 });
+      // No toast - switch state is enough visual feedback
     } catch (error) {
       console.error('Failed to update AI DJ setting:', error);
       setAIDJEnabled(!checked);
+      toast.error('Failed to toggle AI DJ');
     } finally {
       setIsUpdating(false);
     }
@@ -152,7 +165,6 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
   // Simple tap-to-toggle button
   if (compact) {
     const isDisabled = isUpdating;
-    const showLoading = aiDJIsLoading;
     const hasError = !!aiDJError;
 
     // Button tooltip based on state
@@ -222,7 +234,7 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
           >
             AI DJ Mode
           </Label>
-          {aiDJIsLoading && (
+          {showLoading && (
             <Loader2 className="w-4 h-4 animate-spin text-yellow-600 dark:text-yellow-400" />
           )}
         </div>
@@ -230,7 +242,7 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
           id="ai-dj-toggle-full"
           checked={aiDJEnabled}
           onCheckedChange={handleSwitchToggle}
-          disabled={isUpdating || aiDJIsLoading}
+          disabled={isUpdating}
           aria-label="Toggle AI DJ Mode"
         />
       </div>

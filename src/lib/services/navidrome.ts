@@ -710,6 +710,10 @@ export async function getSongsByIds(songIds: string[]): Promise<Song[]> {
     const songs = data.map((song) => ({
       ...song,
       url: `/api/navidrome/stream/${song.id}`,
+      // Ensure genre is properly mapped from Navidrome response
+      genre: song.genre || (song.genres && song.genres.length > 0
+        ? song.genres.map(g => g.name).join(', ')
+        : ''),
     })) as Song[];
     return songs || [];
   } catch (error) {

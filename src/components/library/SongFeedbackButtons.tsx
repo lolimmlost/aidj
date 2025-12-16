@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
@@ -32,10 +32,22 @@ export function SongFeedbackButtons({
 
   // Fetch existing feedback for this song (only if songId exists)
   const { data: feedbackData } = useSongFeedback(songId ? [songId] : []);
-  
-  // Use derived state instead of separate state
-  const existingFeedback = songId ? (feedbackData?.feedback?.[songId] || null) : null;
-  const [optimisticFeedback, setOptimisticFeedback] = useState<'thumbs_up' | 'thumbs_down' | null>(currentFeedback || existingFeedback);
+
+  // Get server-side feedback state
+  const serverFeedback = songId ? (feedbackData?.feedback?.[songId] || null) : null;
+
+  // Track optimistic feedback separately - null means "use server state"
+  const [optimisticFeedback, setOptimisticFeedback] = useState<'thumbs_up' | 'thumbs_down' | null>(null);
+
+  // Effective feedback: optimistic takes priority, then prop, then server
+  const effectiveFeedback = optimisticFeedback ?? currentFeedback ?? serverFeedback;
+
+  // Reset optimistic state when server state updates (e.g., after mutation completes)
+  useEffect(() => {
+    if (serverFeedback !== null) {
+      setOptimisticFeedback(null); // Clear optimistic, use server state
+    }
+  }, [serverFeedback]);
 
   const feedbackMutation = useMutation({
     mutationFn: async (feedbackType: 'thumbs_up' | 'thumbs_down') => {
@@ -80,15 +92,11 @@ export function SongFeedbackButtons({
       });
     },
     onError: (error: Error) => {
-      // Revert optimistic update
-      setOptimisticFeedback(currentFeedback);
+      // Revert optimistic update - clear to use server state
+      setOptimisticFeedback(null);
 
-      // Handle duplicate feedback gracefully
+      // Handle duplicate feedback gracefully - no toast needed, button is already lit
       if (error.message === 'DUPLICATE') {
-        toast.info('Already rated', {
-          description: `You've already rated "${songTitle}"`,
-          duration: 2000,
-        });
         return;
       }
 
@@ -102,7 +110,7 @@ export function SongFeedbackButtons({
 
   const handleFeedback = (feedbackType: 'thumbs_up' | 'thumbs_down') => {
     // Prevent clicking the same feedback twice or if already loading
-    if (optimisticFeedback === feedbackType || feedbackMutation.isPending) {
+    if (effectiveFeedback === feedbackType || feedbackMutation.isPending) {
       return;
     }
 
@@ -110,8 +118,8 @@ export function SongFeedbackButtons({
   };
 
   const isLoading = feedbackMutation.isPending;
-  const isLiked = optimisticFeedback === 'thumbs_up';
-  const isDisliked = optimisticFeedback === 'thumbs_down';
+  const isLiked = effectiveFeedback === 'thumbs_up';
+  const isDisliked = effectiveFeedback === 'thumbs_down';
 
   return (
     <div className="flex items-center gap-1" role="group" aria-label="Song feedback">
@@ -130,7 +138,7 @@ export function SongFeedbackButtons({
         {isLoading && optimisticFeedback === 'thumbs_up' ? (
           <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
-          <ThumbsUp className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
+          <ThumbsUp className={`h-4 w-4 transition-all ${isLiked ? 'fill-current scale-110' : ''}`} />
         )}
       </Button>
 
@@ -149,7 +157,7 @@ export function SongFeedbackButtons({
         {isLoading && optimisticFeedback === 'thumbs_down' ? (
           <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
-          <ThumbsDown className={`h-4 w-4 ${isDisliked ? 'fill-current' : ''}`} />
+          <ThumbsDown className={`h-4 w-4 transition-all ${isDisliked ? 'fill-current scale-110' : ''}`} />
         )}
       </Button>
     </div>

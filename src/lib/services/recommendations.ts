@@ -17,7 +17,7 @@
 import { getLastFmClient } from './lastfm';
 import type { EnrichedTrack } from './lastfm/types';
 import { evaluateSmartPlaylistRules } from './smart-playlist-evaluator';
-import { getSongsGlobal, type SubsonicSong } from './navidrome';
+import { getSongsGlobal, getRandomSongs, type SubsonicSong } from './navidrome';
 import { translateMoodToQuery, toEvaluatorFormat, extractLastFmTags } from './mood-translator';
 import type { Song } from '@/lib/types/song';
 import { getConfigAsync } from '@/lib/config/config';
@@ -43,10 +43,17 @@ async function getLastFmClientWithConfig() {
 
 export type RecommendationMode = 'similar' | 'discovery' | 'mood' | 'personalized';
 
+/** Queue context for smarter fallback recommendations */
+export interface QueueContext {
+  genres: string[];    // Most common genres in queue (sorted by frequency)
+  artists: string[];   // Most common artists in queue
+  avgDuration?: number; // Average song duration
+}
+
 export interface RecommendationRequest {
   mode: RecommendationMode;
   /** For 'similar' and 'discovery' modes - the seed song */
-  currentSong?: { artist: string; title: string };
+  currentSong?: { artist: string; title: string; genre?: string };
   /** For 'mood' and 'discovery' modes - natural language description for genre-first discovery */
   moodDescription?: string;
   /** Maximum number of songs to return */
@@ -59,6 +66,8 @@ export interface RecommendationRequest {
   userId?: string;
   /** Weight for compound score boost (0-1, default 0.3) */
   compoundScoreWeight?: number;
+  /** Queue context for smarter fallback (genres, artists from current queue) */
+  queueContext?: QueueContext;
 }
 
 export interface RecommendationResult {
@@ -156,6 +165,7 @@ async function getSimilarSongs(
     excludeArtists = [],
     userId,
     compoundScoreWeight = 0.3,
+    queueContext,
   } = request;
 
   if (!currentSong) {
@@ -166,7 +176,7 @@ async function getSimilarSongs(
 
   if (!lastFm) {
     console.log('⚠️ [Recommendations] Last.fm not configured, using fallback');
-    return fallbackToGenreRandom(currentSong, limit, 'lastfm_not_configured');
+    return fallbackToGenreRandom(currentSong, limit, 'lastfm_not_configured', queueContext);
   }
 
   try {
@@ -194,7 +204,7 @@ async function getSimilarSongs(
 
     if (diverse.length === 0) {
       console.log('⚠️ [Recommendations] No library matches, using fallback');
-      return fallbackToGenreRandom(currentSong, limit, 'no_library_matches');
+      return fallbackToGenreRandom(currentSong, limit, 'no_library_matches', queueContext);
     }
 
     // Convert to Song format
@@ -234,7 +244,7 @@ async function getSimilarSongs(
     };
   } catch (error) {
     console.error('❌ [Recommendations] Last.fm error:', error);
-    return fallbackToGenreRandom(currentSong, limit, 'lastfm_error');
+    return fallbackToGenreRandom(currentSong, limit, 'lastfm_error', queueContext);
   }
 }
 
@@ -578,23 +588,89 @@ function subsonicSongToSong(song: SubsonicSong): Song {
 
 /**
  * Fallback to genre-based random songs from library
- * Used when Last.fm is unavailable or returns no matches
+ * Uses Navidrome's native random sort for truly random selection
+ * Prioritizes genres from queue context if available, then current song genre
  */
 async function fallbackToGenreRandom(
-  currentSong: { artist: string; title: string },
+  currentSong: { artist: string; title: string; genre?: string },
   limit: number,
-  reason: string
+  reason: string,
+  queueContext?: QueueContext
 ): Promise<RecommendationResult> {
   console.log(`🔄 [Recommendations] Falling back to genre random (${reason})`);
 
   try {
-    // Get random songs from library, excluding current artist
-    const songs = await getSongsGlobal(0, limit * 2);
+    // Use Navidrome's native random sort (not offset 0 which always returns same songs)
+    // Request larger pool (10x or min 100) to find enough genre matches
+    const poolSize = Math.max(limit * 10, 100);
+    const songs = await getRandomSongs(poolSize);
+    console.log(`🎲 [Recommendations] Got ${songs.length} random songs from Navidrome`);
 
-    const filtered = songs
-      .filter(s => !s.artist.toLowerCase().includes(currentSong.artist.toLowerCase()))
+    // Filter out current artist and any artists from queue context that we want variety from
+    const excludeArtists = new Set<string>([currentSong.artist.toLowerCase()]);
+
+    // Optionally exclude overrepresented artists from queue (if they appear 3+ times)
+    if (queueContext?.artists) {
+      // Don't filter out ALL queue artists, just avoid the most common one
+      // to add some variety
+      const topArtist = queueContext.artists[0];
+      if (topArtist) {
+        excludeArtists.add(topArtist.toLowerCase());
+      }
+    }
+
+    let filtered = songs.filter(s =>
+      !excludeArtists.has(s.artist?.toLowerCase() || '')
+    );
+
+    // Build target genres list: queue context genres first, then current song genre
+    const targetGenres: string[] = [];
+    if (queueContext?.genres && queueContext.genres.length > 0) {
+      // Use top 3 genres from queue
+      targetGenres.push(...queueContext.genres.slice(0, 3));
+      console.log(`📊 [Recommendations] Using queue context genres: ${targetGenres.join(', ')}`);
+    }
+    if (currentSong.genre && !targetGenres.includes(currentSong.genre.toLowerCase())) {
+      targetGenres.push(currentSong.genre.toLowerCase());
+    }
+
+    // Try to prioritize songs matching target genres
+    if (targetGenres.length > 0) {
+      const genreMatches = filtered.filter(s => {
+        const songGenre = s.genre?.toLowerCase() || '';
+        return targetGenres.some(tg =>
+          songGenre.includes(tg) || tg.includes(songGenre)
+        );
+      });
+
+      if (genreMatches.length >= Math.min(3, limit)) {
+        // Prioritize genre matches but mix in some variety
+        const nonMatches = filtered.filter(s => {
+          const songGenre = s.genre?.toLowerCase() || '';
+          return !targetGenres.some(tg =>
+            songGenre.includes(tg) || tg.includes(songGenre)
+          );
+        });
+
+        // 70% genre matches, 30% variety (if available)
+        const genreCount = Math.ceil(limit * 0.7);
+        const varietyCount = limit - genreCount;
+        filtered = [
+          ...genreMatches.slice(0, genreCount),
+          ...nonMatches.slice(0, varietyCount),
+        ];
+        console.log(`🎵 [Recommendations] Found ${genreMatches.length} songs matching queue genres`);
+      } else {
+        console.log(`⚠️ [Recommendations] Only ${genreMatches.length} genre matches, using broader selection`);
+      }
+    }
+
+    // Final shuffle and slice
+    filtered = filtered
       .sort(() => Math.random() - 0.5)
       .slice(0, limit);
+
+    console.log(`✅ [Recommendations] Returning ${filtered.length} fallback songs`);
 
     return {
       songs: filtered.map(subsonicSongToSong),
@@ -602,6 +678,8 @@ async function fallbackToGenreRandom(
       mode: 'similar',
       metadata: {
         fallbackReason: reason,
+        genreFiltered: targetGenres.length > 0,
+        queueContextUsed: !!(queueContext?.genres?.length),
       },
     };
   } catch (error) {

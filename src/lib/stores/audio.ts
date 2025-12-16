@@ -21,6 +21,182 @@ function checkCooldown(lastQueueTime: number, cooldownMs: number = 30000): boole
   return Date.now() - lastQueueTime >= cooldownMs;
 }
 
+/**
+ * Fisher-Yates shuffle algorithm - produces unbiased permutations in O(n) time
+ * This is the industry-standard shuffle algorithm used by Spotify and other music players
+ */
+function fisherYatesShuffle<T>(array: T[]): T[] {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+/**
+ * Calculate freshness score for a shuffle sequence
+ * Lower score = better (songs played recently appear later in the sequence)
+ * Based on Spotify's "Fewer Repeats" algorithm
+ */
+function calculateFreshnessScore(songs: Song[], recentlyPlayedIds: string[]): number {
+  let score = 0;
+  for (let i = 0; i < songs.length; i++) {
+    const recencyIndex = recentlyPlayedIds.indexOf(songs[i].id);
+    if (recencyIndex !== -1) {
+      // Penalize recently played songs appearing early in queue
+      // Higher penalty for more recently played songs appearing earlier
+      const recencyWeight = 1 - (recencyIndex / recentlyPlayedIds.length); // 1.0 for most recent, 0.0 for oldest
+      const positionWeight = 1 - (i / songs.length); // 1.0 for first position, 0.0 for last
+      score += recencyWeight * positionWeight * 10;
+    }
+  }
+  return score;
+}
+
+/**
+ * Shuffle with artist separation - spaces out songs from the same artist
+ * This addresses the "random doesn't feel random" problem where back-to-back
+ * songs from the same artist make users think shuffle is broken
+ *
+ * Algorithm:
+ * 1. Group songs by artist
+ * 2. Shuffle each artist's songs independently
+ * 3. Interleave songs to maximize artist separation
+ * 4. Apply light Fisher-Yates passes to maintain some randomness
+ * 5. Use freshness scoring to push recently played songs later (Spotify's "Fewer Repeats")
+ */
+function shuffleWithArtistSeparation(songs: Song[], recentlyPlayedIds: string[] = []): Song[] {
+  if (songs.length <= 2) return fisherYatesShuffle(songs);
+
+  // Group songs by artist
+  const artistGroups = new Map<string, Song[]>();
+  for (const song of songs) {
+    const artist = song.artist?.toLowerCase() || 'unknown';
+    if (!artistGroups.has(artist)) {
+      artistGroups.set(artist, []);
+    }
+    artistGroups.get(artist)!.push(song);
+  }
+
+  // If all songs are from one artist, just do Fisher-Yates
+  if (artistGroups.size === 1) {
+    return fisherYatesShuffle(songs);
+  }
+
+  // Shuffle each artist's songs
+  for (const [artist, artistSongs] of artistGroups) {
+    artistGroups.set(artist, fisherYatesShuffle(artistSongs));
+  }
+
+  // Sort artists by song count (descending) for better interleaving
+  const sortedArtists = Array.from(artistGroups.entries())
+    .sort((a, b) => b[1].length - a[1].length);
+
+  // Interleave songs: place each artist's songs at regular intervals
+  const result: Song[] = new Array(songs.length);
+  const filled: boolean[] = new Array(songs.length).fill(false);
+
+  for (const [, artistSongs] of sortedArtists) {
+    const interval = songs.length / artistSongs.length;
+    let offset = Math.random() * interval; // Random starting offset
+
+    for (const song of artistSongs) {
+      // Find the nearest unfilled slot
+      let targetIndex = Math.floor(offset) % songs.length;
+      let attempts = 0;
+      while (filled[targetIndex] && attempts < songs.length) {
+        targetIndex = (targetIndex + 1) % songs.length;
+        attempts++;
+      }
+
+      if (!filled[targetIndex]) {
+        result[targetIndex] = song;
+        filled[targetIndex] = true;
+      }
+      offset += interval;
+    }
+  }
+
+  // Fill any remaining gaps (shouldn't happen, but safety check)
+  const remainingSongs = songs.filter((_, i) => !filled[i]);
+  let remainingIndex = 0;
+  for (let i = 0; i < result.length; i++) {
+    if (!filled[i] && remainingIndex < remainingSongs.length) {
+      result[i] = remainingSongs[remainingIndex++];
+    }
+  }
+
+  // Light shuffle pass to add some randomness while mostly preserving separation
+  // Swap adjacent pairs with 20% probability
+  for (let i = 0; i < result.length - 1; i++) {
+    if (Math.random() < 0.2) {
+      // Only swap if it doesn't create same-artist adjacency
+      const current = result[i];
+      const next = result[i + 1];
+      const prev = i > 0 ? result[i - 1] : null;
+      const afterNext = i + 2 < result.length ? result[i + 2] : null;
+
+      const currentArtist = current?.artist?.toLowerCase();
+      const nextArtist = next?.artist?.toLowerCase();
+      const prevArtist = prev?.artist?.toLowerCase();
+      const afterNextArtist = afterNext?.artist?.toLowerCase();
+
+      // Check if swap would create adjacency
+      const swapCreatesAdjacency =
+        (prevArtist && prevArtist === nextArtist) ||
+        (afterNextArtist && afterNextArtist === currentArtist);
+
+      if (!swapCreatesAdjacency) {
+        [result[i], result[i + 1]] = [result[i + 1], result[i]];
+      }
+    }
+  }
+
+  // "Fewer Repeats" mode: Generate multiple candidates and pick the one with best freshness
+  // This pushes recently played songs further down in the queue
+  if (recentlyPlayedIds.length > 0) {
+    const NUM_CANDIDATES = 5;
+    let bestResult = result;
+    let bestScore = calculateFreshnessScore(result, recentlyPlayedIds);
+
+    for (let i = 0; i < NUM_CANDIDATES - 1; i++) {
+      // Generate another candidate by doing additional swaps
+      const candidate = [...result];
+      // Do 3-5 random swaps that don't break artist separation
+      const numSwaps = 3 + Math.floor(Math.random() * 3);
+      for (let s = 0; s < numSwaps; s++) {
+        const idx1 = Math.floor(Math.random() * candidate.length);
+        const idx2 = Math.floor(Math.random() * candidate.length);
+        if (idx1 !== idx2) {
+          // Check if swap would create same-artist adjacency
+          const wouldCreateAdjacency = (idx: number, song: Song) => {
+            const prevSong = idx > 0 ? candidate[idx - 1] : null;
+            const nextSong = idx < candidate.length - 1 ? candidate[idx + 1] : null;
+            const artist = song?.artist?.toLowerCase();
+            return (prevSong?.artist?.toLowerCase() === artist) ||
+                   (nextSong?.artist?.toLowerCase() === artist);
+          };
+          if (!wouldCreateAdjacency(idx1, candidate[idx2]) &&
+              !wouldCreateAdjacency(idx2, candidate[idx1])) {
+            [candidate[idx1], candidate[idx2]] = [candidate[idx2], candidate[idx1]];
+          }
+        }
+      }
+
+      const score = calculateFreshnessScore(candidate, recentlyPlayedIds);
+      if (score < bestScore) {
+        bestScore = score;
+        bestResult = candidate;
+      }
+    }
+
+    return bestResult;
+  }
+
+  return result;
+}
+
 interface AudioState {
   playlist: Song[];
   currentSongIndex: number;
@@ -55,6 +231,8 @@ interface AudioState {
   } | null;
   // Queue panel visibility
   queuePanelOpen: boolean;
+  // Recently played songs for "fewer repeats" shuffle mode (Spotify-style)
+  recentlyPlayedIds: string[];
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
@@ -130,6 +308,7 @@ export const useAudioStore = create<AudioState>()(
     crossfadeDuration: 8.0,
     lastClearedQueue: null,
     queuePanelOpen: false,
+    recentlyPlayedIds: [],
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -242,6 +421,18 @@ export const useAudioStore = create<AudioState>()(
     nextSong: () => {
       const state = get();
       if (state.playlist.length === 0) return;
+
+      // Track the current song as recently played (for "fewer repeats" shuffle)
+      const currentSong = state.playlist[state.currentSongIndex];
+      if (currentSong) {
+        const MAX_RECENT = 50; // Keep track of last 50 songs
+        const newRecentlyPlayed = [
+          currentSong.id,
+          ...state.recentlyPlayedIds.filter(id => id !== currentSong.id)
+        ].slice(0, MAX_RECENT);
+        set({ recentlyPlayedIds: newRecentlyPlayed });
+      }
+
       const newIndex = (state.currentSongIndex + 1) % state.playlist.length;
       set({ currentSongIndex: newIndex });
 
@@ -506,8 +697,8 @@ export const useAudioStore = create<AudioState>()(
         ? state.originalPlaylist
         : [...upcomingSongs];
 
-      // Shuffle the upcoming songs
-      const shuffledUpcoming = [...upcomingSongs].sort(() => Math.random() - 0.5);
+      // Fisher-Yates shuffle with artist separation and fewer repeats
+      const shuffledUpcoming = shuffleWithArtistSeparation([...upcomingSongs], state.recentlyPlayedIds);
 
       // New playlist: just current song + shuffled upcoming (discard played songs)
       const newPlaylist = currentSong ? [currentSong, ...shuffledUpcoming] : shuffledUpcoming;
