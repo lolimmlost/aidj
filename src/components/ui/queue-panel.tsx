@@ -62,27 +62,29 @@ function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQue
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex items-start gap-2 p-3 rounded-lg transition-all duration-200 hover:scale-[1.02] ${
+      className={`group flex items-start gap-1.5 sm:gap-2 p-2 sm:p-3 rounded-lg transition-all duration-200 hover:scale-[1.02] overflow-hidden ${
         isAIQueued
           ? 'bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-950/30 dark:to-purple-950/30 border border-blue-200/30 dark:border-blue-800/30 shadow-sm'
           : 'bg-gradient-to-r from-background to-muted/20 hover:from-muted/10 hover:to-muted/30 border border-border/30 hover:border-border/50 shadow-sm'
       }`}
       title={isAIQueued ? 'Added by AI DJ - give feedback to improve recommendations' : ''}
     >
+      {/* Drag handle - hidden on mobile */}
       <button
-        className="text-muted-foreground/70 hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5 flex-shrink-0 touch-none hover:scale-110 transition-transform"
+        className="hidden sm:block text-muted-foreground/70 hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5 flex-shrink-0 touch-none hover:scale-110 transition-transform"
         {...attributes}
         {...listeners}
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mt-0.5">
-        <span className="text-xs font-bold text-primary/80">
+      {/* Index number - smaller on mobile */}
+      <div className="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mt-0.5">
+        <span className="text-[10px] sm:text-xs font-bold text-primary/80">
           {index + 1}
         </span>
       </div>
       <div
-        className="min-w-0 flex-1 cursor-pointer"
+        className="min-w-0 flex-1 cursor-pointer overflow-hidden"
         onClick={() => onPlay(actualIndex)}
         role="button"
         tabIndex={0}
@@ -93,18 +95,18 @@ function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQue
           }
         }}
       >
-        <div className="flex items-center gap-2">
-          <p className="font-semibold text-sm truncate">{songTitle}</p>
+        <div className="flex items-center gap-1">
+          <p className="font-semibold text-xs sm:text-sm truncate">{songTitle}</p>
           {isAIQueued && (
-            <span className="text-xs text-blue-600 dark:text-blue-300 flex-shrink-0">✨</span>
+            <span className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-300 flex-shrink-0">✨</span>
           )}
         </div>
-        <p className="text-xs text-muted-foreground/80 truncate mt-0.5">{songArtist}</p>
+        <p className="text-[10px] sm:text-xs text-muted-foreground/80 truncate mt-0.5">{songArtist}</p>
       </div>
 
-      {/* Feedback buttons for AI-queued songs */}
+      {/* Feedback buttons for AI-queued songs - smaller on mobile */}
       {isAIQueued && onFeedback && (
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
           <Button
             variant="ghost"
             size="sm"
@@ -112,14 +114,14 @@ function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQue
               e.stopPropagation();
               if (!isLiked) onFeedback(song.id, songTitle, songArtist, 'thumbs_up');
             }}
-            className={`h-7 w-7 p-0 rounded-full transition-all ${
+            className={`h-6 w-6 sm:h-7 sm:w-7 p-0 rounded-full transition-all ${
               isLiked
                 ? 'text-green-600 bg-green-500/20 hover:bg-green-500/30'
                 : 'hover:bg-green-500/10 hover:text-green-600'
             }`}
             title={isLiked ? 'Already liked' : 'Good recommendation - more like this'}
           >
-            <ThumbsUp className={`h-3.5 w-3.5 transition-all ${isLiked ? 'fill-current scale-110' : ''}`} />
+            <ThumbsUp className={`h-3 w-3 sm:h-3.5 sm:w-3.5 transition-all ${isLiked ? 'fill-current scale-110' : ''}`} />
           </Button>
           <Button
             variant="ghost"
@@ -128,18 +130,19 @@ function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQue
               e.stopPropagation();
               if (!isDisliked) onFeedback(song.id, songTitle, songArtist, 'thumbs_down');
             }}
-            className={`h-7 w-7 p-0 rounded-full transition-all ${
+            className={`h-6 w-6 sm:h-7 sm:w-7 p-0 rounded-full transition-all ${
               isDisliked
                 ? 'text-red-600 bg-red-500/20 hover:bg-red-500/30'
                 : 'hover:bg-red-500/10 hover:text-red-600'
             }`}
             title={isDisliked ? 'Already disliked' : 'Bad recommendation - less like this'}
           >
-            <ThumbsDown className={`h-3.5 w-3.5 transition-all ${isDisliked ? 'fill-current scale-110' : ''}`} />
+            <ThumbsDown className={`h-3 w-3 sm:h-3.5 sm:w-3.5 transition-all ${isDisliked ? 'fill-current scale-110' : ''}`} />
           </Button>
         </div>
       )}
 
+      {/* Remove button - always visible on mobile, hover on desktop */}
       <Button
         variant="ghost"
         size="sm"
@@ -147,10 +150,10 @@ function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQue
           e.stopPropagation();
           onRemove(actualIndex);
         }}
-        className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-all duration-200 flex-shrink-0 hover:bg-red-500/10 hover:text-red-600 hover:scale-110 rounded-full"
+        className="h-6 w-6 sm:h-7 sm:w-7 p-0 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 flex-shrink-0 hover:bg-red-500/10 hover:text-red-600 hover:scale-110 rounded-full"
         title="Remove from queue"
       >
-        <X className="h-3.5 w-3.5" />
+        <X className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
       </Button>
     </div>
   );
