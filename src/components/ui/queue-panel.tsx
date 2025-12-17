@@ -3,10 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { X, Music, Trash2, GripVertical, Plus, RotateCcw, ThumbsUp, ThumbsDown, Shuffle } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { CreatePlaylistDialog } from '@/components/playlists/CreatePlaylistDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useSongFeedback } from '@/hooks/useSongFeedback';
 import {
   DndContext,
   closestCenter,
@@ -31,10 +32,11 @@ interface SortableQueueItemProps {
   onRemove: (index: number) => void;
   onPlay: (index: number) => void;
   isAIQueued?: boolean;
+  currentFeedback?: 'thumbs_up' | 'thumbs_down' | null;
   onFeedback?: (songId: string, songTitle: string, artist: string, type: 'thumbs_up' | 'thumbs_down') => void;
 }
 
-function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued, onFeedback }: SortableQueueItemProps) {
+function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued, currentFeedback, onFeedback }: SortableQueueItemProps) {
   const {
     attributes,
     listeners,
@@ -43,6 +45,9 @@ function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQue
     transition,
     isDragging,
   } = useSortable({ id: song.id });
+
+  const isLiked = currentFeedback === 'thumbs_up';
+  const isDisliked = currentFeedback === 'thumbs_down';
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -105,24 +110,32 @@ function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQue
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              onFeedback(song.id, songTitle, songArtist, 'thumbs_up');
+              if (!isLiked) onFeedback(song.id, songTitle, songArtist, 'thumbs_up');
             }}
-            className="h-7 w-7 p-0 hover:bg-green-500/10 hover:text-green-600 rounded-full"
-            title="Good recommendation - more like this"
+            className={`h-7 w-7 p-0 rounded-full transition-all ${
+              isLiked
+                ? 'text-green-600 bg-green-500/20 hover:bg-green-500/30'
+                : 'hover:bg-green-500/10 hover:text-green-600'
+            }`}
+            title={isLiked ? 'Already liked' : 'Good recommendation - more like this'}
           >
-            <ThumbsUp className="h-3.5 w-3.5" />
+            <ThumbsUp className={`h-3.5 w-3.5 transition-all ${isLiked ? 'fill-current scale-110' : ''}`} />
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              onFeedback(song.id, songTitle, songArtist, 'thumbs_down');
+              if (!isDisliked) onFeedback(song.id, songTitle, songArtist, 'thumbs_down');
             }}
-            className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-600 rounded-full"
-            title="Bad recommendation - less like this"
+            className={`h-7 w-7 p-0 rounded-full transition-all ${
+              isDisliked
+                ? 'text-red-600 bg-red-500/20 hover:bg-red-500/30'
+                : 'hover:bg-red-500/10 hover:text-red-600'
+            }`}
+            title={isDisliked ? 'Already disliked' : 'Bad recommendation - less like this'}
           >
-            <ThumbsDown className="h-3.5 w-3.5" />
+            <ThumbsDown className={`h-3.5 w-3.5 transition-all ${isDisliked ? 'fill-current scale-110' : ''}`} />
           </Button>
         </div>
       )}
@@ -168,6 +181,25 @@ export function QueuePanel() {
   const [undoTimeRemaining, setUndoTimeRemaining] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
+  // Track local optimistic feedback state (songId -> feedbackType)
+  const [localFeedback, setLocalFeedback] = useState<Record<string, 'thumbs_up' | 'thumbs_down'>>({});
+
+  // Get song IDs for AI-queued songs to fetch their feedback
+  const aiQueuedSongIdArray = useMemo(() => Array.from(aiQueuedSongIds), [aiQueuedSongIds]);
+
+  // Fetch existing feedback for AI-queued songs
+  const { data: feedbackData } = useSongFeedback(aiQueuedSongIdArray);
+
+  // Get feedback for a song (local optimistic state takes priority)
+  const getFeedbackForSong = useCallback((songId: string): 'thumbs_up' | 'thumbs_down' | null => {
+    // Local optimistic state first
+    if (localFeedback[songId]) {
+      return localFeedback[songId];
+    }
+    // Then server state
+    return feedbackData?.feedback?.[songId] || null;
+  }, [localFeedback, feedbackData]);
+
   // Handle feedback on AI-recommended songs
   const handleAIFeedback = useCallback(async (
     songId: string,
@@ -175,6 +207,9 @@ export function QueuePanel() {
     artist: string,
     feedbackType: 'thumbs_up' | 'thumbs_down'
   ) => {
+    // Optimistic update - show filled state immediately
+    setLocalFeedback(prev => ({ ...prev, [songId]: feedbackType }));
+
     try {
       const response = await fetch('/api/recommendations/feedback', {
         method: 'POST',
@@ -191,19 +226,30 @@ export function QueuePanel() {
       // Handle 409 Conflict (duplicate feedback) gracefully
       if (response.status === 409) {
         console.log('✓ Feedback already exists for this song');
-        // Still show a success message - the feedback is already recorded
+        // Keep the optimistic state - feedback was already there
         toast.success(
           feedbackType === 'thumbs_up'
             ? `Already liked "${songTitle}"`
             : `Already disliked "${songTitle}"`,
           { duration: 2000 }
         );
+        // Invalidate to sync with server state
+        queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
         return;
       }
 
       if (!response.ok) {
+        // Revert optimistic update on error
+        setLocalFeedback(prev => {
+          const next = { ...prev };
+          delete next[songId];
+          return next;
+        });
         throw new Error('Failed to submit feedback');
       }
+
+      // Invalidate feedback queries to refetch updated state
+      queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
 
       toast.success(
         feedbackType === 'thumbs_up'
@@ -215,7 +261,7 @@ export function QueuePanel() {
       console.error('Failed to submit AI feedback:', error);
       toast.error('Failed to save feedback');
     }
-  }, []);
+  }, [queryClient]);
   
   // Update time since last queue periodically
   useEffect(() => {
@@ -483,6 +529,7 @@ export function QueuePanel() {
                             onRemove={removeFromQueue}
                             onPlay={handlePlaySong}
                             isAIQueued={isAIQueued}
+                            currentFeedback={isAIQueued ? getFeedbackForSong(song.id) : null}
                             onFeedback={handleAIFeedback}
                           />
                         );
