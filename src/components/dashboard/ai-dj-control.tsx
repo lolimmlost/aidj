@@ -81,7 +81,7 @@ export function AIDJControl({
               onClick={() => onModeChange(m.id)}
               disabled={isLoading}
               className={cn(
-                'flex-1 gap-1.5 transition-all',
+                'flex-1 gap-1.5',
                 mode === m.id && 'shadow-sm'
               )}
             >

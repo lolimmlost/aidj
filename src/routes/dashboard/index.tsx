@@ -56,6 +56,8 @@ function DashboardIndex() {
   const [generationStage, setGenerationStage] = useState<'idle' | 'generating' | 'resolving' | 'retrying' | 'done'>('idle');
   const trimmedStyle = style.trim();
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Story 7.4: Abort controller for canceling long operations
+  const abortControllerRef = useRef<AbortController | null>(null);
   // Story 7.1: Source mode state
   const [sourceMode, setSourceMode] = useState<SourceMode>(preferences.recommendationSettings.sourceMode || 'library');
   const [mixRatio, setMixRatio] = useState(preferences.recommendationSettings.mixRatio || 70);
@@ -64,9 +66,20 @@ function DashboardIndex() {
   // Story 7.4: Collapsible sections
   const [recommendationsCollapsed, setRecommendationsCollapsed] = useState(false);
   const [playlistCollapsed, setPlaylistCollapsed] = useState(false);
+  // Story 7.4: AI DJ mode state (separate from enabled to prevent flashing)
+  const [aiDJMode, setAIDJMode] = useState<AIDJMode>('manual');
   // AI DJ state from audio store
   const aiDJEnabled = useAudioStore((state) => state.aiDJEnabled);
   const setAIDJEnabled = useAudioStore((state) => state.setAIDJEnabled);
+
+  // Sync AI DJ mode with store on mount
+  useEffect(() => {
+    if (aiDJEnabled && aiDJMode === 'manual') {
+      setAIDJMode('autopilot');
+    } else if (!aiDJEnabled && aiDJMode !== 'manual') {
+      setAIDJMode('manual');
+    }
+  }, []);
   const aiQueuedSongIds = useAudioStore((state) => state.aiQueuedSongIds);
   const playlist = useAudioStore((state) => state.playlist);
   const currentSongIndex = useAudioStore((state) => state.currentSongIndex);
@@ -391,7 +404,9 @@ function DashboardIndex() {
       console.log(`⚠️ All attempts completed with low library matches, returning best available`);
       return lastData as any;
     },
-    enabled: !!session,
+    // Story 7.4: Manual trigger only - don't auto-load on page visit
+    enabled: false,
+    staleTime: Infinity, // Keep data until explicitly cleared
   });
 
   // Fetch feedback for recommended songs
@@ -538,10 +553,25 @@ function DashboardIndex() {
     discoverySource?: 'lastfm' | 'ollama' | 'library';
   }
 
+  // Story 7.4: Cancel function for long operations
+  const cancelPlaylistGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setGenerationStage('idle');
+    queryClient.cancelQueries({ queryKey: ['playlist', debouncedStyle, sourceMode, mixRatio] });
+    toast.info('Playlist generation cancelled');
+  };
+
   const { data: playlistData, isLoading: playlistLoading, error: playlistError, refetch: refetchPlaylist } = useQuery({
     // Story 7.1: Include sourceMode and mixRatio in query key
     queryKey: ['playlist', debouncedStyle, sourceMode, mixRatio],
     queryFn: async () => {
+      // Story 7.4: Create new abort controller for this request
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
+
       // Story 7.1: Include sourceMode in cache key
       const cacheKey = `playlist-${debouncedStyle}-${sourceMode}-${mixRatio}`;
       const cached = localStorage.getItem(cacheKey);
@@ -557,6 +587,11 @@ function DashboardIndex() {
       let lastData: unknown = null;
 
       while (attempts < maxAttempts) {
+        // Story 7.4: Check if cancelled
+        if (signal.aborted) {
+          throw new Error('cancelled');
+        }
+
         attempts++;
 
         if (attempts === 1) {
@@ -573,6 +608,8 @@ function DashboardIndex() {
             headers: { 'Content-Type': 'application/json' },
             // Story 7.1: Pass sourceMode and mixRatio to API
             body: JSON.stringify({ style: debouncedStyle, sourceMode, mixRatio }),
+            // Story 7.4: Pass abort signal
+            signal,
           });
 
           if (!response.ok) {
@@ -848,9 +885,14 @@ function DashboardIndex() {
             activePreset={activePreset}
           />
           <AIDJControl
-            mode={aiDJEnabled ? 'autopilot' : 'manual'}
+            mode={aiDJMode}
             onModeChange={(mode: AIDJMode) => {
-              setAIDJEnabled(mode !== 'manual');
+              setAIDJMode(mode);
+              // Only update store state after local state is set
+              const shouldEnable = mode !== 'manual';
+              if (shouldEnable !== aiDJEnabled) {
+                setAIDJEnabled(shouldEnable);
+              }
             }}
             isActive={aiDJEnabled}
             isLoading={false}
@@ -1137,24 +1179,38 @@ function DashboardIndex() {
       <OllamaErrorBoundary>
         <section className="space-y-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h2 className="text-2xl sm:text-3xl font-bold mb-2 flex items-center gap-2">
+            <button
+              onClick={() => setPlaylistCollapsed(!playlistCollapsed)}
+              className="flex items-center gap-2 text-left group"
+            >
+              <h2 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
                 <span className="bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">Style-Based Playlists</span>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
                   AI Generated
                 </span>
               </h2>
-              <p className="text-sm text-muted-foreground">Create custom playlists based on mood, genre, or theme</p>
-            </div>
-            <Button onClick={clearPlaylistCache} variant="outline" size="sm" className="min-h-[44px] w-full sm:w-auto hover:bg-destructive/5 hover:border-destructive/50 transition-all" aria-label="Clear playlist cache">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                <path d="M3 6h18"/>
-                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-              </svg>
-              Clear Cache
-            </Button>
+              {playlistCollapsed ? (
+                <ChevronDown className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+              ) : (
+                <ChevronUp className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+              )}
+            </button>
+            {!playlistCollapsed && (
+              <Button onClick={clearPlaylistCache} variant="outline" size="sm" className="min-h-[44px] w-full sm:w-auto hover:bg-destructive/5 hover:border-destructive/50 transition-all" aria-label="Clear playlist cache">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                  <path d="M3 6h18"/>
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                </svg>
+                Clear Cache
+              </Button>
+            )}
           </div>
+          {playlistCollapsed && (
+            <p className="text-sm text-muted-foreground">Click to expand playlist generator</p>
+          )}
+          {!playlistCollapsed && (
+            <>
 
         <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-500/5 to-cyan-500/5 border border-blue-500/20 space-y-4">
           {/* Story 7.1: Source Mode Selector */}
@@ -1217,21 +1273,37 @@ function DashboardIndex() {
         {playlistLoading && (
           <Card className="bg-card text-card-foreground border-card" aria-busy="true" aria-live="polite">
             <CardHeader className="pb-2">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                Generating Playlist
-                {activePreset && (
-                  <span className="text-sm font-normal text-muted-foreground">
-                    &quot;{STYLE_PRESETS.find(p => p.id === activePreset)?.label || trimmedStyle}&quot;
-                  </span>
-                )}
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  Generating Playlist
+                  {activePreset && (
+                    <span className="text-sm font-normal text-muted-foreground">
+                      &quot;{STYLE_PRESETS.find(p => p.id === activePreset)?.label || trimmedStyle}&quot;
+                    </span>
+                  )}
+                </h3>
+                {/* Story 7.4: Cancel button for long operations */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={cancelPlaylistGeneration}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="m15 9-6 6"/>
+                    <path d="m9 9 6 6"/>
+                  </svg>
+                  Cancel
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <GenerationProgress stage={generationStage} />
             </CardContent>
           </Card>
         )}
-        {playlistError && (
+        {playlistError && playlistError.message !== 'cancelled' && (
           <p className="text-destructive">
             Error: {playlistError.message}
             {playlistError.message.includes('rate limit') && (
@@ -1580,6 +1652,8 @@ function DashboardIndex() {
             )}
           </div>
         )}
+          </>
+          )}
         </section>
       </OllamaErrorBoundary>
 
