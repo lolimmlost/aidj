@@ -14,7 +14,7 @@ import { OllamaErrorBoundary } from '@/components/ollama-error-boundary';
 import { Skeleton } from '@/components/ui/skeleton';
 import { hasLegacyFeedback, migrateLegacyFeedback, isMigrationCompleted } from '@/lib/utils/feedback-migration';
 import { PreferenceInsights } from '@/components/recommendations/PreferenceInsights';
-import { Play, Plus, ListPlus, Download } from 'lucide-react';
+import { Play, Plus, ListPlus, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +25,7 @@ import type { Song } from '@/lib/types/song';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 import { DashboardHero, DJFeatures, MoreFeatures, QuickActions, AIDJControl, STYLE_PRESETS, type StylePreset, type AIDJMode } from '@/components/dashboard';
 import { SourceModeSelector, SourceBadge } from '@/components/playlist/source-mode-selector';
+import { GenerationProgress } from '@/components/ui/generation-progress';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { DiscoveryQueuePanel } from '@/components/discovery/DiscoveryQueuePanel';
 import { useDiscoveryQueueStore } from '@/lib/stores/discovery-queue';
@@ -60,6 +61,9 @@ function DashboardIndex() {
   const [mixRatio, setMixRatio] = useState(preferences.recommendationSettings.mixRatio || 70);
   // Story 7.4: Quick Actions state
   const [activePreset, setActivePreset] = useState<string | null>(null);
+  // Story 7.4: Collapsible sections
+  const [recommendationsCollapsed, setRecommendationsCollapsed] = useState(false);
+  const [playlistCollapsed, setPlaylistCollapsed] = useState(false);
   // AI DJ state from audio store
   const aiDJEnabled = useAudioStore((state) => state.aiDJEnabled);
   const setAIDJEnabled = useAudioStore((state) => state.setAIDJEnabled);
@@ -859,43 +863,57 @@ function DashboardIndex() {
         <OllamaErrorBoundary>
           <section className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h2 className="text-2xl sm:text-3xl font-bold mb-2 flex items-center gap-2">
+              <button
+                onClick={() => setRecommendationsCollapsed(!recommendationsCollapsed)}
+                className="flex items-center gap-2 text-left group"
+              >
+                <h2 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
                   <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">AI Recommendations</span>
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
                     Powered by AI
                   </span>
                 </h2>
-                <p className="text-sm text-muted-foreground">Personalized suggestions based on your music taste</p>
-              </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => refetchRecommendations()}
-                  disabled={isLoading}
-                  className="flex-1 sm:flex-none min-h-[44px] hover:bg-primary/5 hover:border-primary/50 transition-all"
-                  aria-label="Refresh recommendations"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`mr-2 ${isLoading ? 'animate-spin' : ''}`}>
-                    <path d="M21 2v6h-6"/>
-                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
-                    <path d="M3 22v-6h6"/>
-                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
-                  </svg>
-                  {isLoading ? 'Loading...' : 'Refresh'}
-                </Button>
-                <Select value={type} onValueChange={(value) => setType(value as 'similar' | 'mood')}>
-                  <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
-                    <SelectValue placeholder="Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="similar">Similar Artists</SelectItem>
-                    <SelectItem value="mood">Mood-Based</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                {recommendationsCollapsed ? (
+                  <ChevronDown className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                ) : (
+                  <ChevronUp className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                )}
+              </button>
+              {!recommendationsCollapsed && (
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => refetchRecommendations()}
+                    disabled={isLoading}
+                    className="flex-1 sm:flex-none min-h-[44px] hover:bg-primary/5 hover:border-primary/50 transition-all"
+                    aria-label="Refresh recommendations"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`mr-2 ${isLoading ? 'animate-spin' : ''}`}>
+                      <path d="M21 2v6h-6"/>
+                      <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+                      <path d="M3 22v-6h6"/>
+                      <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+                    </svg>
+                    {isLoading ? 'Loading...' : 'Refresh'}
+                  </Button>
+                  <Select value={type} onValueChange={(value) => setType(value as 'similar' | 'mood')}>
+                    <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
+                      <SelectValue placeholder="Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="similar">Similar Artists</SelectItem>
+                      <SelectItem value="mood">Mood-Based</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
+            {recommendationsCollapsed && (
+              <p className="text-sm text-muted-foreground">Click to expand recommendations</p>
+            )}
+            {!recommendationsCollapsed && (
+              <>
             {isLoading && (
               <Card className="bg-card text-card-foreground border-card">
                 <CardHeader>
@@ -1099,6 +1117,8 @@ function DashboardIndex() {
                 </div>
               </div>
             )}
+              </>
+            )}
           </section>
         </OllamaErrorBoundary>
       )}
@@ -1196,41 +1216,18 @@ function DashboardIndex() {
 
         {playlistLoading && (
           <Card className="bg-card text-card-foreground border-card" aria-busy="true" aria-live="polite">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
-                <div className="flex-1">
-                  <Skeleton className="h-6 w-48" />
-                  <Skeleton className="h-4 w-64 mt-2" />
-                </div>
-              </div>
-              <p className="text-sm font-medium mt-2">
-                {generationStage === 'generating' && '🎵 AI generating playlist... (this may take up to 10s)'}
-                {generationStage === 'resolving' && '🔍 Finding songs in your library...'}
-                {generationStage === 'retrying' && '🔄 Improving results, trying again...'}
-                {generationStage === 'done' && '✅ Playlist ready!'}
-                {generationStage === 'idle' && '⏳ Loading playlist...'}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {generationStage === 'generating' && 'Analyzing your library and generating suggestions'}
-                {generationStage === 'resolving' && 'Matching AI suggestions to your actual music collection'}
-                {generationStage === 'retrying' && 'Few songs matched - regenerating with better suggestions'}
-                {generationStage === 'done' && 'Complete'}
-                {generationStage === 'idle' && 'Please wait...'}
-              </p>
+            <CardHeader className="pb-2">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                Generating Playlist
+                {activePreset && (
+                  <span className="text-sm font-normal text-muted-foreground">
+                    &quot;{STYLE_PRESETS.find(p => p.id === activePreset)?.label || trimmedStyle}&quot;
+                  </span>
+                )}
+              </h3>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {[...Array(5)].map((_, index) => (
-                  <div key={index} className="p-2 border rounded space-y-2">
-                    <div className="flex justify-between items-center">
-                      <Skeleton className="h-5 w-2/3" />
-                      <Skeleton className="h-8 w-16" />
-                    </div>
-                    <Skeleton className="h-4 w-full" />
-                  </div>
-                ))}
-              </div>
+              <GenerationProgress stage={generationStage} />
             </CardContent>
           </Card>
         )}
