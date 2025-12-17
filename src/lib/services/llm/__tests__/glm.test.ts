@@ -205,9 +205,12 @@ describe('GLMClient', () => {
         prompt: 'Test',
       };
 
-      const promise = client.generate(request);
+      // Start promise and immediately attach rejection handler to avoid unhandled rejection
+      const promise = client.generate(request).catch((e) => e);
       await vi.runAllTimersAsync();
-      await expect(promise).rejects.toThrow('Rate limit exceeded');
+      const error = await promise;
+      expect(error).toBeInstanceOf(Error);
+      expect(error.message).toContain('Rate limit exceeded');
     });
 
     it('should handle 500 server error', async () => {
@@ -236,9 +239,12 @@ describe('GLMClient', () => {
         prompt: 'Test',
       };
 
-      const promise = client.generate(request);
+      // Start promise and immediately attach rejection handler to avoid unhandled rejection
+      const promise = client.generate(request).catch((e) => e);
       await vi.runAllTimersAsync();
-      await expect(promise).rejects.toThrow('Server error');
+      const error = await promise;
+      expect(error).toBeInstanceOf(Error);
+      expect(error.message).toContain('Server error');
     });
 
     it('should handle 404 model not found error', async () => {
@@ -288,9 +294,12 @@ describe('GLMClient', () => {
         prompt: 'Test',
       };
 
-      const promise = client.generate(request);
+      // Start promise and immediately attach rejection handler to avoid unhandled rejection
+      const promise = client.generate(request).catch((e) => e);
       await vi.runAllTimersAsync();
-      await expect(promise).rejects.toThrow('GLM request failed');
+      const error = await promise;
+      expect(error).toBeInstanceOf(Error);
+      expect(error.message).toContain('GLM request failed');
     });
 
     it('should handle empty response choices', async () => {

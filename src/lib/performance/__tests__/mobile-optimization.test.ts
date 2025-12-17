@@ -207,7 +207,7 @@ describe('MobileOptimization', () => {
       expect(mockFn).toHaveBeenCalledTimes(1);
     });
 
-    it('should throttle function calls', () => {
+    it('should throttle function calls', async () => {
       const mockFn = vi.fn();
       const throttledFn = optimization.throttle(mockFn, 100);
 
@@ -219,10 +219,10 @@ describe('MobileOptimization', () => {
       expect(mockFn).toHaveBeenCalledTimes(1);
 
       // Wait for throttle delay
-      setTimeout(() => {
-        throttledFn();
-        expect(mockFn).toHaveBeenCalledTimes(2);
-      }, 150);
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      throttledFn();
+      expect(mockFn).toHaveBeenCalledTimes(2);
     });
   });
 
