@@ -188,6 +188,19 @@ export function QueuePanel() {
         }),
       });
 
+      // Handle 409 Conflict (duplicate feedback) gracefully
+      if (response.status === 409) {
+        console.log('✓ Feedback already exists for this song');
+        // Still show a success message - the feedback is already recorded
+        toast.success(
+          feedbackType === 'thumbs_up'
+            ? `Already liked "${songTitle}"`
+            : `Already disliked "${songTitle}"`,
+          { duration: 2000 }
+        );
+        return;
+      }
+
       if (!response.ok) {
         throw new Error('Failed to submit feedback');
       }
