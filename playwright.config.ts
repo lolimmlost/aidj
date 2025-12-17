@@ -12,7 +12,7 @@ export default defineConfig({
     ...(process.env.CI ? [['github']] as const : []),
   ],
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://localhost:3003',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -45,8 +45,8 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:3000',
+    command: 'npm run dev',
+    url: 'http://localhost:3003',
     reuseExistingServer: !process.env.CI,
   },
 });

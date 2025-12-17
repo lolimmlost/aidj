@@ -165,6 +165,7 @@ export function QueuePanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [timeSinceLastQueue, setTimeSinceLastQueue] = useState(0);
   const [createPlaylistOpen, setCreatePlaylistOpen] = useState(false);
+  const [undoTimeRemaining, setUndoTimeRemaining] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
   // Handle feedback on AI-recommended songs
@@ -208,12 +209,36 @@ export function QueuePanel() {
     const updateTime = () => {
       setTimeSinceLastQueue(Date.now() - aiDJLastQueueTime);
     };
-    
+
     updateTime(); // Initial update
     const interval = setInterval(updateTime, 60000); // Update every minute
-    
+
     return () => clearInterval(interval);
   }, [aiDJLastQueueTime]);
+
+  // Track undo clear queue timer - updates every second for accurate countdown
+  useEffect(() => {
+    if (!lastClearedQueue) {
+      setUndoTimeRemaining(null);
+      return;
+    }
+
+    const updateUndoTime = () => {
+      const elapsed = Date.now() - lastClearedQueue.timestamp;
+      const remaining = 300000 - elapsed; // 5 minutes = 300000ms
+
+      if (remaining <= 0) {
+        setUndoTimeRemaining(null);
+      } else {
+        setUndoTimeRemaining(remaining);
+      }
+    };
+
+    updateUndoTime(); // Initial update
+    const interval = setInterval(updateUndoTime, 1000); // Update every second for accurate countdown
+
+    return () => clearInterval(interval);
+  }, [lastClearedQueue]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -487,7 +512,7 @@ export function QueuePanel() {
                   )}
                 </div>
 
-                {lastClearedQueue && (Date.now() - lastClearedQueue.timestamp) < 300000 ? (
+                {undoTimeRemaining !== null && undoTimeRemaining > 0 ? (
                   <Button
                     variant="outline"
                     size="sm"
@@ -497,7 +522,9 @@ export function QueuePanel() {
                     <RotateCcw className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
                     Undo Clear Queue
                     <span className="ml-auto text-xs text-blue-500/60">
-                      {Math.floor((300000 - (Date.now() - lastClearedQueue.timestamp)) / 1000 / 60)}m left
+                      {undoTimeRemaining >= 60000
+                        ? `${Math.floor(undoTimeRemaining / 60000)}m ${Math.floor((undoTimeRemaining % 60000) / 1000)}s`
+                        : `${Math.floor(undoTimeRemaining / 1000)}s`}
                     </span>
                   </Button>
                 ) : (
