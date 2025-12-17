@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { Song } from '@/lib/types/song';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
-import { DashboardHero, DJFeatures, MoreFeatures } from '@/components/dashboard';
+import { DashboardHero, DJFeatures, MoreFeatures, QuickActions, AIDJControl, STYLE_PRESETS, type StylePreset, type AIDJMode } from '@/components/dashboard';
 import { SourceModeSelector, SourceBadge } from '@/components/playlist/source-mode-selector';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { DiscoveryQueuePanel } from '@/components/discovery/DiscoveryQueuePanel';
@@ -58,6 +58,14 @@ function DashboardIndex() {
   // Story 7.1: Source mode state
   const [sourceMode, setSourceMode] = useState<SourceMode>(preferences.recommendationSettings.sourceMode || 'library');
   const [mixRatio, setMixRatio] = useState(preferences.recommendationSettings.mixRatio || 70);
+  // Story 7.4: Quick Actions state
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+  // AI DJ state from audio store
+  const aiDJEnabled = useAudioStore((state) => state.aiDJEnabled);
+  const setAIDJEnabled = useAudioStore((state) => state.setAIDJEnabled);
+  const aiQueuedSongIds = useAudioStore((state) => state.aiQueuedSongIds);
+  const playlist = useAudioStore((state) => state.playlist);
+  const currentSongIndex = useAudioStore((state) => state.currentSongIndex);
   // Define a proper type for the song cache
   type CachedSong = Song & {
     trackNumber?: number;
@@ -803,6 +811,48 @@ function DashboardIndex() {
           availableRecommendations={availableRecommendations}
           playlistSongsReady={playlistSongsReady}
         />
+
+        {/* Story 7.4: Quick Actions and AI DJ Control */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <QuickActions
+            className="lg:col-span-2"
+            onPresetClick={(preset: StylePreset) => {
+              setActivePreset(preset.id);
+              setStyle(preset.prompt);
+              // Clear cache for this preset to force fresh generation
+              const cacheKey = `playlist-${preset.prompt}-${sourceMode}-${mixRatio}`;
+              localStorage.removeItem(cacheKey);
+              setGenerationStage('generating');
+              queryClient.invalidateQueries({ queryKey: ['playlist', preset.prompt, sourceMode, mixRatio] });
+            }}
+            lastPlayedSong={
+              playlist[currentSongIndex]
+                ? {
+                    title: playlist[currentSongIndex].title || playlist[currentSongIndex].name || 'Unknown',
+                    artist: playlist[currentSongIndex].artist || 'Unknown Artist',
+                  }
+                : null
+            }
+            onContinueListening={() => {
+              // Resume playback if paused
+              const { isPlaying, setIsPlaying } = useAudioStore.getState();
+              if (!isPlaying) {
+                setIsPlaying(true);
+              }
+            }}
+            isLoading={playlistLoading}
+            activePreset={activePreset}
+          />
+          <AIDJControl
+            mode={aiDJEnabled ? 'autopilot' : 'manual'}
+            onModeChange={(mode: AIDJMode) => {
+              setAIDJEnabled(mode !== 'manual');
+            }}
+            isActive={aiDJEnabled}
+            isLoading={false}
+            queueCount={aiQueuedSongIds.size}
+          />
+        </div>
 
       {/* AI Recommendations Section - conditionally rendered based on user preferences */}
       {preferences.dashboardLayout.showRecommendations && (
