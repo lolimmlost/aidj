@@ -29,6 +29,8 @@ import { GenerationProgress } from '@/components/ui/generation-progress';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { DiscoveryQueuePanel } from '@/components/discovery/DiscoveryQueuePanel';
 import { useDiscoveryQueueStore } from '@/lib/stores/discovery-queue';
+// Story 7.5: Harmonic mixing badges
+import { MixCompatibilityBadges } from '@/components/dj/mix-compatibility-badges';
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context }) => {
@@ -551,7 +553,15 @@ function DashboardIndex() {
     inLibrary?: boolean;
     // Story 7.2: Discovery source tracking
     discoverySource?: 'lastfm' | 'ollama' | 'library';
+    // Story 7.5: Harmonic mixing metadata
+    bpm?: number;
+    key?: string;
   }
+
+  // Story 7.5: Get current song for harmonic mixing comparison
+  const currentSong = useAudioStore((state) =>
+    state.playlist[state.currentSongIndex] || null
+  );
 
   // Story 7.4: Cancel function for long operations
   const cancelPlaylistGeneration = () => {
@@ -1437,6 +1447,19 @@ function DashboardIndex() {
                             )}
                           </div>
                           <p className="text-sm text-muted-foreground">{item.explanation}</p>
+                          {/* Story 7.5: Harmonic mixing badges */}
+                          {currentSong && (item.bpm || item.key) && (
+                            <div className="mt-1">
+                              <MixCompatibilityBadges
+                                currentBpm={currentSong.bpm}
+                                currentKey={currentSong.key}
+                                candidateBpm={item.bpm}
+                                candidateKey={item.key}
+                                compact
+                                showLabels
+                              />
+                            </div>
+                          )}
                           {/* Story 7.1: Show discovery info */}
                           {isDiscovery && !hasSong && (
                             <p className={`text-xs ${isLastFm ? 'text-red-600 dark:text-red-400' : 'text-purple-600 dark:text-purple-400'}`}>

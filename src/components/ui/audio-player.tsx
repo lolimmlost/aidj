@@ -169,7 +169,7 @@ export function AudioPlayer() {
     }
   }, [setCurrentTime, setDuration]);
 
-  const togglePlayPause = useCallback(() => {
+  const togglePlayPause = useCallback(async () => {
     const audio = audioRef.current;
     if (audio) {
       setError(null);
@@ -177,18 +177,45 @@ export function AudioPlayer() {
         // Mark this as a user-initiated pause so we don't auto-resume
         isUserInitiatedPauseRef.current = true;
         audio.pause();
+        setIsPlaying(false);
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = 'paused';
+        }
       } else {
         isUserInitiatedPauseRef.current = false;
         setIsLoading(true);
-        audio.play().catch((e) => {
-          setError('Failed to play audio');
+        try {
+          // Check if audio source needs to be reloaded (network error recovery)
+          if (audio.error || audio.networkState === 3) { // NETWORK_NO_SOURCE
+            console.log('🔄 Reloading audio source after network error...');
+            audio.load();
+            // Wait a bit for the load to start
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          await audio.play();
+          setIsPlaying(true);
+          if ('mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'playing';
+          }
+        } catch (e) {
+          console.error('Play failed, attempting reload:', e);
+          // Try reloading the source and playing again
+          try {
+            audio.load();
+            await new Promise(resolve => setTimeout(resolve, 200));
+            await audio.play();
+            setIsPlaying(true);
+            if ('mediaSession' in navigator) {
+              navigator.mediaSession.playbackState = 'playing';
+            }
+          } catch (retryError) {
+            setError('Failed to play - check network connection');
+            console.error('Retry also failed:', retryError);
+          }
+        } finally {
           setIsLoading(false);
-          console.error('Play failed:', e);
-        }).finally(() => {
-          setIsLoading(false);
-        });
+        }
       }
-      setIsPlaying(!isPlaying);
     }
   }, [isPlaying, setIsPlaying]);
 
@@ -265,11 +292,29 @@ export function AudioPlayer() {
       setIsLoading(true);
       setError(null);
     };
+    const onStalled = () => {
+      console.log('🔴 Audio stalled - possible network issue');
+      setIsLoading(true);
+      // Sync Media Session to show paused state when stalled
+      if ('mediaSession' in navigator && !audio.paused) {
+        // Keep playing state but show loading
+      }
+    };
     const onError = (e: Event) => {
       const audio = e.target as HTMLAudioElement;
-      setError(`Audio error: ${audio.error?.message || 'Unknown error'}`);
+      const errorMessage = audio.error?.message || 'Unknown error';
+      setError(`Audio error: ${errorMessage}`);
       setIsLoading(false);
       console.error('Audio error:', audio.error);
+      // Sync Media Session to paused state on error
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'paused';
+      }
+      // If network error, update state to allow recovery
+      if (audio.error?.code === MediaError.MEDIA_ERR_NETWORK) {
+        console.log('🔴 Network error detected - source may need reload on play');
+        setIsPlaying(false);
+      }
     };
     const onEnded = () => {
       console.log('🔴 SONG ENDED EVENT FIRED - advancing to next song');
@@ -354,6 +399,7 @@ export function AudioPlayer() {
     audio.addEventListener('loadedmetadata', updateDuration);
     audio.addEventListener('canplay', onCanPlay);
     audio.addEventListener('waiting', onWaiting);
+    audio.addEventListener('stalled', onStalled);
     audio.addEventListener('error', onError);
     audio.addEventListener('ended', onEnded);
 
@@ -364,6 +410,7 @@ export function AudioPlayer() {
       audio.removeEventListener('loadedmetadata', updateDuration);
       audio.removeEventListener('canplay', onCanPlay);
       audio.removeEventListener('waiting', onWaiting);
+      audio.removeEventListener('stalled', onStalled);
       audio.removeEventListener('error', onError);
       audio.removeEventListener('ended', onEnded);
     };
@@ -719,10 +766,31 @@ export function AudioPlayer() {
       // This ensures lock screen play button works even after interruption
       // Skip buttons are set in 'playing' event per iOS requirements
       try {
-        navigator.mediaSession.setActionHandler('play', () => {
+        navigator.mediaSession.setActionHandler('play', async () => {
           console.log('🎛️ Media Session: play (from setup)');
-          audio.play();
-          setIsPlaying(true);
+          try {
+            // Check if audio source needs to be reloaded (network error recovery)
+            if (audio.error || audio.networkState === 3) { // NETWORK_NO_SOURCE
+              console.log('🎛️ Reloading audio source after error...');
+              audio.load();
+            }
+            await audio.play();
+            setIsPlaying(true);
+            navigator.mediaSession.playbackState = 'playing';
+          } catch (e) {
+            console.error('🎛️ Media Session play failed:', e);
+            // Try reloading and playing again
+            try {
+              console.log('🎛️ Attempting source reload and retry...');
+              audio.load();
+              await audio.play();
+              setIsPlaying(true);
+              navigator.mediaSession.playbackState = 'playing';
+            } catch (retryError) {
+              console.error('🎛️ Retry also failed:', retryError);
+              navigator.mediaSession.playbackState = 'paused';
+            }
+          }
         });
 
         navigator.mediaSession.setActionHandler('pause', () => {
@@ -730,6 +798,7 @@ export function AudioPlayer() {
           isUserInitiatedPauseRef.current = true;
           audio.pause();
           setIsPlaying(false);
+          navigator.mediaSession.playbackState = 'paused';
         });
 
         // seekto is OK during setup - it doesn't conflict with track buttons
@@ -758,10 +827,29 @@ export function AudioPlayer() {
       navigator.mediaSession.playbackState = 'playing';
 
       try {
-        navigator.mediaSession.setActionHandler('play', () => {
+        navigator.mediaSession.setActionHandler('play', async () => {
           console.log('🎛️ Media Session: play');
-          audio.play();
-          setIsPlaying(true);
+          try {
+            // Check if audio source needs to be reloaded (network error recovery)
+            if (audio.error || audio.networkState === 3) {
+              console.log('🎛️ Reloading audio source after error...');
+              audio.load();
+            }
+            await audio.play();
+            setIsPlaying(true);
+            navigator.mediaSession.playbackState = 'playing';
+          } catch (e) {
+            console.error('🎛️ Media Session play failed, retrying with reload:', e);
+            try {
+              audio.load();
+              await audio.play();
+              setIsPlaying(true);
+              navigator.mediaSession.playbackState = 'playing';
+            } catch (retryError) {
+              console.error('🎛️ Retry failed:', retryError);
+              navigator.mediaSession.playbackState = 'paused';
+            }
+          }
         });
 
         navigator.mediaSession.setActionHandler('pause', () => {
@@ -769,6 +857,7 @@ export function AudioPlayer() {
           isUserInitiatedPauseRef.current = true;
           audio.pause();
           setIsPlaying(false);
+          navigator.mediaSession.playbackState = 'paused';
         });
 
         // iOS: previoustrack and nexttrack - these will show as skip buttons

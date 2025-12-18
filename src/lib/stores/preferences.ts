@@ -20,6 +20,10 @@ export interface RecommendationSettings {
   // Story 7.1: Source Mode Toggle
   sourceMode: SourceMode;
   mixRatio: number; // Percentage of library songs in mix mode (0-100)
+  // Story 7.5: Harmonic Mixing Settings
+  harmonicMixingEnabled?: boolean; // Show BPM/key compatibility in recommendations
+  harmonicMixingMode?: 'strict' | 'flexible' | 'off'; // Strictness of harmonic matching
+  bpmTolerance?: number; // Max BPM difference percentage (default: 6%)
 }
 
 export interface PlaybackSettings {
@@ -82,6 +86,10 @@ const defaultPreferences: UserPreferences = {
     // Story 7.1: Default to library mode for backwards compatibility
     sourceMode: 'library',
     mixRatio: 70, // 70% library, 30% discovery
+    // Story 7.5: Harmonic mixing defaults
+    harmonicMixingEnabled: true, // Show BPM/key by default
+    harmonicMixingMode: 'flexible', // Flexible matching by default
+    bpmTolerance: 6, // ±6% BPM tolerance
   },
   playbackSettings: {
     volume: 0.5,
