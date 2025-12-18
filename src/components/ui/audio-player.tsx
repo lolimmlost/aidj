@@ -495,22 +495,40 @@ export function AudioPlayer() {
 
         // If we were already in background (screen locked), try to resume after a short delay
         // This handles notifications while screen is locked
+        // iOS may need multiple attempts as the audio session recovers
         if (wasHiddenBeforePause) {
-          setTimeout(() => {
-            if (wasPlayingBeforeInterruptionRef.current && audio.paused) {
-              console.log('🔔 Attempting background resume after interruption...');
-              audio.play()
-                .then(() => {
-                  console.log('🔔 Background playback resumed');
-                  wasPlayingBeforeInterruptionRef.current = false;
-                  interruptionTimestamp = null;
-                })
-                .catch((e) => {
-                  console.log('🔔 Background resume failed:', e.message);
-                  // Keep the flag - will try again when page becomes visible
-                });
-            }
-          }, 500);
+          const attemptResume = (attempt: number, maxAttempts: number, delay: number) => {
+            setTimeout(() => {
+              if (wasPlayingBeforeInterruptionRef.current && audio.paused) {
+                console.log(`🔔 Background resume attempt ${attempt}/${maxAttempts}...`);
+                audio.play()
+                  .then(() => {
+                    console.log('🔔 Background playback resumed');
+                    wasPlayingBeforeInterruptionRef.current = false;
+                    interruptionTimestamp = null;
+                    // Ensure Media Session shows playing state
+                    if ('mediaSession' in navigator) {
+                      navigator.mediaSession.playbackState = 'playing';
+                    }
+                  })
+                  .catch((e) => {
+                    console.log(`🔔 Background resume attempt ${attempt} failed:`, e.message);
+                    // Retry with increasing delay
+                    if (attempt < maxAttempts) {
+                      attemptResume(attempt + 1, maxAttempts, delay * 1.5);
+                    } else {
+                      console.log('🔔 All background resume attempts failed, waiting for user interaction');
+                      // Ensure Media Session shows paused state so play button works
+                      if ('mediaSession' in navigator) {
+                        navigator.mediaSession.playbackState = 'paused';
+                      }
+                    }
+                  });
+              }
+            }, delay);
+          };
+          // Start with 500ms delay, retry up to 3 times
+          attemptResume(1, 3, 500);
         }
       }
     };
@@ -545,12 +563,20 @@ export function AudioPlayer() {
                     wasPlayingBeforeInterruptionRef.current = false;
                     interruptionTimestamp = null;
                     setIsPlaying(true);
+                    // Ensure Media Session shows playing state
+                    if ('mediaSession' in navigator) {
+                      navigator.mediaSession.playbackState = 'playing';
+                    }
                   })
                   .catch((e) => {
-                    console.log('🔔 Resume failed, may need user interaction:', e.message);
+                    console.log('🔔 Resume failed, user can tap play on lock screen:', e.message);
                     // Clear the flag - user will need to manually press play
                     wasPlayingBeforeInterruptionRef.current = false;
                     interruptionTimestamp = null;
+                    // Ensure Media Session shows paused state so play button works on lock screen
+                    if ('mediaSession' in navigator) {
+                      navigator.mediaSession.playbackState = 'paused';
+                    }
                   });
               }
             }, 100);
@@ -687,6 +713,36 @@ export function AudioPlayer() {
         } catch (e) {
           // Position state not supported
         }
+      }
+
+      // iOS FIX: Set play/pause handlers during setup (not just in 'playing' event)
+      // This ensures lock screen play button works even after interruption
+      // Skip buttons are set in 'playing' event per iOS requirements
+      try {
+        navigator.mediaSession.setActionHandler('play', () => {
+          console.log('🎛️ Media Session: play (from setup)');
+          audio.play();
+          setIsPlaying(true);
+        });
+
+        navigator.mediaSession.setActionHandler('pause', () => {
+          console.log('🎛️ Media Session: pause (from setup)');
+          isUserInitiatedPauseRef.current = true;
+          audio.pause();
+          setIsPlaying(false);
+        });
+
+        // seekto is OK during setup - it doesn't conflict with track buttons
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (details.seekTime !== undefined && isFinite(details.seekTime)) {
+            console.log('🎛️ Media Session: seekto', details.seekTime);
+            audio.currentTime = details.seekTime;
+          }
+        });
+
+        console.log('🎛️ Media Session play/pause handlers registered (in setup)');
+      } catch (e) {
+        console.error('🎛️ Failed to set media session handlers in setup:', e);
       }
     };
 
