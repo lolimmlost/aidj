@@ -1,11 +1,9 @@
 // AIDJ Service Worker - Enables background audio and PWA functionality
-const CACHE_NAME = 'aidj-v1';
+const CACHE_NAME = 'aidj-v2';
 const AUDIO_CACHE_NAME = 'aidj-audio-v1';
 
-// Assets to cache on install
+// Assets to cache on install (only truly static assets)
 const STATIC_ASSETS = [
-  '/',
-  '/dashboard',
   '/manifest.json',
 ];
 
@@ -15,7 +13,14 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching static assets');
-      return cache.addAll(STATIC_ASSETS);
+      // Use addAll for critical assets, but don't fail if some don't exist
+      return Promise.allSettled(
+        STATIC_ASSETS.map(url =>
+          cache.add(url).catch(err => {
+            console.warn('[SW] Failed to cache:', url, err);
+          })
+        )
+      );
     })
   );
   // Activate immediately
@@ -25,16 +30,19 @@ self.addEventListener('install', (event) => {
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating service worker...');
+  const currentCaches = [CACHE_NAME, AUDIO_CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          .filter((name) => name !== CACHE_NAME && name !== AUDIO_CACHE_NAME)
+          .filter((name) => !currentCaches.includes(name))
           .map((name) => {
             console.log('[SW] Deleting old cache:', name);
             return caches.delete(name);
           })
       );
+    }).then(() => {
+      console.log('[SW] Service worker activated');
     })
   );
   // Take control of all pages immediately

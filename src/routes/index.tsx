@@ -15,9 +15,9 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-8 p-4 bg-gradient-to-b from-background to-muted/30">
+    <div className="flex min-h-svh flex-col items-center justify-center gap-8 p-4 pb-16 bg-gradient-to-b from-background to-muted/30 relative">
       {/* Header */}
-      <div className="absolute top-4 right-4">
+      <div className="fixed top-4 right-4 z-50">
         <ThemeToggle />
       </div>
 
@@ -62,7 +62,7 @@ function Home() {
       </div>
 
       {/* Footer */}
-      <div className="absolute bottom-4 text-center text-xs text-muted-foreground">
+      <div className="mt-auto pt-8 text-center text-xs text-muted-foreground">
         <p>Powered by Navidrome, Last.fm, and AI</p>
       </div>
     </div>
