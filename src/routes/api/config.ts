@@ -58,6 +58,7 @@ export const Route = createFileRoute("/api/config")({
           test("ollamaUrl", cfg.ollamaUrl),
           test("navidromeUrl", cfg.navidromeUrl),
           test("lidarrUrl", cfg.lidarrUrl),
+          test("metubeUrl", cfg.metubeUrl),
         ]);
 
         return new Response(JSON.stringify({ ok: true, statuses }), {
@@ -84,6 +85,7 @@ export const Route = createFileRoute("/api/config")({
       // Music services
       if (typeof body.navidromeUrl === "string") allowed.navidromeUrl = body.navidromeUrl;
       if (typeof body.lidarrUrl === "string") allowed.lidarrUrl = body.lidarrUrl;
+      if (typeof body.metubeUrl === "string") allowed.metubeUrl = body.metubeUrl;
       if (typeof body.navidromeUsername === "string") allowed.navidromeUsername = body.navidromeUsername;
       if (typeof body.navidromePassword === "string") allowed.navidromePassword = body.navidromePassword;
 
