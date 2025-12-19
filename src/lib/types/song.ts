@@ -36,8 +36,9 @@ export const KEY_TO_CAMELOT: Record<string, CamelotKey> = {
   'Bm': '10A', 'D': '10B',
   'F#m': '11A', 'A': '11B',
   'C#m': '12A', 'E': '12B',
-  // Alternative notations
+  // Alternative/enharmonic notations
   'G#m': '1A', 'Gb': '2B', 'C#': '3B', 'D#m': '2A', 'A#m': '3A', 'A#': '6B',
+  'D#': '6B', 'G#': '4B', // Enharmonic equivalents of Eb and Ab
 };
 
 // Get Camelot notation for a key

@@ -15,7 +15,7 @@ interface MixCompatibilityBadgesProps {
   mixScore?: number;
   // Display options
   compact?: boolean;
-  showLabels?: boolean;
+  showLabel?: boolean;
   className?: string;
 }
 
@@ -35,6 +35,11 @@ function getBpmCompatibility(currentBpm: number, candidateBpm: number): {
   diffPercent: number;
   relationship: string;
 } {
+  // Guard against division by zero
+  if (currentBpm <= 0 || candidateBpm <= 0) {
+    return { score: 0.5, diff: 0, diffPercent: 0, relationship: 'Unknown' };
+  }
+
   const diff = candidateBpm - currentBpm;
   const diffPercent = Math.abs(diff / currentBpm) * 100;
 
@@ -265,7 +270,7 @@ export function MixCompatibilityBadges({
   candidateKey,
   mixScore,
   compact = false,
-  showLabels = true,
+  showLabel = true,
   className,
 }: MixCompatibilityBadgesProps) {
   // Calculate overall mix score if not provided
@@ -291,19 +296,19 @@ export function MixCompatibilityBadges({
         currentBpm={currentBpm}
         candidateBpm={candidateBpm}
         compact={compact}
-        showLabel={showLabels}
+        showLabel={showLabel}
       />
       <KeyBadge
         currentKey={currentKey}
         candidateKey={candidateKey}
         compact={compact}
-        showLabel={showLabels}
+        showLabel={showLabel}
       />
       {calculatedScore !== undefined && (
         <MixScoreBadge
           score={calculatedScore}
           compact={compact}
-          showLabel={showLabels}
+          showLabel={showLabel}
         />
       )}
     </div>

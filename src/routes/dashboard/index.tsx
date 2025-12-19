@@ -1456,7 +1456,7 @@ function DashboardIndex() {
                                 candidateBpm={item.bpm}
                                 candidateKey={item.key}
                                 compact
-                                showLabels
+                                showLabel
                               />
                             </div>
                           )}

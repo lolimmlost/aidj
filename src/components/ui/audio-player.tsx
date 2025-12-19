@@ -188,9 +188,23 @@ export function AudioPlayer() {
           // Check if audio source needs to be reloaded (network error recovery)
           if (audio.error || audio.networkState === 3) { // NETWORK_NO_SOURCE
             console.log('🔄 Reloading audio source after network error...');
-            audio.load();
-            // Wait a bit for the load to start
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // Wait for canplay event after reload
+            await new Promise<void>((resolve, reject) => {
+              const timeout = setTimeout(() => reject(new Error('Load timeout')), 10000);
+              const onCanPlay = () => {
+                clearTimeout(timeout);
+                audio.removeEventListener('error', onError);
+                resolve();
+              };
+              const onError = () => {
+                clearTimeout(timeout);
+                audio.removeEventListener('canplay', onCanPlay);
+                reject(new Error('Load failed'));
+              };
+              audio.addEventListener('canplay', onCanPlay, { once: true });
+              audio.addEventListener('error', onError, { once: true });
+              audio.load();
+            });
           }
           await audio.play();
           setIsPlaying(true);
@@ -201,8 +215,22 @@ export function AudioPlayer() {
           console.error('Play failed, attempting reload:', e);
           // Try reloading the source and playing again
           try {
-            audio.load();
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await new Promise<void>((resolve, reject) => {
+              const timeout = setTimeout(() => reject(new Error('Retry load timeout')), 10000);
+              const onCanPlay = () => {
+                clearTimeout(timeout);
+                audio.removeEventListener('error', onError);
+                resolve();
+              };
+              const onError = () => {
+                clearTimeout(timeout);
+                audio.removeEventListener('canplay', onCanPlay);
+                reject(new Error('Retry load failed'));
+              };
+              audio.addEventListener('canplay', onCanPlay, { once: true });
+              audio.addEventListener('error', onError, { once: true });
+              audio.load();
+            });
             await audio.play();
             setIsPlaying(true);
             if ('mediaSession' in navigator) {
@@ -295,10 +323,6 @@ export function AudioPlayer() {
     const onStalled = () => {
       console.log('🔴 Audio stalled - possible network issue');
       setIsLoading(true);
-      // Sync Media Session to show paused state when stalled
-      if ('mediaSession' in navigator && !audio.paused) {
-        // Keep playing state but show loading
-      }
     };
     const onError = (e: Event) => {
       const audio = e.target as HTMLAudioElement;
