@@ -2,7 +2,7 @@
 // Displays BPM, key (Camelot), and overall mix score for recommendations
 
 import { cn } from '@/lib/utils';
-import { getCamelotKey, areCamelotKeysCompatible, type CamelotKey } from '@/lib/types/song';
+import { getCamelotKey, areCamelotKeysCompatible } from '@/lib/types/song';
 
 interface MixCompatibilityBadgesProps {
   // Current playing track (for comparison)

@@ -5,29 +5,20 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import { 
-  Play, 
-  Pause, 
-  SkipForward, 
-  Trash2, 
-  Plus,
+import {
+  Play,
+  Pause,
+  Trash2,
   Settings,
-  Shuffle,
   Clock,
   Music,
   Zap,
-  TrendingUp,
-  TrendingDown,
   Activity,
-  Users,
   RefreshCw,
-  X,
-  GripVertical,
   ChevronUp,
   ChevronDown
 } from 'lucide-react';

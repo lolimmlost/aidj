@@ -8,11 +8,11 @@ import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { 
-  Play, Pause, SkipForward, SkipBack, 
-  Volume2, VolumeX, Headphones, 
+import {
+  Play, Pause, SkipForward, SkipBack,
+  Volume2, VolumeX, Headphones,
   Settings, Crosshair, Activity, Zap,
-  TrendingUp, TrendingDown, Waves, MicOff
+  Waves, MicOff
 } from 'lucide-react';
 import { useAudioStore } from '@/lib/stores/audio';
 import { useDJSession } from '@/lib/hooks/useDJSession';
@@ -24,7 +24,6 @@ interface DJControlsProps {
 }
 
 export function DJControls({ compact = false, showVisualization = true }: DJControlsProps) {
-  const [sessionDuration, setSessionDuration] = useState(0);
   const {
     isPlaying, currentTime, duration, volume,
     nextSong, previousSong, setIsPlaying,
@@ -40,6 +39,25 @@ export function DJControls({ compact = false, showVisualization = true }: DJCont
 
   const [showSettings, setShowSettings] = useState(false);
   const [crossfadeProgress, setCrossfadeProgress] = useState(0);
+  const [sessionDurationMinutes, setSessionDurationMinutes] = useState(0);
+
+  // Update session duration every minute
+  useEffect(() => {
+    if (!djSession) {
+      setSessionDurationMinutes(0);
+      return;
+    }
+
+    const updateDuration = () => {
+      const minutes = Math.round((Date.now() - djSession.startTime.getTime()) / 60000);
+      setSessionDurationMinutes(minutes);
+    };
+
+    updateDuration(); // Initial update
+    const interval = setInterval(updateDuration, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, [djSession]);
 
   // Handle crossfade progress
   useEffect(() => {
@@ -375,9 +393,9 @@ export function DJControls({ compact = false, showVisualization = true }: DJCont
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold">
-                  {djSession && Math.round(((Date.now() - djSession.startTime.getTime()) / 60000))}
+                  {sessionDurationMinutes}
                 </div>
-                <div className="text-xs text-muted-foreground">Duration</div>
+                <div className="text-xs text-muted-foreground">Duration (min)</div>
               </div>
             </div>
 
