@@ -89,7 +89,6 @@ describe('SmartPlaylistBuilder', () => {
   });
 
   it('should validate year range', async () => {
-    const { toast } = await import('sonner');
     render(<SmartPlaylistBuilder />, { wrapper: createWrapper() });
 
     const button = screen.getByRole('button', { name: /create smart playlist/i });

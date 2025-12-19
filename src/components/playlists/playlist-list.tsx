@@ -391,7 +391,7 @@ interface PlaylistListProps {
 
 export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
   const [expandedPlaylistId, setExpandedPlaylistId] = useState<string | null>(null);
-  const [orderedPlaylistIds, setOrderedPlaylistIds] = useState<string[]>([]);
+  const [_orderedPlaylistIds, setOrderedPlaylistIds] = useState<string[]>([]);
   const queryClient = useQueryClient();
   const { addToQueueNext, addToQueueEnd, setAIUserActionInProgress } = useAudioStore();
 
