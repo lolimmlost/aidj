@@ -164,18 +164,24 @@ function DownloadsPage() {
             Search for artists and albums to add to your download queue
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="ghost"
             onClick={() => navigate({ to: '/dashboard' })}
           >
-            ← Dashboard
+            Dashboard
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate({ to: '/downloads/youtube' })}
+          >
+            YouTube
           </Button>
           <Button
             variant="outline"
             onClick={() => navigate({ to: '/downloads/status' })}
           >
-            View Queue & Status
+            Queue & Status
           </Button>
           <Button
             variant="outline"

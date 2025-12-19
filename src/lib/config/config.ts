@@ -27,6 +27,7 @@ interface ServiceConfig {
   navidromeUrl: string;
   lidarrUrl: string;
   lidarrApiKey: string;
+  metubeUrl: string;
   navidromeUsername: string;
   navidromePassword: string;
   lidarrQualityProfileId?: number;

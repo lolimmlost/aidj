@@ -21,6 +21,7 @@ import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as PlaylistsIdRouteImport } from './routes/playlists/$id'
 import { Route as LibrarySearchRouteImport } from './routes/library/search'
 import { Route as LibraryArtistsRouteImport } from './routes/library/artists'
+import { Route as DownloadsYoutubeRouteImport } from './routes/downloads/youtube'
 import { Route as DownloadsStatusRouteImport } from './routes/downloads/status'
 import { Route as DownloadsHistoryRouteImport } from './routes/downloads/history'
 import { Route as DjSetBuilderRouteImport } from './routes/dj/set-builder'
@@ -45,6 +46,9 @@ import { Route as ApiRecommendationsClearRouteImport } from './routes/api/recomm
 import { Route as ApiRecommendationsAnalyticsRouteImport } from './routes/api/recommendations/analytics'
 import { Route as ApiPlaylistsSyncRouteImport } from './routes/api/playlists/sync'
 import { Route as ApiPlaylistsIdRouteImport } from './routes/api/playlists/$id'
+import { Route as ApiMetubeStatusRouteImport } from './routes/api/metube/status'
+import { Route as ApiMetubeDeleteRouteImport } from './routes/api/metube/delete'
+import { Route as ApiMetubeAddRouteImport } from './routes/api/metube/add'
 import { Route as ApiListeningHistoryRecordRouteImport } from './routes/api/listening-history/record'
 import { Route as ApiListeningHistoryCompoundScoresRouteImport } from './routes/api/listening-history/compound-scores'
 import { Route as ApiLidarrStatusRouteImport } from './routes/api/lidarr/status'
@@ -140,6 +144,11 @@ const LibrarySearchRoute = LibrarySearchRouteImport.update({
 const LibraryArtistsRoute = LibraryArtistsRouteImport.update({
   id: '/library/artists',
   path: '/library/artists',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DownloadsYoutubeRoute = DownloadsYoutubeRouteImport.update({
+  id: '/downloads/youtube',
+  path: '/downloads/youtube',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DownloadsStatusRoute = DownloadsStatusRouteImport.update({
@@ -266,6 +275,21 @@ const ApiPlaylistsSyncRoute = ApiPlaylistsSyncRouteImport.update({
 const ApiPlaylistsIdRoute = ApiPlaylistsIdRouteImport.update({
   id: '/api/playlists/$id',
   path: '/api/playlists/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMetubeStatusRoute = ApiMetubeStatusRouteImport.update({
+  id: '/api/metube/status',
+  path: '/api/metube/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMetubeDeleteRoute = ApiMetubeDeleteRouteImport.update({
+  id: '/api/metube/delete',
+  path: '/api/metube/delete',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMetubeAddRoute = ApiMetubeAddRouteImport.update({
+  id: '/api/metube/add',
+  path: '/api/metube/add',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiListeningHistoryRecordRoute =
@@ -480,6 +504,7 @@ export interface FileRoutesByFullPath {
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/downloads/history': typeof DownloadsHistoryRoute
   '/downloads/status': typeof DownloadsStatusRoute
+  '/downloads/youtube': typeof DownloadsYoutubeRoute
   '/library/artists': typeof LibraryArtistsRouteWithChildren
   '/library/search': typeof LibrarySearchRoute
   '/playlists/$id': typeof PlaylistsIdRoute
@@ -508,6 +533,9 @@ export interface FileRoutesByFullPath {
   '/api/lidarr/status': typeof ApiLidarrStatusRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
+  '/api/metube/add': typeof ApiMetubeAddRoute
+  '/api/metube/delete': typeof ApiMetubeDeleteRoute
+  '/api/metube/status': typeof ApiMetubeStatusRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
@@ -553,6 +581,7 @@ export interface FileRoutesByTo {
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/downloads/history': typeof DownloadsHistoryRoute
   '/downloads/status': typeof DownloadsStatusRoute
+  '/downloads/youtube': typeof DownloadsYoutubeRoute
   '/library/search': typeof LibrarySearchRoute
   '/playlists/$id': typeof PlaylistsIdRoute
   '/dashboard': typeof DashboardIndexRoute
@@ -580,6 +609,9 @@ export interface FileRoutesByTo {
   '/api/lidarr/status': typeof ApiLidarrStatusRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
+  '/api/metube/add': typeof ApiMetubeAddRoute
+  '/api/metube/delete': typeof ApiMetubeDeleteRoute
+  '/api/metube/status': typeof ApiMetubeStatusRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
@@ -628,6 +660,7 @@ export interface FileRoutesById {
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/downloads/history': typeof DownloadsHistoryRoute
   '/downloads/status': typeof DownloadsStatusRoute
+  '/downloads/youtube': typeof DownloadsYoutubeRoute
   '/library/artists': typeof LibraryArtistsRouteWithChildren
   '/library/search': typeof LibrarySearchRoute
   '/playlists/$id': typeof PlaylistsIdRoute
@@ -656,6 +689,9 @@ export interface FileRoutesById {
   '/api/lidarr/status': typeof ApiLidarrStatusRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
+  '/api/metube/add': typeof ApiMetubeAddRoute
+  '/api/metube/delete': typeof ApiMetubeDeleteRoute
+  '/api/metube/status': typeof ApiMetubeStatusRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
@@ -704,6 +740,7 @@ export interface FileRouteTypes {
     | '/dj/set-builder'
     | '/downloads/history'
     | '/downloads/status'
+    | '/downloads/youtube'
     | '/library/artists'
     | '/library/search'
     | '/playlists/$id'
@@ -732,6 +769,9 @@ export interface FileRouteTypes {
     | '/api/lidarr/status'
     | '/api/listening-history/compound-scores'
     | '/api/listening-history/record'
+    | '/api/metube/add'
+    | '/api/metube/delete'
+    | '/api/metube/status'
     | '/api/playlists/$id'
     | '/api/playlists/sync'
     | '/api/recommendations/analytics'
@@ -777,6 +817,7 @@ export interface FileRouteTypes {
     | '/dj/set-builder'
     | '/downloads/history'
     | '/downloads/status'
+    | '/downloads/youtube'
     | '/library/search'
     | '/playlists/$id'
     | '/dashboard'
@@ -804,6 +845,9 @@ export interface FileRouteTypes {
     | '/api/lidarr/status'
     | '/api/listening-history/compound-scores'
     | '/api/listening-history/record'
+    | '/api/metube/add'
+    | '/api/metube/delete'
+    | '/api/metube/status'
     | '/api/playlists/$id'
     | '/api/playlists/sync'
     | '/api/recommendations/analytics'
@@ -851,6 +895,7 @@ export interface FileRouteTypes {
     | '/dj/set-builder'
     | '/downloads/history'
     | '/downloads/status'
+    | '/downloads/youtube'
     | '/library/artists'
     | '/library/search'
     | '/playlists/$id'
@@ -879,6 +924,9 @@ export interface FileRouteTypes {
     | '/api/lidarr/status'
     | '/api/listening-history/compound-scores'
     | '/api/listening-history/record'
+    | '/api/metube/add'
+    | '/api/metube/delete'
+    | '/api/metube/status'
     | '/api/playlists/$id'
     | '/api/playlists/sync'
     | '/api/recommendations/analytics'
@@ -924,6 +972,7 @@ export interface RootRouteChildren {
   DjSetBuilderRoute: typeof DjSetBuilderRoute
   DownloadsHistoryRoute: typeof DownloadsHistoryRoute
   DownloadsStatusRoute: typeof DownloadsStatusRoute
+  DownloadsYoutubeRoute: typeof DownloadsYoutubeRoute
   LibraryArtistsRoute: typeof LibraryArtistsRouteWithChildren
   LibrarySearchRoute: typeof LibrarySearchRoute
   PlaylistsIdRoute: typeof PlaylistsIdRoute
@@ -951,6 +1000,9 @@ export interface RootRouteChildren {
   ApiLidarrStatusRoute: typeof ApiLidarrStatusRoute
   ApiListeningHistoryCompoundScoresRoute: typeof ApiListeningHistoryCompoundScoresRoute
   ApiListeningHistoryRecordRoute: typeof ApiListeningHistoryRecordRoute
+  ApiMetubeAddRoute: typeof ApiMetubeAddRoute
+  ApiMetubeDeleteRoute: typeof ApiMetubeDeleteRoute
+  ApiMetubeStatusRoute: typeof ApiMetubeStatusRoute
   ApiPlaylistsIdRoute: typeof ApiPlaylistsIdRouteWithChildren
   ApiPlaylistsSyncRoute: typeof ApiPlaylistsSyncRoute
   ApiPlaylistsIndexRoute: typeof ApiPlaylistsIndexRoute
@@ -1051,6 +1103,13 @@ declare module '@tanstack/react-router' {
       path: '/library/artists'
       fullPath: '/library/artists'
       preLoaderRoute: typeof LibraryArtistsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/downloads/youtube': {
+      id: '/downloads/youtube'
+      path: '/downloads/youtube'
+      fullPath: '/downloads/youtube'
+      preLoaderRoute: typeof DownloadsYoutubeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/downloads/status': {
@@ -1219,6 +1278,27 @@ declare module '@tanstack/react-router' {
       path: '/api/playlists/$id'
       fullPath: '/api/playlists/$id'
       preLoaderRoute: typeof ApiPlaylistsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/metube/status': {
+      id: '/api/metube/status'
+      path: '/api/metube/status'
+      fullPath: '/api/metube/status'
+      preLoaderRoute: typeof ApiMetubeStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/metube/delete': {
+      id: '/api/metube/delete'
+      path: '/api/metube/delete'
+      fullPath: '/api/metube/delete'
+      preLoaderRoute: typeof ApiMetubeDeleteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/metube/add': {
+      id: '/api/metube/add'
+      path: '/api/metube/add'
+      fullPath: '/api/metube/add'
+      preLoaderRoute: typeof ApiMetubeAddRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/listening-history/record': {
@@ -1615,6 +1695,7 @@ const rootRouteChildren: RootRouteChildren = {
   DjSetBuilderRoute: DjSetBuilderRoute,
   DownloadsHistoryRoute: DownloadsHistoryRoute,
   DownloadsStatusRoute: DownloadsStatusRoute,
+  DownloadsYoutubeRoute: DownloadsYoutubeRoute,
   LibraryArtistsRoute: LibraryArtistsRouteWithChildren,
   LibrarySearchRoute: LibrarySearchRoute,
   PlaylistsIdRoute: PlaylistsIdRoute,
@@ -1643,6 +1724,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiListeningHistoryCompoundScoresRoute:
     ApiListeningHistoryCompoundScoresRoute,
   ApiListeningHistoryRecordRoute: ApiListeningHistoryRecordRoute,
+  ApiMetubeAddRoute: ApiMetubeAddRoute,
+  ApiMetubeDeleteRoute: ApiMetubeDeleteRoute,
+  ApiMetubeStatusRoute: ApiMetubeStatusRoute,
   ApiPlaylistsIdRoute: ApiPlaylistsIdRouteWithChildren,
   ApiPlaylistsSyncRoute: ApiPlaylistsSyncRoute,
   ApiPlaylistsIndexRoute: ApiPlaylistsIndexRoute,
