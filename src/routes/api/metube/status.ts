@@ -23,11 +23,14 @@ export const Route = createFileRoute('/api/metube/status')({
         }
 
         try {
-          const [connectionStatus, history, queue] = await Promise.all([
+          const [connectionStatus, historyResult, queue] = await Promise.all([
             checkConnection(),
             getHistory(),
             getQueue(),
           ]);
+
+          // Ensure history is always an array
+          const history = Array.isArray(historyResult) ? historyResult : [];
 
           return new Response(
             JSON.stringify({
@@ -35,11 +38,11 @@ export const Route = createFileRoute('/api/metube/status')({
               version: connectionStatus.version,
               error: connectionStatus.error,
               history,
-              queue: queue.queue,
-              done: queue.done,
+              queue: queue.queue || {},
+              done: queue.done || {},
               stats: {
-                totalInQueue: Object.keys(queue.queue).length,
-                totalCompleted: Object.keys(queue.done).length,
+                totalInQueue: Object.keys(queue.queue || {}).length,
+                totalCompleted: Object.keys(queue.done || {}).length,
                 totalHistory: history.length,
               },
               lastUpdated: new Date().toISOString(),
@@ -59,7 +62,15 @@ export const Route = createFileRoute('/api/metube/status')({
           } else if (error instanceof Error) {
             message = error.message;
           }
-          return new Response(JSON.stringify({ code, message, connected: false }), {
+          return new Response(JSON.stringify({
+            code,
+            message,
+            connected: false,
+            history: [],
+            queue: {},
+            done: {},
+            stats: { totalInQueue: 0, totalCompleted: 0, totalHistory: 0 },
+          }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
           });

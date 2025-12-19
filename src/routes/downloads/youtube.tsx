@@ -313,7 +313,7 @@ function YouTubeDownloadPage() {
       ) : null}
 
       {/* Download History */}
-      {status && status.history.length > 0 && (
+      {status && Array.isArray(status.history) && status.history.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Recent Downloads ({status.history.length})</CardTitle>
@@ -357,7 +357,7 @@ function YouTubeDownloadPage() {
       )}
 
       {/* Empty State */}
-      {status && status.history.length === 0 && Object.keys(status.queue).length === 0 && (
+      {status && (!Array.isArray(status.history) || status.history.length === 0) && Object.keys(status.queue || {}).length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
             <Youtube className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />

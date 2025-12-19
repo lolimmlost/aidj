@@ -171,11 +171,31 @@ export async function getQueue(): Promise<MeTubeQueueResponse> {
 
 /**
  * Get download history from MeTube
+ * MeTube returns history as an object with IDs as keys, or as an array
  */
 export async function getHistory(): Promise<MeTubeHistoryItem[]> {
   try {
-    const result = await apiFetch<MeTubeHistoryItem[]>('/history');
-    return result || [];
+    const result = await apiFetch<MeTubeHistoryItem[] | Record<string, MeTubeHistoryItem>>('/history');
+
+    // Handle case where result is null/undefined
+    if (!result) {
+      return [];
+    }
+
+    // If result is already an array, return it
+    if (Array.isArray(result)) {
+      return result;
+    }
+
+    // If result is an object, convert to array
+    if (typeof result === 'object') {
+      return Object.entries(result).map(([id, item]) => ({
+        ...item,
+        id: item.id || id,
+      }));
+    }
+
+    return [];
   } catch (error) {
     console.error('Error getting history:', error);
     return [];
