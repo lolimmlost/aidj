@@ -23,23 +23,31 @@ export function DashboardHero({
   };
 
   return (
-    <section className="space-y-6">
-      {/* Hero Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/20 p-6 sm:p-8 lg:p-10">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-primary/5 rounded-full blur-3xl -z-10" />
+    <section className="space-y-4">
+      {/* Hero Banner - Compact on mobile */}
+      <div className="relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/20 p-4 sm:p-6 lg:p-8">
+        <div className="absolute top-0 right-0 w-60 h-60 bg-primary/5 rounded-full blur-3xl -z-10" />
         <div className="relative z-10">
-          <p className="text-xs font-medium text-primary mb-2 tracking-wide uppercase">
-            Your Music Hub
-          </p>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-2 text-foreground">
-            {getGreeting()}, {userName || 'Music Lover'}
-          </h1>
-          <p className="text-sm sm:text-base text-muted-foreground max-w-xl">
-            Discover new music, create intelligent playlists, and explore your library with AI-powered recommendations
-          </p>
+          <div className="flex items-center justify-between gap-4 mb-3 sm:mb-4">
+            <div>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-foreground">
+                {getGreeting()}, {userName || 'Music Lover'}
+              </h1>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1 hidden sm:block">
+                AI-powered music discovery and intelligent playlists
+              </p>
+            </div>
+            {/* Quick Stats - Inline on mobile */}
+            <div className="flex gap-2 sm:hidden">
+              <div className="bg-background/60 rounded-lg px-2 py-1 border border-border/50 text-center">
+                <div className="text-sm font-bold text-primary">{availableRecommendations}</div>
+                <div className="text-[10px] text-muted-foreground">Recs</div>
+              </div>
+            </div>
+          </div>
 
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+          {/* Quick Stats - Grid on larger screens */}
+          <div className="hidden sm:grid grid-cols-4 gap-2 sm:gap-3">
             <StatBadge
               value={availableRecommendations}
               label="Recommendations"
@@ -64,8 +72,8 @@ export function DashboardHero({
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Quick Actions - Hidden on mobile to reduce scroll */}
+      <div className="hidden sm:grid sm:grid-cols-4 gap-3">
         <QuickAction
           to="/library/search"
           icon={<Search className="h-5 w-5" />}

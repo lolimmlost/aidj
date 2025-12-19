@@ -81,7 +81,7 @@ export function QuickActions({
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Style Preset Grid */}
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+        <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
           {STYLE_PRESETS.map((preset) => (
             <Button
               key={preset.id}
@@ -89,20 +89,20 @@ export function QuickActions({
               onClick={() => onPresetClick(preset)}
               disabled={isLoading}
               className={cn(
-                'flex flex-col items-center justify-center h-20 sm:h-24 gap-1.5 transition-all hover:scale-105',
+                'flex flex-col items-center justify-center h-16 sm:h-20 gap-1 sm:gap-1.5 transition-all hover:scale-105 px-1 sm:px-2',
                 'border-2 hover:border-primary/50',
                 activePreset === preset.id && 'border-primary bg-primary/10'
               )}
             >
               <div
                 className={cn(
-                  'p-2 rounded-full bg-gradient-to-br text-white',
+                  'p-1.5 sm:p-2 rounded-full bg-gradient-to-br text-white',
                   preset.color
                 )}
               >
-                {preset.icon}
+                <span className="[&>svg]:h-4 [&>svg]:w-4 sm:[&>svg]:h-5 sm:[&>svg]:w-5">{preset.icon}</span>
               </div>
-              <span className="text-xs font-medium">{preset.label}</span>
+              <span className="text-[10px] sm:text-xs font-medium">{preset.label}</span>
             </Button>
           ))}
         </div>

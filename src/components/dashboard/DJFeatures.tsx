@@ -6,19 +6,25 @@ import { Disc3, ListMusic, Bot, SlidersHorizontal, Plus, Sparkles } from 'lucide
  */
 export function DJFeatures() {
   return (
-    <section className="space-y-5">
+    <section className="space-y-4">
       {/* Section Header */}
-      <div className="text-center space-y-2">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20">
-          <Disc3 className="h-4 w-4 text-blue-600" />
-          <span className="text-xs font-medium text-blue-600 dark:text-blue-400">Professional Tools</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg">
+            <Disc3 className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+              DJ Features
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Professional-grade mixing tools
+            </p>
+          </div>
         </div>
-        <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-          DJ Features
-        </h2>
-        <p className="text-sm text-muted-foreground max-w-lg mx-auto">
-          Elevate your mixing experience with professional-grade tools
-        </p>
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400">
+          Pro
+        </span>
       </div>
 
       {/* Features Grid */}
@@ -93,13 +99,15 @@ export function DJFeatures() {
 
         {/* More Tools */}
         <Link to="/dj" className="group">
-          <div className="h-full p-5 rounded-xl bg-gradient-to-br from-muted/50 to-muted/30 border-2 border-dashed border-muted-foreground/20 hover:border-muted-foreground/40 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-            <div className="flex flex-col items-center justify-center h-full text-center space-y-2 py-2">
-              <div className="inline-flex p-2.5 bg-muted rounded-lg">
-                <Plus className="h-5 w-5 text-muted-foreground" />
+          <div className="h-full p-4 rounded-xl bg-gradient-to-br from-muted/50 to-muted/30 border-2 border-dashed border-muted-foreground/20 hover:border-muted-foreground/40 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-muted rounded-lg">
+                <Plus className="h-4 w-4 text-muted-foreground" />
               </div>
-              <h3 className="font-semibold text-sm">More DJ Tools</h3>
-              <p className="text-xs text-muted-foreground">Explore additional features</p>
+              <div>
+                <h3 className="font-semibold text-sm">More DJ Tools</h3>
+                <p className="text-xs text-muted-foreground">Explore additional features</p>
+              </div>
             </div>
           </div>
         </Link>
