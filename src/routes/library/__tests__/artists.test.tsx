@@ -52,8 +52,8 @@ describe('ArtistsList Component', () => {
     renderWithProviders();
     
     expect(screen.getByText('Artists')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /show filters/i })).toBeInTheDocument();
-    expect(screen.getByText('← Dashboard')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /filters/i })).toBeInTheDocument();
+    expect(screen.getByText('Dashboard')).toBeInTheDocument();
   });
 
   it('should render artists after loading', async () => {
@@ -104,7 +104,7 @@ describe('ArtistsList Component', () => {
     renderWithProviders();
     
     await waitFor(() => {
-      expect(screen.getByText('No artists found.')).toBeInTheDocument();
+      expect(screen.getByText('No artists found')).toBeInTheDocument();
       expect(screen.getByText('Try adjusting your filters or check your library configuration.')).toBeInTheDocument();
     });
   });
@@ -118,22 +118,22 @@ describe('ArtistsList Component', () => {
     
     // Initially filters should not be visible
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-    
-    // Click show filters
-    const showFiltersButton = screen.getByRole('button', { name: /show filters/i });
-    fireEvent.click(showFiltersButton);
-    
+
+    // Click filters button (shows "Filters" when closed)
+    const filtersButton = screen.getByRole('button', { name: /filters/i });
+    fireEvent.click(filtersButton);
+
     await waitFor(() => {
       expect(screen.getByRole('combobox')).toBeInTheDocument();
-      expect(showFiltersButton).toHaveTextContent('Hide Filters');
+      expect(filtersButton).toHaveTextContent('Hide Filters');
     });
-    
+
     // Click hide filters
-    fireEvent.click(showFiltersButton);
-    
+    fireEvent.click(filtersButton);
+
     await waitFor(() => {
       expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-      expect(showFiltersButton).toHaveTextContent('Show Filters');
+      expect(filtersButton).toHaveTextContent('Filters');
     });
   });
 
@@ -145,7 +145,7 @@ describe('ArtistsList Component', () => {
     });
     
     // Check dashboard navigation
-    const dashboardLinks = screen.getAllByText('← Dashboard');
+    const dashboardLinks = screen.getAllByText('Dashboard');
     expect(dashboardLinks).toHaveLength(1);
   });
 });

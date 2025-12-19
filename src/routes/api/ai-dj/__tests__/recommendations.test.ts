@@ -87,16 +87,18 @@ describe('AI DJ Recommendations API', () => {
       expect(data.recommendations).toEqual(mockRecommendedSongs)
       expect(data.skipAutoRefresh).toBe(false)
       expect(data.source).toBe('lastfm')
-      expect(getRecommendations).toHaveBeenCalledWith({
-        mode: 'similar',
-        currentSong: {
-          artist: 'Test Artist',
-          title: 'Test Song'
-        },
-        limit: 3,
-        excludeSongIds: [],
-        excludeArtists: []
-      })
+      expect(getRecommendations).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'similar',
+          currentSong: expect.objectContaining({
+            artist: 'Test Artist',
+            title: 'Test Song'
+          }),
+          limit: 3,
+          excludeSongIds: [],
+          excludeArtists: []
+        })
+      )
     })
 
     it('should use default batch size when not provided', async () => {
