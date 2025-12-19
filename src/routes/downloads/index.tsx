@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, useSearch, useNavigate, Link } from '@tanstack/react-router'
+import { createFileRoute, redirect, useSearch, useNavigate } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import { search } from '@/lib/services/lidarr'
 import { search as searchNavidrome } from '@/lib/services/navidrome'
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+import { Youtube, Music, Download, Clock, ArrowLeft } from 'lucide-react'
 
 export const Route = createFileRoute('/downloads/')({
   beforeLoad: async ({ context }) => {
@@ -158,30 +159,31 @@ function DownloadsPage() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold">Download Music</h1>
-          <p className="text-muted-foreground">
-            Search for artists and albums to add to your download queue
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex items-center gap-3">
           <Button
             variant="ghost"
+            size="icon"
             onClick={() => navigate({ to: '/dashboard' })}
           >
-            Dashboard
+            <ArrowLeft className="h-5 w-5" />
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => navigate({ to: '/downloads/youtube' })}
-          >
-            YouTube
-          </Button>
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <Download className="h-8 w-8" />
+              Downloads
+            </h1>
+            <p className="text-muted-foreground">
+              Add music to your library
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             onClick={() => navigate({ to: '/downloads/status' })}
           >
-            Queue & Status
+            <Clock className="h-4 w-4 mr-2" />
+            Queue
           </Button>
           <Button
             variant="outline"
@@ -192,12 +194,53 @@ function DownloadsPage() {
         </div>
       </div>
 
-      {/* Search Interface */}
+      {/* Download Options */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card
+          className="cursor-pointer hover:border-primary transition-colors"
+          onClick={() => navigate({ to: '/downloads/youtube' })}
+        >
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Youtube className="h-6 w-6 text-red-500" />
+              YouTube / SoundCloud
+            </CardTitle>
+            <CardDescription>
+              Download audio from YouTube, SoundCloud, Bandcamp, and more via MeTube
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full" variant="secondary">
+              Open YouTube Downloader
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-primary">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Music className="h-6 w-6 text-primary" />
+              Lidarr Search
+            </CardTitle>
+            <CardDescription>
+              Search and download full albums from Lidarr's music database
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-2">Search below</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Lidarr Search Interface */}
       <Card>
         <CardHeader>
-          <CardTitle>Search Music</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Music className="h-5 w-5" />
+            Search Lidarr
+          </CardTitle>
           <CardDescription>
-            Search for artists or albums to download
+            Find artists or albums to add to your download queue
           </CardDescription>
         </CardHeader>
         <CardContent>
