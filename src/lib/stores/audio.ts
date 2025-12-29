@@ -528,10 +528,15 @@ export const useAudioStore = create<AudioState>()(
       }, 2000);
     },
 
-    // Get the upcoming queue (songs after current)
+    // Get the upcoming queue (songs after current, or all songs if nothing playing)
     getUpcomingQueue: () => {
       const state = get();
-      if (state.currentSongIndex === -1 || state.currentSongIndex >= state.playlist.length - 1) {
+      // If nothing is playing, show entire playlist as upcoming
+      if (state.currentSongIndex === -1) {
+        return state.playlist;
+      }
+      // If on last song, no upcoming songs
+      if (state.currentSongIndex >= state.playlist.length - 1) {
         return [];
       }
       return state.playlist.slice(state.currentSongIndex + 1);

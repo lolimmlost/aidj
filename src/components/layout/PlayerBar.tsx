@@ -10,7 +10,6 @@ import {
   VolumeX,
   Shuffle,
   Repeat,
-  ListMusic,
   Maximize2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -93,7 +92,6 @@ export function PlayerBar() {
     previousSong,
     toggleShuffle,
     setAIUserActionInProgress,
-    toggleQueuePanel,
   } = useAudioStore();
 
   const currentSong = useMemo(() => playlist[currentSongIndex] || null, [playlist, currentSongIndex]);
@@ -737,15 +735,6 @@ export function PlayerBar() {
         {/* Right: Volume + Queue + AI DJ */}
         <div className="flex items-center gap-2 w-72 justify-end">
           <AIDJToggle compact />
-
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={toggleQueuePanel}
-          >
-            <ListMusic className="h-4 w-4" />
-          </Button>
 
           <div className="flex items-center gap-1">
             <Button
