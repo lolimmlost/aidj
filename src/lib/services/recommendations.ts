@@ -17,7 +17,7 @@
 import { getLastFmClient } from './lastfm';
 import type { EnrichedTrack } from './lastfm/types';
 import { evaluateSmartPlaylistRules } from './smart-playlist-evaluator';
-import { getSongsGlobal, getRandomSongs, type SubsonicSong } from './navidrome';
+import { getSongsGlobal, getRandomSongs, search, type SubsonicSong } from './navidrome';
 import { translateMoodToQuery, toEvaluatorFormat, extractLastFmTags } from './mood-translator';
 import type { Song } from '@/lib/types/song';
 import { getConfigAsync } from '@/lib/config/config';
@@ -203,7 +203,13 @@ async function getSimilarSongs(
     const diverse = applyDiversity(inLibrary);
 
     if (diverse.length === 0) {
-      console.log('⚠️ [Recommendations] No library matches, using fallback');
+      console.log('⚠️ [Recommendations] No library matches from Last.fm, trying artist fallback');
+      // First, try to find other songs by the same artist in the library
+      const artistFallback = await fallbackToSameArtist(currentSong, limit, excludeSongIds);
+      if (artistFallback.songs.length > 0) {
+        return artistFallback;
+      }
+      // If no same-artist songs, fall back to genre-based random
       return fallbackToGenreRandom(currentSong, limit, 'no_library_matches', queueContext);
     }
 
@@ -584,6 +590,103 @@ function subsonicSongToSong(song: SubsonicSong): Song {
     track: parseInt(song.track) || 0,
     url: `/api/navidrome/stream/${song.id}`,
   };
+}
+
+/**
+ * Fallback to other songs by the SAME ARTIST in the library
+ * This is the first fallback when Last.fm similar tracks aren't found
+ * Users expect "if I have more songs by this artist, find them"
+ */
+async function fallbackToSameArtist(
+  currentSong: { artist: string; title: string; genre?: string },
+  limit: number,
+  excludeSongIds: string[] = []
+): Promise<RecommendationResult> {
+  console.log(`🎤 [Recommendations] Trying same-artist fallback for "${currentSong.artist}"`);
+
+  try {
+    // Search for songs by the same artist using Navidrome search
+    const artistSongs = await search(currentSong.artist, 0, limit * 3);
+
+    // Filter to only songs that:
+    // 1. Are by the same artist (case-insensitive match)
+    // 2. Are NOT the current song
+    // 3. Are NOT in the exclusion list
+    const currentTitleLower = currentSong.title.toLowerCase();
+    const artistLower = currentSong.artist.toLowerCase();
+
+    const filtered = artistSongs.filter(song => {
+      const songArtistLower = (song.artist || '').toLowerCase();
+      const songTitleLower = (song.title || song.name || '').toLowerCase();
+
+      // Must be same artist
+      const isSameArtist = songArtistLower === artistLower ||
+        songArtistLower.includes(artistLower) ||
+        artistLower.includes(songArtistLower);
+
+      // Must not be the current song
+      const isNotCurrentSong = songTitleLower !== currentTitleLower;
+
+      // Must not be excluded
+      const isNotExcluded = !excludeSongIds.includes(song.id);
+
+      return isSameArtist && isNotCurrentSong && isNotExcluded;
+    });
+
+    console.log(`🎵 [Recommendations] Found ${filtered.length} other songs by "${currentSong.artist}"`);
+
+    if (filtered.length === 0) {
+      return {
+        songs: [],
+        source: 'fallback',
+        mode: 'similar',
+        metadata: {
+          fallbackReason: 'no_same_artist_songs',
+        },
+      };
+    }
+
+    // Shuffle and return limited results
+    const shuffled = filtered
+      .sort(() => Math.random() - 0.5)
+      .slice(0, limit);
+
+    // Convert to proper Song format with streaming URLs
+    const songs: Song[] = shuffled.map(song => ({
+      id: song.id,
+      name: song.title || song.name || 'Unknown',
+      title: song.title || song.name || 'Unknown',
+      artist: song.artist || currentSong.artist,
+      albumId: song.albumId || '',
+      album: song.album || '',
+      duration: typeof song.duration === 'number' ? song.duration : parseInt(String(song.duration)) || 0,
+      track: typeof song.track === 'number' ? song.track : parseInt(String(song.track)) || 0,
+      url: `/api/navidrome/stream/${song.id}`,
+    }));
+
+    console.log(`✅ [Recommendations] Returning ${songs.length} songs by same artist "${currentSong.artist}"`);
+
+    return {
+      songs,
+      source: 'fallback',
+      mode: 'similar',
+      metadata: {
+        fallbackReason: 'same_artist_fallback',
+        totalCandidates: artistSongs.length,
+        filteredCount: filtered.length,
+      },
+    };
+  } catch (error) {
+    console.error('❌ [Recommendations] Same-artist fallback error:', error);
+    return {
+      songs: [],
+      source: 'fallback',
+      mode: 'similar',
+      metadata: {
+        fallbackReason: 'same_artist_fallback_error',
+      },
+    };
+  }
 }
 
 /**

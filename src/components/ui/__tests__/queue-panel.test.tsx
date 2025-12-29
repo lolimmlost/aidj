@@ -453,7 +453,8 @@ describe('Queue Panel Component', () => {
       await userEvent.hover(firstSong.closest('div')!)
 
       // Find and click the X button (there will be multiple, one per song)
-      const removeButtons = screen.getAllByTitle('Remove from queue')
+      // The button uses aria-label instead of title for accessibility
+      const removeButtons = screen.getAllByRole('button', { name: /Remove .* from queue/i })
       await userEvent.click(removeButtons[0])
 
       expect(mockRemoveFromQueue).toHaveBeenCalled()

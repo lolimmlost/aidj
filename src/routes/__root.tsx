@@ -155,7 +155,7 @@ function RootComponent() {
   return (
     <RootDocument>
       {useNewLayout ? (
-        // New three-column layout for main app
+        // New three-column layout for main app (includes MobileNav internally)
         <AppLayout>
           <Outlet />
         </AppLayout>

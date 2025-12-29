@@ -52,6 +52,13 @@ export const STYLE_PRESETS: StylePreset[] = [
     prompt: 'hidden gems and deep cuts from artists similar to my favorites',
     color: 'from-violet-500 to-indigo-500',
   },
+  {
+    id: 'similar',
+    label: 'Similar',
+    icon: <Music className="h-5 w-5" />,
+    prompt: 'songs similar to what I\'m currently listening to',
+    color: 'from-purple-500 to-pink-500',
+  },
 ];
 
 interface QuickActionsProps {
@@ -80,8 +87,8 @@ export function QuickActions({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Style Preset Grid */}
-        <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+        {/* Style Preset Grid - 6 presets in 3 columns for balanced layout */}
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
           {STYLE_PRESETS.map((preset) => (
             <Button
               key={preset.id}

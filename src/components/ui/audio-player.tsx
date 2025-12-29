@@ -188,6 +188,12 @@ export function AudioPlayer() {
           // Check if audio source needs to be reloaded (network error recovery)
           if (audio.error || audio.networkState === 3) { // NETWORK_NO_SOURCE
             console.log('🔄 Reloading audio source after network error...');
+            // Force fresh URL with cache buster
+            if (currentSong?.url) {
+              audio.src = '';
+              audio.src = currentSong.url + '?t=' + Date.now();
+              console.log('🔄 Refreshed audio URL with cache buster');
+            }
             // Wait for canplay event after reload
             await new Promise<void>((resolve, reject) => {
               const timeout = setTimeout(() => reject(new Error('Load timeout')), 10000);
@@ -212,9 +218,13 @@ export function AudioPlayer() {
             navigator.mediaSession.playbackState = 'playing';
           }
         } catch (e) {
-          console.error('Play failed, attempting reload:', e);
-          // Try reloading the source and playing again
+          console.error('Play failed, attempting fresh reload:', e);
+          // Try reloading with fresh URL and playing again
           try {
+            if (currentSong?.url) {
+              audio.src = '';
+              audio.src = currentSong.url + '?t=' + Date.now();
+            }
             await new Promise<void>((resolve, reject) => {
               const timeout = setTimeout(() => reject(new Error('Retry load timeout')), 10000);
               const onCanPlay = () => {
@@ -796,6 +806,13 @@ export function AudioPlayer() {
             // Check if audio source needs to be reloaded (network error recovery)
             if (audio.error || audio.networkState === 3) { // NETWORK_NO_SOURCE
               console.log('🎛️ Reloading audio source after error...');
+              // Force reload with fresh URL by setting src again
+              if (currentSong?.url) {
+                const currentSrc = audio.src;
+                audio.src = ''; // Clear source
+                audio.src = currentSong.url + '?t=' + Date.now(); // Add cache-busting param
+                console.log('🎛️ Refreshed audio URL with cache buster');
+              }
               audio.load();
             }
             await audio.play();
@@ -803,9 +820,13 @@ export function AudioPlayer() {
             navigator.mediaSession.playbackState = 'playing';
           } catch (e) {
             console.error('🎛️ Media Session play failed:', e);
-            // Try reloading and playing again
+            // Try reloading with fresh URL and playing again
             try {
-              console.log('🎛️ Attempting source reload and retry...');
+              console.log('🎛️ Attempting fresh source reload and retry...');
+              if (currentSong?.url) {
+                audio.src = ''; // Clear source
+                audio.src = currentSong.url + '?t=' + Date.now(); // Force fresh request
+              }
               audio.load();
               await audio.play();
               setIsPlaying(true);
@@ -813,6 +834,7 @@ export function AudioPlayer() {
             } catch (retryError) {
               console.error('🎛️ Retry also failed:', retryError);
               navigator.mediaSession.playbackState = 'paused';
+              setError('Failed to play - try refreshing the page');
             }
           }
         });
@@ -857,14 +879,24 @@ export function AudioPlayer() {
             // Check if audio source needs to be reloaded (network error recovery)
             if (audio.error || audio.networkState === 3) {
               console.log('🎛️ Reloading audio source after error...');
+              // Force reload with fresh URL
+              if (currentSong?.url) {
+                audio.src = '';
+                audio.src = currentSong.url + '?t=' + Date.now();
+                console.log('🎛️ Refreshed audio URL with cache buster');
+              }
               audio.load();
             }
             await audio.play();
             setIsPlaying(true);
             navigator.mediaSession.playbackState = 'playing';
           } catch (e) {
-            console.error('🎛️ Media Session play failed, retrying with reload:', e);
+            console.error('🎛️ Media Session play failed, retrying with fresh reload:', e);
             try {
+              if (currentSong?.url) {
+                audio.src = '';
+                audio.src = currentSong.url + '?t=' + Date.now();
+              }
               audio.load();
               await audio.play();
               setIsPlaying(true);
@@ -872,6 +904,7 @@ export function AudioPlayer() {
             } catch (retryError) {
               console.error('🎛️ Retry failed:', retryError);
               navigator.mediaSession.playbackState = 'paused';
+              setError('Failed to play - try refreshing the page');
             }
           }
         });

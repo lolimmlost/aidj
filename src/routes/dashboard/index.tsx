@@ -24,7 +24,7 @@ import {
 import type { Song } from '@/lib/types/song';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 // Critical components - loaded immediately
-import { DashboardHero, QuickActions, AIDJControl, STYLE_PRESETS, type StylePreset, type AIDJMode } from '@/components/dashboard';
+import { DashboardHero, QuickActions, STYLE_PRESETS, type StylePreset } from '@/components/dashboard';
 import { SourceModeSelector, SourceBadge } from '@/components/playlist/source-mode-selector';
 import { GenerationProgress } from '@/components/ui/generation-progress';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
@@ -45,8 +45,8 @@ const DJFeatures = lazy(() => import('@/components/dashboard/DJFeatures').then(m
 // MoreFeatures - loaded after initial render (bottom of page)
 const MoreFeatures = lazy(() => import('@/components/dashboard/MoreFeatures').then(m => ({ default: m.MoreFeatures })));
 
-// PreferenceInsights - loaded after 1s delay (analytics, non-critical)
-const PreferenceInsights = lazy(() => import('@/components/recommendations/PreferenceInsights').then(m => ({ default: m.PreferenceInsights })));
+// PreferenceInsights - moved to Analytics page (accessible via sidebar)
+// const PreferenceInsights = lazy(() => import('@/components/recommendations/PreferenceInsights').then(m => ({ default: m.PreferenceInsights })));
 
 // DiscoveryQueuePanel - loaded after initial render
 const DiscoveryQueuePanel = lazy(() => import('@/components/discovery/DiscoveryQueuePanel').then(m => ({ default: m.DiscoveryQueuePanel })));
@@ -88,22 +88,11 @@ function DashboardIndex() {
   // Story 7.4: Quick Actions state
   const [activePreset, setActivePreset] = useState<string | null>(null);
   // Story 7.4: Collapsible sections
-  const [recommendationsCollapsed, setRecommendationsCollapsed] = useState(false);
+  // Recommendations collapsed by default - Quick Actions now provides similar functionality
+  const [recommendationsCollapsed, setRecommendationsCollapsed] = useState(true);
   const [playlistCollapsed, setPlaylistCollapsed] = useState(false);
-  // Story 7.4: AI DJ mode state (separate from enabled to prevent flashing)
-  const [aiDJMode, setAIDJMode] = useState<AIDJMode>('manual');
-  // AI DJ state from audio store
+  // AI DJ state from audio store (read-only for banner display)
   const aiDJEnabled = useAudioStore((state) => state.aiDJEnabled);
-  const setAIDJEnabled = useAudioStore((state) => state.setAIDJEnabled);
-
-  // Sync AI DJ mode with store on mount
-  useEffect(() => {
-    if (aiDJEnabled && aiDJMode === 'manual') {
-      setAIDJMode('autopilot');
-    } else if (!aiDJEnabled && aiDJMode !== 'manual') {
-      setAIDJMode('manual');
-    }
-  }, []);
   const aiQueuedSongIds = useAudioStore((state) => state.aiQueuedSongIds);
   const playlist = useAudioStore((state) => state.playlist);
   const currentSongIndex = useAudioStore((state) => state.currentSongIndex);
@@ -921,31 +910,28 @@ function DashboardIndex() {
           playlistSongsReady={playlistSongsReady}
         />
 
-        {/* Story 7.4: Quick Actions and AI DJ Control */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <QuickActions
-            className="lg:col-span-2"
-            onPresetClick={handlePresetClick}
-            lastPlayedSong={lastPlayedSong}
-            onContinueListening={handleContinueListening}
-            isLoading={playlistLoading}
-            activePreset={activePreset}
-          />
-          <AIDJControl
-            mode={aiDJMode}
-            onModeChange={(mode: AIDJMode) => {
-              setAIDJMode(mode);
-              // Only update store state after local state is set
-              const shouldEnable = mode !== 'manual';
-              if (shouldEnable !== aiDJEnabled) {
-                setAIDJEnabled(shouldEnable);
-              }
-            }}
-            isActive={aiDJEnabled}
-            isLoading={false}
-            queueCount={aiQueuedSongIds.size}
-          />
-        </div>
+        {/* Quick Actions - Simplified layout without duplicate AI DJ control */}
+        <QuickActions
+          onPresetClick={handlePresetClick}
+          lastPlayedSong={lastPlayedSong}
+          onContinueListening={handleContinueListening}
+          isLoading={playlistLoading}
+          activePreset={activePreset}
+        />
+
+        {/* AI DJ Status Banner - Only show when enabled, points to player */}
+        {aiDJEnabled && (
+          <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-sm font-medium">AI DJ is active</span>
+              <span className="text-xs text-muted-foreground">
+                {aiQueuedSongIds.size > 0 ? `• ${aiQueuedSongIds.size} songs queued` : '• Watching your queue'}
+              </span>
+            </div>
+            <span className="text-xs text-muted-foreground">Toggle in player ↓</span>
+          </div>
+        )}
 
       {/* AI Recommendations Section - conditionally rendered based on user preferences */}
       {preferences.dashboardLayout.showRecommendations && (
@@ -1089,10 +1075,8 @@ function DashboardIndex() {
         </OllamaErrorBoundary>
       )}
 
-      {/* Preference Analytics Widget - Deferred loading (non-critical) */}
-      {preferences.dashboardLayout.showRecommendations && (
-        <DeferredPreferenceInsights />
-      )}
+      {/* Preference Analytics Widget - Moved to sidebar (Analytics link) */}
+      {/* Taste Profile is now accessible via sidebar → Analytics */}
 
       {/* Story 7.3: Discovery Queue Panel - Deferred loading */}
       <DeferredDiscoveryQueue />
@@ -1108,9 +1092,9 @@ function DashboardIndex() {
               className="flex items-center gap-2 text-left group"
             >
               <h2 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
-                <span className="bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">Style-Based Playlists</span>
+                <span className="bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">Generate Playlist</span>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                  AI Generated
+                  Describe your vibe
                 </span>
               </h2>
               {playlistCollapsed ? (
@@ -1604,26 +1588,24 @@ function DashboardIndex() {
 // ===== DEFERRED COMPONENTS: Wrap lazy components with deferred rendering =====
 
 /**
- * Deferred PreferenceInsights - loads after 1 second delay
- * Non-critical analytics content that can wait
+ * Deferred PreferenceInsights - REMOVED
+ * Taste Profile moved to Analytics page (accessible via sidebar → Analytics)
  */
-function DeferredPreferenceInsights() {
-  const shouldRender = useDeferredRender(1000);
-
-  if (!shouldRender) {
-    return (
-      <div className="rounded-lg border bg-card p-4">
-        <SectionSkeleton lines={4} />
-      </div>
-    );
-  }
-
-  return (
-    <Suspense fallback={<SectionSkeleton lines={4} />}>
-      <PreferenceInsights />
-    </Suspense>
-  );
-}
+// function DeferredPreferenceInsights() {
+//   const shouldRender = useDeferredRender(1000);
+//   if (!shouldRender) {
+//     return (
+//       <div className="rounded-lg border bg-card p-4">
+//         <SectionSkeleton lines={4} />
+//       </div>
+//     );
+//   }
+//   return (
+//     <Suspense fallback={<SectionSkeleton lines={4} />}>
+//       <PreferenceInsights />
+//     </Suspense>
+//   );
+// }
 
 /**
  * Deferred DiscoveryQueuePanel - loads after idle callback

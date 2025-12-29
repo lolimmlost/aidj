@@ -1,0 +1,34 @@
+{
+  "category": "Uncategorized",
+  "description": "page looks different every page break. 1080p is fine but 720 is terrible, what do we want to do for sidebars view breakpoints as in when do we show the sidebars and does mobile only lose functionality",
+  "title": "Fix responsive sidebar visibility across breakpoints",
+  "images": [],
+  "imagePaths": [
+    {
+      "id": "img-1766986638851-cim5sim6h",
+      "path": "/home/default/Desktop/dev/aidj/.automaker/features/feature-1766986643868-b3kgaj6zu/images/Screenshot_2025-12-28_at_21-36-56_AIDJ_-_AI-Assisted_Music_Library-1766986638847.png",
+      "filename": "Screenshot_2025-12-28_at_21-36-56_AIDJ_-_AI-Assisted_Music_Library.png",
+      "mimeType": "image/png"
+    },
+    {
+      "path": "/home/default/Desktop/dev/aidj/.automaker/features/feature-1766986643868-b3kgaj6zu/images/Screenshot_2025-12-28_at_21-44-03_AIDJ_-_AI-Assisted_Music_Library-1766987050544.png",
+      "filename": "Screenshot_2025-12-28_at_21-44-03_AIDJ_-_AI-Assisted_Music_Library-1766987050544.png",
+      "mimeType": "image/png"
+    }
+  ],
+  "textFilePaths": [],
+  "skipTests": true,
+  "model": "sonnet",
+  "thinkingLevel": "medium",
+  "branchName": "feat/unified-recommendations-service",
+  "priority": 2,
+  "planningMode": "lite",
+  "requirePlanApproval": false,
+  "dependencies": [],
+  "titleGenerating": false,
+  "status": "completed",
+  "id": "feature-1766986643868-b3kgaj6zu",
+  "startedAt": "2025-12-29T05:37:23.956Z",
+  "updatedAt": "2025-12-29T05:47:17.581Z",
+  "justFinishedAt": "2025-12-29T05:47:17.581Z"
+}

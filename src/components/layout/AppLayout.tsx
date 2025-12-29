@@ -27,6 +27,7 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlayerBar } from './PlayerBar';
 import { QueuePanel } from '@/components/ui/queue-panel';
+import { MobileNav } from '@/components/ui/mobile-nav';
 import { toast } from 'sonner';
 import { useDeferredRender, SidebarItemSkeleton } from '@/lib/utils/lazy-components';
 
@@ -50,6 +51,9 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="h-[100dvh] flex flex-col overflow-hidden bg-background">
+      {/* Mobile Navigation - Only visible below md breakpoint */}
+      <MobileNav />
+
       {/* Main content area with sidebars */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Navigation & Playlists */}
@@ -138,7 +142,7 @@ function LeftSidebar() {
   }, [queryClient, navigate]);
 
   return (
-    <aside className="hidden lg:flex flex-col w-56 border-r bg-card/30 flex-shrink-0">
+    <aside className="hidden md:flex flex-col w-56 border-r bg-card/30 flex-shrink-0">
       {/* Logo */}
       <div className="h-16 flex items-center px-5 border-b">
         <Link to="/dashboard" className="flex items-center gap-2 group">
