@@ -72,6 +72,24 @@ export function DashboardHero({
         </div>
       </div>
 
+      {/* Mobile Quick Actions - My Playlists prominent button */}
+      <div className="grid grid-cols-2 gap-3 sm:hidden">
+        <QuickAction
+          to="/playlists"
+          icon={<ListMusic className="h-5 w-5" />}
+          title="My Playlists"
+          description="Manage collections"
+          color="green"
+        />
+        <QuickAction
+          to="/library/search"
+          icon={<Search className="h-5 w-5" />}
+          title="Search"
+          description="Find songs"
+          color="blue"
+        />
+      </div>
+
       {/* Quick Actions - Hidden on mobile to reduce scroll */}
       <div className="hidden sm:grid sm:grid-cols-4 gap-3">
         <QuickAction
@@ -154,7 +172,7 @@ function QuickAction({ to, icon, title, description, color }: QuickActionProps) 
 
   return (
     <Link to={to} className="group">
-      <div className={`h-full p-4 sm:p-5 rounded-xl bg-gradient-to-br border transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${colorClasses[color]}`}>
+      <div className={`h-full min-h-[80px] p-4 sm:p-5 rounded-xl bg-gradient-to-br border transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.98] ${colorClasses[color]}`}>
         <div className={`inline-flex p-2.5 rounded-lg mb-3 transition-colors ${iconColorClasses[color]}`}>
           {icon}
         </div>

@@ -1,12 +1,30 @@
 // import { getConfig } from '../config/config';
+import { getNetworkInformation } from '../types/navigator';
+
+/**
+ * Cache entry interface for typed caching
+ */
+interface CacheEntry<T = unknown> {
+  data: T;
+  timestamp: number;
+  ttl: number;
+}
+
+/**
+ * Request queue item interface
+ */
+interface RequestQueueItem<T = unknown> {
+  fn: () => Promise<T>;
+  priority: number;
+}
 
 /**
  * Mobile-specific performance optimization utilities
  */
 export class MobileOptimization {
   private static instance: MobileOptimization;
-  private cache = new Map<string, { data: unknown; timestamp: number; ttl: number }>();
-  private requestQueue: Array<{ fn: () => Promise<unknown>; priority: number }> = [];
+  private cache = new Map<string, CacheEntry>();
+  private requestQueue: RequestQueueItem[] = [];
   private isProcessingQueue = false;
 
   private constructor() {
@@ -51,51 +69,56 @@ export class MobileOptimization {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') {
       return 'unknown'; // Default to unknown on server side
     }
-    
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (!(navigator as any).connection) return 'unknown';
-    
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const connection = (navigator as any).connection;
+
+    const connection = getNetworkInformation();
+    if (!connection) return 'unknown';
+
     if (connection.effectiveType) {
-      if (connection.effectiveType.includes('2g') || connection.effectiveType.includes('3g')) {
+      if (connection.effectiveType === '2g' || connection.effectiveType === 'slow-2g' || connection.effectiveType === '3g') {
         return 'cellular';
-      } else if (connection.effectiveType.includes('4g') || connection.effectiveType.includes('wifi')) {
+      } else if (connection.effectiveType === '4g') {
         return 'wifi';
       }
     }
-    
+
     return connection.downlink > 0 ? 'wifi' : 'offline';
   }
 
   /**
-   * Get current network conditions
+   * Network conditions returned by getNetworkConditions
    */
-  getNetworkConditions() {
+  getNetworkConditions(): {
+    isMobile: boolean;
+    networkType: 'wifi' | 'cellular' | 'unknown' | 'offline';
+    effectiveType: string;
+    downlink: number;
+    rtt: number;
+  } {
     // Check if we're in a browser environment
     if (typeof window === 'undefined' || typeof navigator === 'undefined') {
       return {
         isMobile: false,
-        networkType: 'unknown' as const,
+        networkType: 'unknown',
         effectiveType: 'unknown',
         downlink: 0,
         rtt: 0,
       };
     }
-    
+
     try {
+      const connection = getNetworkInformation();
       return {
         isMobile: this.isMobile,
         networkType: this.networkType,
-        effectiveType: (navigator as unknown as { connection?: { effectiveType?: string } }).connection?.effectiveType || 'unknown',
-        downlink: (navigator as unknown as { connection?: { downlink?: number } }).connection?.downlink || 0,
-        rtt: (navigator as unknown as { connection?: { rtt?: number } }).connection?.rtt || 0,
+        effectiveType: connection?.effectiveType || 'unknown',
+        downlink: connection?.downlink || 0,
+        rtt: connection?.rtt || 0,
       };
     } catch {
       // If accessing navigator fails (e.g., during SSR), return safe defaults
       return {
         isMobile: false,
-        networkType: 'unknown' as const,
+        networkType: 'unknown',
         effectiveType: 'unknown',
         downlink: 0,
         rtt: 0,
@@ -251,13 +274,13 @@ export class MobileOptimization {
   /**
    * Debounce function for mobile input handling
    */
-  debounce<T extends (...args: unknown[]) => unknown>(
-    func: T,
+  debounce<TArgs extends readonly unknown[], TReturn>(
+    func: (...args: TArgs) => TReturn,
     wait: number
-  ): (...args: Parameters<T>) => void {
+  ): (...args: TArgs) => void {
     let timeout: NodeJS.Timeout;
-    
-    return (...args: Parameters<T>) => {
+
+    return (...args: TArgs) => {
       clearTimeout(timeout);
       timeout = setTimeout(() => func(...args), wait);
     };
@@ -266,13 +289,13 @@ export class MobileOptimization {
   /**
    * Throttle function for mobile scroll events
    */
-  throttle<T extends (...args: unknown[]) => unknown>(
-    func: T,
+  throttle<TArgs extends readonly unknown[], TReturn>(
+    func: (...args: TArgs) => TReturn,
     limit: number
-  ): (...args: Parameters<T>) => void {
+  ): (...args: TArgs) => void {
     let inThrottle: boolean;
-    
-    return (...args: Parameters<T>) => {
+
+    return (...args: TArgs) => {
       if (!inThrottle) {
         func(...args);
         inThrottle = true;
@@ -283,13 +306,24 @@ export class MobileOptimization {
 
   /**
    * Lazy loading utility for images and components
+   * Returns a no-op mock observer when IntersectionObserver is unavailable (SSR/old browsers)
    */
   createIntersectionObserver(
     callback: (entries: IntersectionObserverEntry[]) => void,
     options?: IntersectionObserverInit
   ): IntersectionObserver {
     if (typeof IntersectionObserver === 'undefined') {
-      return null as unknown as IntersectionObserver;
+      // Return a mock observer that does nothing when IntersectionObserver is unavailable
+      const mockObserver: IntersectionObserver = {
+        root: null,
+        rootMargin: '',
+        thresholds: [],
+        observe: () => {},
+        unobserve: () => {},
+        disconnect: () => {},
+        takeRecords: () => [],
+      };
+      return mockObserver;
     }
 
     return new IntersectionObserver(callback, {

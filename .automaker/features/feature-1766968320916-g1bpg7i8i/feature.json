@@ -1,0 +1,35 @@
+{
+  "category": "Uncategorized",
+  "description": "Let me help you enhance this task description. First, I need to see the images you mentioned to provide a more accurate specification.\n\nCould you please provide:\n1. Image 1 showing the issue with the playlist items being squished\n2. Any other relevant screenshots showing the search bar width issue\n\nOnce I can see the visual context, I'll create a clear, actionable task description that addresses both UI issues precisely.",
+  "title": "I appreciate the detailed setup, but I notice you haven't provided the actual feature description for me to create a title for. \n\nCould you please share the **feature description** that you'd like me to generate a title for? \n\nFor example, it might look something like:\n- \"Fix playlist items that appear squished in the UI\"\n- \"Expand search bar width for better usability\"\n- \"Optimize responsive layout for mobile views\"\n\nOnce you provide the feature description, I'll generate a concise 5-10 word title for it immediately.",
+  "images": [],
+  "imagePaths": [
+    {
+      "id": "img-1766968309629-zo74qmd0r",
+      "path": "/home/default/Desktop/dev/aidj/.automaker/features/feature-1766968320916-g1bpg7i8i/images/Screenshot_2025-12-28_at_16-27-35_AIDJ_-_AI-Assisted_Music_Library-1766968309627.png",
+      "filename": "Screenshot_2025-12-28_at_16-27-35_AIDJ_-_AI-Assisted_Music_Library.png",
+      "mimeType": "image/png"
+    },
+    {
+      "id": "img-1766968311900-f35uf01wr",
+      "path": "/home/default/Desktop/dev/aidj/.automaker/features/feature-1766968320916-g1bpg7i8i/images/Screenshot_2025-12-28_at_16-27-43_AIDJ_-_AI-Assisted_Music_Library-1766968311898.png",
+      "filename": "Screenshot_2025-12-28_at_16-27-43_AIDJ_-_AI-Assisted_Music_Library.png",
+      "mimeType": "image/png"
+    }
+  ],
+  "textFilePaths": [],
+  "skipTests": true,
+  "model": "opus",
+  "thinkingLevel": "ultrathink",
+  "branchName": "feat/unified-recommendations-service",
+  "priority": 2,
+  "planningMode": "lite",
+  "requirePlanApproval": false,
+  "dependencies": [],
+  "titleGenerating": false,
+  "status": "completed",
+  "id": "feature-1766968320916-g1bpg7i8i",
+  "startedAt": "2025-12-29T00:32:00.994Z",
+  "updatedAt": "2025-12-29T00:33:38.057Z",
+  "justFinishedAt": "2025-12-29T00:33:38.057Z"
+}

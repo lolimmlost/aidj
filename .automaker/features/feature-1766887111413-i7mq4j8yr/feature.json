@@ -1,0 +1,25 @@
+{
+  "category": "Performance",
+  "description": "Implement virtualization for large song lists and recommendation results",
+  "id": "feature-1766887111413-i7mq4j8yr",
+  "steps": [
+    "Install react-window or @tanstack/react-virtual for virtualizing long lists",
+    "Identify list components: PlaylistCard, ArtistsList, playlist-list.tsx, recommendation results that render 100+ items",
+    "Refactor list rendering to use windowing: only render visible items and a few buffer items above/below viewport",
+    "Update library-index.ts to return paginated results (max 50 items per page) instead of all 1500 songs",
+    "Test with large libraries (500+ songs) to verify smooth scrolling and reduced memory usage"
+  ],
+  "status": "completed",
+  "skipTests": false,
+  "priority": 1,
+  "branchName": "feat/unified-recommendations-service",
+  "startedAt": "2025-12-28T02:01:11.312Z",
+  "updatedAt": "2025-12-28T02:15:44.933Z",
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "none",
+  "imagePaths": [],
+  "planningMode": "skip",
+  "requirePlanApproval": false,
+  "justFinishedAt": "2025-12-28T02:15:44.933Z"
+}

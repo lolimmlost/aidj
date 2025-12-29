@@ -13,18 +13,35 @@ export interface LLMGenerateRequest {
   systemPrompt?: string;
 }
 
+/**
+ * LLM response metadata value types
+ * Allows for string, number, boolean, null, or nested objects/arrays of these
+ */
+export type LLMMetadataValue =
+  | string
+  | number
+  | boolean
+  | null
+  | LLMMetadataValue[]
+  | { [key: string]: LLMMetadataValue };
+
+/**
+ * LLM response metadata object
+ */
+export interface LLMResponseMetadata {
+  created_at?: string;
+  done?: boolean;
+  total_duration?: number;
+  eval_count?: number;
+  [key: string]: LLMMetadataValue | undefined;
+}
+
 // Common generation response format
 export interface LLMGenerateResponse {
   content: string;
   model: string;
   totalTokens?: number;
-  metadata?: {
-    created_at?: string;
-    done?: boolean;
-    total_duration?: number;
-    eval_count?: number;
-    [key: string]: unknown;
-  };
+  metadata?: LLMResponseMetadata;
 }
 
 // Provider metadata

@@ -350,22 +350,22 @@ export class ErrorHandler {
     delay: number = 1000,
     context?: Partial<ErrorContext>
   ): Promise<T> {
-    let lastError: unknown;
+    let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         return await operation();
       } catch (error) {
-        lastError = error;
-        
-        const errorDetails = this.handleError(error, {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        const errorDetails = this.handleError(lastError, {
           ...context,
           operation: context?.operation || 'retry-operation',
         });
 
         // Don't retry non-retryable errors
         if (!errorDetails.retryable) {
-          throw error;
+          throw lastError;
         }
 
         // Don't retry on last attempt
@@ -379,7 +379,7 @@ export class ErrorHandler {
       }
     }
 
-    throw lastError;
+    throw lastError ?? new Error('Retry failed with no error');
   }
 
   /**

@@ -428,23 +428,23 @@ export async function getAuthToken(): Promise<string> {
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   maxRetries: number = 2,
-  isRetriable: (error: unknown) => boolean = () => true
+  isRetriable: (error: Error | ServiceError) => boolean = () => true
 ): Promise<T> {
-  let lastError: unknown;
+  let lastError: Error | ServiceError | null = null;
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
     try {
       return await fn();
     } catch (error) {
-      lastError = error;
+      lastError = error instanceof Error ? error : new Error(String(error));
 
       // Don't retry if error is not retriable
-      if (!isRetriable(error)) {
-        throw error;
+      if (!isRetriable(lastError)) {
+        throw lastError;
       }
 
       // Don't retry if we've exhausted attempts
       if (attempt > maxRetries) {
-        throw error;
+        throw lastError;
       }
 
       // Exponential backoff: 500ms, 1000ms
@@ -453,10 +453,11 @@ async function retryWithBackoff<T>(
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
-  throw lastError;
+  // This should never be reached, but TypeScript needs it
+  throw lastError ?? new Error('Retry failed with no error');
 }
 
-async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<unknown> {
+async function apiFetch<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> {
   let authRetries = 0;
   const maxAuthRetries = 1; // Retry once on 401
 
@@ -549,17 +550,17 @@ async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<un
 
             const contentType = response.headers?.get('content-type');
             if (contentType && contentType.includes('application/json')) {
-              return await response.json();
+              return await response.json() as T;
             }
             // Fallback: if no content-type header but response has json method, use it
             if (typeof response.json === 'function') {
-              return await response.json();
+              return await response.json() as T;
             }
             // Final fallback to text if available
             if (typeof response.text === 'function') {
-              return await response.text();
+              return await response.text() as T;
             }
-            return response;
+            return response as T;
           } catch (error: unknown) {
             clearTimeout(timeoutId);
 

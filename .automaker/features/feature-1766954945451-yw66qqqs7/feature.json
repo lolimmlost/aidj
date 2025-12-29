@@ -1,0 +1,17 @@
+{
+  "category": "Performance & Features",
+  "description": "Add Multi-Platform Playlist Export/Import with Intelligent Song Matching\n\nImplement comprehensive batch export and import functionality that enables users to transfer playlists between multiple streaming services (Spotify, YouTube Music, and others) using standardized playlist formats, with intelligent cross-platform song matching.\n\nRequirements:\n\nExport Functionality:\n- Support exporting playlists from Spotify and YouTube Music\n- Generate playlists in multiple standard formats: M3U, XSPF, and JSON\n- Include comprehensive metadata (song title, artist, album, duration, ISRC codes if available)\n- Support batch export of multiple playlists simultaneously\n- Provide progress indicators for long-running export operations\n\nImport Functionality:\n- Parse and validate M3U, XSPF, and JSON playlist files\n- Import playlists to target streaming services (Spotify, YouTube Music)\n- Handle batch import of multiple playlists in a single operation\n- Preserve playlist metadata (name, description, order)\n- Report import success/failure statistics per playlist\n\nIntelligent Song Matching Service:\n- Implement fuzzy matching algorithm for songs across platforms\n- Match songs using multiple criteria: ISRC codes (primary), title + artist, title + artist + album\n- Handle edge cases: remasters, live versions, featured artists, spelling variations\n- Provide confidence scores for matches (exact, high confidence, low confidence, no match)\n- Allow user review and manual selection for low-confidence matches\n- Generate detailed matching reports showing successful matches and failures\n\nPlatform Integration:\n- Authenticate with Spotify API and YouTube Music API\n- Handle API rate limiting and quota management\n- Implement retry logic for transient failures\n- Support OAuth flows for secure user authorization\n\nUser Experience:\n- Display clear progress during export/import operations\n- Show detailed results summary (total songs, successful matches, failed matches)\n- Allow users to review and resolve ambiguous matches before finalizing import\n- Provide option to save unmatched songs for manual resolution\n- Export matching report for user records\n\nError Handling:\n- Validate playlist file formats before processing\n- Handle network failures gracefully with retry options\n- Manage API authentication expiration\n- Provide clear error messages for unsupported formats or API issues\n- Log errors for debugging without exposing sensitive data",
+  "id": "feature-1766954945451-yw66qqqs7",
+  "steps": [],
+  "status": "backlog",
+  "skipTests": false,
+  "priority": 2,
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "ultrathink",
+  "imagePaths": [],
+  "textFilePaths": [],
+  "branchName": "feat/unified-recommendations-service",
+  "planningMode": "skip",
+  "requirePlanApproval": false
+}

@@ -1,0 +1,21 @@
+{
+  "category": "Uncategorized",
+  "description": "Add \"View Playlist\" Button to Mobile Interface\n\nImplement a \"View Playlist\" button that is visible and fully functional on mobile devices.\n\nRequirements:\n- Add a clearly visible \"View Playlist\" button on the mobile version of the interface\n- Position the button in an accessible location that doesn't conflict with existing mobile navigation\n- Ensure the button meets minimum touch target size of 44x44px for mobile usability\n- Style the button to match existing mobile design patterns and theme\n- Implement appropriate action when button is tapped (navigate to playlist view or open playlist modal)\n- Verify button remains accessible across all common mobile screen sizes (320px to 768px width)\n- Test functionality in both portrait and landscape orientations\n- Ensure button is visible in all relevant app states (scrolled, with keyboard open, etc.)\n\nEdge cases to consider:\n- Very small screens (iPhone SE 320px width) - button should remain fully visible and tappable\n- Tablets in mobile breakpoint (768px) - maintain consistent behavior\n- Devices with notches or safe area insets - ensure button doesn't get obscured\n- When playlist is empty or unavailable - handle gracefully with appropriate messaging\n- Rapid tapping or double-tap scenarios - prevent duplicate actions\n- Loading states - provide feedback if playlist takes time to load\n\nSuccess criteria:\n- Users can easily find and tap the \"View Playlist\" button on any mobile device\n- Button responds immediately to touch input with appropriate visual feedback\n- Playlist displays correctly after button activation\n- No layout shifts or visual glitches when button appears or is interacted with",
+  "title": "Fix mobile playlist UI and responsiveness issues",
+  "images": [],
+  "imagePaths": [],
+  "textFilePaths": [],
+  "skipTests": false,
+  "model": "opus",
+  "thinkingLevel": "ultrathink",
+  "branchName": "feat/unified-recommendations-service",
+  "priority": 2,
+  "planningMode": "lite",
+  "requirePlanApproval": false,
+  "dependencies": [],
+  "titleGenerating": false,
+  "status": "completed",
+  "id": "feature-1766951770783-7bfq7levd",
+  "startedAt": "2025-12-28T20:15:14.237Z",
+  "updatedAt": "2025-12-28T20:21:15.590Z"
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Link } from '@tanstack/react-router';
@@ -67,7 +67,7 @@ interface SortablePlaylistCardProps {
   getSyncStatus: (playlist: Playlist) => { icon: typeof CheckCircle2; text: string; color: string } | null;
 }
 
-function SortablePlaylistCard({
+const SortablePlaylistCard = memo(function SortablePlaylistCard({
   playlist,
   isExpanded,
   onToggleExpand,
@@ -134,10 +134,10 @@ function SortablePlaylistCard({
             <button
               {...attributes}
               {...listeners}
-              className="cursor-grab active:cursor-grabbing p-1 -ml-1 hover:bg-accent rounded opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-none"
+              className="cursor-grab active:cursor-grabbing p-2 -ml-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-accent rounded opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-none shrink-0"
               aria-label="Drag to reorder"
             >
-              <GripVertical className="h-4 w-4 text-muted-foreground" />
+              <GripVertical className="h-5 w-5 text-muted-foreground" />
             </button>
 
             <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -145,19 +145,19 @@ function SortablePlaylistCard({
               <h3 className="font-semibold truncate">{playlist.name}</h3>
             </div>
 
-            {/* Actions Menu */}
+            {/* Actions Menu - Always visible on mobile, hover on desktop */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-10 w-10 min-h-[44px] min-w-[44px] opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0"
                 >
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreHorizontal className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="min-h-[44px]">
                   <Link to="/playlists/$id" params={{ id: playlist.id }}>
                     View Details
                   </Link>
@@ -166,12 +166,14 @@ function SortablePlaylistCard({
                   <>
                     <DropdownMenuItem
                       onClick={() => onAddToQueue(playlist, expandedPlaylistData.songs, 'next')}
+                      className="min-h-[44px]"
                     >
                       <Play className="mr-2 h-4 w-4" />
                       Play Next
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => onAddToQueue(playlist, expandedPlaylistData.songs, 'end')}
+                      className="min-h-[44px]"
                     >
                       <Plus className="mr-2 h-4 w-4" />
                       Add to Queue
@@ -241,14 +243,14 @@ function SortablePlaylistCard({
           <Link
             to="/playlists/$id"
             params={{ id: playlist.id }}
-            className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium hover:bg-accent transition-colors sm:hidden"
+            className="flex-1 flex items-center justify-center gap-2 min-h-[48px] py-3 text-sm font-medium hover:bg-accent active:bg-accent/80 transition-colors sm:hidden"
           >
             <ListMusic className="h-4 w-4" />
             <span>View</span>
           </Link>
           <button
             onClick={onToggleExpand}
-            className="hidden sm:flex flex-1 items-center justify-center gap-2 py-3 text-sm font-medium hover:bg-accent transition-colors"
+            className="hidden sm:flex flex-1 items-center justify-center gap-2 min-h-[48px] py-3 text-sm font-medium hover:bg-accent transition-colors"
           >
             {isExpanded ? (
               <>
@@ -266,7 +268,7 @@ function SortablePlaylistCard({
           <Link
             to="/playlists/$id"
             params={{ id: playlist.id }}
-            className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium hover:bg-accent transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 min-h-[48px] py-3 text-sm font-medium hover:bg-accent active:bg-accent/80 transition-colors"
           >
             <Play className="h-4 w-4" />
             <span>Play</span>
@@ -352,7 +354,7 @@ function SortablePlaylistCard({
       </CardContent>
     </Card>
   );
-}
+});
 
 interface SmartPlaylistCriteria {
   genre?: string[];
@@ -470,11 +472,11 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     },
   });
 
-  const handleToggleExpand = (playlistId: string) => {
-    setExpandedPlaylistId(expandedPlaylistId === playlistId ? null : playlistId);
-  };
+  const handleToggleExpand = useCallback((playlistId: string) => {
+    setExpandedPlaylistId(prev => prev === playlistId ? null : playlistId);
+  }, []);
 
-  const handleAddToQueue = (playlist: Playlist, songs?: PlaylistSong[], position: 'next' | 'end' = 'end') => {
+  const handleAddToQueue = useCallback((playlist: Playlist, songs?: PlaylistSong[], position: 'next' | 'end' = 'end') => {
     if (!songs || songs.length === 0) {
       toast.error('This playlist is empty');
       return;
@@ -509,9 +511,9 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     }
 
     onAddToQueue?.(playlist.id, songs);
-  };
+  }, [addToQueueNext, addToQueueEnd, setAIUserActionInProgress, onAddToQueue]);
 
-  const handlePlayFromSong = async (playlist: Playlist, songs: PlaylistSong[], startIndex: number) => {
+  const handlePlayFromSong = useCallback(async (playlist: Playlist, songs: PlaylistSong[], startIndex: number) => {
     if (!songs || songs.length === 0) {
       toast.error('This playlist is empty');
       return;
@@ -543,9 +545,10 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
       console.error('Failed to play from song:', error);
       toast.error('Failed to load playlist');
     }
-  };
+  }, []);
 
-  const formatDuration = (seconds?: number | null) => {
+  // Memoized utility functions to prevent unnecessary re-renders of child components
+  const formatDuration = useCallback((seconds?: number | null) => {
     if (!seconds) return 'Unknown';
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -553,9 +556,9 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
       return `${hours}h ${minutes}m`;
     }
     return `${minutes}m`;
-  };
+  }, []);
 
-  const formatLastSynced = (date?: Date | null) => {
+  const formatLastSynced = useCallback((date?: Date | null) => {
     if (!date) return null;
     const now = new Date();
     const synced = new Date(date);
@@ -568,9 +571,9 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     return `${diffDays}d ago`;
-  };
+  }, []);
 
-  const getSyncStatus = (playlist: Playlist) => {
+  const getSyncStatus = useCallback((playlist: Playlist) => {
     // Check if playlist was deleted from Navidrome (sync conflict)
     if (playlist.description?.includes('[Deleted from Navidrome]')) {
       return { icon: XCircle, text: 'Deleted in Navidrome', color: 'text-destructive' };
@@ -589,17 +592,16 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
       return { icon: CheckCircle2, text: 'Synced', color: 'text-green-500' };
     }
     return { icon: Clock, text: formatLastSynced(playlist.lastSynced), color: 'text-yellow-500' };
-  };
+  }, [formatLastSynced]);
 
   const rawPlaylists = data?.playlists || [];
   const navidromeAvailable = data?.navidromeAvailable ?? true;
 
-  // Sync ordered IDs when playlists change
   // Use localStorage to persist order
   const storageKey = 'playlist-order';
 
-  // Initialize order from localStorage or use default
-  const getOrderedPlaylists = (): Playlist[] => {
+  // Memoize ordered playlists computation to prevent recalculation on every render
+  const playlists = useMemo((): Playlist[] => {
     if (rawPlaylists.length === 0) return [];
 
     // Try to get saved order from localStorage
@@ -636,9 +638,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     }
 
     return rawPlaylists;
-  };
-
-  const playlists = getOrderedPlaylists();
+  }, [rawPlaylists, _orderedPlaylistIds]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -718,6 +718,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
           disabled={syncMutation.isPending || !navidromeAvailable}
           variant="outline"
           size="sm"
+          className="min-h-[44px]"
         >
           <RefreshCw className={`mr-2 h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
           {syncMutation.isPending ? 'Syncing...' : 'Sync'}

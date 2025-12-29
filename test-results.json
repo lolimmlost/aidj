@@ -11,7 +11,7 @@
     "grepInvert": null,
     "maxFailures": 0,
     "metadata": {
-      "actualWorkers": 2
+      "actualWorkers": 4
     },
     "preserveOutput": "always",
     "reporter": [
@@ -37,7 +37,7 @@
         "repeatEach": 1,
         "retries": 2,
         "metadata": {
-          "actualWorkers": 2
+          "actualWorkers": 4
         },
         "id": "chromium-headless",
         "name": "chromium-headless",
@@ -53,7 +53,7 @@
         "repeatEach": 1,
         "retries": 2,
         "metadata": {
-          "actualWorkers": 2
+          "actualWorkers": 4
         },
         "id": "chromium-headed",
         "name": "chromium-headed",
@@ -69,7 +69,7 @@
         "repeatEach": 1,
         "retries": 2,
         "metadata": {
-          "actualWorkers": 2
+          "actualWorkers": 4
         },
         "id": "firefox",
         "name": "firefox",
@@ -85,7 +85,7 @@
         "repeatEach": 1,
         "retries": 2,
         "metadata": {
-          "actualWorkers": 2
+          "actualWorkers": 4
         },
         "id": "webkit",
         "name": "webkit",
@@ -101,7 +101,7 @@
         "repeatEach": 1,
         "retries": 2,
         "metadata": {
-          "actualWorkers": 2
+          "actualWorkers": 4
         },
         "id": "Mobile Chrome",
         "name": "Mobile Chrome",
@@ -117,7 +117,7 @@
         "repeatEach": 1,
         "retries": 2,
         "metadata": {
-          "actualWorkers": 2
+          "actualWorkers": 4
         },
         "id": "Mobile Safari",
         "name": "Mobile Safari",
@@ -134,29 +134,29 @@
     "updateSnapshots": "missing",
     "updateSourceMethod": "patch",
     "version": "1.57.0",
-    "workers": 9,
+    "workers": 5,
     "webServer": {
-      "command": "pnpm dev",
-      "url": "http://localhost:3000",
+      "command": "npm run dev",
+      "url": "http://localhost:3003",
       "reuseExistingServer": true
     }
   },
   "suites": [
     {
-      "title": "manual-login.spec.ts",
-      "file": "manual-login.spec.ts",
+      "title": "library-sync-verification.spec.ts",
+      "file": "library-sync-verification.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "Manual Login Flow",
-          "file": "manual-login.spec.ts",
-          "line": 10,
+          "title": "Library Sync Feature Verification",
+          "file": "library-sync-verification.spec.ts",
+          "line": 34,
           "column": 6,
           "specs": [
             {
-              "title": "login with email/password and navigate dashboard",
+              "title": "sync status endpoint exists and responds",
               "ok": true,
               "tags": [],
               "tests": [
@@ -164,23 +164,29 @@
                   "timeout": 30000,
                   "annotations": [],
                   "expectedStatus": "passed",
-                  "projectId": "chromium-headed",
-                  "projectName": "chromium-headed",
+                  "projectId": "chromium-headless",
+                  "projectName": "chromium-headless",
                   "results": [
                     {
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 4692,
+                      "duration": 272,
                       "errors": [],
                       "stdout": [
                         {
-                          "text": "Current URL after login: http://localhost:3003/login\n"
+                          "text": "⚠️ Auth failed - testing endpoint existence only\n"
+                        },
+                        {
+                          "text": "Sync status endpoint responded with: 401\n"
+                        },
+                        {
+                          "text": "✅ Sync status endpoint exists and responds\n"
                         }
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-12-09T22:51:15.966Z",
+                      "startTime": "2025-12-28T20:06:10.742Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -188,167 +194,138 @@
                   "status": "expected"
                 }
               ],
-              "id": "844319c9f8b6b37d26d9-48772d2600ebd46bcdab",
-              "file": "manual-login.spec.ts",
-              "line": 11,
+              "id": "44aa98c0c65439133dbd-05aed2bf6c63dd111bdf",
+              "file": "library-sync-verification.spec.ts",
+              "line": 35,
               "column": 3
             },
             {
-              "title": "explore full app journey",
-              "ok": false,
+              "title": "sync settings endpoint exists and responds",
+              "ok": true,
               "tags": [],
               "tests": [
                 {
-                  "timeout": 60000,
+                  "timeout": 30000,
                   "annotations": [],
                   "expectedStatus": "passed",
-                  "projectId": "chromium-headed",
-                  "projectName": "chromium-headed",
+                  "projectId": "chromium-headless",
+                  "projectName": "chromium-headless",
                   "results": [
                     {
                       "workerIndex": 1,
                       "parallelIndex": 1,
-                      "status": "timedOut",
-                      "duration": 60065,
-                      "error": {
-                        "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
-                        "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
-                      },
-                      "errors": [
-                        {
-                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
-                        },
-                        {
-                          "location": {
-                            "file": "/home/default/Desktop/dev/aidj/tests/e2e/manual-login.spec.ts",
-                            "column": 18,
-                            "line": 102
-                          },
-                          "message": "Error: page.screenshot: Target page, context or browser has been closed\n\n  100 |       const error = await page.locator('.text-destructive').textContent().catch(() => null);\n  101 |       console.log('Still on login page. Error:', error || 'No error message');\n> 102 |       await page.screenshot({ path: 'test-results/explore-01-login-failed.png', fullPage: true });\n      |                  ^\n  103 |       return;\n  104 |     }\n  105 |\n    at /home/default/Desktop/dev/aidj/tests/e2e/manual-login.spec.ts:102:18"
-                        }
-                      ],
+                      "status": "passed",
+                      "duration": 384,
+                      "errors": [],
                       "stdout": [
                         {
-                          "text": "Still on login page. Error: No error message\n"
+                          "text": "Sync settings GET responded with: 401\n"
+                        },
+                        {
+                          "text": "✅ Sync settings endpoint exists and responds\n"
                         }
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-12-09T22:51:15.935Z",
+                      "startTime": "2025-12-28T20:06:10.671Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/default/Desktop/dev/aidj/test-results/manual-login-Manual-Login-Flow-explore-full-app-journey-chromium-headed/test-failed-1.png"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/home/default/Desktop/dev/aidj/test-results/manual-login-Manual-Login-Flow-explore-full-app-journey-chromium-headed/error-context.md"
-                        }
-                      ]
-                    },
-                    {
-                      "workerIndex": 2,
-                      "parallelIndex": 0,
-                      "status": "timedOut",
-                      "duration": 60120,
-                      "error": {
-                        "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
-                        "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
-                      },
-                      "errors": [
-                        {
-                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
-                        },
-                        {
-                          "location": {
-                            "file": "/home/default/Desktop/dev/aidj/tests/e2e/manual-login.spec.ts",
-                            "column": 18,
-                            "line": 102
-                          },
-                          "message": "Error: page.screenshot: Target page, context or browser has been closed\n\n  100 |       const error = await page.locator('.text-destructive').textContent().catch(() => null);\n  101 |       console.log('Still on login page. Error:', error || 'No error message');\n> 102 |       await page.screenshot({ path: 'test-results/explore-01-login-failed.png', fullPage: true });\n      |                  ^\n  103 |       return;\n  104 |     }\n  105 |\n    at /home/default/Desktop/dev/aidj/tests/e2e/manual-login.spec.ts:102:18"
-                        }
-                      ],
-                      "stdout": [
-                        {
-                          "text": "Still on login page. Error: No error message\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-12-09T22:52:16.970Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/default/Desktop/dev/aidj/test-results/manual-login-Manual-Login-Flow-explore-full-app-journey-chromium-headed-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/home/default/Desktop/dev/aidj/test-results/manual-login-Manual-Login-Flow-explore-full-app-journey-chromium-headed-retry1/error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/home/default/Desktop/dev/aidj/test-results/manual-login-Manual-Login-Flow-explore-full-app-journey-chromium-headed-retry1/trace.zip"
-                        }
-                      ]
-                    },
-                    {
-                      "workerIndex": 3,
-                      "parallelIndex": 0,
-                      "status": "timedOut",
-                      "duration": 60066,
-                      "error": {
-                        "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
-                        "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
-                      },
-                      "errors": [
-                        {
-                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
-                        },
-                        {
-                          "location": {
-                            "file": "/home/default/Desktop/dev/aidj/tests/e2e/manual-login.spec.ts",
-                            "column": 18,
-                            "line": 102
-                          },
-                          "message": "Error: page.screenshot: Target page, context or browser has been closed\n\n  100 |       const error = await page.locator('.text-destructive').textContent().catch(() => null);\n  101 |       console.log('Still on login page. Error:', error || 'No error message');\n> 102 |       await page.screenshot({ path: 'test-results/explore-01-login-failed.png', fullPage: true });\n      |                  ^\n  103 |       return;\n  104 |     }\n  105 |\n    at /home/default/Desktop/dev/aidj/tests/e2e/manual-login.spec.ts:102:18"
-                        }
-                      ],
-                      "stdout": [
-                        {
-                          "text": "Still on login page. Error: No error message\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 2,
-                      "startTime": "2025-12-09T22:53:17.982Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/default/Desktop/dev/aidj/test-results/manual-login-Manual-Login-Flow-explore-full-app-journey-chromium-headed-retry2/test-failed-1.png"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/home/default/Desktop/dev/aidj/test-results/manual-login-Manual-Login-Flow-explore-full-app-journey-chromium-headed-retry2/error-context.md"
-                        }
-                      ]
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
-              "id": "844319c9f8b6b37d26d9-839e5b0023cdff34c2df",
-              "file": "manual-login.spec.ts",
-              "line": 78,
+              "id": "44aa98c0c65439133dbd-893f97d88620b8324fa9",
+              "file": "library-sync-verification.spec.ts",
+              "line": 67,
+              "column": 3
+            },
+            {
+              "title": "sync control endpoints exist",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-headless",
+                  "projectName": "chromium-headless",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 373,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Start endpoint status: \u001b[33m401\u001b[39m\n"
+                        },
+                        {
+                          "text": "Pause endpoint status: \u001b[33m401\u001b[39m\n"
+                        },
+                        {
+                          "text": "Resume endpoint status: \u001b[33m401\u001b[39m\n"
+                        },
+                        {
+                          "text": "Abort endpoint status: \u001b[33m401\u001b[39m\n"
+                        },
+                        {
+                          "text": "✅ All sync control endpoints exist and respond\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-28T20:06:10.666Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "44aa98c0c65439133dbd-84fa66544a9335cd0da1",
+              "file": "library-sync-verification.spec.ts",
+              "line": 92,
+              "column": 3
+            },
+            {
+              "title": "app compiles and loads with sync store",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-headless",
+                  "projectName": "chromium-headless",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 564,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "✅ App compiles and loads (TypeScript types are correct)\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-28T20:06:10.663Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "44aa98c0c65439133dbd-1ffb942faada07e67076",
+              "file": "library-sync-verification.spec.ts",
+              "line": 123,
               "column": 3
             }
           ]
@@ -358,11 +335,11 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2025-12-09T22:51:15.160Z",
-    "duration": 183199.703,
-    "expected": 1,
+    "startTime": "2025-12-28T20:06:10.194Z",
+    "duration": 1167.5230000000001,
+    "expected": 4,
     "skipped": 0,
-    "unexpected": 1,
+    "unexpected": 0,
     "flaky": 0
   }
 }

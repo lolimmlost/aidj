@@ -1,0 +1,24 @@
+{
+  "category": "Performance",
+  "description": "Extract cache management into a dedicated, configurable service layer",
+  "id": "feature-1766887169879-1ofl037qw",
+  "steps": [
+    "Create a CacheManager service with configurable TTL strategies",
+    "Move hardcoded cache keys (artist_availability_, album_availability_, integrated_search_, enhanced_search_) to a constants file",
+    "Replace manual cache get/set calls scattered across lidarr-navidrome.ts with decorator pattern or wrapper functions",
+    "Add cache invalidation methods for when data changes (playlists updated, preferences changed)",
+    "Implement cache size limits and eviction policies"
+  ],
+  "status": "completed",
+  "skipTests": false,
+  "priority": 2,
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "none",
+  "imagePaths": [],
+  "branchName": "feat/unified-recommendations-service",
+  "planningMode": "skip",
+  "requirePlanApproval": false,
+  "startedAt": "2025-12-28T18:59:38.580Z",
+  "updatedAt": "2025-12-28T19:14:07.590Z"
+}

@@ -1,0 +1,19 @@
+{
+  "category": "Features",
+  "description": "Review and Refactor Discover-to-Playlist Media Flow\n\nAnalyze and improve the logic that handles the process of discovering media content, downloading it, and inserting it into the currently active playlist.\n\nRequirements:\n- Audit the complete flow from content discovery through playlist insertion\n- Identify potential race conditions or error states in the download process\n- Verify proper error handling when downloads fail or are interrupted\n- Ensure downloaded content is correctly queued and inserted at appropriate playlist position\n- Check for duplicate detection (prevent adding same content twice)\n- Validate state management throughout the multi-step process\n- Review user feedback mechanisms (loading states, progress indicators, success/error messages)\n- Document any assumptions or dependencies between the discover, download, and playlist systems\n\nEdge Cases to Consider:\n- User navigates away during download\n- Playlist is modified or deleted while download is in progress\n- Network interruption during download\n- Insufficient storage space\n- Content becomes unavailable between discovery and download completion",
+  "id": "feature-1766954945451-nxpc5kmjy",
+  "steps": [],
+  "status": "completed",
+  "skipTests": false,
+  "priority": 1,
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "ultrathink",
+  "imagePaths": [],
+  "textFilePaths": [],
+  "branchName": "feat/unified-recommendations-service",
+  "planningMode": "skip",
+  "requirePlanApproval": false,
+  "startedAt": "2025-12-28T20:54:13.774Z",
+  "updatedAt": "2025-12-28T21:06:17.431Z"
+}

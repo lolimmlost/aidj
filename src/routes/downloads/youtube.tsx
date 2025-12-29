@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Youtube, Download, Music, Video, List, Trash2, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { queryKeys, queryPresets, createSmartPollingInterval } from '@/lib/query';
 
 export const Route = createFileRoute('/downloads/youtube')({
   beforeLoad: async ({ context }) => {
@@ -61,15 +62,24 @@ function YouTubeDownloadPage() {
   const [format, setFormat] = useState<'mp3' | 'mp4'>('mp3');
   const [isPlaylist, setIsPlaylist] = useState(false);
 
-  // Fetch MeTube status
+  // Fetch MeTube status with smart polling
+  // - Polls every 5 seconds when tab is visible
+  // - Polls every 15 seconds when tab is in background
+  // - Stops polling when offline
   const { data: status, isLoading: statusLoading, error: statusError } = useQuery<MeTubeStatus>({
-    queryKey: ['metube-status'],
+    queryKey: queryKeys.downloads.youtube.status(),
     queryFn: async () => {
       const res = await fetch('/api/metube/status');
       if (!res.ok) throw new Error('Failed to fetch MeTube status');
       return res.json();
     },
-    refetchInterval: 5000, // Poll every 5 seconds for queue updates
+    // Smart polling: slower when tab is in background, stops when offline
+    refetchInterval: createSmartPollingInterval(5000, {
+      backgroundMultiplier: 3, // 15s in background
+      maxInterval: 30000,
+      stopWhenOffline: true,
+    }),
+    ...queryPresets.realtime,
   });
 
   // Add download mutation
@@ -89,7 +99,7 @@ function YouTubeDownloadPage() {
     onSuccess: () => {
       toast.success('Download added to queue');
       setUrl('');
-      queryClient.invalidateQueries({ queryKey: ['metube-status'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.downloads.youtube.status() });
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -109,7 +119,7 @@ function YouTubeDownloadPage() {
     },
     onSuccess: () => {
       toast.success('Deleted from history');
-      queryClient.invalidateQueries({ queryKey: ['metube-status'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.downloads.youtube.status() });
     },
     onError: () => {
       toast.error('Failed to delete');

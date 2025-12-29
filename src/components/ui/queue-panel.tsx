@@ -3,11 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { X, Music, Trash2, GripVertical, Plus, RotateCcw, ThumbsUp, ThumbsDown, Shuffle } from 'lucide-react';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { CreatePlaylistDialog } from '@/components/playlists/CreatePlaylistDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   DndContext,
   closestCenter,
@@ -36,7 +37,7 @@ interface SortableQueueItemProps {
   onFeedback?: (songId: string, songTitle: string, artist: string, type: 'thumbs_up' | 'thumbs_down') => void;
 }
 
-function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued, currentFeedback, onFeedback }: SortableQueueItemProps) {
+const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued, currentFeedback, onFeedback }: SortableQueueItemProps) {
   const {
     attributes,
     listeners,
@@ -157,7 +158,102 @@ function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQue
       </Button>
     </div>
   );
+});
+
+interface VirtualizedQueueListProps {
+  upcomingQueue: { id: string; title?: string; name?: string; artist?: string }[];
+  currentSongIndex: number;
+  aiQueuedSongIds: Set<string>;
+  sensors: ReturnType<typeof useSensors>;
+  onDragEnd: (event: DragEndEvent) => void;
+  onRemove: (index: number) => void;
+  onPlay: (index: number) => void;
+  getFeedbackForSong: (songId: string) => 'thumbs_up' | 'thumbs_down' | null;
+  onFeedback: (songId: string, songTitle: string, artist: string, type: 'thumbs_up' | 'thumbs_down') => void;
 }
+
+const VirtualizedQueueList = memo(function VirtualizedQueueList({
+  upcomingQueue,
+  currentSongIndex,
+  aiQueuedSongIds,
+  sensors,
+  onDragEnd,
+  onRemove,
+  onPlay,
+  getFeedbackForSong,
+  onFeedback,
+}: VirtualizedQueueListProps) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: upcomingQueue.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: useCallback(() => 72, []), // Height of each queue item
+    overscan: 3,
+    getItemKey: (index) => upcomingQueue[index].id,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={onDragEnd}
+    >
+      <SortableContext
+        items={upcomingQueue.map(s => s.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div
+          ref={parentRef}
+          className="h-64 overflow-auto pr-2"
+          style={{ contain: 'strict' }}
+        >
+          <div
+            style={{
+              height: virtualizer.getTotalSize(),
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {virtualItems.map((virtualRow) => {
+              const song = upcomingQueue[virtualRow.index];
+              const actualIndex = currentSongIndex + 1 + virtualRow.index;
+              const isAIQueued = aiQueuedSongIds.has(song.id);
+              return (
+                <div
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                    paddingBottom: 8,
+                  }}
+                >
+                  <SortableQueueItem
+                    song={song}
+                    index={virtualRow.index}
+                    actualIndex={actualIndex}
+                    onRemove={onRemove}
+                    onPlay={onPlay}
+                    isAIQueued={isAIQueued}
+                    currentFeedback={isAIQueued ? getFeedbackForSong(song.id) : null}
+                    onFeedback={onFeedback}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
+});
 
 export function QueuePanel() {
   const {
@@ -509,38 +605,17 @@ export function QueuePanel() {
             </div>
           ) : (
             <>
-              <ScrollArea className="h-64 pr-2">
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={upcomingQueue.map(s => s.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <div className="space-y-2">
-                      {upcomingQueue.map((song, index) => {
-                        const actualIndex = currentSongIndex + 1 + index;
-                        const isAIQueued = aiQueuedSongIds.has(song.id);
-                        return (
-                          <SortableQueueItem
-                            key={song.id}
-                            song={song}
-                            index={index}
-                            actualIndex={actualIndex}
-                            onRemove={removeFromQueue}
-                            onPlay={handlePlaySong}
-                            isAIQueued={isAIQueued}
-                            currentFeedback={isAIQueued ? getFeedbackForSong(song.id) : null}
-                            onFeedback={handleAIFeedback}
-                          />
-                        );
-                      })}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-              </ScrollArea>
+              <VirtualizedQueueList
+                upcomingQueue={upcomingQueue}
+                currentSongIndex={currentSongIndex}
+                aiQueuedSongIds={aiQueuedSongIds}
+                sensors={sensors}
+                onDragEnd={handleDragEnd}
+                onRemove={removeFromQueue}
+                onPlay={handlePlaySong}
+                getFeedbackForSong={getFeedbackForSong}
+                onFeedback={handleAIFeedback}
+              />
 
               <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
                 {/* Shuffle and Create Playlist row */}

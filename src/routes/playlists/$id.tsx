@@ -1,9 +1,11 @@
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useRef, useCallback, useState } from 'react';
 import {
   ListMusic, Play, Trash2, X, ListPlus, Plus, Shuffle,
-  Heart, Sparkles, ChevronLeft, MoreHorizontal, Music2, Pause, GripVertical
+  Heart, Sparkles, ChevronLeft, MoreHorizontal, Music2, Pause, GripVertical,
+  Users, PanelRightClose, PanelRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,11 +29,13 @@ import {
 import { useAudioStore } from '@/lib/stores/audio';
 import { playPlaylist, loadPlaylistIntoQueue } from '@/lib/utils/playlist-helpers';
 import { cn } from '@/lib/utils';
+import { CollaborativePlaylistPanel } from '@/components/playlists/collaboration';
 import {
   DndContext,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -44,12 +48,14 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 export const Route = createFileRoute('/playlists/$id')({
   beforeLoad: async ({ context }) => {
     if (!context.user) {
       throw redirect({ to: '/login' });
     }
+    return { user: context.user };
   },
   component: PlaylistDetailPage,
 });
@@ -134,9 +140,9 @@ function SortableSongRow({
       <div
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing touch-none shrink-0 sm:opacity-0 sm:group-hover:opacity-100"
+        className="cursor-grab active:cursor-grabbing touch-none shrink-0 p-1 min-h-[44px] min-w-[32px] flex items-center justify-center sm:opacity-0 sm:group-hover:opacity-100"
       >
-        <GripVertical className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground/50" />
+        <GripVertical className="h-4 w-4 sm:h-4 sm:w-4 text-muted-foreground/50" />
       </div>
 
       {/* Track Number */}
@@ -151,11 +157,11 @@ function SortableSongRow({
         )}
       </span>
 
-      {/* Song Info - clickable */}
+      {/* Song Info - clickable with proper touch target */}
       <button
         type="button"
         onClick={() => onPlayFromSong(index)}
-        className="min-w-0 flex-1 text-left"
+        className="min-w-0 flex-1 text-left py-2 min-h-[44px] flex flex-col justify-center"
       >
         {/* Mobile: single line */}
         <p className={cn(
@@ -196,35 +202,44 @@ function SortableSongRow({
         })}
       </span>
 
-      {/* Actions menu */}
+      {/* Actions menu - Always visible on mobile, hover on desktop */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 w-6 sm:h-8 sm:w-8 p-0 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="h-10 w-10 min-h-[44px] min-w-[44px] p-0 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
             onClick={(e) => e.stopPropagation()}
           >
-            <MoreHorizontal className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'now'); }}>
+          <DropdownMenuItem
+            onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'now'); }}
+            className="min-h-[44px]"
+          >
             <Play className="mr-2 h-4 w-4" />
             Play Now
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'next'); }}>
+          <DropdownMenuItem
+            onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'next'); }}
+            className="min-h-[44px]"
+          >
             <Play className="mr-2 h-4 w-4" />
             Play Next
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'end'); }}>
+          <DropdownMenuItem
+            onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'end'); }}
+            className="min-h-[44px]"
+          >
             <Plus className="mr-2 h-4 w-4" />
             Add to End
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={(e) => { e.stopPropagation(); onRemoveSong(song.songId); }}
             disabled={isRemovePending}
-            className="text-destructive focus:text-destructive"
+            className="min-h-[44px] text-destructive focus:text-destructive"
           >
             <X className="mr-2 h-4 w-4" />
             Remove
@@ -235,11 +250,124 @@ function SortableSongRow({
   );
 }
 
+interface VirtualizedPlaylistSongsProps {
+  songs: PlaylistSong[];
+  currentSongId?: string;
+  isPlaying: boolean;
+  sensors: ReturnType<typeof useSensors>;
+  onDragEnd: (event: DragEndEvent) => void;
+  onPlayFromSong: (index: number) => void;
+  onAddSongToQueue: (song: PlaylistSong, position: 'now' | 'next' | 'end') => void;
+  onRemoveSong: (songId: string) => void;
+  isRemovePending: boolean;
+}
+
+function VirtualizedPlaylistSongs({
+  songs,
+  currentSongId,
+  isPlaying,
+  sensors,
+  onDragEnd,
+  onPlayFromSong,
+  onAddSongToQueue,
+  onRemoveSong,
+  isRemovePending,
+}: VirtualizedPlaylistSongsProps) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: songs.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: useCallback(() => 56, []), // Height of each row
+    overscan: 5,
+    getItemKey: (index) => songs[index].id,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+
+  return (
+    <div>
+      {/* Column Headers - desktop only */}
+      <div className="hidden sm:flex items-center gap-3 px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b border-border/50 mb-1">
+        <span className="w-4" /> {/* Drag handle space */}
+        <span className="w-6 text-right">#</span>
+        <span className="flex-1">Title</span>
+        <span className="hidden md:block w-32 lg:w-48">Album</span>
+        <span className="w-12 text-right">Time</span>
+        <span className="hidden xl:block w-24 text-right">Added</span>
+        <span className="w-8" /> {/* Actions space */}
+      </div>
+
+      {/* Virtualized Song Rows with Drag and Drop */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={onDragEnd}
+      >
+        <SortableContext
+          items={songs.map((s) => s.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div
+            ref={parentRef}
+            className="overflow-auto"
+            style={{
+              height: Math.min(songs.length * 56, 600),
+              contain: 'strict',
+            }}
+          >
+            <div
+              style={{
+                height: virtualizer.getTotalSize(),
+                width: '100%',
+                position: 'relative',
+              }}
+            >
+              {virtualItems.map((virtualRow) => {
+                const song = songs[virtualRow.index];
+                return (
+                  <div
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={virtualizer.measureElement}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    <SortableSongRow
+                      song={song}
+                      index={virtualRow.index}
+                      isCurrentSong={song.songId === currentSongId}
+                      isPlaying={isPlaying}
+                      onPlayFromSong={onPlayFromSong}
+                      onAddSongToQueue={onAddSongToQueue}
+                      onRemoveSong={onRemoveSong}
+                      isRemovePending={isRemovePending}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </SortableContext>
+      </DndContext>
+    </div>
+  );
+}
+
 function PlaylistDetailPage() {
   const { id } = Route.useParams();
+  const { user } = Route.useRouteContext();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { setPlaylist, playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress, currentSong, isPlaying } = useAudioStore();
+
+  // Collaboration panel state
+  const [isCollaborationPanelOpen, setIsCollaborationPanelOpen] = useState(false);
 
   // Check if this is a special playlist type
   const isLikedSongsPlaylist = id === 'liked-songs';
@@ -339,11 +467,17 @@ function PlaylistDetailPage() {
     },
   });
 
-  // Drag and drop sensors
+  // Drag and drop sensors - includes TouchSensor for mobile support
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -595,14 +729,14 @@ function PlaylistDetailPage() {
         getPlaylistGradient()
       )}>
         <div className="container mx-auto px-3 sm:px-6">
-          {/* Back button */}
+          {/* Back button with proper touch target */}
           <div className="pt-4 pb-6">
             <Link
               to="/playlists"
-              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors min-h-[44px] py-2 pr-2 -ml-1"
             >
-              <ChevronLeft className="h-4 w-4" />
-              Back to Playlists
+              <ChevronLeft className="h-5 w-5" />
+              <span>Back to Playlists</span>
             </Link>
           </div>
 
@@ -749,64 +883,105 @@ function PlaylistDetailPage() {
                 </AlertDialog>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* Collaboration Toggle Button - only show for regular playlists */}
+            {!isLikedSongsPlaylist && !isSmartPlaylist && (
+              <Button
+                onClick={() => setIsCollaborationPanelOpen(!isCollaborationPanelOpen)}
+                variant={isCollaborationPanelOpen ? "secondary" : "outline"}
+                size="lg"
+                className={cn(
+                  "rounded-full gap-2 px-4",
+                  isCollaborationPanelOpen && "bg-primary/10 border-primary/30"
+                )}
+              >
+                <Users className="h-4 w-4" />
+                <span className="hidden sm:inline">Collaborate</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Song List */}
-      <div className="container mx-auto px-3 sm:px-6 py-6">
-        {playlist.songs.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-20 h-20 mx-auto rounded-full bg-muted flex items-center justify-center mb-6">
-              <Music2 className="h-10 w-10 text-muted-foreground" />
-            </div>
-            <h2 className="text-xl font-semibold mb-2">No songs yet</h2>
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-              Add songs to this playlist from the search page or library
-            </p>
-            <Button asChild>
-              <Link to="/library/search">Search Library</Link>
-            </Button>
+      {/* Main Content Area with optional Collaboration Panel */}
+      <div className="flex flex-1">
+        {/* Song List */}
+        <div className="flex-1">
+          <div className={cn(
+            "transition-all duration-300 px-3 sm:px-6 py-6",
+            isCollaborationPanelOpen ? "lg:mr-[400px]" : "max-w-7xl mx-auto"
+          )}>
+            {playlist.songs.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="w-20 h-20 mx-auto rounded-full bg-muted flex items-center justify-center mb-6">
+                  <Music2 className="h-10 w-10 text-muted-foreground" />
+                </div>
+                <h2 className="text-xl font-semibold mb-2">No songs yet</h2>
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                  Add songs to this playlist from the search page or library
+                </p>
+                <Button asChild>
+                  <Link to="/library/search">Search Library</Link>
+                </Button>
+              </div>
+            ) : (
+              <VirtualizedPlaylistSongs
+                songs={playlist.songs}
+                currentSongId={currentSong?.id}
+                isPlaying={isPlaying}
+                sensors={sensors}
+                onDragEnd={handleDragEnd}
+                onPlayFromSong={handlePlayFromSong}
+                onAddSongToQueue={handleAddSongToQueue}
+                onRemoveSong={handleRemoveSong}
+                isRemovePending={removeSongMutation.isPending}
+              />
+            )}
           </div>
-        ) : (
-          <div>
-            {/* Column Headers - desktop only */}
-            <div className="hidden sm:flex items-center gap-3 px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b border-border/50 mb-1">
-              <span className="w-4" /> {/* Drag handle space */}
-              <span className="w-6 text-right">#</span>
-              <span className="flex-1">Title</span>
-              <span className="hidden md:block w-32 lg:w-48">Album</span>
-              <span className="w-12 text-right">Time</span>
-              <span className="hidden xl:block w-24 text-right">Added</span>
-              <span className="w-8" /> {/* Actions space */}
-            </div>
+        </div>
 
-            {/* Song Rows with Drag and Drop */}
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
+        {/* Collaboration Panel - Slide-in from right */}
+        {!isLikedSongsPlaylist && !isSmartPlaylist && (
+          <>
+            {/* Backdrop overlay for mobile */}
+            {isCollaborationPanelOpen && (
+              <div
+                className="fixed inset-0 bg-black/50 z-[55] lg:hidden"
+                onClick={() => setIsCollaborationPanelOpen(false)}
+              />
+            )}
+            <div
+              className={cn(
+                "fixed right-0 top-0 bottom-0 w-full sm:w-[400px] bg-background border-l shadow-2xl z-[60] transition-transform duration-300 ease-in-out flex flex-col",
+                isCollaborationPanelOpen ? "translate-x-0" : "translate-x-full"
+              )}
             >
-              <SortableContext
-                items={playlist.songs.map((s) => s.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                {playlist.songs.map((song, index) => (
-                  <SortableSongRow
-                    key={song.id}
-                    song={song}
-                    index={index}
-                    isCurrentSong={song.songId === currentSong?.id}
-                    isPlaying={isPlaying}
-                    onPlayFromSong={handlePlayFromSong}
-                    onAddSongToQueue={handleAddSongToQueue}
-                    onRemoveSong={handleRemoveSong}
-                    isRemovePending={removeSongMutation.isPending}
+              {/* Panel Header */}
+              <div className="flex items-center justify-between p-4 border-b bg-muted/30 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  <h2 className="font-semibold">Collaboration</h2>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setIsCollaborationPanelOpen(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Panel Content */}
+              <div className="flex-1 overflow-auto pb-24">
+                {isCollaborationPanelOpen && user && (
+                  <CollaborativePlaylistPanel
+                    playlistId={id}
+                    currentUserId={user.id}
                   />
-                ))}
-              </SortableContext>
-            </DndContext>
-          </div>
+                )}
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>

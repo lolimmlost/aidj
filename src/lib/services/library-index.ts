@@ -1,6 +1,7 @@
 // Library indexing service for fast song lookup and AI context
 import { getArtists, getAlbums, getSongs, type Song } from './navidrome';
 import { ServiceError } from '../utils';
+import { getCacheService } from './cache';
 
 export interface LibraryIndex {
   songs: Map<string, Song>; // "Artist - Title" → Song object
@@ -10,9 +11,8 @@ export interface LibraryIndex {
   lastUpdated: number;
 }
 
-// In-memory cache
-let libraryIndexCache: LibraryIndex | null = null;
-const CACHE_TTL = 1000 * 60 * 30; // 30 minutes
+// Cache key for the library index
+const LIBRARY_INDEX_CACHE_KEY = 'index';
 
 /**
  * Get normalized song key for indexing
@@ -27,10 +27,15 @@ function getSongKey(artist: string, title: string): string {
  * SIMPLIFIED: Focus on getting actual songs quickly
  */
 export async function buildLibraryIndex(forceRefresh = false): Promise<LibraryIndex> {
+  const cache = getCacheService();
+
   // Return cached index if valid
-  if (!forceRefresh && libraryIndexCache && Date.now() - libraryIndexCache.lastUpdated < CACHE_TTL) {
-    console.log('📦 Using cached library index');
-    return libraryIndexCache;
+  if (!forceRefresh) {
+    const cachedIndex = cache.get<LibraryIndex>('library-index', LIBRARY_INDEX_CACHE_KEY);
+    if (cachedIndex) {
+      console.log('📦 Using cached library index');
+      return cachedIndex;
+    }
   }
 
   console.log('🔨 Building library index...');
@@ -121,7 +126,8 @@ export async function buildLibraryIndex(forceRefresh = false): Promise<LibraryIn
       lastUpdated: Date.now(),
     };
 
-    libraryIndexCache = index;
+    // Store in cache service
+    cache.set('library-index', LIBRARY_INDEX_CACHE_KEY, index);
 
     const duration = Date.now() - startTime;
     console.log(`✅ Library index built: ${songList.length} songs from ${artists.length} artists in ${duration}ms`);
@@ -272,7 +278,8 @@ export async function getIndexedArtists(): Promise<string[]> {
  * Clear library index cache (force rebuild on next access)
  */
 export function clearLibraryIndexCache(): void {
-  libraryIndexCache = null;
+  const cache = getCacheService();
+  cache.delete('library-index', LIBRARY_INDEX_CACHE_KEY);
   console.log('🗑️ Library index cache cleared');
 }
 

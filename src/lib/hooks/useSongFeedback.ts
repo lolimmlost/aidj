@@ -1,12 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
+import { queryKeys, queryPresets } from '@/lib/query';
 
 /**
  * Custom hook to fetch existing feedback for a list of songs
  * Story 3.12: Song Feedback & Search UI Enhancement
+ *
+ * Uses centralized query keys for consistent cache invalidation
  */
 export function useSongFeedback(songIds: string[]) {
   return useQuery({
-    queryKey: ['songFeedback', songIds.sort().join(',')],
+    // Use query key factory for consistent cache management
+    queryKey: queryKeys.feedback.songs(songIds),
     queryFn: async () => {
       if (songIds.length === 0) {
         return { feedback: {} };
@@ -25,6 +29,6 @@ export function useSongFeedback(songIds: string[]) {
       return data as { feedback: Record<string, 'thumbs_up' | 'thumbs_down'> };
     },
     enabled: songIds.length > 0,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    ...queryPresets.feedback,
   });
 }

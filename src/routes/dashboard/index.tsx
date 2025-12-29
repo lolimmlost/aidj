@@ -1,7 +1,8 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { toast } from 'sonner';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo, Suspense, lazy } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { VirtualizedList } from '@/components/ui/virtualized-list';
 import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
 import { usePreferencesStore, type SourceMode } from '@/lib/stores/preferences';
@@ -13,7 +14,6 @@ import { search } from '@/lib/services/navidrome';
 import { OllamaErrorBoundary } from '@/components/ollama-error-boundary';
 import { Skeleton } from '@/components/ui/skeleton';
 import { hasLegacyFeedback, migrateLegacyFeedback, isMigrationCompleted } from '@/lib/utils/feedback-migration';
-import { PreferenceInsights } from '@/components/recommendations/PreferenceInsights';
 import { Play, Plus, ListPlus, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   DropdownMenu,
@@ -23,14 +23,36 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { Song } from '@/lib/types/song';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
-import { DashboardHero, DJFeatures, MoreFeatures, QuickActions, AIDJControl, STYLE_PRESETS, type StylePreset, type AIDJMode } from '@/components/dashboard';
+// Critical components - loaded immediately
+import { DashboardHero, QuickActions, AIDJControl, STYLE_PRESETS, type StylePreset, type AIDJMode } from '@/components/dashboard';
 import { SourceModeSelector, SourceBadge } from '@/components/playlist/source-mode-selector';
 import { GenerationProgress } from '@/components/ui/generation-progress';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
-import { DiscoveryQueuePanel } from '@/components/discovery/DiscoveryQueuePanel';
 import { useDiscoveryQueueStore } from '@/lib/stores/discovery-queue';
-// Story 7.5: Harmonic mixing badges
-import { MixCompatibilityBadges } from '@/components/dj/mix-compatibility-badges';
+// Virtualization for large lists
+import { RecommendationCard } from '@/components/recommendations/RecommendationCard';
+// Centralized query management for optimized caching
+import { queryKeys, queryPresets } from '@/lib/query';
+// Lazy loading utilities for deferred content
+import { useDeferredRender, SectionSkeleton, FeatureCardSkeleton } from '@/lib/utils/lazy-components';
+
+// ===== CODE SPLITTING: Lazy-loaded components for non-critical sections =====
+// These components are not needed for initial page render and can be loaded later
+
+// DJFeatures - loaded after 1.5s delay (desktop only, non-critical)
+const DJFeatures = lazy(() => import('@/components/dashboard/DJFeatures').then(m => ({ default: m.DJFeatures })));
+
+// MoreFeatures - loaded after initial render (bottom of page)
+const MoreFeatures = lazy(() => import('@/components/dashboard/MoreFeatures').then(m => ({ default: m.MoreFeatures })));
+
+// PreferenceInsights - loaded after 1s delay (analytics, non-critical)
+const PreferenceInsights = lazy(() => import('@/components/recommendations/PreferenceInsights').then(m => ({ default: m.PreferenceInsights })));
+
+// DiscoveryQueuePanel - loaded after initial render
+const DiscoveryQueuePanel = lazy(() => import('@/components/discovery/DiscoveryQueuePanel').then(m => ({ default: m.DiscoveryQueuePanel })));
+
+// MixCompatibilityBadges - only loaded when needed (harmonic mixing)
+const MixCompatibilityBadges = lazy(() => import('@/components/dj/mix-compatibility-badges').then(m => ({ default: m.MixCompatibilityBadges })));
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context }) => {
@@ -125,11 +147,11 @@ function DashboardIndex() {
       setSongFeedback(prev => ({ ...prev, [song]: feedbackType }));
     },
     onSuccess: (_, { feedbackType }) => {
-      // Only invalidate preference analytics, not recommendations to prevent auto-refresh
-      // This prevents the recommendations from refreshing when giving feedback
-      queryClient.invalidateQueries({ queryKey: ['preference-analytics'] });
-      // Also invalidate the feedback query to refresh the feedback state
-      queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
+      // Use granular invalidation with query key factory
+      // Only invalidate preference analytics and feedback, not recommendations
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics.preferences() });
+      // Invalidate all feedback queries to refresh the feedback state
+      queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
       const emoji = feedbackType === 'thumbs_up' ? '👍' : '👎';
       toast.success(`Feedback saved ${emoji}`, {
         description: 'Your preferences help improve recommendations',
@@ -244,7 +266,8 @@ function DashboardIndex() {
   }, [trimmedStyle]);
 
   const { data: recommendations, isLoading, error, refetch: refetchRecommendations } = useQuery({
-    queryKey: ['recommendations', session?.user.id, type],
+    // Use query key factory for consistent cache management
+    queryKey: queryKeys.recommendations.list(session?.user.id || '', type),
     queryFn: async () => {
       // Use more specific and varied prompts for better recommendations
       const prompts = {
@@ -408,11 +431,15 @@ function DashboardIndex() {
     },
     // Story 7.4: Manual trigger only - don't auto-load on page visit
     enabled: false,
-    staleTime: Infinity, // Keep data until explicitly cleared
+    // Use recommendations preset for consistent caching
+    ...queryPresets.recommendations,
   });
 
-  // Fetch feedback for recommended songs
-  const recommendedSongIds = recommendations?.data?.recommendations?.map((rec: { song: string; actualSong?: { id?: string } }) => rec.actualSong?.id || rec.song).filter(Boolean) || [];
+  // Memoize recommended song IDs to prevent unnecessary re-fetches
+  const recommendedSongIds = useMemo(() =>
+    recommendations?.data?.recommendations?.map((rec: { song: string; actualSong?: { id?: string } }) => rec.actualSong?.id || rec.song).filter(Boolean) || [],
+    [recommendations?.data?.recommendations]
+  );
   const { data: feedbackData } = useSongFeedback(recommendedSongIds);
 
   // Update local songFeedback state when feedback data is fetched
@@ -570,26 +597,21 @@ function DashboardIndex() {
       abortControllerRef.current = null;
     }
     setGenerationStage('idle');
-    queryClient.cancelQueries({ queryKey: ['playlist', debouncedStyle, sourceMode, mixRatio] });
+    // Use query key factory for consistent cache management
+    queryClient.cancelQueries({ queryKey: queryKeys.playlists.generatedByStyle(debouncedStyle, sourceMode, mixRatio) });
     toast.info('Playlist generation cancelled');
   };
 
   const { data: playlistData, isLoading: playlistLoading, error: playlistError, refetch: refetchPlaylist } = useQuery({
-    // Story 7.1: Include sourceMode and mixRatio in query key
-    queryKey: ['playlist', debouncedStyle, sourceMode, mixRatio],
+    // Use query key factory for consistent cache management
+    queryKey: queryKeys.playlists.generatedByStyle(debouncedStyle, sourceMode, mixRatio),
     queryFn: async () => {
       // Story 7.4: Create new abort controller for this request
       abortControllerRef.current = new AbortController();
       const signal = abortControllerRef.current.signal;
 
-      // Story 7.1: Include sourceMode in cache key
-      const cacheKey = `playlist-${debouncedStyle}-${sourceMode}-${mixRatio}`;
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        console.log(`📦 Returning cached playlist for "${debouncedStyle}" (${sourceMode})`);
-        setGenerationStage('done');
-        return JSON.parse(cached);
-      }
+      // React Query handles caching - no need for localStorage dual caching
+      // This reduces complexity and prevents cache inconsistencies
 
       let attempts = 0;
       const maxAttempts = 3;
@@ -650,7 +672,7 @@ function DashboardIndex() {
           if (validCount >= minRequired) {
             console.log(`✅ Accepting playlist with ${validCount} valid songs for ${sourceMode} mode`);
             setGenerationStage('done');
-            localStorage.setItem(cacheKey, JSON.stringify(data));
+            // React Query caches this automatically - no localStorage needed
             return data;
           }
 
@@ -677,7 +699,7 @@ function DashboardIndex() {
       if (lastData) {
         console.log(`⚠️ All attempts completed with low resolution rate, returning best available`);
         setGenerationStage('done');
-        localStorage.setItem(cacheKey, JSON.stringify(lastData));
+        // React Query caches this automatically - no localStorage needed
         return lastData;
       }
 
@@ -742,11 +764,12 @@ function DashboardIndex() {
 
   
   const clearPlaylistCache = () => {
-    Object.keys(localStorage).filter(key => key.startsWith('playlist-')).forEach(key => localStorage.removeItem(key));
-    queryClient.invalidateQueries({ queryKey: ['playlist'] });
+    // Use query key factory for granular invalidation
+    // Invalidate only generated playlists, not saved playlists
+    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.generated() });
     setStyle('');
     setDebouncedStyle('');
-    console.log('🧹 Cleared all playlist cache');
+    console.log('🧹 Cleared all generated playlist cache');
   };
 
   // Save cache to localStorage when it changes
@@ -849,9 +872,44 @@ function DashboardIndex() {
     }
   }, [recommendations]);
 
-  // Calculate stats for hero
-  const availableRecommendations = recommendations?.data?.recommendations?.filter((r: { foundInLibrary?: boolean }) => r.foundInLibrary).length || 0;
-  const playlistSongsReady = playlistData ? (playlistData.data.playlist as PlaylistItem[]).filter(item => item.songId).length : 0;
+  // Memoize calculated stats for hero to prevent recalculation on every render
+  const availableRecommendations = useMemo(() =>
+    recommendations?.data?.recommendations?.filter((r: { foundInLibrary?: boolean }) => r.foundInLibrary).length || 0,
+    [recommendations?.data?.recommendations]
+  );
+
+  const playlistSongsReady = useMemo(() =>
+    playlistData ? (playlistData.data.playlist as PlaylistItem[]).filter(item => item.songId).length : 0,
+    [playlistData]
+  );
+
+  // Memoize last played song to prevent object recreation on every render
+  const lastPlayedSong = useMemo(() =>
+    playlist[currentSongIndex]
+      ? {
+          title: playlist[currentSongIndex].title || playlist[currentSongIndex].name || 'Unknown',
+          artist: playlist[currentSongIndex].artist || 'Unknown Artist',
+        }
+      : null,
+    [playlist, currentSongIndex]
+  );
+
+  // Memoize callback handlers to prevent unnecessary child re-renders
+  const handlePresetClick = useCallback((preset: StylePreset) => {
+    setActivePreset(preset.id);
+    setStyle(preset.prompt);
+    // Clear cache for this preset to force fresh generation using query key factory
+    setGenerationStage('generating');
+    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.generatedByStyle(preset.prompt, sourceMode, mixRatio) });
+  }, [sourceMode, mixRatio, queryClient]);
+
+  const handleContinueListening = useCallback(() => {
+    // Resume playback if paused
+    const { isPlaying, setIsPlaying } = useAudioStore.getState();
+    if (!isPlaying) {
+      setIsPlaying(true);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-20">
@@ -867,30 +925,9 @@ function DashboardIndex() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <QuickActions
             className="lg:col-span-2"
-            onPresetClick={(preset: StylePreset) => {
-              setActivePreset(preset.id);
-              setStyle(preset.prompt);
-              // Clear cache for this preset to force fresh generation
-              const cacheKey = `playlist-${preset.prompt}-${sourceMode}-${mixRatio}`;
-              localStorage.removeItem(cacheKey);
-              setGenerationStage('generating');
-              queryClient.invalidateQueries({ queryKey: ['playlist', preset.prompt, sourceMode, mixRatio] });
-            }}
-            lastPlayedSong={
-              playlist[currentSongIndex]
-                ? {
-                    title: playlist[currentSongIndex].title || playlist[currentSongIndex].name || 'Unknown',
-                    artist: playlist[currentSongIndex].artist || 'Unknown Artist',
-                  }
-                : null
-            }
-            onContinueListening={() => {
-              // Resume playback if paused
-              const { isPlaying, setIsPlaying } = useAudioStore.getState();
-              if (!isPlaying) {
-                setIsPlaying(true);
-              }
-            }}
+            onPresetClick={handlePresetClick}
+            lastPlayedSong={lastPlayedSong}
+            onContinueListening={handleContinueListening}
             isLoading={playlistLoading}
             activePreset={activePreset}
           />
@@ -1013,160 +1050,37 @@ function DashboardIndex() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3">
-                  {recommendations.data.recommendations.map((rec: { song: string; foundInLibrary?: boolean; actualSong?: CachedSong; searchError?: boolean; explanation?: string }, index: number) => {
-                    const isInLibrary = rec.foundInLibrary;
-                    const hasSearchError = rec.searchError;
+                {/* Virtualized recommendations list for performance with large result sets */}
+                <VirtualizedList
+                  items={recommendations.data.recommendations}
+                  itemHeight={140}
+                  containerHeight={Math.min(500, Math.max(280, recommendations.data.recommendations.length * 140))}
+                  getItemKey={(rec: { song: string }) => rec.song}
+                  gap={12}
+                  overscan={3}
+                  className="rounded-lg"
+                  renderItem={(rec: { song: string; foundInLibrary?: boolean; actualSong?: CachedSong; searchError?: boolean; explanation?: string }, index: number) => {
                     const currentFeedback = songFeedback[rec.song];
                     const hasFeedback = currentFeedback !== undefined && currentFeedback !== null;
 
                     return (
-                      <div
-                        key={index}
-                        className={`group relative overflow-hidden rounded-xl border transition-all duration-300 hover:shadow-lg ${
-                          isInLibrary
-                            ? 'border-green-500/30 bg-gradient-to-br from-green-500/5 to-green-600/5 hover:border-green-500/50'
-                            : 'border-border bg-card/50 hover:border-border/80'
-                        }`}
-                      >
-                        <div className="p-4 sm:p-5">
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <Link
-                                  to="/dashboard/recommendations/id"
-                                  search={{ song: rec.song }}
-                                  className="font-semibold text-base hover:text-primary transition-colors"
-                                >
-                                  {rec.song}
-                                </Link>
-                                {isInLibrary && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                                      <polyline points="20 6 9 17 4 12"/>
-                                    </svg>
-                                    In Library
-                                  </span>
-                                )}
-                                {hasSearchError && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
-                                    ⚠️ Search Error
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-sm text-muted-foreground line-clamp-2">{rec.explanation}</p>
-                              {!isInLibrary && !hasSearchError && (
-                                <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400">
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <circle cx="12" cy="12" r="10"/>
-                                    <path d="M12 16v-4"/>
-                                    <path d="M12 8h.01"/>
-                                  </svg>
-                                  Not in your library, but matches your taste
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <div className="flex items-center gap-1 bg-background/50 rounded-lg p-1">
-                                <Button
-                                  variant={currentFeedback === 'thumbs_up' ? "default" : "ghost"}
-                                  size="sm"
-                                  onClick={() => feedbackMutation.mutate({ song: rec.song, feedbackType: 'thumbs_up', songId: rec.actualSong?.id })}
-                                  disabled={feedbackMutation.isPending || hasFeedback}
-                                  className={`h-9 w-9 p-0 ${currentFeedback === 'thumbs_up' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
-                                  title={hasFeedback ? "Already rated" : "Like this song"}
-                                >
-                                  {feedbackMutation.isPending && currentFeedback === 'thumbs_up' ? (
-                                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                                    </svg>
-                                  ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M7 10v12"/>
-                                      <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/>
-                                    </svg>
-                                  )}
-                                </Button>
-                                <Button
-                                  variant={currentFeedback === 'thumbs_down' ? "default" : "ghost"}
-                                  size="sm"
-                                  onClick={() => feedbackMutation.mutate({ song: rec.song, feedbackType: 'thumbs_down', songId: rec.actualSong?.id })}
-                                  disabled={feedbackMutation.isPending || hasFeedback}
-                                  className={`h-9 w-9 p-0 ${currentFeedback === 'thumbs_down' ? 'bg-red-600 hover:bg-red-700 text-white' : ''}`}
-                                  title={hasFeedback ? "Already rated" : "Dislike this song"}
-                                >
-                                  {feedbackMutation.isPending && currentFeedback === 'thumbs_down' ? (
-                                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                                    </svg>
-                                  ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M17 14V2"/>
-                                      <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z"/>
-                                    </svg>
-                                  )}
-                                </Button>
-                              </div>
-                              {isInLibrary ? (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="default"
-                                      size="sm"
-                                      className="bg-green-600 hover:bg-green-700 text-white shadow-sm"
-                                    >
-                                      <ListPlus className="mr-1 h-4 w-4" />
-                                      Queue
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-40">
-                                    <DropdownMenuItem
-                                      onClick={() => handleQueueAction(rec.song, 'now')}
-                                      className="min-h-[44px]"
-                                    >
-                                      <Play className="mr-2 h-4 w-4" />
-                                      Play Now
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={() => handleQueueAction(rec.song, 'next')}
-                                      className="min-h-[44px]"
-                                    >
-                                      <Play className="mr-2 h-4 w-4" />
-                                      Play Next
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={() => handleQueueAction(rec.song, 'end')}
-                                      className="min-h-[44px]"
-                                    >
-                                      <Plus className="mr-2 h-4 w-4" />
-                                      Add to End
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              ) : (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled
-                                  className="opacity-50 cursor-not-allowed"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                                    <path d="M5 12h14"/>
-                                    <path d="M12 5v14"/>
-                                  </svg>
-                                  Unavailable
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      <RecommendationCard
+                        key={rec.song}
+                        rec={rec}
+                        index={index}
+                        currentFeedback={currentFeedback}
+                        hasFeedback={hasFeedback}
+                        onFeedback={(type) => feedbackMutation.mutate({
+                          song: rec.song,
+                          feedbackType: type,
+                          songId: rec.actualSong?.id
+                        })}
+                        onQueueAction={(position) => handleQueueAction(rec.song, position)}
+                        isPending={feedbackMutation.isPending}
+                      />
                     );
-                  })}
-                </div>
+                  }}
+                />
               </div>
             )}
               </>
@@ -1175,18 +1089,16 @@ function DashboardIndex() {
         </OllamaErrorBoundary>
       )}
 
-      {/* Preference Analytics Widget */}
+      {/* Preference Analytics Widget - Deferred loading (non-critical) */}
       {preferences.dashboardLayout.showRecommendations && (
-        <PreferenceInsights />
+        <DeferredPreferenceInsights />
       )}
 
-      {/* Story 7.3: Discovery Queue Panel */}
-      <DiscoveryQueuePanel />
+      {/* Story 7.3: Discovery Queue Panel - Deferred loading */}
+      <DeferredDiscoveryQueue />
 
-      {/* DJ Features Section - hidden on mobile for cleaner UX */}
-      <div className="hidden md:block">
-        <DJFeatures />
-      </div>
+      {/* DJ Features Section - hidden on mobile, deferred loading (non-critical) */}
+      <DeferredDJFeatures />
 
       <OllamaErrorBoundary>
         <section className="space-y-6">
@@ -1251,12 +1163,10 @@ function DashboardIndex() {
             </div>
             <Button
               onClick={() => {
-                // Story 7.1: Include sourceMode in cache key
-                const cacheKey = `playlist-${trimmedStyle}-${sourceMode}-${mixRatio}`;
-                localStorage.removeItem(cacheKey);
                 // Reset generation stage to show loading immediately
                 setGenerationStage('generating');
-                queryClient.invalidateQueries({ queryKey: ['playlist', trimmedStyle, sourceMode, mixRatio] });
+                // Use query key factory for consistent cache management
+                queryClient.invalidateQueries({ queryKey: queryKeys.playlists.generatedByStyle(trimmedStyle, sourceMode, mixRatio) });
                 refetchPlaylist();
               }}
               disabled={!trimmedStyle}
@@ -1387,12 +1297,11 @@ function DashboardIndex() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    // Story 7.1: Include sourceMode in cache key
-                    const cacheKey = `playlist-${debouncedStyle}-${sourceMode}-${mixRatio}`;
-                    localStorage.removeItem(cacheKey);
+                    // Use query key factory for cache invalidation - React Query handles caching
+                    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.generatedByStyle(debouncedStyle, sourceMode, mixRatio) });
                     // Reset generation stage to show loading immediately
                     setGenerationStage('generating');
-                    console.log(`🗑️ Cleared cache for "${debouncedStyle}" (${sourceMode}), regenerating...`);
+                    console.log(`🗑️ Invalidated cache for "${debouncedStyle}" (${sourceMode}), regenerating...`);
                     refetchPlaylist();
                   }}
                   aria-label="Regenerate playlist"
@@ -1449,17 +1358,19 @@ function DashboardIndex() {
                             )}
                           </div>
                           <p className="text-sm text-muted-foreground">{item.explanation}</p>
-                          {/* Story 7.5: Harmonic mixing badges */}
+                          {/* Story 7.5: Harmonic mixing badges - lazy loaded */}
                           {currentSong && (item.bpm || item.key) && (
                             <div className="mt-1">
-                              <MixCompatibilityBadges
-                                currentBpm={currentSong.bpm}
-                                currentKey={currentSong.key}
-                                candidateBpm={item.bpm}
-                                candidateKey={item.key}
-                                compact
-                                showLabel
-                              />
+                              <Suspense fallback={<Skeleton className="h-5 w-20" />}>
+                                <MixCompatibilityBadges
+                                  currentBpm={currentSong.bpm}
+                                  currentKey={currentSong.key}
+                                  candidateBpm={item.bpm}
+                                  candidateKey={item.key}
+                                  compact
+                                  showLabel
+                                />
+                              </Suspense>
                             </div>
                           )}
                           {/* Story 7.1: Show discovery info */}
@@ -1682,10 +1593,126 @@ function DashboardIndex() {
         </section>
       </OllamaErrorBoundary>
 
-      {/* Additional Features - Compact Grid */}
-      <MoreFeatures />
+      {/* Additional Features - Compact Grid - Deferred loading (bottom of page) */}
+      <DeferredMoreFeatures />
 
       </div>
     </div>
+  );
+}
+
+// ===== DEFERRED COMPONENTS: Wrap lazy components with deferred rendering =====
+
+/**
+ * Deferred PreferenceInsights - loads after 1 second delay
+ * Non-critical analytics content that can wait
+ */
+function DeferredPreferenceInsights() {
+  const shouldRender = useDeferredRender(1000);
+
+  if (!shouldRender) {
+    return (
+      <div className="rounded-lg border bg-card p-4">
+        <SectionSkeleton lines={4} />
+      </div>
+    );
+  }
+
+  return (
+    <Suspense fallback={<SectionSkeleton lines={4} />}>
+      <PreferenceInsights />
+    </Suspense>
+  );
+}
+
+/**
+ * Deferred DiscoveryQueuePanel - loads after idle callback
+ * Discovery queue is secondary to main dashboard content
+ */
+function DeferredDiscoveryQueue() {
+  const shouldRender = useDeferredRender(500);
+
+  if (!shouldRender) {
+    return null; // No skeleton - panel may be hidden anyway
+  }
+
+  return (
+    <Suspense fallback={null}>
+      <DiscoveryQueuePanel />
+    </Suspense>
+  );
+}
+
+/**
+ * Deferred DJFeatures - loads after 1.5 second delay
+ * Hidden on mobile, low priority on desktop
+ */
+function DeferredDJFeatures() {
+  const shouldRender = useDeferredRender(1500);
+
+  if (!shouldRender) {
+    return (
+      <div className="hidden md:block">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-10 rounded-lg" />
+            <div className="space-y-1">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-3 w-48" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FeatureCardSkeleton />
+            <FeatureCardSkeleton />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="hidden md:block">
+      <Suspense fallback={<FeatureCardSkeleton />}>
+        <DJFeatures />
+      </Suspense>
+    </div>
+  );
+}
+
+/**
+ * Deferred MoreFeatures - loads after initial render
+ * Bottom of page content, lowest priority
+ */
+function DeferredMoreFeatures() {
+  const shouldRender = useDeferredRender(2000);
+
+  if (!shouldRender) {
+    return (
+      <section className="space-y-4">
+        <Skeleton className="h-5 w-32 mx-auto" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <Suspense
+      fallback={
+        <section className="space-y-4">
+          <Skeleton className="h-5 w-32 mx-auto" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 rounded-xl" />
+            ))}
+          </div>
+        </section>
+      }
+    >
+      <MoreFeatures />
+    </Suspense>
   );
 }

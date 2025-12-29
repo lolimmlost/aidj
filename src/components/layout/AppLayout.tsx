@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, memo, Suspense, lazy } from 'react';
 import { Link, useRouterState, useNavigate } from '@tanstack/react-router';
 import {
   Home,
@@ -22,11 +22,13 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAudioStore } from '@/lib/stores/audio';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlayerBar } from './PlayerBar';
 import { QueuePanel } from '@/components/ui/queue-panel';
 import { toast } from 'sonner';
+import { useDeferredRender, SidebarItemSkeleton } from '@/lib/utils/lazy-components';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -156,6 +158,12 @@ function LeftSidebar() {
               icon={<Home className="h-4 w-4" />}
               label="Home"
               active={currentPath === '/dashboard' || currentPath === '/dashboard/'}
+            />
+            <NavItem
+              to="/dashboard/discover"
+              icon={<Sparkles className="h-4 w-4" />}
+              label="Discover"
+              active={currentPath.includes('/dashboard/discover')}
             />
             <NavItem
               to="/library/search"
@@ -323,12 +331,18 @@ function LeftSidebar() {
  * - Top Artists (numbered 1-5)
  * - Most Played Songs
  * - Recommendations at bottom
+ *
+ * Uses deferred data loading to reduce initial page load time.
+ * Non-critical sidebar data is fetched after the main content renders.
  */
 function RightSidebar() {
   const { playlist, currentSongIndex, isPlaying, playNow } = useAudioStore();
   const currentSong = playlist[currentSongIndex];
 
-  // Fetch top artists
+  // Deferred loading: Wait before fetching non-critical sidebar data
+  const shouldFetchSidebarData = useDeferredRender(800);
+
+  // Fetch top artists - deferred to reduce initial load
   const { data: topArtists } = useQuery({
     queryKey: ['top-artists'],
     queryFn: async () => {
@@ -338,9 +352,10 @@ function RightSidebar() {
       return data.artists || [];
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
+    enabled: shouldFetchSidebarData, // Defer until after initial render
   });
 
-  // Fetch most played songs
+  // Fetch most played songs - deferred
   const { data: mostPlayedSongs } = useQuery({
     queryKey: ['most-played-songs'],
     queryFn: async () => {
@@ -350,9 +365,11 @@ function RightSidebar() {
       return data.songs || [];
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
+    enabled: shouldFetchSidebarData, // Defer until after initial render
   });
 
-  // Fetch recommendations
+  // Fetch recommendations - deferred with longer delay (lowest priority)
+  const shouldFetchRecommendations = useDeferredRender(1500);
   const { data: recommendations } = useQuery({
     queryKey: ['sidebar-recommendations'],
     queryFn: async () => {
@@ -365,6 +382,7 @@ function RightSidebar() {
       return response.json();
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: shouldFetchRecommendations, // Defer even more - lowest priority
   });
 
   // Rank colors for top artists
@@ -587,7 +605,7 @@ interface Recommendation {
   };
 }
 
-function RecommendationsSection({ recommendations }: { recommendations: any }) {
+const RecommendationsSection = memo(function RecommendationsSection({ recommendations }: { recommendations: any }) {
   const { addToQueueEnd, addPlaylist } = useAudioStore();
 
   const handleAddToQueue = useCallback((rec: Recommendation) => {
@@ -698,12 +716,12 @@ function RecommendationsSection({ recommendations }: { recommendations: any }) {
       </div>
     </div>
   );
-}
+});
 
 /**
- * Recently Played Section for Left Sidebar
+ * Recently Played Section for Left Sidebar - memoized to prevent unnecessary re-renders
  */
-function RecentlyPlayedSection() {
+const RecentlyPlayedSection = memo(function RecentlyPlayedSection() {
   const { playlist, currentSongIndex, isPlaying } = useAudioStore();
 
   // Show recently played from current session (queue history)
@@ -716,40 +734,40 @@ function RecentlyPlayedSection() {
       <h3 className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
         Recently Played
       </h3>
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         {recentSongs.map((song, index) => (
           <div
             key={`${song.id}-${index}`}
             className={cn(
-              "flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors cursor-pointer",
+              "flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors cursor-pointer",
               "hover:bg-accent/50",
               index === currentSongIndex && "bg-accent/30"
             )}
           >
-            <div className="w-8 h-8 rounded bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 rounded bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0">
               {index === currentSongIndex && isPlaying ? (
                 <div className="flex gap-0.5">
-                  <div className="w-0.5 h-2 bg-primary animate-[wave_1s_ease-in-out_infinite]" />
-                  <div className="w-0.5 h-3 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
-                  <div className="w-0.5 h-2 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
+                  <div className="w-0.5 h-2.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" />
+                  <div className="w-0.5 h-3.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
+                  <div className="w-0.5 h-2.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
                 </div>
               ) : (
-                <Clock className="h-3 w-3 text-blue-500/70" />
+                <Clock className="h-3.5 w-3.5 text-blue-500/70" />
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium truncate">{song.name || song.title}</p>
-              <p className="text-[10px] text-muted-foreground truncate">{song.artist}</p>
+              <p className="text-sm font-medium truncate">{song.name || song.title}</p>
+              <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
             </div>
           </div>
         ))}
       </div>
     </div>
   );
-}
+});
 
 /**
- * Navigation Item Component
+ * Navigation Item Component - memoized to prevent unnecessary re-renders
  */
 interface NavItemProps {
   to: string;
@@ -758,7 +776,7 @@ interface NavItemProps {
   active?: boolean;
 }
 
-function NavItem({ to, icon, label, active }: NavItemProps) {
+const NavItem = memo(function NavItem({ to, icon, label, active }: NavItemProps) {
   return (
     <Link
       to={to}
@@ -773,4 +791,4 @@ function NavItem({ to, icon, label, active }: NavItemProps) {
       <span>{label}</span>
     </Link>
   );
-}
+});

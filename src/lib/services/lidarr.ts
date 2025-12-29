@@ -147,13 +147,14 @@ async function getAuthToken(): Promise<string> {
 
 /**
  * Execute API request with retry logic and error handling
+ * @template T - The expected response type
  */
-async function apiFetch(
+async function apiFetch<T = unknown>(
   endpoint: string,
   options: RequestInit = {},
   retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG,
   customTimeout?: number
-): Promise<unknown> {
+): Promise<T> {
   const config = getConfig();
   if (!config.lidarrUrl) {
     throw new ServiceError('LIDARR_CONFIG_ERROR', 'Lidarr URL not configured');
@@ -213,9 +214,9 @@ async function apiFetch(
 
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
-        return await response.json();
+        return await response.json() as T;
       }
-      return await response.text();
+      return await response.text() as T;
 
     } catch (error: unknown) {
       clearTimeout(timeoutId);
@@ -357,12 +358,14 @@ export async function search(query: string): Promise<{ artists: Artist[]; albums
 
     // Use mobile-optimized batched requests
     const qualitySettings = mobileOptimization.getQualitySettings();
-    const results = await mobileOptimization.batchRequests([
-      () => searchArtists(query),
-      () => searchAlbums(query) as unknown as Promise<Artist[]>,
-    ], qualitySettings.concurrentRequests);
 
-    return { artists: results[0] as unknown as Artist[], albums: results[1] as unknown as Album[] };
+    // Search artists and albums concurrently
+    const [artists, albums] = await Promise.all([
+      searchArtists(query),
+      searchAlbums(query),
+    ]);
+
+    return { artists, albums };
   } catch (error) {
     console.error('Search error:', error);
     throw new ServiceError('LIDARR_API_ERROR', `Failed to search: ${error instanceof Error ? error.message : 'Unknown error'}`);

@@ -319,4 +319,76 @@
       transform: rotate(360deg);
     }
   }
+
+  /* ===========================================
+     Mobile-Specific Styles
+     Optimized for touch interfaces and small screens
+     =========================================== */
+
+  /* Mobile touch-friendly button base - ensures 44px minimum */
+  .mobile-touch-btn {
+    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
+  }
+
+  /* Mobile-optimized action bar buttons */
+  .mobile-action-bar {
+    @apply flex border-t border-border/50;
+  }
+
+  .mobile-action-bar > * {
+    @apply flex-1 flex items-center justify-center gap-2 min-h-[48px] py-3
+           text-sm font-medium transition-colors active:bg-accent/80;
+  }
+
+  /* Mobile-visible utility (visible on mobile, hidden on desktop until hover) */
+  .mobile-visible {
+    @apply opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity;
+  }
+
+  /* Safe area padding for devices with notches */
+  .safe-area-inset {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Mobile card with appropriate padding */
+  .mobile-card {
+    @apply p-3 sm:p-4 rounded-lg;
+  }
+
+  /* Mobile text sizes */
+  .mobile-text-sm {
+    @apply text-sm sm:text-base;
+  }
+
+  .mobile-text-base {
+    @apply text-base sm:text-lg;
+  }
+
+  .mobile-text-lg {
+    @apply text-lg sm:text-xl;
+  }
+
+  /* Active state for touch devices */
+  @media (hover: none) and (pointer: coarse) {
+    .touch-active:active {
+      @apply bg-accent/80 scale-[0.98];
+    }
+
+    /* Increase touch target size on touch devices */
+    button:not([class*="h-"]):not([class*="w-"]),
+    a:not([class*="h-"]):not([class*="w-"]) {
+      min-height: 44px;
+    }
+  }
+
+  /* Mobile-first grid layouts */
+  .mobile-grid-1 {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4;
+  }
+
+  .mobile-grid-2 {
+    @apply grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4;
+  }
 }

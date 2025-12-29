@@ -10,10 +10,7 @@
 import { db } from '../db';
 import { userPreferences } from '../db/schema';
 import { eq } from 'drizzle-orm';
-
-// Cache for user blocklists
-const blocklistCache = new Map<string, { blocklist: Set<string>; timestamp: number }>();
-const BLOCKLIST_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+import { getCacheService } from './cache';
 
 /**
  * System-level blocklist for known problematic patterns
@@ -29,10 +26,13 @@ export const SYSTEM_BLOCKLIST_PATTERNS: string[] = [
  * Get the user's artist blocklist from preferences
  */
 export async function getUserBlocklist(userId: string): Promise<Set<string>> {
+  const cache = getCacheService();
+  const cacheKey = `blocklist:${userId}`;
+
   // Check cache first
-  const cached = blocklistCache.get(userId);
-  if (cached && Date.now() - cached.timestamp < BLOCKLIST_CACHE_TTL_MS) {
-    return cached.blocklist;
+  const cached = cache.get<Set<string>>('artist-blocklist', cacheKey);
+  if (cached) {
+    return cached;
   }
 
   try {
@@ -50,7 +50,7 @@ export async function getUserBlocklist(userId: string): Promise<Set<string>> {
     );
 
     // Cache the result
-    blocklistCache.set(userId, { blocklist, timestamp: Date.now() });
+    cache.set('artist-blocklist', cacheKey, blocklist);
 
     return blocklist;
   } catch (error) {
@@ -117,7 +117,8 @@ export async function addToBlocklist(userId: string, artist: string): Promise<vo
         .where(eq(userPreferences.userId, userId));
 
       // Clear cache
-      blocklistCache.delete(userId);
+      const cache = getCacheService();
+      cache.delete('artist-blocklist', `blocklist:${userId}`);
     }
   } catch (error) {
     console.error('Failed to add artist to blocklist:', error);
@@ -152,7 +153,8 @@ export async function removeFromBlocklist(userId: string, artist: string): Promi
       .where(eq(userPreferences.userId, userId));
 
     // Clear cache
-    blocklistCache.delete(userId);
+    const cache = getCacheService();
+    cache.delete('artist-blocklist', `blocklist:${userId}`);
   } catch (error) {
     console.error('Failed to remove artist from blocklist:', error);
     throw error;
@@ -163,9 +165,10 @@ export async function removeFromBlocklist(userId: string, artist: string): Promi
  * Clear the blocklist cache for a user
  */
 export function clearBlocklistCache(userId?: string): void {
+  const cache = getCacheService();
   if (userId) {
-    blocklistCache.delete(userId);
+    cache.delete('artist-blocklist', `blocklist:${userId}`);
   } else {
-    blocklistCache.clear();
+    cache.clearNamespace('artist-blocklist');
   }
 }

@@ -1,0 +1,25 @@
+{
+  "category": "Performance",
+  "description": "Optimize React Query caching strategy and reduce unnecessary API calls",
+  "id": "feature-1766887111413-fecj65h7v",
+  "steps": [
+    "Review all useQuery hooks for staleTime configuration (currently using default 0ms in AnalyticsDashboard)",
+    "Increase staleTime for stable data: analytics (5min→30min), library lists (5min→60min), recommendations (3min→15min)",
+    "Add gcTime (formerly cacheTime) to keep inactive queries cached for 10 minutes instead of default 5 minutes",
+    "Implement query deduplication using queryKey params to prevent duplicate requests during rapid navigation",
+    "Use QueryClient.setQueryDefaults to standardize caching across the app based on data freshness requirements"
+  ],
+  "status": "completed",
+  "skipTests": false,
+  "priority": 2,
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "none",
+  "imagePaths": [],
+  "branchName": "feat/unified-recommendations-service",
+  "planningMode": "skip",
+  "requirePlanApproval": false,
+  "textFilePaths": [],
+  "startedAt": "2025-12-28T18:15:35.984Z",
+  "updatedAt": "2025-12-28T18:24:58.327Z"
+}

@@ -234,18 +234,32 @@ describe('MobileOptimization', () => {
       expect(observer).toBeInstanceOf(IntersectionObserver);
     });
 
-    it('should return null when IntersectionObserver is not available', () => {
+    it('should return mock observer when IntersectionObserver is not available', () => {
+      // Save original IntersectionObserver
+      const originalIntersectionObserver = global.IntersectionObserver;
+
       // Delete IntersectionObserver from global scope
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      global.IntersectionObserver = undefined as unknown as any;
+      // @ts-expect-error - intentionally setting to undefined for testing
+      global.IntersectionObserver = undefined;
 
       const mockCallback = vi.fn();
       const observer = optimization.createIntersectionObserver(mockCallback);
 
-      expect(observer).toBeNull();
+      // Should return a mock observer with all required methods
+      expect(observer).not.toBeNull();
+      expect(observer.observe).toBeInstanceOf(Function);
+      expect(observer.unobserve).toBeInstanceOf(Function);
+      expect(observer.disconnect).toBeInstanceOf(Function);
+      expect(observer.takeRecords).toBeInstanceOf(Function);
+
+      // Mock methods should not throw when called
+      expect(() => observer.observe(document.body)).not.toThrow();
+      expect(() => observer.unobserve(document.body)).not.toThrow();
+      expect(() => observer.disconnect()).not.toThrow();
+      expect(observer.takeRecords()).toEqual([]);
 
       // Restore IntersectionObserver
-      global.IntersectionObserver = window.IntersectionObserver;
+      global.IntersectionObserver = originalIntersectionObserver;
     });
   });
 
@@ -325,8 +339,8 @@ describe('MobileOptimization', () => {
 
     it('should handle missing connection API', () => {
       // Remove connection property
-       
-      delete (navigator as unknown as { connection?: unknown }).connection;
+      const nav = navigator as Navigator & { connection?: { effectiveType?: string; downlink?: number; rtt?: number } };
+      delete nav.connection;
 
       const conditions = optimization.getNetworkConditions();
 

@@ -1,0 +1,21 @@
+{
+  "category": "Uncategorized",
+  "description": "Add \"My Playlists\" Button to Mobile Dashboard\n\nImplement a \"My Playlists\" button or navigation element on the dashboard that is visible and accessible on mobile devices.\n\nRequirements:\n- Add a clearly visible \"My Playlists\" button/link to the mobile dashboard view\n- Ensure the button is properly styled and sized for mobile touch targets (minimum 44x44px)\n- Verify the button navigates to the correct playlists page/section\n- Check that the button appears in a logical location within the mobile dashboard layout\n- Test on various mobile screen sizes (small phones, large phones, tablets)\n- Ensure the button does not already exist but is hidden due to CSS/styling issues\n- Verify the desktop version is not affected by mobile-specific changes\n\nInvestigation needed:\n- Determine if this is a missing feature or a display/rendering bug\n- Check if the button exists in the DOM but is not visible (CSS issue)\n- Verify responsive breakpoints are working correctly\n- Review if there are differences between iOS and Android rendering",
+  "title": "Add My Playlists button to mobile dashboard",
+  "images": [],
+  "imagePaths": [],
+  "textFilePaths": [],
+  "skipTests": false,
+  "model": "opus",
+  "thinkingLevel": "ultrathink",
+  "branchName": "feat/unified-recommendations-service",
+  "priority": 2,
+  "planningMode": "lite",
+  "requirePlanApproval": false,
+  "dependencies": [],
+  "titleGenerating": false,
+  "status": "completed",
+  "id": "feature-1766953779798-gz1mj11hg",
+  "startedAt": "2025-12-28T20:29:41.652Z",
+  "updatedAt": "2025-12-28T20:33:13.942Z"
+}

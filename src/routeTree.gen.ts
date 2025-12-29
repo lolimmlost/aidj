@@ -25,6 +25,8 @@ import { Route as DownloadsYoutubeRouteImport } from './routes/downloads/youtube
 import { Route as DownloadsStatusRouteImport } from './routes/downloads/status'
 import { Route as DownloadsHistoryRouteImport } from './routes/downloads/history'
 import { Route as DjSetBuilderRouteImport } from './routes/dj/set-builder'
+import { Route as DashboardMoodTimelineRouteImport } from './routes/dashboard/mood-timeline'
+import { Route as DashboardDiscoverRouteImport } from './routes/dashboard/discover'
 import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard/analytics'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as ApiRecommendationsRouteImport } from './routes/api/recommendations'
@@ -32,20 +34,26 @@ import { Route as ApiPreferencesRouteImport } from './routes/api/preferences'
 import { Route as ApiPlaylistRouteImport } from './routes/api/playlist'
 import { Route as ApiDebugLibraryRouteImport } from './routes/api/debug-library'
 import { Route as ApiConfigRouteImport } from './routes/api/config'
+import { Route as ApiCacheRouteImport } from './routes/api/cache'
 import { Route as authSignupRouteImport } from './routes/(auth)/signup'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as LibraryArtistsIndexRouteImport } from './routes/library/artists/index'
 import { Route as ApiPlaylistsIndexRouteImport } from './routes/api/playlists/index'
+import { Route as ApiDiscoveryFeedIndexRouteImport } from './routes/api/discovery-feed/index'
+import { Route as PlaylistsJoinShareCodeRouteImport } from './routes/playlists/join/$shareCode'
 import { Route as LibraryArtistsIdRouteImport } from './routes/library/artists/$id'
 import { Route as DashboardRecommendationsIdRouteImport } from './routes/dashboard/recommendations/$id'
 import { Route as ApiRecommendationsSeasonalPlaylistRouteImport } from './routes/api/recommendations/seasonal-playlist'
 import { Route as ApiRecommendationsSeasonalInsightsRouteImport } from './routes/api/recommendations/seasonal-insights'
+import { Route as ApiRecommendationsMoodTimelineRouteImport } from './routes/api/recommendations/mood-timeline'
 import { Route as ApiRecommendationsFeedbackRouteImport } from './routes/api/recommendations/feedback'
 import { Route as ApiRecommendationsExportRouteImport } from './routes/api/recommendations/export'
 import { Route as ApiRecommendationsClearRouteImport } from './routes/api/recommendations/clear'
 import { Route as ApiRecommendationsAnalyticsRouteImport } from './routes/api/recommendations/analytics'
 import { Route as ApiPlaylistsSyncRouteImport } from './routes/api/playlists/sync'
+import { Route as ApiPlaylistsJoinRouteImport } from './routes/api/playlists/join'
 import { Route as ApiPlaylistsIdRouteImport } from './routes/api/playlists/$id'
+import { Route as ApiNavidromeSearchRouteImport } from './routes/api/navidrome/search'
 import { Route as ApiMetubeStatusRouteImport } from './routes/api/metube/status'
 import { Route as ApiMetubeDeleteRouteImport } from './routes/api/metube/delete'
 import { Route as ApiMetubeAddRouteImport } from './routes/api/metube/add'
@@ -65,6 +73,8 @@ import { Route as ApiLastfmTestRouteImport } from './routes/api/lastfm/test'
 import { Route as ApiLastfmSimilarTracksRouteImport } from './routes/api/lastfm/similar-tracks'
 import { Route as ApiLastfmSimilarArtistsRouteImport } from './routes/api/lastfm/similar-artists'
 import { Route as ApiLastfmSearchRouteImport } from './routes/api/lastfm/search'
+import { Route as ApiDiscoveryFeedInteractionsRouteImport } from './routes/api/discovery-feed/interactions'
+import { Route as ApiDiscoveryFeedAnalyticsRouteImport } from './routes/api/discovery-feed/analytics'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -73,6 +83,8 @@ import { Route as ApiPlaylistsSmartIndexRouteImport } from './routes/api/playlis
 import { Route as ApiPlaylistsSmartPreviewRouteImport } from './routes/api/playlists/smart/preview'
 import { Route as ApiPlaylistsLikedSongsSyncRouteImport } from './routes/api/playlists/liked-songs/sync'
 import { Route as ApiPlaylistsIdReorderRouteImport } from './routes/api/playlists/$id/reorder'
+import { Route as ApiPlaylistsIdEventsRouteImport } from './routes/api/playlists/$id/events'
+import { Route as ApiPlaylistsIdActivityRouteImport } from './routes/api/playlists/$id/activity'
 import { Route as ApiNavidromeStreamIdRouteImport } from './routes/api/navidrome/stream/$id'
 import { Route as ApiNavidromeRestScrobbleRouteImport } from './routes/api/navidrome/rest/scrobble'
 import { Route as ApiNavidromeAuthLoginRouteImport } from './routes/api/navidrome/auth/login'
@@ -80,8 +92,19 @@ import { Route as ApiNavidromeApiSongRouteImport } from './routes/api/navidrome/
 import { Route as ApiNavidromeApiArtistRouteImport } from './routes/api/navidrome/api/artist'
 import { Route as ApiNavidromeApiAlbumRouteImport } from './routes/api/navidrome/api/album'
 import { Route as ApiNavidromeChar91DotPathChar93RouteImport } from './routes/api/navidrome/[...path]'
+import { Route as ApiLibrarySyncStatusRouteImport } from './routes/api/library/sync/status'
+import { Route as ApiLibrarySyncStartRouteImport } from './routes/api/library/sync/start'
+import { Route as ApiLibrarySyncSettingsRouteImport } from './routes/api/library/sync/settings'
+import { Route as ApiLibrarySyncResumeRouteImport } from './routes/api/library/sync/resume'
+import { Route as ApiLibrarySyncPauseRouteImport } from './routes/api/library/sync/pause'
+import { Route as ApiLibrarySyncAbortRouteImport } from './routes/api/library/sync/abort'
+import { Route as ApiDiscoveryFeedNotificationsPreferencesRouteImport } from './routes/api/discovery-feed/notifications/preferences'
+import { Route as ApiPlaylistsIdSuggestionsIndexRouteImport } from './routes/api/playlists/$id/suggestions/index'
 import { Route as ApiPlaylistsIdSongsIndexRouteImport } from './routes/api/playlists/$id/songs/index'
+import { Route as ApiPlaylistsIdCollaboratorsIndexRouteImport } from './routes/api/playlists/$id/collaborators/index'
+import { Route as ApiPlaylistsIdCollaborationIndexRouteImport } from './routes/api/playlists/$id/collaboration/index'
 import { Route as LibraryArtistsIdAlbumsAlbumIdRouteImport } from './routes/library/artists/$id/albums/$albumId'
+import { Route as ApiPlaylistsIdSuggestionsSuggestionIdRouteImport } from './routes/api/playlists/$id/suggestions/$suggestionId'
 import { Route as ApiPlaylistsIdSongsSongIdRouteImport } from './routes/api/playlists/$id/songs/$songId'
 import { Route as ApiNavidromeStreamIdIdRouteImport } from './routes/api/navidrome/stream/[id]/[id]'
 import { Route as ApiNavidromeApiArtistIdRouteImport } from './routes/api/navidrome/api/artist/$id'
@@ -166,6 +189,16 @@ const DjSetBuilderRoute = DjSetBuilderRouteImport.update({
   path: '/dj/set-builder',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardMoodTimelineRoute = DashboardMoodTimelineRouteImport.update({
+  id: '/mood-timeline',
+  path: '/mood-timeline',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const DashboardDiscoverRoute = DashboardDiscoverRouteImport.update({
+  id: '/discover',
+  path: '/discover',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
@@ -201,6 +234,11 @@ const ApiConfigRoute = ApiConfigRouteImport.update({
   path: '/api/config',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCacheRoute = ApiCacheRouteImport.update({
+  id: '/api/cache',
+  path: '/api/cache',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const authSignupRoute = authSignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -219,6 +257,16 @@ const LibraryArtistsIndexRoute = LibraryArtistsIndexRouteImport.update({
 const ApiPlaylistsIndexRoute = ApiPlaylistsIndexRouteImport.update({
   id: '/api/playlists/',
   path: '/api/playlists/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDiscoveryFeedIndexRoute = ApiDiscoveryFeedIndexRouteImport.update({
+  id: '/api/discovery-feed/',
+  path: '/api/discovery-feed/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlaylistsJoinShareCodeRoute = PlaylistsJoinShareCodeRouteImport.update({
+  id: '/playlists/join/$shareCode',
+  path: '/playlists/join/$shareCode',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LibraryArtistsIdRoute = LibraryArtistsIdRouteImport.update({
@@ -242,6 +290,12 @@ const ApiRecommendationsSeasonalInsightsRoute =
   ApiRecommendationsSeasonalInsightsRouteImport.update({
     id: '/seasonal-insights',
     path: '/seasonal-insights',
+    getParentRoute: () => ApiRecommendationsRoute,
+  } as any)
+const ApiRecommendationsMoodTimelineRoute =
+  ApiRecommendationsMoodTimelineRouteImport.update({
+    id: '/mood-timeline',
+    path: '/mood-timeline',
     getParentRoute: () => ApiRecommendationsRoute,
   } as any)
 const ApiRecommendationsFeedbackRoute =
@@ -272,9 +326,19 @@ const ApiPlaylistsSyncRoute = ApiPlaylistsSyncRouteImport.update({
   path: '/api/playlists/sync',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPlaylistsJoinRoute = ApiPlaylistsJoinRouteImport.update({
+  id: '/api/playlists/join',
+  path: '/api/playlists/join',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPlaylistsIdRoute = ApiPlaylistsIdRouteImport.update({
   id: '/api/playlists/$id',
   path: '/api/playlists/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiNavidromeSearchRoute = ApiNavidromeSearchRouteImport.update({
+  id: '/api/navidrome/search',
+  path: '/api/navidrome/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMetubeStatusRoute = ApiMetubeStatusRouteImport.update({
@@ -375,6 +439,18 @@ const ApiLastfmSearchRoute = ApiLastfmSearchRouteImport.update({
   path: '/api/lastfm/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDiscoveryFeedInteractionsRoute =
+  ApiDiscoveryFeedInteractionsRouteImport.update({
+    id: '/api/discovery-feed/interactions',
+    path: '/api/discovery-feed/interactions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiDiscoveryFeedAnalyticsRoute =
+  ApiDiscoveryFeedAnalyticsRouteImport.update({
+    id: '/api/discovery-feed/analytics',
+    path: '/api/discovery-feed/analytics',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
   id: '/api/auth/register',
   path: '/api/auth/register',
@@ -417,6 +493,16 @@ const ApiPlaylistsIdReorderRoute = ApiPlaylistsIdReorderRouteImport.update({
   path: '/reorder',
   getParentRoute: () => ApiPlaylistsIdRoute,
 } as any)
+const ApiPlaylistsIdEventsRoute = ApiPlaylistsIdEventsRouteImport.update({
+  id: '/events',
+  path: '/events',
+  getParentRoute: () => ApiPlaylistsIdRoute,
+} as any)
+const ApiPlaylistsIdActivityRoute = ApiPlaylistsIdActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => ApiPlaylistsIdRoute,
+} as any)
 const ApiNavidromeStreamIdRoute = ApiNavidromeStreamIdRouteImport.update({
   id: '/api/navidrome/stream/$id',
   path: '/api/navidrome/stream/$id',
@@ -454,10 +540,64 @@ const ApiNavidromeChar91DotPathChar93Route =
     path: '/api/navidrome/[./path]',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiLibrarySyncStatusRoute = ApiLibrarySyncStatusRouteImport.update({
+  id: '/api/library/sync/status',
+  path: '/api/library/sync/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLibrarySyncStartRoute = ApiLibrarySyncStartRouteImport.update({
+  id: '/api/library/sync/start',
+  path: '/api/library/sync/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLibrarySyncSettingsRoute = ApiLibrarySyncSettingsRouteImport.update({
+  id: '/api/library/sync/settings',
+  path: '/api/library/sync/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLibrarySyncResumeRoute = ApiLibrarySyncResumeRouteImport.update({
+  id: '/api/library/sync/resume',
+  path: '/api/library/sync/resume',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLibrarySyncPauseRoute = ApiLibrarySyncPauseRouteImport.update({
+  id: '/api/library/sync/pause',
+  path: '/api/library/sync/pause',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLibrarySyncAbortRoute = ApiLibrarySyncAbortRouteImport.update({
+  id: '/api/library/sync/abort',
+  path: '/api/library/sync/abort',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDiscoveryFeedNotificationsPreferencesRoute =
+  ApiDiscoveryFeedNotificationsPreferencesRouteImport.update({
+    id: '/api/discovery-feed/notifications/preferences',
+    path: '/api/discovery-feed/notifications/preferences',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPlaylistsIdSuggestionsIndexRoute =
+  ApiPlaylistsIdSuggestionsIndexRouteImport.update({
+    id: '/suggestions/',
+    path: '/suggestions/',
+    getParentRoute: () => ApiPlaylistsIdRoute,
+  } as any)
 const ApiPlaylistsIdSongsIndexRoute =
   ApiPlaylistsIdSongsIndexRouteImport.update({
     id: '/songs/',
     path: '/songs/',
+    getParentRoute: () => ApiPlaylistsIdRoute,
+  } as any)
+const ApiPlaylistsIdCollaboratorsIndexRoute =
+  ApiPlaylistsIdCollaboratorsIndexRouteImport.update({
+    id: '/collaborators/',
+    path: '/collaborators/',
+    getParentRoute: () => ApiPlaylistsIdRoute,
+  } as any)
+const ApiPlaylistsIdCollaborationIndexRoute =
+  ApiPlaylistsIdCollaborationIndexRouteImport.update({
+    id: '/collaboration/',
+    path: '/collaboration/',
     getParentRoute: () => ApiPlaylistsIdRoute,
   } as any)
 const LibraryArtistsIdAlbumsAlbumIdRoute =
@@ -465,6 +605,12 @@ const LibraryArtistsIdAlbumsAlbumIdRoute =
     id: '/albums/$albumId',
     path: '/albums/$albumId',
     getParentRoute: () => LibraryArtistsIdRoute,
+  } as any)
+const ApiPlaylistsIdSuggestionsSuggestionIdRoute =
+  ApiPlaylistsIdSuggestionsSuggestionIdRouteImport.update({
+    id: '/suggestions/$suggestionId',
+    path: '/suggestions/$suggestionId',
+    getParentRoute: () => ApiPlaylistsIdRoute,
   } as any)
 const ApiPlaylistsIdSongsSongIdRoute =
   ApiPlaylistsIdSongsSongIdRouteImport.update({
@@ -494,6 +640,7 @@ export interface FileRoutesByFullPath {
   '/config': typeof ConfigRoute
   '/login': typeof authLoginRoute
   '/signup': typeof authSignupRoute
+  '/api/cache': typeof ApiCacheRoute
   '/api/config': typeof ApiConfigRoute
   '/api/debug-library': typeof ApiDebugLibraryRoute
   '/api/playlist': typeof ApiPlaylistRoute
@@ -501,6 +648,8 @@ export interface FileRoutesByFullPath {
   '/api/recommendations': typeof ApiRecommendationsRouteWithChildren
   '/api/search': typeof ApiSearchRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/discover': typeof DashboardDiscoverRoute
+  '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/downloads/history': typeof DownloadsHistoryRoute
   '/downloads/status': typeof DownloadsStatusRoute
@@ -517,6 +666,8 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
+  '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/lastfm/search': typeof ApiLastfmSearchRoute
   '/api/lastfm/similar-artists': typeof ApiLastfmSimilarArtistsRoute
   '/api/lastfm/similar-tracks': typeof ApiLastfmSimilarTracksRoute
@@ -536,18 +687,30 @@ export interface FileRoutesByFullPath {
   '/api/metube/add': typeof ApiMetubeAddRoute
   '/api/metube/delete': typeof ApiMetubeDeleteRoute
   '/api/metube/status': typeof ApiMetubeStatusRoute
+  '/api/navidrome/search': typeof ApiNavidromeSearchRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
+  '/api/playlists/join': typeof ApiPlaylistsJoinRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
   '/api/recommendations/clear': typeof ApiRecommendationsClearRoute
   '/api/recommendations/export': typeof ApiRecommendationsExportRoute
   '/api/recommendations/feedback': typeof ApiRecommendationsFeedbackRoute
+  '/api/recommendations/mood-timeline': typeof ApiRecommendationsMoodTimelineRoute
   '/api/recommendations/seasonal-insights': typeof ApiRecommendationsSeasonalInsightsRoute
   '/api/recommendations/seasonal-playlist': typeof ApiRecommendationsSeasonalPlaylistRoute
   '/dashboard/recommendations/$id': typeof DashboardRecommendationsIdRoute
   '/library/artists/$id': typeof LibraryArtistsIdRouteWithChildren
+  '/playlists/join/$shareCode': typeof PlaylistsJoinShareCodeRoute
+  '/api/discovery-feed': typeof ApiDiscoveryFeedIndexRoute
   '/api/playlists': typeof ApiPlaylistsIndexRoute
   '/library/artists/': typeof LibraryArtistsIndexRoute
+  '/api/discovery-feed/notifications/preferences': typeof ApiDiscoveryFeedNotificationsPreferencesRoute
+  '/api/library/sync/abort': typeof ApiLibrarySyncAbortRoute
+  '/api/library/sync/pause': typeof ApiLibrarySyncPauseRoute
+  '/api/library/sync/resume': typeof ApiLibrarySyncResumeRoute
+  '/api/library/sync/settings': typeof ApiLibrarySyncSettingsRoute
+  '/api/library/sync/start': typeof ApiLibrarySyncStartRoute
+  '/api/library/sync/status': typeof ApiLibrarySyncStatusRoute
   '/api/navidrome/[./path]': typeof ApiNavidromeChar91DotPathChar93Route
   '/api/navidrome/api/album': typeof ApiNavidromeApiAlbumRouteWithChildren
   '/api/navidrome/api/artist': typeof ApiNavidromeApiArtistRouteWithChildren
@@ -555,6 +718,8 @@ export interface FileRoutesByFullPath {
   '/api/navidrome/auth/login': typeof ApiNavidromeAuthLoginRoute
   '/api/navidrome/rest/scrobble': typeof ApiNavidromeRestScrobbleRoute
   '/api/navidrome/stream/$id': typeof ApiNavidromeStreamIdRoute
+  '/api/playlists/$id/activity': typeof ApiPlaylistsIdActivityRoute
+  '/api/playlists/$id/events': typeof ApiPlaylistsIdEventsRoute
   '/api/playlists/$id/reorder': typeof ApiPlaylistsIdReorderRoute
   '/api/playlists/liked-songs/sync': typeof ApiPlaylistsLikedSongsSyncRoute
   '/api/playlists/smart/preview': typeof ApiPlaylistsSmartPreviewRoute
@@ -563,14 +728,19 @@ export interface FileRoutesByFullPath {
   '/api/navidrome/api/artist/$id': typeof ApiNavidromeApiArtistIdRoute
   '/api/navidrome/stream/id/id': typeof ApiNavidromeStreamIdIdRoute
   '/api/playlists/$id/songs/$songId': typeof ApiPlaylistsIdSongsSongIdRoute
+  '/api/playlists/$id/suggestions/$suggestionId': typeof ApiPlaylistsIdSuggestionsSuggestionIdRoute
   '/library/artists/$id/albums/$albumId': typeof LibraryArtistsIdAlbumsAlbumIdRoute
+  '/api/playlists/$id/collaboration': typeof ApiPlaylistsIdCollaborationIndexRoute
+  '/api/playlists/$id/collaborators': typeof ApiPlaylistsIdCollaboratorsIndexRoute
   '/api/playlists/$id/songs': typeof ApiPlaylistsIdSongsIndexRoute
+  '/api/playlists/$id/suggestions': typeof ApiPlaylistsIdSuggestionsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/config': typeof ConfigRoute
   '/login': typeof authLoginRoute
   '/signup': typeof authSignupRoute
+  '/api/cache': typeof ApiCacheRoute
   '/api/config': typeof ApiConfigRoute
   '/api/debug-library': typeof ApiDebugLibraryRoute
   '/api/playlist': typeof ApiPlaylistRoute
@@ -578,6 +748,8 @@ export interface FileRoutesByTo {
   '/api/recommendations': typeof ApiRecommendationsRouteWithChildren
   '/api/search': typeof ApiSearchRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/discover': typeof DashboardDiscoverRoute
+  '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/downloads/history': typeof DownloadsHistoryRoute
   '/downloads/status': typeof DownloadsStatusRoute
@@ -593,6 +765,8 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
+  '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/lastfm/search': typeof ApiLastfmSearchRoute
   '/api/lastfm/similar-artists': typeof ApiLastfmSimilarArtistsRoute
   '/api/lastfm/similar-tracks': typeof ApiLastfmSimilarTracksRoute
@@ -612,18 +786,30 @@ export interface FileRoutesByTo {
   '/api/metube/add': typeof ApiMetubeAddRoute
   '/api/metube/delete': typeof ApiMetubeDeleteRoute
   '/api/metube/status': typeof ApiMetubeStatusRoute
+  '/api/navidrome/search': typeof ApiNavidromeSearchRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
+  '/api/playlists/join': typeof ApiPlaylistsJoinRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
   '/api/recommendations/clear': typeof ApiRecommendationsClearRoute
   '/api/recommendations/export': typeof ApiRecommendationsExportRoute
   '/api/recommendations/feedback': typeof ApiRecommendationsFeedbackRoute
+  '/api/recommendations/mood-timeline': typeof ApiRecommendationsMoodTimelineRoute
   '/api/recommendations/seasonal-insights': typeof ApiRecommendationsSeasonalInsightsRoute
   '/api/recommendations/seasonal-playlist': typeof ApiRecommendationsSeasonalPlaylistRoute
   '/dashboard/recommendations/$id': typeof DashboardRecommendationsIdRoute
   '/library/artists/$id': typeof LibraryArtistsIdRouteWithChildren
+  '/playlists/join/$shareCode': typeof PlaylistsJoinShareCodeRoute
+  '/api/discovery-feed': typeof ApiDiscoveryFeedIndexRoute
   '/api/playlists': typeof ApiPlaylistsIndexRoute
   '/library/artists': typeof LibraryArtistsIndexRoute
+  '/api/discovery-feed/notifications/preferences': typeof ApiDiscoveryFeedNotificationsPreferencesRoute
+  '/api/library/sync/abort': typeof ApiLibrarySyncAbortRoute
+  '/api/library/sync/pause': typeof ApiLibrarySyncPauseRoute
+  '/api/library/sync/resume': typeof ApiLibrarySyncResumeRoute
+  '/api/library/sync/settings': typeof ApiLibrarySyncSettingsRoute
+  '/api/library/sync/start': typeof ApiLibrarySyncStartRoute
+  '/api/library/sync/status': typeof ApiLibrarySyncStatusRoute
   '/api/navidrome/[./path]': typeof ApiNavidromeChar91DotPathChar93Route
   '/api/navidrome/api/album': typeof ApiNavidromeApiAlbumRouteWithChildren
   '/api/navidrome/api/artist': typeof ApiNavidromeApiArtistRouteWithChildren
@@ -631,6 +817,8 @@ export interface FileRoutesByTo {
   '/api/navidrome/auth/login': typeof ApiNavidromeAuthLoginRoute
   '/api/navidrome/rest/scrobble': typeof ApiNavidromeRestScrobbleRoute
   '/api/navidrome/stream/$id': typeof ApiNavidromeStreamIdRoute
+  '/api/playlists/$id/activity': typeof ApiPlaylistsIdActivityRoute
+  '/api/playlists/$id/events': typeof ApiPlaylistsIdEventsRoute
   '/api/playlists/$id/reorder': typeof ApiPlaylistsIdReorderRoute
   '/api/playlists/liked-songs/sync': typeof ApiPlaylistsLikedSongsSyncRoute
   '/api/playlists/smart/preview': typeof ApiPlaylistsSmartPreviewRoute
@@ -639,8 +827,12 @@ export interface FileRoutesByTo {
   '/api/navidrome/api/artist/$id': typeof ApiNavidromeApiArtistIdRoute
   '/api/navidrome/stream/id/id': typeof ApiNavidromeStreamIdIdRoute
   '/api/playlists/$id/songs/$songId': typeof ApiPlaylistsIdSongsSongIdRoute
+  '/api/playlists/$id/suggestions/$suggestionId': typeof ApiPlaylistsIdSuggestionsSuggestionIdRoute
   '/library/artists/$id/albums/$albumId': typeof LibraryArtistsIdAlbumsAlbumIdRoute
+  '/api/playlists/$id/collaboration': typeof ApiPlaylistsIdCollaborationIndexRoute
+  '/api/playlists/$id/collaborators': typeof ApiPlaylistsIdCollaboratorsIndexRoute
   '/api/playlists/$id/songs': typeof ApiPlaylistsIdSongsIndexRoute
+  '/api/playlists/$id/suggestions': typeof ApiPlaylistsIdSuggestionsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -650,6 +842,7 @@ export interface FileRoutesById {
   '/config': typeof ConfigRoute
   '/(auth)/login': typeof authLoginRoute
   '/(auth)/signup': typeof authSignupRoute
+  '/api/cache': typeof ApiCacheRoute
   '/api/config': typeof ApiConfigRoute
   '/api/debug-library': typeof ApiDebugLibraryRoute
   '/api/playlist': typeof ApiPlaylistRoute
@@ -657,6 +850,8 @@ export interface FileRoutesById {
   '/api/recommendations': typeof ApiRecommendationsRouteWithChildren
   '/api/search': typeof ApiSearchRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/discover': typeof DashboardDiscoverRoute
+  '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/downloads/history': typeof DownloadsHistoryRoute
   '/downloads/status': typeof DownloadsStatusRoute
@@ -673,6 +868,8 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
+  '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/lastfm/search': typeof ApiLastfmSearchRoute
   '/api/lastfm/similar-artists': typeof ApiLastfmSimilarArtistsRoute
   '/api/lastfm/similar-tracks': typeof ApiLastfmSimilarTracksRoute
@@ -692,18 +889,30 @@ export interface FileRoutesById {
   '/api/metube/add': typeof ApiMetubeAddRoute
   '/api/metube/delete': typeof ApiMetubeDeleteRoute
   '/api/metube/status': typeof ApiMetubeStatusRoute
+  '/api/navidrome/search': typeof ApiNavidromeSearchRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
+  '/api/playlists/join': typeof ApiPlaylistsJoinRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
   '/api/recommendations/clear': typeof ApiRecommendationsClearRoute
   '/api/recommendations/export': typeof ApiRecommendationsExportRoute
   '/api/recommendations/feedback': typeof ApiRecommendationsFeedbackRoute
+  '/api/recommendations/mood-timeline': typeof ApiRecommendationsMoodTimelineRoute
   '/api/recommendations/seasonal-insights': typeof ApiRecommendationsSeasonalInsightsRoute
   '/api/recommendations/seasonal-playlist': typeof ApiRecommendationsSeasonalPlaylistRoute
   '/dashboard/recommendations/$id': typeof DashboardRecommendationsIdRoute
   '/library/artists/$id': typeof LibraryArtistsIdRouteWithChildren
+  '/playlists/join/$shareCode': typeof PlaylistsJoinShareCodeRoute
+  '/api/discovery-feed/': typeof ApiDiscoveryFeedIndexRoute
   '/api/playlists/': typeof ApiPlaylistsIndexRoute
   '/library/artists/': typeof LibraryArtistsIndexRoute
+  '/api/discovery-feed/notifications/preferences': typeof ApiDiscoveryFeedNotificationsPreferencesRoute
+  '/api/library/sync/abort': typeof ApiLibrarySyncAbortRoute
+  '/api/library/sync/pause': typeof ApiLibrarySyncPauseRoute
+  '/api/library/sync/resume': typeof ApiLibrarySyncResumeRoute
+  '/api/library/sync/settings': typeof ApiLibrarySyncSettingsRoute
+  '/api/library/sync/start': typeof ApiLibrarySyncStartRoute
+  '/api/library/sync/status': typeof ApiLibrarySyncStatusRoute
   '/api/navidrome/[./path]': typeof ApiNavidromeChar91DotPathChar93Route
   '/api/navidrome/api/album': typeof ApiNavidromeApiAlbumRouteWithChildren
   '/api/navidrome/api/artist': typeof ApiNavidromeApiArtistRouteWithChildren
@@ -711,6 +920,8 @@ export interface FileRoutesById {
   '/api/navidrome/auth/login': typeof ApiNavidromeAuthLoginRoute
   '/api/navidrome/rest/scrobble': typeof ApiNavidromeRestScrobbleRoute
   '/api/navidrome/stream/$id': typeof ApiNavidromeStreamIdRoute
+  '/api/playlists/$id/activity': typeof ApiPlaylistsIdActivityRoute
+  '/api/playlists/$id/events': typeof ApiPlaylistsIdEventsRoute
   '/api/playlists/$id/reorder': typeof ApiPlaylistsIdReorderRoute
   '/api/playlists/liked-songs/sync': typeof ApiPlaylistsLikedSongsSyncRoute
   '/api/playlists/smart/preview': typeof ApiPlaylistsSmartPreviewRoute
@@ -719,8 +930,12 @@ export interface FileRoutesById {
   '/api/navidrome/api/artist/$id': typeof ApiNavidromeApiArtistIdRoute
   '/api/navidrome/stream/id/id': typeof ApiNavidromeStreamIdIdRoute
   '/api/playlists/$id/songs/$songId': typeof ApiPlaylistsIdSongsSongIdRoute
+  '/api/playlists/$id/suggestions/$suggestionId': typeof ApiPlaylistsIdSuggestionsSuggestionIdRoute
   '/library/artists/$id/albums/$albumId': typeof LibraryArtistsIdAlbumsAlbumIdRoute
+  '/api/playlists/$id/collaboration/': typeof ApiPlaylistsIdCollaborationIndexRoute
+  '/api/playlists/$id/collaborators/': typeof ApiPlaylistsIdCollaboratorsIndexRoute
   '/api/playlists/$id/songs/': typeof ApiPlaylistsIdSongsIndexRoute
+  '/api/playlists/$id/suggestions/': typeof ApiPlaylistsIdSuggestionsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -730,6 +945,7 @@ export interface FileRouteTypes {
     | '/config'
     | '/login'
     | '/signup'
+    | '/api/cache'
     | '/api/config'
     | '/api/debug-library'
     | '/api/playlist'
@@ -737,6 +953,8 @@ export interface FileRouteTypes {
     | '/api/recommendations'
     | '/api/search'
     | '/dashboard/analytics'
+    | '/dashboard/discover'
+    | '/dashboard/mood-timeline'
     | '/dj/set-builder'
     | '/downloads/history'
     | '/downloads/status'
@@ -753,6 +971,8 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/auth/login'
     | '/api/auth/register'
+    | '/api/discovery-feed/analytics'
+    | '/api/discovery-feed/interactions'
     | '/api/lastfm/search'
     | '/api/lastfm/similar-artists'
     | '/api/lastfm/similar-tracks'
@@ -772,18 +992,30 @@ export interface FileRouteTypes {
     | '/api/metube/add'
     | '/api/metube/delete'
     | '/api/metube/status'
+    | '/api/navidrome/search'
     | '/api/playlists/$id'
+    | '/api/playlists/join'
     | '/api/playlists/sync'
     | '/api/recommendations/analytics'
     | '/api/recommendations/clear'
     | '/api/recommendations/export'
     | '/api/recommendations/feedback'
+    | '/api/recommendations/mood-timeline'
     | '/api/recommendations/seasonal-insights'
     | '/api/recommendations/seasonal-playlist'
     | '/dashboard/recommendations/$id'
     | '/library/artists/$id'
+    | '/playlists/join/$shareCode'
+    | '/api/discovery-feed'
     | '/api/playlists'
     | '/library/artists/'
+    | '/api/discovery-feed/notifications/preferences'
+    | '/api/library/sync/abort'
+    | '/api/library/sync/pause'
+    | '/api/library/sync/resume'
+    | '/api/library/sync/settings'
+    | '/api/library/sync/start'
+    | '/api/library/sync/status'
     | '/api/navidrome/[./path]'
     | '/api/navidrome/api/album'
     | '/api/navidrome/api/artist'
@@ -791,6 +1023,8 @@ export interface FileRouteTypes {
     | '/api/navidrome/auth/login'
     | '/api/navidrome/rest/scrobble'
     | '/api/navidrome/stream/$id'
+    | '/api/playlists/$id/activity'
+    | '/api/playlists/$id/events'
     | '/api/playlists/$id/reorder'
     | '/api/playlists/liked-songs/sync'
     | '/api/playlists/smart/preview'
@@ -799,14 +1033,19 @@ export interface FileRouteTypes {
     | '/api/navidrome/api/artist/$id'
     | '/api/navidrome/stream/id/id'
     | '/api/playlists/$id/songs/$songId'
+    | '/api/playlists/$id/suggestions/$suggestionId'
     | '/library/artists/$id/albums/$albumId'
+    | '/api/playlists/$id/collaboration'
+    | '/api/playlists/$id/collaborators'
     | '/api/playlists/$id/songs'
+    | '/api/playlists/$id/suggestions'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/config'
     | '/login'
     | '/signup'
+    | '/api/cache'
     | '/api/config'
     | '/api/debug-library'
     | '/api/playlist'
@@ -814,6 +1053,8 @@ export interface FileRouteTypes {
     | '/api/recommendations'
     | '/api/search'
     | '/dashboard/analytics'
+    | '/dashboard/discover'
+    | '/dashboard/mood-timeline'
     | '/dj/set-builder'
     | '/downloads/history'
     | '/downloads/status'
@@ -829,6 +1070,8 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/auth/login'
     | '/api/auth/register'
+    | '/api/discovery-feed/analytics'
+    | '/api/discovery-feed/interactions'
     | '/api/lastfm/search'
     | '/api/lastfm/similar-artists'
     | '/api/lastfm/similar-tracks'
@@ -848,18 +1091,30 @@ export interface FileRouteTypes {
     | '/api/metube/add'
     | '/api/metube/delete'
     | '/api/metube/status'
+    | '/api/navidrome/search'
     | '/api/playlists/$id'
+    | '/api/playlists/join'
     | '/api/playlists/sync'
     | '/api/recommendations/analytics'
     | '/api/recommendations/clear'
     | '/api/recommendations/export'
     | '/api/recommendations/feedback'
+    | '/api/recommendations/mood-timeline'
     | '/api/recommendations/seasonal-insights'
     | '/api/recommendations/seasonal-playlist'
     | '/dashboard/recommendations/$id'
     | '/library/artists/$id'
+    | '/playlists/join/$shareCode'
+    | '/api/discovery-feed'
     | '/api/playlists'
     | '/library/artists'
+    | '/api/discovery-feed/notifications/preferences'
+    | '/api/library/sync/abort'
+    | '/api/library/sync/pause'
+    | '/api/library/sync/resume'
+    | '/api/library/sync/settings'
+    | '/api/library/sync/start'
+    | '/api/library/sync/status'
     | '/api/navidrome/[./path]'
     | '/api/navidrome/api/album'
     | '/api/navidrome/api/artist'
@@ -867,6 +1122,8 @@ export interface FileRouteTypes {
     | '/api/navidrome/auth/login'
     | '/api/navidrome/rest/scrobble'
     | '/api/navidrome/stream/$id'
+    | '/api/playlists/$id/activity'
+    | '/api/playlists/$id/events'
     | '/api/playlists/$id/reorder'
     | '/api/playlists/liked-songs/sync'
     | '/api/playlists/smart/preview'
@@ -875,8 +1132,12 @@ export interface FileRouteTypes {
     | '/api/navidrome/api/artist/$id'
     | '/api/navidrome/stream/id/id'
     | '/api/playlists/$id/songs/$songId'
+    | '/api/playlists/$id/suggestions/$suggestionId'
     | '/library/artists/$id/albums/$albumId'
+    | '/api/playlists/$id/collaboration'
+    | '/api/playlists/$id/collaborators'
     | '/api/playlists/$id/songs'
+    | '/api/playlists/$id/suggestions'
   id:
     | '__root__'
     | '/'
@@ -885,6 +1146,7 @@ export interface FileRouteTypes {
     | '/config'
     | '/(auth)/login'
     | '/(auth)/signup'
+    | '/api/cache'
     | '/api/config'
     | '/api/debug-library'
     | '/api/playlist'
@@ -892,6 +1154,8 @@ export interface FileRouteTypes {
     | '/api/recommendations'
     | '/api/search'
     | '/dashboard/analytics'
+    | '/dashboard/discover'
+    | '/dashboard/mood-timeline'
     | '/dj/set-builder'
     | '/downloads/history'
     | '/downloads/status'
@@ -908,6 +1172,8 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/auth/login'
     | '/api/auth/register'
+    | '/api/discovery-feed/analytics'
+    | '/api/discovery-feed/interactions'
     | '/api/lastfm/search'
     | '/api/lastfm/similar-artists'
     | '/api/lastfm/similar-tracks'
@@ -927,18 +1193,30 @@ export interface FileRouteTypes {
     | '/api/metube/add'
     | '/api/metube/delete'
     | '/api/metube/status'
+    | '/api/navidrome/search'
     | '/api/playlists/$id'
+    | '/api/playlists/join'
     | '/api/playlists/sync'
     | '/api/recommendations/analytics'
     | '/api/recommendations/clear'
     | '/api/recommendations/export'
     | '/api/recommendations/feedback'
+    | '/api/recommendations/mood-timeline'
     | '/api/recommendations/seasonal-insights'
     | '/api/recommendations/seasonal-playlist'
     | '/dashboard/recommendations/$id'
     | '/library/artists/$id'
+    | '/playlists/join/$shareCode'
+    | '/api/discovery-feed/'
     | '/api/playlists/'
     | '/library/artists/'
+    | '/api/discovery-feed/notifications/preferences'
+    | '/api/library/sync/abort'
+    | '/api/library/sync/pause'
+    | '/api/library/sync/resume'
+    | '/api/library/sync/settings'
+    | '/api/library/sync/start'
+    | '/api/library/sync/status'
     | '/api/navidrome/[./path]'
     | '/api/navidrome/api/album'
     | '/api/navidrome/api/artist'
@@ -946,6 +1224,8 @@ export interface FileRouteTypes {
     | '/api/navidrome/auth/login'
     | '/api/navidrome/rest/scrobble'
     | '/api/navidrome/stream/$id'
+    | '/api/playlists/$id/activity'
+    | '/api/playlists/$id/events'
     | '/api/playlists/$id/reorder'
     | '/api/playlists/liked-songs/sync'
     | '/api/playlists/smart/preview'
@@ -954,8 +1234,12 @@ export interface FileRouteTypes {
     | '/api/navidrome/api/artist/$id'
     | '/api/navidrome/stream/id/id'
     | '/api/playlists/$id/songs/$songId'
+    | '/api/playlists/$id/suggestions/$suggestionId'
     | '/library/artists/$id/albums/$albumId'
+    | '/api/playlists/$id/collaboration/'
+    | '/api/playlists/$id/collaborators/'
     | '/api/playlists/$id/songs/'
+    | '/api/playlists/$id/suggestions/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -963,6 +1247,7 @@ export interface RootRouteChildren {
   authRouteRoute: typeof authRouteRouteWithChildren
   DashboardRouteRoute: typeof DashboardRouteRouteWithChildren
   ConfigRoute: typeof ConfigRoute
+  ApiCacheRoute: typeof ApiCacheRoute
   ApiConfigRoute: typeof ApiConfigRoute
   ApiDebugLibraryRoute: typeof ApiDebugLibraryRoute
   ApiPlaylistRoute: typeof ApiPlaylistRoute
@@ -984,6 +1269,8 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
+  ApiDiscoveryFeedAnalyticsRoute: typeof ApiDiscoveryFeedAnalyticsRoute
+  ApiDiscoveryFeedInteractionsRoute: typeof ApiDiscoveryFeedInteractionsRoute
   ApiLastfmSearchRoute: typeof ApiLastfmSearchRoute
   ApiLastfmSimilarArtistsRoute: typeof ApiLastfmSimilarArtistsRoute
   ApiLastfmSimilarTracksRoute: typeof ApiLastfmSimilarTracksRoute
@@ -1003,9 +1290,20 @@ export interface RootRouteChildren {
   ApiMetubeAddRoute: typeof ApiMetubeAddRoute
   ApiMetubeDeleteRoute: typeof ApiMetubeDeleteRoute
   ApiMetubeStatusRoute: typeof ApiMetubeStatusRoute
+  ApiNavidromeSearchRoute: typeof ApiNavidromeSearchRoute
   ApiPlaylistsIdRoute: typeof ApiPlaylistsIdRouteWithChildren
+  ApiPlaylistsJoinRoute: typeof ApiPlaylistsJoinRoute
   ApiPlaylistsSyncRoute: typeof ApiPlaylistsSyncRoute
+  PlaylistsJoinShareCodeRoute: typeof PlaylistsJoinShareCodeRoute
+  ApiDiscoveryFeedIndexRoute: typeof ApiDiscoveryFeedIndexRoute
   ApiPlaylistsIndexRoute: typeof ApiPlaylistsIndexRoute
+  ApiDiscoveryFeedNotificationsPreferencesRoute: typeof ApiDiscoveryFeedNotificationsPreferencesRoute
+  ApiLibrarySyncAbortRoute: typeof ApiLibrarySyncAbortRoute
+  ApiLibrarySyncPauseRoute: typeof ApiLibrarySyncPauseRoute
+  ApiLibrarySyncResumeRoute: typeof ApiLibrarySyncResumeRoute
+  ApiLibrarySyncSettingsRoute: typeof ApiLibrarySyncSettingsRoute
+  ApiLibrarySyncStartRoute: typeof ApiLibrarySyncStartRoute
+  ApiLibrarySyncStatusRoute: typeof ApiLibrarySyncStatusRoute
   ApiNavidromeChar91DotPathChar93Route: typeof ApiNavidromeChar91DotPathChar93Route
   ApiNavidromeApiAlbumRoute: typeof ApiNavidromeApiAlbumRouteWithChildren
   ApiNavidromeApiArtistRoute: typeof ApiNavidromeApiArtistRouteWithChildren
@@ -1133,6 +1431,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DjSetBuilderRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard/mood-timeline': {
+      id: '/dashboard/mood-timeline'
+      path: '/mood-timeline'
+      fullPath: '/dashboard/mood-timeline'
+      preLoaderRoute: typeof DashboardMoodTimelineRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/dashboard/discover': {
+      id: '/dashboard/discover'
+      path: '/discover'
+      fullPath: '/dashboard/discover'
+      preLoaderRoute: typeof DashboardDiscoverRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/dashboard/analytics': {
       id: '/dashboard/analytics'
       path: '/analytics'
@@ -1182,6 +1494,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cache': {
+      id: '/api/cache'
+      path: '/api/cache'
+      fullPath: '/api/cache'
+      preLoaderRoute: typeof ApiCacheRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/(auth)/signup': {
       id: '/(auth)/signup'
       path: '/signup'
@@ -1210,6 +1529,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPlaylistsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/discovery-feed/': {
+      id: '/api/discovery-feed/'
+      path: '/api/discovery-feed'
+      fullPath: '/api/discovery-feed'
+      preLoaderRoute: typeof ApiDiscoveryFeedIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/playlists/join/$shareCode': {
+      id: '/playlists/join/$shareCode'
+      path: '/playlists/join/$shareCode'
+      fullPath: '/playlists/join/$shareCode'
+      preLoaderRoute: typeof PlaylistsJoinShareCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/library/artists/$id': {
       id: '/library/artists/$id'
       path: '/$id'
@@ -1236,6 +1569,13 @@ declare module '@tanstack/react-router' {
       path: '/seasonal-insights'
       fullPath: '/api/recommendations/seasonal-insights'
       preLoaderRoute: typeof ApiRecommendationsSeasonalInsightsRouteImport
+      parentRoute: typeof ApiRecommendationsRoute
+    }
+    '/api/recommendations/mood-timeline': {
+      id: '/api/recommendations/mood-timeline'
+      path: '/mood-timeline'
+      fullPath: '/api/recommendations/mood-timeline'
+      preLoaderRoute: typeof ApiRecommendationsMoodTimelineRouteImport
       parentRoute: typeof ApiRecommendationsRoute
     }
     '/api/recommendations/feedback': {
@@ -1273,11 +1613,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPlaylistsSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/playlists/join': {
+      id: '/api/playlists/join'
+      path: '/api/playlists/join'
+      fullPath: '/api/playlists/join'
+      preLoaderRoute: typeof ApiPlaylistsJoinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/playlists/$id': {
       id: '/api/playlists/$id'
       path: '/api/playlists/$id'
       fullPath: '/api/playlists/$id'
       preLoaderRoute: typeof ApiPlaylistsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/navidrome/search': {
+      id: '/api/navidrome/search'
+      path: '/api/navidrome/search'
+      fullPath: '/api/navidrome/search'
+      preLoaderRoute: typeof ApiNavidromeSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/metube/status': {
@@ -1413,6 +1767,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLastfmSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/discovery-feed/interactions': {
+      id: '/api/discovery-feed/interactions'
+      path: '/api/discovery-feed/interactions'
+      fullPath: '/api/discovery-feed/interactions'
+      preLoaderRoute: typeof ApiDiscoveryFeedInteractionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/discovery-feed/analytics': {
+      id: '/api/discovery-feed/analytics'
+      path: '/api/discovery-feed/analytics'
+      fullPath: '/api/discovery-feed/analytics'
+      preLoaderRoute: typeof ApiDiscoveryFeedAnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/register': {
       id: '/api/auth/register'
       path: '/api/auth/register'
@@ -1469,6 +1837,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPlaylistsIdReorderRouteImport
       parentRoute: typeof ApiPlaylistsIdRoute
     }
+    '/api/playlists/$id/events': {
+      id: '/api/playlists/$id/events'
+      path: '/events'
+      fullPath: '/api/playlists/$id/events'
+      preLoaderRoute: typeof ApiPlaylistsIdEventsRouteImport
+      parentRoute: typeof ApiPlaylistsIdRoute
+    }
+    '/api/playlists/$id/activity': {
+      id: '/api/playlists/$id/activity'
+      path: '/activity'
+      fullPath: '/api/playlists/$id/activity'
+      preLoaderRoute: typeof ApiPlaylistsIdActivityRouteImport
+      parentRoute: typeof ApiPlaylistsIdRoute
+    }
     '/api/navidrome/stream/$id': {
       id: '/api/navidrome/stream/$id'
       path: '/api/navidrome/stream/$id'
@@ -1518,11 +1900,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiNavidromeChar91DotPathChar93RouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/library/sync/status': {
+      id: '/api/library/sync/status'
+      path: '/api/library/sync/status'
+      fullPath: '/api/library/sync/status'
+      preLoaderRoute: typeof ApiLibrarySyncStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/library/sync/start': {
+      id: '/api/library/sync/start'
+      path: '/api/library/sync/start'
+      fullPath: '/api/library/sync/start'
+      preLoaderRoute: typeof ApiLibrarySyncStartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/library/sync/settings': {
+      id: '/api/library/sync/settings'
+      path: '/api/library/sync/settings'
+      fullPath: '/api/library/sync/settings'
+      preLoaderRoute: typeof ApiLibrarySyncSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/library/sync/resume': {
+      id: '/api/library/sync/resume'
+      path: '/api/library/sync/resume'
+      fullPath: '/api/library/sync/resume'
+      preLoaderRoute: typeof ApiLibrarySyncResumeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/library/sync/pause': {
+      id: '/api/library/sync/pause'
+      path: '/api/library/sync/pause'
+      fullPath: '/api/library/sync/pause'
+      preLoaderRoute: typeof ApiLibrarySyncPauseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/library/sync/abort': {
+      id: '/api/library/sync/abort'
+      path: '/api/library/sync/abort'
+      fullPath: '/api/library/sync/abort'
+      preLoaderRoute: typeof ApiLibrarySyncAbortRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/discovery-feed/notifications/preferences': {
+      id: '/api/discovery-feed/notifications/preferences'
+      path: '/api/discovery-feed/notifications/preferences'
+      fullPath: '/api/discovery-feed/notifications/preferences'
+      preLoaderRoute: typeof ApiDiscoveryFeedNotificationsPreferencesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/playlists/$id/suggestions/': {
+      id: '/api/playlists/$id/suggestions/'
+      path: '/suggestions'
+      fullPath: '/api/playlists/$id/suggestions'
+      preLoaderRoute: typeof ApiPlaylistsIdSuggestionsIndexRouteImport
+      parentRoute: typeof ApiPlaylistsIdRoute
+    }
     '/api/playlists/$id/songs/': {
       id: '/api/playlists/$id/songs/'
       path: '/songs'
       fullPath: '/api/playlists/$id/songs'
       preLoaderRoute: typeof ApiPlaylistsIdSongsIndexRouteImport
+      parentRoute: typeof ApiPlaylistsIdRoute
+    }
+    '/api/playlists/$id/collaborators/': {
+      id: '/api/playlists/$id/collaborators/'
+      path: '/collaborators'
+      fullPath: '/api/playlists/$id/collaborators'
+      preLoaderRoute: typeof ApiPlaylistsIdCollaboratorsIndexRouteImport
+      parentRoute: typeof ApiPlaylistsIdRoute
+    }
+    '/api/playlists/$id/collaboration/': {
+      id: '/api/playlists/$id/collaboration/'
+      path: '/collaboration'
+      fullPath: '/api/playlists/$id/collaboration'
+      preLoaderRoute: typeof ApiPlaylistsIdCollaborationIndexRouteImport
       parentRoute: typeof ApiPlaylistsIdRoute
     }
     '/library/artists/$id/albums/$albumId': {
@@ -1531,6 +1983,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/library/artists/$id/albums/$albumId'
       preLoaderRoute: typeof LibraryArtistsIdAlbumsAlbumIdRouteImport
       parentRoute: typeof LibraryArtistsIdRoute
+    }
+    '/api/playlists/$id/suggestions/$suggestionId': {
+      id: '/api/playlists/$id/suggestions/$suggestionId'
+      path: '/suggestions/$suggestionId'
+      fullPath: '/api/playlists/$id/suggestions/$suggestionId'
+      preLoaderRoute: typeof ApiPlaylistsIdSuggestionsSuggestionIdRouteImport
+      parentRoute: typeof ApiPlaylistsIdRoute
     }
     '/api/playlists/$id/songs/$songId': {
       id: '/api/playlists/$id/songs/$songId'
@@ -1579,12 +2038,16 @@ const authRouteRouteWithChildren = authRouteRoute._addFileChildren(
 
 interface DashboardRouteRouteChildren {
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
+  DashboardDiscoverRoute: typeof DashboardDiscoverRoute
+  DashboardMoodTimelineRoute: typeof DashboardMoodTimelineRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   DashboardRecommendationsIdRoute: typeof DashboardRecommendationsIdRoute
 }
 
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
+  DashboardDiscoverRoute: DashboardDiscoverRoute,
+  DashboardMoodTimelineRoute: DashboardMoodTimelineRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DashboardRecommendationsIdRoute: DashboardRecommendationsIdRoute,
 }
@@ -1598,6 +2061,7 @@ interface ApiRecommendationsRouteChildren {
   ApiRecommendationsClearRoute: typeof ApiRecommendationsClearRoute
   ApiRecommendationsExportRoute: typeof ApiRecommendationsExportRoute
   ApiRecommendationsFeedbackRoute: typeof ApiRecommendationsFeedbackRoute
+  ApiRecommendationsMoodTimelineRoute: typeof ApiRecommendationsMoodTimelineRoute
   ApiRecommendationsSeasonalInsightsRoute: typeof ApiRecommendationsSeasonalInsightsRoute
   ApiRecommendationsSeasonalPlaylistRoute: typeof ApiRecommendationsSeasonalPlaylistRoute
 }
@@ -1607,6 +2071,7 @@ const ApiRecommendationsRouteChildren: ApiRecommendationsRouteChildren = {
   ApiRecommendationsClearRoute: ApiRecommendationsClearRoute,
   ApiRecommendationsExportRoute: ApiRecommendationsExportRoute,
   ApiRecommendationsFeedbackRoute: ApiRecommendationsFeedbackRoute,
+  ApiRecommendationsMoodTimelineRoute: ApiRecommendationsMoodTimelineRoute,
   ApiRecommendationsSeasonalInsightsRoute:
     ApiRecommendationsSeasonalInsightsRoute,
   ApiRecommendationsSeasonalPlaylistRoute:
@@ -1642,15 +2107,28 @@ const LibraryArtistsRouteWithChildren = LibraryArtistsRoute._addFileChildren(
 )
 
 interface ApiPlaylistsIdRouteChildren {
+  ApiPlaylistsIdActivityRoute: typeof ApiPlaylistsIdActivityRoute
+  ApiPlaylistsIdEventsRoute: typeof ApiPlaylistsIdEventsRoute
   ApiPlaylistsIdReorderRoute: typeof ApiPlaylistsIdReorderRoute
   ApiPlaylistsIdSongsSongIdRoute: typeof ApiPlaylistsIdSongsSongIdRoute
+  ApiPlaylistsIdSuggestionsSuggestionIdRoute: typeof ApiPlaylistsIdSuggestionsSuggestionIdRoute
+  ApiPlaylistsIdCollaborationIndexRoute: typeof ApiPlaylistsIdCollaborationIndexRoute
+  ApiPlaylistsIdCollaboratorsIndexRoute: typeof ApiPlaylistsIdCollaboratorsIndexRoute
   ApiPlaylistsIdSongsIndexRoute: typeof ApiPlaylistsIdSongsIndexRoute
+  ApiPlaylistsIdSuggestionsIndexRoute: typeof ApiPlaylistsIdSuggestionsIndexRoute
 }
 
 const ApiPlaylistsIdRouteChildren: ApiPlaylistsIdRouteChildren = {
+  ApiPlaylistsIdActivityRoute: ApiPlaylistsIdActivityRoute,
+  ApiPlaylistsIdEventsRoute: ApiPlaylistsIdEventsRoute,
   ApiPlaylistsIdReorderRoute: ApiPlaylistsIdReorderRoute,
   ApiPlaylistsIdSongsSongIdRoute: ApiPlaylistsIdSongsSongIdRoute,
+  ApiPlaylistsIdSuggestionsSuggestionIdRoute:
+    ApiPlaylistsIdSuggestionsSuggestionIdRoute,
+  ApiPlaylistsIdCollaborationIndexRoute: ApiPlaylistsIdCollaborationIndexRoute,
+  ApiPlaylistsIdCollaboratorsIndexRoute: ApiPlaylistsIdCollaboratorsIndexRoute,
   ApiPlaylistsIdSongsIndexRoute: ApiPlaylistsIdSongsIndexRoute,
+  ApiPlaylistsIdSuggestionsIndexRoute: ApiPlaylistsIdSuggestionsIndexRoute,
 }
 
 const ApiPlaylistsIdRouteWithChildren = ApiPlaylistsIdRoute._addFileChildren(
@@ -1686,6 +2164,7 @@ const rootRouteChildren: RootRouteChildren = {
   authRouteRoute: authRouteRouteWithChildren,
   DashboardRouteRoute: DashboardRouteRouteWithChildren,
   ConfigRoute: ConfigRoute,
+  ApiCacheRoute: ApiCacheRoute,
   ApiConfigRoute: ApiConfigRoute,
   ApiDebugLibraryRoute: ApiDebugLibraryRoute,
   ApiPlaylistRoute: ApiPlaylistRoute,
@@ -1707,6 +2186,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
+  ApiDiscoveryFeedAnalyticsRoute: ApiDiscoveryFeedAnalyticsRoute,
+  ApiDiscoveryFeedInteractionsRoute: ApiDiscoveryFeedInteractionsRoute,
   ApiLastfmSearchRoute: ApiLastfmSearchRoute,
   ApiLastfmSimilarArtistsRoute: ApiLastfmSimilarArtistsRoute,
   ApiLastfmSimilarTracksRoute: ApiLastfmSimilarTracksRoute,
@@ -1727,9 +2208,21 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMetubeAddRoute: ApiMetubeAddRoute,
   ApiMetubeDeleteRoute: ApiMetubeDeleteRoute,
   ApiMetubeStatusRoute: ApiMetubeStatusRoute,
+  ApiNavidromeSearchRoute: ApiNavidromeSearchRoute,
   ApiPlaylistsIdRoute: ApiPlaylistsIdRouteWithChildren,
+  ApiPlaylistsJoinRoute: ApiPlaylistsJoinRoute,
   ApiPlaylistsSyncRoute: ApiPlaylistsSyncRoute,
+  PlaylistsJoinShareCodeRoute: PlaylistsJoinShareCodeRoute,
+  ApiDiscoveryFeedIndexRoute: ApiDiscoveryFeedIndexRoute,
   ApiPlaylistsIndexRoute: ApiPlaylistsIndexRoute,
+  ApiDiscoveryFeedNotificationsPreferencesRoute:
+    ApiDiscoveryFeedNotificationsPreferencesRoute,
+  ApiLibrarySyncAbortRoute: ApiLibrarySyncAbortRoute,
+  ApiLibrarySyncPauseRoute: ApiLibrarySyncPauseRoute,
+  ApiLibrarySyncResumeRoute: ApiLibrarySyncResumeRoute,
+  ApiLibrarySyncSettingsRoute: ApiLibrarySyncSettingsRoute,
+  ApiLibrarySyncStartRoute: ApiLibrarySyncStartRoute,
+  ApiLibrarySyncStatusRoute: ApiLibrarySyncStatusRoute,
   ApiNavidromeChar91DotPathChar93Route: ApiNavidromeChar91DotPathChar93Route,
   ApiNavidromeApiAlbumRoute: ApiNavidromeApiAlbumRouteWithChildren,
   ApiNavidromeApiArtistRoute: ApiNavidromeApiArtistRouteWithChildren,

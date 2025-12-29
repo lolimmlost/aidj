@@ -1,0 +1,24 @@
+{
+  "category": "Performance",
+  "description": "Defer non-critical data loading and implement code splitting for route bundles",
+  "id": "feature-1766887111413-pkq7nw5mg",
+  "steps": [
+    "Use React.lazy() for dashboard tabs (Quality, Activity, Discovery) that aren't visible by default in AnalyticsDashboard",
+    "Defer analytics data fetching for non-active tabs using conditional useQuery enables",
+    "Split recommendation-heavy routes (dashboard/recommendations, library/search) into separate bundles",
+    "Use dynamic imports for heavy charting libraries (recharts) only when analytics/recommendations are active",
+    "Implement route-based code splitting in TanStack Router to lazy-load feature routes"
+  ],
+  "status": "completed",
+  "skipTests": false,
+  "priority": 2,
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "none",
+  "imagePaths": [],
+  "branchName": "feat/unified-recommendations-service",
+  "planningMode": "skip",
+  "requirePlanApproval": false,
+  "startedAt": "2025-12-28T18:30:55.666Z",
+  "updatedAt": "2025-12-28T18:41:11.277Z"
+}

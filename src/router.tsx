@@ -5,13 +5,15 @@ import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query
 import { DefaultCatchBoundary } from "@/components/default-catch-boundary";
 import { DefaultNotFound } from "@/components/default-not-found";
 import { routeTree } from "./routeTree.gen";
+import { defaultQueryOptions } from "@/lib/query";
 
 export function getRouter() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        refetchOnWindowFocus: false,
-        staleTime: 1000 * 60 * 2, // 2 minutes
+        ...defaultQueryOptions,
+        // Structural sharing helps prevent unnecessary re-renders
+        structuralSharing: true,
       },
     },
   });
