@@ -21,6 +21,7 @@ import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { queryKeys } from '@/lib/query';
 
 // Helper function for time formatting
 const formatTime = (time: number) => {
@@ -99,33 +100,52 @@ export function PlayerBar() {
 
   // Fetch feedback for current song
   const { data: feedbackData } = useSongFeedback(currentSong ? [currentSong.id] : []);
-  const isLiked = useMemo(() => feedbackData?.feedback?.[currentSong?.id] === 'thumbs_up', [feedbackData, currentSong?.id]);
 
-  // Like/unlike mutation
+  // Determine if song is liked based on server state
+  const isLiked = useMemo(() => {
+    if (!currentSong?.id) return false;
+    return feedbackData?.feedback?.[currentSong.id] === 'thumbs_up';
+  }, [feedbackData?.feedback, currentSong?.id]);
+
+  // Like/unlike mutation - simplified without complex optimistic updates
   const { mutate: likeMutate, isPending: isLikePending } = useMutation({
     mutationFn: async (liked: boolean) => {
+      if (!currentSong) {
+        throw new Error('No song selected');
+      }
+
       setAIUserActionInProgress(true);
+
+      const payload = {
+        songId: currentSong.id,
+        songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
+        feedbackType: liked ? 'thumbs_up' : 'thumbs_down',
+        source: 'library',
+      };
+
+      console.log('Sending feedback:', payload);
+
       const response = await fetch('/api/recommendations/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          songId: currentSong.id,
-          songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
-          feedbackType: liked ? 'thumbs_up' : 'thumbs_down',
-          source: 'library',
-        }),
+        body: JSON.stringify(payload),
       });
+
       if (!response.ok && response.status !== 409) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to update feedback');
+        const errorData = await response.json();
+        console.error('Feedback API error:', response.status, errorData);
+        throw new Error(errorData.message || 'Failed to update feedback');
       }
-      return response.json();
+
+      return liked;
     },
-    onSuccess: (_, liked) => {
-      queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
+    onSuccess: (liked) => {
+      // Invalidate all feedback queries to ensure UI updates
+      queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
       toast.success(liked ? '❤️ Liked' : '💔 Unliked', { duration: 1500 });
     },
     onError: (error: Error) => {
+      console.error('Like/unlike error:', error);
       toast.error('Failed', { description: error.message });
     },
     onSettled: () => {

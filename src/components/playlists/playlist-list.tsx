@@ -2,6 +2,8 @@ import { useState, useCallback, useMemo, memo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Link } from '@tanstack/react-router';
+import { PlaylistExportDialog } from './export/playlist-export-dialog';
+import { PlaylistImportDialog } from './import/playlist-import-dialog';
 import {
   DndContext,
   closestCenter,
@@ -50,6 +52,8 @@ import {
   Music,
   MoreHorizontal,
   GripVertical,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { useAudioStore } from '@/lib/stores/audio';
 
@@ -62,6 +66,7 @@ interface SortablePlaylistCardProps {
   isLoadingSongs: boolean;
   onAddToQueue: (playlist: Playlist, songs: PlaylistSong[], position: 'next' | 'end') => void;
   onPlayFromSong: (playlist: Playlist, songs: PlaylistSong[], startIndex: number) => void;
+  onExport: (playlist: Playlist) => void;
   formatDuration: (seconds?: number | null) => string;
   formatLastSynced: (date?: Date | null) => string | null;
   getSyncStatus: (playlist: Playlist) => { icon: typeof CheckCircle2; text: string; color: string } | null;
@@ -75,6 +80,7 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
   isLoadingSongs,
   onAddToQueue,
   onPlayFromSong,
+  onExport,
   formatDuration,
   formatLastSynced,
   getSyncStatus,
@@ -180,6 +186,13 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
                     </DropdownMenuItem>
                   </>
                 )}
+                <DropdownMenuItem
+                  onClick={() => onExport(playlist)}
+                  className="min-h-[44px]"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export Playlist
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -394,6 +407,9 @@ interface PlaylistListProps {
 export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
   const [expandedPlaylistId, setExpandedPlaylistId] = useState<string | null>(null);
   const [_orderedPlaylistIds, setOrderedPlaylistIds] = useState<string[]>([]);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
   const queryClient = useQueryClient();
   const { addToQueueNext, addToQueueEnd, setAIUserActionInProgress } = useAudioStore();
 
@@ -546,6 +562,18 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
       toast.error('Failed to load playlist');
     }
   }, []);
+
+  const handleExport = useCallback((playlist: Playlist) => {
+    setSelectedPlaylist(playlist);
+    setExportDialogOpen(true);
+  }, []);
+
+  const handleImportSuccess = useCallback((playlistId: string) => {
+    queryClient.invalidateQueries({ queryKey: ['playlists'] });
+    toast.success('Playlist imported!', {
+      description: 'The playlist has been added to your library',
+    });
+  }, [queryClient]);
 
   // Memoized utility functions to prevent unnecessary re-renders of child components
   const formatDuration = useCallback((seconds?: number | null) => {
@@ -712,17 +740,28 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
           )}
         </div>
 
-        {/* Sync Button - Only action here, main create buttons are in page header */}
-        <Button
-          onClick={() => syncMutation.mutate()}
-          disabled={syncMutation.isPending || !navidromeAvailable}
-          variant="outline"
-          size="sm"
-          className="min-h-[44px]"
-        >
-          <RefreshCw className={`mr-2 h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
-          {syncMutation.isPending ? 'Syncing...' : 'Sync'}
-        </Button>
+        {/* Action Buttons */}
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setImportDialogOpen(true)}
+            variant="outline"
+            size="sm"
+            className="min-h-[44px]"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Import
+          </Button>
+          <Button
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending || !navidromeAvailable}
+            variant="outline"
+            size="sm"
+            className="min-h-[44px]"
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+            {syncMutation.isPending ? 'Syncing...' : 'Sync'}
+          </Button>
+        </div>
       </div>
 
       {/* Fallback suggestion when Navidrome is offline and no cached playlists */}
@@ -768,6 +807,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
                 isLoadingSongs={isLoadingSongs && expandedPlaylistId === playlist.id}
                 onAddToQueue={handleAddToQueue}
                 onPlayFromSong={handlePlayFromSong}
+                onExport={handleExport}
                 formatDuration={formatDuration}
                 formatLastSynced={formatLastSynced}
                 getSyncStatus={getSyncStatus}
@@ -776,6 +816,23 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
           </div>
         </SortableContext>
       </DndContext>
+
+      {/* Export Dialog */}
+      {selectedPlaylist && (
+        <PlaylistExportDialog
+          open={exportDialogOpen}
+          onOpenChange={setExportDialogOpen}
+          playlistId={selectedPlaylist.id}
+          playlistName={selectedPlaylist.name}
+        />
+      )}
+
+      {/* Import Dialog */}
+      <PlaylistImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onSuccess={handleImportSuccess}
+      />
     </div>
   );
 }

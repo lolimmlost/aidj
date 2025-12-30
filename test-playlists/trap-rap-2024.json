@@ -1,0 +1,162 @@
+{
+  "version": "1.0",
+  "format": "aidj-playlist",
+  "exportedAt": "2024-12-29T12:00:00.000Z",
+  "playlist": {
+    "name": "Trap & Rap Hits 2024",
+    "description": "Popular trap and rap tracks from 2024",
+    "songCount": 25,
+    "songs": [
+      {
+        "position": 1,
+        "title": "Like That",
+        "artist": "Future, Metro Boomin, Kendrick Lamar",
+        "album": "We Don't Trust You"
+      },
+      {
+        "position": 2,
+        "title": "Not Like Us",
+        "artist": "Kendrick Lamar",
+        "album": "Not Like Us"
+      },
+      {
+        "position": 3,
+        "title": "Timeless",
+        "artist": "The Weeknd, Playboi Carti",
+        "album": "Hurry Up Tomorrow"
+      },
+      {
+        "position": 4,
+        "title": "CARNIVAL",
+        "artist": "Kanye West, Ty Dolla Sign, Rich The Kid, Playboi Carti",
+        "album": "Vultures 1"
+      },
+      {
+        "position": 5,
+        "title": "Surround Sound",
+        "artist": "JID, 21 Savage, Baby Tate",
+        "album": "The Forever Story"
+      },
+      {
+        "position": 6,
+        "title": "Dum, Dumb, and Dumber",
+        "artist": "Travis Scott",
+        "album": "Days Before Rodeo"
+      },
+      {
+        "position": 7,
+        "title": "Type Shit",
+        "artist": "Future, Metro Boomin, Travis Scott, Playboi Carti",
+        "album": "We Don't Trust You"
+      },
+      {
+        "position": 8,
+        "title": "Gata Only",
+        "artist": "FloyyMenor, Cris MJ",
+        "album": "Gata Only"
+      },
+      {
+        "position": 9,
+        "title": "Million Dollar Baby",
+        "artist": "Tommy Richman",
+        "album": "Million Dollar Baby"
+      },
+      {
+        "position": 10,
+        "title": "Redrum",
+        "artist": "21 Savage",
+        "album": "American Dream"
+      },
+      {
+        "position": 11,
+        "title": "Lose Control",
+        "artist": "Teddy Swims",
+        "album": "I've Tried Everything But Therapy"
+      },
+      {
+        "position": 12,
+        "title": "Houdini",
+        "artist": "Eminem",
+        "album": "The Death of Slim Shady"
+      },
+      {
+        "position": 13,
+        "title": "FE!N",
+        "artist": "Travis Scott, Playboi Carti",
+        "album": "UTOPIA"
+      },
+      {
+        "position": 14,
+        "title": "Rich Baby Daddy",
+        "artist": "Drake, Sexyy Red, SZA",
+        "album": "For All The Dogs"
+      },
+      {
+        "position": 15,
+        "title": "Pound Town 2",
+        "artist": "Sexyy Red, Nicki Minaj",
+        "album": "Hood Hottest Princess"
+      },
+      {
+        "position": 16,
+        "title": "paint the town red",
+        "artist": "Doja Cat",
+        "album": "Scarlet"
+      },
+      {
+        "position": 17,
+        "title": "Peaches & Eggplants",
+        "artist": "Young Nudy, 21 Savage",
+        "album": "DR. EV4L"
+      },
+      {
+        "position": 18,
+        "title": "Rah Rah",
+        "artist": "Moneybagg Yo, Sexyy Red",
+        "album": "Hard To Love"
+      },
+      {
+        "position": 19,
+        "title": "Thought I Was Playing",
+        "artist": "Bryson Tiller",
+        "album": "Bryson Tiller"
+      },
+      {
+        "position": 20,
+        "title": "Everyday Struggle",
+        "artist": "The Notorious B.I.G.",
+        "album": "Ready to Die"
+      },
+      {
+        "position": 21,
+        "title": "Go Crazy",
+        "artist": "Chris Brown, Young Thug",
+        "album": "Slime & B"
+      },
+      {
+        "position": 22,
+        "title": "rockstar",
+        "artist": "DaBaby, Roddy Ricch",
+        "album": "Blame It on Baby"
+      },
+      {
+        "position": 23,
+        "title": "No Role Modelz",
+        "artist": "J. Cole",
+        "album": "2014 Forest Hills Drive"
+      },
+      {
+        "position": 24,
+        "title": "HUMBLE.",
+        "artist": "Kendrick Lamar",
+        "album": "DAMN."
+      },
+      {
+        "position": 25,
+        "title": "Sicko Mode",
+        "artist": "Travis Scott, Drake",
+        "album": "ASTROWORLD"
+      }
+    ]
+  }
+}

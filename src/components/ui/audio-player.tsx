@@ -10,6 +10,7 @@ import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { queryKeys } from '@/lib/query';
 
 // Re-export Song type from centralized location for backwards compatibility
 export type { Song } from '@/lib/types/song';
@@ -102,44 +103,53 @@ export function AudioPlayer() {
 
   // Fetch feedback for current song
   const { data: feedbackData } = useSongFeedback(currentSong ? [currentSong.id] : []);
-  const isLiked = useMemo(() => feedbackData?.feedback?.[currentSong?.id] === 'thumbs_up', [feedbackData, currentSong?.id]);
 
-  // Like/unlike mutation
+  // Determine if song is liked based on server state
+  const isLiked = useMemo(() => {
+    if (!currentSong?.id) return false;
+    return feedbackData?.feedback?.[currentSong.id] === 'thumbs_up';
+  }, [feedbackData?.feedback, currentSong?.id]);
+
+  // Like/unlike mutation - simplified without complex optimistic updates
   const { mutate: likeMutate, isPending: isLikePending } = useMutation({
     mutationFn: async (liked: boolean) => {
+      if (!currentSong) {
+        throw new Error('No song selected');
+      }
+
       // Set user action flag to prevent AI DJ auto-refresh
       setAIUserActionInProgress(true);
-      
+
+      const payload = {
+        songId: currentSong.id,
+        songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
+        feedbackType: liked ? 'thumbs_up' : 'thumbs_down',
+        source: 'library',
+      };
+
+      console.log('Sending feedback:', payload);
+
       const response = await fetch('/api/recommendations/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          songId: currentSong.id,
-          songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
-          feedbackType: liked ? 'thumbs_up' : 'thumbs_down',
-          source: 'library',
-        }),
+        body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        // Handle 409 Conflict (duplicate feedback) gracefully
-        if (response.status === 409) {
-          await response.json(); // Consume response body
-          console.log('✓ Feedback already exists, continuing with recommendations');
-          return; // Return undefined to prevent error
-        }
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to update feedback');
+      if (!response.ok && response.status !== 409) {
+        const errorData = await response.json();
+        console.error('Feedback API error:', response.status, errorData);
+        throw new Error(errorData.message || 'Failed to update feedback');
       }
 
-      return response.json();
+      return liked;
     },
-    onSuccess: (_, liked) => {
-      queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
+    onSuccess: (liked) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
       queryClient.invalidateQueries({ queryKey: ['playlists'] });
       toast.success(liked ? '❤️ Added to Liked Songs' : '💔 Removed from Liked Songs');
     },
     onError: (error: Error) => {
+      console.error('Like/unlike error:', error);
       toast.error('Failed to update', { description: error.message });
     },
     onSettled: () => {

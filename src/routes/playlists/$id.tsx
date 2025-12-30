@@ -940,21 +940,16 @@ function PlaylistDetailPage() {
           </div>
         </div>
 
-        {/* Collaboration Panel - Slide-in from right */}
-        {!isLikedSongsPlaylist && !isSmartPlaylist && (
+        {/* Collaboration Panel - Slide-in from right (only renders when open) */}
+        {!isLikedSongsPlaylist && !isSmartPlaylist && isCollaborationPanelOpen && (
           <>
             {/* Backdrop overlay for mobile */}
-            {isCollaborationPanelOpen && (
-              <div
-                className="fixed inset-0 bg-black/50 z-[55] lg:hidden"
-                onClick={() => setIsCollaborationPanelOpen(false)}
-              />
-            )}
             <div
-              className={cn(
-                "fixed right-0 top-0 bottom-0 w-full sm:w-[400px] bg-background border-l shadow-2xl z-[60] transition-transform duration-300 ease-in-out flex flex-col",
-                isCollaborationPanelOpen ? "translate-x-0" : "translate-x-full"
-              )}
+              className="fixed inset-0 bg-black/50 z-[55] lg:hidden"
+              onClick={() => setIsCollaborationPanelOpen(false)}
+            />
+            <div
+              className="fixed right-0 top-0 bottom-0 w-full sm:w-[400px] bg-background border-l shadow-2xl z-[60] flex flex-col"
             >
               {/* Panel Header */}
               <div className="flex items-center justify-between p-4 border-b bg-muted/30 shrink-0">
@@ -973,7 +968,7 @@ function PlaylistDetailPage() {
 
               {/* Panel Content */}
               <div className="flex-1 overflow-auto pb-24">
-                {isCollaborationPanelOpen && user && (
+                {user && (
                   <CollaborativePlaylistPanel
                     playlistId={id}
                     currentUserId={user.id}

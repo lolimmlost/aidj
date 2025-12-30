@@ -8,3 +8,4 @@ export * from "./listening-history.schema";
 export * from "./library-sync.schema";
 export * from "./mood-history.schema";
 export * from "./discovery-feed.schema";
+export * from "./playlist-export.schema";

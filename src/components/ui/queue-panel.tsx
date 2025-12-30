@@ -8,6 +8,7 @@ import { CreatePlaylistDialog } from '@/components/playlists/CreatePlaylistDialo
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
+import { queryKeys } from '@/lib/query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   DndContext,
@@ -346,7 +347,7 @@ export function QueuePanel() {
           { duration: 2000 }
         );
         // Invalidate to sync with server state
-        queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
         return;
       }
 
@@ -361,7 +362,7 @@ export function QueuePanel() {
       }
 
       // Invalidate feedback queries to refetch updated state
-      queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
 
       toast.success(
         feedbackType === 'thumbs_up'

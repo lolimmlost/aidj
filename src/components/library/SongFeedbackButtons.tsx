@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
+import { queryKeys } from '@/lib/query';
 
 interface SongFeedbackButtonsProps {
   songId?: string;
@@ -81,7 +82,7 @@ export function SongFeedbackButtons({
     },
     onSuccess: (_, feedbackType) => {
       // Invalidate feedback queries to refetch updated state
-      queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
       queryClient.invalidateQueries({ queryKey: ['preference-analytics'] });
 
       // Show success toast with custom messages
