@@ -1,8 +1,7 @@
 import { useAudioStore } from '@/lib/stores/audio';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Music, Trash2, GripVertical, Plus, RotateCcw, ThumbsUp, ThumbsDown, Shuffle } from 'lucide-react';
+import { X, Music, Trash2, GripVertical, Plus, RotateCcw, ThumbsUp, ThumbsDown, Shuffle, SkipForward } from 'lucide-react';
 import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { CreatePlaylistDialog } from '@/components/playlists/CreatePlaylistDialog';
 import { useQueryClient } from '@tanstack/react-query';
@@ -34,11 +33,13 @@ interface SortableQueueItemProps {
   onRemove: (index: number) => void;
   onPlay: (index: number) => void;
   isAIQueued?: boolean;
+  isAutoplayQueued?: boolean;
   currentFeedback?: 'thumbs_up' | 'thumbs_down' | null;
   onFeedback?: (songId: string, songTitle: string, artist: string, type: 'thumbs_up' | 'thumbs_down') => void;
+  onSkipAutoplay?: (songId: string) => void;
 }
 
-const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued, currentFeedback, onFeedback }: SortableQueueItemProps) {
+const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued, isAutoplayQueued, currentFeedback, onFeedback, onSkipAutoplay }: SortableQueueItemProps) {
   const {
     attributes,
     listeners,
@@ -50,6 +51,7 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
 
   const isLiked = currentFeedback === 'thumbs_up';
   const isDisliked = currentFeedback === 'thumbs_down';
+  const isAutoQueued = isAIQueued || isAutoplayQueued;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -60,20 +62,34 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
   const songTitle = song.title || song.name || 'Unknown';
   const songArtist = song.artist || 'Unknown Artist';
 
+  // Determine styling based on queue source
+  const getItemStyle = () => {
+    if (isAutoplayQueued) {
+      return 'bg-gradient-to-r from-indigo-50/50 to-cyan-50/50 dark:from-indigo-950/30 dark:to-cyan-950/30 border border-indigo-200/30 dark:border-indigo-800/30 shadow-sm';
+    }
+    if (isAIQueued) {
+      return 'bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-950/30 dark:to-purple-950/30 border border-blue-200/30 dark:border-blue-800/30 shadow-sm';
+    }
+    return 'bg-gradient-to-r from-background to-muted/20 hover:from-muted/10 hover:to-muted/30 border border-border/30 hover:border-border/50 shadow-sm';
+  };
+
+  const getLabel = () => {
+    if (isAutoplayQueued) return ', added by Autoplay';
+    if (isAIQueued) return ', added by AI DJ';
+    return '';
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex items-center gap-1.5 sm:gap-2 p-2 sm:p-3 min-h-[48px] rounded-lg transition-all duration-200 hover:scale-[1.02] overflow-hidden ${
-        isAIQueued
-          ? 'bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-950/30 dark:to-purple-950/30 border border-blue-200/30 dark:border-blue-800/30 shadow-sm'
-          : 'bg-gradient-to-r from-background to-muted/20 hover:from-muted/10 hover:to-muted/30 border border-border/30 hover:border-border/50 shadow-sm'
-      }`}
+      className={`group flex items-center gap-1.5 sm:gap-2 p-2 sm:p-3 min-h-[48px] rounded-lg transition-all duration-200 hover:scale-[1.02] overflow-hidden ${getItemStyle()}`}
       role="listitem"
-      aria-label={`${songTitle} by ${songArtist}${isAIQueued ? ', added by AI DJ' : ''}`}
+      aria-label={`${songTitle} by ${songArtist}${getLabel()}`}
     >
       {/* Drag handle - hidden on mobile */}
       <button
+        type="button"
         className="hidden sm:block text-muted-foreground/70 hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5 flex-shrink-0 touch-none hover:scale-110 transition-transform"
         {...attributes}
         {...listeners}
@@ -100,15 +116,18 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
       >
         <div className="flex items-center gap-1">
           <p className="font-semibold text-xs sm:text-sm truncate">{songTitle}</p>
-          {isAIQueued && (
-            <span className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-300 flex-shrink-0">✨</span>
+          {isAutoplayQueued && (
+            <span className="text-[10px] sm:text-xs text-indigo-600 dark:text-indigo-300 flex-shrink-0" title="Added by Autoplay">🎶</span>
+          )}
+          {isAIQueued && !isAutoplayQueued && (
+            <span className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-300 flex-shrink-0" title="Added by AI DJ">✨</span>
           )}
         </div>
         <p className="text-[10px] sm:text-xs text-muted-foreground/80 truncate mt-0.5">{songArtist}</p>
       </div>
 
-      {/* Feedback buttons for AI-queued songs - touch-friendly sizing */}
-      {isAIQueued && onFeedback && (
+      {/* Feedback buttons for auto-queued songs (AI DJ or Autoplay) - touch-friendly sizing */}
+      {isAutoQueued && onFeedback && (
         <div className="flex items-center gap-0.5 flex-shrink-0">
           <Button
             variant="ghost"
@@ -144,6 +163,22 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
           >
             <ThumbsDown className={`h-3.5 w-3.5 transition-all ${isDisliked ? 'fill-current scale-110' : ''}`} />
           </Button>
+          {/* Skip button for autoplay-queued songs */}
+          {isAutoplayQueued && onSkipAutoplay && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSkipAutoplay(song.id);
+              }}
+              className="h-8 w-8 min-h-[32px] min-w-[32px] p-0 rounded-full transition-all hover:bg-orange-500/10 hover:text-orange-600"
+              aria-label="Skip this autoplay recommendation"
+              title="Skip and remove"
+            >
+              <SkipForward className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       )}
 
@@ -287,6 +322,12 @@ export function QueuePanel() {
     lastClearedQueue,
     isShuffled,
     toggleShuffle,
+    // Autoplay state
+    autoplayEnabled,
+    autoplayIsLoading,
+    autoplayQueuedSongIds,
+    autoplayLastQueueTime,
+    skipAutoplayedSong,
   } = useAudioStore();
   const [isOpen, setIsOpen] = useState(false);
   const [timeSinceLastQueue, setTimeSinceLastQueue] = useState(0);
@@ -297,11 +338,14 @@ export function QueuePanel() {
   // Track local optimistic feedback state (songId -> feedbackType)
   const [localFeedback, setLocalFeedback] = useState<Record<string, 'thumbs_up' | 'thumbs_down'>>({});
 
-  // Get song IDs for AI-queued songs to fetch their feedback
-  const aiQueuedSongIdArray = useMemo(() => Array.from(aiQueuedSongIds), [aiQueuedSongIds]);
+  // Get song IDs for auto-queued songs (AI DJ + Autoplay) to fetch their feedback
+  const autoQueuedSongIdArray = useMemo(() => {
+    const combined = new Set([...Array.from(aiQueuedSongIds), ...Array.from(autoplayQueuedSongIds)]);
+    return Array.from(combined);
+  }, [aiQueuedSongIds, autoplayQueuedSongIds]);
 
-  // Fetch existing feedback for AI-queued songs
-  const { data: feedbackData } = useSongFeedback(aiQueuedSongIdArray);
+  // Fetch existing feedback for auto-queued songs
+  const { data: feedbackData } = useSongFeedback(autoQueuedSongIdArray);
 
   // Get feedback for a song (local optimistic state takes priority)
   const getFeedbackForSong = useCallback((songId: string): 'thumbs_up' | 'thumbs_down' | null => {
@@ -313,8 +357,8 @@ export function QueuePanel() {
     return feedbackData?.feedback?.[songId] || null;
   }, [localFeedback, feedbackData]);
 
-  // Handle feedback on AI-recommended songs
-  const handleAIFeedback = useCallback(async (
+  // Handle feedback on auto-queued songs (AI DJ or Autoplay)
+  const handleAutoQueueFeedback = useCallback(async (
     songId: string,
     songTitle: string,
     artist: string,
@@ -322,6 +366,10 @@ export function QueuePanel() {
   ) => {
     // Optimistic update - show filled state immediately
     setLocalFeedback(prev => ({ ...prev, [songId]: feedbackType }));
+
+    // Determine source based on which queue the song came from
+    const isFromAutoplay = autoplayQueuedSongIds.has(songId);
+    const source = isFromAutoplay ? 'autoplay' : 'ai_dj';
 
     try {
       const response = await fetch('/api/recommendations/feedback', {
@@ -332,7 +380,7 @@ export function QueuePanel() {
           songId,
           songArtistTitle: `${artist} - ${songTitle}`,
           feedbackType,
-          source: 'ai_dj', // Track that this came from AI DJ queue
+          source, // Track that this came from AI DJ queue or Autoplay
         }),
       });
 
@@ -371,10 +419,10 @@ export function QueuePanel() {
         { duration: 2000 }
       );
     } catch (error) {
-      console.error('Failed to submit AI feedback:', error);
+      console.error('Failed to submit feedback:', error);
       toast.error('Failed to save feedback');
     }
-  }, [queryClient]);
+  }, [queryClient, autoplayQueuedSongIds]);
   
   // Update time since last queue periodically
   useEffect(() => {
@@ -612,6 +660,39 @@ export function QueuePanel() {
               )}
             </div>
           )}
+
+          {/* Autoplay Status */}
+          {autoplayEnabled && (
+            <div className="mt-3 pt-3 border-t border-border/50">
+              {autoplayIsLoading ? (
+                <div className="flex items-center gap-2 text-xs font-medium text-yellow-700 dark:text-yellow-300 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 px-3 py-2 rounded-lg border border-yellow-200/50 dark:border-yellow-800/50 shadow-sm">
+                  <div className="p-1 bg-yellow-100 dark:bg-yellow-900/40 rounded animate-pulse">
+                    <span className="block h-3 w-3 animate-spin">⏳</span>
+                  </div>
+                  <span>Autoplay finding recommendations...</span>
+                </div>
+              ) : autoplayQueuedSongIds.size > 0 ? (
+                <div className="flex items-center gap-2 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-gradient-to-r from-indigo-50 to-cyan-50 dark:from-indigo-900/20 dark:to-cyan-900/20 px-3 py-2 rounded-lg border border-indigo-200/50 dark:border-indigo-800/50 shadow-sm">
+                  <div className="p-1 bg-indigo-100 dark:bg-indigo-900/40 rounded">
+                    <span className="block h-3 w-3">🎶</span>
+                  </div>
+                  <span>
+                    {autoplayQueuedSongIds.size} autoplay {autoplayQueuedSongIds.size === 1 ? 'track' : 'tracks'}
+                    {autoplayLastQueueTime > 0 && (
+                      <> • {Math.floor((Date.now() - autoplayLastQueueTime) / 60000)}m ago</>
+                    )}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-gradient-to-r from-indigo-50 to-cyan-50 dark:from-indigo-900/20 dark:to-cyan-900/20 px-3 py-2 rounded-lg border border-indigo-200/50 dark:border-indigo-800/50 shadow-sm">
+                  <div className="p-1 bg-indigo-100 dark:bg-indigo-900/40 rounded">
+                    <span className="block h-3 w-3">🎶</span>
+                  </div>
+                  <span>Autoplay ready for when playlist ends</span>
+                </div>
+              )}
+            </div>
+          )}
         </CardHeader>
         <CardContent className="pb-2 md:pb-3 px-3 md:px-6 flex-1 overflow-hidden flex flex-col min-h-0">
           {currentSong && (
@@ -654,6 +735,8 @@ export function QueuePanel() {
                       // If nothing playing (currentSongIndex === -1), actualIndex is just index
                       const actualIndex = currentSongIndex === -1 ? index : currentSongIndex + 1 + index;
                       const isAIQueued = aiQueuedSongIds.has(song.id);
+                      const isAutoplayQueued = autoplayQueuedSongIds.has(song.id);
+                      const isAutoQueued = isAIQueued || isAutoplayQueued;
                       return (
                         <SortableQueueItem
                           key={song.id}
@@ -663,8 +746,10 @@ export function QueuePanel() {
                           onRemove={removeFromQueue}
                           onPlay={handlePlaySong}
                           isAIQueued={isAIQueued}
-                          currentFeedback={isAIQueued ? getFeedbackForSong(song.id) : null}
-                          onFeedback={handleAIFeedback}
+                          isAutoplayQueued={isAutoplayQueued}
+                          currentFeedback={isAutoQueued ? getFeedbackForSong(song.id) : null}
+                          onFeedback={handleAutoQueueFeedback}
+                          onSkipAutoplay={skipAutoplayedSong}
                         />
                       );
                     })}

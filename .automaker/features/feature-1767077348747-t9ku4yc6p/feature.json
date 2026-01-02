@@ -1,0 +1,17 @@
+{
+  "category": "Music Discovery",
+  "description": "Introduce 'guided discovery sessions' where users can browse recommendations with active filtering by mood, era, artist similarity, and mood timeline context. Add 'discovery streaks' to track consecutive days of accepting new recommendations and reward discovery behavior.",
+  "id": "feature-1767077348747-t9ku4yc6p",
+  "steps": [],
+  "status": "backlog",
+  "skipTests": true,
+  "priority": 3,
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "ultrathink",
+  "imagePaths": [],
+  "textFilePaths": [],
+  "branchName": "feat/unified-recommendations-service",
+  "planningMode": "skip",
+  "requirePlanApproval": false
+}

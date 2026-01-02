@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { useRef, useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ListMusic, Play, Trash2, X, ListPlus, Plus, Shuffle,
   Heart, Sparkles, ChevronLeft, MoreHorizontal, Music2, Pause, GripVertical,
@@ -48,7 +48,6 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useVirtualizer } from '@tanstack/react-virtual';
 
 export const Route = createFileRoute('/playlists/$id')({
   beforeLoad: async ({ context }) => {
@@ -131,7 +130,7 @@ function SortableSongRow({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-1.5 sm:py-2.5 hover:bg-accent/50 rounded-sm transition-colors",
+        "group flex items-center gap-2 px-2 sm:px-3 py-1 sm:py-1.5 hover:bg-accent/50 rounded-sm transition-colors",
         isCurrentSong && "bg-accent/30",
         isDragging && "opacity-50 bg-accent shadow-lg"
       )}
@@ -140,9 +139,9 @@ function SortableSongRow({
       <div
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing touch-none shrink-0 p-1 min-h-[44px] min-w-[32px] flex items-center justify-center sm:opacity-0 sm:group-hover:opacity-100"
+        className="cursor-grab active:cursor-grabbing touch-none shrink-0 p-0.5 min-h-[36px] min-w-[26px] flex items-center justify-center sm:opacity-0 sm:group-hover:opacity-100"
       >
-        <GripVertical className="h-4 w-4 sm:h-4 sm:w-4 text-muted-foreground/50" />
+        <GripVertical className="h-4 w-4 text-muted-foreground/50" />
       </div>
 
       {/* Track Number */}
@@ -151,7 +150,7 @@ function SortableSongRow({
         isCurrentSong ? "text-primary" : "text-muted-foreground"
       )}>
         {isCurrentSong && isPlaying ? (
-          <Music2 className="h-3 w-3 sm:h-4 sm:w-4 text-primary animate-pulse" />
+          <Music2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-primary animate-pulse" />
         ) : (
           index + 1
         )}
@@ -161,7 +160,7 @@ function SortableSongRow({
       <button
         type="button"
         onClick={() => onPlayFromSong(index)}
-        className="min-w-0 flex-1 text-left py-2 min-h-[44px] flex flex-col justify-center"
+        className="min-w-0 flex-1 text-left py-1 sm:py-1.5 min-h-[36px] sm:min-h-[40px] flex flex-col justify-center"
       >
         {/* Mobile: single line */}
         <p className={cn(
@@ -171,29 +170,26 @@ function SortableSongRow({
           <span className="font-medium">{title}</span>
           <span className="text-muted-foreground"> — {artist}</span>
         </p>
-        {/* Desktop: two lines */}
+        {/* Desktop: single line with artist */}
         <p className={cn(
           "hidden sm:block text-sm font-medium truncate",
           isCurrentSong && "text-primary"
         )}>
-          {title}
-        </p>
-        <p className="hidden sm:block text-xs text-muted-foreground truncate">
-          {artist}
+          {title} <span className="font-normal text-muted-foreground">— {artist}</span>
         </p>
       </button>
 
       {/* Album - desktop only */}
-      <span className="hidden md:block text-xs text-muted-foreground truncate shrink-0 w-32 lg:w-48">
+      <span className="hidden md:block text-xs text-muted-foreground truncate shrink-0 w-32 lg:w-40">
         {song.album || '—'}
       </span>
 
-      {/* Duration - desktop only */}
+      {/* Duration */}
       <span className="hidden sm:block text-xs text-muted-foreground tabular-nums shrink-0 w-12 text-right">
         {formatDuration(song.duration) || '—'}
       </span>
 
-      {/* Date added - large desktop only */}
+      {/* Date added - extra large screens only (1280px+) */}
       <span className="hidden xl:block text-xs text-muted-foreground shrink-0 w-24 text-right">
         {new Date(song.addedAt).toLocaleDateString(undefined, {
           month: 'short',
@@ -208,7 +204,7 @@ function SortableSongRow({
           <Button
             variant="ghost"
             size="sm"
-            className="h-10 w-10 min-h-[44px] min-w-[44px] p-0 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+            className="h-8 w-8 min-h-[36px] min-w-[36px] sm:h-9 sm:w-9 sm:min-h-[40px] sm:min-w-[40px] p-0 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontal className="h-4 w-4" />
@@ -217,21 +213,21 @@ function SortableSongRow({
         <DropdownMenuContent align="end" className="w-40">
           <DropdownMenuItem
             onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'now'); }}
-            className="min-h-[44px]"
+            className="min-h-[40px]"
           >
             <Play className="mr-2 h-4 w-4" />
             Play Now
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'next'); }}
-            className="min-h-[44px]"
+            className="min-h-[40px]"
           >
             <Play className="mr-2 h-4 w-4" />
             Play Next
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'end'); }}
-            className="min-h-[44px]"
+            className="min-h-[40px]"
           >
             <Plus className="mr-2 h-4 w-4" />
             Add to End
@@ -239,7 +235,7 @@ function SortableSongRow({
           <DropdownMenuItem
             onClick={(e) => { e.stopPropagation(); onRemoveSong(song.songId); }}
             disabled={isRemovePending}
-            className="min-h-[44px] text-destructive focus:text-destructive"
+            className="min-h-[40px] text-destructive focus:text-destructive"
           >
             <X className="mr-2 h-4 w-4" />
             Remove
@@ -262,7 +258,7 @@ interface VirtualizedPlaylistSongsProps {
   isRemovePending: boolean;
 }
 
-function VirtualizedPlaylistSongs({
+function PlaylistSongsList({
   songs,
   currentSongId,
   isPlaying,
@@ -273,32 +269,20 @@ function VirtualizedPlaylistSongs({
   onRemoveSong,
   isRemovePending,
 }: VirtualizedPlaylistSongsProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
-
-  const virtualizer = useVirtualizer({
-    count: songs.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: useCallback(() => 56, []), // Height of each row
-    overscan: 5,
-    getItemKey: (index) => songs[index].id,
-  });
-
-  const virtualItems = virtualizer.getVirtualItems();
-
   return (
     <div>
       {/* Column Headers - desktop only */}
-      <div className="hidden sm:flex items-center gap-3 px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b border-border/50 mb-1">
-        <span className="w-4" /> {/* Drag handle space */}
+      <div className="hidden sm:flex items-center gap-2 px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground border-b border-border/50">
+        <span className="w-7" /> {/* Drag handle space */}
         <span className="w-6 text-right">#</span>
         <span className="flex-1">Title</span>
-        <span className="hidden md:block w-32 lg:w-48">Album</span>
+        <span className="hidden md:block w-32 lg:w-40">Album</span>
         <span className="w-12 text-right">Time</span>
         <span className="hidden xl:block w-24 text-right">Added</span>
-        <span className="w-8" /> {/* Actions space */}
+        <span className="w-9" /> {/* Actions space */}
       </div>
 
-      {/* Virtualized Song Rows with Drag and Drop */}
+      {/* Song list with drag and drop - no virtualization for reliability */}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -308,50 +292,20 @@ function VirtualizedPlaylistSongs({
           items={songs.map((s) => s.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div
-            ref={parentRef}
-            className="overflow-auto"
-            style={{
-              height: Math.min(songs.length * 56, 600),
-              contain: 'strict',
-            }}
-          >
-            <div
-              style={{
-                height: virtualizer.getTotalSize(),
-                width: '100%',
-                position: 'relative',
-              }}
-            >
-              {virtualItems.map((virtualRow) => {
-                const song = songs[virtualRow.index];
-                return (
-                  <div
-                    key={virtualRow.key}
-                    data-index={virtualRow.index}
-                    ref={virtualizer.measureElement}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      transform: `translateY(${virtualRow.start}px)`,
-                    }}
-                  >
-                    <SortableSongRow
-                      song={song}
-                      index={virtualRow.index}
-                      isCurrentSong={song.songId === currentSongId}
-                      isPlaying={isPlaying}
-                      onPlayFromSong={onPlayFromSong}
-                      onAddSongToQueue={onAddSongToQueue}
-                      onRemoveSong={onRemoveSong}
-                      isRemovePending={isRemovePending}
-                    />
-                  </div>
-                );
-              })}
-            </div>
+          <div className="max-h-[calc(100vh-200px)] sm:max-h-[calc(100vh-250px)] overflow-y-auto">
+            {songs.map((song, index) => (
+              <SortableSongRow
+                key={song.id}
+                song={song}
+                index={index}
+                isCurrentSong={song.songId === currentSongId}
+                isPlaying={isPlaying}
+                onPlayFromSong={onPlayFromSong}
+                onAddSongToQueue={onAddSongToQueue}
+                onRemoveSong={onRemoveSong}
+                isRemovePending={isRemovePending}
+              />
+            ))}
           </div>
         </SortableContext>
       </DndContext>
@@ -723,182 +677,169 @@ function PlaylistDetailPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Hero Header with Gradient */}
+      {/* Hero Header with Gradient - Ultracompact */}
       <div className={cn(
-        "relative bg-gradient-to-b pb-8",
+        "relative bg-gradient-to-b pb-1 sm:pb-2 lg:pb-4",
         getPlaylistGradient()
       )}>
         <div className="container mx-auto px-3 sm:px-6">
-          {/* Back button with proper touch target */}
-          <div className="pt-4 pb-6">
+          {/* Back button - tiny */}
+          <div className="pt-0.5 pb-0.5 sm:pt-1.5 sm:pb-1">
             <Link
               to="/playlists"
-              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors min-h-[44px] py-2 pr-2 -ml-1"
+              className="inline-flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-0.5 pr-1 -ml-1"
             >
-              <ChevronLeft className="h-5 w-5" />
-              <span>Back to Playlists</span>
+              <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Back</span>
             </Link>
           </div>
 
-          {/* Playlist Info */}
-          <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-end">
-            {/* Playlist Cover/Icon */}
-            <div className={cn(
-              "w-40 h-40 sm:w-52 sm:h-52 rounded-lg shadow-2xl flex items-center justify-center",
-              isLikedSongsPlaylist
-                ? "bg-gradient-to-br from-rose-500 to-pink-600"
-                : isSmartPlaylist
-                  ? "bg-gradient-to-br from-violet-500 to-purple-600"
-                  : "bg-gradient-to-br from-primary/80 to-primary"
-            )}>
-              {playlistIconType === 'heart' && <Heart className="h-20 w-20 sm:h-24 sm:w-24 text-white" />}
-              {playlistIconType === 'sparkles' && <Sparkles className="h-20 w-20 sm:h-24 sm:w-24 text-white" />}
-              {playlistIconType === 'list' && <ListMusic className="h-20 w-20 sm:h-24 sm:w-24 text-white" />}
-            </div>
+          {/* Playlist Info - Two rows: header + buttons */}
+          <div className="flex flex-col gap-1">
+            {/* Row 1: Cover + Title */}
+            <div className="flex flex-row gap-1.5 sm:gap-2 lg:gap-3 items-center">
+              {/* Playlist Cover/Icon - Tiny */}
+              <div className={cn(
+                "w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 lg:w-24 lg:h-24 rounded shadow flex items-center justify-center shrink-0",
+                isLikedSongsPlaylist
+                  ? "bg-gradient-to-br from-rose-500 to-pink-600"
+                  : isSmartPlaylist
+                    ? "bg-gradient-to-br from-violet-500 to-purple-600"
+                    : "bg-gradient-to-br from-primary/80 to-primary"
+              )}>
+                {playlistIconType === 'heart' && <Heart className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 lg:h-12 lg:w-12 text-white" />}
+                {playlistIconType === 'sparkles' && <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 lg:h-12 lg:w-12 text-white" />}
+                {playlistIconType === 'list' && <ListMusic className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 lg:h-12 lg:w-12 text-white" />}
+              </div>
 
-            {/* Playlist Details */}
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
-                {isSmartPlaylist ? 'Smart Playlist' : isLikedSongsPlaylist ? 'Your Library' : 'Playlist'}
-              </p>
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-4 truncate">
-                {playlist.name}
-              </h1>
-              {playlist.description && (
-                <p className="text-muted-foreground mb-3 line-clamp-2">{playlist.description}</p>
-              )}
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">
-                  {playlist.songs.length} {playlist.songs.length === 1 ? 'song' : 'songs'}
-                </span>
-                <span>•</span>
-                <span>Created {new Date(playlist.createdAt).toLocaleDateString()}</span>
+              {/* Title + Count inline */}
+              <div className="flex-1 min-w-0">
+                <h1 className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl font-bold truncate leading-tight">
+                  ❤️ {playlist.name}
+                </h1>
+                <div className="text-[10px] sm:text-xs text-muted-foreground">
+                  {playlist.songs.length} songs
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-4 mt-8">
-            {/* Main Play Button */}
-            <Button
-              onClick={handlePlayAll}
-              disabled={playlist.songs.length === 0}
-              size="lg"
-              className={cn(
-                "rounded-full h-14 w-14 p-0 shadow-lg",
-                isLikedSongsPlaylist
-                  ? "bg-rose-500 hover:bg-rose-600"
-                  : isSmartPlaylist
-                    ? "bg-violet-500 hover:bg-violet-600"
-                    : "bg-primary hover:bg-primary/90"
-              )}
-            >
-              {isCurrentlyPlayingFromPlaylist && isPlaying ? (
-                <Pause className="h-6 w-6" />
-              ) : (
-                <Play className="h-6 w-6 ml-1" />
-              )}
-            </Button>
-
-            {/* Shuffle Button */}
-            <Button
-              onClick={handleShufflePlay}
-              disabled={playlist.songs.length === 0}
-              variant="ghost"
-              size="lg"
-              className="rounded-full h-12 w-12 p-0"
-            >
-              <Shuffle className="h-5 w-5" />
-            </Button>
-
-            {/* Add to Queue Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="lg"
-                  disabled={playlist.songs.length === 0}
-                  className="rounded-full h-12 w-12 p-0"
-                >
-                  <ListPlus className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuItem
-                  onClick={() => handleAddToQueue('next')}
-                  className="min-h-[44px]"
-                >
-                  <Play className="mr-2 h-4 w-4" />
-                  Play Next
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleAddToQueue('end')}
-                  className="min-h-[44px]"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add to End
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* More Options */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="lg"
-                  className="rounded-full h-12 w-12 p-0"
-                >
-                  <MoreHorizontal className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem
-                      onSelect={(e) => e.preventDefault()}
-                      className="min-h-[44px] text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete Playlist
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently delete "{playlist.name}" and all its songs. This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={handleDeletePlaylist}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Collaboration Toggle Button - only show for regular playlists */}
-            {!isLikedSongsPlaylist && !isSmartPlaylist && (
+            {/* Row 2: Action Buttons - below title, aligned under text */}
+            <div className="flex items-center gap-1 pl-12 sm:pl-14 md:pl-[72px] lg:pl-[108px]">
+              {/* Main Play Button */}
               <Button
-                onClick={() => setIsCollaborationPanelOpen(!isCollaborationPanelOpen)}
-                variant={isCollaborationPanelOpen ? "secondary" : "outline"}
-                size="lg"
+                onClick={handlePlayAll}
+                disabled={playlist.songs.length === 0}
+                size="sm"
                 className={cn(
-                  "rounded-full gap-2 px-4",
-                  isCollaborationPanelOpen && "bg-primary/10 border-primary/30"
+                  "rounded-full h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 p-0 shadow-md",
+                  isLikedSongsPlaylist
+                    ? "bg-rose-500 hover:bg-rose-600"
+                    : isSmartPlaylist
+                      ? "bg-violet-500 hover:bg-violet-600"
+                      : "bg-primary hover:bg-primary/90"
                 )}
               >
-                <Users className="h-4 w-4" />
-                <span className="hidden sm:inline">Collaborate</span>
+                {isCurrentlyPlayingFromPlaylist && isPlaying ? (
+                  <Pause className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                ) : (
+                  <Play className="h-3 w-3 sm:h-3.5 sm:w-3.5 ml-0.5" />
+                )}
               </Button>
-            )}
+
+              {/* Shuffle button - always visible now */}
+              <Button
+                onClick={handleShufflePlay}
+                disabled={playlist.songs.length === 0}
+                variant="ghost"
+                size="sm"
+                className="rounded-full h-7 w-7 sm:h-8 sm:w-8 p-0"
+              >
+                <Shuffle className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              </Button>
+
+              {/* Combined Menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="rounded-full h-7 w-7 sm:h-8 sm:w-8 p-0"
+                  >
+                    <MoreHorizontal className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem
+                    onClick={handleShufflePlay}
+                    disabled={playlist.songs.length === 0}
+                    className="min-h-[44px]"
+                  >
+                    <Shuffle className="mr-2 h-4 w-4" />
+                    Shuffle Play
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleAddToQueue('next')}
+                    disabled={playlist.songs.length === 0}
+                    className="min-h-[44px]"
+                  >
+                    <Play className="mr-2 h-4 w-4" />
+                    Play Next
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleAddToQueue('end')}
+                    disabled={playlist.songs.length === 0}
+                    className="min-h-[44px]"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add to Queue
+                  </DropdownMenuItem>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <DropdownMenuItem
+                        onSelect={(e) => e.preventDefault()}
+                        className="min-h-[44px] text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Playlist
+                      </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete "{playlist.name}" and all its songs. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleDeletePlaylist}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Collaborate button - visible on all screens */}
+              {!isLikedSongsPlaylist && !isSmartPlaylist && (
+                <Button
+                  onClick={() => setIsCollaborationPanelOpen(!isCollaborationPanelOpen)}
+                  variant={isCollaborationPanelOpen ? "secondary" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "rounded-full h-7 w-7 p-0 sm:h-8 sm:w-8 lg:h-9 lg:w-auto lg:gap-1 lg:px-3 lg:py-1",
+                    isCollaborationPanelOpen && "bg-primary/10 border-primary/30"
+                  )}
+                >
+                  <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:shrink-0" />
+                  <span className="hidden lg:inline text-xs whitespace-nowrap">Collaborate</span>
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -908,7 +849,7 @@ function PlaylistDetailPage() {
         {/* Song List */}
         <div className="flex-1">
           <div className={cn(
-            "transition-all duration-300 px-3 sm:px-6 py-6",
+            "transition-all duration-300 px-3 sm:px-6 py-2 sm:py-4 lg:py-6",
             isCollaborationPanelOpen ? "lg:mr-[400px]" : "max-w-7xl mx-auto"
           )}>
             {playlist.songs.length === 0 ? (
@@ -925,7 +866,7 @@ function PlaylistDetailPage() {
                 </Button>
               </div>
             ) : (
-              <VirtualizedPlaylistSongs
+              <PlaylistSongsList
                 songs={playlist.songs}
                 currentSongId={currentSong?.id}
                 isPlaying={isPlaying}

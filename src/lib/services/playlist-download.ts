@@ -183,6 +183,11 @@ export async function queueLidarrDownload(
         if (artistData) {
           await lidarr.addArtist(artistData, { monitorAll: false });
         }
+      } else {
+        // Artist exists - ensure it's monitored (required for Slskd)
+        if (searchResult.artistId) {
+          await lidarr.ensureArtistMonitored(searchResult.artistId);
+        }
       }
 
       // If we have album info, monitor and search for it

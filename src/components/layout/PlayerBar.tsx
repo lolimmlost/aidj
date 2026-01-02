@@ -11,7 +11,135 @@ import {
   Shuffle,
   Repeat,
   Maximize2,
+  Music,
+  MicVocal,
 } from 'lucide-react';
+import { LyricsModal } from '@/components/lyrics';
+
+// Helper to get cover art URL from Navidrome
+const getCoverArtUrl = (albumId: string | undefined, size: number = 128) => {
+  if (!albumId) return null;
+  return `/api/navidrome/rest/getCoverArt?id=${albumId}&size=${size}`;
+};
+
+// Album art component with fallback
+const AlbumArt = ({
+  albumId,
+  songId,
+  artist,
+  size = 'md',
+  isPlaying = false,
+  className = ''
+}: {
+  albumId?: string;
+  songId?: string;
+  artist?: string;
+  size?: 'sm' | 'md' | 'lg';
+  isPlaying?: boolean;
+  className?: string;
+}) => {
+  const [imgError, setImgError] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [resolvedAlbumId, setResolvedAlbumId] = useState<string | null>(albumId || null);
+
+  // Fetch albumId from Navidrome if not provided but songId is available
+  useEffect(() => {
+    if (albumId) {
+      setResolvedAlbumId(albumId);
+      return;
+    }
+
+    if (!songId) {
+      setResolvedAlbumId(null);
+      return;
+    }
+
+    // Fetch song metadata to get albumId
+    const fetchAlbumId = async () => {
+      try {
+        const response = await fetch(`/api/navidrome/rest/getSong?id=${songId}&f=json`);
+        if (response.ok) {
+          const data = await response.json();
+          const song = data['subsonic-response']?.song;
+          if (song?.albumId) {
+            setResolvedAlbumId(song.albumId);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch album ID:', error);
+      }
+    };
+
+    fetchAlbumId();
+  }, [albumId, songId]);
+
+  // Reset states when albumId changes
+  useEffect(() => {
+    setImgError(false);
+    setImgLoaded(false);
+  }, [resolvedAlbumId]);
+
+  const sizeClasses = {
+    sm: 'w-12 h-12',
+    md: 'w-14 h-14',
+    lg: 'w-20 h-20',
+  };
+
+  const imgSizes = {
+    sm: 96,
+    md: 112,
+    lg: 160,
+  };
+
+  const coverUrl = getCoverArtUrl(resolvedAlbumId || undefined, imgSizes[size]);
+  const initials = artist?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '♪';
+
+  return (
+    <div className={cn(
+      sizeClasses[size],
+      'rounded-lg bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 relative overflow-hidden',
+      className
+    )}>
+      {coverUrl && !imgError ? (
+        <>
+          <img
+            src={coverUrl}
+            alt="Album cover"
+            className={cn(
+              'w-full h-full object-cover transition-opacity duration-300',
+              imgLoaded ? 'opacity-100' : 'opacity-0'
+            )}
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgError(true)}
+          />
+          {!imgLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Music className="h-4 w-4 text-primary/40 animate-pulse" />
+            </div>
+          )}
+        </>
+      ) : (
+        <span className={cn(
+          'font-bold text-primary/60',
+          size === 'sm' ? 'text-xs' : size === 'md' ? 'text-sm' : 'text-lg'
+        )}>
+          {initials}
+        </span>
+      )}
+
+      {/* Playing animation overlay */}
+      {isPlaying && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+          <div className="flex gap-0.5">
+            <div className="w-0.5 h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" />
+            <div className="w-0.5 h-3 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
+            <div className="w-0.5 h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -76,6 +204,7 @@ export function PlayerBar() {
   const scrobbleThresholdReachedRef = useRef<boolean>(false);
   const currentSongIdRef = useRef<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false);
 
   const {
     playlist,
@@ -571,20 +700,13 @@ export function PlayerBar() {
         {/* Main row: Album art, song info, controls */}
         <div className="flex items-center gap-3">
           {/* Small Album Artwork */}
-          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 relative overflow-hidden">
-            <span className="font-bold text-xs text-primary/60">
-              {currentSong.artist?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '♪'}
-            </span>
-            {isPlaying && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                <div className="flex gap-0.5">
-                  <div className="w-0.5 h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" />
-                  <div className="w-0.5 h-3 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
-                  <div className="w-0.5 h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
-                </div>
-              </div>
-            )}
-          </div>
+          <AlbumArt
+            albumId={currentSong.albumId}
+            songId={currentSong.id}
+            artist={currentSong.artist}
+            size="sm"
+            isPlaying={isPlaying}
+          />
 
           {/* Song Info */}
           <div className="min-w-0 flex-1">
@@ -638,6 +760,16 @@ export function PlayerBar() {
               <SkipForward className="h-4 w-4" />
             </Button>
 
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => setShowLyrics(true)}
+              title="Show lyrics"
+            >
+              <MicVocal className="h-4 w-4" />
+            </Button>
+
             <AIDJToggle compact />
           </div>
         </div>
@@ -656,14 +788,14 @@ export function PlayerBar() {
         {/* Left: Song Info */}
         <div className="flex items-center gap-3 w-72 min-w-0">
           {/* Mini Album Art */}
-          <div className="w-14 h-14 rounded-md bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 relative">
-            <span className="font-bold text-lg text-primary/60">
-              {currentSong.artist?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '♪'}
-            </span>
-            {isPlaying && (
-              <div className="absolute inset-0 bg-primary/10 animate-pulse rounded-md" />
-            )}
-          </div>
+          <AlbumArt
+            albumId={currentSong.albumId}
+            songId={currentSong.id}
+            artist={currentSong.artist}
+            size="md"
+            isPlaying={isPlaying}
+            className="rounded-md"
+          />
           <div className="min-w-0">
             <p className="font-medium truncate text-sm">{currentSong.name || currentSong.title}</p>
             <p className="text-xs text-muted-foreground truncate">{currentSong.artist || 'Unknown'}</p>
@@ -756,6 +888,16 @@ export function PlayerBar() {
         <div className="flex items-center gap-2 w-72 justify-end">
           <AIDJToggle compact />
 
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => setShowLyrics(true)}
+            title="Show lyrics"
+          >
+            <MicVocal className="h-4 w-4" />
+          </Button>
+
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
@@ -786,6 +928,9 @@ export function PlayerBar() {
 
       {/* Hidden Audio Element - shared between mobile and desktop */}
       <audio ref={audioRef} preload="metadata" className="hidden" />
+
+      {/* Lyrics Modal */}
+      <LyricsModal isOpen={showLyrics} onClose={() => setShowLyrics(false)} />
     </>
   );
 }

@@ -223,7 +223,7 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
       }
 
       const artists = await artistSearchResponse.json();
-      console.log(`[Lidarr Queue] Found ${artists.length} artist matches for "${song.artist}"`);
+      console.log(`[Lidarr Queue] Found ${artists.length} artist matches for "${primaryArtist}"`);
 
       if (artists.length === 0) {
         result.errors.push(`Artist not found: ${song.artist}`);
@@ -232,8 +232,39 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
         continue;
       }
 
-      // Take the first (best) artist match
-      const targetArtist = artists[0];
+      // Find best artist match (don't just take first result)
+      // Score artists by how well they match the primary artist name
+      const scoredArtists = artists.map((artist: { artistName: string }) => {
+        const artistNameLower = artist.artistName.toLowerCase();
+        const primaryLower = primaryArtist.toLowerCase();
+
+        // Exact match gets highest score
+        if (artistNameLower === primaryLower) return { artist, score: 100 };
+
+        // Starts with gets high score
+        if (artistNameLower.startsWith(primaryLower)) return { artist, score: 90 };
+
+        // Contains as whole word gets medium score
+        const regex = new RegExp(`\\b${primaryLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        if (regex.test(artistNameLower)) return { artist, score: 70 };
+
+        // Contains anywhere gets low score
+        if (artistNameLower.includes(primaryLower)) return { artist, score: 50 };
+
+        // Doesn't match - very low score
+        return { artist, score: 0 };
+      });
+
+      // Sort by score descending
+      scoredArtists.sort((a: { score: number }, b: { score: number }) => b.score - a.score);
+
+      // Log top 3 matches for debugging
+      console.log(`[Lidarr Queue] Top artist matches for "${primaryArtist}":`);
+      scoredArtists.slice(0, 3).forEach((s: { artist: { artistName: string }, score: number }, i: number) => {
+        console.log(`  ${i + 1}. "${s.artist.artistName}" (score: ${s.score})`);
+      });
+
+      const targetArtist = scoredArtists[0].artist;
       console.log(`[Lidarr Queue] Using artist: ${targetArtist.artistName} (ID: ${targetArtist.foreignArtistId})`);
 
       // Step 2: We'll skip album lookup from MusicBrainz since it often returns 0 results
@@ -259,6 +290,22 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
         if (existingArtist) {
           libraryArtistId = existingArtist.id;
           console.log(`[Lidarr Queue] Artist already in library (ID: ${libraryArtistId})`);
+
+          // Ensure artist is monitored (required for Slskd to pick it up)
+          if (!existingArtist.monitored) {
+            console.log(`[Lidarr Queue] Enabling monitoring for artist ${existingArtist.artistName}`);
+            await fetch(`${lidarrUrl}/api/v1/artist/${libraryArtistId}`, {
+              method: 'PUT',
+              headers: {
+                'X-Api-Key': lidarrApiKey,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                ...existingArtist,
+                monitored: true,
+              }),
+            });
+          }
         }
       }
 
@@ -338,20 +385,19 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
       }
 
       if (targetLibraryAlbum) {
-        // Album exists, make sure it's monitored and trigger search
-        if (!targetLibraryAlbum.monitored) {
-          await fetch(`${lidarrUrl}/api/v1/album/${targetLibraryAlbum.id}`, {
-            method: 'PUT',
-            headers: {
-              'X-Api-Key': lidarrApiKey,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              ...targetLibraryAlbum,
-              monitored: true,
-            }),
-          });
-        }
+        // Album exists, ensure it's monitored (required for Slskd/Soularr to pick it up)
+        console.log(`[Lidarr Queue] Setting album "${targetLibraryAlbum.title}" as monitored...`);
+        await fetch(`${lidarrUrl}/api/v1/album/${targetLibraryAlbum.id}`, {
+          method: 'PUT',
+          headers: {
+            'X-Api-Key': lidarrApiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...targetLibraryAlbum,
+            monitored: true,
+          }),
+        });
 
         // Trigger album search
         await fetch(`${lidarrUrl}/api/v1/command`, {
@@ -404,7 +450,8 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
           if (foundAlbum) {
             console.log(`[Lidarr Queue] Found matching album after refresh: "${foundAlbum.title}"`);
 
-            // Monitor this specific album
+            // Monitor this specific album (required for Slskd/Soularr to pick it up)
+            console.log(`[Lidarr Queue] Setting album "${foundAlbum.title}" as monitored...`);
             await fetch(`${lidarrUrl}/api/v1/album/${foundAlbum.id}`, {
               method: 'PUT',
               headers: {
@@ -477,21 +524,43 @@ function findBestAlbumMatch(
     const albumTitle = album.title.toLowerCase();
     const artistName = album.artist?.artistName?.toLowerCase() || '';
 
-    // Exact album name match (highest priority)
-    if (songAlbum && albumTitle === songAlbum) {
-      score += 100;
+    // If song provides an album name, prioritize album name matching
+    if (songAlbum) {
+      // Exact album name match (highest priority)
+      if (albumTitle === songAlbum) {
+        score += 100;
+      }
+      // Album name starts with song album
+      else if (albumTitle.startsWith(songAlbum)) {
+        score += 80;
+      }
+      // Song album starts with album name (handles "Slime & B" vs "Slime & B [Deluxe]")
+      else if (songAlbum.startsWith(albumTitle)) {
+        score += 75;
+      }
+      // Partial album name match
+      else if (albumTitle.includes(songAlbum)) {
+        score += 50;
+      }
+      // Reverse: album name contains song album name
+      else if (songAlbum.includes(albumTitle)) {
+        score += 40;
+      }
     }
-    // Partial album name match
-    else if (songAlbum && albumTitle.includes(songAlbum)) {
-      score += 50;
-    }
-    // Reverse: album name contains song album name
-    else if (songAlbum && songAlbum.includes(albumTitle)) {
-      score += 40;
-    }
-    // Album title contains song title (might be a single)
-    else if (albumTitle.includes(songTitle)) {
-      score += 30;
+    // No album name provided - check if album title matches song title (for singles)
+    else {
+      // Exact match with song title (likely a single)
+      if (albumTitle === songTitle) {
+        score += 80;
+      }
+      // Album title contains song title (might be a single with extra text)
+      else if (albumTitle.includes(songTitle)) {
+        score += 30;
+      }
+      // Song title contains album title
+      else if (songTitle.includes(albumTitle)) {
+        score += 25;
+      }
     }
 
     // Artist name match (use primary artist for collaborations)
@@ -502,8 +571,13 @@ function findBestAlbumMatch(
     }
 
     // Prefer non-compilation albums (usually shorter titles)
-    if (albumTitle.length < 50) {
+    if (albumTitle.length < 50 && !albumTitle.includes('compilation')) {
       score += 5;
+    }
+
+    // Penalize "greatest hits" and compilations
+    if (albumTitle.includes('greatest hits') || albumTitle.includes('compilation') || albumTitle.includes('best of')) {
+      score -= 20;
     }
 
     return { album, score };
@@ -518,7 +592,22 @@ function findBestAlbumMatch(
     console.log(`  ${i + 1}. "${s.album.title}" (score: ${s.score})`);
   });
 
-  return scored[0]?.album || albums[0];
+  const bestMatch = scored[0];
+
+  // If the best match has a very low score (< 20), it's probably a bad match
+  // Only return it if we have high confidence, otherwise return null to trigger a refresh
+  if (bestMatch && bestMatch.score >= 20) {
+    return bestMatch.album;
+  }
+
+  // Low confidence match - prefer to return null and let refresh happen
+  // This helps avoid matching singles to wrong albums
+  if (bestMatch && bestMatch.score < 20) {
+    console.log(`[Lidarr Queue] Low confidence match (score: ${bestMatch.score}), preferring artist refresh`);
+    return null;
+  }
+
+  return albums[0]; // Fallback
 }
 
 // Helper function to queue songs to MeTube

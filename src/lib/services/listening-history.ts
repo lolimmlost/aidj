@@ -15,7 +15,7 @@ import {
   type ListeningHistoryInsert,
   type TrackSimilarityInsert,
 } from '../db/schema';
-import { eq, and, gte, desc, sql, lte } from 'drizzle-orm';
+import { eq, and, gte, desc, sql, lte, inArray } from 'drizzle-orm';
 import { getLastFmClient } from './lastfm';
 import { getConfigAsync } from '@/lib/config/config';
 
@@ -56,6 +56,10 @@ const DEFAULT_LOOKBACK_DAYS = 7;
  *   duration: 263,
  * }, 250);
  */
+// Phase 3.1: Skip detection constants
+const SKIP_MIN_PLAY_SECONDS = 5; // Must play at least 5 seconds to count as a skip (not accidental)
+const SKIP_MAX_PERCENTAGE = 0.3; // Less than 30% played = skip
+
 export async function recordSongPlay(
   userId: string,
   song: {
@@ -72,6 +76,20 @@ export async function recordSongPlay(
     ? (playDuration / song.duration >= COMPLETION_THRESHOLD ? 1 : 0)
     : 0;
 
+  // Phase 3.1: Detect skips
+  // A skip is when:
+  // - The song played for at least 5 seconds (not accidental)
+  // - The song played for less than 30% of its duration
+  // - The song was not completed
+  let skipDetected = 0;
+  if (playDuration && song.duration && playDuration >= SKIP_MIN_PLAY_SECONDS) {
+    const playPercentage = playDuration / song.duration;
+    if (playPercentage < SKIP_MAX_PERCENTAGE && completed === 0) {
+      skipDetected = 1;
+      console.log(`⏭️ [ListeningHistory] Skip detected: ${song.artist} - ${song.title} (played ${Math.round(playPercentage * 100)}%)`);
+    }
+  }
+
   const record: ListeningHistoryInsert = {
     userId,
     songId: song.songId,
@@ -82,11 +100,12 @@ export async function recordSongPlay(
     playDuration: playDuration || null,
     songDuration: song.duration || null,
     completed,
+    skipDetected,
   };
 
   await db.insert(listeningHistory).values(record);
 
-  console.log(`📊 [ListeningHistory] Recorded play: ${song.artist} - ${song.title} (completed: ${completed === 1})`);
+  console.log(`📊 [ListeningHistory] Recorded play: ${song.artist} - ${song.title} (completed: ${completed === 1}, skipped: ${skipDetected === 1})`);
 
   // Trigger async similarity fetch (don't await - fire and forget)
   fetchAndStoreSimilarTracks(song.artist, song.title).catch(err => {
@@ -338,6 +357,139 @@ export async function refreshExpiredSimilarities(limit: number = 50): Promise<nu
 }
 
 // ============================================================================
+// Phase 3.1: Skip Statistics Functions
+// ============================================================================
+
+/**
+ * Get skip statistics for songs
+ * Returns skip rate (skips / total plays) for each song
+ */
+export async function getSkipRatesForSongs(
+  userId: string,
+  songIds: string[],
+  daysBack: number = 30
+): Promise<Map<string, { skipRate: number; totalPlays: number; skips: number }>> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+
+  const results = await db
+    .select({
+      songId: listeningHistory.songId,
+      totalPlays: sql<number>`count(*)::int`,
+      skips: sql<number>`sum(${listeningHistory.skipDetected})::int`,
+    })
+    .from(listeningHistory)
+    .where(
+      and(
+        eq(listeningHistory.userId, userId),
+        gte(listeningHistory.playedAt, cutoffDate),
+        inArray(listeningHistory.songId, songIds)
+      )
+    )
+    .groupBy(listeningHistory.songId);
+
+  const skipRates = new Map<string, { skipRate: number; totalPlays: number; skips: number }>();
+
+  for (const row of results) {
+    const skips = row.skips || 0;
+    const totalPlays = row.totalPlays || 1;
+    skipRates.set(row.songId, {
+      skipRate: skips / totalPlays,
+      totalPlays,
+      skips,
+    });
+  }
+
+  return skipRates;
+}
+
+/**
+ * Get skip rates by artist
+ * Useful for deprioritizing artists the user frequently skips
+ */
+export async function getSkipRatesByArtist(
+  userId: string,
+  daysBack: number = 30
+): Promise<Map<string, { skipRate: number; totalPlays: number; skips: number }>> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+
+  const results = await db
+    .select({
+      artist: listeningHistory.artist,
+      totalPlays: sql<number>`count(*)::int`,
+      skips: sql<number>`sum(${listeningHistory.skipDetected})::int`,
+    })
+    .from(listeningHistory)
+    .where(
+      and(
+        eq(listeningHistory.userId, userId),
+        gte(listeningHistory.playedAt, cutoffDate)
+      )
+    )
+    .groupBy(listeningHistory.artist);
+
+  const skipRates = new Map<string, { skipRate: number; totalPlays: number; skips: number }>();
+
+  for (const row of results) {
+    const skips = row.skips || 0;
+    const totalPlays = row.totalPlays || 1;
+    skipRates.set(row.artist.toLowerCase(), {
+      skipRate: skips / totalPlays,
+      totalPlays,
+      skips,
+    });
+  }
+
+  return skipRates;
+}
+
+/**
+ * Get frequently skipped songs (skip rate > threshold)
+ * Useful for filtering out songs that should be avoided
+ */
+export async function getFrequentlySkippedSongs(
+  userId: string,
+  minSkipRate: number = 0.5, // At least 50% skip rate
+  minPlays: number = 3, // At least 3 plays to have confidence
+  daysBack: number = 30
+): Promise<Array<{ songId: string; artist: string; title: string; skipRate: number }>> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+
+  const results = await db
+    .select({
+      songId: listeningHistory.songId,
+      artist: listeningHistory.artist,
+      title: listeningHistory.title,
+      totalPlays: sql<number>`count(*)::int`,
+      skips: sql<number>`sum(${listeningHistory.skipDetected})::int`,
+    })
+    .from(listeningHistory)
+    .where(
+      and(
+        eq(listeningHistory.userId, userId),
+        gte(listeningHistory.playedAt, cutoffDate)
+      )
+    )
+    .groupBy(
+      listeningHistory.songId,
+      listeningHistory.artist,
+      listeningHistory.title
+    )
+    .having(sql`count(*) >= ${minPlays}`);
+
+  return results
+    .map(row => ({
+      songId: row.songId,
+      artist: row.artist,
+      title: row.title,
+      skipRate: (row.skips || 0) / (row.totalPlays || 1),
+    }))
+    .filter(row => row.skipRate >= minSkipRate);
+}
+
+// ============================================================================
 // Exports for Testing
 // ============================================================================
 
@@ -346,5 +498,7 @@ export {
   MAX_RECENT_PLAYS_FOR_SIMILARITY,
   MAX_SIMILAR_TRACKS_PER_SONG,
   DEFAULT_LOOKBACK_DAYS,
+  SKIP_MIN_PLAY_SECONDS,
+  SKIP_MAX_PERCENTAGE,
   fetchAndStoreSimilarTracks,
 };

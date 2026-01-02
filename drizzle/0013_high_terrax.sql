@@ -1,0 +1,3 @@
+ALTER TABLE "user_preferences" ALTER COLUMN "recommendation_settings" SET DEFAULT '{"aiEnabled":true,"frequency":"always","styleBasedPlaylists":true,"useFeedbackForPersonalization":true,"enableSeasonalRecommendations":true,"syncFeedbackToNavidrome":true,"aiDJEnabled":false,"aiDJQueueThreshold":2,"aiDJBatchSize":3,"aiDJUseCurrentContext":true,"autoplayEnabled":false,"autoplayBlendMode":"crossfade","autoplayTransitionDuration":4,"autoplaySmartTransitions":true}'::jsonb;--> statement-breakpoint
+ALTER TABLE "listening_history" ADD COLUMN "skip_detected" integer DEFAULT 0;--> statement-breakpoint
+CREATE INDEX "listening_history_skip_idx" ON "listening_history" USING btree ("user_id","skip_detected","played_at");

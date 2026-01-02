@@ -3,36 +3,22 @@ import { db } from '../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../lib/db/schema/playlists.schema';
 import { eq, sql, desc } from 'drizzle-orm';
 import { z } from 'zod';
-import { searchSongsByCriteria, checkNavidromeConnectivity } from '../../../lib/services/navidrome';
+import { checkNavidromeConnectivity } from '../../../lib/services/navidrome';
 import {
   withAuthAndErrorHandling,
   successResponse,
   errorResponse,
 } from '../../../lib/utils/api-response';
 
-// Zod schema for playlist validation
+// Zod schema for playlist validation (basic playlists only)
+// Smart playlists use /api/playlists/smart endpoint
 const CreatePlaylistSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
-  smartPlaylistCriteria: z.object({
-    genre: z.array(z.string()).optional(),
-    yearFrom: z.number().int().min(1900).max(new Date().getFullYear()).optional(),
-    yearTo: z.number().int().min(1900).max(new Date().getFullYear()).optional(),
-    artists: z.array(z.string()).optional(),
-    rating: z.number().min(1).max(5).optional(),
-    recentlyAdded: z.enum(['7d', '30d', '90d']).optional(),
-  }).refine((data) => {
-    // Validate year range: yearFrom <= yearTo
-    if (data.yearFrom && data.yearTo && data.yearFrom > data.yearTo) {
-      return false;
-    }
-    return true;
-  }, {
-    message: 'yearFrom must be less than or equal to yearTo',
-  }).optional(),
 });
 
-// POST /api/playlists - Create new playlist
+// POST /api/playlists - Create new basic playlist (empty)
+// For smart playlists, use /api/playlists/smart endpoint
 const POST = withAuthAndErrorHandling(
   async ({ request, session }) => {
     const body = await request.json();
@@ -51,58 +37,20 @@ const POST = withAuthAndErrorHandling(
       return errorResponse('DUPLICATE_PLAYLIST_NAME', 'Playlist name already exists', { status: 409 });
     }
 
-    // Create new playlist (with optional smart playlist criteria)
+    // Create new empty playlist
     const newPlaylist = {
       id: crypto.randomUUID(),
       userId: session.user.id,
       name: validatedData.name,
       description: validatedData.description || null,
-      smartPlaylistCriteria: validatedData.smartPlaylistCriteria || null,
+      smartPlaylistCriteria: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
     await db.insert(userPlaylists).values(newPlaylist);
 
-    // If smart playlist criteria provided, populate with matching songs
-    if (validatedData.smartPlaylistCriteria) {
-      try {
-        console.log('🔍 Searching for songs matching smart playlist criteria:', validatedData.smartPlaylistCriteria);
-        const matchingSongs = await searchSongsByCriteria(validatedData.smartPlaylistCriteria, 100);
-
-        console.log(`📋 Found ${matchingSongs.length} songs matching criteria`);
-
-        // Add songs to playlist
-        const songsToAdd = matchingSongs.map((song, index) => ({
-          id: crypto.randomUUID(),
-          playlistId: newPlaylist.id,
-          songId: song.id,
-          songArtistTitle: `${song.artist} - ${song.title}`,
-          position: index,
-          addedAt: new Date(),
-        }));
-
-        if (songsToAdd.length > 0) {
-          await db.insert(playlistSongs).values(songsToAdd);
-        }
-
-        // Update playlist with song count and duration
-        const totalDuration = matchingSongs.reduce((sum, song) => sum + parseInt(song.duration || '0'), 0);
-        await db
-          .update(userPlaylists)
-          .set({
-            songCount: matchingSongs.length,
-            totalDuration,
-            updatedAt: new Date(),
-          })
-          .where(eq(userPlaylists.id, newPlaylist.id));
-
-        console.log(`✅ Smart playlist "${newPlaylist.name}" created with ${matchingSongs.length} songs`);
-      } catch (error) {
-        console.error('Failed to populate smart playlist:', error);
-        // Don't fail the whole request, playlist is created but empty
-      }
-    }
+    console.log(`✅ Playlist "${newPlaylist.name}" created (empty)`);
 
     return successResponse(newPlaylist, 201);
   },

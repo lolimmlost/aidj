@@ -1,0 +1,19 @@
+{
+  "category": "User Experience",
+  "description": "Implement 'Smart Playlist Auto-Curation' where users create dynamic playlists that automatically update based on rules (e.g., 'Top 50 songs from last month', 'All songs liked at 2-4 AM by mood', 'Genre blends based on discovery patterns') with manual refresh or periodic sync options.",
+  "id": "feature-1767077432216-y3n5vbauv",
+  "steps": [],
+  "status": "backlog",
+  "skipTests": true,
+  "priority": 2,
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "ultrathink",
+  "imagePaths": [],
+  "textFilePaths": [],
+  "branchName": "feat/unified-recommendations-service",
+  "planningMode": "skip",
+  "requirePlanApproval": false,
+  "startedAt": "2025-12-31T23:45:40.003Z",
+  "updatedAt": "2025-12-31T23:45:40.092Z"
+}

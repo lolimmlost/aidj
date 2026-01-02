@@ -1,0 +1,36 @@
+{
+  "category": "Uncategorized",
+  "description": "## Parent Task Context (Already Completed)\n\n> **Note:** The following parent task has already been completed. This context is provided to help you understand the background and requirements for this sub-task. Do not re-implement the parent task - focus only on the new sub-task described below.\n\n### Fix desktop layout selectable buttons stacking\n\n**Description:** ## Parent Task Context (Already Completed)\n\n> **Note:** The following parent task has already been completed. This context is provided to help you understand the background and requirements for this sub-task. Do not re-implement the parent task - focus only on the new sub-task described below.\n\n### Task (feature-)\n\n**Description:** Create a 'music identity' system that generates AI-powered yearly/monthly summaries (similar to Spotify Wrapped) with personalized insights, mood classifications, artist affinities, and sharable visual cards. Include trend analysis showing 'who you're getting into' and 'what you're moving away from'.\n\n---\n\n## Task Description\n\nthe view on desktop is weird with the selectable buttons are stacking vertically instead of horizontally.\n\n---\n\n## Task Description\n\ni have a small bug on the artist list shown in image",
+  "title": "Fix artist list button layout on desktop",
+  "images": [],
+  "imagePaths": [
+    {
+      "id": "img-1767116785351-g9ay34nvr",
+      "path": "/home/default/Desktop/dev/aidj/.automaker/features/feature-1767116786423-aykt23ckq/images/Screenshot_2025-12-30_at_09-45-58_AIDJ_-_AI-Assisted_Music_Library-1767116785317.png",
+      "filename": "Screenshot_2025-12-30_at_09-45-58_AIDJ_-_AI-Assisted_Music_Library.png",
+      "mimeType": "image/png"
+    },
+    {
+      "path": "/home/default/Desktop/dev/aidj/.automaker/features/feature-1767116786423-aykt23ckq/images/Screenshot_2025-12-30_at_09-58-02_AIDJ_-_AI-Assisted_Music_Library-1767117527396.png",
+      "filename": "Screenshot_2025-12-30_at_09-58-02_AIDJ_-_AI-Assisted_Music_Library-1767117527396.png",
+      "mimeType": "image/png"
+    }
+  ],
+  "textFilePaths": [],
+  "skipTests": true,
+  "model": "sonnet",
+  "thinkingLevel": "medium",
+  "branchName": "feat/unified-recommendations-service",
+  "priority": 2,
+  "planningMode": "lite",
+  "requirePlanApproval": false,
+  "dependencies": [
+    "feature-1767115972836-bxjfy49ay"
+  ],
+  "titleGenerating": false,
+  "status": "completed",
+  "id": "feature-1767116786423-aykt23ckq",
+  "startedAt": "2025-12-30T17:58:48.480Z",
+  "updatedAt": "2025-12-30T17:59:17.415Z",
+  "justFinishedAt": "2025-12-30T17:59:17.415Z"
+}

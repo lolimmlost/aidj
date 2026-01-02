@@ -197,65 +197,65 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4 md:space-y-6">
       {/* Success Message */}
-      <div className="text-center py-2">
-        <div className="mx-auto w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center mb-2">
-          <CheckCircle2 className="h-5 w-5 text-green-500" />
+      <div className="text-center py-3 md:py-4">
+        <div className="mx-auto w-10 h-10 md:w-14 md:h-14 rounded-full bg-green-500/10 flex items-center justify-center mb-2 md:mb-3">
+          <CheckCircle2 className="h-5 w-5 md:h-7 md:w-7 text-green-500" />
         </div>
-        <h3 className="text-sm font-semibold text-green-700 dark:text-green-400">
+        <h3 className="text-sm md:text-lg font-semibold text-green-700 dark:text-green-400">
           Import Complete!
         </h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <p className="text-xs md:text-sm text-muted-foreground mt-0.5 md:mt-1">
           Your playlist has been successfully imported
         </p>
       </div>
 
       {/* Playlist Info */}
-      <div className="bg-muted rounded-lg p-2 flex items-center gap-2">
-        <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center shrink-0">
-          <ListMusic className="h-4 w-4 text-primary" />
+      <div className="bg-muted rounded-lg p-3 md:p-4 flex items-center gap-3 md:gap-4">
+        <div className="w-8 h-8 md:w-12 md:h-12 rounded bg-primary/10 flex items-center justify-center shrink-0">
+          <ListMusic className="h-4 w-4 md:h-6 md:w-6 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold truncate">{playlistName}</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm md:text-base font-semibold truncate">{playlistName}</p>
+          <p className="text-xs md:text-sm text-muted-foreground">
             {matchReport.summary.matched} songs added
           </p>
         </div>
         {createdPlaylistId && (
-          <Badge variant="secondary" className="text-[10px] h-5">Created</Badge>
+          <Badge variant="secondary" className="text-[10px] md:text-xs h-5 md:h-6">Created</Badge>
         )}
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-        <div className="p-2 rounded-lg border bg-card text-center">
-          <p className="text-base font-bold">{matchReport.summary.total}</p>
-          <p className="text-[10px] text-muted-foreground">Total</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3">
+        <div className="p-2 md:p-3 rounded-lg border bg-card text-center">
+          <p className="text-base md:text-xl font-bold">{matchReport.summary.total}</p>
+          <p className="text-[10px] md:text-xs text-muted-foreground">Total</p>
         </div>
 
-        <div className="p-2 rounded-lg border bg-card text-center">
-          <p className="text-base font-bold text-green-600 dark:text-green-400">
+        <div className="p-2 md:p-3 rounded-lg border bg-card text-center">
+          <p className="text-base md:text-xl font-bold text-green-600 dark:text-green-400">
             {matchReport.summary.matched + (reviewStats?.reviewed || 0)}
           </p>
-          <p className="text-[10px] text-muted-foreground">Matched</p>
+          <p className="text-[10px] md:text-xs text-muted-foreground">Matched</p>
         </div>
 
         {/* Show pending review if not yet reviewed */}
         {matchReport.summary.pendingReview > 0 && !reviewStats && (
-          <div className="p-2 rounded-lg border bg-yellow-500/10 border-yellow-500/20 text-center">
-            <p className="text-base font-bold text-yellow-600 dark:text-yellow-400">
+          <div className="p-2 md:p-3 rounded-lg border bg-yellow-500/10 border-yellow-500/20 text-center">
+            <p className="text-base md:text-xl font-bold text-yellow-600 dark:text-yellow-400">
               {matchReport.summary.pendingReview}
             </p>
-            <p className="text-[10px] text-muted-foreground">Review</p>
+            <p className="text-[10px] md:text-xs text-muted-foreground">Review</p>
             {onReviewClick && (
               <Button
                 size="sm"
                 variant="outline"
-                className="mt-1 h-6 text-[10px] px-2"
+                className="mt-1 md:mt-2 h-6 md:h-8 text-[10px] md:text-xs px-2 md:px-3"
                 onClick={onReviewClick}
               >
-                <Eye className="mr-1 h-3 w-3" />
+                <Eye className="mr-1 h-3 w-3 md:h-4 md:w-4" />
                 Review
               </Button>
             )}
@@ -264,32 +264,32 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
 
         {/* Show reviewed stats after review is complete */}
         {reviewStats && reviewStats.reviewed > 0 && (
-          <div className="p-2 rounded-lg border bg-blue-500/10 border-blue-500/20 text-center">
-            <p className="text-base font-bold text-blue-600 dark:text-blue-400">
+          <div className="p-2 md:p-3 rounded-lg border bg-blue-500/10 border-blue-500/20 text-center">
+            <p className="text-base md:text-xl font-bold text-blue-600 dark:text-blue-400">
               {reviewStats.reviewed}
             </p>
-            <p className="text-[10px] text-muted-foreground">Reviewed</p>
+            <p className="text-[10px] md:text-xs text-muted-foreground">Reviewed</p>
           </div>
         )}
 
         {/* Show skipped count */}
         {reviewStats && reviewStats.skipped > 0 && (
-          <div className="p-2 rounded-lg border bg-muted text-center">
-            <p className="text-base font-bold text-muted-foreground">
+          <div className="p-2 md:p-3 rounded-lg border bg-muted text-center">
+            <p className="text-base md:text-xl font-bold text-muted-foreground">
               {reviewStats.skipped}
             </p>
-            <p className="text-[10px] text-muted-foreground">Skipped</p>
+            <p className="text-[10px] md:text-xs text-muted-foreground">Skipped</p>
           </div>
         )}
 
         {matchReport.summary.noMatch > 0 && (
-          <div className={`p-2 rounded-lg border text-center ${
+          <div className={`p-2 md:p-3 rounded-lg border text-center ${
             hasQueuedDownloads ? 'bg-green-500/10 border-green-500/20' : 'bg-card'
           }`}>
-            <p className={`text-base font-bold ${hasQueuedDownloads ? 'text-green-600 dark:text-green-400' : ''}`}>
+            <p className={`text-base md:text-xl font-bold ${hasQueuedDownloads ? 'text-green-600 dark:text-green-400' : ''}`}>
               {hasQueuedDownloads ? queuedCount : matchReport.summary.noMatch}
             </p>
-            <p className="text-[10px] text-muted-foreground">
+            <p className="text-[10px] md:text-xs text-muted-foreground">
               {hasQueuedDownloads ? 'Queued' : 'Not Found'}
             </p>
           </div>
@@ -298,14 +298,14 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
 
       {/* Download Missing Songs Section */}
       {hasUnmatchedSongs && (
-        <div className={`p-2 rounded-lg border border-dashed flex items-center gap-2 ${
+        <div className={`p-3 md:p-4 rounded-lg border border-dashed flex items-center gap-3 md:gap-4 ${
           hasQueuedDownloads
             ? 'border-green-500/50 bg-green-500/5'
             : 'border-primary/50 bg-primary/5'
         }`}>
-          <Download className={`h-4 w-4 shrink-0 ${hasQueuedDownloads ? 'text-green-500' : 'text-primary'}`} />
+          <Download className={`h-4 w-4 md:h-5 md:w-5 shrink-0 ${hasQueuedDownloads ? 'text-green-500' : 'text-primary'}`} />
           <div className="flex-1 min-w-0">
-            <p className="text-xs">
+            <p className="text-xs md:text-sm">
               {hasQueuedDownloads ? (
                 <>
                   <span className="font-medium text-green-600 dark:text-green-400">{queuedCount} songs queued</span>
@@ -321,11 +321,11 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
           </div>
           <Button
             size="sm"
-            className="h-7 text-xs shrink-0"
+            className="h-7 md:h-9 text-xs md:text-sm shrink-0"
             variant={hasQueuedDownloads ? "outline" : "default"}
             onClick={handleOpenDownloadDialog}
           >
-            <Download className="mr-1 h-3 w-3" />
+            <Download className="mr-1 h-3 w-3 md:h-4 md:w-4" />
             {hasQueuedDownloads ? 'Re-download' : 'Download'}
           </Button>
         </div>
@@ -333,9 +333,9 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
 
       {/* Warnings */}
       {hasWarnings && !hasUnmatchedSongs && (
-        <Alert className="py-1.5 px-2">
-          <AlertTriangle className="h-3 w-3" />
-          <AlertDescription className="text-[10px]">
+        <Alert className="py-2 md:py-3 px-3 md:px-4">
+          <AlertTriangle className="h-3 w-3 md:h-4 md:w-4" />
+          <AlertDescription className="text-[10px] md:text-xs">
             <span className="font-medium">Notes: </span>
             {matchReport.summary.noMatch > 0 && (
               <span>{matchReport.summary.noMatch} song{matchReport.summary.noMatch !== 1 ? 's' : ''} not found. </span>
@@ -349,8 +349,8 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
 
       {/* Success Note */}
       {createdPlaylistId && (
-        <div className="p-2 rounded-lg bg-primary/5 border border-primary/20 text-center">
-          <p className="text-xs">
+        <div className="p-2 md:p-3 rounded-lg bg-primary/5 border border-primary/20 text-center">
+          <p className="text-xs md:text-sm">
             <span className="font-medium">Playlist created! </span>
             <span className="text-muted-foreground">
               Find &quot;{playlistName}&quot; in your playlists
@@ -362,11 +362,14 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
       {/* Download Dialog */}
       <Dialog open={downloadDialogOpen} onOpenChange={setDownloadDialogOpen}>
         <DialogContent
-          className="w-[calc(100%-2rem)] sm:w-auto sm:max-w-[380px] p-3 gap-2"
-          style={{ maxHeight: '350px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+          className="w-[calc(100%-2rem)] sm:w-auto sm:max-w-[380px] md:max-w-[500px] p-3 md:p-4 gap-2 md:gap-3"
+          style={{ maxHeight: '400px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
         >
-          <DialogHeader className="flex-shrink-0 space-y-0">
-            <DialogTitle className="text-sm">Download Missing Songs</DialogTitle>
+          <DialogHeader className="flex-shrink-0 space-y-0 md:space-y-1">
+            <DialogTitle className="text-sm md:text-base">Download Missing Songs</DialogTitle>
+            <DialogDescription className="hidden md:block text-xs">
+              Choose a download service and select which songs to download.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="flex-shrink-0">
@@ -374,18 +377,18 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
             <RadioGroup
               value={selectedService}
               onValueChange={(v) => setSelectedService(v as DownloadService)}
-              className="flex flex-wrap gap-1"
+              className="flex flex-wrap gap-1 md:gap-2"
             >
-              <div className="flex items-center space-x-1 p-1 rounded border hover:bg-muted/50 cursor-pointer text-[10px]">
-                <RadioGroupItem value="lidarr" id="dl-lidarr" className="h-3 w-3" />
+              <div className="flex items-center space-x-1 md:space-x-2 p-1 md:p-2 rounded border hover:bg-muted/50 cursor-pointer text-[10px] md:text-xs">
+                <RadioGroupItem value="lidarr" id="dl-lidarr" className="h-3 w-3 md:h-4 md:w-4" />
                 <Label htmlFor="dl-lidarr" className="cursor-pointer">Lidarr</Label>
               </div>
-              <div className="flex items-center space-x-1 p-1 rounded border hover:bg-muted/50 cursor-pointer text-[10px]">
-                <RadioGroupItem value="metube" id="dl-metube" className="h-3 w-3" />
+              <div className="flex items-center space-x-1 md:space-x-2 p-1 md:p-2 rounded border hover:bg-muted/50 cursor-pointer text-[10px] md:text-xs">
+                <RadioGroupItem value="metube" id="dl-metube" className="h-3 w-3 md:h-4 md:w-4" />
                 <Label htmlFor="dl-metube" className="cursor-pointer">MeTube</Label>
               </div>
-              <div className="flex items-center space-x-1 p-1 rounded border bg-primary/5 border-primary/20 cursor-pointer text-[10px]">
-                <RadioGroupItem value="both" id="dl-both" className="h-3 w-3" />
+              <div className="flex items-center space-x-1 md:space-x-2 p-1 md:p-2 rounded border bg-primary/5 border-primary/20 cursor-pointer text-[10px] md:text-xs">
+                <RadioGroupItem value="both" id="dl-both" className="h-3 w-3 md:h-4 md:w-4" />
                 <Label htmlFor="dl-both" className="cursor-pointer">Both (Rec.)</Label>
               </div>
             </RadioGroup>
@@ -393,28 +396,28 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
 
           {/* Song Selection */}
           {unmatchedSongs.length > 0 && (
-            <div className="flex-1 min-h-0 flex flex-col gap-1">
+            <div className="flex-1 min-h-0 flex flex-col gap-1 md:gap-2">
               <div className="flex items-center justify-between flex-shrink-0">
-                <span className="text-[10px] font-medium">Songs ({selectedSongs.size}/{unmatchedSongs.length})</span>
-                <Button variant="ghost" size="sm" onClick={handleSelectAll} className="h-5 text-[9px] px-1">
+                <span className="text-[10px] md:text-xs font-medium">Songs ({selectedSongs.size}/{unmatchedSongs.length})</span>
+                <Button variant="ghost" size="sm" onClick={handleSelectAll} className="h-5 md:h-7 text-[9px] md:text-xs px-1 md:px-2">
                   {selectedSongs.size === unmatchedSongs.length ? 'Deselect All' : 'Select All'}
                 </Button>
               </div>
-              <div className="flex-1 min-h-0 overflow-y-auto rounded border" style={{ maxHeight: '150px' }}>
-                <div className="p-0.5">
+              <div className="flex-1 min-h-0 overflow-y-auto rounded border" style={{ maxHeight: '180px' }}>
+                <div className="p-0.5 md:p-1">
                   {unmatchedSongs.map((song, index) => (
                     <div
                       key={index}
-                      className="flex items-center gap-1.5 py-0.5 px-1 hover:bg-muted/50 cursor-pointer"
+                      className="flex items-center gap-1.5 md:gap-2 py-0.5 md:py-1 px-1 md:px-2 hover:bg-muted/50 cursor-pointer"
                       onClick={() => handleToggleSong(index)}
                     >
                       <Checkbox
                         checked={selectedSongs.has(index)}
                         onCheckedChange={() => handleToggleSong(index)}
-                        className="h-3 w-3 flex-shrink-0"
+                        className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0"
                       />
-                      <span className="text-[10px] truncate">{song.title}</span>
-                      <span className="text-[9px] text-muted-foreground truncate">- {song.artist}</span>
+                      <span className="text-[10px] md:text-xs truncate">{song.title}</span>
+                      <span className="text-[9px] md:text-xs text-muted-foreground truncate">- {song.artist}</span>
                     </div>
                   ))}
                 </div>
@@ -422,23 +425,23 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
             </div>
           )}
 
-          <div className="flex-shrink-0 text-[9px] text-muted-foreground text-center px-2">
+          <div className="flex-shrink-0 text-[9px] md:text-xs text-muted-foreground text-center px-2">
             Note: Downloaded songs must be added to playlist manually after library rescan.
           </div>
 
-          <DialogFooter className="flex-shrink-0 border-t pt-2 gap-2">
-            <Button variant="outline" onClick={() => setDownloadDialogOpen(false)} className="h-7 text-[10px] px-2">
+          <DialogFooter className="flex-shrink-0 border-t pt-2 md:pt-3 gap-2">
+            <Button variant="outline" onClick={() => setDownloadDialogOpen(false)} className="h-7 md:h-9 text-[10px] md:text-sm px-2 md:px-4">
               Cancel
             </Button>
-            <Button onClick={handleStartDownload} disabled={isDownloading || selectedSongs.size === 0} className="h-7 text-[10px] px-2">
+            <Button onClick={handleStartDownload} disabled={isDownloading || selectedSongs.size === 0} className="h-7 md:h-9 text-[10px] md:text-sm px-2 md:px-4">
               {isDownloading ? (
                 <>
-                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  <Loader2 className="mr-1 h-3 w-3 md:h-4 md:w-4 animate-spin" />
                   Queueing...
                 </>
               ) : (
                 <>
-                  <Download className="mr-1 h-3 w-3" />
+                  <Download className="mr-1 h-3 w-3 md:h-4 md:w-4" />
                   Queue {selectedSongs.size}
                 </>
               )}

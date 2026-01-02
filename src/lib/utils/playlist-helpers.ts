@@ -33,8 +33,8 @@ export async function loadPlaylistIntoQueue(
   let songsMap = new Map<string, any>();
 
   try {
-    // Use Navidrome Subsonic API to get song metadata
-    const metadataResponse = await fetch(`/api/navidrome/rest/getSong?id=${songIds}`);
+    // Use Navidrome Subsonic API to get song metadata (f=json for JSON response)
+    const metadataResponse = await fetch(`/api/navidrome/rest/getSong?id=${songIds}&f=json`);
     if (metadataResponse.ok) {
       const metadataJson = await metadataResponse.json();
       // Subsonic returns song array in subsonic-response.song

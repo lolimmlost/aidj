@@ -49,26 +49,26 @@ export function MatchingStep({ isMatching, importJobData, importResult, onReview
 
   if (isMatching) {
     return (
-      <div className="space-y-3 py-2">
-        <div className="flex flex-col items-center justify-center space-y-2">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="space-y-4 md:space-y-6 py-4 md:py-8">
+        <div className="flex flex-col items-center justify-center space-y-3 md:space-y-4">
+          <Loader2 className="h-8 w-8 md:h-12 md:w-12 animate-spin text-primary" />
           <div className="text-center">
-            <p className="text-sm font-medium">Matching songs...</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-sm md:text-base font-medium">Matching songs...</p>
+            <p className="text-xs md:text-sm text-muted-foreground mt-0.5 md:mt-1">
               Finding matches in your Navidrome library
             </p>
           </div>
         </div>
 
         {total > 0 && (
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs">
+          <div className="space-y-2 max-w-md mx-auto w-full">
+            <div className="flex justify-between text-xs md:text-sm">
               <span className="text-muted-foreground">Progress</span>
               <span className="font-medium">
                 {processed} / {total} songs
               </span>
             </div>
-            <Progress value={progress} className="h-1.5" />
+            <Progress value={progress} className="h-1.5 md:h-2" />
           </div>
         )}
       </div>
@@ -82,65 +82,65 @@ export function MatchingStep({ isMatching, importJobData, importResult, onReview
   const { matchReport } = importResult;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4 md:space-y-6">
       {/* Summary */}
-      <div className="text-center py-2">
-        <div className="mx-auto w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-          <Music className="h-5 w-5 text-primary" />
+      <div className="text-center py-3 md:py-4">
+        <div className="mx-auto w-10 h-10 md:w-14 md:h-14 rounded-full bg-primary/10 flex items-center justify-center mb-2 md:mb-3">
+          <Music className="h-5 w-5 md:h-7 md:w-7 text-primary" />
         </div>
-        <h3 className="text-sm font-semibold">Song Matching Complete</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <h3 className="text-sm md:text-lg font-semibold">Song Matching Complete</h3>
+        <p className="text-xs md:text-sm text-muted-foreground mt-0.5 md:mt-1">
           Analyzed {matchReport.summary.total} songs
         </p>
       </div>
 
       {/* Match Statistics */}
-      <div className="grid grid-cols-3 gap-1.5">
-        <div className="text-center p-2 rounded-lg bg-green-500/10 border border-green-500/20">
-          <CheckCircle2 className="h-4 w-4 text-green-500 mx-auto mb-1" />
-          <p className="text-base font-bold text-green-700 dark:text-green-400">
+      <div className="grid grid-cols-3 gap-2 md:gap-4">
+        <div className="text-center p-2 md:p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+          <CheckCircle2 className="h-4 w-4 md:h-6 md:w-6 text-green-500 mx-auto mb-1 md:mb-2" />
+          <p className="text-base md:text-2xl font-bold text-green-700 dark:text-green-400">
             {matchReport.summary.matched}
           </p>
-          <p className="text-[10px] text-muted-foreground">Matched</p>
+          <p className="text-[10px] md:text-xs text-muted-foreground">Matched</p>
         </div>
 
         {matchReport.summary.pendingReview > 0 && (
-          <div className="text-center p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-            <AlertCircle className="h-4 w-4 text-yellow-500 mx-auto mb-1" />
-            <p className="text-base font-bold text-yellow-700 dark:text-yellow-400">
+          <div className="text-center p-2 md:p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+            <AlertCircle className="h-4 w-4 md:h-6 md:w-6 text-yellow-500 mx-auto mb-1 md:mb-2" />
+            <p className="text-base md:text-2xl font-bold text-yellow-700 dark:text-yellow-400">
               {matchReport.summary.pendingReview}
             </p>
-            <p className="text-[10px] text-muted-foreground">Review</p>
+            <p className="text-[10px] md:text-xs text-muted-foreground">Review</p>
             {onReviewClick && (
               <Button
                 size="sm"
                 variant="outline"
-                className="mt-1 h-6 text-[10px] px-2"
+                className="mt-1 md:mt-2 h-6 md:h-8 text-[10px] md:text-xs px-2 md:px-3"
                 onClick={onReviewClick}
               >
-                <Eye className="mr-1 h-3 w-3" />
+                <Eye className="mr-1 h-3 w-3 md:h-4 md:w-4" />
                 Review
               </Button>
             )}
           </div>
         )}
 
-        <div className="text-center p-2 rounded-lg bg-muted border">
-          <XCircle className="h-4 w-4 text-muted-foreground mx-auto mb-1" />
-          <p className="text-base font-bold">
+        <div className="text-center p-2 md:p-4 rounded-lg bg-muted border">
+          <XCircle className="h-4 w-4 md:h-6 md:w-6 text-muted-foreground mx-auto mb-1 md:mb-2" />
+          <p className="text-base md:text-2xl font-bold">
             {matchReport.summary.noMatch}
           </p>
-          <p className="text-[10px] text-muted-foreground">Not Found</p>
+          <p className="text-[10px] md:text-xs text-muted-foreground">Not Found</p>
         </div>
       </div>
 
       {/* Match Quality Breakdown */}
       {Object.keys(matchReport.byConfidence).length > 0 && (
-        <div className="space-y-1">
-          <p className="text-xs font-medium">Match Quality</p>
-          <div className="space-y-0.5">
+        <div className="space-y-2 md:space-y-3">
+          <p className="text-xs md:text-sm font-medium">Match Quality</p>
+          <div className="space-y-1 md:space-y-2">
             {Object.entries(matchReport.byConfidence).map(([confidence, count]) => (
-              <div key={confidence} className="flex items-center justify-between text-xs">
+              <div key={confidence} className="flex items-center justify-between text-xs md:text-sm">
                 <span className="text-muted-foreground capitalize">{confidence}</span>
                 <span className="font-medium">{count}</span>
               </div>
@@ -150,8 +150,8 @@ export function MatchingStep({ isMatching, importJobData, importResult, onReview
       )}
 
       {/* Success Rate */}
-      <div className="space-y-1">
-        <div className="flex justify-between text-xs">
+      <div className="space-y-2">
+        <div className="flex justify-between text-xs md:text-sm">
           <span className="text-muted-foreground">Success Rate</span>
           <span className="font-medium">
             {total > 0 ? Math.round((matchReport.summary.matched / total) * 100) : 0}%
@@ -159,7 +159,7 @@ export function MatchingStep({ isMatching, importJobData, importResult, onReview
         </div>
         <Progress
           value={total > 0 ? (matchReport.summary.matched / total) * 100 : 0}
-          className="h-1.5"
+          className="h-1.5 md:h-2"
         />
       </div>
     </div>

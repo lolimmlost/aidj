@@ -1,0 +1,17 @@
+{
+  "category": "Performance & Analytics",
+  "description": "Build Advanced Discovery Analytics Dashboard - Create a comprehensive analytics page showing recommendation effectiveness metrics: acceptance rate by recommendation type (similar/discovery/mood/personalized), top recommended artists/genres, user engagement patterns, and A/B testing capabilities for different recommendation algorithms. be mindful of analytics already implemented",
+  "id": "feature-1767077531552-4il6sel5x",
+  "steps": [],
+  "status": "backlog",
+  "skipTests": true,
+  "priority": 1,
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "ultrathink",
+  "imagePaths": [],
+  "textFilePaths": [],
+  "branchName": "feat/unified-recommendations-service",
+  "planningMode": "skip",
+  "requirePlanApproval": false
+}

@@ -1,0 +1,17 @@
+{
+  "category": "Personalization",
+  "description": "Create Time-Capsule Playlists by Era - Implement a feature to generate automated playlists capturing the user's music taste at different points in time (snapshot system). Include options to compare musical preferences across eras, create 'throwback' playlists from specific dates, and visualize taste evolution over months/years.",
+  "id": "feature-1767077531553-dnnewm8x3",
+  "steps": [],
+  "status": "backlog",
+  "skipTests": true,
+  "priority": 3,
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "ultrathink",
+  "imagePaths": [],
+  "textFilePaths": [],
+  "branchName": "feat/unified-recommendations-service",
+  "planningMode": "skip",
+  "requirePlanApproval": false
+}

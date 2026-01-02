@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Menu, X, Home, Music, Search, Settings, Download, LayoutDashboard, BarChart3, ListMusic, Sparkles } from 'lucide-react';
+import { Menu, X, Home, Music, Search, Settings, Download, LayoutDashboard, BarChart3, ListMusic, Sparkles, User } from 'lucide-react';
 import { Button } from './button';
 
 export function MobileNav() {
@@ -60,6 +60,12 @@ export function MobileNav() {
               to="/dashboard/analytics"
               icon={<BarChart3 className="h-5 w-5" />}
               label="Analytics"
+              onClick={closeMenu}
+            />
+            <NavLink
+              to="/music-identity"
+              icon={<User className="h-5 w-5" />}
+              label="Music Identity"
               onClick={closeMenu}
             />
             <NavLink

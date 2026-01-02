@@ -48,6 +48,11 @@ export const listeningHistory = pgTable("listening_history", {
 
   // Did the user finish the song? (> 80% played)
   completed: integer("completed").default(0), // 0 = no, 1 = yes (using integer for SQLite compat)
+
+  // Phase 3.1: Skip detection - was the song explicitly skipped?
+  // 0 = not skipped (completed or just not tracked)
+  // 1 = skipped (played < 30% AND played > 5 seconds)
+  skipDetected: integer("skip_detected").default(0),
 }, (table) => ({
   // Index for user's listening history
   userIdIdx: index("listening_history_user_id_idx").on(table.userId),
@@ -63,6 +68,9 @@ export const listeningHistory = pgTable("listening_history", {
 
   // Index for artist-based queries
   artistIdx: index("listening_history_artist_idx").on(table.artist),
+
+  // Phase 3.1: Index for skip tracking queries
+  skipIdx: index("listening_history_skip_idx").on(table.userId, table.skipDetected, table.playedAt),
 }));
 
 /**

@@ -211,6 +211,10 @@ interface AudioState {
   aiDJError: string | null;
   // Track recently recommended songs for diversity
   aiDJRecentlyRecommended: Array<{songId: string; timestamp: number; artist?: string}>;
+  // Phase 1.2: Track artist counts across batches to prevent exhaustion
+  aiDJArtistBatchCounts: Map<string, {count: number; lastQueued: number}>;
+  // Phase 4.1: Track artists on fatigue cooldown (artist -> cooldown end timestamp)
+  aiDJArtistFatigueCooldowns: Map<string, number>;
   // Flag to prevent auto-refresh during user actions
   aiDJUserActionInProgress: boolean;
   // Crossfade settings
@@ -225,6 +229,15 @@ interface AudioState {
   queuePanelOpen: boolean;
   // Recently played songs for "fewer repeats" shuffle mode (Spotify-style)
   recentlyPlayedIds: string[];
+  // Autoplay queueing state
+  autoplayEnabled: boolean;
+  autoplayBlendMode: 'crossfade' | 'silence' | 'reverb_tail';
+  autoplayTransitionDuration: number;
+  autoplaySmartTransitions: boolean;
+  autoplayIsLoading: boolean;
+  autoplayTransitionActive: boolean;
+  autoplayLastQueueTime: number;
+  autoplayQueuedSongIds: Set<string>;
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
@@ -258,6 +271,14 @@ interface AudioState {
   setCrossfadeEnabled: (enabled: boolean) => void;
   setCrossfadeDuration: (duration: number) => void;
   toggleQueuePanel: () => void;
+  // Autoplay queueing actions
+  setAutoplayEnabled: (enabled: boolean) => void;
+  setAutoplayBlendMode: (mode: 'crossfade' | 'silence' | 'reverb_tail') => void;
+  setAutoplayTransitionDuration: (duration: number) => void;
+  setAutoplaySmartTransitions: (enabled: boolean) => void;
+  triggerAutoplayQueueing: () => Promise<void>;
+  setAutoplayTransitionActive: (active: boolean) => void;
+  skipAutoplayedSong: (songId: string) => void;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -278,6 +299,8 @@ export const useAudioStore = create<AudioState>()(
     aiDJIsLoading: false,
     aiDJError: null,
     aiDJRecentlyRecommended: [],
+    aiDJArtistBatchCounts: new Map<string, {count: number; lastQueued: number}>(),
+    aiDJArtistFatigueCooldowns: new Map<string, number>(),
     aiDJUserActionInProgress: false,
     // Crossfade initial state
     crossfadeEnabled: true,
@@ -285,6 +308,15 @@ export const useAudioStore = create<AudioState>()(
     lastClearedQueue: null,
     queuePanelOpen: false,
     recentlyPlayedIds: [],
+    // Autoplay queueing initial state
+    autoplayEnabled: false,
+    autoplayBlendMode: 'crossfade',
+    autoplayTransitionDuration: 4,
+    autoplaySmartTransitions: true,
+    autoplayIsLoading: false,
+    autoplayTransitionActive: false,
+    autoplayLastQueueTime: 0,
+    autoplayQueuedSongIds: new Set<string>(),
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -828,6 +860,38 @@ export const useAudioStore = create<AudioState>()(
         // Combine all exclusions
         const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed])];
 
+        // Phase 1.2: Convert artist batch counts to plain object for JSON serialization
+        const artistBatchCounts: Record<string, number> = {};
+        for (const [artist, data] of state.aiDJArtistBatchCounts.entries()) {
+          artistBatchCounts[artist] = data.count;
+        }
+
+        // Phase 4.1: Clean up expired fatigue cooldowns and build exclude list
+        const now = Date.now();
+        const cleanedFatigueCooldowns = new Map(state.aiDJArtistFatigueCooldowns);
+        const fatigueExcludedArtists: string[] = [];
+
+        for (const [artist, cooldownEnd] of cleanedFatigueCooldowns.entries()) {
+          if (cooldownEnd <= now) {
+            // Cooldown expired, remove it
+            cleanedFatigueCooldowns.delete(artist);
+          } else {
+            // Still on cooldown, exclude from recommendations
+            fatigueExcludedArtists.push(artist);
+          }
+        }
+
+        // Update state with cleaned cooldowns
+        if (cleanedFatigueCooldowns.size !== state.aiDJArtistFatigueCooldowns.size) {
+          set({ aiDJArtistFatigueCooldowns: cleanedFatigueCooldowns });
+        }
+
+        // Combine fatigue-excluded artists with recently recommended artists
+        const allExcludedArtists = Array.from(new Set([
+          ...recentlyRecommendedArtists,
+          ...fatigueExcludedArtists
+        ]));
+
         // Call API endpoint to generate recommendations (server-side only)
         const response = await fetch('/api/ai-dj/recommendations', {
           method: 'POST',
@@ -843,7 +907,9 @@ export const useAudioStore = create<AudioState>()(
             batchSize: recommendationSettings.aiDJBatchSize,
             useFeedbackForPersonalization: recommendationSettings.useFeedbackForPersonalization,
             excludeSongIds: allExclusions,
-            excludeArtists: Array.from(recentlyRecommendedArtists), // Pass excluded artists to API
+            excludeArtists: allExcludedArtists, // Phase 4.1: Include fatigue-excluded artists
+            artistBatchCounts, // Phase 1.2: Pass artist counts for cross-batch diversity
+            genreExploration: recommendationSettings.aiDJGenreExploration ?? 50, // Phase 4.2: Genre exploration level
             skipAutoRefresh: true, // Add flag to prevent auto-refresh loops
           }),
         });
@@ -860,7 +926,7 @@ export const useAudioStore = create<AudioState>()(
           }
         }
 
-        const { recommendations, skipAutoRefresh } = await response.json();
+        const { recommendations, skipAutoRefresh, artistFatigueCooldowns } = await response.json();
 
         if (recommendations.length === 0) {
           console.warn('🎵 AI DJ: No recommendations generated');
@@ -878,10 +944,13 @@ export const useAudioStore = create<AudioState>()(
         // Add recommendations to queue
         const newPlaylist = [...state.playlist, ...recommendations];
         const newQueuedIds = new Set(state.aiQueuedSongIds);
-        const now = Date.now();
-        
+
         // Track newly recommended songs with artist info
         const newRecentlyRecommended = [...state.aiDJRecentlyRecommended];
+
+        // Phase 1.2: Update artist batch counts to prevent exhaustion
+        const newArtistBatchCounts = new Map(state.aiDJArtistBatchCounts);
+
         recommendations.forEach((song: Song) => {
           newQueuedIds.add(song.id);
           newRecentlyRecommended.push({
@@ -889,12 +958,50 @@ export const useAudioStore = create<AudioState>()(
             timestamp: now,
             artist: song.artist // Track artist for diversity enforcement
           });
+
+          // Phase 1.2: Track how many songs queued per artist
+          if (song.artist) {
+            const artistKey = song.artist.toLowerCase();
+            const existing = newArtistBatchCounts.get(artistKey);
+            newArtistBatchCounts.set(artistKey, {
+              count: (existing?.count || 0) + 1,
+              lastQueued: now
+            });
+          }
         });
 
         // Clean up old recommendations (older than 8 hours)
         const cleanedRecentlyRecommended = newRecentlyRecommended.filter(
           rec => now - rec.timestamp < 28800000
         );
+
+        // Phase 1.2: Clean up artist counts older than 2 hours
+        const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+        for (const [artist, data] of newArtistBatchCounts.entries()) {
+          if (now - data.lastQueued > TWO_HOURS_MS) {
+            newArtistBatchCounts.delete(artist);
+          }
+        }
+
+        // Phase 4.1: Update artist fatigue cooldowns from API response
+        const newFatigueCooldowns = new Map(cleanedFatigueCooldowns);
+
+        if (artistFatigueCooldowns) {
+          // Merge new fatigue cooldowns from server
+          for (const [artist, cooldownEnd] of Object.entries(artistFatigueCooldowns)) {
+            if (typeof cooldownEnd === 'number' && cooldownEnd > now) {
+              newFatigueCooldowns.set(artist.toLowerCase(), cooldownEnd);
+            }
+          }
+
+          // Log any new artists added to cooldown
+          const addedToCooldown = Object.keys(artistFatigueCooldowns).filter(
+            artist => !cleanedFatigueCooldowns.has(artist.toLowerCase())
+          );
+          if (addedToCooldown.length > 0) {
+            console.log(`⚠️ Artists added to fatigue cooldown: ${addedToCooldown.join(', ')}`);
+          }
+        }
 
         // Check if we need to start playback (empty queue case)
         const shouldStartPlayback = state.playlist.length === 0 || state.currentSongIndex === -1;
@@ -913,6 +1020,8 @@ export const useAudioStore = create<AudioState>()(
           aiDJLastQueueTime: now,
           aiQueuedSongIds: newQueuedIds,
           aiDJRecentlyRecommended: cleanedRecentlyRecommended,
+          aiDJArtistBatchCounts: newArtistBatchCounts, // Phase 1.2: Track artist diversity
+          aiDJArtistFatigueCooldowns: newFatigueCooldowns, // Phase 4.1: Track artist fatigue
           aiDJIsLoading: false,
           aiDJError: null,
         });
@@ -1136,6 +1245,217 @@ export const useAudioStore = create<AudioState>()(
     toggleQueuePanel: () => {
       set(state => ({ queuePanelOpen: !state.queuePanelOpen }));
     },
+
+    // Autoplay queueing actions
+    setAutoplayEnabled: (enabled: boolean) => {
+      set({ autoplayEnabled: enabled });
+
+      // Sync to preferences store
+      usePreferencesStore.getState().setRecommendationSettings({ autoplayEnabled: enabled })
+        .catch(error => {
+          console.error('Failed to sync autoplay setting to preferences:', error);
+        });
+    },
+
+    setAutoplayBlendMode: (mode: 'crossfade' | 'silence' | 'reverb_tail') => {
+      set({ autoplayBlendMode: mode });
+
+      usePreferencesStore.getState().setRecommendationSettings({ autoplayBlendMode: mode })
+        .catch(error => {
+          console.error('Failed to sync autoplay blend mode to preferences:', error);
+        });
+    },
+
+    setAutoplayTransitionDuration: (duration: number) => {
+      set({ autoplayTransitionDuration: duration });
+
+      usePreferencesStore.getState().setRecommendationSettings({ autoplayTransitionDuration: duration })
+        .catch(error => {
+          console.error('Failed to sync autoplay transition duration to preferences:', error);
+        });
+    },
+
+    setAutoplaySmartTransitions: (enabled: boolean) => {
+      set({ autoplaySmartTransitions: enabled });
+
+      usePreferencesStore.getState().setRecommendationSettings({ autoplaySmartTransitions: enabled })
+        .catch(error => {
+          console.error('Failed to sync autoplay smart transitions to preferences:', error);
+        });
+    },
+
+    setAutoplayTransitionActive: (active: boolean) => {
+      set({ autoplayTransitionActive: active });
+    },
+
+    /**
+     * Trigger autoplay queueing when playlist ends
+     * Fetches recommended songs and adds them to the queue with smart transitions
+     */
+    triggerAutoplayQueueing: async () => {
+      const state = get();
+
+      // Safety checks
+      if (!state.autoplayEnabled) {
+        console.log('🎶 Autoplay: Disabled, skipping');
+        return;
+      }
+
+      if (state.autoplayIsLoading) {
+        console.log('🎶 Autoplay: Already loading, skipping');
+        return;
+      }
+
+      // Check if we're on the last song
+      const isLastSong = state.currentSongIndex === state.playlist.length - 1;
+      if (!isLastSong) {
+        console.log('🎶 Autoplay: Not on last song, skipping');
+        return;
+      }
+
+      // Check cooldown (30 seconds)
+      if (Date.now() - state.autoplayLastQueueTime < 30000) {
+        console.log('🎶 Autoplay: Cooldown active, skipping');
+        return;
+      }
+
+      const currentSong = state.playlist[state.currentSongIndex];
+      if (!currentSong) {
+        console.log('🎶 Autoplay: No current song, skipping');
+        return;
+      }
+
+      console.log('🎶 Autoplay: Triggering queue refill...');
+      set({ autoplayIsLoading: true });
+
+      try {
+        // Get preferences
+        const preferencesState = usePreferencesStore.getState();
+        const { recommendationSettings } = preferencesState.preferences;
+
+        // Build exclusions list
+        const recentlyPlayed = state.playlist.slice(
+          Math.max(0, state.currentSongIndex - 20),
+          state.currentSongIndex + 5
+        ).map(song => song.id);
+
+        const autoplayedRecently = Array.from(state.autoplayQueuedSongIds);
+        const allExclusions = [...new Set([...recentlyPlayed, ...autoplayedRecently])];
+
+        // Call AI DJ API for recommendations
+        const batchSize = recommendationSettings.aiDJBatchSize || 5;
+        const response = await fetch('/api/ai-dj/recommendations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            currentSong,
+            batchSize,
+            excludeSongIds: allExclusions,
+            skipAutoRefresh: false,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to fetch autoplay recommendations');
+        }
+
+        const { recommendations } = await response.json();
+
+        if (recommendations.length === 0) {
+          console.log('🎶 Autoplay: No recommendations available');
+          set({ autoplayIsLoading: false });
+          return;
+        }
+
+        // Add recommendations to queue
+        const newPlaylist = [...state.playlist, ...recommendations];
+        const newQueuedIds = new Set(state.autoplayQueuedSongIds);
+        const now = Date.now();
+
+        recommendations.forEach((song: Song) => {
+          newQueuedIds.add(song.id);
+        });
+
+        // If shuffled, also add to originalPlaylist
+        let newOriginalPlaylist = state.originalPlaylist;
+        if (state.isShuffled && state.originalPlaylist.length > 0) {
+          newOriginalPlaylist = [...state.originalPlaylist, ...recommendations];
+        }
+
+        set({
+          playlist: newPlaylist,
+          originalPlaylist: newOriginalPlaylist,
+          autoplayLastQueueTime: now,
+          autoplayQueuedSongIds: newQueuedIds,
+          autoplayIsLoading: false,
+        });
+
+        console.log(`🎶 Autoplay: Added ${recommendations.length} songs to queue`);
+        toast.success(`🎶 Autoplay added ${recommendations.length} ${recommendations.length === 1 ? 'song' : 'songs'}`);
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Autoplay failed';
+        console.error('🎶 Autoplay Error:', errorMessage);
+        set({ autoplayIsLoading: false });
+        toast.error('Autoplay Error', { description: errorMessage });
+      }
+    },
+
+    /**
+     * Skip (remove) an autoplayed song from the queue
+     * Provides feedback that the user didn't want this recommendation
+     */
+    skipAutoplayedSong: (songId: string) => {
+      const state = get();
+      const songIndex = state.playlist.findIndex(s => s.id === songId);
+
+      if (songIndex === -1) {
+        console.warn('🎶 Autoplay: Song not found in playlist');
+        return;
+      }
+
+      // Don't allow skipping the current song
+      if (songIndex === state.currentSongIndex) {
+        console.warn('🎶 Autoplay: Cannot skip current song');
+        return;
+      }
+
+      // Remove the song from playlist
+      const newPlaylist = state.playlist.filter((_, i) => i !== songIndex);
+      let newIndex = state.currentSongIndex;
+
+      // Adjust current index if needed
+      if (songIndex < state.currentSongIndex) {
+        newIndex--;
+      }
+
+      // Record negative feedback for the skipped song
+      const skippedSong = state.playlist[songIndex];
+      if (skippedSong) {
+        fetch('/api/recommendations/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            songId: skippedSong.id,
+            songArtistTitle: `${skippedSong.artist || 'Unknown'} - ${skippedSong.title || skippedSong.name}`,
+            feedbackType: 'thumbs_down',
+            source: 'autoplay_skip',
+          }),
+        }).catch(err => console.warn('Failed to record skip feedback:', err));
+      }
+
+      set({
+        playlist: newPlaylist,
+        currentSongIndex: newPlaylist.length === 0 ? -1 : newIndex,
+      });
+
+      toast.success('Song removed from queue', {
+        description: `"${skippedSong?.title || skippedSong?.name}" skipped`,
+      });
+    },
   }),
   {
     name: 'audio-player-storage',
@@ -1151,6 +1471,11 @@ export const useAudioStore = create<AudioState>()(
       aiDJEnabled: state.aiDJEnabled,
       crossfadeEnabled: state.crossfadeEnabled,
       crossfadeDuration: state.crossfadeDuration,
+      // Autoplay settings
+      autoplayEnabled: state.autoplayEnabled,
+      autoplayBlendMode: state.autoplayBlendMode,
+      autoplayTransitionDuration: state.autoplayTransitionDuration,
+      autoplaySmartTransitions: state.autoplaySmartTransitions,
     }),
     // Don't restore isPlaying - let user manually resume
     onRehydrateStorage: () => (state) => {
@@ -1162,6 +1487,10 @@ export const useAudioStore = create<AudioState>()(
         state.aiDJUserActionInProgress = false;
         // Reinitialize Set (can't be serialized in JSON)
         state.aiQueuedSongIds = new Set<string>();
+        // Reset autoplay transient state
+        state.autoplayIsLoading = false;
+        state.autoplayTransitionActive = false;
+        state.autoplayQueuedSongIds = new Set<string>();
         console.log('🎵 Audio state restored from storage');
       }
     },

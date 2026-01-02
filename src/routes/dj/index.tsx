@@ -1,7 +1,7 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Disc, ListMusic, Sparkles } from "lucide-react";
+import { ArrowLeft, Disc, ListMusic, Sparkles, Settings } from "lucide-react";
 
 export const Route = createFileRoute("/dj/")({
   beforeLoad: async ({ context }) => {
@@ -32,7 +32,30 @@ function DJIndex() {
       </div>
 
       {/* Feature Cards */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* DJ Settings */}
+        <Link to="/dj/settings">
+          <Card className="h-full cursor-pointer hover:bg-muted/50 transition-colors border-primary/50 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5 text-primary" />
+                DJ Settings
+              </CardTitle>
+              <CardDescription>
+                Configure AI DJ and audio transitions
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>- AI DJ queue threshold & batch size</li>
+                <li>- Crossfade, silence, or reverb transitions</li>
+                <li>- Smart AI-optimized transition timing</li>
+                <li>- Autoplay when playlist ends</li>
+              </ul>
+            </CardContent>
+          </Card>
+        </Link>
+
         {/* Set Builder */}
         <Link to="/dj/set-builder">
           <Card className="h-full cursor-pointer hover:bg-muted/50 transition-colors">
@@ -90,7 +113,8 @@ function DJIndex() {
           <CardTitle className="text-lg">Pro Tips</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
-          <p><strong>Crossfade:</strong> Enable crossfade in Settings for smooth transitions between songs.</p>
+          <p><strong>DJ Settings:</strong> Configure crossfade, reverb tail, or silence transitions in DJ Settings for smooth mixes.</p>
+          <p><strong>Smart Transitions:</strong> Enable AI-optimized transitions to automatically adjust timing based on song compatibility.</p>
           <p><strong>Harmonic Mixing:</strong> Look for the BPM and key badges on recommendations to find compatible tracks.</p>
           <p><strong>Queue Management:</strong> Use the queue panel to reorder, remove, or shuffle upcoming songs.</p>
         </CardContent>

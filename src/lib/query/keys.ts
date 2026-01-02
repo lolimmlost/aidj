@@ -129,6 +129,24 @@ export const queryKeys = {
     notifications: () => [...queryKeys.discoveryFeed.all(), 'notifications'] as const,
     preferences: () => [...queryKeys.discoveryFeed.all(), 'preferences'] as const,
   },
+
+  // Music Identity (Spotify Wrapped-style summaries)
+  musicIdentity: {
+    all: () => ['musicIdentity'] as const,
+    lists: () => [...queryKeys.musicIdentity.all(), 'list'] as const,
+    list: (periodType?: 'month' | 'year') =>
+      [...queryKeys.musicIdentity.lists(), periodType] as const,
+    details: () => [...queryKeys.musicIdentity.all(), 'detail'] as const,
+    detail: (id: string) => [...queryKeys.musicIdentity.details(), id] as const,
+    yearly: (year: number) =>
+      [...queryKeys.musicIdentity.all(), 'yearly', year] as const,
+    monthly: (year: number, month: number) =>
+      [...queryKeys.musicIdentity.all(), 'monthly', year, month] as const,
+    availablePeriods: () =>
+      [...queryKeys.musicIdentity.all(), 'available-periods'] as const,
+    shared: (token: string) =>
+      [...queryKeys.musicIdentity.all(), 'shared', token] as const,
+  },
 } as const;
 
 /**

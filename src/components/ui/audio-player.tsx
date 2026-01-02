@@ -3,8 +3,8 @@ import { SkipBack, SkipForward, Play, Pause, Heart, Loader2, AlertCircle, Volume
 import { Button } from './button';
 import { Slider } from './slider';
 import { useAudioStore } from '@/lib/stores/audio';
-import { AddToPlaylistButton } from '../playlists/AddToPlaylistButton';
 import { AIDJToggle } from '../ai-dj-toggle';
+import { AutoplayToggle } from '../autoplay-settings';
 import { scrobbleSong } from '@/lib/services/navidrome';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -80,6 +80,8 @@ export function AudioPlayer() {
   const isUserInitiatedPauseRef = useRef<boolean>(false);
   // Track if we should auto-play the next song (set to true when current song ends)
   const shouldAutoPlayRef = useRef<boolean>(false);
+  // Wake Lock to prevent screen from sleeping and suspending audio
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
   const {
     playlist,
@@ -340,9 +342,83 @@ export function AudioPlayer() {
       setIsLoading(true);
       setError(null);
     };
+    // Track stall recovery attempts
+    let stallRecoveryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let stallRecoveryAttempts = 0;
+    const maxStallRecoveryAttempts = 3;
+
     const onStalled = () => {
       console.log('🔴 Audio stalled - possible network issue');
       setIsLoading(true);
+
+      // Clear any existing recovery timeout
+      if (stallRecoveryTimeout) {
+        clearTimeout(stallRecoveryTimeout);
+      }
+
+      // Attempt automatic recovery after a short delay
+      stallRecoveryTimeout = setTimeout(async () => {
+        // Check if still stalled (networkState 2 = NETWORK_LOADING but no progress)
+        if (audio.paused || audio.ended || !isPlaying) {
+          return; // Not playing, don't try to recover
+        }
+
+        // Check if audio is making progress
+        const currentPos = audio.currentTime;
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        if (audio.currentTime === currentPos && isPlaying && !audio.paused) {
+          stallRecoveryAttempts++;
+          console.log(`🔴 Audio still stalled, recovery attempt ${stallRecoveryAttempts}/${maxStallRecoveryAttempts}`);
+
+          if (stallRecoveryAttempts <= maxStallRecoveryAttempts && currentSong?.url) {
+            try {
+              // Force fresh stream
+              const currentTime = audio.currentTime;
+              audio.src = '';
+              audio.src = currentSong.url + '?t=' + Date.now();
+              audio.load();
+
+              await new Promise<void>((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Stall recovery timeout')), 10000);
+                const onCanPlay = () => {
+                  clearTimeout(timeout);
+                  audio.removeEventListener('error', onErr);
+                  resolve();
+                };
+                const onErr = () => {
+                  clearTimeout(timeout);
+                  audio.removeEventListener('canplay', onCanPlay);
+                  reject(new Error('Stall recovery failed'));
+                };
+                audio.addEventListener('canplay', onCanPlay, { once: true });
+                audio.addEventListener('error', onErr, { once: true });
+              });
+
+              // Try to restore position and resume
+              if (currentTime > 0 && isFinite(currentTime)) {
+                audio.currentTime = Math.max(0, currentTime - 1); // Go back 1 second
+              }
+              await audio.play();
+              setIsPlaying(true);
+              setIsLoading(false);
+              setError(null);
+              stallRecoveryAttempts = 0;
+              console.log('🟢 Stall recovery successful!');
+            } catch (err) {
+              console.error('🔴 Stall recovery failed:', err);
+              if (stallRecoveryAttempts >= maxStallRecoveryAttempts) {
+                setError('Stream interrupted - tap play to resume');
+                setIsLoading(false);
+              }
+            }
+          }
+        } else {
+          // Audio is progressing, reset attempts
+          stallRecoveryAttempts = 0;
+          setIsLoading(false);
+        }
+      }, 3000); // Wait 3 seconds before attempting recovery
     };
     const onError = (e: Event) => {
       const audio = e.target as HTMLAudioElement;
@@ -394,10 +470,44 @@ export function AudioPlayer() {
             console.log('🟢 iOS: Immediate play SUCCESS');
             isUserInitiatedPauseRef.current = false;
           })
-          .catch((e) => {
-            console.error('🔴 iOS: Immediate play FAILED:', e);
-            // Fall back to letting the effect handle it
-            shouldAutoPlayRef.current = true;
+          .catch(async (e) => {
+            console.error('🔴 iOS: Immediate play FAILED, attempting network recovery:', e);
+            // Network might have changed during song transition - retry with fresh URL
+            try {
+              console.log('🔄 Retrying next song with fresh stream URL...');
+              audio.src = '';
+              audio.src = nextTrack.url + '?t=' + Date.now();
+              audio.load();
+
+              // Wait for canplay
+              await new Promise<void>((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Recovery timeout')), 10000);
+                const onReady = () => {
+                  clearTimeout(timeout);
+                  audio.removeEventListener('error', onErr);
+                  resolve();
+                };
+                const onErr = () => {
+                  clearTimeout(timeout);
+                  audio.removeEventListener('canplay', onReady);
+                  reject(new Error('Recovery load failed'));
+                };
+                audio.addEventListener('canplay', onReady, { once: true });
+                audio.addEventListener('error', onErr, { once: true });
+              });
+
+              await audio.play();
+              console.log('🟢 iOS: Recovery play SUCCESS');
+              isUserInitiatedPauseRef.current = false;
+              setIsPlaying(true);
+              if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = 'playing';
+              }
+            } catch (retryErr) {
+              console.error('🔴 iOS: Recovery also FAILED:', retryErr);
+              // Fall back to letting the effect handle it
+              shouldAutoPlayRef.current = true;
+            }
           });
       }
 
@@ -437,6 +547,17 @@ export function AudioPlayer() {
       console.log('🔴 Calling nextSong() to sync state');
       nextSong();
       setIsPlaying(true);
+
+      // Check if we need to trigger autoplay queueing (when approaching end of playlist)
+      // This happens after advancing to next song, so check if we're now on last song
+      const updatedState = useAudioStore.getState();
+      const isNowLastSong = updatedState.currentSongIndex === updatedState.playlist.length - 1;
+      if (isNowLastSong && updatedState.autoplayEnabled) {
+        console.log('🎶 Autoplay: Approaching end of playlist, triggering queue refill');
+        updatedState.triggerAutoplayQueueing().catch(err => {
+          console.error('🎶 Autoplay: Queue refill failed:', err);
+        });
+      }
     };
 
     audio.addEventListener('timeupdate', updateTime);
@@ -450,6 +571,10 @@ export function AudioPlayer() {
     audio.volume = volume;
 
     return () => {
+      // Clean up stall recovery timeout
+      if (stallRecoveryTimeout) {
+        clearTimeout(stallRecoveryTimeout);
+      }
       audio.removeEventListener('timeupdate', updateTime);
       audio.removeEventListener('loadedmetadata', updateDuration);
       audio.removeEventListener('canplay', onCanPlay);
@@ -485,9 +610,48 @@ export function AudioPlayer() {
                   console.log('🟢 Auto-play SUCCESS');
                   isUserInitiatedPauseRef.current = false; // Reset now that playback started
                 })
-                .catch((e) => {
-                  setError('Auto-play failed');
-                  console.error('🔴 Auto-play FAILED:', e);
+                .catch(async (e) => {
+                  console.error('🔴 Auto-play FAILED, attempting recovery:', e);
+                  // Network might have changed - retry with fresh URL
+                  try {
+                    console.log('🔄 Retrying with fresh stream URL...');
+                    audio.src = '';
+                    audio.src = currentSong.url + '?t=' + Date.now();
+                    audio.load();
+
+                    // Wait for canplay
+                    await new Promise<void>((resolve, reject) => {
+                      const timeout = setTimeout(() => reject(new Error('Recovery timeout')), 10000);
+                      const onReady = () => {
+                        clearTimeout(timeout);
+                        audio.removeEventListener('error', onErr);
+                        resolve();
+                      };
+                      const onErr = () => {
+                        clearTimeout(timeout);
+                        audio.removeEventListener('canplay', onReady);
+                        reject(new Error('Recovery load failed'));
+                      };
+                      audio.addEventListener('canplay', onReady, { once: true });
+                      audio.addEventListener('error', onErr, { once: true });
+                    });
+
+                    await audio.play();
+                    console.log('🟢 Auto-play recovery SUCCESS');
+                    isUserInitiatedPauseRef.current = false;
+                    setIsPlaying(true);
+                    setError(null);
+                    if ('mediaSession' in navigator) {
+                      navigator.mediaSession.playbackState = 'playing';
+                    }
+                  } catch (retryErr) {
+                    console.error('🔴 Auto-play recovery also FAILED:', retryErr);
+                    setError('Tap play to start');
+                    setIsPlaying(false);
+                    if ('mediaSession' in navigator) {
+                      navigator.mediaSession.playbackState = 'paused';
+                    }
+                  }
                 });
             } else {
               console.log('🟡 NOT auto-playing - isPlaying is false and shouldAutoPlayRef is false');
@@ -561,6 +725,175 @@ export function AudioPlayer() {
       }
     }
   }, [isPlaying]);
+
+  // Wake Lock API - prevents screen from sleeping and browser from suspending audio
+  // This is critical for background playback on mobile devices
+  useEffect(() => {
+    const requestWakeLock = async () => {
+      if (!('wakeLock' in navigator)) {
+        console.log('🔒 Wake Lock API not supported');
+        return;
+      }
+
+      try {
+        if (isPlaying && !wakeLockRef.current) {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+          console.log('🔒 Wake Lock acquired - screen will stay on');
+
+          // Re-acquire wake lock if it's released (e.g., when tab becomes visible again)
+          wakeLockRef.current.addEventListener('release', () => {
+            console.log('🔒 Wake Lock released');
+            wakeLockRef.current = null;
+            // Try to re-acquire if still playing
+            if (isPlaying && document.visibilityState === 'visible') {
+              requestWakeLock();
+            }
+          });
+        } else if (!isPlaying && wakeLockRef.current) {
+          await wakeLockRef.current.release();
+          wakeLockRef.current = null;
+          console.log('🔒 Wake Lock released - playback stopped');
+        }
+      } catch (err) {
+        // Wake lock request can fail if page is not visible
+        console.log('🔒 Wake Lock request failed:', err);
+      }
+    };
+
+    requestWakeLock();
+
+    // Re-acquire wake lock when page becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isPlaying && !wakeLockRef.current) {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      // Release wake lock on cleanup
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
+      }
+    };
+  }, [isPlaying]);
+
+  // Network change detection - handles WiFi/cellular transitions
+  // When network changes, the audio stream connection breaks and needs to be re-established
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    let wasPlayingBeforeOffline = false;
+    let networkChangeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    // Handle going offline
+    const handleOffline = () => {
+      console.log('📶 Network offline detected');
+      if (isPlaying && !audio.paused) {
+        wasPlayingBeforeOffline = true;
+        console.log('📶 Was playing, will attempt recovery when online');
+      }
+    };
+
+    // Handle coming back online (or network type change)
+    const handleOnline = () => {
+      console.log('📶 Network online detected');
+
+      // Debounce to avoid multiple rapid reconnection attempts
+      if (networkChangeTimeout) {
+        clearTimeout(networkChangeTimeout);
+      }
+
+      networkChangeTimeout = setTimeout(async () => {
+        // Check if audio is in an error state or stalled
+        const needsRecovery = audio.error ||
+          audio.networkState === 3 || // NETWORK_NO_SOURCE
+          (wasPlayingBeforeOffline && audio.paused) ||
+          (isPlaying && audio.paused && !audio.ended);
+
+        if (needsRecovery && currentSong?.url) {
+          console.log('📶 Attempting audio stream recovery after network change...');
+          try {
+            // Force fresh URL with cache buster
+            audio.src = '';
+            audio.src = currentSong.url + '?t=' + Date.now();
+            audio.load();
+
+            // Wait for canplay then resume
+            await new Promise<void>((resolve, reject) => {
+              const timeout = setTimeout(() => reject(new Error('Network recovery timeout')), 15000);
+              const onCanPlay = () => {
+                clearTimeout(timeout);
+                audio.removeEventListener('error', onError);
+                resolve();
+              };
+              const onError = () => {
+                clearTimeout(timeout);
+                audio.removeEventListener('canplay', onCanPlay);
+                reject(new Error('Network recovery failed'));
+              };
+              audio.addEventListener('canplay', onCanPlay, { once: true });
+              audio.addEventListener('error', onError, { once: true });
+            });
+
+            // Resume playback if we were playing before
+            if (wasPlayingBeforeOffline || isPlaying) {
+              await audio.play();
+              setIsPlaying(true);
+              if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = 'playing';
+              }
+              console.log('📶 Audio stream recovered successfully!');
+            }
+            wasPlayingBeforeOffline = false;
+            setError(null);
+          } catch (err) {
+            console.error('📶 Network recovery failed:', err);
+            setError('Network changed - tap play to resume');
+            if ('mediaSession' in navigator) {
+              navigator.mediaSession.playbackState = 'paused';
+            }
+          }
+        }
+      }, 1000); // 1 second debounce
+    };
+
+    // Network Information API - detects WiFi/cellular changes
+    const handleConnectionChange = () => {
+      const connection = (navigator as any).connection;
+      if (connection) {
+        console.log(`📶 Network type changed: ${connection.effectiveType}, downlink: ${connection.downlink}Mbps`);
+      }
+      // Treat connection change like going offline then online
+      handleOffline();
+      setTimeout(handleOnline, 500);
+    };
+
+    // Add listeners
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Network Information API (Chrome/Android)
+    const connection = (navigator as any).connection;
+    if (connection) {
+      connection.addEventListener('change', handleConnectionChange);
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      if (connection) {
+        connection.removeEventListener('change', handleConnectionChange);
+      }
+      if (networkChangeTimeout) {
+        clearTimeout(networkChangeTimeout);
+      }
+    };
+  }, [isPlaying, currentSong, setIsPlaying]);
 
   // iOS audio interruption handling (notifications, calls, Siri, etc.)
   // Scenarios:
@@ -1164,6 +1497,7 @@ export function AudioPlayer() {
                 </Button>
 
                 <AIDJToggle compact />
+                <AutoplayToggle compact />
               </div>
             </div>
           </div>
@@ -1313,6 +1647,7 @@ export function AudioPlayer() {
                     onChange={changeVolume}
                   />
                   <AIDJToggle />
+                  <AutoplayToggle compact />
                 </div>
               </div>
             </div>

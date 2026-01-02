@@ -156,13 +156,21 @@ function DownloadHistoryPage() {
 
       {/* Statistics */}
       {history.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {stats.completedCount}
               </div>
               <p className="text-sm text-muted-foreground">Completed</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                {stats.grabbedCount}
+              </div>
+              <p className="text-sm text-muted-foreground">Grabbed (Downloading)</p>
             </CardContent>
           </Card>
           <Card>

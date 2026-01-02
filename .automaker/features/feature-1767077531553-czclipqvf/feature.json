@@ -1,0 +1,20 @@
+{
+  "category": "User Experience",
+  "description": "Add Playlist Autoplay Queueing with Smart Transitions - Extend the AI DJ system to automatically queue recommended songs when a playlist ends, with smooth audio transitions and customizable blend modes (crossfade, silence, reverb tail). Include an opt-in preference toggle and real-time skip/feedback controls.",
+  "id": "feature-1767077531553-czclipqvf",
+  "steps": [],
+  "status": "completed",
+  "skipTests": true,
+  "priority": 2,
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "ultrathink",
+  "imagePaths": [],
+  "textFilePaths": [],
+  "branchName": "feat/unified-recommendations-service",
+  "planningMode": "skip",
+  "requirePlanApproval": false,
+  "startedAt": "2025-12-30T18:15:59.564Z",
+  "updatedAt": "2025-12-30T18:29:32.895Z",
+  "justFinishedAt": "2025-12-30T18:29:32.895Z"
+}

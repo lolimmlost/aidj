@@ -396,32 +396,33 @@ export function PlaylistImportDialog({
 
       <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }}>
         <DialogContent
-          className="w-[calc(100%-2rem)] sm:w-auto sm:max-w-[440px] min-h-[300px] max-h-[min(85vh,600px)] overflow-y-auto p-4"
+          className="w-[calc(100%-2rem)] sm:w-auto sm:max-w-[500px] md:max-w-[600px] lg:max-w-[700px] min-h-[300px] max-h-[min(85vh,700px)] overflow-y-auto p-4 md:p-6"
           onPointerDownOutside={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
         >
-          <DialogHeader className="space-y-1 pb-2">
-            <DialogTitle className="text-base">{steps[currentStep].title}</DialogTitle>
-            <DialogDescription className="text-xs">{steps[currentStep].description}</DialogDescription>
+          <DialogHeader className="space-y-1 pb-2 md:pb-4">
+            <DialogTitle className="text-base md:text-lg">{steps[currentStep].title}</DialogTitle>
+            <DialogDescription className="text-xs md:text-sm">{steps[currentStep].description}</DialogDescription>
           </DialogHeader>
 
           {/* Progress Bar */}
-          <div className="space-y-1">
-            <Progress value={progress} className="h-1.5" />
-            <div className="flex justify-between text-[10px] text-muted-foreground">
+          <div className="space-y-2">
+            <Progress value={progress} className="h-1.5 md:h-2" />
+            <div className="flex justify-between text-[10px] md:text-xs text-muted-foreground">
               {stepOrder.map((step, index) => (
                 <span
                   key={step}
-                  className={index <= currentStepIndex ? 'text-primary font-medium' : ''}
+                  className={`transition-colors ${index <= currentStepIndex ? 'text-primary font-medium' : ''}`}
                 >
-                  {steps[step].title.split(' ')[0]}
+                  <span className="hidden md:inline">{steps[step].title}</span>
+                  <span className="md:hidden">{steps[step].title.split(' ')[0]}</span>
                 </span>
               ))}
             </div>
           </div>
 
           {/* Step Content */}
-          <div className="py-2">
+          <div className="py-2 md:py-4">
             {currentStep === 'upload' && (
               <FileUploadStep onFileUpload={handleFileUpload} onTriggerFileSelect={triggerFileSelect} />
             )}
@@ -464,25 +465,25 @@ export function PlaylistImportDialog({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex justify-between pt-2 border-t">
+        <div className="flex justify-between pt-3 md:pt-4 border-t">
           <Button
             variant="outline"
             size="sm"
             onClick={handleBack}
             disabled={currentStep === 'upload' || isValidating || importMutation.isPending}
-            className="h-8 text-xs"
+            className="h-8 md:h-9 text-xs md:text-sm"
           >
-            <ChevronLeft className="mr-1 h-3 w-3" />
+            <ChevronLeft className="mr-1 h-3 w-3 md:h-4 md:w-4" />
             Back
           </Button>
 
-          <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={handleClose} className="h-8 text-xs">
+          <div className="flex gap-2 md:gap-3">
+            <Button variant="ghost" size="sm" onClick={handleClose} className="h-8 md:h-9 text-xs md:text-sm">
               Cancel
             </Button>
 
             {currentStep === 'confirmation' ? (
-              <Button size="sm" onClick={handleComplete} className="h-8 text-xs">
+              <Button size="sm" onClick={handleComplete} className="h-8 md:h-9 text-xs md:text-sm px-4 md:px-6">
                 Done
               </Button>
             ) : (
@@ -494,17 +495,17 @@ export function PlaylistImportDialog({
                   (currentStep === 'validation' && (!validationResult?.valid || isValidating)) ||
                   (currentStep === 'matching' && importMutation.isPending)
                 }
-                className="h-8 text-xs"
+                className="h-8 md:h-9 text-xs md:text-sm px-4 md:px-6"
               >
                 {isValidating || importMutation.isPending ? (
                   <>
-                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    <Loader2 className="mr-1 h-3 w-3 md:h-4 md:w-4 animate-spin" />
                     Processing...
                   </>
                 ) : (
                   <>
                     Next
-                    <ChevronRight className="ml-1 h-3 w-3" />
+                    <ChevronRight className="ml-1 h-3 w-3 md:h-4 md:w-4" />
                   </>
                 )}
               </Button>

@@ -1,0 +1,1 @@
+export { LyricsModal } from './LyricsModal';

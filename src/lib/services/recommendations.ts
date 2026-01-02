@@ -48,6 +48,8 @@ export interface QueueContext {
   genres: string[];    // Most common genres in queue (sorted by frequency)
   artists: string[];   // Most common artists in queue
   avgDuration?: number; // Average song duration
+  artistBatchCounts?: Record<string, number>; // Phase 1.2: How many songs queued per artist in last 2 hours
+  genreExploration?: number; // Phase 4.2: Genre exploration level 0-100 (0=strict, 100=adventurous)
 }
 
 export interface RecommendationRequest {
@@ -199,8 +201,8 @@ async function getSimilarSongs(
 
     console.log(`📚 [Recommendations] ${inLibrary.length} tracks in library after filtering`);
 
-    // Apply diversity (limit repeat artists)
-    const diverse = applyDiversity(inLibrary);
+    // Apply diversity (limit repeat artists) - Phase 1.2: Pass artist batch counts
+    const diverse = applyDiversity(inLibrary, queueContext?.artistBatchCounts);
 
     if (diverse.length === 0) {
       console.log('⚠️ [Recommendations] No library matches from Last.fm, trying artist fallback');
@@ -237,6 +239,34 @@ async function getSimilarSongs(
       }
     }
 
+    // Phase 3.3: Apply skip-based scoring if userId is provided
+    let skipScoringApplied = false;
+    let skipFilteredCount = 0;
+
+    if (userId) {
+      try {
+        const { filterFrequentlySkipped, applySortBySkipScore } = await import('./skip-scoring');
+
+        const beforeCount = songs.length;
+
+        // Filter out songs with very high skip rates (>70%)
+        songs = await filterFrequentlySkipped(songs, userId, 0.7);
+        skipFilteredCount = beforeCount - songs.length;
+
+        // Reorder remaining songs by skip penalty (lower penalty = better)
+        if (songs.length > 0) {
+          songs = await applySortBySkipScore(songs, userId);
+          skipScoringApplied = true;
+        }
+
+        if (skipFilteredCount > 0) {
+          console.log(`⏭️ [Recommendations] Skip scoring filtered ${skipFilteredCount} frequently-skipped songs`);
+        }
+      } catch (error) {
+        console.warn('⚠️ [Recommendations] Skip scoring failed, using original order:', error);
+      }
+    }
+
     return {
       songs,
       source: 'lastfm',
@@ -246,6 +276,8 @@ async function getSimilarSongs(
         filteredCount: inLibrary.length,
         compoundScoreApplied,
         compoundScoredCount,
+        skipScoringApplied,
+        skipFilteredCount,
       },
     };
   } catch (error) {
@@ -523,21 +555,39 @@ async function getPersonalizedSongs(
 
 /**
  * Apply diversity rules to avoid too many songs from the same artist
- * Limits to max 2 songs per artist
+ * Phase 1.2: Now considers cross-batch artist counts
+ *
+ * Limits:
+ * - Max 2 songs per artist per batch
+ * - Max 5 songs per artist across batches (2-hour window)
  */
-function applyDiversity(tracks: EnrichedTrack[]): EnrichedTrack[] {
+function applyDiversity(
+  tracks: EnrichedTrack[],
+  artistBatchCounts?: Record<string, number>
+): EnrichedTrack[] {
   const artistCounts = new Map<string, number>();
-  const MAX_PER_ARTIST = 2;
+  const MAX_PER_BATCH = 2;
+  const MAX_ACROSS_BATCHES = 5; // Phase 1.2: Hard limit across 2-hour window
 
   return tracks.filter(track => {
     const artistLower = track.artist.toLowerCase();
-    const count = artistCounts.get(artistLower) || 0;
 
-    if (count >= MAX_PER_ARTIST) {
+    // Phase 1.2: Check cross-batch limit first
+    if (artistBatchCounts) {
+      const crossBatchCount = artistBatchCounts[artistLower] || 0;
+      if (crossBatchCount >= MAX_ACROSS_BATCHES) {
+        console.log(`🎵 [Diversity] Skipping "${track.artist}" - already queued ${crossBatchCount} songs in last 2 hours (max ${MAX_ACROSS_BATCHES})`);
+        return false;
+      }
+    }
+
+    // Check per-batch limit
+    const batchCount = artistCounts.get(artistLower) || 0;
+    if (batchCount >= MAX_PER_BATCH) {
       return false;
     }
 
-    artistCounts.set(artistLower, count + 1);
+    artistCounts.set(artistLower, batchCount + 1);
     return true;
   });
 }
@@ -596,6 +646,8 @@ function subsonicSongToSong(song: SubsonicSong): Song {
  * Fallback to other songs by the SAME ARTIST in the library
  * This is the first fallback when Last.fm similar tracks aren't found
  * Users expect "if I have more songs by this artist, find them"
+ *
+ * Phase 1.1: Limited to max 3 songs to prevent artist exhaustion
  */
 async function fallbackToSameArtist(
   currentSong: { artist: string; title: string; genre?: string },
@@ -603,6 +655,10 @@ async function fallbackToSameArtist(
   excludeSongIds: string[] = []
 ): Promise<RecommendationResult> {
   console.log(`🎤 [Recommendations] Trying same-artist fallback for "${currentSong.artist}"`);
+
+  // Phase 1.1: Hard limit to prevent queuing entire artist discography
+  const MAX_SAME_ARTIST_SONGS = 3;
+  const effectiveLimit = Math.min(limit, MAX_SAME_ARTIST_SONGS);
 
   try {
     // Search for songs by the same artist using Navidrome search
@@ -633,7 +689,7 @@ async function fallbackToSameArtist(
       return isSameArtist && isNotCurrentSong && isNotExcluded;
     });
 
-    console.log(`🎵 [Recommendations] Found ${filtered.length} other songs by "${currentSong.artist}"`);
+    console.log(`🎵 [Recommendations] Found ${filtered.length} other songs by "${currentSong.artist}" (limiting to ${effectiveLimit})`);
 
     if (filtered.length === 0) {
       return {
@@ -646,10 +702,10 @@ async function fallbackToSameArtist(
       };
     }
 
-    // Shuffle and return limited results
+    // Shuffle and return limited results (max 3 songs)
     const shuffled = filtered
       .sort(() => Math.random() - 0.5)
-      .slice(0, limit);
+      .slice(0, effectiveLimit);
 
     // Convert to proper Song format with streaming URLs
     const songs: Song[] = shuffled.map(song => ({
@@ -693,6 +749,8 @@ async function fallbackToSameArtist(
  * Fallback to genre-based random songs from library
  * Uses Navidrome's native random sort for truly random selection
  * Prioritizes genres from queue context if available, then current song genre
+ *
+ * Phase 2.2: Enhanced with genre hierarchy for smarter similarity matching
  */
 async function fallbackToGenreRandom(
   currentSong: { artist: string; title: string; genre?: string },
@@ -701,6 +759,9 @@ async function fallbackToGenreRandom(
   queueContext?: QueueContext
 ): Promise<RecommendationResult> {
   console.log(`🔄 [Recommendations] Falling back to genre random (${reason})`);
+
+  // Phase 2.2: Import genre hierarchy functions
+  const { getGenreSimilarity, normalizeGenre, getRelatedGenres } = await import('./genre-hierarchy');
 
   try {
     // Use Navidrome's native random sort (not offset 0 which always returns same songs)
@@ -711,6 +772,16 @@ async function fallbackToGenreRandom(
 
     // Filter out current artist and any artists from queue context that we want variety from
     const excludeArtists = new Set<string>([currentSong.artist.toLowerCase()]);
+
+    // Phase 1.2: Also exclude artists that hit the cross-batch limit
+    if (queueContext?.artistBatchCounts) {
+      const MAX_ACROSS_BATCHES = 5;
+      for (const [artist, count] of Object.entries(queueContext.artistBatchCounts)) {
+        if (count >= MAX_ACROSS_BATCHES) {
+          excludeArtists.add(artist.toLowerCase());
+        }
+      }
+    }
 
     // Optionally exclude overrepresented artists from queue (if they appear 3+ times)
     if (queueContext?.artists) {
@@ -729,51 +800,130 @@ async function fallbackToGenreRandom(
     // Build target genres list: queue context genres first, then current song genre
     const targetGenres: string[] = [];
     if (queueContext?.genres && queueContext.genres.length > 0) {
-      // Use top 3 genres from queue
-      targetGenres.push(...queueContext.genres.slice(0, 3));
+      // Use top 5 genres from queue (increased from 3)
+      targetGenres.push(...queueContext.genres.slice(0, 5).map(g => normalizeGenre(g)));
       console.log(`📊 [Recommendations] Using queue context genres: ${targetGenres.join(', ')}`);
     }
-    if (currentSong.genre && !targetGenres.includes(currentSong.genre.toLowerCase())) {
-      targetGenres.push(currentSong.genre.toLowerCase());
-    }
-
-    // Try to prioritize songs matching target genres
-    if (targetGenres.length > 0) {
-      const genreMatches = filtered.filter(s => {
-        const songGenre = s.genre?.toLowerCase() || '';
-        return targetGenres.some(tg =>
-          songGenre.includes(tg) || tg.includes(songGenre)
-        );
-      });
-
-      if (genreMatches.length >= Math.min(3, limit)) {
-        // Prioritize genre matches but mix in some variety
-        const nonMatches = filtered.filter(s => {
-          const songGenre = s.genre?.toLowerCase() || '';
-          return !targetGenres.some(tg =>
-            songGenre.includes(tg) || tg.includes(songGenre)
-          );
-        });
-
-        // 70% genre matches, 30% variety (if available)
-        const genreCount = Math.ceil(limit * 0.7);
-        const varietyCount = limit - genreCount;
-        filtered = [
-          ...genreMatches.slice(0, genreCount),
-          ...nonMatches.slice(0, varietyCount),
-        ];
-        console.log(`🎵 [Recommendations] Found ${genreMatches.length} songs matching queue genres`);
-      } else {
-        console.log(`⚠️ [Recommendations] Only ${genreMatches.length} genre matches, using broader selection`);
+    if (currentSong.genre) {
+      const normalizedGenre = normalizeGenre(currentSong.genre);
+      if (!targetGenres.includes(normalizedGenre)) {
+        targetGenres.push(normalizedGenre);
       }
     }
 
-    // Final shuffle and slice
-    filtered = filtered
-      .sort(() => Math.random() - 0.5)
-      .slice(0, limit);
+    // Phase 2.2: Expand target genres with related genres from hierarchy
+    const expandedGenres = new Set<string>(targetGenres);
+    for (const genre of targetGenres.slice(0, 3)) { // Only expand top 3 to avoid noise
+      const related = getRelatedGenres(genre, 5);
+      for (const r of related) {
+        if (r.score >= 0.5) { // Only add highly related genres
+          expandedGenres.add(r.genre);
+        }
+      }
+    }
+    console.log(`🎵 [Genre Hierarchy] Expanded ${targetGenres.length} genres to ${expandedGenres.size} with related genres`);
 
-    console.log(`✅ [Recommendations] Returning ${filtered.length} fallback songs`);
+    // Phase 2.2: Score each song by genre similarity (not just string matching)
+    if (targetGenres.length > 0) {
+      const scoredSongs: Array<{ song: SubsonicSong; score: number }> = [];
+
+      for (const song of filtered) {
+        const songGenre = normalizeGenre(song.genre || '');
+        if (!songGenre) {
+          // Songs without genre get a low score but aren't excluded
+          scoredSongs.push({ song, score: 0.1 });
+          continue;
+        }
+
+        // Find best match against all target genres
+        let bestScore = 0;
+        for (const targetGenre of targetGenres) {
+          const similarity = getGenreSimilarity(songGenre, targetGenre);
+          if (similarity > bestScore) {
+            bestScore = similarity;
+          }
+        }
+
+        // Also check against expanded related genres (with penalty)
+        if (bestScore < 0.5) {
+          for (const relatedGenre of expandedGenres) {
+            if (targetGenres.includes(relatedGenre)) continue; // Already checked
+            const similarity = getGenreSimilarity(songGenre, relatedGenre) * 0.7; // 30% penalty for indirect match
+            if (similarity > bestScore) {
+              bestScore = similarity;
+            }
+          }
+        }
+
+        scoredSongs.push({ song, score: bestScore });
+      }
+
+      // Sort by score (descending)
+      scoredSongs.sort((a, b) => b.score - a.score);
+
+      // Phase 2.2: Smart selection - high scorers first, then variety
+      const highScorers = scoredSongs.filter(s => s.score >= 0.5);
+      const mediumScorers = scoredSongs.filter(s => s.score >= 0.2 && s.score < 0.5);
+      const lowScorers = scoredSongs.filter(s => s.score < 0.2);
+
+      console.log(`🎵 [Genre Hierarchy] Scored ${scoredSongs.length} songs: ${highScorers.length} high (>=0.5), ${mediumScorers.length} medium, ${lowScorers.length} low`);
+
+      // Phase 4.2: Dynamic selection strategy based on genre exploration level
+      // 0 = strict (90% high, 10% medium), 50 = balanced (70% high, 30% medium), 100 = adventurous (50% high, 50% medium+low)
+      const explorationLevel = queueContext?.genreExploration ?? 50; // Default to balanced
+
+      // Calculate target percentages dynamically
+      // Linear interpolation: highPercent = 0.9 - (exploration * 0.004)
+      // At 0: 90%, at 50: 70%, at 100: 50%
+      const highPercent = 0.9 - (explorationLevel * 0.004);
+      const mediumPercent = 1 - highPercent;
+
+      const targetHigh = Math.ceil(limit * highPercent);
+      const targetMedium = Math.ceil(limit * mediumPercent);
+
+      console.log(`🎛️ [Genre Exploration] Level: ${explorationLevel}% - targeting ${Math.round(highPercent * 100)}% high scorers, ${Math.round(mediumPercent * 100)}% medium/low`);
+
+      const selected: SubsonicSong[] = [];
+
+      // Add high scorers (shuffled)
+      const shuffledHigh = highScorers.sort(() => Math.random() - 0.5);
+      for (const s of shuffledHigh.slice(0, targetHigh)) {
+        selected.push(s.song);
+      }
+
+      // Phase 4.2: Add medium/low scorers based on exploration level
+      // At high exploration (>70), include some low scorers for discovery
+      const includeLowScorers = explorationLevel > 70;
+      const varietyPool = includeLowScorers
+        ? [...mediumScorers, ...lowScorers]
+        : mediumScorers;
+
+      const shuffledVariety = varietyPool.sort(() => Math.random() - 0.5);
+      for (const s of shuffledVariety.slice(0, targetMedium)) {
+        selected.push(s.song);
+      }
+
+      // Fill remaining with whatever is available
+      if (selected.length < limit) {
+        const remaining = [
+          ...shuffledHigh.slice(targetHigh),
+          ...shuffledVariety.slice(targetMedium),
+        ];
+        for (const s of remaining) {
+          if (selected.length >= limit) break;
+          if (!selected.includes(s.song)) {
+            selected.push(s.song);
+          }
+        }
+      }
+
+      filtered = selected;
+    } else {
+      // No target genres - just shuffle
+      filtered = filtered.sort(() => Math.random() - 0.5).slice(0, limit);
+    }
+
+    console.log(`✅ [Recommendations] Returning ${filtered.length} fallback songs with genre hierarchy scoring`);
 
     return {
       songs: filtered.map(subsonicSongToSong),

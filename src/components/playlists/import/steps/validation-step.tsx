@@ -51,27 +51,27 @@ export function ValidationStep({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Validation Status */}
-      <div className="flex items-start gap-3 p-4 rounded-lg border bg-muted/30">
+      <div className="flex items-start gap-3 p-4 md:p-5 rounded-lg border bg-muted/30">
         {validationResult.valid ? (
           <>
-            <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+            <CheckCircle2 className="h-5 w-5 md:h-6 md:w-6 text-green-500 mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-green-700 dark:text-green-400">
+              <p className="font-medium md:text-lg text-green-700 dark:text-green-400">
                 Playlist validated successfully
               </p>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-sm md:text-base text-muted-foreground mt-1">
                 Ready to import {validationResult.playlist?.songCount} songs
               </p>
             </div>
           </>
         ) : (
           <>
-            <XCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
+            <XCircle className="h-5 w-5 md:h-6 md:w-6 text-destructive mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-destructive">Validation failed</p>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="font-medium md:text-lg text-destructive">Validation failed</p>
+              <p className="text-sm md:text-base text-muted-foreground mt-1">
                 Please check the errors below
               </p>
             </div>
@@ -81,32 +81,40 @@ export function ValidationStep({
 
       {/* File Info */}
       {validationResult.valid && validationResult.playlist && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-4 md:space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <FileText className="h-4 w-4" />
                 <span>File</span>
               </div>
-              <p className="text-sm font-medium truncate">{fileName}</p>
+              <p className="text-sm md:text-base font-medium truncate">{fileName}</p>
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Music className="h-4 w-4" />
                 <span>Songs</span>
               </div>
-              <p className="text-sm font-medium">{validationResult.playlist.songCount}</p>
+              <p className="text-sm md:text-base font-medium">{validationResult.playlist.songCount}</p>
+            </div>
+            <div className="hidden md:block space-y-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <FileText className="h-4 w-4" />
+                <span>Format</span>
+              </div>
+              <p className="text-sm md:text-base font-medium uppercase">{validationResult.playlist.format}</p>
             </div>
           </div>
 
           {/* Playlist Name Input */}
           <div className="space-y-2">
-            <Label htmlFor="playlist-name">Playlist Name</Label>
+            <Label htmlFor="playlist-name" className="md:text-base">Playlist Name</Label>
             <Input
               id="playlist-name"
               value={playlistName}
               onChange={(e) => onPlaylistNameChange(e.target.value)}
               placeholder="Enter playlist name"
+              className="md:h-11 md:text-base"
             />
             {validationResult.playlist.description && (
               <p className="text-sm text-muted-foreground">

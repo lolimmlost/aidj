@@ -9,3 +9,5 @@ export * from "./library-sync.schema";
 export * from "./mood-history.schema";
 export * from "./discovery-feed.schema";
 export * from "./playlist-export.schema";
+export * from "./music-identity.schema";
+export * from "./lyrics-cache.schema";

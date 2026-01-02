@@ -194,23 +194,28 @@ export function FileUploadStep({ onFileUpload, onTriggerFileSelect }: FileUpload
 
       {/* Paste Content */}
       <div>
-        <Label className="text-sm font-medium mb-2 block">Paste Content</Label>
-        <div className="space-y-2">
+        <Label className="text-sm md:text-base font-medium mb-2 block">Paste Content</Label>
+        <div className="space-y-3">
           <Textarea
             placeholder="Paste your playlist content here (M3U, XSPF, or JSON)"
             value={pastedContent}
             onChange={(e) => setPastedContent(e.target.value)}
-            className="min-h-[80px] font-mono text-sm resize-y"
+            className="min-h-[120px] md:min-h-[180px] font-mono text-sm resize-y"
           />
-          <Button
-            onClick={handlePaste}
-            disabled={!pastedContent.trim()}
-            variant="outline"
-            className="w-full"
-            size="sm"
-          >
-            Import from Pasted Content
-          </Button>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <p className="text-xs md:text-sm text-muted-foreground order-2 md:order-1">
+              Supports M3U, M3U8, XSPF, and JSON formats
+            </p>
+            <Button
+              onClick={handlePaste}
+              disabled={!pastedContent.trim()}
+              variant="outline"
+              className="w-full md:w-auto order-1 md:order-2"
+              size="sm"
+            >
+              Import from Pasted Content
+            </Button>
+          </div>
         </div>
       </div>
     </div>

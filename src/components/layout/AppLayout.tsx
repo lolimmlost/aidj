@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, memo, Suspense, lazy } from 'react';
+import React, { useState, useCallback, useMemo, memo, Suspense, lazy, useEffect } from 'react';
 import { Link, useRouterState, useNavigate } from '@tanstack/react-router';
 import {
   Home,
@@ -18,6 +18,7 @@ import {
   RefreshCw,
   ListPlus,
   Play,
+  User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,108 @@ import { QueuePanel } from '@/components/ui/queue-panel';
 import { MobileNav } from '@/components/ui/mobile-nav';
 import { toast } from 'sonner';
 import { useDeferredRender, SidebarItemSkeleton } from '@/lib/utils/lazy-components';
+
+// Helper to get cover art URL from Navidrome
+const getCoverArtUrl = (albumId: string | undefined, size: number = 300) => {
+  if (!albumId) return null;
+  return `/api/navidrome/rest/getCoverArt?id=${albumId}&size=${size}`;
+};
+
+// Sidebar Album Art component with auto-fetch for albumId
+const SidebarAlbumArt = ({
+  albumId,
+  songId,
+  artist,
+  isPlaying = false,
+}: {
+  albumId?: string;
+  songId?: string;
+  artist?: string;
+  isPlaying?: boolean;
+}) => {
+  const [imgError, setImgError] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [resolvedAlbumId, setResolvedAlbumId] = useState<string | null>(albumId || null);
+
+  // Fetch albumId from Navidrome if not provided but songId is available
+  useEffect(() => {
+    if (albumId) {
+      setResolvedAlbumId(albumId);
+      return;
+    }
+
+    if (!songId) {
+      setResolvedAlbumId(null);
+      return;
+    }
+
+    // Fetch song metadata to get albumId
+    const fetchAlbumId = async () => {
+      try {
+        const response = await fetch(`/api/navidrome/rest/getSong?id=${songId}&f=json`);
+        if (response.ok) {
+          const data = await response.json();
+          const song = data['subsonic-response']?.song;
+          if (song?.albumId) {
+            setResolvedAlbumId(song.albumId);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch album ID:', error);
+      }
+    };
+
+    fetchAlbumId();
+  }, [albumId, songId]);
+
+  // Reset states when albumId changes
+  useEffect(() => {
+    setImgError(false);
+    setImgLoaded(false);
+  }, [resolvedAlbumId]);
+
+  const coverUrl = getCoverArtUrl(resolvedAlbumId || undefined, 300);
+  const initials = artist?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '♪';
+
+  return (
+    <div className="aspect-square rounded-xl bg-gradient-to-br from-primary/20 via-purple-500/20 to-pink-500/20 flex items-center justify-center relative overflow-hidden shadow-lg">
+      {coverUrl && !imgError ? (
+        <>
+          <img
+            src={coverUrl}
+            alt="Album cover"
+            className={cn(
+              'w-full h-full object-cover transition-opacity duration-300',
+              imgLoaded ? 'opacity-100' : 'opacity-0'
+            )}
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgError(true)}
+          />
+          {!imgLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Music className="h-12 w-12 text-primary/40 animate-pulse" />
+            </div>
+          )}
+        </>
+      ) : (
+        <span className="font-bold text-5xl text-primary/40">
+          {initials}
+        </span>
+      )}
+      {isPlaying && (
+        <>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1">
+            <div className="w-1 h-4 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0s' }} />
+            <div className="w-1 h-6 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.15s' }} />
+            <div className="w-1 h-4 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.3s' }} />
+            <div className="w-1 h-5 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.45s' }} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -249,6 +352,12 @@ function LeftSidebar() {
                 active={currentPath.includes('/analytics')}
               />
               <NavItem
+                to="/music-identity"
+                icon={<User className="h-4 w-4" />}
+                label="Music Identity"
+                active={currentPath.startsWith('/music-identity')}
+              />
+              <NavItem
                 to="/downloads"
                 icon={<Download className="h-4 w-4" />}
                 label="Downloads"
@@ -406,22 +515,12 @@ function RightSidebar() {
           {currentSong && (
             <div className="space-y-2">
               {/* Large Album Art */}
-              <div className="aspect-square rounded-xl bg-gradient-to-br from-primary/20 via-purple-500/20 to-pink-500/20 flex items-center justify-center relative overflow-hidden shadow-lg">
-                <span className="font-bold text-5xl text-primary/40">
-                  {currentSong.artist?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '♪'}
-                </span>
-                {isPlaying && (
-                  <>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1">
-                      <div className="w-1 h-4 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0s' }} />
-                      <div className="w-1 h-6 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.15s' }} />
-                      <div className="w-1 h-4 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.3s' }} />
-                      <div className="w-1 h-5 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.45s' }} />
-                    </div>
-                  </>
-                )}
-              </div>
+              <SidebarAlbumArt
+                albumId={currentSong.albumId}
+                songId={currentSong.id}
+                artist={currentSong.artist}
+                isPlaying={isPlaying}
+              />
               {/* Song Info Below Art */}
               <div className="text-center px-2">
                 <h4 className="font-semibold truncate">{currentSong.name || currentSong.title}</h4>
@@ -724,12 +823,29 @@ const RecommendationsSection = memo(function RecommendationsSection({ recommenda
 
 /**
  * Recently Played Section for Left Sidebar - memoized to prevent unnecessary re-renders
+ * Shows songs in the order they were actually played (most recent first)
  */
 const RecentlyPlayedSection = memo(function RecentlyPlayedSection() {
-  const { playlist, currentSongIndex, isPlaying } = useAudioStore();
+  const { playlist, currentSongIndex, isPlaying, recentlyPlayedIds } = useAudioStore();
 
-  // Show recently played from current session (queue history)
-  const recentSongs = playlist.slice(0, 5);
+  // Build a map of all songs we know about (from current playlist)
+  const songMap = useMemo(() => {
+    const map = new Map<string, typeof playlist[0]>();
+    playlist.forEach(song => map.set(song.id, song));
+    return map;
+  }, [playlist]);
+
+  // Get recently played songs in order (most recent first)
+  // Filter to only songs we have data for
+  const recentSongs = useMemo(() => {
+    return recentlyPlayedIds
+      .slice(0, 5)
+      .map(id => songMap.get(id))
+      .filter((song): song is NonNullable<typeof song> => song !== undefined);
+  }, [recentlyPlayedIds, songMap]);
+
+  // Get the currently playing song (if any)
+  const currentSong = playlist[currentSongIndex];
 
   if (recentSongs.length === 0) return null;
 
@@ -739,32 +855,35 @@ const RecentlyPlayedSection = memo(function RecentlyPlayedSection() {
         Recently Played
       </h3>
       <div className="space-y-1">
-        {recentSongs.map((song, index) => (
-          <div
-            key={`${song.id}-${index}`}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors cursor-pointer",
-              "hover:bg-accent/50",
-              index === currentSongIndex && "bg-accent/30"
-            )}
-          >
-            <div className="w-9 h-9 rounded bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0">
-              {index === currentSongIndex && isPlaying ? (
-                <div className="flex gap-0.5">
-                  <div className="w-0.5 h-2.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" />
-                  <div className="w-0.5 h-3.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
-                  <div className="w-0.5 h-2.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
-                </div>
-              ) : (
-                <Clock className="h-3.5 w-3.5 text-blue-500/70" />
+        {recentSongs.map((song, index) => {
+          const isCurrentlyPlaying = currentSong?.id === song.id;
+          return (
+            <div
+              key={`${song.id}-${index}`}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors cursor-pointer",
+                "hover:bg-accent/50",
+                isCurrentlyPlaying && "bg-accent/30"
               )}
+            >
+              <div className="w-9 h-9 rounded bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0">
+                {isCurrentlyPlaying && isPlaying ? (
+                  <div className="flex gap-0.5">
+                    <div className="w-0.5 h-2.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" />
+                    <div className="w-0.5 h-3.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
+                    <div className="w-0.5 h-2.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
+                  </div>
+                ) : (
+                  <Clock className="h-3.5 w-3.5 text-blue-500/70" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">{song.name || song.title}</p>
+                <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate">{song.name || song.title}</p>
-              <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

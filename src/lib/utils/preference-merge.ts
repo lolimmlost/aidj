@@ -48,6 +48,11 @@ export const DEFAULT_RECOMMENDATION_SETTINGS: RecommendationSettings = {
   harmonicMixingEnabled: true,
   harmonicMixingMode: 'flexible',
   bpmTolerance: 6,
+  // Playlist Autoplay Queueing with Smart Transitions
+  autoplayEnabled: false,
+  autoplayBlendMode: 'crossfade',
+  autoplayTransitionDuration: 4,
+  autoplaySmartTransitions: true,
 };
 
 /**

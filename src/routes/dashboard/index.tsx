@@ -1081,8 +1081,8 @@ function DashboardIndex() {
       {/* Story 7.3: Discovery Queue Panel - Deferred loading */}
       <DeferredDiscoveryQueue />
 
-      {/* DJ Features Section - hidden on mobile, deferred loading (non-critical) */}
-      <DeferredDJFeatures />
+      {/* DJ Features Section - WIP, commented out for now */}
+      {/* <DeferredDJFeatures /> */}
 
       <OllamaErrorBoundary>
         <section className="space-y-6">

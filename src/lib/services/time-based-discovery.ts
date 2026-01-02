@@ -63,10 +63,19 @@ export interface PatternUpdateResult {
 
 /**
  * Get the current time slot based on hour of day
- * - Morning: 5:00 - 10:59
- * - Afternoon: 11:00 - 16:59
- * - Evening: 17:00 - 20:59
- * - Night: 21:00 - 4:59
+ *
+ * Time Slot Boundaries:
+ * - Morning:   5:00 AM - 10:59 AM (hours 5-10)
+ * - Afternoon: 11:00 AM - 4:59 PM (hours 11-16)
+ * - Evening:   5:00 PM - 8:59 PM  (hours 17-20)
+ * - Night:     9:00 PM - 4:59 AM  (hours 21-23, 0-4)
+ *
+ * These boundaries are used for:
+ * 1. Tagging new recommendations with targetTimeSlot
+ * 2. Filtering cached items when user selects a time tab
+ * 3. Analyzing listening patterns by time of day
+ *
+ * @see docs/features/time-based-discovery-logic.md
  */
 export function getTimeSlot(hour: number): TimeSlot {
   if (hour >= 5 && hour < 11) return 'morning';
@@ -333,6 +342,24 @@ export async function getUserPatterns(userId: string): Promise<ListeningPattern[
 
 /**
  * Generate personalized discovery feed based on time patterns
+ *
+ * IMPORTANT: Time Slot Filtering
+ * This function respects the requested time slot in two ways:
+ *
+ * 1. Cache Lookup (when includeExisting=true):
+ *    - Only returns cached items matching the requested timeSlot OR 'any'
+ *    - Prevents showing "night" items when user clicks "Evening" tab
+ *
+ * 2. Final Fetch (after generating new items):
+ *    - Also filters by timeSlot to avoid returning stale cached items
+ *    - This is critical because new items are inserted first, then fetched
+ *
+ * Recommendation Strategies (with targetTimeSlot tagging):
+ * - Compound-scored (40%): Tagged with current timeSlot
+ * - Time-pattern based (30%): Tagged with current timeSlot
+ * - Personalized (30%): Tagged as 'any' (valid for all time slots)
+ *
+ * @see docs/features/time-based-discovery-logic.md
  */
 export async function generateDiscoveryFeed(
   request: DiscoveryFeedRequest
@@ -351,7 +378,9 @@ export async function generateDiscoveryFeed(
     console.log(`🎵 Top genres: ${pattern.topGenres?.map(g => g.genre).join(', ') || 'none'}`);
   }
 
-  // Check for existing unexpired feed items
+  // Check for existing unexpired feed items (cache lookup)
+  // IMPORTANT: Filter by targetTimeSlot to prevent showing items from other time slots
+  // e.g., when user clicks "Evening" tab, don't show cached "night" items
   if (includeExisting) {
     const existingItems = await db
       .select()
@@ -360,6 +389,8 @@ export async function generateDiscoveryFeed(
         and(
           eq(discoveryFeedItems.userId, userId),
           gte(discoveryFeedItems.expiresAt, new Date()),
+          // Only return items for the requested time slot OR items marked as 'any'
+          // This ensures time-specific tabs show relevant recommendations
           or(
             eq(discoveryFeedItems.targetTimeSlot, timeContext.timeSlot),
             eq(discoveryFeedItems.targetTimeSlot, 'any')
@@ -470,14 +501,23 @@ export async function generateDiscoveryFeed(
       await db.insert(discoveryFeedItems).values(feedItems);
     }
 
-    // Fetch the inserted items
+    // Fetch the inserted items - filter by the requested time slot
+    // CRITICAL: This query MUST filter by targetTimeSlot, not just user + expiry
+    // Without this filter, stale cached items from other time slots (e.g., "night")
+    // would be returned even when user explicitly requested a different slot (e.g., "evening")
+    // This was a bug that caused wrong recommendations to appear when switching tabs
     const insertedItems = await db
       .select()
       .from(discoveryFeedItems)
       .where(
         and(
           eq(discoveryFeedItems.userId, userId),
-          gte(discoveryFeedItems.expiresAt, new Date())
+          gte(discoveryFeedItems.expiresAt, new Date()),
+          // Filter by requested time slot - same logic as cache lookup above
+          or(
+            eq(discoveryFeedItems.targetTimeSlot, timeContext.timeSlot),
+            eq(discoveryFeedItems.targetTimeSlot, 'any')
+          )
         )
       )
       .orderBy(desc(discoveryFeedItems.score))

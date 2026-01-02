@@ -31,6 +31,11 @@ export interface RecommendationSettings {
   harmonicMixingEnabled?: boolean; // Show BPM/key compatibility in recommendations
   harmonicMixingMode?: 'strict' | 'flexible' | 'off'; // Strictness of harmonic matching
   bpmTolerance?: number; // Max BPM difference percentage (default: 6%)
+  // Playlist Autoplay Queueing with Smart Transitions
+  autoplayEnabled: boolean; // Master toggle for autoplay when playlist ends
+  autoplayBlendMode: 'crossfade' | 'silence' | 'reverb_tail'; // Transition effect between songs
+  autoplayTransitionDuration: number; // Duration in seconds (1-10)
+  autoplaySmartTransitions: boolean; // Use AI to determine optimal transition type
 }
 
 export interface PlaybackSettings {

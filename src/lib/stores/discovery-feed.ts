@@ -447,8 +447,32 @@ export const useDiscoveryFeedStore = create<DiscoveryFeedState>()(
       // Filter Actions
       // ====================================================================
 
+      /**
+       * Set the active time slot filter
+       *
+       * When switching to a specific time slot (morning, afternoon, evening, night),
+       * we clear the cached items to ensure fresh data is fetched.
+       *
+       * This works together with the server-side filtering in generateDiscoveryFeed()
+       * which only returns items matching the requested time slot.
+       *
+       * Flow: User clicks tab -> setActiveFilter() clears items -> refreshFeed() fetches new data
+       *
+       * @see docs/features/time-based-discovery-logic.md
+       */
       setActiveFilter: (filter: TimeSlot | 'any') => {
+        const state = get();
+        const previousFilter = state.activeFilter;
+
+        // Update filter immediately
         set({ activeFilter: filter });
+
+        // If switching to a specific time slot (not 'any'), clear items and fetch fresh
+        // This ensures we don't show stale cached items from other time slots
+        // The refreshFeed() call in the UI component will then fetch time-specific recommendations
+        if (filter !== previousFilter && filter !== 'any') {
+          set({ items: [], hasMore: true, lastFetchedAt: null });
+        }
       },
 
       setActiveContext: (context: ListeningContext | 'all') => {

@@ -139,13 +139,14 @@ function RootComponent() {
   // Register service worker for PWA functionality
   useServiceWorker();
 
-  // Use new AppLayout for main app routes (dashboard, library, playlists, dj, settings)
+  // Use new AppLayout for main app routes (dashboard, library, playlists, dj, settings, music-identity)
   const useNewLayout = currentPath.startsWith('/dashboard') ||
                        currentPath.startsWith('/library') ||
                        currentPath.startsWith('/playlists') ||
                        currentPath.startsWith('/dj') ||
                        currentPath.startsWith('/downloads') ||
-                       currentPath.startsWith('/settings');
+                       currentPath.startsWith('/settings') ||
+                       currentPath.startsWith('/music-identity');
 
   // Routes that should NOT have the new layout (landing, auth pages)
   const isAuthPage = currentPath.startsWith('/login') ||

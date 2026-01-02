@@ -392,8 +392,9 @@ export async function addArtist(artist: LidarrArtist, options?: { monitorAll?: b
       throw new ServiceError('LIDARR_CONFIG_ERROR', 'No root folder configured in Lidarr');
     }
 
-    // By default, only monitor the artist (not all albums) to avoid downloading entire discographies
-    // Use 'none' to add artist unmonitored, then selectively enable albums
+    // Artist is always monitored (required for Slskd to pick it up)
+    // By default, NO albums are monitored initially - we selectively monitor specific albums
+    // This prevents downloading entire discographies when we only want one song
     const shouldMonitorAll = options?.monitorAll ?? false;
 
     // Build the artist payload with required fields for adding
@@ -456,6 +457,41 @@ export async function getArtistAlbums(artistId: number): Promise<LidarrAlbum[]> 
   } catch (error) {
     console.error('Error fetching artist albums:', error);
     return [];
+  }
+}
+
+/**
+ * Ensure an artist is monitored (required for Slskd to pick up albums)
+ */
+export async function ensureArtistMonitored(artistId: number): Promise<boolean> {
+  try {
+    // Get current artist data
+    const artist = await apiFetch(`/artist/${artistId}`) as LidarrArtist & {
+      monitored: boolean;
+      qualityProfileId: number;
+      metadataProfileId: number;
+      rootFolderPath: string;
+    };
+
+    // If already monitored, nothing to do
+    if (artist.monitored) {
+      return true;
+    }
+
+    // Update to monitored
+    console.log(`🎯 Enabling monitoring for artist "${artist.artistName}"`);
+    await apiFetch(`/artist/${artistId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        ...artist,
+        monitored: true,
+      }),
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error ensuring artist is monitored:', error);
+    return false;
   }
 }
 
@@ -561,11 +597,12 @@ export interface DownloadHistory {
   id: string;
   artistName: string;
   foreignArtistId: string;
-  status: 'completed' | 'failed';
+  status: 'completed' | 'failed' | 'grabbed' | 'importing';
   addedAt: string;
   completedAt: string;
   size?: number;
   errorMessage?: string;
+  eventType?: string; // Original Lidarr event type for debugging
 }
 
 /**
@@ -682,12 +719,19 @@ export async function getDownloadHistory(): Promise<DownloadHistory[]> {
     return response.records
       .filter(item => downloadEvents.includes(item.eventType))
       .map(item => {
-        // Map Lidarr eventType to our status
+        // Map Lidarr eventType to our status accurately
+        // - grabbed: Lidarr sent the release to the download client (NOT completed!)
+        // - downloadFailed: Download client reported failure
+        // - albumImportIncomplete: Import had issues
+        // - downloadFolderImported: Successfully imported from download folder
+        // - trackFileImported: Individual track file was imported (true completion)
         let status: DownloadHistory['status'] = 'completed';
         if (item.eventType === 'downloadFailed' || item.eventType === 'albumImportIncomplete') {
           status = 'failed';
         } else if (item.eventType === 'grabbed') {
-          status = 'completed'; // Grabbed means download started successfully
+          status = 'grabbed'; // Sent to download client, NOT completed yet
+        } else if (item.eventType === 'downloadFolderImported' || item.eventType === 'trackFileImported') {
+          status = 'completed'; // Actually completed and imported
         }
 
         // Extract error message for failed downloads
@@ -708,6 +752,7 @@ export async function getDownloadHistory(): Promise<DownloadHistory[]> {
           completedAt: item.date || new Date().toISOString(),
           size: isNaN(size as number) ? undefined : size,
           errorMessage,
+          eventType: item.eventType, // Include for debugging
         };
       });
   } catch (error) {

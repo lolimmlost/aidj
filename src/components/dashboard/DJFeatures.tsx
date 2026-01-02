@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Disc3, ListMusic, Bot, SlidersHorizontal, Plus, Sparkles } from 'lucide-react';
+import { Disc3, ListMusic, Bot, SlidersHorizontal, Plus, Sparkles, Settings } from 'lucide-react';
 
 /**
  * DJ Features section showcasing available DJ tools
@@ -29,6 +29,44 @@ export function DJFeatures() {
 
       {/* Features Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* DJ Settings - Quick Access */}
+        <Link to="/dj/settings" className="group md:col-span-2">
+          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-600/10 via-indigo-600/5 to-purple-600/10 border-2 border-blue-500/20 hover:border-blue-500/40 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-0.5 p-5 sm:p-6">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-full blur-2xl -z-10" />
+
+            <div className="flex flex-col sm:flex-row gap-4 items-start">
+              <div className="flex-shrink-0 p-3 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg group-hover:scale-105 transition-transform">
+                <Settings className="h-6 w-6 text-white" />
+              </div>
+
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-xl font-bold">DJ Settings</h3>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-blue-400 to-indigo-500 text-white">
+                    Quick Access
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Configure AI DJ mode and audio transitions for the perfect mix
+                </p>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <CheckIcon /> Crossfade & Transitions
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <CheckIcon /> AI DJ Controls
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <CheckIcon /> Smart Timing
+                  </span>
+                </div>
+              </div>
+
+              <ArrowIcon className="hidden sm:block text-muted-foreground/50 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+            </div>
+          </div>
+        </Link>
+
         {/* DJ Mixer - Featured */}
         <Link to="/dj/mixer" className="group md:col-span-2">
           <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-600/10 via-purple-600/5 to-pink-600/10 border-2 border-blue-500/20 hover:border-blue-500/40 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-0.5 p-5 sm:p-6">

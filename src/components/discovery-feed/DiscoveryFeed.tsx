@@ -227,15 +227,29 @@ export const DiscoveryFeed = memo(function DiscoveryFeed({
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Time filter tabs */}
+        {/* Time filter tabs
+         *
+         * Tab switching flow:
+         * 1. User clicks a time tab (e.g., "Evening")
+         * 2. setActiveFilter() updates state and clears cached items
+         * 3. setTimeout ensures React processes the state update
+         * 4. refreshFeed() calls the API with includeExisting=false
+         * 5. API generates fresh recommendations filtered by targetTimeSlot
+         *
+         * This ensures each tab shows only relevant recommendations for that time slot
+         * @see docs/features/time-based-discovery-logic.md
+         */}
         <Tabs
           value={activeFilter}
           onValueChange={(value) => {
-            setActiveFilter(value as TimeSlot | 'any');
-            // Refresh feed when switching time slots to get time-specific recommendations
-            if (value !== 'any') {
+            const newFilter = value as TimeSlot | 'any';
+            setActiveFilter(newFilter);
+            // Always refresh when switching tabs to get fresh time-specific recommendations
+            // Use setTimeout to ensure state update (including item clearing) is processed first
+            // Without this, refreshFeed might fetch with the old filter state
+            setTimeout(() => {
               refreshFeed();
-            }
+            }, 0);
           }}
           className="w-full"
         >
