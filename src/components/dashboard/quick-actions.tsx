@@ -1,63 +1,68 @@
 /**
- * Quick Actions Component - Story 7.4
- * Provides style preset buttons for quick playlist generation
+ * Quick Actions Component - Mood-based Playlist Generation
+ * Beautiful gradient cards for instant playlist creation
  */
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Sparkles, Zap, PartyPopper, Target, Compass, Play, Music } from 'lucide-react';
+import { Sparkles, Zap, PartyPopper, Target, Compass, Music, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface StylePreset {
   id: string;
   label: string;
+  description: string;
   icon: React.ReactNode;
   prompt: string;
-  color: string;
+  gradient: string;
 }
 
 export const STYLE_PRESETS: StylePreset[] = [
   {
     id: 'chill',
     label: 'Chill',
-    icon: <Sparkles className="h-5 w-5" />,
+    description: 'Relax & unwind',
+    icon: <Sparkles className="h-6 w-6" />,
     prompt: 'relaxing chill vibes, acoustic, downtempo, peaceful',
-    color: 'from-blue-500 to-cyan-500',
+    gradient: 'mood-card-chill',
   },
   {
     id: 'energetic',
     label: 'Energy',
-    icon: <Zap className="h-5 w-5" />,
+    description: 'Get moving',
+    icon: <Zap className="h-6 w-6" />,
     prompt: 'high energy workout music, upbeat, driving rhythm',
-    color: 'from-orange-500 to-red-500',
+    gradient: 'mood-card-energy',
   },
   {
     id: 'party',
     label: 'Party',
-    icon: <PartyPopper className="h-5 w-5" />,
+    description: 'Dance all night',
+    icon: <PartyPopper className="h-6 w-6" />,
     prompt: 'dance party hits, crowd pleasers, upbeat pop and electronic',
-    color: 'from-pink-500 to-purple-500',
+    gradient: 'mood-card-party',
   },
   {
     id: 'focus',
     label: 'Focus',
-    icon: <Target className="h-5 w-5" />,
+    description: 'Deep work mode',
+    icon: <Target className="h-6 w-6" />,
     prompt: 'concentration music, minimal lyrics, ambient, instrumental',
-    color: 'from-green-500 to-emerald-500',
+    gradient: 'mood-card-focus',
   },
   {
     id: 'discover',
     label: 'Discover',
-    icon: <Compass className="h-5 w-5" />,
+    description: 'Find new gems',
+    icon: <Compass className="h-6 w-6" />,
     prompt: 'hidden gems and deep cuts from artists similar to my favorites',
-    color: 'from-violet-500 to-indigo-500',
+    gradient: 'mood-card-discover',
   },
   {
     id: 'similar',
     label: 'Similar',
-    icon: <Music className="h-5 w-5" />,
-    prompt: 'songs similar to what I\'m currently listening to',
-    color: 'from-purple-500 to-pink-500',
+    description: 'More like this',
+    icon: <Music className="h-6 w-6" />,
+    prompt: "songs similar to what I'm currently listening to",
+    gradient: 'mood-card-party',
   },
 ];
 
@@ -72,70 +77,78 @@ interface QuickActionsProps {
 
 export function QuickActions({
   onPresetClick,
-  onContinueListening,
-  lastPlayedSong,
   isLoading = false,
   activePreset = null,
   className,
 }: QuickActionsProps) {
   return (
-    <Card className={cn('bg-card/50 backdrop-blur-sm border-border/50', className)}>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Music className="h-5 w-5 text-primary" />
-          Quick Actions
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Style Preset Grid - 6 presets in 3 columns for balanced layout */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
-          {STYLE_PRESETS.map((preset) => (
-            <Button
-              key={preset.id}
-              variant="outline"
-              onClick={() => onPresetClick(preset)}
-              disabled={isLoading}
-              className={cn(
-                'flex flex-col items-center justify-center h-16 sm:h-20 gap-1 sm:gap-1.5 transition-all hover:scale-105 px-1 sm:px-2',
-                'border-2 hover:border-primary/50',
-                activePreset === preset.id && 'border-primary bg-primary/10'
-              )}
-            >
-              <div
-                className={cn(
-                  'p-1.5 sm:p-2 rounded-full bg-gradient-to-br text-white',
-                  preset.color
-                )}
-              >
-                <span className="[&>svg]:h-4 [&>svg]:w-4 sm:[&>svg]:h-5 sm:[&>svg]:w-5">{preset.icon}</span>
-              </div>
-              <span className="text-[10px] sm:text-xs font-medium">{preset.label}</span>
-            </Button>
-          ))}
+    <section className={cn('space-y-4', className)}>
+      {/* Section Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
+            What's your vibe?
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Tap a mood to generate a playlist instantly
+          </p>
         </div>
+      </div>
 
-        {/* Continue Listening Section */}
-        {lastPlayedSong && onContinueListening && (
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border/50">
-            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-              <Play className="h-4 w-4 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{lastPlayedSong.title}</p>
-              <p className="text-xs text-muted-foreground truncate">{lastPlayedSong.artist}</p>
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={onContinueListening}
-              disabled={isLoading}
-              className="flex-shrink-0"
-            >
-              Resume
-            </Button>
-          </div>
+      {/* Mood Cards Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-children">
+        {STYLE_PRESETS.map((preset) => (
+          <MoodCard
+            key={preset.id}
+            preset={preset}
+            isActive={activePreset === preset.id}
+            isLoading={isLoading && activePreset === preset.id}
+            onClick={() => onPresetClick(preset)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+interface MoodCardProps {
+  preset: StylePreset;
+  isActive: boolean;
+  isLoading: boolean;
+  onClick: () => void;
+}
+
+function MoodCard({ preset, isActive, isLoading, onClick }: MoodCardProps) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={isLoading}
+      className={cn(
+        'mood-card',
+        preset.gradient,
+        isActive && 'ring-2 ring-white/50 ring-offset-2 ring-offset-background scale-[1.02]',
+        isLoading && 'animate-pulse'
+      )}
+    >
+      {/* Icon */}
+      <div className="mb-3 opacity-90">
+        {isLoading ? (
+          <Loader2 className="h-6 w-6 animate-spin" />
+        ) : (
+          preset.icon
         )}
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Label */}
+      <h3 className="font-bold text-base sm:text-lg leading-tight">{preset.label}</h3>
+
+      {/* Description */}
+      <p className="text-xs sm:text-sm opacity-80 mt-1">{preset.description}</p>
+
+      {/* Active Indicator */}
+      {isActive && !isLoading && (
+        <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-white animate-pulse" />
+      )}
+    </button>
   );
 }

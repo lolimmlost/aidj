@@ -24,7 +24,8 @@ import {
 import type { Song } from '@/lib/types/song';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 // Critical components - loaded immediately
-import { DashboardHero, QuickActions, STYLE_PRESETS, type StylePreset } from '@/components/dashboard';
+import { DashboardHero } from '@/components/dashboard/DashboardHero';
+import { QuickActions, STYLE_PRESETS, type StylePreset } from '@/components/dashboard/quick-actions';
 import { SourceModeSelector, SourceBadge } from '@/components/playlist/source-mode-selector';
 import { GenerationProgress } from '@/components/ui/generation-progress';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
@@ -919,39 +920,32 @@ function DashboardIndex() {
           activePreset={activePreset}
         />
 
-        {/* AI DJ Status Banner - Only show when enabled, points to player */}
-        {aiDJEnabled && (
-          <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-sm font-medium">AI DJ is active</span>
-              <span className="text-xs text-muted-foreground">
-                {aiQueuedSongIds.size > 0 ? `• ${aiQueuedSongIds.size} songs queued` : '• Watching your queue'}
-              </span>
-            </div>
-            <span className="text-xs text-muted-foreground">Toggle in player ↓</span>
-          </div>
-        )}
 
       {/* AI Recommendations Section - conditionally rendered based on user preferences */}
       {preferences.dashboardLayout.showRecommendations && (
         <OllamaErrorBoundary>
-          <section className="space-y-6">
+          <section className="glass-card-premium p-5 sm:p-6 space-y-5">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <button
                 onClick={() => setRecommendationsCollapsed(!recommendationsCollapsed)}
-                className="flex items-center gap-2 text-left group"
+                className="flex items-center gap-3 text-left group"
               >
-                <h2 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
-                  <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">AI Recommendations</span>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
-                    Powered by AI
-                  </span>
-                </h2>
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-500">
+                    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+                    <span className="text-gradient-brand">AI Recommendations</span>
+                    <span className="badge-purple text-[10px]">AI</span>
+                  </h2>
+                  <p className="text-xs text-muted-foreground">Personalized picks based on your taste</p>
+                </div>
                 {recommendationsCollapsed ? (
-                  <ChevronDown className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors ml-1" />
                 ) : (
-                  <ChevronUp className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  <ChevronUp className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors ml-1" />
                 )}
               </button>
               {!recommendationsCollapsed && (
@@ -961,7 +955,7 @@ function DashboardIndex() {
                     size="sm"
                     onClick={() => refetchRecommendations()}
                     disabled={isLoading}
-                    className="flex-1 sm:flex-none min-h-[44px] hover:bg-primary/5 hover:border-primary/50 transition-all"
+                    className="flex-1 sm:flex-none min-h-[44px] hover:bg-primary/5 hover:border-primary/50 transition-all rounded-xl"
                     aria-label="Refresh recommendations"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`mr-2 ${isLoading ? 'animate-spin' : ''}`}>
@@ -973,7 +967,7 @@ function DashboardIndex() {
                     {isLoading ? 'Loading...' : 'Refresh'}
                   </Button>
                   <Select value={type} onValueChange={(value) => setType(value as 'similar' | 'mood')}>
-                    <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
+                    <SelectTrigger className="w-full sm:w-[180px] min-h-[44px] rounded-xl">
                       <SelectValue placeholder="Type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -985,7 +979,7 @@ function DashboardIndex() {
               )}
             </div>
             {recommendationsCollapsed && (
-              <p className="text-sm text-muted-foreground">Click to expand recommendations</p>
+              <p className="text-sm text-muted-foreground pl-[52px]">Tap to explore personalized recommendations</p>
             )}
             {!recommendationsCollapsed && (
               <>
@@ -1085,26 +1079,34 @@ function DashboardIndex() {
       {/* <DeferredDJFeatures /> */}
 
       <OllamaErrorBoundary>
-        <section className="space-y-6">
+        <section className="glass-card-premium p-5 sm:p-6 space-y-5">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <button
               onClick={() => setPlaylistCollapsed(!playlistCollapsed)}
-              className="flex items-center gap-2 text-left group"
+              className="flex items-center gap-3 text-left group"
             >
-              <h2 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
-                <span className="bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">Generate Playlist</span>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                  Describe your vibe
-                </span>
-              </h2>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-cyan-500">
+                  <path d="M9 18V5l12-2v13"/>
+                  <circle cx="6" cy="18" r="3"/>
+                  <circle cx="18" cy="16" r="3"/>
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+                  <span className="bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">Custom Playlist</span>
+                  <span className="badge-info text-[10px]">AI</span>
+                </h2>
+                <p className="text-xs text-muted-foreground">Describe your vibe, get a playlist</p>
+              </div>
               {playlistCollapsed ? (
-                <ChevronDown className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors ml-1" />
               ) : (
-                <ChevronUp className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <ChevronUp className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors ml-1" />
               )}
             </button>
             {!playlistCollapsed && (
-              <Button onClick={clearPlaylistCache} variant="outline" size="sm" className="min-h-[44px] w-full sm:w-auto hover:bg-destructive/5 hover:border-destructive/50 transition-all" aria-label="Clear playlist cache">
+              <Button onClick={clearPlaylistCache} variant="outline" size="sm" className="min-h-[44px] w-full sm:w-auto hover:bg-destructive/5 hover:border-destructive/50 transition-all rounded-xl" aria-label="Clear playlist cache">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
                   <path d="M3 6h18"/>
                   <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
@@ -1115,15 +1117,15 @@ function DashboardIndex() {
             )}
           </div>
           {playlistCollapsed && (
-            <p className="text-sm text-muted-foreground">Click to expand playlist generator</p>
+            <p className="text-sm text-muted-foreground pl-[52px]">Tap to create a custom AI-generated playlist</p>
           )}
           {!playlistCollapsed && (
             <>
 
-        <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-500/5 to-cyan-500/5 border border-blue-500/20 space-y-4">
-          {/* Story 7.1: Source Mode Selector */}
+        <div className="space-y-4">
+          {/* Source Mode Selector */}
           <div>
-            <label className="text-sm font-medium mb-2 block">Source</label>
+            <label className="text-sm font-medium mb-2 block text-muted-foreground">Source</label>
             <SourceModeSelector
               value={sourceMode}
               onChange={setSourceMode}
@@ -1132,40 +1134,35 @@ function DashboardIndex() {
             />
           </div>
 
+          {/* Input Area */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
                 <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
               </svg>
               <Input
-                placeholder="Enter a mood, genre, or theme (e.g., 'Chill Sunday', 'Workout Energy', 'Halloween Party')"
+                placeholder="Describe your vibe... (e.g., 'Chill Sunday morning', 'Late night coding')"
                 value={style}
                 onChange={(e) => setStyle(e.target.value)}
-                className="pl-12 min-h-[52px] bg-background/50 border-border/50 focus:border-primary/50 transition-all"
+                className="pl-12 h-12 sm:h-14 bg-background/80 border-border/50 focus:border-primary/50 rounded-xl text-base transition-all"
                 aria-label="Playlist style"
               />
             </div>
-            <Button
+            <button
               onClick={() => {
-                // Reset generation stage to show loading immediately
                 setGenerationStage('generating');
-                // Use query key factory for consistent cache management
                 queryClient.invalidateQueries({ queryKey: queryKeys.playlists.generatedByStyle(trimmedStyle, sourceMode, mixRatio) });
                 refetchPlaylist();
               }}
               disabled={!trimmedStyle}
-              className="min-h-[52px] w-full sm:w-auto px-6 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg shadow-blue-500/20"
+              className="action-button h-12 sm:h-14 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               aria-label="Generate playlist now"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
                 <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
-                <path d="M5 3v4"/>
-                <path d="M19 17v4"/>
-                <path d="M3 5h4"/>
-                <path d="M17 19h4"/>
               </svg>
-              Generate Playlist
-            </Button>
+              Generate
+            </button>
           </div>
         </div>
 
