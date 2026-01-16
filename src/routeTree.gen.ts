@@ -28,6 +28,7 @@ import { Route as DownloadsHistoryRouteImport } from './routes/downloads/history
 import { Route as DjSettingsRouteImport } from './routes/dj/settings'
 import { Route as DjSetBuilderRouteImport } from './routes/dj/set-builder'
 import { Route as DashboardMoodTimelineRouteImport } from './routes/dashboard/mood-timeline'
+import { Route as DashboardDiscoveryAnalyticsRouteImport } from './routes/dashboard/discovery-analytics'
 import { Route as DashboardDiscoverRouteImport } from './routes/dashboard/discover'
 import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard/analytics'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
@@ -53,6 +54,7 @@ import { Route as ApiRecommendationsSeasonalInsightsRouteImport } from './routes
 import { Route as ApiRecommendationsMoodTimelineRouteImport } from './routes/api/recommendations/mood-timeline'
 import { Route as ApiRecommendationsFeedbackRouteImport } from './routes/api/recommendations/feedback'
 import { Route as ApiRecommendationsExportRouteImport } from './routes/api/recommendations/export'
+import { Route as ApiRecommendationsDiscoveryAnalyticsRouteImport } from './routes/api/recommendations/discovery-analytics'
 import { Route as ApiRecommendationsClearRouteImport } from './routes/api/recommendations/clear'
 import { Route as ApiRecommendationsAnalyticsRouteImport } from './routes/api/recommendations/analytics'
 import { Route as ApiPlaylistsSyncRouteImport } from './routes/api/playlists/sync'
@@ -218,6 +220,12 @@ const DashboardMoodTimelineRoute = DashboardMoodTimelineRouteImport.update({
   path: '/mood-timeline',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardDiscoveryAnalyticsRoute =
+  DashboardDiscoveryAnalyticsRouteImport.update({
+    id: '/discovery-analytics',
+    path: '/discovery-analytics',
+    getParentRoute: () => DashboardRouteRoute,
+  } as any)
 const DashboardDiscoverRoute = DashboardDiscoverRouteImport.update({
   id: '/discover',
   path: '/discover',
@@ -347,6 +355,12 @@ const ApiRecommendationsExportRoute =
   ApiRecommendationsExportRouteImport.update({
     id: '/export',
     path: '/export',
+    getParentRoute: () => ApiRecommendationsRoute,
+  } as any)
+const ApiRecommendationsDiscoveryAnalyticsRoute =
+  ApiRecommendationsDiscoveryAnalyticsRouteImport.update({
+    id: '/discovery-analytics',
+    path: '/discovery-analytics',
     getParentRoute: () => ApiRecommendationsRoute,
   } as any)
 const ApiRecommendationsClearRoute = ApiRecommendationsClearRouteImport.update({
@@ -734,6 +748,7 @@ export interface FileRoutesByFullPath {
   '/api/search': typeof ApiSearchRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/discover': typeof DashboardDiscoverRoute
+  '/dashboard/discovery-analytics': typeof DashboardDiscoveryAnalyticsRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/settings': typeof DjSettingsRoute
@@ -787,6 +802,7 @@ export interface FileRoutesByFullPath {
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
   '/api/recommendations/clear': typeof ApiRecommendationsClearRoute
+  '/api/recommendations/discovery-analytics': typeof ApiRecommendationsDiscoveryAnalyticsRoute
   '/api/recommendations/export': typeof ApiRecommendationsExportRoute
   '/api/recommendations/feedback': typeof ApiRecommendationsFeedbackRoute
   '/api/recommendations/mood-timeline': typeof ApiRecommendationsMoodTimelineRoute
@@ -848,6 +864,7 @@ export interface FileRoutesByTo {
   '/api/search': typeof ApiSearchRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/discover': typeof DashboardDiscoverRoute
+  '/dashboard/discovery-analytics': typeof DashboardDiscoveryAnalyticsRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/settings': typeof DjSettingsRoute
@@ -900,6 +917,7 @@ export interface FileRoutesByTo {
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
   '/api/recommendations/clear': typeof ApiRecommendationsClearRoute
+  '/api/recommendations/discovery-analytics': typeof ApiRecommendationsDiscoveryAnalyticsRoute
   '/api/recommendations/export': typeof ApiRecommendationsExportRoute
   '/api/recommendations/feedback': typeof ApiRecommendationsFeedbackRoute
   '/api/recommendations/mood-timeline': typeof ApiRecommendationsMoodTimelineRoute
@@ -964,6 +982,7 @@ export interface FileRoutesById {
   '/api/search': typeof ApiSearchRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/discover': typeof DashboardDiscoverRoute
+  '/dashboard/discovery-analytics': typeof DashboardDiscoveryAnalyticsRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/settings': typeof DjSettingsRoute
@@ -1017,6 +1036,7 @@ export interface FileRoutesById {
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
   '/api/recommendations/clear': typeof ApiRecommendationsClearRoute
+  '/api/recommendations/discovery-analytics': typeof ApiRecommendationsDiscoveryAnalyticsRoute
   '/api/recommendations/export': typeof ApiRecommendationsExportRoute
   '/api/recommendations/feedback': typeof ApiRecommendationsFeedbackRoute
   '/api/recommendations/mood-timeline': typeof ApiRecommendationsMoodTimelineRoute
@@ -1081,6 +1101,7 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/dashboard/analytics'
     | '/dashboard/discover'
+    | '/dashboard/discovery-analytics'
     | '/dashboard/mood-timeline'
     | '/dj/set-builder'
     | '/dj/settings'
@@ -1134,6 +1155,7 @@ export interface FileRouteTypes {
     | '/api/playlists/sync'
     | '/api/recommendations/analytics'
     | '/api/recommendations/clear'
+    | '/api/recommendations/discovery-analytics'
     | '/api/recommendations/export'
     | '/api/recommendations/feedback'
     | '/api/recommendations/mood-timeline'
@@ -1195,6 +1217,7 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/dashboard/analytics'
     | '/dashboard/discover'
+    | '/dashboard/discovery-analytics'
     | '/dashboard/mood-timeline'
     | '/dj/set-builder'
     | '/dj/settings'
@@ -1247,6 +1270,7 @@ export interface FileRouteTypes {
     | '/api/playlists/sync'
     | '/api/recommendations/analytics'
     | '/api/recommendations/clear'
+    | '/api/recommendations/discovery-analytics'
     | '/api/recommendations/export'
     | '/api/recommendations/feedback'
     | '/api/recommendations/mood-timeline'
@@ -1310,6 +1334,7 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/dashboard/analytics'
     | '/dashboard/discover'
+    | '/dashboard/discovery-analytics'
     | '/dashboard/mood-timeline'
     | '/dj/set-builder'
     | '/dj/settings'
@@ -1363,6 +1388,7 @@ export interface FileRouteTypes {
     | '/api/playlists/sync'
     | '/api/recommendations/analytics'
     | '/api/recommendations/clear'
+    | '/api/recommendations/discovery-analytics'
     | '/api/recommendations/export'
     | '/api/recommendations/feedback'
     | '/api/recommendations/mood-timeline'
@@ -1635,6 +1661,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardMoodTimelineRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/dashboard/discovery-analytics': {
+      id: '/dashboard/discovery-analytics'
+      path: '/discovery-analytics'
+      fullPath: '/dashboard/discovery-analytics'
+      preLoaderRoute: typeof DashboardDiscoveryAnalyticsRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/dashboard/discover': {
       id: '/dashboard/discover'
       path: '/discover'
@@ -1808,6 +1841,13 @@ declare module '@tanstack/react-router' {
       path: '/export'
       fullPath: '/api/recommendations/export'
       preLoaderRoute: typeof ApiRecommendationsExportRouteImport
+      parentRoute: typeof ApiRecommendationsRoute
+    }
+    '/api/recommendations/discovery-analytics': {
+      id: '/api/recommendations/discovery-analytics'
+      path: '/discovery-analytics'
+      fullPath: '/api/recommendations/discovery-analytics'
+      preLoaderRoute: typeof ApiRecommendationsDiscoveryAnalyticsRouteImport
       parentRoute: typeof ApiRecommendationsRoute
     }
     '/api/recommendations/clear': {
@@ -2320,6 +2360,7 @@ const authRouteRouteWithChildren = authRouteRoute._addFileChildren(
 interface DashboardRouteRouteChildren {
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
   DashboardDiscoverRoute: typeof DashboardDiscoverRoute
+  DashboardDiscoveryAnalyticsRoute: typeof DashboardDiscoveryAnalyticsRoute
   DashboardMoodTimelineRoute: typeof DashboardMoodTimelineRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   DashboardRecommendationsIdRoute: typeof DashboardRecommendationsIdRoute
@@ -2328,6 +2369,7 @@ interface DashboardRouteRouteChildren {
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
   DashboardDiscoverRoute: DashboardDiscoverRoute,
+  DashboardDiscoveryAnalyticsRoute: DashboardDiscoveryAnalyticsRoute,
   DashboardMoodTimelineRoute: DashboardMoodTimelineRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DashboardRecommendationsIdRoute: DashboardRecommendationsIdRoute,
@@ -2340,6 +2382,7 @@ const DashboardRouteRouteWithChildren = DashboardRouteRoute._addFileChildren(
 interface ApiRecommendationsRouteChildren {
   ApiRecommendationsAnalyticsRoute: typeof ApiRecommendationsAnalyticsRoute
   ApiRecommendationsClearRoute: typeof ApiRecommendationsClearRoute
+  ApiRecommendationsDiscoveryAnalyticsRoute: typeof ApiRecommendationsDiscoveryAnalyticsRoute
   ApiRecommendationsExportRoute: typeof ApiRecommendationsExportRoute
   ApiRecommendationsFeedbackRoute: typeof ApiRecommendationsFeedbackRoute
   ApiRecommendationsMoodTimelineRoute: typeof ApiRecommendationsMoodTimelineRoute
@@ -2350,6 +2393,8 @@ interface ApiRecommendationsRouteChildren {
 const ApiRecommendationsRouteChildren: ApiRecommendationsRouteChildren = {
   ApiRecommendationsAnalyticsRoute: ApiRecommendationsAnalyticsRoute,
   ApiRecommendationsClearRoute: ApiRecommendationsClearRoute,
+  ApiRecommendationsDiscoveryAnalyticsRoute:
+    ApiRecommendationsDiscoveryAnalyticsRoute,
   ApiRecommendationsExportRoute: ApiRecommendationsExportRoute,
   ApiRecommendationsFeedbackRoute: ApiRecommendationsFeedbackRoute,
   ApiRecommendationsMoodTimelineRoute: ApiRecommendationsMoodTimelineRoute,

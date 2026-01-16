@@ -23,6 +23,7 @@ import {
   Cell,
 } from 'recharts';
 import { Skeleton } from '../ui/skeleton';
+import { LayoutDashboard, Target, Activity, Compass } from 'lucide-react';
 
 // ============================================================================
 // Types
@@ -151,11 +152,23 @@ export function AnalyticsDashboard({ period = '30d' }: AnalyticsDashboardProps) 
   return (
     <div className="space-y-6">
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="quality">Quality</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="discovery">Discovery</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 h-auto">
+          <TabsTrigger value="overview" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+            <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="hidden sm:inline">Overview</span>
+          </TabsTrigger>
+          <TabsTrigger value="quality" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+            <Target className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="hidden sm:inline">Quality</span>
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+            <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="hidden sm:inline">Activity</span>
+          </TabsTrigger>
+          <TabsTrigger value="discovery" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+            <Compass className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="hidden sm:inline">Discovery</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">

@@ -25,12 +25,21 @@ import type {
 } from '../db/schema/mood-history.schema';
 import { eq, and, gte, lte, desc, asc, sql } from 'drizzle-orm';
 import { getSeason, type Season } from '../utils/temporal';
+import {
+  extractArtist,
+  extractTitle,
+  calculateDiversityScore,
+  getPeriodLabel,
+  getPeriodBounds,
+  type TimeGranularity,
+} from '../utils/analytics-helpers';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-export type TimeGranularity = 'day' | 'week' | 'month' | 'year';
+// Note: TimeGranularity is now imported from '../utils/analytics-helpers'
+export type { TimeGranularity } from '../utils/analytics-helpers';
 
 export interface TimelineDataPoint {
   periodStart: string; // ISO date
@@ -224,84 +233,8 @@ function inferMoodFromGenre(genre: string): keyof MoodDistribution {
   return 'neutral';
 }
 
-function getPeriodLabel(date: Date, granularity: TimeGranularity): string {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-  switch (granularity) {
-    case 'day':
-      return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-    case 'week':
-      return `Week of ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-    case 'month':
-      return `${months[date.getMonth()]} ${date.getFullYear()}`;
-    case 'year':
-      return `${date.getFullYear()}`;
-  }
-}
-
-function getPeriodBounds(date: Date, granularity: TimeGranularity): { start: Date; end: Date } {
-  const start = new Date(date);
-  const end = new Date(date);
-
-  switch (granularity) {
-    case 'day':
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      break;
-    case 'week':
-      const dayOfWeek = start.getDay();
-      start.setDate(start.getDate() - dayOfWeek);
-      start.setHours(0, 0, 0, 0);
-      end.setDate(start.getDate() + 6);
-      end.setHours(23, 59, 59, 999);
-      break;
-    case 'month':
-      start.setDate(1);
-      start.setHours(0, 0, 0, 0);
-      end.setMonth(end.getMonth() + 1);
-      end.setDate(0);
-      end.setHours(23, 59, 59, 999);
-      break;
-    case 'year':
-      start.setMonth(0, 1);
-      start.setHours(0, 0, 0, 0);
-      end.setMonth(11, 31);
-      end.setHours(23, 59, 59, 999);
-      break;
-  }
-
-  return { start, end };
-}
-
-function extractArtist(songArtistTitle: string): string {
-  const parts = songArtistTitle.split(' - ');
-  return parts[0]?.trim() || songArtistTitle;
-}
-
-function extractTitle(songArtistTitle: string): string {
-  const parts = songArtistTitle.split(' - ');
-  return parts[1]?.trim() || '';
-}
-
-function calculateDiversityScore(items: Map<string, number>): number {
-  if (items.size === 0) return 0;
-
-  const total = Array.from(items.values()).reduce((sum, count) => sum + count, 0);
-  if (total === 0) return 0;
-
-  // Shannon entropy
-  let entropy = 0;
-  for (const count of items.values()) {
-    const probability = count / total;
-    if (probability > 0) {
-      entropy -= probability * Math.log2(probability);
-    }
-  }
-
-  // Normalize to 0-1
-  const maxEntropy = Math.log2(items.size);
-  return maxEntropy > 0 ? entropy / maxEntropy : 0;
-}
+// Note: getPeriodLabel, getPeriodBounds, extractArtist, extractTitle, calculateDiversityScore
+// are now imported from '../utils/analytics-helpers'
 
 function detectSignificantChanges(
   current: TimelineDataPoint,

@@ -15,6 +15,33 @@ import { queryKeys } from '@/lib/query';
 // Re-export Song type from centralized location for backwards compatibility
 export type { Song } from '@/lib/types/song';
 
+// =============================================================================
+// 🔍 PHASE 1 DEBUG LOGGING - Background Playback Investigation
+// =============================================================================
+
+// Timestamped logging helper for debugging background playback issues
+const debugLog = (emoji: string, category: string, message: string, data?: Record<string, unknown>) => {
+  const timestamp = new Date().toISOString().split('T')[1].slice(0, -1); // HH:MM:SS.mmm
+  const dataStr = data ? ` | ${JSON.stringify(data)}` : '';
+  console.log(`[${timestamp}] ${emoji} [${category}] ${message}${dataStr}`);
+};
+
+// Network state mapping for readable logs
+const networkStateMap: Record<number, string> = {
+  0: 'NETWORK_EMPTY',
+  1: 'NETWORK_IDLE',
+  2: 'NETWORK_LOADING',
+  3: 'NETWORK_NO_SOURCE'
+};
+
+// Ready state mapping for readable logs
+const readyStateMap: Record<number, string> = {
+  0: 'HAVE_NOTHING',
+  1: 'HAVE_METADATA',
+  2: 'HAVE_CURRENT_DATA',
+  3: 'HAVE_FUTURE_DATA',
+  4: 'HAVE_ENOUGH_DATA'
+};
 
 // Helper function for time formatting
 const formatTime = (time: number) => {
@@ -295,8 +322,30 @@ export function AudioPlayer() {
     const audio = audioRef.current;
     if (!audio) return;
 
+    // =============================================================================
+    // 🔍 PHASE 1: Audio Lifecycle Event Logging
+    // =============================================================================
+
+    // Track last timeupdate log to avoid spam (log every 10 seconds)
+    let lastTimeUpdateLog = 0;
+
     const updateTime = () => {
       setCurrentTime(audio.currentTime);
+
+      // 🔍 DEBUG: Log timeupdate every 10 seconds to track background execution
+      const now = Date.now();
+      if (now - lastTimeUpdateLog >= 10000) {
+        lastTimeUpdateLog = now;
+        debugLog('🕐', 'TIMEUPDATE', `Progress check`, {
+          song: currentSong?.name || currentSong?.title || 'Unknown',
+          currentTime: Math.round(audio.currentTime),
+          duration: Math.round(audio.duration),
+          percent: Math.round((audio.currentTime / audio.duration) * 100),
+          paused: audio.paused,
+          networkState: networkStateMap[audio.networkState],
+          readyState: readyStateMap[audio.readyState]
+        });
+      }
 
       // Check if we've crossed the 50% threshold for scrobbling
       if (audio.duration > 0 && currentSong) {
@@ -305,7 +354,7 @@ export function AudioPlayer() {
         // Mark threshold reached at 50%
         if (playedPercentage >= 50 && !scrobbleThresholdReachedRef.current) {
           scrobbleThresholdReachedRef.current = true;
-          console.log(`📊 50% threshold reached for: ${currentSong.name}`);
+          debugLog('📊', 'SCROBBLE', `50% threshold reached`, { song: currentSong.name });
         }
 
         // iOS FIX: Preload next song when 10 seconds from end (or 90% through)
@@ -318,7 +367,10 @@ export function AudioPlayer() {
 
           // Only preload if we haven't already preloaded this song
           if (nextTrack && preloadedSongIdRef.current !== nextTrack.id) {
-            console.log('🔄 Preloading next song:', nextTrack.name || nextTrack.title);
+            debugLog('📥', 'PRELOAD', `Starting preload`, {
+              nextSong: nextTrack.name || nextTrack.title,
+              remainingTime: Math.round(timeRemaining)
+            });
             preloadedSongIdRef.current = nextTrack.id;
 
             // Create or reuse preload audio element
@@ -334,13 +386,59 @@ export function AudioPlayer() {
     };
 
     const updateDuration = () => setDuration(audio.duration);
+
     const onCanPlay = () => {
+      debugLog('✅', 'CANPLAY', `Audio ready to play`, {
+        song: currentSong?.name || currentSong?.title || 'Unknown',
+        duration: Math.round(audio.duration),
+        networkState: networkStateMap[audio.networkState],
+        readyState: readyStateMap[audio.readyState]
+      });
       setIsLoading(false);
       setError(null);
     };
+
     const onWaiting = () => {
+      debugLog('⏳', 'WAITING', `Buffering/waiting for data`, {
+        song: currentSong?.name || currentSong?.title || 'Unknown',
+        currentTime: Math.round(audio.currentTime),
+        networkState: networkStateMap[audio.networkState],
+        readyState: readyStateMap[audio.readyState]
+      });
       setIsLoading(true);
       setError(null);
+    };
+
+    // 🔍 DEBUG: Track play event
+    const onPlay = () => {
+      debugLog('▶️', 'PLAY', `Playback started`, {
+        song: currentSong?.name || currentSong?.title || 'Unknown',
+        currentTime: Math.round(audio.currentTime),
+        networkState: networkStateMap[audio.networkState]
+      });
+    };
+
+    // 🔍 DEBUG: Track pause event with context
+    const onPause = () => {
+      debugLog('⏸️', 'PAUSE', `Playback paused`, {
+        song: currentSong?.name || currentSong?.title || 'Unknown',
+        currentTime: Math.round(audio.currentTime),
+        duration: Math.round(audio.duration),
+        wasUserInitiated: isUserInitiatedPauseRef.current,
+        visibilityState: document.visibilityState,
+        networkState: networkStateMap[audio.networkState]
+      });
+    };
+
+    // 🔍 DEBUG: Track suspend event (browser stopped loading)
+    const onSuspend = () => {
+      debugLog('🔇', 'SUSPEND', `Browser suspended loading`, {
+        song: currentSong?.name || currentSong?.title || 'Unknown',
+        currentTime: Math.round(audio.currentTime),
+        networkState: networkStateMap[audio.networkState],
+        readyState: readyStateMap[audio.readyState],
+        visibilityState: document.visibilityState
+      });
     };
     // Track stall recovery attempts
     let stallRecoveryTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -348,7 +446,13 @@ export function AudioPlayer() {
     const maxStallRecoveryAttempts = 3;
 
     const onStalled = () => {
-      console.log('🔴 Audio stalled - possible network issue');
+      debugLog('📡', 'STALLED', `Audio stalled - possible network issue`, {
+        song: currentSong?.name || currentSong?.title || 'Unknown',
+        currentTime: Math.round(audio.currentTime),
+        networkState: networkStateMap[audio.networkState],
+        readyState: readyStateMap[audio.readyState],
+        visibilityState: document.visibilityState
+      });
       setIsLoading(true);
 
       // Clear any existing recovery timeout
@@ -360,6 +464,7 @@ export function AudioPlayer() {
       stallRecoveryTimeout = setTimeout(async () => {
         // Check if still stalled (networkState 2 = NETWORK_LOADING but no progress)
         if (audio.paused || audio.ended || !isPlaying) {
+          debugLog('📡', 'STALLED', `Skipping recovery - not playing`, { paused: audio.paused, ended: audio.ended });
           return; // Not playing, don't try to recover
         }
 
@@ -369,7 +474,10 @@ export function AudioPlayer() {
 
         if (audio.currentTime === currentPos && isPlaying && !audio.paused) {
           stallRecoveryAttempts++;
-          console.log(`🔴 Audio still stalled, recovery attempt ${stallRecoveryAttempts}/${maxStallRecoveryAttempts}`);
+          debugLog('🔄', 'STALL_RECOVERY', `Attempting recovery ${stallRecoveryAttempts}/${maxStallRecoveryAttempts}`, {
+            song: currentSong?.name || currentSong?.title || 'Unknown',
+            stuckAt: Math.round(currentPos)
+          });
 
           if (stallRecoveryAttempts <= maxStallRecoveryAttempts && currentSong?.url) {
             try {
@@ -421,23 +529,54 @@ export function AudioPlayer() {
       }, 3000); // Wait 3 seconds before attempting recovery
     };
     const onError = (e: Event) => {
-      const audio = e.target as HTMLAudioElement;
-      const errorMessage = audio.error?.message || 'Unknown error';
+      const audioEl = e.target as HTMLAudioElement;
+      const errorCode = audioEl.error?.code;
+      const errorMessage = audioEl.error?.message || 'Unknown error';
+
+      // Map error codes to readable names
+      const errorCodeMap: Record<number, string> = {
+        1: 'MEDIA_ERR_ABORTED',
+        2: 'MEDIA_ERR_NETWORK',
+        3: 'MEDIA_ERR_DECODE',
+        4: 'MEDIA_ERR_SRC_NOT_SUPPORTED'
+      };
+
+      debugLog('❌', 'ERROR', `Audio error occurred`, {
+        song: currentSong?.name || currentSong?.title || 'Unknown',
+        errorCode: errorCode ? errorCodeMap[errorCode] || errorCode : 'unknown',
+        errorMessage,
+        currentTime: Math.round(audioEl.currentTime),
+        networkState: networkStateMap[audioEl.networkState],
+        readyState: readyStateMap[audioEl.readyState],
+        visibilityState: document.visibilityState
+      });
+
       setError(`Audio error: ${errorMessage}`);
       setIsLoading(false);
-      console.error('Audio error:', audio.error);
       // Sync Media Session to paused state on error
       if ('mediaSession' in navigator) {
         navigator.mediaSession.playbackState = 'paused';
       }
       // If network error, update state to allow recovery
-      if (audio.error?.code === MediaError.MEDIA_ERR_NETWORK) {
-        console.log('🔴 Network error detected - source may need reload on play');
+      if (errorCode === MediaError.MEDIA_ERR_NETWORK) {
+        debugLog('🌐', 'ERROR', `Network error - source needs reload`, {});
         setIsPlaying(false);
       }
     };
     const onEnded = () => {
-      console.log('🔴 SONG ENDED EVENT FIRED - advancing to next song');
+      // =============================================================================
+      // 🔍 PHASE 1: Song Transition Logging (CRITICAL - This is where iOS fails)
+      // =============================================================================
+      const state = useAudioStore.getState();
+
+      debugLog('🔴', 'ENDED', `Song ended - attempting transition`, {
+        endedSong: currentSong?.name || currentSong?.title || 'Unknown',
+        playlistLength: state.playlist.length,
+        currentIndex: state.currentSongIndex,
+        visibilityState: document.visibilityState,
+        networkState: networkStateMap[audio.networkState]
+      });
+
       // Mark as user-initiated to prevent iOS interruption handler from interfering
       isUserInitiatedPauseRef.current = true;
 
@@ -451,13 +590,21 @@ export function AudioPlayer() {
       // iOS requires play() to be called in the same execution context as a user gesture
       // or within an active audio session. By calling play() here before any state updates,
       // we maintain the audio session continuity from the ended event.
-      const state = useAudioStore.getState();
       // Match store's nextSong logic exactly (playlist is already shuffled if shuffle is on)
       const nextIndex = (state.currentSongIndex + 1) % state.playlist.length;
       const nextTrack = state.playlist[nextIndex];
 
+      debugLog('🔀', 'TRANSITION', `Preparing next song`, {
+        nextSong: nextTrack?.name || nextTrack?.title || 'NONE',
+        nextIndex,
+        hasNextTrack: !!nextTrack,
+        playlistLength: state.playlist.length
+      });
+
       if (nextTrack && state.playlist.length > 0) {
-        console.log('🔴 iOS FIX: Loading next song SYNCHRONOUSLY:', nextTrack.name || nextTrack.title);
+        debugLog('🔀', 'TRANSITION', `Loading next song SYNCHRONOUSLY (iOS fix)`, {
+          nextSong: nextTrack.name || nextTrack.title
+        });
         // Change src and play IMMEDIATELY - this keeps play() in same sync context
         audio.src = nextTrack.url;
         // Reset scrobble tracking for new song
@@ -467,14 +614,22 @@ export function AudioPlayer() {
 
         audio.play()
           .then(() => {
-            console.log('🟢 iOS: Immediate play SUCCESS');
+            debugLog('✅', 'TRANSITION', `Next song play SUCCESS`, {
+              song: nextTrack.name || nextTrack.title,
+              visibilityState: document.visibilityState
+            });
             isUserInitiatedPauseRef.current = false;
           })
           .catch(async (e) => {
-            console.error('🔴 iOS: Immediate play FAILED, attempting network recovery:', e);
+            debugLog('❌', 'TRANSITION', `Next song play FAILED - attempting recovery`, {
+              song: nextTrack.name || nextTrack.title,
+              error: e.message,
+              visibilityState: document.visibilityState,
+              networkState: networkStateMap[audio.networkState]
+            });
             // Network might have changed during song transition - retry with fresh URL
             try {
-              console.log('🔄 Retrying next song with fresh stream URL...');
+              debugLog('🔄', 'TRANSITION', `Retrying with fresh URL`, {});
               audio.src = '';
               audio.src = nextTrack.url + '?t=' + Date.now();
               audio.load();
@@ -497,23 +652,31 @@ export function AudioPlayer() {
               });
 
               await audio.play();
-              console.log('🟢 iOS: Recovery play SUCCESS');
+              debugLog('✅', 'TRANSITION', `Recovery play SUCCESS`, { song: nextTrack.name || nextTrack.title });
               isUserInitiatedPauseRef.current = false;
               setIsPlaying(true);
               if ('mediaSession' in navigator) {
                 navigator.mediaSession.playbackState = 'playing';
               }
             } catch (retryErr) {
-              console.error('🔴 iOS: Recovery also FAILED:', retryErr);
+              debugLog('❌', 'TRANSITION', `Recovery FAILED - giving up`, {
+                error: (retryErr as Error).message,
+                visibilityState: document.visibilityState
+              });
               // Fall back to letting the effect handle it
               shouldAutoPlayRef.current = true;
             }
           });
+      } else {
+        debugLog('⚠️', 'TRANSITION', `No next track available!`, {
+          playlistLength: state.playlist.length,
+          currentIndex: state.currentSongIndex
+        });
       }
 
       // Scrobble the song that just ended (async, after starting next song)
       if (endedSongId && endedSong) {
-        console.log(`🎵 Song ended, scrobbling: ${endedSongId}`);
+        debugLog('📊', 'SCROBBLE', `Scrobbling ended song`, { songId: endedSongId });
         scrobbleSong(endedSongId, true).catch(err =>
           console.error('Failed to scrobble on song end:', err)
         );
@@ -538,13 +701,12 @@ export function AudioPlayer() {
                 console.warn('Listening history API error:', data);
               });
             }
-            console.log('📊 Recorded listening history');
           })
           .catch(err => console.warn('Failed to record listening history:', err));
       }
 
       // Now update state (this syncs the UI, playback already started above)
-      console.log('🔴 Calling nextSong() to sync state');
+      debugLog('🔀', 'TRANSITION', `Calling nextSong() to sync state`, {});
       nextSong();
       setIsPlaying(true);
 
@@ -553,9 +715,12 @@ export function AudioPlayer() {
       const updatedState = useAudioStore.getState();
       const isNowLastSong = updatedState.currentSongIndex === updatedState.playlist.length - 1;
       if (isNowLastSong && updatedState.autoplayEnabled) {
-        console.log('🎶 Autoplay: Approaching end of playlist, triggering queue refill');
+        debugLog('🎶', 'AUTOPLAY', `Approaching end of playlist - triggering queue refill`, {
+          currentIndex: updatedState.currentSongIndex,
+          playlistLength: updatedState.playlist.length
+        });
         updatedState.triggerAutoplayQueueing().catch(err => {
-          console.error('🎶 Autoplay: Queue refill failed:', err);
+          debugLog('❌', 'AUTOPLAY', `Queue refill FAILED`, { error: (err as Error).message });
         });
       }
     };
@@ -567,14 +732,38 @@ export function AudioPlayer() {
     audio.addEventListener('stalled', onStalled);
     audio.addEventListener('error', onError);
     audio.addEventListener('ended', onEnded);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+    audio.addEventListener('suspend', onSuspend);
 
     audio.volume = volume;
+
+    // =============================================================================
+    // 🔍 PHASE 1: Heartbeat - Periodic health check to detect background JS suspension
+    // =============================================================================
+    let heartbeatCount = 0;
+    const heartbeatInterval = setInterval(() => {
+      heartbeatCount++;
+      if (!audio.paused) {
+        debugLog('💓', 'HEARTBEAT', `Health check #${heartbeatCount}`, {
+          song: currentSong?.name || currentSong?.title || 'Unknown',
+          currentTime: Math.round(audio.currentTime),
+          duration: Math.round(audio.duration),
+          paused: audio.paused,
+          ended: audio.ended,
+          networkState: networkStateMap[audio.networkState],
+          readyState: readyStateMap[audio.readyState],
+          visibilityState: document.visibilityState
+        });
+      }
+    }, 5000); // Every 5 seconds
 
     return () => {
       // Clean up stall recovery timeout
       if (stallRecoveryTimeout) {
         clearTimeout(stallRecoveryTimeout);
       }
+      clearInterval(heartbeatInterval);
       audio.removeEventListener('timeupdate', updateTime);
       audio.removeEventListener('loadedmetadata', updateDuration);
       audio.removeEventListener('canplay', onCanPlay);
@@ -582,6 +771,9 @@ export function AudioPlayer() {
       audio.removeEventListener('stalled', onStalled);
       audio.removeEventListener('error', onError);
       audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('suspend', onSuspend);
     };
   }, [volume, currentSongIndex, setCurrentTime, setDuration, setIsPlaying, nextSong, currentSong]);
 
@@ -731,18 +923,18 @@ export function AudioPlayer() {
   useEffect(() => {
     const requestWakeLock = async () => {
       if (!('wakeLock' in navigator)) {
-        console.log('🔒 Wake Lock API not supported');
+        debugLog('🔒', 'WAKELOCK', `API not supported`, {});
         return;
       }
 
       try {
         if (isPlaying && !wakeLockRef.current) {
           wakeLockRef.current = await navigator.wakeLock.request('screen');
-          console.log('🔒 Wake Lock acquired - screen will stay on');
+          debugLog('🔒', 'WAKELOCK', `Acquired - screen will stay on`, {});
 
           // Re-acquire wake lock if it's released (e.g., when tab becomes visible again)
           wakeLockRef.current.addEventListener('release', () => {
-            console.log('🔒 Wake Lock released');
+            debugLog('🔓', 'WAKELOCK', `Released by system`, { visibilityState: document.visibilityState });
             wakeLockRef.current = null;
             // Try to re-acquire if still playing
             if (isPlaying && document.visibilityState === 'visible') {
@@ -752,18 +944,25 @@ export function AudioPlayer() {
         } else if (!isPlaying && wakeLockRef.current) {
           await wakeLockRef.current.release();
           wakeLockRef.current = null;
-          console.log('🔒 Wake Lock released - playback stopped');
+          debugLog('🔓', 'WAKELOCK', `Released - playback stopped`, {});
         }
       } catch (err) {
         // Wake lock request can fail if page is not visible
-        console.log('🔒 Wake Lock request failed:', err);
+        debugLog('❌', 'WAKELOCK', `Request failed`, { error: (err as Error).message, visibilityState: document.visibilityState });
       }
     };
 
     requestWakeLock();
 
-    // Re-acquire wake lock when page becomes visible again
+    // =============================================================================
+    // 🔍 PHASE 1: Visibility Change Logging (Wake Lock effect)
+    // =============================================================================
     const handleVisibilityChange = () => {
+      debugLog('👁️', 'VISIBILITY', `State changed (wake lock handler)`, {
+        visibilityState: document.visibilityState,
+        isPlaying,
+        hasWakeLock: !!wakeLockRef.current
+      });
       if (document.visibilityState === 'visible' && isPlaying && !wakeLockRef.current) {
         requestWakeLock();
       }
@@ -790,18 +989,34 @@ export function AudioPlayer() {
     let wasPlayingBeforeOffline = false;
     let networkChangeTimeout: ReturnType<typeof setTimeout> | null = null;
 
+    // =============================================================================
+    // 🔍 PHASE 1: Network State Logging
+    // =============================================================================
+
     // Handle going offline
     const handleOffline = () => {
-      console.log('📶 Network offline detected');
+      debugLog('📴', 'NETWORK', `Went OFFLINE`, {
+        song: currentSong?.name || currentSong?.title || 'Unknown',
+        isPlaying,
+        audioPaused: audio.paused,
+        visibilityState: document.visibilityState
+      });
       if (isPlaying && !audio.paused) {
         wasPlayingBeforeOffline = true;
-        console.log('📶 Was playing, will attempt recovery when online');
+        debugLog('📴', 'NETWORK', `Was playing - will attempt recovery when online`, {});
       }
     };
 
     // Handle coming back online (or network type change)
     const handleOnline = () => {
-      console.log('📶 Network online detected');
+      debugLog('🌐', 'NETWORK', `Came ONLINE`, {
+        song: currentSong?.name || currentSong?.title || 'Unknown',
+        wasPlayingBeforeOffline,
+        audioPaused: audio.paused,
+        audioError: !!audio.error,
+        networkState: networkStateMap[audio.networkState],
+        visibilityState: document.visibilityState
+      });
 
       // Debounce to avoid multiple rapid reconnection attempts
       if (networkChangeTimeout) {
@@ -815,8 +1030,17 @@ export function AudioPlayer() {
           (wasPlayingBeforeOffline && audio.paused) ||
           (isPlaying && audio.paused && !audio.ended);
 
+        debugLog('🌐', 'NETWORK', `Recovery check`, {
+          needsRecovery,
+          audioError: !!audio.error,
+          networkState: networkStateMap[audio.networkState],
+          wasPlayingBeforeOffline,
+          isPlaying,
+          audioPaused: audio.paused
+        });
+
         if (needsRecovery && currentSong?.url) {
-          console.log('📶 Attempting audio stream recovery after network change...');
+          debugLog('🔄', 'NETWORK', `Attempting stream recovery`, { song: currentSong.name || currentSong.title });
           try {
             // Force fresh URL with cache buster
             audio.src = '';
@@ -847,12 +1071,12 @@ export function AudioPlayer() {
               if ('mediaSession' in navigator) {
                 navigator.mediaSession.playbackState = 'playing';
               }
-              console.log('📶 Audio stream recovered successfully!');
+              debugLog('✅', 'NETWORK', `Stream recovery SUCCESS`, { song: currentSong.name || currentSong.title });
             }
             wasPlayingBeforeOffline = false;
             setError(null);
           } catch (err) {
-            console.error('📶 Network recovery failed:', err);
+            debugLog('❌', 'NETWORK', `Stream recovery FAILED`, { error: (err as Error).message });
             setError('Network changed - tap play to resume');
             if ('mediaSession' in navigator) {
               navigator.mediaSession.playbackState = 'paused';
@@ -865,9 +1089,11 @@ export function AudioPlayer() {
     // Network Information API - detects WiFi/cellular changes
     const handleConnectionChange = () => {
       const connection = (navigator as any).connection;
-      if (connection) {
-        console.log(`📶 Network type changed: ${connection.effectiveType}, downlink: ${connection.downlink}Mbps`);
-      }
+      debugLog('📶', 'NETWORK', `Connection type changed`, {
+        effectiveType: connection?.effectiveType || 'unknown',
+        downlink: connection?.downlink || 'unknown',
+        visibilityState: document.visibilityState
+      });
       // Treat connection change like going offline then online
       handleOffline();
       setTimeout(handleOnline, 500);
@@ -907,6 +1133,10 @@ export function AudioPlayer() {
     let interruptionTimestamp: number | null = null;
     let wasHiddenBeforePause = document.visibilityState === 'hidden';
 
+    // =============================================================================
+    // 🔍 PHASE 1: iOS Interruption & Visibility Logging
+    // =============================================================================
+
     // Handle system-initiated pause (iOS notification, phone call, etc.)
     const handlePause = () => {
       // Only track if we were playing and this wasn't user-initiated
@@ -915,7 +1145,13 @@ export function AudioPlayer() {
         interruptionTimestamp = Date.now();
         wasHiddenBeforePause = document.visibilityState === 'hidden';
         wasPlayingBeforeInterruptionRef.current = true;
-        console.log(`🔔 Audio paused (wasHidden: ${wasHiddenBeforePause})`);
+
+        debugLog('🔔', 'iOS_INTERRUPT', `System pause detected`, {
+          wasHiddenBeforePause,
+          song: currentSong?.name || currentSong?.title || 'Unknown',
+          currentTime: Math.round(audio.currentTime),
+          networkState: networkStateMap[audio.networkState]
+        });
 
         // If we were already in background (screen locked), try to resume after a short delay
         // This handles notifications while screen is locked
@@ -924,10 +1160,13 @@ export function AudioPlayer() {
           const attemptResume = (attempt: number, maxAttempts: number, delay: number) => {
             setTimeout(() => {
               if (wasPlayingBeforeInterruptionRef.current && audio.paused) {
-                console.log(`🔔 Background resume attempt ${attempt}/${maxAttempts}...`);
+                debugLog('🔔', 'iOS_INTERRUPT', `Background resume attempt ${attempt}/${maxAttempts}`, {
+                  audioPaused: audio.paused,
+                  visibilityState: document.visibilityState
+                });
                 audio.play()
                   .then(() => {
-                    console.log('🔔 Background playback resumed');
+                    debugLog('✅', 'iOS_INTERRUPT', `Background resume SUCCESS`, {});
                     wasPlayingBeforeInterruptionRef.current = false;
                     interruptionTimestamp = null;
                     // Ensure Media Session shows playing state
@@ -936,12 +1175,12 @@ export function AudioPlayer() {
                     }
                   })
                   .catch((e) => {
-                    console.log(`🔔 Background resume attempt ${attempt} failed:`, e.message);
+                    debugLog('❌', 'iOS_INTERRUPT', `Background resume attempt ${attempt} FAILED`, { error: e.message });
                     // Retry with increasing delay
                     if (attempt < maxAttempts) {
                       attemptResume(attempt + 1, maxAttempts, delay * 1.5);
                     } else {
-                      console.log('🔔 All background resume attempts failed, waiting for user interaction');
+                      debugLog('❌', 'iOS_INTERRUPT', `All resume attempts failed - waiting for user`, {});
                       // Ensure Media Session shows paused state so play button works
                       if ('mediaSession' in navigator) {
                         navigator.mediaSession.playbackState = 'paused';
@@ -959,6 +1198,15 @@ export function AudioPlayer() {
 
     // Handle visibility change - distinguish between brief interruptions and intentional backgrounding
     const handleVisibilityChange = () => {
+      debugLog('👁️', 'VISIBILITY', `State changed (iOS handler)`, {
+        visibilityState: document.visibilityState,
+        isPlaying,
+        wasPlayingBeforeInterruption: wasPlayingBeforeInterruptionRef.current,
+        interruptionAge: interruptionTimestamp ? Date.now() - interruptionTimestamp : null,
+        audioPaused: audio.paused,
+        audioCurrentTime: Math.round(audio.currentTime)
+      });
+
       if (document.visibilityState === 'hidden') {
         // Page going hidden - only clear flag if there's no active interruption
         // (i.e., user is intentionally leaving, not a notification while playing)
@@ -966,7 +1214,7 @@ export function AudioPlayer() {
           const elapsed = Date.now() - interruptionTimestamp;
           // If the pause happened more than 1 second ago, user probably locked screen intentionally
           if (elapsed > 1000) {
-            console.log('🔔 Page hidden after pause - user left intentionally');
+            debugLog('👁️', 'VISIBILITY', `Page hidden after pause - user left intentionally`, { elapsed });
             wasPlayingBeforeInterruptionRef.current = false;
             interruptionTimestamp = null;
           }
@@ -978,12 +1226,12 @@ export function AudioPlayer() {
           const elapsed = Date.now() - interruptionTimestamp;
           // Resume if interruption was within last 30 seconds (generous for lock screen scenarios)
           if (elapsed < 30000) {
-            console.log(`🔔 Page visible, interruption ${elapsed}ms ago, attempting resume...`);
+            debugLog('👁️', 'VISIBILITY', `Page visible - attempting resume`, { elapsed, audioPaused: audio.paused });
             setTimeout(() => {
               if (audio && wasPlayingBeforeInterruptionRef.current && audio.paused) {
                 audio.play()
                   .then(() => {
-                    console.log('🔔 Playback resumed successfully');
+                    debugLog('✅', 'VISIBILITY', `Resume on visible SUCCESS`, {});
                     wasPlayingBeforeInterruptionRef.current = false;
                     interruptionTimestamp = null;
                     setIsPlaying(true);
@@ -993,7 +1241,7 @@ export function AudioPlayer() {
                     }
                   })
                   .catch((e) => {
-                    console.log('🔔 Resume failed, user can tap play on lock screen:', e.message);
+                    debugLog('❌', 'VISIBILITY', `Resume on visible FAILED`, { error: e.message });
                     // Clear the flag - user will need to manually press play
                     wasPlayingBeforeInterruptionRef.current = false;
                     interruptionTimestamp = null;
@@ -1005,7 +1253,7 @@ export function AudioPlayer() {
               }
             }, 100);
           } else {
-            console.log(`🔔 Interruption too old (${elapsed}ms), not auto-resuming`);
+            debugLog('👁️', 'VISIBILITY', `Interruption too old - not resuming`, { elapsed });
             wasPlayingBeforeInterruptionRef.current = false;
             interruptionTimestamp = null;
           }
@@ -1015,6 +1263,10 @@ export function AudioPlayer() {
 
     // iOS-specific: handle the 'playing' event which fires when playback actually starts
     const handlePlaying = () => {
+      debugLog('▶️', 'iOS_PLAYING', `Playback actually started`, {
+        song: currentSong?.name || currentSong?.title || 'Unknown',
+        visibilityState: document.visibilityState
+      });
       wasPlayingBeforeInterruptionRef.current = false;
       isUserInitiatedPauseRef.current = false;
       interruptionTimestamp = null;
@@ -1029,7 +1281,7 @@ export function AudioPlayer() {
       audio.removeEventListener('playing', handlePlaying);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isPlaying, setIsPlaying]);
+  }, [isPlaying, setIsPlaying, currentSong]);
 
   // Keyboard navigation handler
   useEffect(() => {
@@ -1659,6 +1911,7 @@ export function AudioPlayer() {
       <audio
         ref={audioRef}
         preload="metadata"
+        crossOrigin="anonymous" // Required for Web Audio API in Firefox
         playsInline // Required for iOS to not go fullscreen
         webkit-playsinline="true" // Legacy iOS support
         x-webkit-airplay="allow" // Enable AirPlay on iOS

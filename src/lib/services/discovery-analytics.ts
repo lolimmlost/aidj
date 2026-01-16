@@ -6,6 +6,9 @@
  * - Time-based engagement patterns
  * - Notification effectiveness
  * - A/B test results
+ *
+ * Note: This service uses its own AnalyticsPeriod type for database records.
+ * For shared analytics utilities, see: @/lib/utils/analytics-helpers
  */
 
 import { db } from '@/lib/db';

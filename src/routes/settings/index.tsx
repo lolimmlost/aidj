@@ -65,12 +65,18 @@ function SettingsPage() {
       {!isLoading && (
         <Tabs defaultValue="profile" className="w-full">
           <TabsList className="w-full grid grid-cols-2 gap-1 h-auto p-1 mb-8 sm:grid-cols-3 lg:grid-cols-6">
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="services">Services</TabsTrigger>
-            <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
-            <TabsTrigger value="playback">Playback</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="layout">Layout</TabsTrigger>
+            <TabsTrigger value="profile" className="text-xs sm:text-sm py-2">Profile</TabsTrigger>
+            <TabsTrigger value="services" className="text-xs sm:text-sm py-2">Services</TabsTrigger>
+            <TabsTrigger value="recommendations" className="text-xs sm:text-sm py-2">
+              <span className="sm:hidden">Recs</span>
+              <span className="hidden sm:inline">Recommendations</span>
+            </TabsTrigger>
+            <TabsTrigger value="playback" className="text-xs sm:text-sm py-2">Playback</TabsTrigger>
+            <TabsTrigger value="notifications" className="text-xs sm:text-sm py-2">
+              <span className="sm:hidden">Notifs</span>
+              <span className="hidden sm:inline">Notifications</span>
+            </TabsTrigger>
+            <TabsTrigger value="layout" className="text-xs sm:text-sm py-2">Layout</TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile">

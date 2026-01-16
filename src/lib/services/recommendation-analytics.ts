@@ -6,6 +6,14 @@
 import { db } from '../db';
 import { recommendationFeedback } from '../db/schema';
 import { eq, and, gte, sql, desc } from 'drizzle-orm';
+import {
+  extractArtist,
+  getDaysAgo,
+  getStartOfWeek,
+  getStartOfMonth,
+  calculateDiversityScore,
+  DAY_NAMES,
+} from '../utils/analytics-helpers';
 
 // ============================================================================
 // Types
@@ -92,33 +100,8 @@ export function clearAnalyticsCache(userId?: string): void {
 // Helper Functions
 // ============================================================================
 
-function extractArtist(songArtistTitle: string): string {
-  const parts = songArtistTitle.split(' - ');
-  return parts[0]?.trim() || songArtistTitle;
-}
-
-function getDaysAgo(days: number): Date {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-function getStartOfWeek(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day; // Adjust to Sunday
-  d.setDate(diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function getStartOfMonth(date: Date): Date {
-  const d = new Date(date);
-  d.setDate(1);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
+// Note: extractArtist, getDaysAgo, getStartOfWeek, getStartOfMonth
+// are now imported from '../utils/analytics-helpers'
 
 // ============================================================================
 // Taste Evolution Timeline (AC 1)
@@ -332,10 +315,9 @@ export async function getActivityTrends(userId: string): Promise<ActivityTrends>
 
   // Generate insights
   const insights: string[] = [];
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   if (peakDayOfWeek !== null) {
-    insights.push(`Most active on ${dayNames[peakDayOfWeek]}`);
+    insights.push(`Most active on ${DAY_NAMES[peakDayOfWeek]}`);
   }
 
   if (peakHourOfDay !== null) {
@@ -408,25 +390,13 @@ export async function getDiscoveryInsights(
   const newArtistsDiscovered = uniqueNewArtists.length;
 
   // Calculate genre diversity using artist distribution as proxy
-  // Shannon entropy: H = -Σ(p_i * log2(p_i))
+  // Uses Shannon entropy via shared helper
   const recentArtistCounts = new Map<string, number>();
   for (const artist of recentArtists) {
     recentArtistCounts.set(artist, (recentArtistCounts.get(artist) || 0) + 1);
   }
 
-  let genreDiversityScore = 0;
-  const totalRecent = recentArtists.length;
-
-  if (totalRecent > 0) {
-    for (const count of recentArtistCounts.values()) {
-      const probability = count / totalRecent;
-      genreDiversityScore -= probability * Math.log2(probability);
-    }
-
-    // Normalize to 0-1 range (max entropy for N items is log2(N))
-    const maxEntropy = Math.log2(recentArtistCounts.size);
-    genreDiversityScore = maxEntropy > 0 ? genreDiversityScore / maxEntropy : 0;
-  }
+  const genreDiversityScore = calculateDiversityScore(recentArtistCounts);
 
   // Compare to previous period for trend
   const previousStartDate = getDaysAgo(recentDays * 2);
@@ -440,18 +410,7 @@ export async function getDiscoveryInsights(
     previousArtistCounts.set(artist, (previousArtistCounts.get(artist) || 0) + 1);
   }
 
-  let previousDiversityScore = 0;
-  const totalPrevious = previousArtists.length;
-
-  if (totalPrevious > 0) {
-    for (const count of previousArtistCounts.values()) {
-      const probability = count / totalPrevious;
-      previousDiversityScore -= probability * Math.log2(probability);
-    }
-
-    const maxEntropy = Math.log2(previousArtistCounts.size);
-    previousDiversityScore = maxEntropy > 0 ? previousDiversityScore / maxEntropy : 0;
-  }
+  const previousDiversityScore = calculateDiversityScore(previousArtistCounts);
 
   let diversityTrend: 'expanding' | 'narrowing' | 'stable' = 'stable';
   if (genreDiversityScore > previousDiversityScore + 0.1) {

@@ -20,6 +20,7 @@ import {
   Play,
   User,
 } from 'lucide-react';
+import { MusicTasteDebugPanel } from '@/components/debug/MusicTasteDebugPanel';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -152,6 +153,32 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { playlist, currentSongIndex } = useAudioStore();
   const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
 
+  // Debug panel state with localStorage persistence
+  const [showDebugPanel, setShowDebugPanel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('music-taste-debug-panel') === 'true';
+    }
+    return false;
+  });
+
+  // Persist debug panel visibility to localStorage
+  useEffect(() => {
+    localStorage.setItem('music-taste-debug-panel', showDebugPanel.toString());
+  }, [showDebugPanel]);
+
+  // Keyboard shortcut: Ctrl+Shift+D to toggle debug panel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault();
+        setShowDebugPanel((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <div className="h-[100dvh] flex flex-col overflow-hidden bg-background">
       {/* Mobile Navigation - Only visible below md breakpoint */}
@@ -187,6 +214,11 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       {/* Queue Panel - Slide-out drawer */}
       <QueuePanel />
+
+      {/* Music Taste Debug Panel - Toggle with Ctrl+Shift+D */}
+      {showDebugPanel && (
+        <MusicTasteDebugPanel onClose={() => setShowDebugPanel(false)} />
+      )}
     </div>
   );
 }
@@ -395,7 +427,7 @@ function LeftSidebar() {
                   key={playlist.id}
                   to={`/playlists/${playlist.id}`}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
+                    "flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors group/playlist",
                     "hover:bg-accent/50 text-muted-foreground hover:text-foreground",
                     currentPath === `/playlists/${playlist.id}` && "bg-accent text-foreground"
                   )}
@@ -407,7 +439,9 @@ function LeftSidebar() {
                       <ListMusic className="h-3.5 w-3.5 text-primary/70" />
                     )}
                   </div>
-                  <span className="truncate">{playlist.name}</span>
+                  <div className="min-w-0 flex-1 scroll-text-container">
+                    <span className="scroll-text">{playlist.name}</span>
+                  </div>
                 </Link>
               ))}
               {playlists?.filter((p: { name: string }) => p.name !== '❤️ Liked Songs').length > 8 && (

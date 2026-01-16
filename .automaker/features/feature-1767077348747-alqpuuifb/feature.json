@@ -3,7 +3,7 @@
   "description": "Implement offline-first functionality with service workers and IndexedDB caching for the music library, playlists, and recommendations. Enable background sync for listening history and feedback so users can interact with the app without network connectivity.",
   "id": "feature-1767077348747-alqpuuifb",
   "steps": [],
-  "status": "backlog",
+  "status": "waiting_approval",
   "skipTests": true,
   "priority": 2,
   "title": "",
@@ -13,5 +13,8 @@
   "textFilePaths": [],
   "branchName": "feat/unified-recommendations-service",
   "planningMode": "skip",
-  "requirePlanApproval": false
+  "requirePlanApproval": false,
+  "startedAt": "2026-01-06T02:53:51.005Z",
+  "updatedAt": "2026-01-06T03:05:20.539Z",
+  "justFinishedAt": "2026-01-06T03:05:20.539Z"
 }

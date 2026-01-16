@@ -1,0 +1,24 @@
+{
+  "category": "Uncategorized",
+  "description": "## Parent Task Context (Already Completed)\n\n> **Note:** The following parent task has already been completed. This context is provided to help you understand the background and requirements for this sub-task. Do not re-implement the parent task - focus only on the new sub-task described below.\n\n### Task (feature-)\n\n**Description:** Build Advanced Discovery Analytics Dashboard - Create a comprehensive analytics page showing recommendation effectiveness metrics: acceptance rate by recommendation type (similar/discovery/mood/personalized), top recommended artists/genres, user engagement patterns, and A/B testing capabilities for different recommendation algorithms. be mindful of analytics already implemented\n\n---\n\n## Task Description\n\nmuch better the top cards are displaying info in feedback,acceptance, discovery,monthyl but not in any of the four sections below it including a/b testing\n",
+  "title": "Add analytics metrics display to recommendation sections",
+  "images": [],
+  "imagePaths": [],
+  "textFilePaths": [],
+  "skipTests": true,
+  "model": "sonnet",
+  "thinkingLevel": "medium",
+  "branchName": "feat/unified-recommendations-service",
+  "priority": 2,
+  "planningMode": "lite",
+  "requirePlanApproval": false,
+  "dependencies": [
+    "feature-1767077531552-4il6sel5x"
+  ],
+  "titleGenerating": false,
+  "status": "verified",
+  "id": "feature-1767667576000-1vyg4w2cv",
+  "startedAt": "2026-01-06T02:46:26.684Z",
+  "updatedAt": "2026-01-06T02:50:43.405Z",
+  "justFinishedAt": "2026-01-06T02:50:43.405Z"
+}

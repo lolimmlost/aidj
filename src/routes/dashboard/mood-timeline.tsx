@@ -22,20 +22,20 @@ export const Route = createFileRoute('/dashboard/mood-timeline')({
 
 function MoodTimelinePageSkeleton() {
   return (
-    <div className="container mx-auto space-y-6 py-6">
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 space-y-4 sm:space-y-6 py-4 sm:py-6">
       <div>
-        <Skeleton className="h-8 w-48 mb-2" />
-        <Skeleton className="h-4 w-96" />
+        <Skeleton className="h-6 sm:h-8 w-36 sm:w-48 mb-2" />
+        <Skeleton className="h-4 w-64 sm:w-96" />
       </div>
-      <Skeleton className="h-12 w-full" />
-      <Skeleton className="h-[500px] w-full" />
+      <Skeleton className="h-10 sm:h-12 w-full" />
+      <Skeleton className="h-[300px] sm:h-[500px] w-full" />
     </div>
   );
 }
 
 function MoodTimelinePage() {
   return (
-    <div className="container mx-auto py-6">
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
       <Suspense fallback={<MoodTimelinePageSkeleton />}>
         <MoodTimelineDashboard />
       </Suspense>

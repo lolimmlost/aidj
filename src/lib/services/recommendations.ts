@@ -14,7 +14,7 @@
  * @see docs/architecture/recommendation-engine-refactor.md
  */
 
-import { getLastFmClient } from './lastfm';
+import { getLastFmClient, type LastFmClient } from './lastfm';
 import type { EnrichedTrack } from './lastfm/types';
 import { evaluateSmartPlaylistRules } from './smart-playlist-evaluator';
 import { getSongsGlobal, getRandomSongs, search, type SubsonicSong } from './navidrome';
@@ -211,7 +211,21 @@ async function getSimilarSongs(
       if (artistFallback.songs.length > 0) {
         return artistFallback;
       }
-      // If no same-artist songs, fall back to genre-based random
+
+      // Try to get similar artists from Last.fm and find their songs
+      console.log('🎤 [Recommendations] Same-artist fallback empty, trying similar artists');
+      const similarArtistsFallback = await fallbackToSimilarArtists(
+        currentSong,
+        limit,
+        excludeSongIds,
+        excludeArtists,
+        lastFm
+      );
+      if (similarArtistsFallback.songs.length > 0) {
+        return similarArtistsFallback;
+      }
+
+      // If no similar artist songs, fall back to genre-based random
       return fallbackToGenreRandom(currentSong, limit, 'no_library_matches', queueContext);
     }
 
@@ -740,6 +754,136 @@ async function fallbackToSameArtist(
       mode: 'similar',
       metadata: {
         fallbackReason: 'same_artist_fallback_error',
+      },
+    };
+  }
+}
+
+/**
+ * Fallback to similar artists from Last.fm
+ * Gets similar artists, then searches for their songs in the library
+ */
+async function fallbackToSimilarArtists(
+  currentSong: { artist: string; title: string; genre?: string },
+  limit: number,
+  excludeSongIds: string[] = [],
+  excludeArtists: string[] = [],
+  lastFm: LastFmClient | null
+): Promise<RecommendationResult> {
+  if (!lastFm) {
+    return {
+      songs: [],
+      source: 'fallback',
+      mode: 'similar',
+      metadata: { fallbackReason: 'lastfm_not_available' },
+    };
+  }
+
+  try {
+    // Get similar artists from Last.fm
+    const similarArtists = await lastFm.getSimilarArtists(currentSong.artist, 10);
+    console.log(`🎤 [Recommendations] Last.fm returned ${similarArtists.length} similar artists for "${currentSong.artist}"`);
+
+    if (similarArtists.length === 0) {
+      return {
+        songs: [],
+        source: 'fallback',
+        mode: 'similar',
+        metadata: { fallbackReason: 'no_similar_artists' },
+      };
+    }
+
+    // Filter to artists that are in our library and not excluded
+    const libraryArtists = similarArtists.filter(a =>
+      a.inLibrary &&
+      !excludeArtists.some(ea => ea.toLowerCase() === a.name.toLowerCase())
+    );
+
+    console.log(`📚 [Recommendations] ${libraryArtists.length} similar artists are in library`);
+
+    if (libraryArtists.length === 0) {
+      return {
+        songs: [],
+        source: 'fallback',
+        mode: 'similar',
+        metadata: { fallbackReason: 'no_library_similar_artists' },
+      };
+    }
+
+    // Search for songs by these similar artists
+    const allSongs: Song[] = [];
+    const artistsSearched: string[] = [];
+
+    for (const artist of libraryArtists.slice(0, 5)) { // Limit to top 5 similar artists
+      try {
+        const artistSongs = await search(artist.name, 0, 10);
+
+        // Filter to exact artist match and exclude already queued songs
+        const filtered = artistSongs.filter(song => {
+          const songArtistLower = (song.artist || '').toLowerCase();
+          const targetArtistLower = artist.name.toLowerCase();
+          const isSameArtist = songArtistLower === targetArtistLower ||
+            songArtistLower.includes(targetArtistLower);
+          const isNotExcluded = !excludeSongIds.includes(song.id);
+          return isSameArtist && isNotExcluded;
+        });
+
+        if (filtered.length > 0) {
+          artistsSearched.push(artist.name);
+          // Take up to 2 songs per artist for diversity
+          const songsToAdd = filtered.slice(0, 2).map(song => ({
+            id: song.id,
+            name: song.title || song.name || 'Unknown',
+            title: song.title || song.name || 'Unknown',
+            artist: song.artist || artist.name,
+            albumId: song.albumId || '',
+            album: song.album || '',
+            duration: typeof song.duration === 'number' ? song.duration : parseInt(String(song.duration)) || 0,
+            track: typeof song.track === 'number' ? song.track : parseInt(String(song.track)) || 0,
+            url: `/api/navidrome/stream/${song.id}`,
+          }));
+          allSongs.push(...songsToAdd);
+        }
+      } catch (err) {
+        console.warn(`⚠️ [Recommendations] Error searching for artist "${artist.name}":`, err);
+      }
+
+      // Stop if we have enough songs
+      if (allSongs.length >= limit) break;
+    }
+
+    if (allSongs.length === 0) {
+      return {
+        songs: [],
+        source: 'fallback',
+        mode: 'similar',
+        metadata: { fallbackReason: 'no_songs_from_similar_artists' },
+      };
+    }
+
+    // Shuffle and limit results
+    const shuffled = allSongs.sort(() => Math.random() - 0.5).slice(0, limit);
+
+    console.log(`✅ [Recommendations] Returning ${shuffled.length} songs from ${artistsSearched.length} similar artists: ${artistsSearched.join(', ')}`);
+
+    return {
+      songs: shuffled,
+      source: 'lastfm',
+      mode: 'similar',
+      metadata: {
+        fallbackReason: 'similar_artists_fallback',
+        similarArtistsCount: libraryArtists.length,
+        artistsUsed: artistsSearched,
+      },
+    };
+  } catch (error) {
+    console.error('❌ [Recommendations] Similar artists fallback error:', error);
+    return {
+      songs: [],
+      source: 'fallback',
+      mode: 'similar',
+      metadata: {
+        fallbackReason: 'similar_artists_error',
       },
     };
   }

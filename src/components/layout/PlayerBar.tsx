@@ -13,8 +13,10 @@ import {
   Maximize2,
   Music,
   MicVocal,
+  AudioWaveform,
 } from 'lucide-react';
 import { LyricsModal } from '@/components/lyrics';
+import { VisualizerModal } from '@/components/visualizer';
 
 // Helper to get cover art URL from Navidrome
 const getCoverArtUrl = (albumId: string | undefined, size: number = 128) => {
@@ -205,6 +207,7 @@ export function PlayerBar() {
   const currentSongIdRef = useRef<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
+  const [showVisualizer, setShowVisualizer] = useState(false);
 
   const {
     playlist,
@@ -770,6 +773,16 @@ export function PlayerBar() {
               <MicVocal className="h-4 w-4" />
             </Button>
 
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => setShowVisualizer(true)}
+              title="Show visualizer"
+            >
+              <AudioWaveform className="h-4 w-4" />
+            </Button>
+
             <AIDJToggle compact />
           </div>
         </div>
@@ -898,6 +911,16 @@ export function PlayerBar() {
             <MicVocal className="h-4 w-4" />
           </Button>
 
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => setShowVisualizer(true)}
+            title="Show visualizer"
+          >
+            <AudioWaveform className="h-4 w-4" />
+          </Button>
+
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
@@ -927,10 +950,17 @@ export function PlayerBar() {
       </div>
 
       {/* Hidden Audio Element - shared between mobile and desktop */}
-      <audio ref={audioRef} preload="metadata" className="hidden" />
+      <audio ref={audioRef} preload="metadata" crossOrigin="anonymous" className="hidden" />
 
       {/* Lyrics Modal */}
       <LyricsModal isOpen={showLyrics} onClose={() => setShowLyrics(false)} />
+
+      {/* Visualizer Modal */}
+      <VisualizerModal
+        isOpen={showVisualizer}
+        onClose={() => setShowVisualizer(false)}
+        audioElement={audioRef.current}
+      />
     </>
   );
 }

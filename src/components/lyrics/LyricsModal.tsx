@@ -391,13 +391,21 @@ export function LyricsModal({ isOpen, onClose }: LyricsModalProps) {
       {/* Background with album art blur */}
       {coverUrl && (
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-20 blur-3xl scale-110"
+          className="absolute inset-0 bg-cover bg-center opacity-30 blur-3xl scale-125"
           style={{ backgroundImage: `url(${coverUrl})` }}
         />
       )}
 
-      {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/90 to-background" />
+      {/* Solid overlay to prevent gradient banding */}
+      <div className="absolute inset-0 bg-background/70" />
+
+      {/* Subtle vignette effect */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'radial-gradient(ellipse at center, transparent 0%, hsl(var(--background)) 100%)',
+        }}
+      />
 
       {/* Content */}
       <div className="relative flex flex-col h-full">
