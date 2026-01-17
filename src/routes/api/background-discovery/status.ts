@@ -12,7 +12,7 @@ import {
   withAuthAndErrorHandling,
   successResponse,
 } from '@/lib/utils/api-response';
-import { getBackgroundDiscoveryManager } from '@/lib/services/background-discovery';
+import { initializeBackgroundDiscovery, getBackgroundDiscoveryManager } from '@/lib/services/background-discovery';
 
 // GET /api/background-discovery/status
 const GET = withAuthAndErrorHandling(
@@ -63,13 +63,34 @@ const GET = withAuthAndErrorHandling(
       ? Math.round((stats.approved / totalReviewed) * 100)
       : 0;
 
-    // Try to get manager status for real-time info
+    // Auto-initialize background discovery manager for this user if enabled
     let managerStatus = null;
     try {
       const manager = getBackgroundDiscoveryManager();
       managerStatus = await manager.getStatus();
-    } catch {
-      // Manager may not be initialized on server
+
+      // If manager exists but isn't initialized for this user, initialize it
+      if (!managerStatus.lastRunAt && (jobState?.enabled ?? true)) {
+        console.log(`[BackgroundDiscovery] Auto-initializing for user ${userId}`);
+        await initializeBackgroundDiscovery(userId, {
+          enabled: jobState?.enabled ?? true,
+          frequencyHours: jobState?.frequencyHours ?? 12,
+        });
+        managerStatus = await manager.getStatus();
+      }
+    } catch (error) {
+      // Manager may not be initialized, try to initialize it
+      console.log(`[BackgroundDiscovery] Initializing manager for user ${userId}`);
+      try {
+        await initializeBackgroundDiscovery(userId, {
+          enabled: jobState?.enabled ?? true,
+          frequencyHours: jobState?.frequencyHours ?? 12,
+        });
+        const manager = getBackgroundDiscoveryManager();
+        managerStatus = await manager.getStatus();
+      } catch (initError) {
+        console.error('[BackgroundDiscovery] Failed to initialize:', initError);
+      }
     }
 
     return successResponse({
