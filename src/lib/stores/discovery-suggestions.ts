@@ -74,6 +74,7 @@ interface DiscoverySuggestionsState {
   error: string | null;
   hasMore: boolean;
   total: number;
+  loadedCount: number; // Track actual items loaded from server (not affected by local removes)
 
   // Actions
   fetchSuggestions: () => Promise<void>;
@@ -110,6 +111,7 @@ export const useDiscoverySuggestionsStore = create<DiscoverySuggestionsState>()(
     error: null,
     hasMore: false,
     total: 0,
+    loadedCount: 0,
 
     fetchSuggestions: async () => {
       set({ isLoading: true, error: null });
@@ -128,6 +130,7 @@ export const useDiscoverySuggestionsStore = create<DiscoverySuggestionsState>()(
           suggestions: data.suggestions,
           hasMore: data.pagination.hasMore,
           total: data.pagination.total,
+          loadedCount: data.suggestions.length,
           isLoading: false,
         });
       } catch (error) {
@@ -138,13 +141,14 @@ export const useDiscoverySuggestionsStore = create<DiscoverySuggestionsState>()(
     },
 
     loadMore: async () => {
-      const { suggestions, hasMore, isLoadingMore } = get();
+      const { suggestions, hasMore, isLoadingMore, loadedCount } = get();
       if (!hasMore || isLoadingMore) return;
 
       set({ isLoadingMore: true });
 
       try {
-        const offset = suggestions.length;
+        // Use loadedCount as offset (not suggestions.length which changes when items are removed)
+        const offset = loadedCount;
         const response = await fetch(`/api/background-discovery/suggestions?limit=${SUGGESTIONS_PAGE_SIZE}&offset=${offset}`, {
           credentials: 'include',
         });
@@ -158,6 +162,7 @@ export const useDiscoverySuggestionsStore = create<DiscoverySuggestionsState>()(
           suggestions: [...suggestions, ...data.suggestions],
           hasMore: data.pagination.hasMore,
           total: data.pagination.total,
+          loadedCount: loadedCount + data.suggestions.length,
           isLoadingMore: false,
         });
       } catch (error) {
