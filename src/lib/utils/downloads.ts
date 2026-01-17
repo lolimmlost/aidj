@@ -38,6 +38,10 @@ export interface WantedAlbum {
   artistId: string
   releaseDate?: string
   monitored: boolean
+  // Enhanced status fields for Soulseek tracking
+  searchStatus?: 'idle' | 'searching' | 'searched_recently'
+  lastSearched?: string
+  grabbed?: boolean
 }
 
 export interface DownloadStats {

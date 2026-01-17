@@ -805,6 +805,41 @@ export async function retryDownload(downloadId: string, artistId?: string): Prom
 }
 
 /**
+ * Lidarr command status (for tracking active searches)
+ */
+export interface LidarrCommand {
+  id: number;
+  name: string;
+  status: 'queued' | 'started' | 'completed' | 'failed';
+  started?: string;
+  ended?: string;
+  duration?: string;
+  body?: {
+    albumIds?: number[];
+    artistId?: number;
+  };
+}
+
+/**
+ * Get active/recent commands from Lidarr (shows search activity)
+ */
+export async function getActiveCommands(): Promise<LidarrCommand[]> {
+  try {
+    const commands = await apiFetch('/command') as LidarrCommand[];
+    // Return commands from the last hour that are searches
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    return commands.filter(cmd =>
+      (cmd.name === 'AlbumSearch' || cmd.name === 'ArtistSearch') &&
+      (cmd.status === 'queued' || cmd.status === 'started' ||
+       (cmd.started && cmd.started > oneHourAgo))
+    );
+  } catch (error) {
+    console.error('Error fetching active commands:', error);
+    return [];
+  }
+}
+
+/**
  * Get wanted/missing albums (albums Lidarr is searching for but hasn't found)
  */
 export interface WantedAlbum {
@@ -814,34 +849,79 @@ export interface WantedAlbum {
   artistId: string;
   releaseDate?: string;
   monitored: boolean;
+  // Enhanced status fields for Soulseek tracking
+  searchStatus?: 'idle' | 'searching' | 'searched_recently';
+  lastSearched?: string;
+  grabbed?: boolean;
 }
 
 export async function getWantedMissing(): Promise<WantedAlbum[]> {
   try {
-    const response = await apiFetch('/wanted/missing?pageSize=50&sortKey=releaseDate&sortDirection=descending') as {
-      page: number;
-      pageSize: number;
-      totalRecords: number;
-      records: Array<{
-        id: number;
-        title: string;
-        artistId: number;
-        releaseDate?: string;
-        monitored: boolean;
-        artist?: {
-          artistName: string;
-        };
-      }>;
-    };
+    // Fetch wanted albums and active commands in parallel
+    const [response, activeCommands] = await Promise.all([
+      apiFetch('/wanted/missing?pageSize=50&sortKey=releaseDate&sortDirection=descending') as Promise<{
+        page: number;
+        pageSize: number;
+        totalRecords: number;
+        records: Array<{
+          id: number;
+          title: string;
+          artistId: number;
+          releaseDate?: string;
+          monitored: boolean;
+          grabbed?: boolean;
+          artist?: {
+            artistName: string;
+          };
+        }>;
+      }>,
+      getActiveCommands(),
+    ]);
 
-    return response.records.map(album => ({
-      id: album.id.toString(),
-      title: album.title,
-      artistName: album.artist?.artistName || 'Unknown Artist',
-      artistId: album.artistId.toString(),
-      releaseDate: album.releaseDate,
-      monitored: album.monitored,
-    }));
+    // Build a set of album IDs that are actively being searched
+    const searchingAlbumIds = new Set<number>();
+    const searchedAlbumIds = new Map<number, string>(); // albumId -> lastSearched time
+    const searchingArtistIds = new Set<number>();
+
+    for (const cmd of activeCommands) {
+      if (cmd.name === 'AlbumSearch' && cmd.body?.albumIds) {
+        for (const albumId of cmd.body.albumIds) {
+          if (cmd.status === 'queued' || cmd.status === 'started') {
+            searchingAlbumIds.add(albumId);
+          } else if (cmd.status === 'completed' && cmd.ended) {
+            searchedAlbumIds.set(albumId, cmd.ended);
+          }
+        }
+      } else if (cmd.name === 'ArtistSearch' && cmd.body?.artistId) {
+        if (cmd.status === 'queued' || cmd.status === 'started') {
+          searchingArtistIds.add(cmd.body.artistId);
+        }
+      }
+    }
+
+    return response.records.map(album => {
+      let searchStatus: 'idle' | 'searching' | 'searched_recently' = 'idle';
+      let lastSearched: string | undefined;
+
+      if (searchingAlbumIds.has(album.id) || searchingArtistIds.has(album.artistId)) {
+        searchStatus = 'searching';
+      } else if (searchedAlbumIds.has(album.id)) {
+        searchStatus = 'searched_recently';
+        lastSearched = searchedAlbumIds.get(album.id);
+      }
+
+      return {
+        id: album.id.toString(),
+        title: album.title,
+        artistName: album.artist?.artistName || 'Unknown Artist',
+        artistId: album.artistId.toString(),
+        releaseDate: album.releaseDate,
+        monitored: album.monitored,
+        searchStatus,
+        lastSearched,
+        grabbed: album.grabbed,
+      };
+    });
   } catch (error) {
     console.error('Error fetching wanted/missing:', error);
     return [];

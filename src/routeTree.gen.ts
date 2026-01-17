@@ -28,6 +28,7 @@ import { Route as DownloadsHistoryRouteImport } from './routes/downloads/history
 import { Route as DjSettingsRouteImport } from './routes/dj/settings'
 import { Route as DjSetBuilderRouteImport } from './routes/dj/set-builder'
 import { Route as DashboardMoodTimelineRouteImport } from './routes/dashboard/mood-timeline'
+import { Route as DashboardLibraryGrowthRouteImport } from './routes/dashboard/library-growth'
 import { Route as DashboardDiscoveryAnalyticsRouteImport } from './routes/dashboard/discovery-analytics'
 import { Route as DashboardDiscoverRouteImport } from './routes/dashboard/discover'
 import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard/analytics'
@@ -89,6 +90,10 @@ import { Route as ApiLastfmSearchRouteImport } from './routes/api/lastfm/search'
 import { Route as ApiDownloadsQueueRouteImport } from './routes/api/downloads/queue'
 import { Route as ApiDiscoveryFeedInteractionsRouteImport } from './routes/api/discovery-feed/interactions'
 import { Route as ApiDiscoveryFeedAnalyticsRouteImport } from './routes/api/discovery-feed/analytics'
+import { Route as ApiBackgroundDiscoveryTriggerRouteImport } from './routes/api/background-discovery/trigger'
+import { Route as ApiBackgroundDiscoverySuggestionsRouteImport } from './routes/api/background-discovery/suggestions'
+import { Route as ApiBackgroundDiscoveryStatusRouteImport } from './routes/api/background-discovery/status'
+import { Route as ApiBackgroundDiscoverySettingsRouteImport } from './routes/api/background-discovery/settings'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -115,6 +120,7 @@ import { Route as ApiLibrarySyncResumeRouteImport } from './routes/api/library/s
 import { Route as ApiLibrarySyncPauseRouteImport } from './routes/api/library/sync/pause'
 import { Route as ApiLibrarySyncAbortRouteImport } from './routes/api/library/sync/abort'
 import { Route as ApiDiscoveryFeedNotificationsPreferencesRouteImport } from './routes/api/discovery-feed/notifications/preferences'
+import { Route as ApiBackgroundDiscoverySuggestionsIdRouteImport } from './routes/api/background-discovery/suggestions.$id'
 import { Route as ApiPlaylistsIdSuggestionsIndexRouteImport } from './routes/api/playlists/$id/suggestions/index'
 import { Route as ApiPlaylistsIdSongsIndexRouteImport } from './routes/api/playlists/$id/songs/index'
 import { Route as ApiPlaylistsIdCollaboratorsIndexRouteImport } from './routes/api/playlists/$id/collaborators/index'
@@ -218,6 +224,11 @@ const DjSetBuilderRoute = DjSetBuilderRouteImport.update({
 const DashboardMoodTimelineRoute = DashboardMoodTimelineRouteImport.update({
   id: '/mood-timeline',
   path: '/mood-timeline',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const DashboardLibraryGrowthRoute = DashboardLibraryGrowthRouteImport.update({
+  id: '/library-growth',
+  path: '/library-growth',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
 const DashboardDiscoveryAnalyticsRoute =
@@ -539,6 +550,30 @@ const ApiDiscoveryFeedAnalyticsRoute =
     path: '/api/discovery-feed/analytics',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiBackgroundDiscoveryTriggerRoute =
+  ApiBackgroundDiscoveryTriggerRouteImport.update({
+    id: '/api/background-discovery/trigger',
+    path: '/api/background-discovery/trigger',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiBackgroundDiscoverySuggestionsRoute =
+  ApiBackgroundDiscoverySuggestionsRouteImport.update({
+    id: '/api/background-discovery/suggestions',
+    path: '/api/background-discovery/suggestions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiBackgroundDiscoveryStatusRoute =
+  ApiBackgroundDiscoveryStatusRouteImport.update({
+    id: '/api/background-discovery/status',
+    path: '/api/background-discovery/status',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiBackgroundDiscoverySettingsRoute =
+  ApiBackgroundDiscoverySettingsRouteImport.update({
+    id: '/api/background-discovery/settings',
+    path: '/api/background-discovery/settings',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
   id: '/api/auth/register',
   path: '/api/auth/register',
@@ -675,6 +710,12 @@ const ApiDiscoveryFeedNotificationsPreferencesRoute =
     path: '/api/discovery-feed/notifications/preferences',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiBackgroundDiscoverySuggestionsIdRoute =
+  ApiBackgroundDiscoverySuggestionsIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => ApiBackgroundDiscoverySuggestionsRoute,
+  } as any)
 const ApiPlaylistsIdSuggestionsIndexRoute =
   ApiPlaylistsIdSuggestionsIndexRouteImport.update({
     id: '/suggestions/',
@@ -749,6 +790,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/discover': typeof DashboardDiscoverRoute
   '/dashboard/discovery-analytics': typeof DashboardDiscoveryAnalyticsRoute
+  '/dashboard/library-growth': typeof DashboardLibraryGrowthRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/settings': typeof DjSettingsRoute
@@ -768,6 +810,10 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/background-discovery/settings': typeof ApiBackgroundDiscoverySettingsRoute
+  '/api/background-discovery/status': typeof ApiBackgroundDiscoveryStatusRoute
+  '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
+  '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
@@ -817,6 +863,7 @@ export interface FileRoutesByFullPath {
   '/api/music-identity': typeof ApiMusicIdentityIndexRoute
   '/api/playlists': typeof ApiPlaylistsIndexRoute
   '/library/artists/': typeof LibraryArtistsIndexRoute
+  '/api/background-discovery/suggestions/$id': typeof ApiBackgroundDiscoverySuggestionsIdRoute
   '/api/discovery-feed/notifications/preferences': typeof ApiDiscoveryFeedNotificationsPreferencesRoute
   '/api/library/sync/abort': typeof ApiLibrarySyncAbortRoute
   '/api/library/sync/pause': typeof ApiLibrarySyncPauseRoute
@@ -865,6 +912,7 @@ export interface FileRoutesByTo {
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/discover': typeof DashboardDiscoverRoute
   '/dashboard/discovery-analytics': typeof DashboardDiscoveryAnalyticsRoute
+  '/dashboard/library-growth': typeof DashboardLibraryGrowthRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/settings': typeof DjSettingsRoute
@@ -883,6 +931,10 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/background-discovery/settings': typeof ApiBackgroundDiscoverySettingsRoute
+  '/api/background-discovery/status': typeof ApiBackgroundDiscoveryStatusRoute
+  '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
+  '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
@@ -932,6 +984,7 @@ export interface FileRoutesByTo {
   '/api/music-identity': typeof ApiMusicIdentityIndexRoute
   '/api/playlists': typeof ApiPlaylistsIndexRoute
   '/library/artists': typeof LibraryArtistsIndexRoute
+  '/api/background-discovery/suggestions/$id': typeof ApiBackgroundDiscoverySuggestionsIdRoute
   '/api/discovery-feed/notifications/preferences': typeof ApiDiscoveryFeedNotificationsPreferencesRoute
   '/api/library/sync/abort': typeof ApiLibrarySyncAbortRoute
   '/api/library/sync/pause': typeof ApiLibrarySyncPauseRoute
@@ -983,6 +1036,7 @@ export interface FileRoutesById {
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/discover': typeof DashboardDiscoverRoute
   '/dashboard/discovery-analytics': typeof DashboardDiscoveryAnalyticsRoute
+  '/dashboard/library-growth': typeof DashboardLibraryGrowthRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/settings': typeof DjSettingsRoute
@@ -1002,6 +1056,10 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/background-discovery/settings': typeof ApiBackgroundDiscoverySettingsRoute
+  '/api/background-discovery/status': typeof ApiBackgroundDiscoveryStatusRoute
+  '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
+  '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
@@ -1051,6 +1109,7 @@ export interface FileRoutesById {
   '/api/music-identity/': typeof ApiMusicIdentityIndexRoute
   '/api/playlists/': typeof ApiPlaylistsIndexRoute
   '/library/artists/': typeof LibraryArtistsIndexRoute
+  '/api/background-discovery/suggestions/$id': typeof ApiBackgroundDiscoverySuggestionsIdRoute
   '/api/discovery-feed/notifications/preferences': typeof ApiDiscoveryFeedNotificationsPreferencesRoute
   '/api/library/sync/abort': typeof ApiLibrarySyncAbortRoute
   '/api/library/sync/pause': typeof ApiLibrarySyncPauseRoute
@@ -1102,6 +1161,7 @@ export interface FileRouteTypes {
     | '/dashboard/analytics'
     | '/dashboard/discover'
     | '/dashboard/discovery-analytics'
+    | '/dashboard/library-growth'
     | '/dashboard/mood-timeline'
     | '/dj/set-builder'
     | '/dj/settings'
@@ -1121,6 +1181,10 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/auth/login'
     | '/api/auth/register'
+    | '/api/background-discovery/settings'
+    | '/api/background-discovery/status'
+    | '/api/background-discovery/suggestions'
+    | '/api/background-discovery/trigger'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
     | '/api/downloads/queue'
@@ -1170,6 +1234,7 @@ export interface FileRouteTypes {
     | '/api/music-identity'
     | '/api/playlists'
     | '/library/artists/'
+    | '/api/background-discovery/suggestions/$id'
     | '/api/discovery-feed/notifications/preferences'
     | '/api/library/sync/abort'
     | '/api/library/sync/pause'
@@ -1218,6 +1283,7 @@ export interface FileRouteTypes {
     | '/dashboard/analytics'
     | '/dashboard/discover'
     | '/dashboard/discovery-analytics'
+    | '/dashboard/library-growth'
     | '/dashboard/mood-timeline'
     | '/dj/set-builder'
     | '/dj/settings'
@@ -1236,6 +1302,10 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/auth/login'
     | '/api/auth/register'
+    | '/api/background-discovery/settings'
+    | '/api/background-discovery/status'
+    | '/api/background-discovery/suggestions'
+    | '/api/background-discovery/trigger'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
     | '/api/downloads/queue'
@@ -1285,6 +1355,7 @@ export interface FileRouteTypes {
     | '/api/music-identity'
     | '/api/playlists'
     | '/library/artists'
+    | '/api/background-discovery/suggestions/$id'
     | '/api/discovery-feed/notifications/preferences'
     | '/api/library/sync/abort'
     | '/api/library/sync/pause'
@@ -1335,6 +1406,7 @@ export interface FileRouteTypes {
     | '/dashboard/analytics'
     | '/dashboard/discover'
     | '/dashboard/discovery-analytics'
+    | '/dashboard/library-growth'
     | '/dashboard/mood-timeline'
     | '/dj/set-builder'
     | '/dj/settings'
@@ -1354,6 +1426,10 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/auth/login'
     | '/api/auth/register'
+    | '/api/background-discovery/settings'
+    | '/api/background-discovery/status'
+    | '/api/background-discovery/suggestions'
+    | '/api/background-discovery/trigger'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
     | '/api/downloads/queue'
@@ -1403,6 +1479,7 @@ export interface FileRouteTypes {
     | '/api/music-identity/'
     | '/api/playlists/'
     | '/library/artists/'
+    | '/api/background-discovery/suggestions/$id'
     | '/api/discovery-feed/notifications/preferences'
     | '/api/library/sync/abort'
     | '/api/library/sync/pause'
@@ -1466,6 +1543,10 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
+  ApiBackgroundDiscoverySettingsRoute: typeof ApiBackgroundDiscoverySettingsRoute
+  ApiBackgroundDiscoveryStatusRoute: typeof ApiBackgroundDiscoveryStatusRoute
+  ApiBackgroundDiscoverySuggestionsRoute: typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
+  ApiBackgroundDiscoveryTriggerRoute: typeof ApiBackgroundDiscoveryTriggerRoute
   ApiDiscoveryFeedAnalyticsRoute: typeof ApiDiscoveryFeedAnalyticsRoute
   ApiDiscoveryFeedInteractionsRoute: typeof ApiDiscoveryFeedInteractionsRoute
   ApiDownloadsQueueRoute: typeof ApiDownloadsQueueRoute
@@ -1659,6 +1740,13 @@ declare module '@tanstack/react-router' {
       path: '/mood-timeline'
       fullPath: '/dashboard/mood-timeline'
       preLoaderRoute: typeof DashboardMoodTimelineRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/dashboard/library-growth': {
+      id: '/dashboard/library-growth'
+      path: '/library-growth'
+      fullPath: '/dashboard/library-growth'
+      preLoaderRoute: typeof DashboardLibraryGrowthRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
     '/dashboard/discovery-analytics': {
@@ -2088,6 +2176,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDiscoveryFeedAnalyticsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/background-discovery/trigger': {
+      id: '/api/background-discovery/trigger'
+      path: '/api/background-discovery/trigger'
+      fullPath: '/api/background-discovery/trigger'
+      preLoaderRoute: typeof ApiBackgroundDiscoveryTriggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/background-discovery/suggestions': {
+      id: '/api/background-discovery/suggestions'
+      path: '/api/background-discovery/suggestions'
+      fullPath: '/api/background-discovery/suggestions'
+      preLoaderRoute: typeof ApiBackgroundDiscoverySuggestionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/background-discovery/status': {
+      id: '/api/background-discovery/status'
+      path: '/api/background-discovery/status'
+      fullPath: '/api/background-discovery/status'
+      preLoaderRoute: typeof ApiBackgroundDiscoveryStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/background-discovery/settings': {
+      id: '/api/background-discovery/settings'
+      path: '/api/background-discovery/settings'
+      fullPath: '/api/background-discovery/settings'
+      preLoaderRoute: typeof ApiBackgroundDiscoverySettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/register': {
       id: '/api/auth/register'
       path: '/api/auth/register'
@@ -2270,6 +2386,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDiscoveryFeedNotificationsPreferencesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/background-discovery/suggestions/$id': {
+      id: '/api/background-discovery/suggestions/$id'
+      path: '/$id'
+      fullPath: '/api/background-discovery/suggestions/$id'
+      preLoaderRoute: typeof ApiBackgroundDiscoverySuggestionsIdRouteImport
+      parentRoute: typeof ApiBackgroundDiscoverySuggestionsRoute
+    }
     '/api/playlists/$id/suggestions/': {
       id: '/api/playlists/$id/suggestions/'
       path: '/suggestions'
@@ -2361,6 +2484,7 @@ interface DashboardRouteRouteChildren {
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
   DashboardDiscoverRoute: typeof DashboardDiscoverRoute
   DashboardDiscoveryAnalyticsRoute: typeof DashboardDiscoveryAnalyticsRoute
+  DashboardLibraryGrowthRoute: typeof DashboardLibraryGrowthRoute
   DashboardMoodTimelineRoute: typeof DashboardMoodTimelineRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   DashboardRecommendationsIdRoute: typeof DashboardRecommendationsIdRoute
@@ -2370,6 +2494,7 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
   DashboardDiscoverRoute: DashboardDiscoverRoute,
   DashboardDiscoveryAnalyticsRoute: DashboardDiscoveryAnalyticsRoute,
+  DashboardLibraryGrowthRoute: DashboardLibraryGrowthRoute,
   DashboardMoodTimelineRoute: DashboardMoodTimelineRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DashboardRecommendationsIdRoute: DashboardRecommendationsIdRoute,
@@ -2431,6 +2556,21 @@ const LibraryArtistsRouteChildren: LibraryArtistsRouteChildren = {
 const LibraryArtistsRouteWithChildren = LibraryArtistsRoute._addFileChildren(
   LibraryArtistsRouteChildren,
 )
+
+interface ApiBackgroundDiscoverySuggestionsRouteChildren {
+  ApiBackgroundDiscoverySuggestionsIdRoute: typeof ApiBackgroundDiscoverySuggestionsIdRoute
+}
+
+const ApiBackgroundDiscoverySuggestionsRouteChildren: ApiBackgroundDiscoverySuggestionsRouteChildren =
+  {
+    ApiBackgroundDiscoverySuggestionsIdRoute:
+      ApiBackgroundDiscoverySuggestionsIdRoute,
+  }
+
+const ApiBackgroundDiscoverySuggestionsRouteWithChildren =
+  ApiBackgroundDiscoverySuggestionsRoute._addFileChildren(
+    ApiBackgroundDiscoverySuggestionsRouteChildren,
+  )
 
 interface ApiPlaylistsIdRouteChildren {
   ApiPlaylistsIdActivityRoute: typeof ApiPlaylistsIdActivityRoute
@@ -2514,6 +2654,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
+  ApiBackgroundDiscoverySettingsRoute: ApiBackgroundDiscoverySettingsRoute,
+  ApiBackgroundDiscoveryStatusRoute: ApiBackgroundDiscoveryStatusRoute,
+  ApiBackgroundDiscoverySuggestionsRoute:
+    ApiBackgroundDiscoverySuggestionsRouteWithChildren,
+  ApiBackgroundDiscoveryTriggerRoute: ApiBackgroundDiscoveryTriggerRoute,
   ApiDiscoveryFeedAnalyticsRoute: ApiDiscoveryFeedAnalyticsRoute,
   ApiDiscoveryFeedInteractionsRoute: ApiDiscoveryFeedInteractionsRoute,
   ApiDownloadsQueueRoute: ApiDownloadsQueueRoute,
