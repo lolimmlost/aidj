@@ -680,10 +680,16 @@ export async function getDownloadQueue(): Promise<DownloadQueueItem[]> {
  * Lidarr API returns paginated data with various eventTypes.
  * We filter for download-related events: grabbed, downloadFailed, downloadFolderImported, trackFileImported
  */
-export async function getDownloadHistory(): Promise<DownloadHistory[]> {
+export async function getDownloadHistory(options?: {
+  page?: number;
+  pageSize?: number;
+}): Promise<{ history: DownloadHistory[]; pagination: { page: number; pageSize: number; totalRecords: number; hasMore: boolean } }> {
   try {
+    const page = options?.page ?? 1;
+    const pageSize = options?.pageSize ?? 50;
+
     // Fetch more records to find actual download events (not just file retagging)
-    const response = await apiFetch('/history?pageSize=100&sortKey=date&sortDirection=descending') as {
+    const response = await apiFetch(`/history?page=${page}&pageSize=${pageSize}&sortKey=date&sortDirection=descending`) as {
       page: number;
       pageSize: number;
       totalRecords: number;
@@ -716,7 +722,7 @@ export async function getDownloadHistory(): Promise<DownloadHistory[]> {
     // Filter for download-related events only
     const downloadEvents = ['grabbed', 'downloadFailed', 'downloadFolderImported', 'trackFileImported', 'albumImportIncomplete'];
 
-    return response.records
+    const history = response.records
       .filter(item => downloadEvents.includes(item.eventType))
       .map(item => {
         // Map Lidarr eventType to our status accurately
@@ -755,9 +761,27 @@ export async function getDownloadHistory(): Promise<DownloadHistory[]> {
           eventType: item.eventType, // Include for debugging
         };
       });
+
+    return {
+      history,
+      pagination: {
+        page: response.page,
+        pageSize: response.pageSize,
+        totalRecords: response.totalRecords,
+        hasMore: response.page * response.pageSize < response.totalRecords,
+      },
+    };
   } catch (error) {
     console.error('Error fetching download history:', error);
-    return [];
+    return {
+      history: [],
+      pagination: {
+        page: 1,
+        pageSize: 50,
+        totalRecords: 0,
+        hasMore: false,
+      },
+    };
   }
 }
 
@@ -940,12 +964,13 @@ export async function getDownloadStats(): Promise<{
   totalSize: number;
 }> {
   try {
-    const [queue, history, wanted] = await Promise.all([
+    const [queue, historyResult, wanted] = await Promise.all([
       getDownloadQueue(),
       getDownloadHistory(),
       getWantedMissing(),
     ]);
 
+    const history = historyResult.history;
     return {
       totalQueued: queue.filter(item => item.status === 'queued').length,
       totalDownloading: queue.filter(item => item.status === 'downloading').length,
@@ -970,26 +995,31 @@ export async function getDownloadStats(): Promise<{
 /**
  * Monitor download progress (for real-time updates)
  */
-export async function monitorDownloads(): Promise<{
+export async function monitorDownloads(options?: {
+  historyPage?: number;
+  historyPageSize?: number;
+}): Promise<{
   queue: DownloadQueueItem[];
   history: DownloadHistory[];
+  historyPagination: { page: number; pageSize: number; totalRecords: number; hasMore: boolean };
   wanted: WantedAlbum[];
   stats: Awaited<ReturnType<typeof getDownloadStats>>;
 }> {
   try {
-    const [queue, history, wanted, stats] = await Promise.all([
+    const [queue, historyResult, wanted, stats] = await Promise.all([
       getDownloadQueue(),
-      getDownloadHistory(),
+      getDownloadHistory({ page: options?.historyPage, pageSize: options?.historyPageSize }),
       getWantedMissing(),
       getDownloadStats(),
     ]);
 
-    return { queue, history, wanted, stats };
+    return { queue, history: historyResult.history, historyPagination: historyResult.pagination, wanted, stats };
   } catch (error) {
     console.error('Error monitoring downloads:', error);
     return {
       queue: [],
       history: [],
+      historyPagination: { page: 1, pageSize: 50, totalRecords: 0, hasMore: false },
       wanted: [],
       stats: {
         totalQueued: 0,
@@ -1008,7 +1038,8 @@ export async function monitorDownloads(): Promise<{
  */
 export async function exportDownloadHistory(): Promise<string> {
   try {
-    const history = await getDownloadHistory();
+    // Fetch all history for export (large page size)
+    const { history } = await getDownloadHistory({ pageSize: 1000 });
     const csvContent = [
       ['ID', 'Artist Name', 'Status', 'Added At', 'Completed At', 'Size (MB)', 'Error Message'],
       ...history.map(item => [

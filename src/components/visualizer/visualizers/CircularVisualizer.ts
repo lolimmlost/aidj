@@ -34,7 +34,7 @@ function initHistoryPool() {
 }
 
 // Reusable array for sampled bars
-let sampledBars = new Float32Array(NUM_BARS);
+const sampledBars = new Float32Array(NUM_BARS);
 
 export const CircularVisualizer: Visualizer = {
   name: 'Circular Bars',

@@ -11,7 +11,7 @@
  * @see docs/architecture/offline-first.md
  */
 
-import React, { createContext, useContext, type ReactNode } from 'react';
+import React, { createContext, use, type ReactNode } from 'react';
 import { useOfflineStatus, type UseOfflineStatusReturn } from '@/lib/hooks/useOfflineStatus';
 
 // Create context with default values
@@ -37,9 +37,9 @@ export function OfflineProvider({ children }: OfflineProviderProps) {
   const offlineStatus = useOfflineStatus();
 
   return (
-    <OfflineContext.Provider value={offlineStatus}>
+    <OfflineContext value={offlineStatus}>
       {children}
-    </OfflineContext.Provider>
+    </OfflineContext>
   );
 }
 
@@ -65,7 +65,7 @@ export function OfflineProvider({ children }: OfflineProviderProps) {
  * ```
  */
 export function useOffline(): UseOfflineStatusReturn {
-  const context = useContext(OfflineContext);
+  const context = use(OfflineContext);
 
   if (!context) {
     throw new Error('useOffline must be used within an OfflineProvider');

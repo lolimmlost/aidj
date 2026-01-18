@@ -15,6 +15,7 @@ import {
   type ExportablePlaylist,
 } from '../../../lib/services/playlist-export';
 import {
+  matchSong,
   matchSongs,
   generateMatchReport,
   type MatchOptions,
@@ -25,12 +26,12 @@ import type { SongMatchResult, PlaylistPlatform } from '../../../lib/db/schema/p
 // Validation schemas
 const ImportValidateSchema = z.object({
   content: z.string().min(1),
-  format: z.enum(['m3u', 'xspf', 'json']).optional(),
+  format: z.enum(['m3u', 'xspf', 'json', 'csv']).optional(),
 });
 
 const ImportRequestSchema = z.object({
   content: z.string().min(1),
-  format: z.enum(['m3u', 'xspf', 'json']).optional(),
+  format: z.enum(['m3u', 'xspf', 'json', 'csv']).optional(),
   playlistName: z.string().min(1).max(100).optional(),
   targetPlatform: z.enum(['navidrome', 'spotify', 'youtube_music']).default('navidrome'),
   autoMatch: z.boolean().default(true),
@@ -118,6 +119,174 @@ const validateHandler = withAuthAndErrorHandling(
   }
 );
 
+// Background matching function (runs after response is sent)
+async function processMatchingInBackground(
+  importJobId: string,
+  userId: string,
+  songs: ExportableSong[],
+  targetPlatform: string,
+  createPlaylist: boolean,
+  playlistName: string,
+  playlistDescription: string | undefined
+) {
+  console.log(`[Import] Starting background matching for ${songs.length} songs...`);
+
+  try {
+    const searcher = createNavidromeSearcher();
+    const matchOptions: MatchOptions = {
+      targetPlatforms: ['navidrome'],
+      useFuzzyMatch: true,
+      minConfidenceScore: 50,
+      maxMatchesPerSong: 5,
+    };
+
+    // Match songs with progress updates
+    const matchResults: SongMatchResult[] = [];
+    let lastProgressUpdate = 0;
+
+    for (let i = 0; i < songs.length; i++) {
+      const song = songs[i];
+
+      try {
+        const result = await matchSong(song, [searcher], matchOptions);
+        matchResults.push(result);
+      } catch (error) {
+        console.error(`Error matching song "${song.artist} - ${song.title}":`, error);
+        matchResults.push({
+          originalSong: {
+            title: song.title || 'Unknown Title',
+            artist: song.artist || 'Unknown Artist',
+            album: song.album,
+            duration: song.duration,
+            isrc: song.isrc,
+            platform: song.platform,
+            platformId: song.platformId,
+          },
+          matches: [],
+          selectedMatch: undefined,
+          status: 'no_match',
+        });
+      }
+
+      // Update progress every 10 songs or every 5 seconds
+      const now = Date.now();
+      if (i % 10 === 0 || now - lastProgressUpdate > 5000) {
+        lastProgressUpdate = now;
+        const matched = matchResults.filter(r => r.status === 'matched').length;
+        const noMatch = matchResults.filter(r => r.status === 'no_match').length;
+
+        await db
+          .update(playlistImportJobs)
+          .set({
+            processedSongs: i + 1,
+            matchedSongs: matched,
+            unmatchedSongs: noMatch,
+          })
+          .where(eq(playlistImportJobs.id, importJobId));
+      }
+
+      // Small delay between songs
+      if (i < songs.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    const report = generateMatchReport(matchResults);
+
+    console.log(`[Import] Matching complete: ${report.summary.matched} matched, ${report.summary.noMatch} unmatched, ${report.summary.pendingReview} pending review`);
+
+    // Create playlist if requested
+    let createdPlaylistId: string | null = null;
+
+    if (createPlaylist) {
+      const matchedSongs = matchResults.filter(r => r.status === 'matched' && r.selectedMatch);
+
+      if (matchedSongs.length > 0) {
+        const newPlaylist = {
+          id: crypto.randomUUID(),
+          userId,
+          name: playlistName,
+          description: playlistDescription || null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        await db.insert(userPlaylists).values(newPlaylist);
+        createdPlaylistId = newPlaylist.id;
+
+        // Add matched songs (deduplicated)
+        const seenSongIds = new Set<string>();
+        const songsToAdd: Array<{
+          id: string;
+          playlistId: string;
+          songId: string;
+          songArtistTitle: string;
+          position: number;
+          addedAt: Date;
+        }> = [];
+
+        for (const result of matchedSongs) {
+          const songId = result.selectedMatch!.platformId;
+          if (!seenSongIds.has(songId)) {
+            seenSongIds.add(songId);
+            songsToAdd.push({
+              id: crypto.randomUUID(),
+              playlistId: newPlaylist.id,
+              songId,
+              songArtistTitle: `${result.originalSong.artist} - ${result.originalSong.title}`,
+              position: songsToAdd.length,
+              addedAt: new Date(),
+            });
+          }
+        }
+
+        if (songsToAdd.length > 0) {
+          await db.insert(playlistSongs).values(songsToAdd);
+        }
+
+        await db
+          .update(userPlaylists)
+          .set({ songCount: songsToAdd.length, updatedAt: new Date() })
+          .where(eq(userPlaylists.id, newPlaylist.id));
+
+        console.log(`[Import] Created playlist "${playlistName}" with ${songsToAdd.length} songs`);
+      }
+    }
+
+    // Update import job with final results
+    await db
+      .update(playlistImportJobs)
+      .set({
+        processedSongs: songs.length,
+        matchedSongs: report.summary.matched,
+        unmatchedSongs: report.summary.noMatch,
+        pendingReviewSongs: report.summary.pendingReview,
+        matchResults: matchResults,
+        createdPlaylistId,
+        status: 'completed',
+        completedAt: new Date(),
+      })
+      .where(eq(playlistImportJobs.id, importJobId));
+
+    console.log(`[Import] Job ${importJobId} completed successfully`);
+
+  } catch (error) {
+    console.error(`[Import] Background matching failed:`, error);
+
+    // Mark job as failed
+    await db
+      .update(playlistImportJobs)
+      .set({
+        status: 'failed',
+        completedAt: new Date(),
+      })
+      .where(eq(playlistImportJobs.id, importJobId));
+  }
+}
+
+// Type for exportable songs from playlist
+type ExportableSong = ReturnType<typeof parsePlaylist>['playlist']['songs'][0];
+
 // POST /api/playlists/import - Import a playlist
 const POST = withAuthAndErrorHandling(
   async ({ request, session }) => {
@@ -171,117 +340,31 @@ const POST = withAuthAndErrorHandling(
 
     await db.insert(playlistImportJobs).values(importJob);
 
-    // Match songs if auto-match is enabled
-    let matchResults: SongMatchResult[] = [];
-
+    // Start matching in background (don't await - return immediately)
     if (validatedData.autoMatch && validatedData.targetPlatform === 'navidrome') {
-      try {
-        const searcher = createNavidromeSearcher();
-        const matchOptions: MatchOptions = {
-          targetPlatforms: ['navidrome'],
-          useFuzzyMatch: true,
-          minConfidenceScore: 50,
-          maxMatchesPerSong: 5,
-        };
-
-        matchResults = await matchSongs(playlist.songs, [searcher], matchOptions);
-
-        // Update import job with match results
-        const report = generateMatchReport(matchResults);
-
-        await db
-          .update(playlistImportJobs)
-          .set({
-            processedSongs: playlist.songs.length,
-            matchedSongs: report.summary.matched,
-            unmatchedSongs: report.summary.noMatch,
-            pendingReviewSongs: report.summary.pendingReview,
-            matchResults: matchResults,
-            status: report.summary.pendingReview > 0 ? 'processing' : 'completed',
-          })
-          .where(eq(playlistImportJobs.id, importJobId));
-
-      } catch (error) {
-        console.error('Error matching songs:', error);
-        // Continue without matching
-      }
+      // Use setImmediate to run after response is sent
+      setImmediate(() => {
+        processMatchingInBackground(
+          importJobId,
+          session.user.id,
+          playlist.songs,
+          validatedData.targetPlatform,
+          validatedData.createPlaylist,
+          playlistName,
+          playlist.description
+        );
+      });
     }
 
-    // Create playlist if requested and all songs are matched
-    let createdPlaylistId: string | null = null;
-
-    if (validatedData.createPlaylist) {
-      const matchedSongs = matchResults.filter(r => r.status === 'matched' && r.selectedMatch);
-
-      if (matchedSongs.length > 0) {
-        // Create the playlist
-        const newPlaylist = {
-          id: crypto.randomUUID(),
-          userId: session.user.id,
-          name: playlistName,
-          description: playlist.description || null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-
-        await db.insert(userPlaylists).values(newPlaylist);
-        createdPlaylistId = newPlaylist.id;
-
-        // Add matched songs
-        const songsToAdd = matchedSongs.map((result, index) => ({
-          id: crypto.randomUUID(),
-          playlistId: newPlaylist.id,
-          songId: result.selectedMatch!.platformId,
-          songArtistTitle: `${result.originalSong.artist} - ${result.originalSong.title}`,
-          position: index,
-          addedAt: new Date(),
-        }));
-
-        if (songsToAdd.length > 0) {
-          await db.insert(playlistSongs).values(songsToAdd);
-        }
-
-        // Update playlist stats
-        await db
-          .update(userPlaylists)
-          .set({
-            songCount: songsToAdd.length,
-            updatedAt: new Date(),
-          })
-          .where(eq(userPlaylists.id, newPlaylist.id));
-
-        // Update import job
-        await db
-          .update(playlistImportJobs)
-          .set({
-            createdPlaylistId: newPlaylist.id,
-            status: 'completed',
-            completedAt: new Date(),
-          })
-          .where(eq(playlistImportJobs.id, importJobId));
-      }
-    }
-
-    // Generate report
-    const report = generateMatchReport(matchResults);
-
-    // Extract unmatched songs for download option
-    // report.unmatchedSongs is already { title, artist, album }[]
-    const unmatchedSongs = report.unmatchedSongs;
-
+    // Return immediately with job info - client will poll for status
     return successResponse({
       importJobId,
       playlistName,
-      createdPlaylistId,
-      matchReport: {
-        summary: report.summary,
-        byConfidence: report.byConfidence,
-        unmatchedCount: report.unmatchedSongs.length,
-        pendingReviewCount: report.pendingReviewSongs.length,
-      },
-      unmatchedSongs,
+      status: 'processing',
+      totalSongs: playlist.songs.length,
+      message: 'Import started. Matching songs in background...',
       parseWarnings: parseResult.parseWarnings,
-    }, 201);
+    }, 202); // 202 Accepted - processing has started
   },
   {
     service: 'playlists/import',
@@ -391,6 +474,43 @@ const PUT = withAuthAndErrorHandling(
       });
     }
 
+    // Helper to deduplicate songs by songId
+    const deduplicateSongs = (
+      results: typeof matchedResults,
+      playlistId: string,
+      startPosition: number,
+      existingSongIds?: Set<string>
+    ) => {
+      const seenSongIds = existingSongIds || new Set<string>();
+      const songsToAdd: Array<{
+        id: string;
+        playlistId: string;
+        songId: string;
+        songArtistTitle: string;
+        position: number;
+        addedAt: Date;
+      }> = [];
+
+      for (const result of results) {
+        const songId = result.selectedMatch!.platformId;
+        if (!seenSongIds.has(songId)) {
+          seenSongIds.add(songId);
+          songsToAdd.push({
+            id: crypto.randomUUID(),
+            playlistId,
+            songId,
+            songArtistTitle: `${result.originalSong.artist} - ${result.originalSong.title}`,
+            position: startPosition + songsToAdd.length,
+            addedAt: new Date(),
+          });
+        }
+      }
+
+      return songsToAdd;
+    };
+
+    let songsAdded = 0;
+
     // Check if playlist already exists
     if (importJob.createdPlaylistId) {
       // Add songs to existing playlist
@@ -400,17 +520,14 @@ const PUT = withAuthAndErrorHandling(
         .where(eq(playlistSongs.playlistId, importJob.createdPlaylistId));
 
       const startPosition = existingSongs.length;
+      const existingSongIds = new Set(existingSongs.map(s => s.songId));
 
-      const songsToAdd = matchedResults.map((result, index) => ({
-        id: crypto.randomUUID(),
-        playlistId: importJob.createdPlaylistId!,
-        songId: result.selectedMatch!.platformId,
-        songArtistTitle: `${result.originalSong.artist} - ${result.originalSong.title}`,
-        position: startPosition + index,
-        addedAt: new Date(),
-      }));
+      const songsToAdd = deduplicateSongs(matchedResults, importJob.createdPlaylistId, startPosition, existingSongIds);
 
-      await db.insert(playlistSongs).values(songsToAdd);
+      if (songsToAdd.length > 0) {
+        await db.insert(playlistSongs).values(songsToAdd);
+      }
+      songsAdded = songsToAdd.length;
 
       // Update playlist stats
       await db
@@ -437,17 +554,21 @@ const PUT = withAuthAndErrorHandling(
 
       await db.insert(userPlaylists).values(newPlaylist);
 
-      // Add songs
-      const songsToAdd = matchedResults.map((result, index) => ({
-        id: crypto.randomUUID(),
-        playlistId: newPlaylist.id,
-        songId: result.selectedMatch!.platformId,
-        songArtistTitle: `${result.originalSong.artist} - ${result.originalSong.title}`,
-        position: index,
-        addedAt: new Date(),
-      }));
+      // Add songs (deduplicated)
+      const songsToAdd = deduplicateSongs(matchedResults, newPlaylist.id, 0);
 
-      await db.insert(playlistSongs).values(songsToAdd);
+      if (songsToAdd.length > 0) {
+        await db.insert(playlistSongs).values(songsToAdd);
+      }
+      songsAdded = songsToAdd.length;
+
+      // Update playlist song count if duplicates were removed
+      if (songsToAdd.length !== matchedResults.length) {
+        await db
+          .update(userPlaylists)
+          .set({ songCount: songsToAdd.length })
+          .where(eq(userPlaylists.id, newPlaylist.id));
+      }
 
       // Update import job
       await db
@@ -473,7 +594,7 @@ const PUT = withAuthAndErrorHandling(
     return successResponse({
       success: true,
       playlistId: importJob.createdPlaylistId,
-      songsAdded: matchedResults.length,
+      songsAdded,
     });
   },
   {

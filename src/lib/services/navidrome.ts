@@ -295,10 +295,10 @@ export { subsonicSalt };
 let tokenExpiry = 0;
 export { tokenExpiry };
 
-// Rate limiting
+// Rate limiting with wait-and-retry for batch operations
 const requestQueue = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
-const RATE_LIMIT_MAX_REQUESTS = 60; // Max 60 requests per minute (increased for better UX)
+const RATE_LIMIT_MAX_REQUESTS = 120; // Increased to 120 requests per minute for local Navidrome server
 
 function checkRateLimit(key: string): boolean {
   const now = Date.now();
@@ -320,6 +320,26 @@ function checkRateLimit(key: string): boolean {
   validRequests.push(now);
   requestQueue.set(key, validRequests);
   return true;
+}
+
+/**
+ * Wait until rate limit allows another request
+ * Returns the time waited in ms
+ */
+async function waitForRateLimit(key: string, maxWaitMs: number = 5000): Promise<number> {
+  const startTime = Date.now();
+
+  while (!checkRateLimit(key)) {
+    const waited = Date.now() - startTime;
+    if (waited >= maxWaitMs) {
+      throw new ServiceError('RATE_LIMIT_ERROR', 'Rate limit wait exceeded maximum time');
+    }
+
+    // Wait 200ms before checking again
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+
+  return Date.now() - startTime;
 }
 
 export function resetAuthState() {
@@ -741,10 +761,10 @@ export async function search(query: string, start: number = 0, limit: number = 5
       return [];
     }
 
-    // Rate limiting check
-    if (!checkRateLimit('search')) {
-      console.warn('⚠️ Search rate limit reached, throttling request');
-      throw new ServiceError('RATE_LIMIT_ERROR', 'Too many search requests. Please wait a moment.');
+    // Rate limiting with wait-and-retry for batch operations (like playlist import)
+    const waitTime = await waitForRateLimit('search', 10000);
+    if (waitTime > 0) {
+      console.log(`⏳ Rate limit: waited ${waitTime}ms before search`);
     }
 
     await getAuthToken(); // Ensure auth

@@ -5,7 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Upload, FileText, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-type ExportFormat = 'm3u' | 'xspf' | 'json';
+type ExportFormat = 'm3u' | 'xspf' | 'json' | 'csv';
 
 interface FileUploadStepProps {
   onFileUpload: (content: string, fileName: string, format?: ExportFormat) => void;
@@ -28,12 +28,23 @@ export function FileUploadStep({ onFileUpload, onTriggerFileSelect }: FileUpload
       if (lowerFilename.endsWith('.m3u') || lowerFilename.endsWith('.m3u8')) return 'm3u';
       if (lowerFilename.endsWith('.xspf')) return 'xspf';
       if (lowerFilename.endsWith('.json')) return 'json';
+      if (lowerFilename.endsWith('.csv')) return 'csv';
     }
 
     // Check content
     if (trimmed.startsWith('#EXTM3U') || trimmed.startsWith('#')) return 'm3u';
     if (trimmed.startsWith('<?xml') || trimmed.startsWith('<playlist')) return 'xspf';
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) return 'json';
+
+    // Check for CSV (Spotify Exportify format)
+    const firstLine = trimmed.split(/\r?\n/)[0]?.toLowerCase() || '';
+    if (
+      (firstLine.includes('track') && firstLine.includes('artist')) ||
+      firstLine.includes('track uri') ||
+      firstLine.includes('track name')
+    ) {
+      return 'csv';
+    }
 
     return undefined;
   };
@@ -197,14 +208,14 @@ export function FileUploadStep({ onFileUpload, onTriggerFileSelect }: FileUpload
         <Label className="text-sm md:text-base font-medium mb-2 block">Paste Content</Label>
         <div className="space-y-3">
           <Textarea
-            placeholder="Paste your playlist content here (M3U, XSPF, or JSON)"
+            placeholder="Paste your playlist content here (M3U, XSPF, JSON, or CSV)"
             value={pastedContent}
             onChange={(e) => setPastedContent(e.target.value)}
             className="min-h-[120px] md:min-h-[180px] font-mono text-sm resize-y"
           />
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
             <p className="text-xs md:text-sm text-muted-foreground order-2 md:order-1">
-              Supports M3U, M3U8, XSPF, and JSON formats
+              Supports M3U, M3U8, XSPF, JSON, and CSV formats (Spotify export)
             </p>
             <Button
               onClick={handlePaste}

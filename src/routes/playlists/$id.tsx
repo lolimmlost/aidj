@@ -1,11 +1,11 @@
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import {
-  ListMusic, Play, Trash2, X, ListPlus, Plus, Shuffle,
+  ListMusic, Play, Trash2, X, Plus, Shuffle,
   Heart, Sparkles, ChevronLeft, MoreHorizontal, Music2, Pause, GripVertical,
-  Users, PanelRightClose, PanelRight
+  Users
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';

@@ -566,7 +566,7 @@ export function PlayerBar() {
             playbackRate: audio.playbackRate,
             position: audio.currentTime,
           });
-        } catch (e) {
+        } catch {
           // Position state not supported
         }
       }
@@ -639,7 +639,7 @@ export function PlayerBar() {
             playbackRate: audio.playbackRate,
             position: audio.currentTime,
           });
-        } catch (e) {
+        } catch {
           // Ignore
         }
       }
@@ -669,7 +669,7 @@ export function PlayerBar() {
         navigator.mediaSession.setActionHandler('previoustrack', null);
         navigator.mediaSession.setActionHandler('nexttrack', null);
         navigator.mediaSession.setActionHandler('seekto', null);
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     };

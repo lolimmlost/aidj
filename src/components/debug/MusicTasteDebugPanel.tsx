@@ -233,7 +233,7 @@ export function MusicTasteDebugPanel({ onClose }: MusicTasteDebugPanelProps) {
             </div>
             {queueGenres.length > 0 ? (
               <div className="space-y-1">
-                {queueGenres.map(({ genre, count, percentage }, index) => (
+                {queueGenres.map(({ genre, percentage }, index) => (
                   <div key={genre} className="flex items-center gap-2">
                     <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                       <div

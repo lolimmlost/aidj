@@ -102,6 +102,8 @@ export function ImportPlaylistDialog({
       setFormat('xspf');
     } else if (ext === 'json') {
       setFormat('json');
+    } else if (ext === 'csv') {
+      setFormat('csv');
     }
 
     const reader = new FileReader();
@@ -126,6 +128,16 @@ export function ImportPlaylistDialog({
       setFormat('xspf');
     } else if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
       setFormat('json');
+    } else {
+      // Check for CSV (Spotify Exportify format)
+      const firstLine = trimmed.split(/\r?\n/)[0]?.toLowerCase() || '';
+      if (
+        (firstLine.includes('track') && firstLine.includes('artist')) ||
+        firstLine.includes('track uri') ||
+        firstLine.includes('track name')
+      ) {
+        setFormat('csv');
+      }
     }
 
     setStep('validate');
@@ -319,13 +331,13 @@ export function ImportPlaylistDialog({
                   <Input
                     id="file"
                     type="file"
-                    accept=".m3u,.m3u8,.xspf,.json"
+                    accept=".m3u,.m3u8,.xspf,.json,.csv"
                     onChange={handleFileUpload}
                     className="min-h-[44px]"
                   />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Supported formats: M3U, M3U8, XSPF, JSON
+                  Supported formats: M3U, M3U8, XSPF, JSON, CSV (Spotify export)
                 </p>
               </div>
 
@@ -344,7 +356,7 @@ export function ImportPlaylistDialog({
                 <Label htmlFor="content">Paste Playlist Content</Label>
                 <Textarea
                   id="content"
-                  placeholder="Paste M3U, XSPF, or JSON playlist content here..."
+                  placeholder="Paste M3U, XSPF, JSON, or CSV playlist content here..."
                   rows={6}
                   onChange={(e) => {
                     if (e.target.value.trim()) {

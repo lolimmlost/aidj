@@ -10,14 +10,14 @@ import { toast } from 'sonner'
 import { Youtube, Music, Download, Clock, ArrowLeft } from 'lucide-react'
 
 export const Route = createFileRoute('/downloads/')({
-  beforeLoad: async ({ context }) => {
-    if (!context.user) {
-      throw redirect({ to: '/login' });
-    }
-  },
   validateSearch: (search: Record<string, unknown>) => {
     return {
       search: (search.search as string) || '',
+    }
+  },
+  beforeLoad: async ({ context }) => {
+    if (!context.user) {
+      throw redirect({ to: '/login' });
     }
   },
   component: DownloadsPage,

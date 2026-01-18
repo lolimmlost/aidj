@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
+import type { SongMatchResult } from '@/lib/db/schema/playlist-export.schema';
 import {
   Dialog,
   DialogContent,
@@ -19,7 +20,7 @@ import { SongMatchReviewer } from './song-match-reviewer';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 type ImportStep = 'upload' | 'validation' | 'matching' | 'confirmation';
-type ExportFormat = 'm3u' | 'xspf' | 'json';
+type ExportFormat = 'm3u' | 'xspf' | 'json' | 'csv';
 
 interface PlaylistImportDialogProps {
   open: boolean;
@@ -58,6 +59,16 @@ interface ImportResult {
   parseWarnings: string[];
 }
 
+// Detect if content looks like CSV (Spotify Exportify format)
+function looksLikeCSV(content: string): boolean {
+  const firstLine = content.split(/\r?\n/)[0]?.toLowerCase() || '';
+  return (
+    (firstLine.includes('track') && firstLine.includes('artist')) ||
+    firstLine.includes('track uri') ||
+    firstLine.includes('track name')
+  );
+}
+
 // Client-side playlist validation
 function validatePlaylistClient(content: string, format?: ExportFormat): ValidationResult {
   const errors: string[] = [];
@@ -79,11 +90,13 @@ function validatePlaylistClient(content: string, format?: ExportFormat): Validat
         detectedFormat = 'xspf';
       } else if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
         detectedFormat = 'json';
+      } else if (looksLikeCSV(trimmed)) {
+        detectedFormat = 'csv';
       }
     }
 
     if (!detectedFormat) {
-      return { valid: false, errors: ['Could not detect playlist format. Expected M3U, XSPF, or JSON.'], warnings };
+      return { valid: false, errors: ['Could not detect playlist format. Expected M3U, XSPF, JSON, or CSV.'], warnings };
     }
 
     let playlistName = 'Imported Playlist';
@@ -144,6 +157,15 @@ function validatePlaylistClient(content: string, format?: ExportFormat): Validat
       }
       const trackMatches = trimmed.match(/<track>/g);
       songCount = trackMatches?.length || 0;
+    } else if (detectedFormat === 'csv') {
+      // Parse CSV header and count data rows
+      const lines = trimmed.split(/\r?\n/).filter(line => line.trim());
+      if (lines.length >= 2) {
+        // Count data rows (excluding header)
+        songCount = lines.length - 1;
+        playlistName = 'Spotify Import';
+        description = `Imported from Spotify CSV (${songCount} tracks)`;
+      }
     }
 
     if (songCount === 0) {
@@ -211,9 +233,11 @@ export function PlaylistImportDialog({
       if (lowerName.endsWith('.m3u') || lowerName.endsWith('.m3u8')) detectedFormat = 'm3u';
       else if (lowerName.endsWith('.xspf')) detectedFormat = 'xspf';
       else if (lowerName.endsWith('.json')) detectedFormat = 'json';
+      else if (lowerName.endsWith('.csv')) detectedFormat = 'csv';
       else if (trimmed.startsWith('#EXTM3U') || trimmed.startsWith('#')) detectedFormat = 'm3u';
       else if (trimmed.startsWith('<?xml') || trimmed.startsWith('<playlist')) detectedFormat = 'xspf';
       else if (trimmed.startsWith('{') || trimmed.startsWith('[')) detectedFormat = 'json';
+      else if (looksLikeCSV(trimmed)) detectedFormat = 'csv';
 
       handleFileUpload(content, file.name, detectedFormat);
     } catch (err) {
@@ -245,7 +269,10 @@ export function PlaylistImportDialog({
     }, 300);
   }, []);
 
-  // Import mutation
+  // Track if we're waiting for background processing
+  const [isProcessingInBackground, setIsProcessingInBackground] = useState(false);
+
+  // Import mutation - now returns immediately with 202, processing happens in background
   const importMutation = useMutation({
     mutationFn: async () => {
       const response = await fetch('/api/playlists/import', {
@@ -262,44 +289,124 @@ export function PlaylistImportDialog({
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to import playlist');
+        let errorMessage = 'Failed to import playlist';
+        try {
+          const error = await response.json();
+          errorMessage = error.message || errorMessage;
+        } catch {
+          // Response was not JSON
+          errorMessage = `Server error (${response.status})`;
+        }
+        throw new Error(errorMessage);
       }
 
-      return response.json();
+      try {
+        return await response.json();
+      } catch {
+        throw new Error('Invalid response from server');
+      }
     },
     onSuccess: (data) => {
-      setImportResult(data.data);
       setImportJobId(data.data.importJobId);
-      // If there are songs pending review, stay on matching step so user can review
-      const pendingReview = data.data?.matchReport?.summary?.pendingReview || 0;
-      if (pendingReview > 0) {
-        // Stay on matching step - user needs to review or skip
-        setCurrentStep('matching');
+
+      // Check if processing is happening in background (202 response)
+      if (data.data.status === 'processing') {
+        setIsProcessingInBackground(true);
+        toast.info('Matching songs...', {
+          description: `Processing ${data.data.totalSongs} songs in background`,
+        });
       } else {
-        setCurrentStep('confirmation');
+        // Immediate result (shouldn't happen now, but keep for compatibility)
+        setImportResult(data.data);
+        const pendingReview = data.data?.matchReport?.summary?.pendingReview || 0;
+        if (pendingReview > 0) {
+          setCurrentStep('matching');
+        } else {
+          setCurrentStep('confirmation');
+        }
       }
     },
     onError: (error: Error) => {
       toast.error('Import failed', {
         description: error.message,
       });
-      // Stay on matching step so user can retry
     },
   });
 
-  // Poll import job status (not used currently but keeping for future)
+  // Poll import job status while processing in background
   const { data: importJobData } = useQuery({
     queryKey: ['import-job', importJobId],
     queryFn: async () => {
       if (!importJobId) return null;
       const response = await fetch(`/api/playlists/import?importJobId=${importJobId}`);
       if (!response.ok) throw new Error('Failed to fetch import status');
-      return response.json();
+      try {
+        return await response.json();
+      } catch {
+        throw new Error('Invalid response from server');
+      }
     },
-    enabled: !!importJobId && currentStep === 'matching',
+    enabled: !!importJobId && isProcessingInBackground,
     refetchInterval: 2000,
   });
+
+  // Handle polling results
+  useEffect(() => {
+    if (!importJobData?.data?.importJob) return;
+
+    const job = importJobData.data.importJob;
+
+    if (job.status === 'completed') {
+      setIsProcessingInBackground(false);
+
+      // Build import result from job data
+      const matchResults = job.matchResults || [];
+      const matched = matchResults.filter((r: SongMatchResult) => r.status === 'matched').length;
+      const noMatch = matchResults.filter((r: SongMatchResult) => r.status === 'no_match').length;
+      const pendingReview = matchResults.filter((r: SongMatchResult) => r.status === 'pending_review').length;
+
+      setImportResult({
+        importJobId: job.id,
+        playlistName: job.playlistName,
+        createdPlaylistId: job.createdPlaylistId,
+        matchReport: {
+          summary: {
+            total: job.totalSongs,
+            matched,
+            noMatch,
+            pendingReview,
+            skipped: 0,
+          },
+          byConfidence: { exact: 0, high: 0, low: 0, none: 0 },
+          unmatchedCount: noMatch,
+          pendingReviewCount: pendingReview,
+        },
+        unmatchedSongs: matchResults
+          .filter((r: SongMatchResult) => r.status === 'no_match')
+          .map((r: SongMatchResult) => ({
+            title: r.originalSong.title,
+            artist: r.originalSong.artist,
+            album: r.originalSong.album,
+          })),
+        matchResults,
+      });
+
+      if (pendingReview > 0) {
+        setCurrentStep('matching');
+      } else {
+        setCurrentStep('confirmation');
+      }
+
+      toast.success('Import complete', {
+        description: `${matched} songs matched, ${noMatch} not found`,
+      });
+    } else if (job.status === 'failed') {
+      setIsProcessingInBackground(false);
+      toast.error('Import failed', {
+        description: 'Background matching encountered an error',
+      });
+    }
+  }, [importJobData]);
 
   const handleFileUpload = (content: string, name: string, detectedFormat?: ExportFormat) => {
     setFileContent(content);
@@ -387,7 +494,7 @@ export function PlaylistImportDialog({
         <input
           ref={globalFileInputRef}
           type="file"
-          accept=".m3u,.m3u8,.xspf,.json"
+          accept=".m3u,.m3u8,.xspf,.json,.csv"
           onChange={handleGlobalFileChange}
           style={{ position: 'fixed', left: '-9999px', opacity: 0 }}
         />,
@@ -439,7 +546,7 @@ export function PlaylistImportDialog({
 
           {currentStep === 'matching' && (
             <MatchingStep
-              isMatching={importMutation.isPending || !importResult}
+              isMatching={importMutation.isPending || isProcessingInBackground || !importResult}
               importJobData={importJobData?.data}
               importResult={importResult}
               onReviewClick={

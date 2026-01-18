@@ -25,7 +25,7 @@ export function ProfileSettings() {
       // This would integrate with Better Auth's update user endpoint
       // For now, showing the UI pattern
       setMessage({ type: 'success', text: 'Display name updated successfully' });
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Failed to update display name' });
     } finally {
       setIsUpdating(false);

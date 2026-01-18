@@ -219,7 +219,7 @@ export async function matchSong(
     }
 
     try {
-      let candidates: PlatformSearchResult[] = [];
+      const candidates: PlatformSearchResult[] = [];
 
       // Try ISRC search first (most reliable)
       if (options.useIsrc !== false && song.isrc) {
@@ -325,8 +325,27 @@ export async function matchSongs(
       onProgress(i + 1, songs.length, song);
     }
 
-    const result = await matchSong(song, searchers, options);
-    results.push(result);
+    try {
+      const result = await matchSong(song, searchers, options);
+      results.push(result);
+    } catch (error) {
+      // If matching fails for a song (e.g., rate limit timeout), continue with others
+      console.error(`Error matching song "${song.artist} - ${song.title}":`, error);
+      results.push({
+        originalSong: {
+          title: song.title || 'Unknown Title',
+          artist: song.artist || 'Unknown Artist',
+          album: song.album,
+          duration: song.duration,
+          isrc: song.isrc,
+          platform: song.platform,
+          platformId: song.platformId,
+        },
+        matches: [],
+        selectedMatch: undefined,
+        status: 'no_match',
+      });
+    }
 
     // Small delay to avoid rate limiting
     if (i < songs.length - 1) {

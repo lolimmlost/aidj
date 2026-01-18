@@ -100,20 +100,12 @@ export const DiscoveryFeedCard = memo(function DiscoveryFeedCard({
     onQueue(item, 'end');
   }, [item, onQueue]);
 
-  const handleSave = useCallback(() => {
-    onSave(item);
-  }, [item, onSave]);
-
   const handleLike = useCallback(() => {
     onFeedback(item, 'liked');
   }, [item, onFeedback]);
 
   const handleDislike = useCallback(() => {
     onFeedback(item, 'disliked');
-  }, [item, onFeedback]);
-
-  const handleNotInterested = useCallback(() => {
-    onFeedback(item, 'not_interested');
   }, [item, onFeedback]);
 
   const handleDismiss = useCallback(() => {

@@ -33,7 +33,7 @@ export function NotificationSettings() {
           });
           return;
         }
-      } catch (error) {
+      } catch {
         setMessage({
           type: 'error',
           text: 'Failed to request notification permission',
@@ -52,7 +52,7 @@ export function NotificationSettings() {
     try {
       await setNotificationSettings(localSettings);
       setMessage({ type: 'success', text: 'Notification settings saved successfully' });
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Failed to save notification settings' });
     } finally {
       setIsSaving(false);

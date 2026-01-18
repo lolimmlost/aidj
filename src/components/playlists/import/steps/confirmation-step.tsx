@@ -69,6 +69,8 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
   const [selectedSongs, setSelectedSongs] = useState<Set<number>>(new Set());
   const [hasQueuedDownloads, setHasQueuedDownloads] = useState(false);
   const [queuedCount, setQueuedCount] = useState(0);
+  const [downloadFailed, setDownloadFailed] = useState(false);
+  const [downloadErrorMessage, setDownloadErrorMessage] = useState<string | null>(null);
 
   // Mock unmatched songs list (in real implementation, this would come from importResult)
   const unmatchedSongs: UnmatchedSong[] = importResult.unmatchedSongs || [
@@ -121,21 +123,65 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to queue downloads');
+        let errorMessage = 'Failed to queue downloads';
+        try {
+          const error = await response.json();
+          errorMessage = error.message || errorMessage;
+        } catch {
+          // Response was not JSON (might be HTML error page)
+          const text = await response.text().catch(() => '');
+          if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+            errorMessage = `Server error (${response.status}): The download service may be unavailable`;
+          } else if (text) {
+            errorMessage = text.substring(0, 200);
+          }
+        }
+        throw new Error(errorMessage);
       }
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error('Invalid response from server - expected JSON');
+      }
       const result = data.data;
 
       // Check if anything was actually queued
       if (result.queued === 0) {
-        toast.error('No songs could be queued', {
-          description: result.errors?.length > 0
-            ? result.errors[0]
-            : 'Check that Lidarr/MeTube are configured correctly',
-          duration: 6000,
+        // Build a helpful error message based on what was tried
+        const errorTitle = 'No songs could be queued';
+        let errorDescription = 'Check that Lidarr/MeTube are configured correctly';
+
+        if (selectedService === 'both') {
+          if (result.errors?.some((e: string) => e.includes('not found in Lidarr'))) {
+            errorDescription = 'Songs not found in Lidarr, and MeTube failed. Try different search terms or check service configuration.';
+          }
+        } else if (selectedService === 'lidarr') {
+          errorDescription = 'No matching albums found in Lidarr. The artists or albums may not be in MusicBrainz.';
+        } else if (selectedService === 'metube') {
+          errorDescription = 'MeTube failed to queue downloads. Check that MeTube is running and accessible.';
+        }
+
+        // Show specific errors if available
+        if (result.errors?.length > 0) {
+          const relevantErrors = result.errors.filter((e: string) =>
+            !e.includes('trying MeTube') && !e.includes('songs queued')
+          );
+          if (relevantErrors.length > 0) {
+            errorDescription = relevantErrors[0];
+          }
+        }
+
+        toast.error(errorTitle, {
+          description: errorDescription,
+          duration: 8000,
         });
+
+        // Mark as failed and close dialog
+        setDownloadFailed(true);
+        setDownloadErrorMessage(errorDescription);
+        setDownloadDialogOpen(false);
         return;
       }
 
@@ -301,15 +347,26 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
         <div className={`p-3 md:p-4 rounded-lg border border-dashed flex items-center gap-3 md:gap-4 ${
           hasQueuedDownloads
             ? 'border-green-500/50 bg-green-500/5'
+            : downloadFailed
+            ? 'border-red-500/50 bg-red-500/5'
             : 'border-primary/50 bg-primary/5'
         }`}>
-          <Download className={`h-4 w-4 md:h-5 md:w-5 shrink-0 ${hasQueuedDownloads ? 'text-green-500' : 'text-primary'}`} />
+          <Download className={`h-4 w-4 md:h-5 md:w-5 shrink-0 ${
+            hasQueuedDownloads ? 'text-green-500' : downloadFailed ? 'text-red-500' : 'text-primary'
+          }`} />
           <div className="flex-1 min-w-0">
             <p className="text-xs md:text-sm">
               {hasQueuedDownloads ? (
                 <>
                   <span className="font-medium text-green-600 dark:text-green-400">{queuedCount} songs queued</span>
                   <span className="text-muted-foreground"> for download</span>
+                </>
+              ) : downloadFailed ? (
+                <>
+                  <span className="font-medium text-red-600 dark:text-red-400">Download failed</span>
+                  <span className="text-muted-foreground block text-[10px] md:text-xs mt-0.5 truncate">
+                    {downloadErrorMessage || 'Could not find songs in Lidarr/MeTube'}
+                  </span>
                 </>
               ) : (
                 <>
@@ -322,11 +379,17 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
           <Button
             size="sm"
             className="h-7 md:h-9 text-xs md:text-sm shrink-0"
-            variant={hasQueuedDownloads ? "outline" : "default"}
-            onClick={handleOpenDownloadDialog}
+            variant={hasQueuedDownloads ? "outline" : downloadFailed ? "destructive" : "default"}
+            onClick={() => {
+              if (downloadFailed) {
+                setDownloadFailed(false);
+                setDownloadErrorMessage(null);
+              }
+              handleOpenDownloadDialog();
+            }}
           >
             <Download className="mr-1 h-3 w-3 md:h-4 md:w-4" />
-            {hasQueuedDownloads ? 'Re-download' : 'Download'}
+            {hasQueuedDownloads ? 'Re-download' : downloadFailed ? 'Retry' : 'Download'}
           </Button>
         </div>
       )}

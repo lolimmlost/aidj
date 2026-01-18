@@ -19,7 +19,7 @@ export function LayoutSettings() {
     try {
       await setDashboardLayout(localSettings);
       setMessage({ type: 'success', text: 'Layout settings saved successfully' });
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Failed to save layout settings' });
     } finally {
       setIsSaving(false);

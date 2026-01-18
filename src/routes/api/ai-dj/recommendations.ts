@@ -195,7 +195,7 @@ export async function POST({ request }: { request: Request }) {
       console.log(`✅ AI DJ: Got ${result.songs.length} recommendations from ${result.source}`);
 
       // Phase 4.1: Calculate artist fatigue for the recommended artists
-      let artistFatigueCooldowns: Record<string, number> = {};
+      const artistFatigueCooldowns: Record<string, number> = {};
 
       if (userId) {
         try {

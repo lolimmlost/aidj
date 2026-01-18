@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Music, Loader2, ChevronDown, Volume2, Edit3, Save, Trash2, ExternalLink, Search, Clock, Check } from 'lucide-react';
+import { X, Music, Loader2, Volume2, Edit3, Save, Trash2, ExternalLink, Search, Clock, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getLyrics, getCurrentLineIndex, parseLRC, searchLRCLIB, lrclibResultToLRC, type LyricsResponse, type LyricLine, type LRCLIBSearchResult } from '@/lib/services/lyrics';
@@ -73,7 +73,7 @@ export function LyricsModal({ isOpen, onClose }: LyricsModalProps) {
   const [lyricsData, setLyricsData] = useState<LyricsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [autoScroll, setAutoScroll] = useState(true);
+  const [autoScroll, _setAutoScroll] = useState(true);
 
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false);
@@ -367,7 +367,7 @@ export function LyricsModal({ isOpen, onClose }: LyricsModalProps) {
     });
 
     // Find lines that repeat 2+ times (likely chorus)
-    lineCounts.forEach((indices, _text) => {
+    lineCounts.forEach((indices) => {
       if (indices.length >= 2) {
         indices.forEach(i => chorusIndices.add(i));
       }

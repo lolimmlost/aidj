@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, memo, Suspense, lazy, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, memo, useEffect } from 'react';
 import { Link, useRouterState, useNavigate } from '@tanstack/react-router';
 import {
   Home,
@@ -25,14 +25,13 @@ import { MusicTasteDebugPanel } from '@/components/debug/MusicTasteDebugPanel';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useAudioStore } from '@/lib/stores/audio';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlayerBar } from './PlayerBar';
 import { QueuePanel } from '@/components/ui/queue-panel';
 import { MobileNav } from '@/components/ui/mobile-nav';
 import { toast } from 'sonner';
-import { useDeferredRender, SidebarItemSkeleton } from '@/lib/utils/lazy-components';
+import { useDeferredRender } from '@/lib/utils/lazy-components';
 
 // Helper to get cover art URL from Navidrome
 const getCoverArtUrl = (albumId: string | undefined, size: number = 300) => {

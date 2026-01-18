@@ -93,12 +93,27 @@ const GET = withAuthAndErrorHandling(
       }
     }
 
+    // Manager's in-memory state is authoritative for isRunning when manager is available
+    // This prevents stale DB state (e.g., from server restart during a run) from showing wrong status
+    const isRunning = managerStatus !== null
+      ? managerStatus.isRunning
+      : (jobState?.isRunning ?? false);
+
+    // If manager says not running but DB says running, sync the DB state
+    if (managerStatus !== null && !managerStatus.isRunning && jobState?.isRunning) {
+      console.log(`[BackgroundDiscovery] Syncing stale isRunning state in DB for user ${userId}`);
+      await db
+        .update(discoveryJobState)
+        .set({ isRunning: false, updatedAt: new Date() })
+        .where(eq(discoveryJobState.userId, userId));
+    }
+
     return successResponse({
       enabled: jobState?.enabled ?? true,
       frequencyHours: jobState?.frequencyHours ?? 12,
       lastRunAt: managerStatus?.lastRunAt || jobState?.lastRunAt || null,
       nextRunAt: managerStatus?.nextRunAt || jobState?.nextRunAt || null,
-      isRunning: managerStatus?.isRunning || jobState?.isRunning || false,
+      isRunning,
       consecutiveFailures: jobState?.consecutiveFailures ?? 0,
       lastError: jobState?.lastError || null,
       totalSuggestionsGenerated: jobState?.totalSuggestionsGenerated ?? 0,

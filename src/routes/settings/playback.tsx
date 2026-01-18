@@ -43,7 +43,7 @@ export function PlaybackSettings() {
     try {
       await setPlaybackSettings(localSettings);
       setMessage({ type: 'success', text: 'Playback settings saved successfully' });
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Failed to save playback settings' });
     } finally {
       setIsSaving(false);

@@ -11,13 +11,7 @@ import {
   Pie,
   Cell,
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
   Tooltip,
-  Legend,
 } from 'recharts';
 import { Heart, Sun, Moon, CloudRain, Zap, Music2, Focus, Flame } from 'lucide-react';
 import type { MoodProfile } from '@/lib/db/schema/music-identity.schema';

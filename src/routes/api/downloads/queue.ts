@@ -23,7 +23,90 @@ const QueueDownloadSchema = z.object({
   songs: z.array(SongSchema).min(1),
 });
 
-// POST /api/downloads/queue - Queue songs for download
+// Background download processing function
+async function processDownloadsInBackground(
+  downloadJobId: string,
+  service: 'lidarr' | 'metube' | 'both',
+  songs: { title: string; artist: string; album?: string }[]
+) {
+  console.log(`[Download] Starting background download for ${songs.length} songs via ${service}...`);
+
+  const results = {
+    queued: 0,
+    failed: 0,
+    errors: [] as string[],
+    lidarrQueued: 0,
+    metubeQueued: 0,
+    pendingOrganization: [] as { title: string; artist: string }[],
+  };
+
+  try {
+    if (service === 'lidarr') {
+      const lidarrResult = await queueToLidarrWithProgress(songs, downloadJobId);
+      results.queued += lidarrResult.queued;
+      results.failed += lidarrResult.failed;
+      results.lidarrQueued = lidarrResult.queued;
+      results.errors.push(...lidarrResult.errors);
+    } else if (service === 'metube') {
+      const metubeResult = await queueToMeTubeWithProgress(songs, downloadJobId);
+      results.queued += metubeResult.queued;
+      results.failed += metubeResult.failed;
+      results.metubeQueued = metubeResult.queued;
+      results.pendingOrganization = metubeResult.queuedSongs || [];
+      results.errors.push(...metubeResult.errors);
+    } else if (service === 'both') {
+      // Try Lidarr first
+      const lidarrResult = await queueToLidarrWithProgress(songs, downloadJobId);
+      results.lidarrQueued = lidarrResult.queued;
+      results.queued += lidarrResult.queued;
+
+      const failedSongs = lidarrResult.failedSongs || [];
+
+      if (failedSongs.length > 0) {
+        // Try MeTube for Lidarr failures
+        const metubeResult = await queueToMeTubeWithProgress(failedSongs, downloadJobId, lidarrResult.queued);
+        results.metubeQueued = metubeResult.queued;
+        results.queued += metubeResult.queued;
+        results.failed = metubeResult.failed;
+        results.pendingOrganization = metubeResult.queuedSongs || [];
+        results.errors.push(...metubeResult.errors);
+      }
+
+      if (lidarrResult.queued > 0) {
+        results.errors.unshift(`Lidarr: ${lidarrResult.queued} songs queued for download`);
+      }
+      if (failedSongs.length > 0) {
+        results.errors.unshift(`${failedSongs.length} songs not found in Lidarr, trying MeTube...`);
+      }
+    }
+
+    // Final update
+    await db
+      .update(playlistDownloadJobs)
+      .set({
+        status: results.queued > 0 ? 'completed' : 'failed',
+        completedItems: results.queued,
+        failedItems: results.failed,
+        errorMessage: results.errors.length > 0 ? results.errors.join('; ') : null,
+        pendingOrganization: results.pendingOrganization.length > 0 ? results.pendingOrganization : null,
+      })
+      .where(eq(playlistDownloadJobs.id, downloadJobId));
+
+    console.log(`[Download] Job ${downloadJobId} completed: ${results.queued} queued, ${results.failed} failed`);
+
+  } catch (error) {
+    console.error(`[Download] Background processing failed:`, error);
+    await db
+      .update(playlistDownloadJobs)
+      .set({
+        status: 'failed',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      })
+      .where(eq(playlistDownloadJobs.id, downloadJobId));
+  }
+}
+
+// POST /api/downloads/queue - Queue songs for download (async)
 const POST = withAuthAndErrorHandling(
   async ({ request, session }) => {
     const body = await request.json();
@@ -38,7 +121,7 @@ const POST = withAuthAndErrorHandling(
       userId: session.user.id,
       importJobId: importJobId || null,
       service: service,
-      status: 'pending' as const,
+      status: 'processing' as const,
       totalItems: songs.length,
       completedItems: 0,
       failedItems: 0,
@@ -50,97 +133,19 @@ const POST = withAuthAndErrorHandling(
 
     await db.insert(playlistDownloadJobs).values(downloadJob);
 
-    // Process downloads based on service
-    const results = {
-      queued: 0,
-      failed: 0,
-      errors: [] as string[],
-      lidarrQueued: 0,
-      metubeQueued: 0,
-      pendingOrganization: [] as { title: string; artist: string }[],
-    };
+    // Start background processing
+    setImmediate(() => {
+      processDownloadsInBackground(downloadJobId, service, songs);
+    });
 
-    if (service === 'lidarr') {
-      // Queue to Lidarr only
-      const lidarrResult = await queueToLidarr(songs);
-      results.queued += lidarrResult.queued;
-      results.failed += lidarrResult.failed;
-      results.lidarrQueued = lidarrResult.queued;
-      results.errors.push(...lidarrResult.errors);
-    } else if (service === 'metube') {
-      // Queue to MeTube only
-      const metubeResult = await queueToMeTube(songs);
-      results.queued += metubeResult.queued;
-      results.failed += metubeResult.failed;
-      results.metubeQueued = metubeResult.queued;
-      results.pendingOrganization = metubeResult.queuedSongs || [];
-      results.errors.push(...metubeResult.errors);
-    } else if (service === 'both') {
-      // CHAINED: Try Lidarr first, then MeTube for failures
-      const lidarrResult = await queueToLidarr(songs);
-      results.lidarrQueued = lidarrResult.queued;
-      results.queued += lidarrResult.queued;
-
-      // Collect songs that Lidarr couldn't find
-      const failedSongs = lidarrResult.failedSongs || [];
-
-      if (failedSongs.length > 0) {
-        // Try MeTube for songs Lidarr couldn't find
-        const metubeResult = await queueToMeTube(failedSongs);
-        results.metubeQueued = metubeResult.queued;
-        results.queued += metubeResult.queued;
-        results.failed = metubeResult.failed; // Only count final failures
-        results.pendingOrganization = metubeResult.queuedSongs || [];
-        results.errors.push(...metubeResult.errors);
-      }
-
-      // Add context about the chained process
-      if (lidarrResult.queued > 0) {
-        results.errors.unshift(`Lidarr: ${lidarrResult.queued} songs queued for download`);
-      }
-      if (failedSongs.length > 0) {
-        results.errors.unshift(`${failedSongs.length} songs not found in Lidarr, trying MeTube...`);
-      }
-    }
-
-    // Update download job status
-    await db
-      .update(playlistDownloadJobs)
-      .set({
-        status: results.queued > 0 ? 'processing' : 'failed',
-        completedItems: results.queued,
-        failedItems: results.failed,
-        errorMessage: results.errors.length > 0 ? results.errors.join('; ') : null,
-      })
-      .where(eq(playlistDownloadJobs.id, downloadJobId));
-
-    // Build detailed message
-    let message = '';
-    if (results.queued > 0) {
-      const parts = [];
-      if (results.lidarrQueued > 0) {
-        parts.push(`${results.lidarrQueued} via Lidarr`);
-      }
-      if (results.metubeQueued > 0) {
-        parts.push(`${results.metubeQueued} via MeTube`);
-      }
-      message = `Successfully queued ${results.queued} songs (${parts.join(', ')})`;
-    } else {
-      message = 'Failed to queue downloads. Check service configuration.';
-    }
-
+    // Return immediately
     return successResponse({
       downloadJobId,
       service,
       totalSongs: songs.length,
-      queued: results.queued,
-      failed: results.failed,
-      lidarrQueued: results.lidarrQueued,
-      metubeQueued: results.metubeQueued,
-      pendingOrganization: results.pendingOrganization,
-      errors: results.errors,
-      message,
-    }, 201);
+      status: 'processing',
+      message: `Queuing ${songs.length} songs for download...`,
+    }, 202);
   },
   {
     service: 'downloads/queue',
@@ -149,6 +154,45 @@ const POST = withAuthAndErrorHandling(
     defaultMessage: 'Failed to queue downloads',
   }
 );
+
+// Wrapper with progress updates for background processing
+async function queueToLidarrWithProgress(
+  songs: { title: string; artist: string; album?: string }[],
+  downloadJobId: string
+) {
+  const result = await queueToLidarr(songs);
+
+  // Update progress in database
+  await db
+    .update(playlistDownloadJobs)
+    .set({
+      completedItems: result.queued,
+      failedItems: result.failed,
+    })
+    .where(eq(playlistDownloadJobs.id, downloadJobId));
+
+  return result;
+}
+
+// Wrapper with progress updates for background processing
+async function queueToMeTubeWithProgress(
+  songs: { title: string; artist: string; album?: string }[],
+  downloadJobId: string,
+  previouslyQueued: number = 0
+) {
+  const result = await queueToMeTube(songs);
+
+  // Update progress in database
+  await db
+    .update(playlistDownloadJobs)
+    .set({
+      completedItems: previouslyQueued + result.queued,
+      failedItems: result.failed,
+    })
+    .where(eq(playlistDownloadJobs.id, downloadJobId));
+
+  return result;
+}
 
 // Helper function to queue songs to Lidarr
 // This searches for the specific album containing the song, not the entire artist discography

@@ -529,7 +529,7 @@ export async function addVideosToPlaylist(
  */
 function parseYouTubeMusicTitle(title: string): { title: string; artist?: string } {
   // Remove common suffixes
-  let cleaned = title
+  const cleaned = title
     .replace(/\s*\(official\s*(music\s*)?video\)/gi, '')
     .replace(/\s*\(lyric\s*video\)/gi, '')
     .replace(/\s*\(audio\)/gi, '')

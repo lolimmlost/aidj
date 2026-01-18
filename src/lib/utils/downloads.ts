@@ -53,9 +53,17 @@ export interface DownloadStats {
   totalSize: number
 }
 
+export interface HistoryPagination {
+  page: number
+  pageSize: number
+  totalRecords: number
+  hasMore: boolean
+}
+
 export interface DownloadStatus {
   queue: DownloadQueueItem[]
   history: DownloadHistoryItem[]
+  historyPagination?: HistoryPagination
   wanted: WantedAlbum[]
   stats: DownloadStats
 }

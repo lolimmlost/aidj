@@ -281,7 +281,7 @@ function DashboardIndex() {
 
       let attempts = 0;
       const maxAttempts = 3;
-      let lastData: unknown = null;
+      const lastData: unknown = null;
 
       while (attempts < maxAttempts) {
         attempts++;

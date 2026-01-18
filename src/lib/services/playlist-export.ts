@@ -592,6 +592,158 @@ export function parseJSON(content: string): ImportResult {
 }
 
 /**
+ * Parse CSV playlist content (Spotify Exportify format)
+ */
+export function parseCSV(content: string): ImportResult {
+  const warnings: string[] = [];
+  const songs: ExportableSong[] = [];
+
+  try {
+    const lines = content.split(/\r?\n/).filter(line => line.trim());
+    if (lines.length < 2) {
+      throw new Error('CSV file must have at least a header row and one data row');
+    }
+
+    // Parse header row to find column indices
+    const headerRow = parseCSVRow(lines[0]);
+    const headers = headerRow.map(h => h.toLowerCase().trim());
+
+    // Map common column names
+    const columnMap: Record<string, number> = {};
+    const columnAliases: Record<string, string[]> = {
+      trackName: ['track name', 'trackname', 'title', 'song', 'name'],
+      artistName: ['artist name(s)', 'artist name', 'artistname', 'artist', 'artists'],
+      albumName: ['album name', 'albumname', 'album'],
+      duration: ['duration (ms)', 'duration_ms', 'duration'],
+      trackUri: ['track uri', 'trackuri', 'uri', 'spotify uri'],
+      genres: ['genres', 'genre'],
+    };
+
+    for (const [key, aliases] of Object.entries(columnAliases)) {
+      for (const alias of aliases) {
+        const idx = headers.indexOf(alias);
+        if (idx !== -1) {
+          columnMap[key] = idx;
+          break;
+        }
+      }
+    }
+
+    // Ensure we have at least track name and artist
+    if (columnMap.trackName === undefined) {
+      throw new Error('CSV must have a "Track Name" or "Title" column');
+    }
+    if (columnMap.artistName === undefined) {
+      throw new Error('CSV must have an "Artist Name" or "Artist" column');
+    }
+
+    // Parse data rows
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      try {
+        const row = parseCSVRow(line);
+
+        const trackName = row[columnMap.trackName]?.trim();
+        const artistName = row[columnMap.artistName]?.trim();
+
+        if (!trackName) {
+          warnings.push(`Row ${i + 1}: Missing track name, skipping`);
+          continue;
+        }
+
+        const song: ExportableSong = {
+          title: trackName,
+          artist: artistName || 'Unknown Artist',
+        };
+
+        // Optional fields
+        if (columnMap.albumName !== undefined && row[columnMap.albumName]) {
+          song.album = row[columnMap.albumName].trim();
+        }
+
+        if (columnMap.duration !== undefined && row[columnMap.duration]) {
+          const durationMs = parseInt(row[columnMap.duration], 10);
+          if (!isNaN(durationMs)) {
+            song.duration = Math.floor(durationMs / 1000); // Convert ms to seconds
+          }
+        }
+
+        if (columnMap.trackUri !== undefined && row[columnMap.trackUri]) {
+          const uri = row[columnMap.trackUri].trim();
+          // Extract Spotify track ID from URI (spotify:track:xxx)
+          const match = uri.match(/spotify:track:([a-zA-Z0-9]+)/);
+          if (match) {
+            song.platform = 'spotify';
+            song.platformId = match[1];
+            song.url = `https://open.spotify.com/track/${match[1]}`;
+          }
+        }
+
+        songs.push(song);
+      } catch (rowError) {
+        warnings.push(`Row ${i + 1}: Parse error - ${rowError instanceof Error ? rowError.message : 'Unknown error'}`);
+      }
+    }
+
+    if (songs.length === 0) {
+      throw new Error('No valid songs found in CSV');
+    }
+
+    return {
+      playlist: {
+        name: 'Imported Playlist',
+        description: `Imported from Spotify CSV (${songs.length} tracks)`,
+        platform: 'spotify',
+        songs,
+      },
+      format: 'csv',
+      parseWarnings: warnings,
+    };
+  } catch (error) {
+    throw new ServiceError(
+      'IMPORT_PARSE_ERROR',
+      `Failed to parse CSV: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+/**
+ * Parse a single CSV row, handling quoted fields with commas
+ */
+function parseCSVRow(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        // Escaped quote
+        current += '"';
+        i++;
+      } else {
+        // Toggle quote mode
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+
+  // Don't forget the last field
+  result.push(current);
+
+  return result;
+}
+
+/**
  * Parse playlist content and detect format
  */
 export function parsePlaylist(content: string, format?: PlaylistExportFormat): ImportResult {
@@ -604,6 +756,8 @@ export function parsePlaylist(content: string, format?: PlaylistExportFormat): I
       format = 'xspf';
     } else if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
       format = 'json';
+    } else if (looksLikeCSV(trimmed)) {
+      format = 'csv';
     } else {
       throw new ServiceError('IMPORT_FORMAT_ERROR', 'Could not detect playlist format');
     }
@@ -616,9 +770,24 @@ export function parsePlaylist(content: string, format?: PlaylistExportFormat): I
       return parseXSPF(content);
     case 'json':
       return parseJSON(content);
+    case 'csv':
+      return parseCSV(content);
     default:
       throw new ServiceError('IMPORT_FORMAT_ERROR', `Unsupported import format: ${format}`);
   }
+}
+
+/**
+ * Detect if content looks like CSV (Spotify Exportify format)
+ */
+function looksLikeCSV(content: string): boolean {
+  const firstLine = content.split(/\r?\n/)[0]?.toLowerCase() || '';
+  // Check for common Spotify CSV headers
+  return (
+    (firstLine.includes('track') && firstLine.includes('artist')) ||
+    firstLine.includes('track uri') ||
+    firstLine.includes('track name')
+  );
 }
 
 /**

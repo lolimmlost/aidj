@@ -113,8 +113,12 @@ export function SongMatchReviewer({
         throw new Error(error.message || error.error || 'Failed to confirm import');
       }
 
-      const data = await response.json();
-      return data;
+      try {
+        const data = await response.json();
+        return data;
+      } catch {
+        throw new Error('Invalid response from server');
+      }
     },
     onSuccess: (data) => {
       const songsAdded = data?.data?.songsAdded ?? 0;

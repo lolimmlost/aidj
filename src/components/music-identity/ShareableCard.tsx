@@ -27,7 +27,6 @@ import {
   Link,
   Check,
   Music,
-  TrendingUp,
   Sparkles,
   ExternalLink,
 } from 'lucide-react';

@@ -1,6 +1,5 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { ThemeToggle } from "~/components/theme-toggle";
-import { Button } from "~/components/ui/button";
 import { Music, Disc3, Radio, Sparkles, ArrowRight } from "lucide-react";
 
 export const Route = createFileRoute("/")({

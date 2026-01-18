@@ -1,5 +1,5 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router';
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { search } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
