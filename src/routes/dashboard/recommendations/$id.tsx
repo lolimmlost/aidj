@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
+import { queryKeys } from '@/lib/query';
 
 export const Route = createFileRoute('/dashboard/recommendations/$id')({
   beforeLoad: async ({ context }) => {
@@ -93,7 +94,7 @@ function RecommendationDetail() {
       // This prevents the recommendations from refreshing when giving feedback
       queryClient.invalidateQueries({ queryKey: ['preference-analytics'] });
       // Also invalidate the feedback query to refresh feedback state
-      queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
       const emoji = feedbackType === 'thumbs_up' ? '👍' : '👎';
       toast.success(`Feedback saved ${emoji}`, {
         description: 'Your preferences help improve recommendations',

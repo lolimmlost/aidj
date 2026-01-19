@@ -1,7 +1,8 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { toast } from 'sonner';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo, Suspense, lazy } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { VirtualizedList } from '@/components/ui/virtualized-list';
 import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
 import { usePreferencesStore, type SourceMode } from '@/lib/stores/preferences';
@@ -13,7 +14,6 @@ import { search } from '@/lib/services/navidrome';
 import { OllamaErrorBoundary } from '@/components/ollama-error-boundary';
 import { Skeleton } from '@/components/ui/skeleton';
 import { hasLegacyFeedback, migrateLegacyFeedback, isMigrationCompleted } from '@/lib/utils/feedback-migration';
-import { PreferenceInsights } from '@/components/recommendations/PreferenceInsights';
 import { Play, Plus, ListPlus, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   DropdownMenu,
@@ -23,12 +23,37 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { Song } from '@/lib/types/song';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
-import { DashboardHero, DJFeatures, MoreFeatures, QuickActions, AIDJControl, STYLE_PRESETS, type StylePreset, type AIDJMode } from '@/components/dashboard';
+// Critical components - loaded immediately
+import { DashboardHero } from '@/components/dashboard/DashboardHero';
+import { QuickActions, STYLE_PRESETS, type StylePreset } from '@/components/dashboard/quick-actions';
 import { SourceModeSelector, SourceBadge } from '@/components/playlist/source-mode-selector';
 import { GenerationProgress } from '@/components/ui/generation-progress';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
-import { DiscoveryQueuePanel } from '@/components/discovery/DiscoveryQueuePanel';
 import { useDiscoveryQueueStore } from '@/lib/stores/discovery-queue';
+// Virtualization for large lists
+import { RecommendationCard } from '@/components/recommendations/RecommendationCard';
+// Centralized query management for optimized caching
+import { queryKeys, queryPresets } from '@/lib/query';
+// Lazy loading utilities for deferred content
+import { useDeferredRender, SectionSkeleton, FeatureCardSkeleton } from '@/lib/utils/lazy-components';
+
+// ===== CODE SPLITTING: Lazy-loaded components for non-critical sections =====
+// These components are not needed for initial page render and can be loaded later
+
+// DJFeatures - loaded after 1.5s delay (desktop only, non-critical)
+const DJFeatures = lazy(() => import('@/components/dashboard/DJFeatures').then(m => ({ default: m.DJFeatures })));
+
+// MoreFeatures - loaded after initial render (bottom of page)
+const MoreFeatures = lazy(() => import('@/components/dashboard/MoreFeatures').then(m => ({ default: m.MoreFeatures })));
+
+// PreferenceInsights - moved to Analytics page (accessible via sidebar)
+// const PreferenceInsights = lazy(() => import('@/components/recommendations/PreferenceInsights').then(m => ({ default: m.PreferenceInsights })));
+
+// DiscoveryQueuePanel - loaded after initial render
+const DiscoveryQueuePanel = lazy(() => import('@/components/discovery/DiscoveryQueuePanel').then(m => ({ default: m.DiscoveryQueuePanel })));
+
+// MixCompatibilityBadges - only loaded when needed (harmonic mixing)
+const MixCompatibilityBadges = lazy(() => import('@/components/dj/mix-compatibility-badges').then(m => ({ default: m.MixCompatibilityBadges })));
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context }) => {
@@ -64,22 +89,11 @@ function DashboardIndex() {
   // Story 7.4: Quick Actions state
   const [activePreset, setActivePreset] = useState<string | null>(null);
   // Story 7.4: Collapsible sections
-  const [recommendationsCollapsed, setRecommendationsCollapsed] = useState(false);
+  // Recommendations collapsed by default - Quick Actions now provides similar functionality
+  const [recommendationsCollapsed, setRecommendationsCollapsed] = useState(true);
   const [playlistCollapsed, setPlaylistCollapsed] = useState(false);
-  // Story 7.4: AI DJ mode state (separate from enabled to prevent flashing)
-  const [aiDJMode, setAIDJMode] = useState<AIDJMode>('manual');
-  // AI DJ state from audio store
+  // AI DJ state from audio store (read-only for banner display)
   const aiDJEnabled = useAudioStore((state) => state.aiDJEnabled);
-  const setAIDJEnabled = useAudioStore((state) => state.setAIDJEnabled);
-
-  // Sync AI DJ mode with store on mount
-  useEffect(() => {
-    if (aiDJEnabled && aiDJMode === 'manual') {
-      setAIDJMode('autopilot');
-    } else if (!aiDJEnabled && aiDJMode !== 'manual') {
-      setAIDJMode('manual');
-    }
-  }, []);
   const aiQueuedSongIds = useAudioStore((state) => state.aiQueuedSongIds);
   const playlist = useAudioStore((state) => state.playlist);
   const currentSongIndex = useAudioStore((state) => state.currentSongIndex);
@@ -123,11 +137,11 @@ function DashboardIndex() {
       setSongFeedback(prev => ({ ...prev, [song]: feedbackType }));
     },
     onSuccess: (_, { feedbackType }) => {
-      // Only invalidate preference analytics, not recommendations to prevent auto-refresh
-      // This prevents the recommendations from refreshing when giving feedback
-      queryClient.invalidateQueries({ queryKey: ['preference-analytics'] });
-      // Also invalidate the feedback query to refresh the feedback state
-      queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
+      // Use granular invalidation with query key factory
+      // Only invalidate preference analytics and feedback, not recommendations
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics.preferences() });
+      // Invalidate all feedback queries to refresh the feedback state
+      queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
       const emoji = feedbackType === 'thumbs_up' ? '👍' : '👎';
       toast.success(`Feedback saved ${emoji}`, {
         description: 'Your preferences help improve recommendations',
@@ -242,7 +256,8 @@ function DashboardIndex() {
   }, [trimmedStyle]);
 
   const { data: recommendations, isLoading, error, refetch: refetchRecommendations } = useQuery({
-    queryKey: ['recommendations', session?.user.id, type],
+    // Use query key factory for consistent cache management
+    queryKey: queryKeys.recommendations.list(session?.user.id || '', type),
     queryFn: async () => {
       // Use more specific and varied prompts for better recommendations
       const prompts = {
@@ -266,7 +281,7 @@ function DashboardIndex() {
 
       let attempts = 0;
       const maxAttempts = 3;
-      let lastData: unknown = null;
+      const lastData: unknown = null;
 
       while (attempts < maxAttempts) {
         attempts++;
@@ -406,11 +421,15 @@ function DashboardIndex() {
     },
     // Story 7.4: Manual trigger only - don't auto-load on page visit
     enabled: false,
-    staleTime: Infinity, // Keep data until explicitly cleared
+    // Use recommendations preset for consistent caching
+    ...queryPresets.recommendations,
   });
 
-  // Fetch feedback for recommended songs
-  const recommendedSongIds = recommendations?.data?.recommendations?.map((rec: { song: string; actualSong?: { id?: string } }) => rec.actualSong?.id || rec.song).filter(Boolean) || [];
+  // Memoize recommended song IDs to prevent unnecessary re-fetches
+  const recommendedSongIds = useMemo(() =>
+    recommendations?.data?.recommendations?.map((rec: { song: string; actualSong?: { id?: string } }) => rec.actualSong?.id || rec.song).filter(Boolean) || [],
+    [recommendations?.data?.recommendations]
+  );
   const { data: feedbackData } = useSongFeedback(recommendedSongIds);
 
   // Update local songFeedback state when feedback data is fetched
@@ -551,7 +570,15 @@ function DashboardIndex() {
     inLibrary?: boolean;
     // Story 7.2: Discovery source tracking
     discoverySource?: 'lastfm' | 'ollama' | 'library';
+    // Story 7.5: Harmonic mixing metadata
+    bpm?: number;
+    key?: string;
   }
+
+  // Story 7.5: Get current song for harmonic mixing comparison
+  const currentSong = useAudioStore((state) =>
+    state.playlist[state.currentSongIndex] || null
+  );
 
   // Story 7.4: Cancel function for long operations
   const cancelPlaylistGeneration = () => {
@@ -560,26 +587,21 @@ function DashboardIndex() {
       abortControllerRef.current = null;
     }
     setGenerationStage('idle');
-    queryClient.cancelQueries({ queryKey: ['playlist', debouncedStyle, sourceMode, mixRatio] });
+    // Use query key factory for consistent cache management
+    queryClient.cancelQueries({ queryKey: queryKeys.playlists.generatedByStyle(debouncedStyle, sourceMode, mixRatio) });
     toast.info('Playlist generation cancelled');
   };
 
   const { data: playlistData, isLoading: playlistLoading, error: playlistError, refetch: refetchPlaylist } = useQuery({
-    // Story 7.1: Include sourceMode and mixRatio in query key
-    queryKey: ['playlist', debouncedStyle, sourceMode, mixRatio],
+    // Use query key factory for consistent cache management
+    queryKey: queryKeys.playlists.generatedByStyle(debouncedStyle, sourceMode, mixRatio),
     queryFn: async () => {
       // Story 7.4: Create new abort controller for this request
       abortControllerRef.current = new AbortController();
       const signal = abortControllerRef.current.signal;
 
-      // Story 7.1: Include sourceMode in cache key
-      const cacheKey = `playlist-${debouncedStyle}-${sourceMode}-${mixRatio}`;
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        console.log(`📦 Returning cached playlist for "${debouncedStyle}" (${sourceMode})`);
-        setGenerationStage('done');
-        return JSON.parse(cached);
-      }
+      // React Query handles caching - no need for localStorage dual caching
+      // This reduces complexity and prevents cache inconsistencies
 
       let attempts = 0;
       const maxAttempts = 3;
@@ -640,7 +662,7 @@ function DashboardIndex() {
           if (validCount >= minRequired) {
             console.log(`✅ Accepting playlist with ${validCount} valid songs for ${sourceMode} mode`);
             setGenerationStage('done');
-            localStorage.setItem(cacheKey, JSON.stringify(data));
+            // React Query caches this automatically - no localStorage needed
             return data;
           }
 
@@ -667,7 +689,7 @@ function DashboardIndex() {
       if (lastData) {
         console.log(`⚠️ All attempts completed with low resolution rate, returning best available`);
         setGenerationStage('done');
-        localStorage.setItem(cacheKey, JSON.stringify(lastData));
+        // React Query caches this automatically - no localStorage needed
         return lastData;
       }
 
@@ -732,11 +754,12 @@ function DashboardIndex() {
 
   
   const clearPlaylistCache = () => {
-    Object.keys(localStorage).filter(key => key.startsWith('playlist-')).forEach(key => localStorage.removeItem(key));
-    queryClient.invalidateQueries({ queryKey: ['playlist'] });
+    // Use query key factory for granular invalidation
+    // Invalidate only generated playlists, not saved playlists
+    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.generated() });
     setStyle('');
     setDebouncedStyle('');
-    console.log('🧹 Cleared all playlist cache');
+    console.log('🧹 Cleared all generated playlist cache');
   };
 
   // Save cache to localStorage when it changes
@@ -839,13 +862,48 @@ function DashboardIndex() {
     }
   }, [recommendations]);
 
-  // Calculate stats for hero
-  const availableRecommendations = recommendations?.data?.recommendations?.filter((r: { foundInLibrary?: boolean }) => r.foundInLibrary).length || 0;
-  const playlistSongsReady = playlistData ? (playlistData.data.playlist as PlaylistItem[]).filter(item => item.songId).length : 0;
+  // Memoize calculated stats for hero to prevent recalculation on every render
+  const availableRecommendations = useMemo(() =>
+    recommendations?.data?.recommendations?.filter((r: { foundInLibrary?: boolean }) => r.foundInLibrary).length || 0,
+    [recommendations?.data?.recommendations]
+  );
+
+  const playlistSongsReady = useMemo(() =>
+    playlistData ? (playlistData.data.playlist as PlaylistItem[]).filter(item => item.songId).length : 0,
+    [playlistData]
+  );
+
+  // Memoize last played song to prevent object recreation on every render
+  const lastPlayedSong = useMemo(() =>
+    playlist[currentSongIndex]
+      ? {
+          title: playlist[currentSongIndex].title || playlist[currentSongIndex].name || 'Unknown',
+          artist: playlist[currentSongIndex].artist || 'Unknown Artist',
+        }
+      : null,
+    [playlist, currentSongIndex]
+  );
+
+  // Memoize callback handlers to prevent unnecessary child re-renders
+  const handlePresetClick = useCallback((preset: StylePreset) => {
+    setActivePreset(preset.id);
+    setStyle(preset.prompt);
+    // Clear cache for this preset to force fresh generation using query key factory
+    setGenerationStage('generating');
+    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.generatedByStyle(preset.prompt, sourceMode, mixRatio) });
+  }, [sourceMode, mixRatio, queryClient]);
+
+  const handleContinueListening = useCallback(() => {
+    // Resume playback if paused
+    const { isPlaying, setIsPlaying } = useAudioStore.getState();
+    if (!isPlaying) {
+      setIsPlaying(true);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-20">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6 lg:space-y-8">
         {/* Hero Section */}
         <DashboardHero
           userName={session?.user?.name}
@@ -853,72 +911,41 @@ function DashboardIndex() {
           playlistSongsReady={playlistSongsReady}
         />
 
-        {/* Story 7.4: Quick Actions and AI DJ Control */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <QuickActions
-            className="lg:col-span-2"
-            onPresetClick={(preset: StylePreset) => {
-              setActivePreset(preset.id);
-              setStyle(preset.prompt);
-              // Clear cache for this preset to force fresh generation
-              const cacheKey = `playlist-${preset.prompt}-${sourceMode}-${mixRatio}`;
-              localStorage.removeItem(cacheKey);
-              setGenerationStage('generating');
-              queryClient.invalidateQueries({ queryKey: ['playlist', preset.prompt, sourceMode, mixRatio] });
-            }}
-            lastPlayedSong={
-              playlist[currentSongIndex]
-                ? {
-                    title: playlist[currentSongIndex].title || playlist[currentSongIndex].name || 'Unknown',
-                    artist: playlist[currentSongIndex].artist || 'Unknown Artist',
-                  }
-                : null
-            }
-            onContinueListening={() => {
-              // Resume playback if paused
-              const { isPlaying, setIsPlaying } = useAudioStore.getState();
-              if (!isPlaying) {
-                setIsPlaying(true);
-              }
-            }}
-            isLoading={playlistLoading}
-            activePreset={activePreset}
-          />
-          <AIDJControl
-            mode={aiDJMode}
-            onModeChange={(mode: AIDJMode) => {
-              setAIDJMode(mode);
-              // Only update store state after local state is set
-              const shouldEnable = mode !== 'manual';
-              if (shouldEnable !== aiDJEnabled) {
-                setAIDJEnabled(shouldEnable);
-              }
-            }}
-            isActive={aiDJEnabled}
-            isLoading={false}
-            queueCount={aiQueuedSongIds.size}
-          />
-        </div>
+        {/* Quick Actions - Simplified layout without duplicate AI DJ control */}
+        <QuickActions
+          onPresetClick={handlePresetClick}
+          lastPlayedSong={lastPlayedSong}
+          onContinueListening={handleContinueListening}
+          isLoading={playlistLoading}
+          activePreset={activePreset}
+        />
+
 
       {/* AI Recommendations Section - conditionally rendered based on user preferences */}
       {preferences.dashboardLayout.showRecommendations && (
         <OllamaErrorBoundary>
-          <section className="space-y-6">
+          <section className="glass-card-premium p-5 sm:p-6 space-y-5">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <button
                 onClick={() => setRecommendationsCollapsed(!recommendationsCollapsed)}
-                className="flex items-center gap-2 text-left group"
+                className="flex items-center gap-3 text-left group"
               >
-                <h2 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
-                  <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">AI Recommendations</span>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
-                    Powered by AI
-                  </span>
-                </h2>
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-500">
+                    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+                    <span className="text-gradient-brand">AI Recommendations</span>
+                    <span className="badge-purple text-[10px]">AI</span>
+                  </h2>
+                  <p className="text-xs text-muted-foreground">Personalized picks based on your taste</p>
+                </div>
                 {recommendationsCollapsed ? (
-                  <ChevronDown className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors ml-1" />
                 ) : (
-                  <ChevronUp className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  <ChevronUp className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors ml-1" />
                 )}
               </button>
               {!recommendationsCollapsed && (
@@ -928,7 +955,7 @@ function DashboardIndex() {
                     size="sm"
                     onClick={() => refetchRecommendations()}
                     disabled={isLoading}
-                    className="flex-1 sm:flex-none min-h-[44px] hover:bg-primary/5 hover:border-primary/50 transition-all"
+                    className="flex-1 sm:flex-none min-h-[44px] hover:bg-primary/5 hover:border-primary/50 transition-all rounded-xl"
                     aria-label="Refresh recommendations"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`mr-2 ${isLoading ? 'animate-spin' : ''}`}>
@@ -940,7 +967,7 @@ function DashboardIndex() {
                     {isLoading ? 'Loading...' : 'Refresh'}
                   </Button>
                   <Select value={type} onValueChange={(value) => setType(value as 'similar' | 'mood')}>
-                    <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
+                    <SelectTrigger className="w-full sm:w-[180px] min-h-[44px] rounded-xl">
                       <SelectValue placeholder="Type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -952,7 +979,7 @@ function DashboardIndex() {
               )}
             </div>
             {recommendationsCollapsed && (
-              <p className="text-sm text-muted-foreground">Click to expand recommendations</p>
+              <p className="text-sm text-muted-foreground pl-[52px]">Tap to explore personalized recommendations</p>
             )}
             {!recommendationsCollapsed && (
               <>
@@ -1003,160 +1030,37 @@ function DashboardIndex() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3">
-                  {recommendations.data.recommendations.map((rec: { song: string; foundInLibrary?: boolean; actualSong?: CachedSong; searchError?: boolean; explanation?: string }, index: number) => {
-                    const isInLibrary = rec.foundInLibrary;
-                    const hasSearchError = rec.searchError;
+                {/* Virtualized recommendations list for performance with large result sets */}
+                <VirtualizedList
+                  items={recommendations.data.recommendations}
+                  itemHeight={140}
+                  containerHeight={Math.min(500, Math.max(280, recommendations.data.recommendations.length * 140))}
+                  getItemKey={(rec: { song: string }) => rec.song}
+                  gap={12}
+                  overscan={3}
+                  className="rounded-lg"
+                  renderItem={(rec: { song: string; foundInLibrary?: boolean; actualSong?: CachedSong; searchError?: boolean; explanation?: string }, index: number) => {
                     const currentFeedback = songFeedback[rec.song];
                     const hasFeedback = currentFeedback !== undefined && currentFeedback !== null;
 
                     return (
-                      <div
-                        key={index}
-                        className={`group relative overflow-hidden rounded-xl border transition-all duration-300 hover:shadow-lg ${
-                          isInLibrary
-                            ? 'border-green-500/30 bg-gradient-to-br from-green-500/5 to-green-600/5 hover:border-green-500/50'
-                            : 'border-border bg-card/50 hover:border-border/80'
-                        }`}
-                      >
-                        <div className="p-4 sm:p-5">
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <Link
-                                  to="/dashboard/recommendations/id"
-                                  search={{ song: rec.song }}
-                                  className="font-semibold text-base hover:text-primary transition-colors"
-                                >
-                                  {rec.song}
-                                </Link>
-                                {isInLibrary && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                                      <polyline points="20 6 9 17 4 12"/>
-                                    </svg>
-                                    In Library
-                                  </span>
-                                )}
-                                {hasSearchError && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
-                                    ⚠️ Search Error
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-sm text-muted-foreground line-clamp-2">{rec.explanation}</p>
-                              {!isInLibrary && !hasSearchError && (
-                                <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400">
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <circle cx="12" cy="12" r="10"/>
-                                    <path d="M12 16v-4"/>
-                                    <path d="M12 8h.01"/>
-                                  </svg>
-                                  Not in your library, but matches your taste
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <div className="flex items-center gap-1 bg-background/50 rounded-lg p-1">
-                                <Button
-                                  variant={currentFeedback === 'thumbs_up' ? "default" : "ghost"}
-                                  size="sm"
-                                  onClick={() => feedbackMutation.mutate({ song: rec.song, feedbackType: 'thumbs_up', songId: rec.actualSong?.id })}
-                                  disabled={feedbackMutation.isPending || hasFeedback}
-                                  className={`h-9 w-9 p-0 ${currentFeedback === 'thumbs_up' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
-                                  title={hasFeedback ? "Already rated" : "Like this song"}
-                                >
-                                  {feedbackMutation.isPending && currentFeedback === 'thumbs_up' ? (
-                                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                                    </svg>
-                                  ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M7 10v12"/>
-                                      <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/>
-                                    </svg>
-                                  )}
-                                </Button>
-                                <Button
-                                  variant={currentFeedback === 'thumbs_down' ? "default" : "ghost"}
-                                  size="sm"
-                                  onClick={() => feedbackMutation.mutate({ song: rec.song, feedbackType: 'thumbs_down', songId: rec.actualSong?.id })}
-                                  disabled={feedbackMutation.isPending || hasFeedback}
-                                  className={`h-9 w-9 p-0 ${currentFeedback === 'thumbs_down' ? 'bg-red-600 hover:bg-red-700 text-white' : ''}`}
-                                  title={hasFeedback ? "Already rated" : "Dislike this song"}
-                                >
-                                  {feedbackMutation.isPending && currentFeedback === 'thumbs_down' ? (
-                                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                                    </svg>
-                                  ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M17 14V2"/>
-                                      <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z"/>
-                                    </svg>
-                                  )}
-                                </Button>
-                              </div>
-                              {isInLibrary ? (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="default"
-                                      size="sm"
-                                      className="bg-green-600 hover:bg-green-700 text-white shadow-sm"
-                                    >
-                                      <ListPlus className="mr-1 h-4 w-4" />
-                                      Queue
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-40">
-                                    <DropdownMenuItem
-                                      onClick={() => handleQueueAction(rec.song, 'now')}
-                                      className="min-h-[44px]"
-                                    >
-                                      <Play className="mr-2 h-4 w-4" />
-                                      Play Now
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={() => handleQueueAction(rec.song, 'next')}
-                                      className="min-h-[44px]"
-                                    >
-                                      <Play className="mr-2 h-4 w-4" />
-                                      Play Next
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={() => handleQueueAction(rec.song, 'end')}
-                                      className="min-h-[44px]"
-                                    >
-                                      <Plus className="mr-2 h-4 w-4" />
-                                      Add to End
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              ) : (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled
-                                  className="opacity-50 cursor-not-allowed"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                                    <path d="M5 12h14"/>
-                                    <path d="M12 5v14"/>
-                                  </svg>
-                                  Unavailable
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      <RecommendationCard
+                        key={rec.song}
+                        rec={rec}
+                        index={index}
+                        currentFeedback={currentFeedback}
+                        hasFeedback={hasFeedback}
+                        onFeedback={(type) => feedbackMutation.mutate({
+                          song: rec.song,
+                          feedbackType: type,
+                          songId: rec.actualSong?.id
+                        })}
+                        onQueueAction={(position) => handleQueueAction(rec.song, position)}
+                        isPending={feedbackMutation.isPending}
+                      />
                     );
-                  })}
-                </div>
+                  }}
+                />
               </div>
             )}
               </>
@@ -1165,38 +1069,44 @@ function DashboardIndex() {
         </OllamaErrorBoundary>
       )}
 
-      {/* Preference Analytics Widget */}
-      {preferences.dashboardLayout.showRecommendations && (
-        <PreferenceInsights />
-      )}
+      {/* Preference Analytics Widget - Moved to sidebar (Analytics link) */}
+      {/* Taste Profile is now accessible via sidebar → Analytics */}
 
-      {/* Story 7.3: Discovery Queue Panel */}
-      <DiscoveryQueuePanel />
+      {/* Story 7.3: Discovery Queue Panel - Deferred loading */}
+      <DeferredDiscoveryQueue />
 
-      {/* DJ Features Section */}
-      <DJFeatures />
+      {/* DJ Features Section - WIP, commented out for now */}
+      {/* <DeferredDJFeatures /> */}
 
       <OllamaErrorBoundary>
-        <section className="space-y-6">
+        <section className="glass-card-premium p-5 sm:p-6 space-y-5">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <button
               onClick={() => setPlaylistCollapsed(!playlistCollapsed)}
-              className="flex items-center gap-2 text-left group"
+              className="flex items-center gap-3 text-left group"
             >
-              <h2 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
-                <span className="bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">Style-Based Playlists</span>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                  AI Generated
-                </span>
-              </h2>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-cyan-500">
+                  <path d="M9 18V5l12-2v13"/>
+                  <circle cx="6" cy="18" r="3"/>
+                  <circle cx="18" cy="16" r="3"/>
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+                  <span className="bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">Custom Playlist</span>
+                  <span className="badge-info text-[10px]">AI</span>
+                </h2>
+                <p className="text-xs text-muted-foreground">Describe your vibe, get a playlist</p>
+              </div>
               {playlistCollapsed ? (
-                <ChevronDown className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors ml-1" />
               ) : (
-                <ChevronUp className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <ChevronUp className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors ml-1" />
               )}
             </button>
             {!playlistCollapsed && (
-              <Button onClick={clearPlaylistCache} variant="outline" size="sm" className="min-h-[44px] w-full sm:w-auto hover:bg-destructive/5 hover:border-destructive/50 transition-all" aria-label="Clear playlist cache">
+              <Button onClick={clearPlaylistCache} variant="outline" size="sm" className="min-h-[44px] w-full sm:w-auto hover:bg-destructive/5 hover:border-destructive/50 transition-all rounded-xl" aria-label="Clear playlist cache">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
                   <path d="M3 6h18"/>
                   <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
@@ -1207,15 +1117,15 @@ function DashboardIndex() {
             )}
           </div>
           {playlistCollapsed && (
-            <p className="text-sm text-muted-foreground">Click to expand playlist generator</p>
+            <p className="text-sm text-muted-foreground pl-[52px]">Tap to create a custom AI-generated playlist</p>
           )}
           {!playlistCollapsed && (
             <>
 
-        <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-500/5 to-cyan-500/5 border border-blue-500/20 space-y-4">
-          {/* Story 7.1: Source Mode Selector */}
+        <div className="space-y-4">
+          {/* Source Mode Selector */}
           <div>
-            <label className="text-sm font-medium mb-2 block">Source</label>
+            <label className="text-sm font-medium mb-2 block text-muted-foreground">Source</label>
             <SourceModeSelector
               value={sourceMode}
               onChange={setSourceMode}
@@ -1224,42 +1134,35 @@ function DashboardIndex() {
             />
           </div>
 
+          {/* Input Area */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
                 <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
               </svg>
               <Input
-                placeholder="Enter a mood, genre, or theme (e.g., 'Chill Sunday', 'Workout Energy', 'Halloween Party')"
+                placeholder="Describe your vibe... (e.g., 'Chill Sunday morning', 'Late night coding')"
                 value={style}
                 onChange={(e) => setStyle(e.target.value)}
-                className="pl-12 min-h-[52px] bg-background/50 border-border/50 focus:border-primary/50 transition-all"
+                className="pl-12 h-12 sm:h-14 bg-background/80 border-border/50 focus:border-primary/50 rounded-xl text-base transition-all"
                 aria-label="Playlist style"
               />
             </div>
-            <Button
+            <button
               onClick={() => {
-                // Story 7.1: Include sourceMode in cache key
-                const cacheKey = `playlist-${trimmedStyle}-${sourceMode}-${mixRatio}`;
-                localStorage.removeItem(cacheKey);
-                // Reset generation stage to show loading immediately
                 setGenerationStage('generating');
-                queryClient.invalidateQueries({ queryKey: ['playlist', trimmedStyle, sourceMode, mixRatio] });
+                queryClient.invalidateQueries({ queryKey: queryKeys.playlists.generatedByStyle(trimmedStyle, sourceMode, mixRatio) });
                 refetchPlaylist();
               }}
               disabled={!trimmedStyle}
-              className="min-h-[52px] w-full sm:w-auto px-6 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg shadow-blue-500/20"
+              className="action-button h-12 sm:h-14 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               aria-label="Generate playlist now"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
                 <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
-                <path d="M5 3v4"/>
-                <path d="M19 17v4"/>
-                <path d="M3 5h4"/>
-                <path d="M17 19h4"/>
               </svg>
-              Generate Playlist
-            </Button>
+              Generate
+            </button>
           </div>
         </div>
 
@@ -1375,12 +1278,11 @@ function DashboardIndex() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    // Story 7.1: Include sourceMode in cache key
-                    const cacheKey = `playlist-${debouncedStyle}-${sourceMode}-${mixRatio}`;
-                    localStorage.removeItem(cacheKey);
+                    // Use query key factory for cache invalidation - React Query handles caching
+                    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.generatedByStyle(debouncedStyle, sourceMode, mixRatio) });
                     // Reset generation stage to show loading immediately
                     setGenerationStage('generating');
-                    console.log(`🗑️ Cleared cache for "${debouncedStyle}" (${sourceMode}), regenerating...`);
+                    console.log(`🗑️ Invalidated cache for "${debouncedStyle}" (${sourceMode}), regenerating...`);
                     refetchPlaylist();
                   }}
                   aria-label="Regenerate playlist"
@@ -1437,6 +1339,21 @@ function DashboardIndex() {
                             )}
                           </div>
                           <p className="text-sm text-muted-foreground">{item.explanation}</p>
+                          {/* Story 7.5: Harmonic mixing badges - lazy loaded */}
+                          {currentSong && (item.bpm || item.key) && (
+                            <div className="mt-1">
+                              <Suspense fallback={<Skeleton className="h-5 w-20" />}>
+                                <MixCompatibilityBadges
+                                  currentBpm={currentSong.bpm}
+                                  currentKey={currentSong.key}
+                                  candidateBpm={item.bpm}
+                                  candidateKey={item.key}
+                                  compact
+                                  showLabel
+                                />
+                              </Suspense>
+                            </div>
+                          )}
                           {/* Story 7.1: Show discovery info */}
                           {isDiscovery && !hasSong && (
                             <p className={`text-xs ${isLastFm ? 'text-red-600 dark:text-red-400' : 'text-purple-600 dark:text-purple-400'}`}>
@@ -1657,10 +1574,124 @@ function DashboardIndex() {
         </section>
       </OllamaErrorBoundary>
 
-      {/* Additional Features - Compact Grid */}
-      <MoreFeatures />
+      {/* Additional Features - Compact Grid - Deferred loading (bottom of page) */}
+      <DeferredMoreFeatures />
 
       </div>
     </div>
+  );
+}
+
+// ===== DEFERRED COMPONENTS: Wrap lazy components with deferred rendering =====
+
+/**
+ * Deferred PreferenceInsights - REMOVED
+ * Taste Profile moved to Analytics page (accessible via sidebar → Analytics)
+ */
+// function DeferredPreferenceInsights() {
+//   const shouldRender = useDeferredRender(1000);
+//   if (!shouldRender) {
+//     return (
+//       <div className="rounded-lg border bg-card p-4">
+//         <SectionSkeleton lines={4} />
+//       </div>
+//     );
+//   }
+//   return (
+//     <Suspense fallback={<SectionSkeleton lines={4} />}>
+//       <PreferenceInsights />
+//     </Suspense>
+//   );
+// }
+
+/**
+ * Deferred DiscoveryQueuePanel - loads after idle callback
+ * Discovery queue is secondary to main dashboard content
+ */
+function DeferredDiscoveryQueue() {
+  const shouldRender = useDeferredRender(500);
+
+  if (!shouldRender) {
+    return null; // No skeleton - panel may be hidden anyway
+  }
+
+  return (
+    <Suspense fallback={null}>
+      <DiscoveryQueuePanel />
+    </Suspense>
+  );
+}
+
+/**
+ * Deferred DJFeatures - loads after 1.5 second delay
+ * Hidden on mobile, low priority on desktop
+ */
+function DeferredDJFeatures() {
+  const shouldRender = useDeferredRender(1500);
+
+  if (!shouldRender) {
+    return (
+      <div className="hidden md:block">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-10 rounded-lg" />
+            <div className="space-y-1">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-3 w-48" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FeatureCardSkeleton />
+            <FeatureCardSkeleton />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="hidden md:block">
+      <Suspense fallback={<FeatureCardSkeleton />}>
+        <DJFeatures />
+      </Suspense>
+    </div>
+  );
+}
+
+/**
+ * Deferred MoreFeatures - loads after initial render
+ * Bottom of page content, lowest priority
+ */
+function DeferredMoreFeatures() {
+  const shouldRender = useDeferredRender(2000);
+
+  if (!shouldRender) {
+    return (
+      <section className="space-y-4">
+        <Skeleton className="h-5 w-32 mx-auto" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <Suspense
+      fallback={
+        <section className="space-y-4">
+          <Skeleton className="h-5 w-32 mx-auto" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 rounded-xl" />
+            ))}
+          </div>
+        </section>
+      }
+    >
+      <MoreFeatures />
+    </Suspense>
   );
 }

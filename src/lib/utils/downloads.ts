@@ -10,11 +10,12 @@ export interface DownloadHistoryItem {
   id: string
   artistName: string
   foreignArtistId: string
-  status: 'completed' | 'failed'
+  status: 'completed' | 'failed' | 'grabbed' | 'importing'
   addedAt: string
   completedAt: string
   size?: number
   errorMessage?: string
+  eventType?: string // Original Lidarr event type for debugging
 }
 
 export interface DownloadQueueItem {
@@ -37,6 +38,10 @@ export interface WantedAlbum {
   artistId: string
   releaseDate?: string
   monitored: boolean
+  // Enhanced status fields for Soulseek tracking
+  searchStatus?: 'idle' | 'searching' | 'searched_recently'
+  lastSearched?: string
+  grabbed?: boolean
 }
 
 export interface DownloadStats {
@@ -48,9 +53,17 @@ export interface DownloadStats {
   totalSize: number
 }
 
+export interface HistoryPagination {
+  page: number
+  pageSize: number
+  totalRecords: number
+  hasMore: boolean
+}
+
 export interface DownloadStatus {
   queue: DownloadQueueItem[]
   history: DownloadHistoryItem[]
+  historyPagination?: HistoryPagination
   wanted: WantedAlbum[]
   stats: DownloadStats
 }
@@ -68,7 +81,7 @@ export function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleString()
 }
 
-export type DownloadStatusType = 'queued' | 'downloading' | 'downloaded' | 'completed' | 'failed'
+export type DownloadStatusType = 'queued' | 'downloading' | 'downloaded' | 'completed' | 'failed' | 'grabbed' | 'importing'
 
 export function getStatusColor(status: DownloadStatusType | string): string {
   switch (status) {
@@ -76,6 +89,10 @@ export function getStatusColor(status: DownloadStatusType | string): string {
       return 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400'
     case 'downloading':
       return 'bg-blue-500/20 text-blue-700 dark:text-blue-400'
+    case 'grabbed':
+      return 'bg-orange-500/20 text-orange-700 dark:text-orange-400'
+    case 'importing':
+      return 'bg-purple-500/20 text-purple-700 dark:text-purple-400'
     case 'downloaded':
     case 'completed':
       return 'bg-green-500/20 text-green-700 dark:text-green-400'
@@ -91,6 +108,7 @@ export function calculateHistoryStats(history: DownloadHistoryItem[]) {
   return {
     completedCount: history.filter(h => h.status === 'completed').length,
     failedCount: history.filter(h => h.status === 'failed').length,
+    grabbedCount: history.filter(h => h.status === 'grabbed').length,
     totalSize: history.reduce((sum, item) => sum + (item.size || 0), 0),
   }
 }

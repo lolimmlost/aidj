@@ -44,7 +44,7 @@ export function DiscoveryQueuePanel() {
       albumId: '',
       duration: 0,
       track: 1,
-      url: '',
+      url: `/api/navidrome/stream/${item.navidromeSongId}`,
     };
 
     playNow(item.navidromeSongId, songForPlayer);

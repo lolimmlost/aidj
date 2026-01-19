@@ -3,6 +3,7 @@
  * Displays comprehensive music taste analytics with interactive charts
  */
 
+import { useMemo, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -22,6 +23,7 @@ import {
   Cell,
 } from 'recharts';
 import { Skeleton } from '../ui/skeleton';
+import { LayoutDashboard, Target, Activity, Compass } from 'lucide-react';
 
 // ============================================================================
 // Types
@@ -150,11 +152,23 @@ export function AnalyticsDashboard({ period = '30d' }: AnalyticsDashboardProps) 
   return (
     <div className="space-y-6">
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="quality">Quality</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="discovery">Discovery</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 h-auto">
+          <TabsTrigger value="overview" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+            <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="hidden sm:inline">Overview</span>
+          </TabsTrigger>
+          <TabsTrigger value="quality" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+            <Target className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="hidden sm:inline">Quality</span>
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+            <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="hidden sm:inline">Activity</span>
+          </TabsTrigger>
+          <TabsTrigger value="discovery" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+            <Compass className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="hidden sm:inline">Discovery</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -254,7 +268,26 @@ function OverviewTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
 // Quality Tab
 // ============================================================================
 
-function QualityTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
+const QualityTab = memo(function QualityTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
+  // Memoize chart data transformation for performance
+  const chartData = useMemo(() => {
+    if (!analytics.tasteEvolution) return [];
+
+    return analytics.tasteEvolution.dataPoints.map(dp => {
+      const date = new Date(dp.period);
+      const label = analytics.tasteEvolution!.periodType === 'week'
+        ? `${date.getMonth() + 1}/${date.getDate()}`
+        : `${date.getMonth() + 1}/${date.getFullYear()}`;
+
+      return {
+        period: label,
+        liked: dp.thumbsUpCount,
+        disliked: dp.thumbsDownCount,
+        total: dp.thumbsUpCount + dp.thumbsDownCount,
+      };
+    });
+  }, [analytics.tasteEvolution]);
+
   if (!analytics.quality || !analytics.tasteEvolution) {
     return (
       <Card>
@@ -264,21 +297,6 @@ function QualityTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
       </Card>
     );
   }
-
-  // Prepare chart data
-  const chartData = analytics.tasteEvolution.dataPoints.map(dp => {
-    const date = new Date(dp.period);
-    const label = analytics.tasteEvolution!.periodType === 'week'
-      ? `${date.getMonth() + 1}/${date.getDate()}`
-      : `${date.getMonth() + 1}/${date.getFullYear()}`;
-
-    return {
-      period: label,
-      liked: dp.thumbsUpCount,
-      disliked: dp.thumbsDownCount,
-      total: dp.thumbsUpCount + dp.thumbsDownCount,
-    };
-  });
 
   return (
     <div className="grid gap-4">
@@ -329,13 +347,33 @@ function QualityTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
       </div>
     </div>
   );
-}
+});
 
 // ============================================================================
 // Activity Tab
 // ============================================================================
 
-function ActivityTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
+const ActivityTab = memo(function ActivityTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
+  // Memoize day and hour data transformations
+  const { dayData, hourData } = useMemo(() => {
+    if (!analytics.activity) {
+      return { dayData: [], hourData: [] };
+    }
+
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayData = dayNames.map((name, index) => ({
+      day: name,
+      count: analytics.activity!.feedbackByDayOfWeek[index] || 0,
+    }));
+
+    const hourData = Object.entries(analytics.activity.feedbackByHourOfDay).map(([hour, count]) => ({
+      hour: `${hour}:00`,
+      count,
+    }));
+
+    return { dayData, hourData };
+  }, [analytics.activity]);
+
   if (!analytics.activity) {
     return (
       <Card>
@@ -345,17 +383,6 @@ function ActivityTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
       </Card>
     );
   }
-
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const dayData = dayNames.map((name, index) => ({
-    day: name,
-    count: analytics.activity!.feedbackByDayOfWeek[index] || 0,
-  }));
-
-  const hourData = Object.entries(analytics.activity.feedbackByHourOfDay).map(([hour, count]) => ({
-    hour: `${hour}:00`,
-    count,
-  }));
 
   return (
     <div className="grid gap-4">
@@ -412,13 +439,13 @@ function ActivityTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
       </div>
     </div>
   );
-}
+});
 
 // ============================================================================
 // Discovery Tab
 // ============================================================================
 
-function DiscoveryTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
+const DiscoveryTab = memo(function DiscoveryTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
   if (!analytics.discovery) {
     return (
       <Card>
@@ -480,22 +507,25 @@ function DiscoveryTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
       )}
     </div>
   );
-}
+});
 
 // ============================================================================
 // Helper Components
 // ============================================================================
 
-function TopArtistsChart({ artists }: { artists: Array<{ artist: string; count: number }> }) {
+const TopArtistsChart = memo(function TopArtistsChart({ artists }: { artists: Array<{ artist: string; count: number }> }) {
+  // Memoize chart data transformation
+  const chartData = useMemo(() => {
+    return artists.slice(0, 5).map((item, index) => ({
+      name: item.artist,
+      value: item.count,
+      color: PIE_COLORS[index % PIE_COLORS.length],
+    }));
+  }, [artists]);
+
   if (artists.length === 0) {
     return <p className="text-sm text-muted-foreground">No artist data available</p>;
   }
-
-  const chartData = artists.slice(0, 5).map((item, index) => ({
-    name: item.artist,
-    value: item.count,
-    color: PIE_COLORS[index % PIE_COLORS.length],
-  }));
 
   return (
     <ResponsiveContainer width="100%" height={200}>
@@ -518,11 +548,14 @@ function TopArtistsChart({ artists }: { artists: Array<{ artist: string; count: 
       </PieChart>
     </ResponsiveContainer>
   );
-}
+});
 
-function TasteProfileCard({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
-  const topArtists = analytics.profile.likedArtists.slice(0, 3);
-  const diversityScore = analytics.discovery?.genreDiversityScore || 0;
+const TasteProfileCard = memo(function TasteProfileCard({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
+  // Memoize derived data
+  const { topArtists, diversityScore } = useMemo(() => ({
+    topArtists: analytics.profile.likedArtists.slice(0, 3),
+    diversityScore: analytics.discovery?.genreDiversityScore || 0,
+  }), [analytics.profile.likedArtists, analytics.discovery?.genreDiversityScore]);
 
   return (
     <div className="space-y-3">
@@ -553,9 +586,9 @@ function TasteProfileCard({ analytics }: { analytics: EnhancedAnalyticsResponse 
       </div>
     </div>
   );
-}
+});
 
-function MetricCard({ title, value, description }: { title: string; value: string; description: string }) {
+const MetricCard = memo(function MetricCard({ title, value, description }: { title: string; value: string; description: string }) {
   return (
     <Card>
       <CardHeader>
@@ -567,9 +600,9 @@ function MetricCard({ title, value, description }: { title: string; value: strin
       </CardContent>
     </Card>
   );
-}
+});
 
-function AnalyticsLoadingSkeleton() {
+const AnalyticsLoadingSkeleton = memo(function AnalyticsLoadingSkeleton() {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-3">
@@ -594,4 +627,4 @@ function AnalyticsLoadingSkeleton() {
       </Card>
     </div>
   );
-}
+});

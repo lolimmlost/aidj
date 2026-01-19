@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, memo, useEffect } from 'react';
 import { Link, useRouterState, useNavigate } from '@tanstack/react-router';
 import {
   Home,
@@ -18,7 +18,10 @@ import {
   RefreshCw,
   ListPlus,
   Play,
+  User,
+  TrendingUp,
 } from 'lucide-react';
+import { MusicTasteDebugPanel } from '@/components/debug/MusicTasteDebugPanel';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -26,7 +29,111 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlayerBar } from './PlayerBar';
 import { QueuePanel } from '@/components/ui/queue-panel';
+import { MobileNav } from '@/components/ui/mobile-nav';
 import { toast } from 'sonner';
+import { useDeferredRender } from '@/lib/utils/lazy-components';
+
+// Helper to get cover art URL from Navidrome
+const getCoverArtUrl = (albumId: string | undefined, size: number = 300) => {
+  if (!albumId) return null;
+  return `/api/navidrome/rest/getCoverArt?id=${albumId}&size=${size}`;
+};
+
+// Sidebar Album Art component with auto-fetch for albumId
+const SidebarAlbumArt = ({
+  albumId,
+  songId,
+  artist,
+  isPlaying = false,
+}: {
+  albumId?: string;
+  songId?: string;
+  artist?: string;
+  isPlaying?: boolean;
+}) => {
+  const [imgError, setImgError] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [resolvedAlbumId, setResolvedAlbumId] = useState<string | null>(albumId || null);
+
+  // Fetch albumId from Navidrome if not provided but songId is available
+  useEffect(() => {
+    if (albumId) {
+      setResolvedAlbumId(albumId);
+      return;
+    }
+
+    if (!songId) {
+      setResolvedAlbumId(null);
+      return;
+    }
+
+    // Fetch song metadata to get albumId
+    const fetchAlbumId = async () => {
+      try {
+        const response = await fetch(`/api/navidrome/rest/getSong?id=${songId}&f=json`);
+        if (response.ok) {
+          const data = await response.json();
+          const song = data['subsonic-response']?.song;
+          if (song?.albumId) {
+            setResolvedAlbumId(song.albumId);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch album ID:', error);
+      }
+    };
+
+    fetchAlbumId();
+  }, [albumId, songId]);
+
+  // Reset states when albumId changes
+  useEffect(() => {
+    setImgError(false);
+    setImgLoaded(false);
+  }, [resolvedAlbumId]);
+
+  const coverUrl = getCoverArtUrl(resolvedAlbumId || undefined, 300);
+  const initials = artist?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '♪';
+
+  return (
+    <div className="aspect-square rounded-xl bg-gradient-to-br from-primary/20 via-purple-500/20 to-pink-500/20 flex items-center justify-center relative overflow-hidden shadow-lg">
+      {coverUrl && !imgError ? (
+        <>
+          <img
+            src={coverUrl}
+            alt="Album cover"
+            className={cn(
+              'w-full h-full object-cover transition-opacity duration-300',
+              imgLoaded ? 'opacity-100' : 'opacity-0'
+            )}
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgError(true)}
+          />
+          {!imgLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Music className="h-12 w-12 text-primary/40 animate-pulse" />
+            </div>
+          )}
+        </>
+      ) : (
+        <span className="font-bold text-5xl text-primary/40">
+          {initials}
+        </span>
+      )}
+      {isPlaying && (
+        <>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1">
+            <div className="w-1 h-4 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0s' }} />
+            <div className="w-1 h-6 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.15s' }} />
+            <div className="w-1 h-4 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.3s' }} />
+            <div className="w-1 h-5 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.45s' }} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -46,8 +153,37 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { playlist, currentSongIndex } = useAudioStore();
   const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
 
+  // Debug panel state with localStorage persistence
+  const [showDebugPanel, setShowDebugPanel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('music-taste-debug-panel') === 'true';
+    }
+    return false;
+  });
+
+  // Persist debug panel visibility to localStorage
+  useEffect(() => {
+    localStorage.setItem('music-taste-debug-panel', showDebugPanel.toString());
+  }, [showDebugPanel]);
+
+  // Keyboard shortcut: Ctrl+Shift+D to toggle debug panel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault();
+        setShowDebugPanel((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <div className="h-[100dvh] flex flex-col overflow-hidden bg-background">
+      {/* Mobile Navigation - Only visible below md breakpoint */}
+      <MobileNav />
+
       {/* Main content area with sidebars */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Navigation & Playlists */}
@@ -78,6 +214,11 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       {/* Queue Panel - Slide-out drawer */}
       <QueuePanel />
+
+      {/* Music Taste Debug Panel - Toggle with Ctrl+Shift+D */}
+      {showDebugPanel && (
+        <MusicTasteDebugPanel onClose={() => setShowDebugPanel(false)} />
+      )}
     </div>
   );
 }
@@ -136,7 +277,7 @@ function LeftSidebar() {
   }, [queryClient, navigate]);
 
   return (
-    <aside className="hidden lg:flex flex-col w-56 border-r bg-card/30 flex-shrink-0">
+    <aside className="hidden md:flex flex-col w-56 border-r bg-card/30 flex-shrink-0">
       {/* Logo */}
       <div className="h-16 flex items-center px-5 border-b">
         <Link to="/dashboard" className="flex items-center gap-2 group">
@@ -156,6 +297,12 @@ function LeftSidebar() {
               icon={<Home className="h-4 w-4" />}
               label="Home"
               active={currentPath === '/dashboard' || currentPath === '/dashboard/'}
+            />
+            <NavItem
+              to="/dashboard/discover"
+              icon={<Sparkles className="h-4 w-4" />}
+              label="Discover"
+              active={currentPath.includes('/dashboard/discover')}
             />
             <NavItem
               to="/library/search"
@@ -237,10 +384,22 @@ function LeftSidebar() {
                 active={currentPath.includes('/analytics')}
               />
               <NavItem
+                to="/music-identity"
+                icon={<User className="h-4 w-4" />}
+                label="Music Identity"
+                active={currentPath.startsWith('/music-identity')}
+              />
+              <NavItem
                 to="/downloads"
                 icon={<Download className="h-4 w-4" />}
                 label="Downloads"
                 active={currentPath.startsWith('/downloads')}
+              />
+              <NavItem
+                to="/dashboard/library-growth"
+                icon={<TrendingUp className="h-4 w-4" />}
+                label="Library Growth"
+                active={currentPath.includes('/library-growth')}
               />
             </nav>
           </div>
@@ -274,7 +433,7 @@ function LeftSidebar() {
                   key={playlist.id}
                   to={`/playlists/${playlist.id}`}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
+                    "flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors group/playlist",
                     "hover:bg-accent/50 text-muted-foreground hover:text-foreground",
                     currentPath === `/playlists/${playlist.id}` && "bg-accent text-foreground"
                   )}
@@ -286,7 +445,9 @@ function LeftSidebar() {
                       <ListMusic className="h-3.5 w-3.5 text-primary/70" />
                     )}
                   </div>
-                  <span className="truncate">{playlist.name}</span>
+                  <div className="min-w-0 flex-1 scroll-text-container">
+                    <span className="scroll-text">{playlist.name}</span>
+                  </div>
                 </Link>
               ))}
               {playlists?.filter((p: { name: string }) => p.name !== '❤️ Liked Songs').length > 8 && (
@@ -323,12 +484,18 @@ function LeftSidebar() {
  * - Top Artists (numbered 1-5)
  * - Most Played Songs
  * - Recommendations at bottom
+ *
+ * Uses deferred data loading to reduce initial page load time.
+ * Non-critical sidebar data is fetched after the main content renders.
  */
 function RightSidebar() {
   const { playlist, currentSongIndex, isPlaying, playNow } = useAudioStore();
   const currentSong = playlist[currentSongIndex];
 
-  // Fetch top artists
+  // Deferred loading: Wait before fetching non-critical sidebar data
+  const shouldFetchSidebarData = useDeferredRender(800);
+
+  // Fetch top artists - deferred to reduce initial load
   const { data: topArtists } = useQuery({
     queryKey: ['top-artists'],
     queryFn: async () => {
@@ -338,9 +505,10 @@ function RightSidebar() {
       return data.artists || [];
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
+    enabled: shouldFetchSidebarData, // Defer until after initial render
   });
 
-  // Fetch most played songs
+  // Fetch most played songs - deferred
   const { data: mostPlayedSongs } = useQuery({
     queryKey: ['most-played-songs'],
     queryFn: async () => {
@@ -350,9 +518,11 @@ function RightSidebar() {
       return data.songs || [];
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
+    enabled: shouldFetchSidebarData, // Defer until after initial render
   });
 
-  // Fetch recommendations
+  // Fetch recommendations - deferred with longer delay (lowest priority)
+  const shouldFetchRecommendations = useDeferredRender(1500);
   const { data: recommendations } = useQuery({
     queryKey: ['sidebar-recommendations'],
     queryFn: async () => {
@@ -365,6 +535,7 @@ function RightSidebar() {
       return response.json();
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: shouldFetchRecommendations, // Defer even more - lowest priority
   });
 
   // Rank colors for top artists
@@ -384,22 +555,12 @@ function RightSidebar() {
           {currentSong && (
             <div className="space-y-2">
               {/* Large Album Art */}
-              <div className="aspect-square rounded-xl bg-gradient-to-br from-primary/20 via-purple-500/20 to-pink-500/20 flex items-center justify-center relative overflow-hidden shadow-lg">
-                <span className="font-bold text-5xl text-primary/40">
-                  {currentSong.artist?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '♪'}
-                </span>
-                {isPlaying && (
-                  <>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1">
-                      <div className="w-1 h-4 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0s' }} />
-                      <div className="w-1 h-6 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.15s' }} />
-                      <div className="w-1 h-4 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.3s' }} />
-                      <div className="w-1 h-5 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.45s' }} />
-                    </div>
-                  </>
-                )}
-              </div>
+              <SidebarAlbumArt
+                albumId={currentSong.albumId}
+                songId={currentSong.id}
+                artist={currentSong.artist}
+                isPlaying={isPlaying}
+              />
               {/* Song Info Below Art */}
               <div className="text-center px-2">
                 <h4 className="font-semibold truncate">{currentSong.name || currentSong.title}</h4>
@@ -587,7 +748,7 @@ interface Recommendation {
   };
 }
 
-function RecommendationsSection({ recommendations }: { recommendations: any }) {
+const RecommendationsSection = memo(function RecommendationsSection({ recommendations }: { recommendations: any }) {
   const { addToQueueEnd, addPlaylist } = useAudioStore();
 
   const handleAddToQueue = useCallback((rec: Recommendation) => {
@@ -698,16 +859,33 @@ function RecommendationsSection({ recommendations }: { recommendations: any }) {
       </div>
     </div>
   );
-}
+});
 
 /**
- * Recently Played Section for Left Sidebar
+ * Recently Played Section for Left Sidebar - memoized to prevent unnecessary re-renders
+ * Shows songs in the order they were actually played (most recent first)
  */
-function RecentlyPlayedSection() {
-  const { playlist, currentSongIndex, isPlaying } = useAudioStore();
+const RecentlyPlayedSection = memo(function RecentlyPlayedSection() {
+  const { playlist, currentSongIndex, isPlaying, recentlyPlayedIds } = useAudioStore();
 
-  // Show recently played from current session (queue history)
-  const recentSongs = playlist.slice(0, 5);
+  // Build a map of all songs we know about (from current playlist)
+  const songMap = useMemo(() => {
+    const map = new Map<string, typeof playlist[0]>();
+    playlist.forEach(song => map.set(song.id, song));
+    return map;
+  }, [playlist]);
+
+  // Get recently played songs in order (most recent first)
+  // Filter to only songs we have data for
+  const recentSongs = useMemo(() => {
+    return recentlyPlayedIds
+      .slice(0, 5)
+      .map(id => songMap.get(id))
+      .filter((song): song is NonNullable<typeof song> => song !== undefined);
+  }, [recentlyPlayedIds, songMap]);
+
+  // Get the currently playing song (if any)
+  const currentSong = playlist[currentSongIndex];
 
   if (recentSongs.length === 0) return null;
 
@@ -716,40 +894,43 @@ function RecentlyPlayedSection() {
       <h3 className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
         Recently Played
       </h3>
-      <div className="space-y-0.5">
-        {recentSongs.map((song, index) => (
-          <div
-            key={`${song.id}-${index}`}
-            className={cn(
-              "flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors cursor-pointer",
-              "hover:bg-accent/50",
-              index === currentSongIndex && "bg-accent/30"
-            )}
-          >
-            <div className="w-8 h-8 rounded bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0">
-              {index === currentSongIndex && isPlaying ? (
-                <div className="flex gap-0.5">
-                  <div className="w-0.5 h-2 bg-primary animate-[wave_1s_ease-in-out_infinite]" />
-                  <div className="w-0.5 h-3 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
-                  <div className="w-0.5 h-2 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
-                </div>
-              ) : (
-                <Clock className="h-3 w-3 text-blue-500/70" />
+      <div className="space-y-1">
+        {recentSongs.map((song, index) => {
+          const isCurrentlyPlaying = currentSong?.id === song.id;
+          return (
+            <div
+              key={`${song.id}-${index}`}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors cursor-pointer",
+                "hover:bg-accent/50",
+                isCurrentlyPlaying && "bg-accent/30"
               )}
+            >
+              <div className="w-9 h-9 rounded bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0">
+                {isCurrentlyPlaying && isPlaying ? (
+                  <div className="flex gap-0.5">
+                    <div className="w-0.5 h-2.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" />
+                    <div className="w-0.5 h-3.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
+                    <div className="w-0.5 h-2.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
+                  </div>
+                ) : (
+                  <Clock className="h-3.5 w-3.5 text-blue-500/70" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">{song.name || song.title}</p>
+                <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium truncate">{song.name || song.title}</p>
-              <p className="text-[10px] text-muted-foreground truncate">{song.artist}</p>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
-}
+});
 
 /**
- * Navigation Item Component
+ * Navigation Item Component - memoized to prevent unnecessary re-renders
  */
 interface NavItemProps {
   to: string;
@@ -758,7 +939,7 @@ interface NavItemProps {
   active?: boolean;
 }
 
-function NavItem({ to, icon, label, active }: NavItemProps) {
+const NavItem = memo(function NavItem({ to, icon, label, active }: NavItemProps) {
   return (
     <Link
       to={to}
@@ -773,4 +954,4 @@ function NavItem({ to, icon, label, active }: NavItemProps) {
       <span>{label}</span>
     </Link>
   );
-}
+});

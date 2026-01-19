@@ -21,6 +21,12 @@ export const userPreferences = pgTable("user_preferences", {
     aiDJQueueThreshold: number; // Queue remaining songs trigger (1-5)
     aiDJBatchSize: number; // How many songs to add at a time (1-10)
     aiDJUseCurrentContext: boolean; // Use current song for context
+    aiDJGenreExploration: number; // Phase 4.2: Genre exploration level 0-100 (0=strict, 100=adventurous)
+    // Playlist Autoplay Queueing with Smart Transitions
+    autoplayEnabled: boolean; // Master toggle for autoplay when playlist ends
+    autoplayBlendMode: 'crossfade' | 'silence' | 'reverb_tail'; // Transition effect between songs
+    autoplayTransitionDuration: number; // Duration in seconds (1-10)
+    autoplaySmartTransitions: boolean; // Use AI to determine optimal transition type
   }>().default({
     aiEnabled: true,
     frequency: 'always',
@@ -32,6 +38,11 @@ export const userPreferences = pgTable("user_preferences", {
     aiDJQueueThreshold: 2,
     aiDJBatchSize: 3,
     aiDJUseCurrentContext: true,
+    aiDJGenreExploration: 50, // Default to balanced (50% exploration)
+    autoplayEnabled: false,
+    autoplayBlendMode: 'crossfade',
+    autoplayTransitionDuration: 4,
+    autoplaySmartTransitions: true,
   }).notNull(),
 
   // Playback settings

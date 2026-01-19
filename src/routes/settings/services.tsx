@@ -27,6 +27,7 @@ export function ServicesSettings() {
     anthropicBaseUrl?: string;
     navidromeUrl?: string;
     lidarrUrl?: string;
+    metubeUrl?: string;
     lastfmApiKey?: string;
   }>({});
 
@@ -39,6 +40,7 @@ export function ServicesSettings() {
     ollamaUrl?: string;
     navidromeUrl?: string;
     lidarrUrl?: string;
+    metubeUrl?: string;
     lastfmApiKey?: string;
   } | null>(null);
   const [testing, setTesting] = useState(false);
@@ -63,6 +65,7 @@ export function ServicesSettings() {
             anthropicBaseUrl: data.config.anthropicBaseUrl,
             navidromeUrl: data.config.navidromeUrl,
             lidarrUrl: data.config.lidarrUrl,
+            metubeUrl: data.config.metubeUrl,
             lastfmApiKey: data.config.lastfmApiKey,
           });
         }
@@ -101,6 +104,7 @@ export function ServicesSettings() {
       anthropicBaseUrl: config.anthropicBaseUrl,
       navidromeUrl: config.navidromeUrl,
       lidarrUrl: config.lidarrUrl,
+      metubeUrl: config.metubeUrl,
       lastfmApiKey: config.lastfmApiKey,
     };
 
@@ -141,6 +145,7 @@ export function ServicesSettings() {
           ollamaUrl: 'unreachable',
           navidromeUrl: 'unreachable',
           lidarrUrl: 'unreachable',
+          metubeUrl: 'unreachable',
           lastfmApiKey: 'unreachable',
         });
       }
@@ -150,6 +155,7 @@ export function ServicesSettings() {
         ollamaUrl: 'unreachable',
         navidromeUrl: 'unreachable',
         lidarrUrl: 'unreachable',
+        metubeUrl: 'unreachable',
         lastfmApiKey: 'unreachable',
       });
     } finally {
@@ -493,6 +499,31 @@ export function ServicesSettings() {
                 Automatic music collection management
               </p>
             </div>
+
+            {/* MeTube URL */}
+            <div>
+              <Label htmlFor="metubeUrl">MeTube URL</Label>
+              <Input
+                id="metubeUrl"
+                name="metubeUrl"
+                type="url"
+                placeholder="http://localhost:8081"
+                value={config.metubeUrl ?? ''}
+                onChange={(e) => update('metubeUrl', e.target.value)}
+                className="mt-2"
+              />
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                YouTube/SoundCloud downloader via{' '}
+                <a
+                  href="https://github.com/alexta69/metube"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  MeTube
+                </a>
+              </p>
+            </div>
           </div>
 
           {/* Discovery Services Section - Story 7.2 */}
@@ -596,7 +627,7 @@ export function ServicesSettings() {
           </Button>
 
           {testStatuses && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
               <div className="text-center">
                 <div className="font-medium mb-1">AI Provider</div>
                 <div
@@ -637,6 +668,20 @@ export function ServicesSettings() {
                   }`}
                 >
                   {testStatuses.lidarrUrl || 'Not configured'}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="font-medium mb-1">MeTube</div>
+                <div
+                  className={`text-sm px-2 py-1 rounded ${
+                    testStatuses.metubeUrl === 'connected'
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      : testStatuses.metubeUrl === 'not configured'
+                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                  }`}
+                >
+                  {testStatuses.metubeUrl || 'Not configured'}
                 </div>
               </div>
               <div className="text-center">

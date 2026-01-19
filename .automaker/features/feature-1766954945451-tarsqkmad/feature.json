@@ -1,0 +1,19 @@
+{
+  "category": "User Experience",
+  "description": "Create Mood Timeline Visualization with Historical Music Preference Tracking\n\nBuild an interactive timeline visualization that displays the evolution of a user's music taste and mood preferences over time, with capabilities to replay historical recommendations and regenerate period-specific playlists.\n\nRequirements:\n\n**Timeline Visualization:**\n- Display a chronological timeline showing mood/genre preference shifts\n- Include visual indicators for significant taste changes or milestones\n- Support zoom/pan interactions for viewing different time granularities (daily, weekly, monthly, yearly)\n- Show aggregate mood data points with hover tooltips for detailed breakdowns\n- Allow filtering by specific moods, genres, or artists\n\n**Historical Data Analysis:**\n- Track and store user listening patterns, mood preferences, and recommendation interactions over time\n- Calculate mood distribution percentages for each time period\n- Identify top artists, genres, and tracks for any selected timeframe\n- Detect and highlight notable preference shifts or new music discovery phases\n\n**Replay Functionality:**\n- Enable users to select any past time period and view the recommendations that were generated then\n- Display the original recommendation algorithm's reasoning/factors for that period\n- Show which recommendations were accepted, skipped, or saved\n- Provide side-by-side comparison of past vs current taste profiles\n\n**Playlist Regeneration:**\n- Allow users to select a historical time period and generate a new playlist based on their preferences from that era\n- Apply the user's mood/taste profile from the selected period to current music catalog\n- Offer options to blend historical preferences with current tastes (e.g., 70% past, 30% current)\n- Support creating \"nostalgia playlists\" that match a specific month/season from the past\n\n**Taste Snapshot Export:**\n- Enable export of complete taste profiles from any time period\n- Support multiple export formats (JSON, CSV, PDF report)\n- Include comprehensive data: top genres, artists, tracks, mood distributions, listening statistics\n- Generate shareable visualizations or infographics of taste snapshots\n- Allow importing snapshots to restore or compare historical preferences\n\n**Technical Considerations:**\n- Design efficient data storage schema for historical preference tracking\n- Implement data retention policies and storage optimization\n- Ensure privacy controls for sensitive listening history\n- Handle users with limited historical data gracefully\n- Optimize query performance for large date ranges\n\n**Success Criteria:**\n- Timeline loads and displays historical data within 2 seconds\n- Users can navigate seamlessly across their entire listening history\n- Regenerated playlists accurately reflect historical preferences (validated through user testing)\n- Export files are generated successfully and contain complete data\n- Visualization is responsive and accessible across devices",
+  "id": "feature-1766954945451-tarsqkmad",
+  "steps": [],
+  "status": "completed",
+  "skipTests": false,
+  "priority": 2,
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "ultrathink",
+  "imagePaths": [],
+  "textFilePaths": [],
+  "branchName": "feat/unified-recommendations-service",
+  "planningMode": "skip",
+  "requirePlanApproval": false,
+  "startedAt": "2025-12-28T22:02:19.657Z",
+  "updatedAt": "2025-12-28T22:14:46.650Z"
+}

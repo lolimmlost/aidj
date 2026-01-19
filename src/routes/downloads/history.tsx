@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { exportDownloadHistory, clearDownloadHistory } from '@/lib/services/lidarr'
 import {
   type DownloadHistoryItem,
+  type HistoryPagination,
   formatFileSize,
   formatDate,
   getStatusColor,
@@ -24,26 +25,34 @@ export const Route = createFileRoute('/downloads/history')({
 function DownloadHistoryPage() {
   const navigate = useNavigate()
   const [history, setHistory] = useState<DownloadHistoryItem[]>([])
+  const [pagination, setPagination] = useState<HistoryPagination | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [isClearing, setIsClearing] = useState(false)
 
-  const fetchHistory = useCallback(async () => {
+  const fetchHistory = useCallback(async (page: number = 1, append: boolean = false) => {
     try {
       // Fetch from status endpoint which has richer data
-      const response = await fetch('/api/lidarr/status')
+      const response = await fetch(`/api/lidarr/status?historyPage=${page}&historyPageSize=50`)
       if (!response.ok) {
         throw new Error('Failed to fetch download status')
       }
       const data = await response.json()
-      setHistory(data.history || [])
+      if (append) {
+        setHistory(prev => [...prev, ...(data.history || [])])
+      } else {
+        setHistory(data.history || [])
+      }
+      setPagination(data.historyPagination || null)
     } catch (error) {
       console.error('Error fetching download history:', error)
       toast.error('Failed to fetch download history')
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)
+      setIsLoadingMore(false)
     }
   }, [])
 
@@ -96,11 +105,17 @@ function DownloadHistoryPage() {
 
   const handleRefresh = () => {
     setIsRefreshing(true)
-    fetchHistory()
+    fetchHistory(1, false)
+  }
+
+  const handleLoadMore = () => {
+    if (!pagination?.hasMore || isLoadingMore) return
+    setIsLoadingMore(true)
+    fetchHistory(pagination.page + 1, true)
   }
 
   useEffect(() => {
-    fetchHistory()
+    fetchHistory(1, false)
   }, [fetchHistory])
 
   if (isLoading) {
@@ -156,13 +171,21 @@ function DownloadHistoryPage() {
 
       {/* Statistics */}
       {history.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {stats.completedCount}
               </div>
               <p className="text-sm text-muted-foreground">Completed</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                {stats.grabbedCount}
+              </div>
+              <p className="text-sm text-muted-foreground">Grabbed (Downloading)</p>
             </CardContent>
           </Card>
           <Card>
@@ -220,7 +243,7 @@ function DownloadHistoryPage() {
           <CardHeader>
             <CardTitle>Recent Downloads</CardTitle>
             <CardDescription>
-              Showing {history.length} download records
+              Showing {history.length}{pagination?.totalRecords ? ` of ${pagination.totalRecords}` : ''} download records
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -255,6 +278,23 @@ function DownloadHistoryPage() {
                 </div>
               ))}
             </div>
+
+            {/* Load More Button */}
+            {pagination?.hasMore && (
+              <div className="flex flex-col items-center gap-2 pt-6">
+                <p className="text-sm text-muted-foreground">
+                  Showing {history.length} of {pagination.totalRecords} records
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={handleLoadMore}
+                  disabled={isLoadingMore}
+                  className="w-full max-w-xs"
+                >
+                  {isLoadingMore ? 'Loading...' : `Load More (${pagination.totalRecords - history.length} remaining)`}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (

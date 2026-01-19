@@ -8,10 +8,6 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 
-import { TanStackDevtools } from "@tanstack/react-devtools";
-import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
-import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-
 import { authQueryOptions, type AuthQueryResult } from "~/lib/auth/queries";
 import appCss from "~/styles.css?url";
 
@@ -47,19 +43,19 @@ export const Route = createRootRouteWithContext<{
         content: "width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no",
       },
       {
-        title: "AIDJ - AI-Assisted Music Library",
+        title: "AIDJ",
       },
       {
         name: "description",
-        content: "AIDJ: Your AI-powered music library interface. Browse, stream, and manage your self-hosted music collection with modern UI and local privacy.",
+        content: "AI-powered music discovery and smart playlists for your self-hosted library.",
       },
       {
         name: "keywords",
-        content: "music, library, streaming, AI, DJ, self-hosted, navidrome, privacy",
+        content: "music, AI, DJ, playlists, streaming, navidrome, self-hosted",
       },
       {
         name: "author",
-        content: "AIDJ Team",
+        content: "AIDJ",
       },
       // PWA - iOS specific
       {
@@ -81,20 +77,20 @@ export const Route = createRootRouteWithContext<{
       },
       {
         name: "theme-color",
-        content: "#7c3aed",
+        content: "#8b5cf6",
       },
       {
         name: "msapplication-TileColor",
-        content: "#7c3aed",
+        content: "#8b5cf6",
       },
       // Open Graph
       {
         property: "og:title",
-        content: "AIDJ - AI-Assisted Music Library",
+        content: "AIDJ",
       },
       {
         property: "og:description",
-        content: "Modern music library interface with AI recommendations and local privacy",
+        content: "AI-powered music discovery and smart playlists",
       },
       {
         property: "og:type",
@@ -106,11 +102,11 @@ export const Route = createRootRouteWithContext<{
       },
       {
         name: "twitter:title",
-        content: "AIDJ - AI-Assisted Music Library",
+        content: "AIDJ",
       },
       {
         name: "twitter:description",
-        content: "Your AI-powered music library interface",
+        content: "AI-powered music discovery and smart playlists",
       },
     ],
     links: [
@@ -139,13 +135,14 @@ function RootComponent() {
   // Register service worker for PWA functionality
   useServiceWorker();
 
-  // Use new AppLayout for main app routes (dashboard, library, playlists, dj, settings)
+  // Use new AppLayout for main app routes (dashboard, library, playlists, dj, settings, music-identity)
   const useNewLayout = currentPath.startsWith('/dashboard') ||
                        currentPath.startsWith('/library') ||
                        currentPath.startsWith('/playlists') ||
                        currentPath.startsWith('/dj') ||
                        currentPath.startsWith('/downloads') ||
-                       currentPath.startsWith('/settings');
+                       currentPath.startsWith('/settings') ||
+                       currentPath.startsWith('/music-identity');
 
   // Routes that should NOT have the new layout (landing, auth pages)
   const isAuthPage = currentPath.startsWith('/login') ||
@@ -155,7 +152,7 @@ function RootComponent() {
   return (
     <RootDocument>
       {useNewLayout ? (
-        // New three-column layout for main app
+        // New three-column layout for main app (includes MobileNav internally)
         <AppLayout>
           <Outlet />
         </AppLayout>
@@ -192,21 +189,6 @@ function RootDocument({ children }: { readonly children: React.ReactNode }) {
           {children}
           <Toaster richColors />
         </ThemeProvider>
-
-        {/* Devtools positioned at top-left to avoid covering player bar */}
-        <TanStackDevtools
-          position="top-left"
-          plugins={[
-            {
-              name: "TanStack Query",
-              render: <ReactQueryDevtoolsPanel />,
-            },
-            {
-              name: "TanStack Router",
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-          ]}
-        />
 
         <Scripts />
       </body>

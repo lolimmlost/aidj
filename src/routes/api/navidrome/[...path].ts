@@ -33,6 +33,16 @@ export const Route = createFileRoute("/api/navidrome/[./path]")({
         url.searchParams.set('u', config.navidromeUsername || '');
         url.searchParams.set('t', subsonicToken);
         url.searchParams.set('s', subsonicSalt);
+        url.searchParams.set('v', '1.16.1');
+        url.searchParams.set('c', 'aidj');
+
+        // Auto-add f=json for non-binary endpoints to get JSON instead of XML
+        const binaryEndpoints = ['getCoverArt', 'stream', 'download', 'getAvatar'];
+        const endpoint = path.replace('rest/', '');
+        const isBinaryEndpoint = binaryEndpoints.some(e => endpoint.startsWith(e));
+        if (!isBinaryEndpoint && !url.searchParams.has('f')) {
+          url.searchParams.set('f', 'json');
+        }
       }
 
       const headers = new Headers(request.headers);

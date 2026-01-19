@@ -1,0 +1,24 @@
+{
+  "category": "Uncategorized",
+  "description": "## Parent Task Context (Already Completed)\n\n> **Note:** The following parent task has already been completed. This context is provided to help you understand the background and requirements for this sub-task. Do not re-implement the parent task - focus only on the new sub-task described below.\n\n### Task (feature-)\n\n**Description:** Implement Collaborative Playlist Creation with Real-Time Voting System\n\nBuild a comprehensive collaborative playlist feature that enables users to create shared playlists, invite collaborators, and collectively curate music through a voting-based suggestion system.\n\nRequirements:\n\n**Playlist Sharing & Collaboration**\n- Create sharable playlists with configurable privacy settings (public, private, invite-only)\n- Implement invitation system to add friends/users as collaborators\n- Define role-based permissions (owner, editor, viewer) with different access levels\n- Display list of current collaborators with their roles on playlist view\n- Allow playlist owner to remove collaborators or transfer ownership\n\n**Song Suggestion System**\n- Enable collaborators to suggest songs for addition to the playlist\n- Create a suggestions queue/section separate from the main playlist\n- Display suggested songs with metadata (title, artist, album, duration)\n- Show who suggested each song and when\n- Allow users to withdraw their own suggestions\n\n**Voting Mechanism**\n- Implement upvote/downvote functionality for each suggested song\n- Display vote counts and net score for each suggestion\n- Prevent duplicate voting (one vote per user per song)\n- Allow users to change their vote\n- Sort suggestions by vote score, timestamp, or other criteria\n\n**Real-Time Synchronization**\n- Update suggestions and votes in real-time for all active collaborators\n- Broadcast playlist changes (additions, removals, reordering) to all viewers\n- Handle conflict resolution for simultaneous actions\n- Show presence indicators for currently active collaborators\n\n**Approval & Addition Workflow**\n- Define threshold or rules for automatic song approval (e.g., +3 votes, owner approval)\n- Allow playlist owner to manually approve/reject suggestions regardless of votes\n- Automatically add approved songs to the playlist\n- Notify collaborators when songs are added or rejected\n- Archive or remove rejected suggestions\n\n**Edge Cases & Constraints**\n- Handle deleted/unavailable songs in suggestions\n- Set limits on suggestion queue size per user or total\n- Manage permissions when users leave or are removed from collaboration\n- Handle playlist deletion and its impact on collaborators\n- Validate song availability across different regions/platforms\n\n**Technical Considerations**\n- Choose real-time communication protocol (WebSockets, Server-Sent Events, polling)\n- Design database schema for playlists, collaborators, suggestions, and votes\n- Implement efficient queries for vote aggregation and ranking\n- Add appropriate indexes for performance\n- Consider caching strategy for frequently accessed playlist data\n\n**User Experience**\n- Provide clear visual distinction between main playlist and suggestions queue\n- Show loading states during real-time updates\n- Display notifications for new suggestions, votes, and approvals\n- Include undo functionality for accidental actions\n- Make voting interface intuitive and responsive\n\n---\n\n## Task Description\n\nFailed to load collaboration data\n\nFailed query: select \"id\", \"playlist_id\", \"privacy\", \"allow_suggestions\", \"auto_approve_threshold\", \"max_suggestions_per_user\", \"max_total_suggestions\", \"notify_on_suggestion\", \"notify_on_vote\", \"notify_on_approval\", \"share_code\", \"created_at\", \"updated_at\" from \"playlist_collaboration_settings\" where \"playlist_collaboration_settings\".\"playlist_id\" = $1 limit $2 params: be4ddc0a-8de1-4d3d-8e40-11cb5ca92109,1\n",
+  "title": "Create collaborative playlist UI components",
+  "images": [],
+  "imagePaths": [],
+  "textFilePaths": [],
+  "skipTests": true,
+  "model": "opus",
+  "thinkingLevel": "ultrathink",
+  "branchName": "feat/unified-recommendations-service",
+  "priority": 2,
+  "planningMode": "lite",
+  "requirePlanApproval": false,
+  "dependencies": [
+    "feature-1766954945451-xysmndtsz"
+  ],
+  "titleGenerating": false,
+  "status": "completed",
+  "id": "feature-1766965743862-4pifyh0v2",
+  "startedAt": "2025-12-29T00:24:50.374Z",
+  "updatedAt": "2025-12-29T00:28:58.614Z",
+  "justFinishedAt": "2025-12-29T00:28:58.614Z"
+}

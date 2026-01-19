@@ -149,6 +149,20 @@ vi.mock('@dnd-kit/core', () => ({
   useSensors: vi.fn(() => [])
 }))
 
+// Mock react-virtual to render all items directly without virtualization in tests
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: vi.fn(({ count, getItemKey }: { count: number; getItemKey?: (index: number) => string | number }) => ({
+    getVirtualItems: () => Array.from({ length: count }, (_, i) => ({
+      key: getItemKey ? getItemKey(i) : `item-${i}`,
+      index: i,
+      start: i * 72,
+      size: 72,
+    })),
+    getTotalSize: () => count * 72,
+    measureElement: vi.fn(),
+  })),
+}))
+
 vi.mock('@dnd-kit/sortable', () => ({
   SortableContext: ({ children }: any) => children,
   arrayMove: vi.fn((array, from, to) => {
@@ -331,7 +345,7 @@ describe('Queue Panel Component', () => {
       await renderQueuePanelAndOpen()
 
       expect(screen.getByText('Clear Queue')).toBeInTheDocument()
-      expect(screen.getByText('Create Playlist from Queue')).toBeInTheDocument()
+      expect(screen.getByText('Save')).toBeInTheDocument() // Button text was shortened
     })
   })
 
@@ -439,7 +453,8 @@ describe('Queue Panel Component', () => {
       await userEvent.hover(firstSong.closest('div')!)
 
       // Find and click the X button (there will be multiple, one per song)
-      const removeButtons = screen.getAllByTitle('Remove from queue')
+      // The button uses aria-label instead of title for accessibility
+      const removeButtons = screen.getAllByRole('button', { name: /Remove .* from queue/i })
       await userEvent.click(removeButtons[0])
 
       expect(mockRemoveFromQueue).toHaveBeenCalled()
@@ -513,13 +528,15 @@ describe('Queue Panel Component', () => {
     it('should show create playlist button when queue has songs', async () => {
       await renderQueuePanelAndOpen()
 
-      expect(screen.getByText('Create Playlist from Queue')).toBeInTheDocument()
+      // Button text was changed to "Save" for brevity
+      expect(screen.getByText('Save')).toBeInTheDocument()
     })
 
     it('should open create playlist dialog when button is clicked', async () => {
       await renderQueuePanelAndOpen()
 
-      const createButton = screen.getByText('Create Playlist from Queue')
+      // Button text was changed to "Save" for brevity
+      const createButton = screen.getByText('Save')
       await userEvent.click(createButton)
 
       // Dialog should open (mocked in our test setup)

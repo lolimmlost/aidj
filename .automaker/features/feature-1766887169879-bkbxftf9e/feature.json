@@ -1,0 +1,23 @@
+{
+  "category": "Code Quality",
+  "description": "Consolidate duplicate error handling logic across API routes",
+  "id": "feature-1766887169879-bkbxftf9e",
+  "steps": [
+    "Extract common session validation pattern from preferences.ts (lines 44-58) into a reusable middleware utility",
+    "Create a standardized API response wrapper function to eliminate Response construction duplication",
+    "Consolidate error handling blocks that appear in multiple routes (auth validation, Zod validation, error response formatting)",
+    "Add middleware layer to handle authentication, validation, and error responses consistently across all `/api/*` routes"
+  ],
+  "status": "completed",
+  "skipTests": false,
+  "priority": 1,
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "none",
+  "imagePaths": [],
+  "branchName": "feat/unified-recommendations-service",
+  "planningMode": "skip",
+  "requirePlanApproval": false,
+  "startedAt": "2025-12-28T17:40:34.201Z",
+  "updatedAt": "2025-12-28T17:51:44.109Z"
+}

@@ -1,11 +1,11 @@
 {
-  "name": "AIDJ - AI Music Library",
+  "name": "AIDJ",
   "short_name": "AIDJ",
-  "description": "AI-powered music library interface with smart playlists and recommendations",
+  "description": "AI-powered music discovery and smart playlists",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#7c3aed",
+  "background_color": "#0c0a14",
+  "theme_color": "#8b5cf6",
   "orientation": "portrait-primary",
   "categories": ["music", "entertainment"],
   "icons": [

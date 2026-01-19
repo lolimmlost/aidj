@@ -358,53 +358,98 @@ function DownloadStatusPage() {
               <span className="text-xs px-2 py-1 rounded bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
                 {status.wanted.length} missing
               </span>
+              {status.wanted.some(a => a.searchStatus === 'searching') && (
+                <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 animate-pulse">
+                  Active searches
+                </span>
+              )}
             </CardTitle>
             <CardDescription>
-              Albums that Lidarr is searching for but hasn't found yet
+              Albums that Lidarr is searching for via Soulseek. "Searching" means actively querying, "Searched" means waiting for results.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {status.wanted.slice(0, 20).map((album) => (
-                <div key={album.id} className="flex items-center justify-between p-4 border border-orange-200 dark:border-orange-900/50 rounded-lg bg-orange-50/50 dark:bg-orange-900/10">
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium">{album.title}</h3>
-                      {album.monitored && (
-                        <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                          Monitored
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      by {album.artistName}
-                    </p>
-                    {album.releaseDate && (
-                      <p className="text-xs text-muted-foreground">
-                        Released: {new Date(album.releaseDate).toLocaleDateString()}
+              {status.wanted.slice(0, 20).map((album) => {
+                // Determine status styling
+                const isSearching = album.searchStatus === 'searching';
+                const wasSearchedRecently = album.searchStatus === 'searched_recently';
+                const borderClass = isSearching
+                  ? 'border-blue-300 dark:border-blue-700'
+                  : wasSearchedRecently
+                    ? 'border-green-200 dark:border-green-900/50'
+                    : 'border-orange-200 dark:border-orange-900/50';
+                const bgClass = isSearching
+                  ? 'bg-blue-50/50 dark:bg-blue-900/10'
+                  : wasSearchedRecently
+                    ? 'bg-green-50/50 dark:bg-green-900/10'
+                    : 'bg-orange-50/50 dark:bg-orange-900/10';
+
+                return (
+                  <div key={album.id} className={`flex items-center justify-between p-4 border rounded-lg ${borderClass} ${bgClass}`}>
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-medium">{album.title}</h3>
+                        {/* Search Status Badge */}
+                        {isSearching && (
+                          <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 flex items-center gap-1">
+                            <span className="animate-spin h-3 w-3 border border-blue-600 border-t-transparent rounded-full"></span>
+                            Searching...
+                          </span>
+                        )}
+                        {wasSearchedRecently && (
+                          <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                            Searched - Awaiting Results
+                          </span>
+                        )}
+                        {!isSearching && !wasSearchedRecently && album.monitored && (
+                          <span className="text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                            Waiting
+                          </span>
+                        )}
+                        {album.grabbed && (
+                          <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                            Grabbed
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        by {album.artistName}
                       </p>
-                    )}
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        {album.releaseDate && (
+                          <span>Released: {new Date(album.releaseDate).toLocaleDateString()}</span>
+                        )}
+                        {album.lastSearched && (
+                          <span>Last searched: {new Date(album.lastSearched).toLocaleTimeString()}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSearchAlbum(album.id, album.title)}
+                        disabled={isSearching}
+                        className={isSearching
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'border-orange-500/50 text-orange-600 hover:bg-orange-500/10'
+                        }
+                      >
+                        {isSearching ? 'Searching...' : 'Search Again'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUnmonitorAlbum(album.id, album.title)}
+                        className="border-red-500/50 text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                      >
+                        Unmonitor
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSearchAlbum(album.id, album.title)}
-                      className="border-orange-500/50 text-orange-600 hover:bg-orange-500/10"
-                    >
-                      Search Again
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleUnmonitorAlbum(album.id, album.title)}
-                      className="border-red-500/50 text-red-600 hover:bg-red-500/10 dark:text-red-400"
-                    >
-                      Unmonitor
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>

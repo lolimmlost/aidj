@@ -1,5 +1,7 @@
 import { Link } from '@tanstack/react-router';
-import { Search, Users, ListMusic, Settings } from 'lucide-react';
+import { Play, Pause, Music2, Disc3, Sparkles } from 'lucide-react';
+import { useAudioStore } from '@/lib/stores/audio';
+import { cn } from '@/lib/utils';
 
 interface DashboardHeroProps {
   userName?: string;
@@ -8,13 +10,19 @@ interface DashboardHeroProps {
 }
 
 /**
- * Dashboard hero section with greeting and quick stats
+ * Dashboard hero section with immersive gradient design
+ * Features: Ambient glow, now playing widget, greeting, quick stats
  */
 export function DashboardHero({
   userName,
   availableRecommendations,
   playlistSongsReady,
 }: DashboardHeroProps) {
+  const currentSong = useAudioStore((s) => s.playlist[s.currentSongIndex]);
+  const isPlaying = useAudioStore((s) => s.isPlaying);
+  const setIsPlaying = useAudioStore((s) => s.setIsPlaying);
+  const aiDJEnabled = useAudioStore((s) => s.aiDJEnabled);
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
@@ -22,136 +30,208 @@ export function DashboardHero({
     return 'Good evening';
   };
 
-  return (
-    <section className="space-y-6">
-      {/* Hero Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/20 p-6 sm:p-8 lg:p-10">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-primary/5 rounded-full blur-3xl -z-10" />
-        <div className="relative z-10">
-          <p className="text-xs font-medium text-primary mb-2 tracking-wide uppercase">
-            Your Music Hub
-          </p>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-2 text-foreground">
-            {getGreeting()}, {userName || 'Music Lover'}
-          </h1>
-          <p className="text-sm sm:text-base text-muted-foreground max-w-xl">
-            Discover new music, create intelligent playlists, and explore your library with AI-powered recommendations
-          </p>
+  const getTimeEmoji = () => {
+    const hour = new Date().getHours();
+    if (hour < 6) return '🌙';
+    if (hour < 12) return '☀️';
+    if (hour < 18) return '🌤️';
+    if (hour < 21) return '🌆';
+    return '🌙';
+  };
 
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
-            <StatBadge
-              value={availableRecommendations}
+  return (
+    <section className="hero-section p-6 sm:p-8 lg:p-10">
+      {/* Ambient Glow Effects */}
+      <div className="hero-glow" aria-hidden="true" />
+      <div className="hero-glow-secondary" aria-hidden="true" />
+
+      {/* Content */}
+      <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 lg:gap-8">
+        {/* Left: Greeting & Context */}
+        <div className="flex-1 space-y-4">
+          <div className="animate-fade-up">
+            <span className="text-2xl sm:text-3xl">{getTimeEmoji()}</span>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mt-2">
+              {getGreeting()},{' '}
+              <span className="text-gradient-brand">{userName || 'Music Lover'}</span>
+            </h1>
+            <p className="text-muted-foreground mt-2 text-sm sm:text-base max-w-lg">
+              {currentSong
+                ? 'Pick up where you left off or discover something new'
+                : 'Ready to start your listening session?'}
+            </p>
+          </div>
+
+          {/* Quick Stats - Desktop */}
+          <div className="hidden sm:flex items-center gap-3 stagger-children">
+            <StatPill
               label="Recommendations"
-              color="primary"
+              value={availableRecommendations}
+              color="violet"
             />
-            <StatBadge
+            <StatPill
+              label="Ready to play"
               value={playlistSongsReady}
-              label="Playlist Songs"
-              color="green"
+              color="emerald"
             />
-            <StatBadge
-              value="AI"
-              label="Powered"
-              color="blue"
-            />
-            <StatBadge
-              value="DJ"
-              label="Tools"
-              color="purple"
-            />
+            {aiDJEnabled && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-medium text-primary">AI DJ Active</span>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Right: Now Playing Widget or Start CTA */}
+        {currentSong ? (
+          <NowPlayingWidget
+            song={currentSong}
+            isPlaying={isPlaying}
+            onTogglePlay={() => setIsPlaying(!isPlaying)}
+          />
+        ) : (
+          <StartListeningCTA />
+        )}
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <QuickAction
-          to="/library/search"
-          icon={<Search className="h-5 w-5" />}
-          title="Search Library"
-          description="Find songs instantly"
-          color="blue"
-        />
-        <QuickAction
-          to="/library/artists"
-          icon={<Users className="h-5 w-5" />}
-          title="Browse Artists"
-          description="Explore your collection"
-          color="purple"
-        />
-        <QuickAction
-          to="/playlists"
-          icon={<ListMusic className="h-5 w-5" />}
-          title="My Playlists"
-          description="Manage collections"
-          color="green"
-        />
-        <QuickAction
-          to="/settings"
-          icon={<Settings className="h-5 w-5" />}
-          title="Settings"
-          description="Customize experience"
-          color="orange"
-        />
+      {/* Mobile Quick Stats */}
+      <div className="flex sm:hidden items-center gap-2 mt-4 overflow-x-auto pb-1">
+        <StatPill label="Recs" value={availableRecommendations} color="violet" compact />
+        <StatPill label="Ready" value={playlistSongsReady} color="emerald" compact />
+        {aiDJEnabled && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-medium text-primary">AI DJ</span>
+          </div>
+        )}
       </div>
     </section>
   );
 }
 
-interface StatBadgeProps {
-  value: string | number;
+interface StatPillProps {
   label: string;
-  color: 'primary' | 'green' | 'blue' | 'purple';
+  value: number;
+  color: 'violet' | 'emerald' | 'amber';
+  compact?: boolean;
 }
 
-function StatBadge({ value, label, color }: StatBadgeProps) {
+function StatPill({ label, value, color, compact = false }: StatPillProps) {
   const colorClasses = {
-    primary: 'text-primary',
-    green: 'text-green-600',
-    blue: 'text-blue-600',
-    purple: 'text-purple-600',
+    violet: 'bg-violet-500/10 border-violet-500/20 text-violet-600 dark:text-violet-400',
+    emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400',
+    amber: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400',
   };
 
   return (
-    <div className="bg-background/60 backdrop-blur-sm rounded-lg p-3 border border-border/50">
-      <div className={`text-xl font-bold ${colorClasses[color]}`}>{value}</div>
-      <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+    <div
+      className={cn(
+        'flex items-center gap-1.5 rounded-full border shrink-0',
+        colorClasses[color],
+        compact ? 'px-2.5 py-1' : 'px-3 py-1.5'
+      )}
+    >
+      <span className={cn('font-bold', compact ? 'text-sm' : 'text-base')}>{value}</span>
+      <span className={cn('text-muted-foreground', compact ? 'text-xs' : 'text-xs')}>
+        {label}
+      </span>
     </div>
   );
 }
 
-interface QuickActionProps {
-  to: string;
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  color: 'blue' | 'purple' | 'green' | 'orange';
+interface NowPlayingWidgetProps {
+  song: { name?: string; title?: string; artist?: string; albumArt?: string };
+  isPlaying: boolean;
+  onTogglePlay: () => void;
 }
 
-function QuickAction({ to, icon, title, description, color }: QuickActionProps) {
-  const colorClasses = {
-    blue: 'from-blue-500/10 to-blue-600/5 border-blue-500/20 hover:border-blue-500/40 hover:shadow-blue-500/10',
-    purple: 'from-purple-500/10 to-purple-600/5 border-purple-500/20 hover:border-purple-500/40 hover:shadow-purple-500/10',
-    green: 'from-green-500/10 to-green-600/5 border-green-500/20 hover:border-green-500/40 hover:shadow-green-500/10',
-    orange: 'from-orange-500/10 to-orange-600/5 border-orange-500/20 hover:border-orange-500/40 hover:shadow-orange-500/10',
-  };
-
-  const iconColorClasses = {
-    blue: 'bg-blue-500/10 text-blue-600 group-hover:bg-blue-500/20',
-    purple: 'bg-purple-500/10 text-purple-600 group-hover:bg-purple-500/20',
-    green: 'bg-green-500/10 text-green-600 group-hover:bg-green-500/20',
-    orange: 'bg-orange-500/10 text-orange-600 group-hover:bg-orange-500/20',
-  };
+function NowPlayingWidget({ song, isPlaying, onTogglePlay }: NowPlayingWidgetProps) {
+  const title = song.title || song.name || 'Unknown Track';
+  const artist = song.artist || 'Unknown Artist';
 
   return (
-    <Link to={to} className="group">
-      <div className={`h-full p-4 sm:p-5 rounded-xl bg-gradient-to-br border transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${colorClasses[color]}`}>
-        <div className={`inline-flex p-2.5 rounded-lg mb-3 transition-colors ${iconColorClasses[color]}`}>
-          {icon}
+    <div className="now-playing-card p-4 sm:p-5 w-full lg:w-auto lg:min-w-[320px] animate-fade-up">
+      <div className="relative z-10 flex items-center gap-4">
+        {/* Album Art / Vinyl */}
+        <div className="relative">
+          <div
+            className={cn(
+              'w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center',
+              'vinyl-spin',
+              isPlaying && 'playing'
+            )}
+          >
+            <Disc3 className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
+          </div>
+          {isPlaying && (
+            <div className="absolute inset-0 rounded-full bg-primary/10 pulse-ring" />
+          )}
         </div>
-        <h3 className="font-semibold text-sm sm:text-base mb-0.5">{title}</h3>
-        <p className="text-xs text-muted-foreground">{description}</p>
+
+        {/* Song Info */}
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
+            Now Playing
+          </p>
+          <h3 className="font-semibold text-base sm:text-lg truncate">{title}</h3>
+          <p className="text-sm text-muted-foreground truncate">{artist}</p>
+
+          {/* Audio Wave */}
+          {isPlaying && (
+            <div className="audio-wave mt-2">
+              <div className="audio-wave-bar" />
+              <div className="audio-wave-bar" />
+              <div className="audio-wave-bar" />
+              <div className="audio-wave-bar" />
+              <div className="audio-wave-bar" />
+            </div>
+          )}
+        </div>
+
+        {/* Play/Pause Button */}
+        <button
+          onClick={onTogglePlay}
+          className={cn(
+            'w-12 h-12 rounded-full flex items-center justify-center transition-all',
+            'bg-primary text-primary-foreground hover:scale-105 active:scale-95',
+            'shadow-lg shadow-primary/25'
+          )}
+          aria-label={isPlaying ? 'Pause' : 'Play'}
+        >
+          {isPlaying ? (
+            <Pause className="w-5 h-5" fill="currentColor" />
+          ) : (
+            <Play className="w-5 h-5 ml-0.5" fill="currentColor" />
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StartListeningCTA() {
+  return (
+    <Link
+      to="/library"
+      className="glass-card-premium p-5 sm:p-6 w-full lg:w-auto lg:min-w-[320px] animate-fade-up group"
+    >
+      <div className="flex items-center gap-4">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center group-hover:scale-105 transition-transform">
+          <Music2 className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
+            Start Listening
+            <Sparkles className="w-4 h-4 text-primary" />
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Browse your library or let AI DJ take over
+          </p>
+        </div>
+        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+          <Play className="w-4 h-4 text-primary ml-0.5" />
+        </div>
       </div>
     </Link>
   );

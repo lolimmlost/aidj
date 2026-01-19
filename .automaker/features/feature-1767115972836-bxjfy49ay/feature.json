@@ -1,0 +1,36 @@
+{
+  "category": "Uncategorized",
+  "description": "## Parent Task Context (Already Completed)\n\n> **Note:** The following parent task has already been completed. This context is provided to help you understand the background and requirements for this sub-task. Do not re-implement the parent task - focus only on the new sub-task described below.\n\n### Task (feature-)\n\n**Description:** Create a 'music identity' system that generates AI-powered yearly/monthly summaries (similar to Spotify Wrapped) with personalized insights, mood classifications, artist affinities, and sharable visual cards. Include trend analysis showing 'who you're getting into' and 'what you're moving away from'.\n\n---\n\n## Task Description\n\nthe view on desktop is weird with the selectable buttons are stacking vertically instead of horizontally.",
+  "title": "Fix desktop layout selectable buttons stacking",
+  "images": [],
+  "imagePaths": [
+    {
+      "id": "img-1767115968489-6guovjrsz",
+      "path": "/home/default/Desktop/dev/aidj/.automaker/features/feature-1767115972836-bxjfy49ay/images/Screenshot_2025-12-30_at_09-31-18_AIDJ_-_AI-Assisted_Music_Library-1767115968486.png",
+      "filename": "Screenshot_2025-12-30_at_09-31-18_AIDJ_-_AI-Assisted_Music_Library.png",
+      "mimeType": "image/png"
+    },
+    {
+      "path": "/home/default/Desktop/dev/aidj/.automaker/features/feature-1767115972836-bxjfy49ay/images/Screenshot_2025-12-30_at_09-42-21_AIDJ_-_AI-Assisted_Music_Library-1767116580665.png",
+      "filename": "Screenshot_2025-12-30_at_09-42-21_AIDJ_-_AI-Assisted_Music_Library-1767116580665.png",
+      "mimeType": "image/png"
+    }
+  ],
+  "textFilePaths": [],
+  "skipTests": true,
+  "model": "sonnet",
+  "thinkingLevel": "medium",
+  "branchName": "feat/unified-recommendations-service",
+  "priority": 2,
+  "planningMode": "lite",
+  "requirePlanApproval": false,
+  "dependencies": [
+    "feature-1767077348747-vgxkwm0sv"
+  ],
+  "titleGenerating": false,
+  "status": "completed",
+  "id": "feature-1767115972836-bxjfy49ay",
+  "startedAt": "2025-12-30T17:43:01.831Z",
+  "updatedAt": "2025-12-30T17:45:11.393Z",
+  "justFinishedAt": "2025-12-30T17:45:11.393Z"
+}

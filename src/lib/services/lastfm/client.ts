@@ -7,6 +7,7 @@
  */
 
 import { search as searchNavidrome } from '../navidrome';
+import { getCacheService } from '../cache';
 import type {
   LastFmConfig,
   LastFmError,
@@ -21,7 +22,6 @@ import type {
   LastFmTrackInfoResponse,
   EnrichedTrack,
   EnrichedArtist,
-  CacheEntry,
 } from './types';
 
 const LASTFM_BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
@@ -125,7 +125,6 @@ function getLargestImage(images?: { '#text': string; size: string }[]): string |
  */
 export class LastFmClient {
   private apiKey: string;
-  private cache: Map<string, CacheEntry<unknown>>;
   private cacheTtlMs: number;
   private rateLimiter: RateLimiter;
   private isAvailable: boolean = true;
@@ -134,7 +133,6 @@ export class LastFmClient {
   constructor(config: LastFmConfig) {
     this.apiKey = config.apiKey;
     this.cacheTtlMs = config.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS;
-    this.cache = new Map();
     this.rateLimiter = new RateLimiter(config.maxRequestsPerSecond ?? DEFAULT_MAX_REQUESTS_PER_SECOND);
   }
 
@@ -212,25 +210,20 @@ export class LastFmClient {
    * Get from cache if valid
    */
   private getFromCache<T>(key: string): T | null {
-    const entry = this.cache.get(key) as CacheEntry<T> | undefined;
-    if (entry && entry.expires > Date.now()) {
+    const cache = getCacheService();
+    const result = cache.get<T>('lastfm', key);
+    if (result) {
       console.log(`[Last.fm] Cache hit: ${key}`);
-      return entry.data;
     }
-    if (entry) {
-      this.cache.delete(key);
-    }
-    return null;
+    return result;
   }
 
   /**
    * Set cache entry
    */
   private setCache<T>(key: string, data: T): void {
-    this.cache.set(key, {
-      data,
-      expires: Date.now() + this.cacheTtlMs,
-    });
+    const cache = getCacheService();
+    cache.set('lastfm', key, data, { ttlMs: this.cacheTtlMs });
   }
 
   /**
@@ -524,7 +517,8 @@ export class LastFmClient {
    * Clear the cache
    */
   clearCache(): void {
-    this.cache.clear();
+    const cache = getCacheService();
+    cache.clearNamespace('lastfm');
     console.log('[Last.fm] Cache cleared');
   }
 
@@ -532,13 +526,11 @@ export class LastFmClient {
    * Get cache statistics
    */
   getCacheStats(): { size: number; entries: number } {
-    let size = 0;
-    this.cache.forEach((entry) => {
-      size += JSON.stringify(entry.data).length;
-    });
+    const cache = getCacheService();
+    const stats = cache.getNamespaceStats('lastfm');
     return {
-      size,
-      entries: this.cache.size,
+      size: stats?.memoryUsage ?? 0,
+      entries: stats?.entryCount ?? 0,
     };
   }
 }

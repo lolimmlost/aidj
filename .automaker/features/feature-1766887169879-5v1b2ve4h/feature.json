@@ -1,0 +1,23 @@
+{
+  "category": "Code Completeness",
+  "description": "Complete TODO items for Lidarr and Navidrome integrations",
+  "id": "feature-1766887169879-5v1b2ve4h",
+  "steps": [
+    "Implement proper Navidrome Album lookup in lidarr-navidrome.ts line 186 (currently undefined)",
+    "Implement Lidarr song lookup for integrated search in lidarr-navidrome.ts line 252",
+    "Implement Lidarr song availability check in search.ts line 78",
+    "Define and export proper Navidrome Album type interface from navidrome service"
+  ],
+  "status": "completed",
+  "skipTests": false,
+  "priority": 1,
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "none",
+  "imagePaths": [],
+  "branchName": "feat/unified-recommendations-service",
+  "planningMode": "skip",
+  "requirePlanApproval": false,
+  "startedAt": "2025-12-28T17:31:58.906Z",
+  "updatedAt": "2025-12-28T17:40:33.151Z"
+}

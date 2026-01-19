@@ -1,58 +1,89 @@
 import { Link } from '@tanstack/react-router';
-import { Download, BarChart3, Heart, Cog } from 'lucide-react';
+import { Download, BarChart3, Heart, Cog, Disc3, ArrowRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 /**
- * Additional features grid at the bottom of the dashboard
+ * Quick access links to additional features
+ * Clean, minimal design with hover effects
  */
 export function MoreFeatures() {
   return (
     <section className="space-y-4">
-      <div className="text-center">
-        <h3 className="text-base font-semibold text-muted-foreground">More Features</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+          Quick Access
+        </h3>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <CompactLink
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
+        {/* DJ Features - mobile only (hidden on lg+ where full section shows) */}
+        <QuickLink
+          to="/dj"
+          icon={<Disc3 className="h-5 w-5" />}
+          label="DJ Tools"
+          color="violet"
+          className="lg:hidden"
+        />
+        <QuickLink
           to="/downloads"
           icon={<Download className="h-5 w-5" />}
           label="Downloads"
+          color="cyan"
         />
-        <CompactLink
+        <QuickLink
           to="/dashboard/analytics"
           icon={<BarChart3 className="h-5 w-5" />}
           label="Analytics"
+          color="emerald"
         />
-        <CompactLink
+        <QuickLink
           to="/settings/recommendations"
           icon={<Heart className="h-5 w-5" />}
           label="Preferences"
+          color="rose"
         />
-        <CompactLink
+        <QuickLink
           to="/config"
           icon={<Cog className="h-5 w-5" />}
-          label="Configuration"
+          label="Config"
+          color="amber"
         />
       </div>
     </section>
   );
 }
 
-interface CompactLinkProps {
+interface QuickLinkProps {
   to: string;
   icon: React.ReactNode;
   label: string;
+  color: 'violet' | 'cyan' | 'emerald' | 'rose' | 'amber';
+  className?: string;
 }
 
-function CompactLink({ to, icon, label }: CompactLinkProps) {
+function QuickLink({ to, icon, label, color, className = '' }: QuickLinkProps) {
+  const colorClasses = {
+    violet: 'hover:bg-violet-500/5 hover:border-violet-500/30 [&_svg]:group-hover:text-violet-500',
+    cyan: 'hover:bg-cyan-500/5 hover:border-cyan-500/30 [&_svg]:group-hover:text-cyan-500',
+    emerald: 'hover:bg-emerald-500/5 hover:border-emerald-500/30 [&_svg]:group-hover:text-emerald-500',
+    rose: 'hover:bg-rose-500/5 hover:border-rose-500/30 [&_svg]:group-hover:text-rose-500',
+    amber: 'hover:bg-amber-500/5 hover:border-amber-500/30 [&_svg]:group-hover:text-amber-500',
+  };
+
   return (
-    <Link to={to} className="group">
-      <div className="p-4 rounded-xl border border-border/50 hover:border-primary/50 bg-card/50 hover:bg-card transition-all duration-200 hover:-translate-y-0.5">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors text-primary">
-            {icon}
-          </div>
-          <span className="text-sm font-medium">{label}</span>
+    <Link to={to} className={cn('group', className)}>
+      <div
+        className={cn(
+          'flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-border/50 bg-card/30',
+          'transition-all duration-200 hover:-translate-y-0.5',
+          colorClasses[color]
+        )}
+      >
+        <div className="text-muted-foreground transition-colors">
+          {icon}
         </div>
+        <span className="text-sm font-medium flex-1">{label}</span>
+        <ArrowRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground/50 transition-all group-hover:translate-x-0.5" />
       </div>
     </Link>
   );

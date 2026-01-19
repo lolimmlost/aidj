@@ -1,0 +1,22 @@
+{
+  "category": "Uncategorized",
+  "description": "Investigate and Fix Song Like Functionality\n\nThe like/favorite action for the currently playing song is not working correctly. When users attempt to like a song, a success toast notification appears, but the heart icon does not update to reflect the liked state.\n\nRequirements:\n- Identify why the heart icon is not filling in after like action\n- Verify the like action is actually persisting to the backend/storage\n- Ensure the UI state properly updates to show the filled heart icon\n- Check if the issue occurs only for the current song or affects all songs\n- Test the unlike functionality to ensure it also works correctly\n- Verify the liked state persists after page refresh or app restart\n- Ensure the toast notification only shows when the action truly succeeds\n\nEdge Cases to Consider:\n- Network failures during the like request\n- Race conditions if user clicks multiple times quickly\n- State sync between the like button and other UI elements showing liked songs\n- Optimistic UI updates vs. actual backend confirmation",
+  "title": "Fix song like button icon not updating on success",
+  "images": [],
+  "imagePaths": [],
+  "textFilePaths": [],
+  "skipTests": true,
+  "model": "opus",
+  "thinkingLevel": "ultrathink",
+  "branchName": "feat/unified-recommendations-service",
+  "priority": 2,
+  "planningMode": "lite",
+  "requirePlanApproval": false,
+  "dependencies": [],
+  "titleGenerating": false,
+  "status": "completed",
+  "id": "feature-1766988251055-4d0ipddqp",
+  "startedAt": "2025-12-29T20:04:30.574Z",
+  "updatedAt": "2025-12-29T20:15:23.267Z",
+  "justFinishedAt": "2025-12-29T20:15:23.267Z"
+}

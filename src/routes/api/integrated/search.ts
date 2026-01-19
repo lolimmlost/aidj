@@ -74,9 +74,18 @@ export const $checkAvailability = createServerFn({ method: "POST" })
           break;
         
         case 'song':
+          // Parse the query to extract artist and title (format: "Artist - Title" or just "Title")
+          const songParts = data.query.split(' - ');
+          const songArtist = songParts.length > 1 ? songParts[0] : '';
+          const songTitle = songParts.length > 1 ? songParts.slice(1).join(' - ') : data.query;
+
+          // Check Lidarr availability using the new checkSongInLidarr function
+          const lidarrModule = await import('~/lib/services/lidarr-navidrome');
+          const lidarrSongInfo = await lidarrModule.checkSongInLidarr(songTitle, songArtist);
+
           availability = {
-            inLidarr: false, // TODO: Implement Lidarr song availability check
-            inNavidrome: await import('~/lib/services/lidarr-navidrome').then(m => m.checkSongAvailability(data.query)),
+            inLidarr: lidarrSongInfo !== undefined,
+            inNavidrome: await lidarrModule.checkSongAvailability(data.query),
           };
           break;
         

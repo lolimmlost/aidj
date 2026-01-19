@@ -1,4 +1,39 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { EnrichedTrack } from '../lastfm/types';
+import type { SubsonicSong } from '../navidrome';
+
+// Mock server-side modules to prevent env access in client tests
+vi.mock('@/lib/auth/auth', () => ({}));
+vi.mock('@/lib/db/index', () => ({}));
+vi.mock('@/env/server', () => ({ env: { DATABASE_URL: 'mock://test' } }));
+
+// Mock config to provide Last.fm API key - use inline mock
+vi.mock('@/lib/config/config', () => ({
+  getConfig: () => ({
+    lastfmApiKey: 'test-api-key',
+  }),
+  getConfigAsync: () => Promise.resolve({
+    lastfmApiKey: 'test-api-key',
+  }),
+}));
+
+// Mock dependencies
+vi.mock('../lastfm');
+vi.mock('../smart-playlist-evaluator');
+vi.mock('../navidrome');
+vi.mock('../mood-translator');
+
+// Mock compound-scoring to avoid DB access
+vi.mock('../compound-scoring', () => ({
+  applyCompoundScoreBoost: (songs: unknown[]) => songs,
+  getCompoundScoredRecommendations: vi.fn().mockResolvedValue([]),
+}));
+
+// Import after mocks
+import * as lastfm from '../lastfm';
+import * as smartPlaylistEvaluator from '../smart-playlist-evaluator';
+import * as navidrome from '../navidrome';
+import * as moodTranslator from '../mood-translator';
 import {
   getRecommendations,
   applyDiversity,
@@ -6,18 +41,6 @@ import {
   enrichedTrackToDiscoverySong,
   subsonicSongToSong,
 } from '../recommendations';
-import * as lastfm from '../lastfm';
-import * as smartPlaylistEvaluator from '../smart-playlist-evaluator';
-import * as navidrome from '../navidrome';
-import * as moodTranslator from '../mood-translator';
-import type { EnrichedTrack } from '../lastfm/types';
-import type { SubsonicSong } from '../navidrome';
-
-// Mock dependencies
-vi.mock('../lastfm');
-vi.mock('../smart-playlist-evaluator');
-vi.mock('../navidrome');
-vi.mock('../mood-translator');
 
 describe('Unified Recommendation Service', () => {
   // Mock data

@@ -1,5 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import {
+  DEFAULT_USER_PREFERENCES,
+  mergeRecommendationSettings,
+  mergePlaybackSettings,
+  mergeNotificationSettings,
+  mergeDashboardLayout,
+} from '../utils/preference-merge';
 
 // Types matching database schema
 // Story 7.1: Source mode for recommendations
@@ -20,6 +27,15 @@ export interface RecommendationSettings {
   // Story 7.1: Source Mode Toggle
   sourceMode: SourceMode;
   mixRatio: number; // Percentage of library songs in mix mode (0-100)
+  // Story 7.5: Harmonic Mixing Settings
+  harmonicMixingEnabled?: boolean; // Show BPM/key compatibility in recommendations
+  harmonicMixingMode?: 'strict' | 'flexible' | 'off'; // Strictness of harmonic matching
+  bpmTolerance?: number; // Max BPM difference percentage (default: 6%)
+  // Playlist Autoplay Queueing with Smart Transitions
+  autoplayEnabled: boolean; // Master toggle for autoplay when playlist ends
+  autoplayBlendMode: 'crossfade' | 'silence' | 'reverb_tail'; // Transition effect between songs
+  autoplayTransitionDuration: number; // Duration in seconds (1-10)
+  autoplaySmartTransitions: boolean; // Use AI to determine optimal transition type
 }
 
 export interface PlaybackSettings {
@@ -67,44 +83,10 @@ interface PreferencesState {
   reset: () => void;
 }
 
-const defaultPreferences: UserPreferences = {
-  recommendationSettings: {
-    aiEnabled: true,
-    frequency: 'always',
-    styleBasedPlaylists: true,
-    useFeedbackForPersonalization: true,
-    enableSeasonalRecommendations: true,
-    syncFeedbackToNavidrome: true,
-    aiDJEnabled: false,
-    aiDJQueueThreshold: 2,
-    aiDJBatchSize: 3,
-    aiDJUseCurrentContext: true,
-    // Story 7.1: Default to library mode for backwards compatibility
-    sourceMode: 'library',
-    mixRatio: 70, // 70% library, 30% discovery
-  },
-  playbackSettings: {
-    volume: 0.5,
-    autoplayNext: true,
-    crossfadeDuration: 0,
-    defaultQuality: 'high',
-  },
-  notificationSettings: {
-    browserNotifications: false,
-    downloadCompletion: true,
-    recommendationUpdates: true,
-  },
-  dashboardLayout: {
-    showRecommendations: true,
-    showRecentlyPlayed: true,
-    widgetOrder: ['recommendations', 'recentlyPlayed'],
-  },
-};
-
 export const usePreferencesStore = create<PreferencesState>()(
   persist(
     (set, get) => ({
-      preferences: defaultPreferences,
+      preferences: DEFAULT_USER_PREFERENCES,
       isLoading: false,
       error: null,
 
@@ -171,54 +153,58 @@ export const usePreferencesStore = create<PreferencesState>()(
         }
       },
 
-      // Set recommendation settings
+      // Set recommendation settings using merge utility
       setRecommendationSettings: async (settings: Partial<RecommendationSettings>) => {
         const current = get().preferences;
+        const mergedSettings = mergeRecommendationSettings(
+          current.recommendationSettings,
+          settings
+        );
         await get().updatePreferences({
-          recommendationSettings: {
-            ...current.recommendationSettings,
-            ...settings,
-          },
+          recommendationSettings: mergedSettings,
         });
       },
 
-      // Set playback settings
+      // Set playback settings using merge utility
       setPlaybackSettings: async (settings: Partial<PlaybackSettings>) => {
         const current = get().preferences;
+        const mergedSettings = mergePlaybackSettings(
+          current.playbackSettings,
+          settings
+        );
         await get().updatePreferences({
-          playbackSettings: {
-            ...current.playbackSettings,
-            ...settings,
-          },
+          playbackSettings: mergedSettings,
         });
       },
 
-      // Set notification settings
+      // Set notification settings using merge utility
       setNotificationSettings: async (settings: Partial<NotificationSettings>) => {
         const current = get().preferences;
+        const mergedSettings = mergeNotificationSettings(
+          current.notificationSettings,
+          settings
+        );
         await get().updatePreferences({
-          notificationSettings: {
-            ...current.notificationSettings,
-            ...settings,
-          },
+          notificationSettings: mergedSettings,
         });
       },
 
-      // Set dashboard layout
+      // Set dashboard layout using merge utility
       setDashboardLayout: async (layout: Partial<DashboardLayout>) => {
         const current = get().preferences;
+        const mergedLayout = mergeDashboardLayout(
+          current.dashboardLayout,
+          layout
+        );
         await get().updatePreferences({
-          dashboardLayout: {
-            ...current.dashboardLayout,
-            ...layout,
-          },
+          dashboardLayout: mergedLayout,
         });
       },
 
-      // Reset to default preferences
+      // Reset to default preferences using centralized defaults
       reset: () => {
         set({
-          preferences: defaultPreferences,
+          preferences: DEFAULT_USER_PREFERENCES,
           isLoading: false,
           error: null,
         });

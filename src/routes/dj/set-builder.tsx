@@ -36,9 +36,6 @@ import {
 import { getRandomSongs } from '@/lib/services/navidrome';
 import { toast } from 'sonner';
 import {
-  Play,
-  Pause,
-  Save,
   Upload,
   Trash2,
   Music,

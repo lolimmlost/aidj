@@ -10,9 +10,138 @@ import {
   VolumeX,
   Shuffle,
   Repeat,
-  ListMusic,
   Maximize2,
+  Music,
+  MicVocal,
+  AudioWaveform,
 } from 'lucide-react';
+import { LyricsModal } from '@/components/lyrics';
+import { VisualizerModal } from '@/components/visualizer';
+
+// Helper to get cover art URL from Navidrome
+const getCoverArtUrl = (albumId: string | undefined, size: number = 128) => {
+  if (!albumId) return null;
+  return `/api/navidrome/rest/getCoverArt?id=${albumId}&size=${size}`;
+};
+
+// Album art component with fallback
+const AlbumArt = ({
+  albumId,
+  songId,
+  artist,
+  size = 'md',
+  isPlaying = false,
+  className = ''
+}: {
+  albumId?: string;
+  songId?: string;
+  artist?: string;
+  size?: 'sm' | 'md' | 'lg';
+  isPlaying?: boolean;
+  className?: string;
+}) => {
+  const [imgError, setImgError] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [resolvedAlbumId, setResolvedAlbumId] = useState<string | null>(albumId || null);
+
+  // Fetch albumId from Navidrome if not provided but songId is available
+  useEffect(() => {
+    if (albumId) {
+      setResolvedAlbumId(albumId);
+      return;
+    }
+
+    if (!songId) {
+      setResolvedAlbumId(null);
+      return;
+    }
+
+    // Fetch song metadata to get albumId
+    const fetchAlbumId = async () => {
+      try {
+        const response = await fetch(`/api/navidrome/rest/getSong?id=${songId}&f=json`);
+        if (response.ok) {
+          const data = await response.json();
+          const song = data['subsonic-response']?.song;
+          if (song?.albumId) {
+            setResolvedAlbumId(song.albumId);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch album ID:', error);
+      }
+    };
+
+    fetchAlbumId();
+  }, [albumId, songId]);
+
+  // Reset states when albumId changes
+  useEffect(() => {
+    setImgError(false);
+    setImgLoaded(false);
+  }, [resolvedAlbumId]);
+
+  const sizeClasses = {
+    sm: 'w-12 h-12',
+    md: 'w-14 h-14',
+    lg: 'w-20 h-20',
+  };
+
+  const imgSizes = {
+    sm: 96,
+    md: 112,
+    lg: 160,
+  };
+
+  const coverUrl = getCoverArtUrl(resolvedAlbumId || undefined, imgSizes[size]);
+  const initials = artist?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '♪';
+
+  return (
+    <div className={cn(
+      sizeClasses[size],
+      'rounded-lg bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 relative overflow-hidden',
+      className
+    )}>
+      {coverUrl && !imgError ? (
+        <>
+          <img
+            src={coverUrl}
+            alt="Album cover"
+            className={cn(
+              'w-full h-full object-cover transition-opacity duration-300',
+              imgLoaded ? 'opacity-100' : 'opacity-0'
+            )}
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgError(true)}
+          />
+          {!imgLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Music className="h-4 w-4 text-primary/40 animate-pulse" />
+            </div>
+          )}
+        </>
+      ) : (
+        <span className={cn(
+          'font-bold text-primary/60',
+          size === 'sm' ? 'text-xs' : size === 'md' ? 'text-sm' : 'text-lg'
+        )}>
+          {initials}
+        </span>
+      )}
+
+      {/* Playing animation overlay */}
+      {isPlaying && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+          <div className="flex gap-0.5">
+            <div className="w-0.5 h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" />
+            <div className="w-0.5 h-3 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
+            <div className="w-0.5 h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -22,6 +151,7 @@ import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { queryKeys } from '@/lib/query';
 
 // Helper function for time formatting
 const formatTime = (time: number) => {
@@ -76,6 +206,8 @@ export function PlayerBar() {
   const scrobbleThresholdReachedRef = useRef<boolean>(false);
   const currentSongIdRef = useRef<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false);
+  const [showVisualizer, setShowVisualizer] = useState(false);
 
   const {
     playlist,
@@ -93,7 +225,6 @@ export function PlayerBar() {
     previousSong,
     toggleShuffle,
     setAIUserActionInProgress,
-    toggleQueuePanel,
   } = useAudioStore();
 
   const currentSong = useMemo(() => playlist[currentSongIndex] || null, [playlist, currentSongIndex]);
@@ -101,33 +232,52 @@ export function PlayerBar() {
 
   // Fetch feedback for current song
   const { data: feedbackData } = useSongFeedback(currentSong ? [currentSong.id] : []);
-  const isLiked = useMemo(() => feedbackData?.feedback?.[currentSong?.id] === 'thumbs_up', [feedbackData, currentSong?.id]);
 
-  // Like/unlike mutation
+  // Determine if song is liked based on server state
+  const isLiked = useMemo(() => {
+    if (!currentSong?.id) return false;
+    return feedbackData?.feedback?.[currentSong.id] === 'thumbs_up';
+  }, [feedbackData?.feedback, currentSong?.id]);
+
+  // Like/unlike mutation - simplified without complex optimistic updates
   const { mutate: likeMutate, isPending: isLikePending } = useMutation({
     mutationFn: async (liked: boolean) => {
+      if (!currentSong) {
+        throw new Error('No song selected');
+      }
+
       setAIUserActionInProgress(true);
+
+      const payload = {
+        songId: currentSong.id,
+        songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
+        feedbackType: liked ? 'thumbs_up' : 'thumbs_down',
+        source: 'library',
+      };
+
+      console.log('Sending feedback:', payload);
+
       const response = await fetch('/api/recommendations/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          songId: currentSong.id,
-          songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
-          feedbackType: liked ? 'thumbs_up' : 'thumbs_down',
-          source: 'library',
-        }),
+        body: JSON.stringify(payload),
       });
+
       if (!response.ok && response.status !== 409) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to update feedback');
+        const errorData = await response.json();
+        console.error('Feedback API error:', response.status, errorData);
+        throw new Error(errorData.message || 'Failed to update feedback');
       }
-      return response.json();
+
+      return liked;
     },
-    onSuccess: (_, liked) => {
-      queryClient.invalidateQueries({ queryKey: ['songFeedback'] });
+    onSuccess: (liked) => {
+      // Invalidate all feedback queries to ensure UI updates
+      queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
       toast.success(liked ? '❤️ Liked' : '💔 Unliked', { duration: 1500 });
     },
     onError: (error: Error) => {
+      console.error('Like/unlike error:', error);
       toast.error('Failed', { description: error.message });
     },
     onSettled: () => {
@@ -416,7 +566,7 @@ export function PlayerBar() {
             playbackRate: audio.playbackRate,
             position: audio.currentTime,
           });
-        } catch (e) {
+        } catch {
           // Position state not supported
         }
       }
@@ -489,7 +639,7 @@ export function PlayerBar() {
             playbackRate: audio.playbackRate,
             position: audio.currentTime,
           });
-        } catch (e) {
+        } catch {
           // Ignore
         }
       }
@@ -519,7 +669,7 @@ export function PlayerBar() {
         navigator.mediaSession.setActionHandler('previoustrack', null);
         navigator.mediaSession.setActionHandler('nexttrack', null);
         navigator.mediaSession.setActionHandler('seekto', null);
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     };
@@ -553,20 +703,13 @@ export function PlayerBar() {
         {/* Main row: Album art, song info, controls */}
         <div className="flex items-center gap-3">
           {/* Small Album Artwork */}
-          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 relative overflow-hidden">
-            <span className="font-bold text-xs text-primary/60">
-              {currentSong.artist?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '♪'}
-            </span>
-            {isPlaying && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                <div className="flex gap-0.5">
-                  <div className="w-0.5 h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" />
-                  <div className="w-0.5 h-3 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
-                  <div className="w-0.5 h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
-                </div>
-              </div>
-            )}
-          </div>
+          <AlbumArt
+            albumId={currentSong.albumId}
+            songId={currentSong.id}
+            artist={currentSong.artist}
+            size="sm"
+            isPlaying={isPlaying}
+          />
 
           {/* Song Info */}
           <div className="min-w-0 flex-1">
@@ -620,6 +763,26 @@ export function PlayerBar() {
               <SkipForward className="h-4 w-4" />
             </Button>
 
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => setShowLyrics(true)}
+              title="Show lyrics"
+            >
+              <MicVocal className="h-4 w-4" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => setShowVisualizer(true)}
+              title="Show visualizer"
+            >
+              <AudioWaveform className="h-4 w-4" />
+            </Button>
+
             <AIDJToggle compact />
           </div>
         </div>
@@ -638,14 +801,14 @@ export function PlayerBar() {
         {/* Left: Song Info */}
         <div className="flex items-center gap-3 w-72 min-w-0">
           {/* Mini Album Art */}
-          <div className="w-14 h-14 rounded-md bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 relative">
-            <span className="font-bold text-lg text-primary/60">
-              {currentSong.artist?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '♪'}
-            </span>
-            {isPlaying && (
-              <div className="absolute inset-0 bg-primary/10 animate-pulse rounded-md" />
-            )}
-          </div>
+          <AlbumArt
+            albumId={currentSong.albumId}
+            songId={currentSong.id}
+            artist={currentSong.artist}
+            size="md"
+            isPlaying={isPlaying}
+            className="rounded-md"
+          />
           <div className="min-w-0">
             <p className="font-medium truncate text-sm">{currentSong.name || currentSong.title}</p>
             <p className="text-xs text-muted-foreground truncate">{currentSong.artist || 'Unknown'}</p>
@@ -742,9 +905,20 @@ export function PlayerBar() {
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
-            onClick={toggleQueuePanel}
+            onClick={() => setShowLyrics(true)}
+            title="Show lyrics"
           >
-            <ListMusic className="h-4 w-4" />
+            <MicVocal className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => setShowVisualizer(true)}
+            title="Show visualizer"
+          >
+            <AudioWaveform className="h-4 w-4" />
           </Button>
 
           <div className="flex items-center gap-1">
@@ -776,7 +950,17 @@ export function PlayerBar() {
       </div>
 
       {/* Hidden Audio Element - shared between mobile and desktop */}
-      <audio ref={audioRef} preload="metadata" className="hidden" />
+      <audio ref={audioRef} preload="metadata" crossOrigin="anonymous" className="hidden" />
+
+      {/* Lyrics Modal */}
+      <LyricsModal isOpen={showLyrics} onClose={() => setShowLyrics(false)} />
+
+      {/* Visualizer Modal */}
+      <VisualizerModal
+        isOpen={showVisualizer}
+        onClose={() => setShowVisualizer(false)}
+        audioElement={audioRef.current}
+      />
     </>
   );
 }

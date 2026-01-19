@@ -1,7 +1,15 @@
 import { Link } from '@tanstack/react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ListMusic, Play } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ListMusic, Play, MoreVertical, Download, Share2 } from 'lucide-react';
+import { ExportPlaylistDialog } from './ExportPlaylistDialog';
 
 interface PlaylistCardProps {
   id: string;
@@ -30,6 +38,30 @@ export function PlaylistCard({
             <ListMusic className="h-5 w-5 text-muted-foreground flex-shrink-0" />
             <CardTitle className="truncate">{name}</CardTitle>
           </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <ExportPlaylistDialog
+                playlistId={id}
+                playlistName={name}
+                trigger={
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export
+                  </DropdownMenuItem>
+                }
+              />
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <Share2 className="mr-2 h-4 w-4" />
+                Share
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         {description && (
           <CardDescription className="line-clamp-2">{description}</CardDescription>

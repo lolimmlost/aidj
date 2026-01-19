@@ -1,0 +1,24 @@
+{
+  "category": "Uncategorized",
+  "description": "## Parent Task Context (Already Completed)\n\n> **Note:** The following parent task has already been completed. This context is provided to help you understand the background and requirements for this sub-task. Do not re-implement the parent task - focus only on the new sub-task described below.\n\n### Task (feature-)\n\n**Description:** Create a 'music identity' system that generates AI-powered yearly/monthly summaries (similar to Spotify Wrapped) with personalized insights, mood classifications, artist affinities, and sharable visual cards. Include trend analysis showing 'who you're getting into' and 'what you're moving away from'.\n\n---\n\n## Task Description\n\nperfect now add a link to the aidebar on the left and for mobile too\n",
+  "title": "Add AI sidebar navigation link for mobile",
+  "images": [],
+  "imagePaths": [],
+  "textFilePaths": [],
+  "skipTests": true,
+  "model": "sonnet",
+  "thinkingLevel": "medium",
+  "branchName": "feat/unified-recommendations-service",
+  "priority": 2,
+  "planningMode": "lite",
+  "requirePlanApproval": false,
+  "dependencies": [
+    "feature-1767077348747-vgxkwm0sv"
+  ],
+  "titleGenerating": false,
+  "status": "completed",
+  "id": "feature-1767113739409-0qpc319x6",
+  "startedAt": "2025-12-30T16:55:55.021Z",
+  "updatedAt": "2025-12-30T16:56:50.181Z",
+  "justFinishedAt": "2025-12-30T16:56:50.181Z"
+}

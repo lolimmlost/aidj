@@ -27,6 +27,7 @@ interface ServiceConfig {
   navidromeUrl: string;
   lidarrUrl: string;
   lidarrApiKey: string;
+  metubeUrl: string;
   navidromeUsername: string;
   navidromePassword: string;
   lidarrQualityProfileId?: number;
@@ -34,9 +35,35 @@ interface ServiceConfig {
 
   // Last.fm Configuration (Story 7.2)
   lastfmApiKey: string;
+
+  // Spotify Integration
+  spotifyClientId: string;
+  spotifyClientSecret: string;
+  spotifyRedirectUri: string;
+
+  // YouTube Music Integration
+  youtubeApiKey: string;
+  youtubeClientId: string;
+  youtubeClientSecret: string;
+  youtubeRedirectUri: string;
 }
 
-let currentConfig: ServiceConfig = { ...defaults, lidarrApiKey: '', openrouterApiKey: '', glmApiKey: '', anthropicApiKey: '', anthropicBaseUrl: 'https://api.anthropic.com/v1', lastfmApiKey: '' };
+let currentConfig: ServiceConfig = {
+  ...defaults,
+  lidarrApiKey: '',
+  openrouterApiKey: '',
+  glmApiKey: '',
+  anthropicApiKey: '',
+  anthropicBaseUrl: 'https://api.anthropic.com/v1',
+  lastfmApiKey: '',
+  spotifyClientId: '',
+  spotifyClientSecret: '',
+  spotifyRedirectUri: 'http://localhost:3000/api/auth/spotify/callback',
+  youtubeApiKey: '',
+  youtubeClientId: '',
+  youtubeClientSecret: '',
+  youtubeRedirectUri: 'http://localhost:3000/api/auth/youtube/callback',
+};
 
 if (typeof window !== 'undefined') {
   // Client side - load from localStorage

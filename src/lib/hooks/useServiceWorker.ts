@@ -1,9 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+
+interface SyncStatus {
+  pending: number;
+  failed: number;
+}
 
 export function useServiceWorker() {
   const [isRegistered, setIsRegistered] = useState(false);
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
@@ -39,6 +46,18 @@ export function useServiceWorker() {
           reg.update();
         }, 60 * 60 * 1000);
 
+        // Try to register for periodic background sync
+        if ('periodicSync' in reg) {
+          try {
+            await (reg as ServiceWorkerRegistration & { periodicSync: { register: (tag: string, options: { minInterval: number }) => Promise<void> } }).periodicSync.register('sync-pending-data', {
+              minInterval: 15 * 60 * 1000, // 15 minutes
+            });
+            console.log('[PWA] Periodic background sync registered');
+          } catch (error) {
+            console.log('[PWA] Periodic background sync not available');
+          }
+        }
+
       } catch (error) {
         console.error('[PWA] Service worker registration failed:', error);
       }
@@ -50,18 +69,70 @@ export function useServiceWorker() {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       console.log('[PWA] New service worker activated');
     });
+
+    // Listen for messages from service worker
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'SYNC_STATUS') {
+        setSyncStatus(event.data.status);
+      }
+      if (event.data?.type === 'SYNC_COMPLETE') {
+        setIsSyncing(false);
+        // Request updated status after a short delay
+        setTimeout(() => {
+          if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: 'GET_SYNC_STATUS' });
+          }
+        }, 500);
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleMessage);
+    };
   }, []);
 
-  const updateServiceWorker = () => {
+  const updateServiceWorker = useCallback(() => {
     if (registration?.waiting) {
       registration.waiting.postMessage({ type: 'SKIP_WAITING' });
       window.location.reload();
     }
-  };
+  }, [registration]);
+
+  const requestSyncStatus = useCallback(() => {
+    if (registration?.active) {
+      registration.active.postMessage({ type: 'GET_SYNC_STATUS' });
+    }
+  }, [registration]);
+
+  const triggerSync = useCallback(async () => {
+    if (!registration?.active) return;
+
+    setIsSyncing(true);
+
+    // Try to use Background Sync API first
+    if ('sync' in registration) {
+      try {
+        await (registration as ServiceWorkerRegistration & { sync: { register: (tag: string) => Promise<void> } }).sync.register('sync-all');
+        console.log('[PWA] Background sync registered');
+        return;
+      } catch (error) {
+        console.log('[PWA] Background sync not available, using message');
+      }
+    }
+
+    // Fall back to messaging the service worker directly
+    registration.active.postMessage({ type: 'PROCESS_SYNC_QUEUE' });
+  }, [registration]);
 
   return {
     isRegistered,
     isUpdateAvailable,
     updateServiceWorker,
+    syncStatus,
+    isSyncing,
+    triggerSync,
+    requestSyncStatus,
   };
 }

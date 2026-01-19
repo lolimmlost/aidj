@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { ListMusic } from 'lucide-react';
-import { SmartPlaylistBuilder } from '@/components/playlists/smart-playlist-builder';
+import { SmartPlaylistEditor } from '@/components/playlists/smart-playlist-editor';
 import { PlaylistList } from '@/components/playlists/playlist-list';
 import { PageLayout, PageSection } from '@/components/ui/page-layout';
 
@@ -21,9 +21,14 @@ function PlaylistsPage() {
       icon={<ListMusic className="h-5 w-5" />}
       backLink="/dashboard"
       backLabel="Dashboard"
-      actions={<SmartPlaylistBuilder />}
+      actions={
+        <div className="flex items-center gap-2">
+          <SmartPlaylistEditor />
+        </div>
+      }
     >
       <PageSection>
+        {/* PlaylistList includes Import button */}
         <PlaylistList />
       </PageSection>
     </PageLayout>

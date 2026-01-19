@@ -1,0 +1,24 @@
+{
+  "category": "Maintainability",
+  "description": "Refactor Preference Merging Logic in preferences.ts\n\nConsolidate and streamline the repetitive code patterns used for merging preference objects in the preferences.ts file to improve maintainability and reduce duplication.\n\nRequirements:\n- Identify all instances of repetitive preference merge logic throughout preferences.ts\n- Extract common merge patterns into reusable utility functions\n- Ensure type safety is preserved for all preference types\n- Maintain backward compatibility with existing preference merge behavior\n- Handle edge cases: undefined values, nested objects, array merging, null overrides\n- Preserve the order of precedence when merging (e.g., user prefs > defaults)\n- Add clear documentation for the refactored merge utilities\n- Verify all existing tests pass and add tests for new utility functions\n- Ensure the refactor doesn't change any observable behavior or API contracts",
+  "id": "feature-1766887169879-7v9c9en8w",
+  "steps": [
+    "Extract the merge pattern (spread operator combining existing + validated data) into a utility function",
+    "Create typed merge helpers for each preference section (recommendationSettings, playbackSettings, etc.)",
+    "Replace manual object merging (lines 201-231) with a generic deep merge utility",
+    "Apply same pattern to other API routes that handle partial updates"
+  ],
+  "status": "completed",
+  "skipTests": false,
+  "priority": 2,
+  "title": "",
+  "model": "opus",
+  "thinkingLevel": "ultrathink",
+  "imagePaths": [],
+  "branchName": "feat/unified-recommendations-service",
+  "planningMode": "skip",
+  "requirePlanApproval": false,
+  "textFilePaths": [],
+  "startedAt": "2025-12-28T19:24:56.032Z",
+  "updatedAt": "2025-12-28T19:33:33.867Z"
+}

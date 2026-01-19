@@ -346,17 +346,19 @@ function ArtistDetail() {
         </div>
       ) : (
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'all' | 'albums' | 'songs')}>
-          <TabsList className="grid w-full grid-cols-3 mb-4 h-12">
-            <TabsTrigger value="all">
+          <TabsList className="grid w-full grid-cols-3 mb-4 h-auto">
+            <TabsTrigger value="all" className="py-2.5 text-xs sm:text-sm">
               All
             </TabsTrigger>
-            <TabsTrigger value="albums">
-              <Disc className="h-4 w-4 mr-2" />
-              Albums ({albums.length})
+            <TabsTrigger value="albums" className="py-2.5 text-xs sm:text-sm">
+              <Disc className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Albums ({albums.length})</span>
+              <span className="sm:hidden ml-1">{albums.length}</span>
             </TabsTrigger>
-            <TabsTrigger value="songs">
-              <ListMusic className="h-4 w-4 mr-2" />
-              Songs ({songs.length})
+            <TabsTrigger value="songs" className="py-2.5 text-xs sm:text-sm">
+              <ListMusic className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Songs ({songs.length})</span>
+              <span className="sm:hidden ml-1">{songs.length}</span>
             </TabsTrigger>
           </TabsList>
 

@@ -7,6 +7,7 @@ import {
   findArtistByName,
   getArtistAlbums,
   monitorAlbum,
+  ensureArtistMonitored,
   searchForAlbum,
   searchAlbumByTitle,
   type LidarrAlbum,
@@ -152,11 +153,14 @@ export const Route = createFileRoute("/api/lidarr/add")({
       const isAdded = await isArtistAdded(artist.foreignArtistId);
 
       if (isAdded) {
-        // Artist already exists - find and monitor the album containing the song
+        // Artist already exists - ensure it's monitored, then find and monitor the album containing the song
         console.log(`🎵 Artist "${artist.artistName}" already in Lidarr, finding album for "${songTitle}"`);
 
         const existingArtist = await findArtistByName(artist.artistName);
         if (existingArtist) {
+          // Ensure artist is monitored (required for Slskd to pick it up)
+          await ensureArtistMonitored(existingArtist.id);
+
           // Get albums for the artist
           const albums = await getArtistAlbums(existingArtist.id);
           console.log(`📀 Found ${albums.length} albums for "${artist.artistName}":`, albums.map(a => a.title));
@@ -212,12 +216,12 @@ export const Route = createFileRoute("/api/lidarr/add")({
             // Find the local album ID
             const localAlbum = albums.find(a => a.foreignAlbumId === matchingAlbum!.foreignAlbumId) || matchingAlbum;
             if (localAlbum && localAlbum.id) {
-              console.log(`✅ Found album "${localAlbum.title}" for "${songTitle}"`);
+              console.log(`✅ Monitoring artist "${artist.artistName}" and album "${localAlbum.title}" for "${songTitle}"`);
               await monitorAlbum(localAlbum.id, true);
               await searchForAlbum(localAlbum.id);
               return new Response(JSON.stringify({
                 success: true,
-                message: `Added album "${localAlbum.title}" to download queue for "${songTitle}"`
+                message: `Monitoring "${artist.artistName}" - album "${localAlbum.title}" queued for "${songTitle}"`
               }), {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' }
@@ -240,22 +244,33 @@ export const Route = createFileRoute("/api/lidarr/add")({
         });
       }
 
-      // Artist not in Lidarr - add them with monitoring disabled, then find and monitor the specific album
-      console.log(`➕ Adding new artist "${artist.artistName}" to Lidarr (unmonitored)`);
+      // Artist not in Lidarr - add them (artist monitored, but no albums monitored yet)
+      // Then find and monitor only the specific album containing the song
+      console.log(`➕ Adding new artist "${artist.artistName}" to Lidarr (artist monitored, albums unmonitored)`);
 
       // First, get album info from Last.fm (do this before adding artist to avoid timeout issues)
       const lastFmAlbumInfo = await getAlbumInfoFromLastFm(artistName, songTitle);
 
       await addArtistToQueue(artist, { monitorAll: false });
 
-      // Wait for Lidarr to fetch the artist's albums (may take a few seconds)
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Poll for Lidarr to fetch the artist's albums (may take several seconds for MusicBrainz lookup)
+      // Retry up to 5 times with 2 second intervals
+      let albums: LidarrAlbum[] = [];
+      let newArtist = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        newArtist = await findArtistByName(artist.artistName);
+        if (newArtist) {
+          albums = await getArtistAlbums(newArtist.id);
+          if (albums.length > 0) {
+            console.log(`📀 Found ${albums.length} albums after ${attempt + 1} attempts`);
+            break;
+          }
+        }
+      }
 
-      // Find the artist we just added
-      const newArtist = await findArtistByName(artist.artistName);
-      if (newArtist) {
-        // Get albums for the artist
-        const albums = await getArtistAlbums(newArtist.id);
+      // Now find and monitor the specific album
+      if (newArtist && albums.length > 0) {
         console.log(`📀 Artist added with ${albums.length} albums:`, albums.map(a => a.title));
 
         let matchingAlbum: LidarrAlbum | undefined;
@@ -323,6 +338,15 @@ export const Route = createFileRoute("/api/lidarr/add")({
         return new Response(JSON.stringify({
           success: true,
           message: `Added "${artist.artistName}" to Lidarr. Album for "${songTitle}" not found - you may need to manually select it.`
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } else if (newArtist) {
+        // Artist added but no albums found yet
+        return new Response(JSON.stringify({
+          success: true,
+          message: `Added "${artist.artistName}" to Lidarr. Albums are still loading - check Lidarr to monitor the specific album.`
         }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }

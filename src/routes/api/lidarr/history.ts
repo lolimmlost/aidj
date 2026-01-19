@@ -23,11 +23,16 @@ export const Route = createFileRoute("/api/lidarr/history")({
         });
       }
 
-      const history = await getDownloadHistory();
+      // Parse pagination params from URL
+      const url = new URL(request.url);
+      const page = parseInt(url.searchParams.get('page') || '1', 10);
+      const pageSize = parseInt(url.searchParams.get('pageSize') || '50', 10);
+
+      const { history, pagination } = await getDownloadHistory({ page, pageSize });
 
       return new Response(JSON.stringify({
         history,
-        total: history.length,
+        pagination,
         lastUpdated: new Date().toISOString(),
       }), {
         status: 200,

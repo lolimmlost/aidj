@@ -204,8 +204,3 @@ export interface LastFmRequestOptions {
   params?: Record<string, string | number>;
 }
 
-// Cache entry type
-export interface CacheEntry<T> {
-  data: T;
-  expires: number;
-}
