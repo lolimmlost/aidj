@@ -1,7 +1,7 @@
 /**
- * Music Identity API - Main Index
+ * Music Identity API - Collection Endpoint
  *
- * GET /api/music-identity - List all user's music identity summaries
+ * GET /api/music-identity - List all summaries for the current user
  * POST /api/music-identity - Generate a new summary
  */
 
@@ -10,16 +10,15 @@ import { z } from 'zod';
 import {
   withAuthAndErrorHandling,
   successResponse,
-  errorResponse,
   validationErrorResponse,
 } from '../../../lib/utils/api-response';
 import {
-  generateMusicIdentitySummary,
   getUserMusicIdentitySummaries,
+  generateMusicIdentitySummary,
   getAvailablePeriods,
 } from '../../../lib/services/music-identity';
 
-// Validation schemas
+// Validation schema for POST
 const GenerateSummarySchema = z.object({
   periodType: z.enum(['month', 'year']),
   year: z.number().int().min(2000).max(2100),
@@ -27,24 +26,16 @@ const GenerateSummarySchema = z.object({
   regenerate: z.boolean().optional(),
 });
 
-// GET /api/music-identity - List all summaries
+// GET /api/music-identity - List all summaries and available periods
 const GET = withAuthAndErrorHandling(
-  async ({ request, session }) => {
+  async ({ session, request }) => {
     const url = new URL(request.url);
-    const periodType = url.searchParams.get('periodType') as 'month' | 'year' | undefined;
-    const includeAvailable = url.searchParams.get('includeAvailable') === 'true';
+    const periodType = url.searchParams.get('periodType') as 'month' | 'year' | null;
 
-    // Get user's summaries
-    const summaries = await getUserMusicIdentitySummaries(
-      session.user.id,
-      periodType || undefined
-    );
-
-    // Optionally include available periods
-    let availablePeriods = null;
-    if (includeAvailable) {
-      availablePeriods = await getAvailablePeriods(session.user.id);
-    }
+    const [summaries, availablePeriods] = await Promise.all([
+      getUserMusicIdentitySummaries(session.user.id, periodType || undefined),
+      getAvailablePeriods(session.user.id),
+    ]);
 
     return successResponse({
       summaries,
@@ -64,7 +55,6 @@ const POST = withAuthAndErrorHandling(
   async ({ request, session }) => {
     const body = await request.json();
 
-    // Validate request body
     const parseResult = GenerateSummarySchema.safeParse(body);
     if (!parseResult.success) {
       return validationErrorResponse(parseResult.error);
@@ -72,35 +62,15 @@ const POST = withAuthAndErrorHandling(
 
     const { periodType, year, month, regenerate } = parseResult.data;
 
-    // Validate month is provided for monthly summaries
-    if (periodType === 'month' && !month) {
-      return errorResponse(
-        'VALIDATION_ERROR',
-        'Month is required for monthly summaries',
-        { status: 400 }
-      );
-    }
+    const result = await generateMusicIdentitySummary({
+      userId: session.user.id,
+      periodType,
+      year,
+      month,
+      regenerate,
+    });
 
-    try {
-      const result = await generateMusicIdentitySummary({
-        userId: session.user.id,
-        periodType,
-        year,
-        month,
-        regenerate,
-      });
-
-      return successResponse(result, result.isNew ? 201 : 200);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('Not enough listening data')) {
-        return errorResponse(
-          'INSUFFICIENT_DATA',
-          error.message,
-          { status: 400 }
-        );
-      }
-      throw error;
-    }
+    return successResponse(result);
   },
   {
     service: 'music-identity',
