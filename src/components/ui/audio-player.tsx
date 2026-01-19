@@ -94,8 +94,10 @@ export function AudioPlayer() {
   console.log('🎵 AudioPlayer component rendering');
 
   const audioRef = useRef<HTMLAudioElement>(null);
+  const audioRef2 = useRef<HTMLAudioElement>(null); // Secondary audio for crossfade
   const preloadAudioRef = useRef<HTMLAudioElement | null>(null); // For preloading next song
   const preloadedSongIdRef = useRef<string | null>(null); // Track what's preloaded
+  const activeDeckRef = useRef<'A' | 'B'>('A'); // Track which audio element is currently playing
   const hasScrobbledRef = useRef<boolean>(false);
   const scrobbleThresholdReachedRef = useRef<boolean>(false);
   const currentSongIdRef = useRef<string | null>(null);
@@ -118,6 +120,8 @@ export function AudioPlayer() {
     duration,
     volume,
     isShuffled,
+    crossfadeEnabled,
+    crossfadeDuration,
     setIsPlaying,
     setCurrentTime,
     setDuration,
@@ -1907,7 +1911,8 @@ export function AudioPlayer() {
         </div>
       </div>
 
-      {/* Hidden Audio Element - iOS-optimized attributes */}
+      {/* Hidden Audio Elements - iOS-optimized attributes */}
+      {/* Primary deck (A) */}
       <audio
         ref={audioRef}
         preload="metadata"
@@ -1915,6 +1920,15 @@ export function AudioPlayer() {
         playsInline // Required for iOS to not go fullscreen
         webkit-playsinline="true" // Legacy iOS support
         x-webkit-airplay="allow" // Enable AirPlay on iOS
+      />
+      {/* Secondary deck (B) - for crossfade */}
+      <audio
+        ref={audioRef2}
+        preload="metadata"
+        crossOrigin="anonymous"
+        playsInline
+        webkit-playsinline="true"
+        x-webkit-airplay="allow"
       />
     </div>
   );

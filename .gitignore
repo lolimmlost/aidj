@@ -69,3 +69,6 @@ test-results/
 *.md
 Navidrome-Smart-Playlist-Collection-main/
 bmad-temp/
+
+# TanStack cache
+.tanstack/
