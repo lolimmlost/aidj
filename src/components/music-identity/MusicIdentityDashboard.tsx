@@ -210,8 +210,8 @@ export function MusicIdentityDashboard() {
 
   return (
     <div className="space-y-8">
-      {/* Back to Dashboard Button */}
-      <Button variant="ghost" asChild className="mb-2">
+      {/* Back to Dashboard Button - hidden on mobile since hamburger menu provides navigation */}
+      <Button variant="ghost" asChild className="hidden md:inline-flex mb-2">
         <Link to="/dashboard">
           <Home className="mr-2 h-4 w-4" />
           Back to Dashboard

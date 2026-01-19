@@ -20,7 +20,8 @@ function DJSettingsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <div className="flex items-center gap-4">
+          {/* Hidden on mobile since hamburger menu provides navigation */}
+          <div className="hidden md:flex items-center gap-4">
             <Link to="/dj">
               <Button variant="outline" size="sm">
                 <ArrowLeft className="h-4 w-4 mr-2" />

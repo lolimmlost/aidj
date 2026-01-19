@@ -16,6 +16,7 @@ interface BreadcrumbProps {
 /**
  * Breadcrumb navigation component
  * Provides hierarchical navigation with proper accessibility support
+ * Hidden on mobile since hamburger menu provides navigation
  */
 export function Breadcrumb({ items, className }: BreadcrumbProps) {
   if (items.length === 0) return null;
@@ -23,7 +24,7 @@ export function Breadcrumb({ items, className }: BreadcrumbProps) {
   return (
     <nav
       aria-label="Breadcrumb navigation"
-      className={cn('flex items-center text-sm', className)}
+      className={cn('hidden md:flex items-center text-sm', className)}
     >
       <ol className="flex items-center flex-wrap gap-1" role="list">
         {items.map((item, index) => {

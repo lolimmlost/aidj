@@ -29,8 +29,8 @@ function SettingsPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      {/* Breadcrumb Navigation */}
-      <div className="mb-6">
+      {/* Breadcrumb Navigation - hidden on mobile since hamburger menu provides navigation */}
+      <div className="hidden md:block mb-6">
         <Link
           to="/dashboard"
           className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"

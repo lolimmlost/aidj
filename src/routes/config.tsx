@@ -198,7 +198,8 @@ function ConfigPage() {
             )}
           </div>
 
-          <div className="text-center pt-4 border-t">
+          {/* Hidden on mobile since hamburger menu provides navigation */}
+          <div className="hidden md:block text-center pt-4 border-t">
             <Link to="/dashboard" className="text-primary hover:underline">← Back to Dashboard</Link>
           </div>
         </CardContent>

@@ -56,7 +56,8 @@ function SearchPage() {
             <SearchIcon className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground" />
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Search Music Library</h1>
           </div>
-          <Link to="/dashboard" className="text-primary hover:underline text-sm min-h-[44px] flex items-center">
+          {/* Hidden on mobile since hamburger menu provides navigation */}
+          <Link to="/dashboard" className="hidden md:flex text-primary hover:underline text-sm min-h-[44px] items-center">
             ← Dashboard
           </Link>
         </div>

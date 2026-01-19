@@ -683,8 +683,8 @@ function PlaylistDetailPage() {
         getPlaylistGradient()
       )}>
         <div className="px-3 sm:px-4 lg:px-6">
-          {/* Back button */}
-          <div className="pt-1.5 pb-1.5 sm:pt-2 sm:pb-2">
+          {/* Back button - hidden on mobile since hamburger menu provides navigation */}
+          <div className="hidden md:block pt-1.5 pb-1.5 sm:pt-2 sm:pb-2">
             <Link
               to="/playlists"
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"

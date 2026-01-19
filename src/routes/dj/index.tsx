@@ -17,7 +17,8 @@ function DJIndex() {
     <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-        <Link to="/dashboard" className="shrink-0">
+        {/* Hidden on mobile since hamburger menu provides navigation */}
+        <Link to="/dashboard" className="hidden md:block shrink-0">
           <Button variant="outline" size="sm" className="min-h-[44px] w-full sm:w-auto">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard

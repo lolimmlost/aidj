@@ -5,10 +5,11 @@
 
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { AnalyticsDashboard } from '../../components/recommendations/AnalyticsDashboard';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { useState } from 'react';
 import { TrendingUp, Clock, ArrowRight, FlaskConical, BarChart3 } from 'lucide-react';
+import { PageLayout, PageSection } from '@/components/ui/page-layout';
 
 export const Route = createFileRoute('/dashboard/analytics')({
   component: AnalyticsPage,
@@ -18,27 +19,22 @@ function AnalyticsPage() {
   const [period, setPeriod] = useState<'30d' | '90d' | '1y'>('30d');
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 space-y-4 sm:space-y-6 py-4 sm:py-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Music Analytics</h1>
-          <p className="text-sm text-muted-foreground">
-            Visualize your music taste evolution and recommendation quality
-          </p>
-        </div>
-
-        <div className="w-full sm:w-[180px]">
-          <select
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            value={period}
-            onChange={(e) => setPeriod(e.target.value as '30d' | '90d' | '1y')}
-          >
-            <option value="30d">Last 30 Days</option>
-            <option value="90d">Last 90 Days</option>
-            <option value="1y">Last Year</option>
-          </select>
-        </div>
-      </div>
+    <PageLayout
+      title="Music Analytics"
+      description="Visualize your music taste evolution and recommendation quality"
+      icon={<BarChart3 className="h-6 w-6" />}
+      actions={
+        <select
+          className="flex h-10 w-full sm:w-[180px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          value={period}
+          onChange={(e) => setPeriod(e.target.value as '30d' | '90d' | '1y')}
+        >
+          <option value="30d">Last 30 Days</option>
+          <option value="90d">Last 90 Days</option>
+          <option value="1y">Last Year</option>
+        </select>
+      }
+    >
 
       {/* Advanced Discovery Analytics Feature Card */}
       <Card className="border-secondary/20 bg-gradient-to-r from-secondary/5 to-primary/5">
@@ -89,6 +85,6 @@ function AnalyticsPage() {
       </Card>
 
       <AnalyticsDashboard period={period} />
-    </div>
+    </PageLayout>
   );
 }
