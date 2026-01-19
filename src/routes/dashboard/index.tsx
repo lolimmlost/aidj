@@ -1028,6 +1028,98 @@ function DashboardIndex() {
                       </p>
                     </div>
                   </div>
+                  {/* Add All Recommendations to Queue */}
+                  {recommendations.data.recommendations.filter((rec: { foundInLibrary?: boolean }) => rec.foundInLibrary).length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white shadow-sm" aria-label="Add all recommendations to queue">
+                          <ListPlus className="mr-1 h-4 w-4" />
+                          Queue All
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            const libraryRecs = recommendations.data.recommendations.filter((rec: { foundInLibrary?: boolean; actualSong?: CachedSong }) => rec.foundInLibrary && rec.actualSong);
+                            if (libraryRecs.length === 0) {
+                              toast.error('No songs available in library');
+                              return;
+                            }
+                            const firstSong = libraryRecs[0].actualSong;
+                            const songForPlayer: Song = {
+                              id: firstSong.id,
+                              name: firstSong.name || firstSong.title || 'Unknown',
+                              albumId: firstSong.albumId || '',
+                              duration: firstSong.duration || 0,
+                              track: firstSong.track || firstSong.trackNumber || 1,
+                              url: firstSong.url || `/api/navidrome/stream/${firstSong.id}`,
+                              artist: firstSong.artist || 'Unknown Artist'
+                            };
+                            setAIUserActionInProgress(true);
+                            playNow(firstSong.id, songForPlayer);
+                            toast.success(`Now playing: ${songForPlayer.name}`);
+                            setTimeout(() => setAIUserActionInProgress(false), 2000);
+                          }}
+                          className="min-h-[44px]"
+                        >
+                          <Play className="mr-2 h-4 w-4" />
+                          Play Now (First Song)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            const libraryRecs = recommendations.data.recommendations.filter((rec: { foundInLibrary?: boolean; actualSong?: CachedSong }) => rec.foundInLibrary && rec.actualSong);
+                            if (libraryRecs.length === 0) {
+                              toast.error('No songs available in library');
+                              return;
+                            }
+                            const songsForPlayer: Song[] = libraryRecs.map((rec: { actualSong: CachedSong }) => ({
+                              id: rec.actualSong.id,
+                              name: rec.actualSong.name || rec.actualSong.title || 'Unknown',
+                              albumId: rec.actualSong.albumId || '',
+                              duration: rec.actualSong.duration || 0,
+                              track: rec.actualSong.track || rec.actualSong.trackNumber || 1,
+                              url: rec.actualSong.url || `/api/navidrome/stream/${rec.actualSong.id}`,
+                              artist: rec.actualSong.artist || 'Unknown Artist'
+                            }));
+                            setAIUserActionInProgress(true);
+                            addToQueueNext(songsForPlayer);
+                            toast.success(`Added ${songsForPlayer.length} songs to play next`);
+                            setTimeout(() => setAIUserActionInProgress(false), 2000);
+                          }}
+                          className="min-h-[44px]"
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add All to Play Next
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            const libraryRecs = recommendations.data.recommendations.filter((rec: { foundInLibrary?: boolean; actualSong?: CachedSong }) => rec.foundInLibrary && rec.actualSong);
+                            if (libraryRecs.length === 0) {
+                              toast.error('No songs available in library');
+                              return;
+                            }
+                            const songsForPlayer: Song[] = libraryRecs.map((rec: { actualSong: CachedSong }) => ({
+                              id: rec.actualSong.id,
+                              name: rec.actualSong.name || rec.actualSong.title || 'Unknown',
+                              albumId: rec.actualSong.albumId || '',
+                              duration: rec.actualSong.duration || 0,
+                              track: rec.actualSong.track || rec.actualSong.trackNumber || 1,
+                              url: rec.actualSong.url || `/api/navidrome/stream/${rec.actualSong.id}`,
+                              artist: rec.actualSong.artist || 'Unknown Artist'
+                            }));
+                            setAIUserActionInProgress(true);
+                            addToQueueEnd(songsForPlayer);
+                            toast.success(`Added ${songsForPlayer.length} songs to end of queue`);
+                            setTimeout(() => setAIUserActionInProgress(false), 2000);
+                          }}
+                          className="min-h-[44px]"
+                        >
+                          <ListPlus className="mr-2 h-4 w-4" />
+                          Add All to End
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
 
                 {/* Virtualized recommendations list for performance with large result sets */}

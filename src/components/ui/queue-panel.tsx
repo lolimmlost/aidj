@@ -594,12 +594,19 @@ export function QueuePanel() {
   }
 
   return (
-    <div
-      className="fixed bottom-[calc(4rem+1rem)] right-2 z-50 w-72 sm:w-80 md:w-96 md:right-4 md:bottom-[calc(5rem+1rem)] landscape:max-md:bottom-[calc(3.5rem+0.5rem)] landscape:max-md:w-[min(45vw,20rem)] animate-in slide-in-from-right duration-300"
-      role="dialog"
-      aria-label="Playback queue"
-      aria-modal="false"
-    >
+    <>
+      {/* Backdrop for mobile - tap to close */}
+      <div
+        className="fixed inset-0 z-40 bg-black/20 md:hidden"
+        onClick={() => setIsOpen(false)}
+        aria-hidden="true"
+      />
+      <div
+        className="fixed bottom-[calc(4rem+1rem)] right-2 z-50 w-72 sm:w-80 md:w-96 md:right-4 md:bottom-[calc(5rem+1rem)] landscape:max-md:bottom-[calc(3.5rem+0.5rem)] landscape:max-md:w-[min(45vw,20rem)] animate-in slide-in-from-right duration-300"
+        role="dialog"
+        aria-label="Playback queue"
+        aria-modal="false"
+      >
       <Card className="shadow-2xl border-2 border-primary/10 bg-gradient-to-br from-background via-background to-primary/5 backdrop-blur-xl overflow-hidden max-h-[60vh] md:max-h-[calc(100vh-8rem)] landscape:max-md:max-h-[calc(100vh-5rem)] flex flex-col">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-purple-500 to-pink-500" />
         <CardHeader className="pb-2 md:pb-3 px-3 md:px-6 pt-3 md:pt-6 bg-gradient-to-br from-primary/5 to-transparent">
@@ -829,5 +836,6 @@ export function QueuePanel() {
         onSubmit={handleCreatePlaylistFromQueue}
       />
     </div>
+    </>
   );
 }

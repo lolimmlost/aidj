@@ -941,8 +941,12 @@ export const useAudioStore = create<AudioState>()(
           return;
         }
 
-        // Add recommendations to queue
-        const newPlaylist = [...state.playlist, ...recommendations];
+        // Add recommendations to queue - INSERT at periodic positions, not just at end
+        // This creates a more natural DJ feel where recommendations blend in
+        const upcomingStart = state.currentSongIndex + 1;
+        const upcomingLength = state.playlist.length - upcomingStart;
+
+        let newPlaylist = [...state.playlist];
         const newQueuedIds = new Set(state.aiQueuedSongIds);
 
         // Track newly recommended songs with artist info
@@ -951,7 +955,45 @@ export const useAudioStore = create<AudioState>()(
         // Phase 1.2: Update artist batch counts to prevent exhaustion
         const newArtistBatchCounts = new Map(state.aiDJArtistBatchCounts);
 
-        recommendations.forEach((song: Song) => {
+        // Shuffle recommendations first for variety
+        const shuffledRecs = [...recommendations].sort(() => Math.random() - 0.5);
+
+        shuffledRecs.forEach((song: Song, i: number) => {
+          // Calculate insertion position:
+          // - First song: insert 2-4 positions after current (plays soon but not immediately)
+          // - Other songs: spread at regular intervals throughout upcoming queue
+          let insertPos: number;
+
+          if (upcomingLength === 0) {
+            // No upcoming songs, just append
+            insertPos = newPlaylist.length;
+          } else if (i === 0) {
+            // First recommendation plays soon (within next 2-4 songs)
+            const minPos = upcomingStart + Math.min(2, upcomingLength);
+            const maxPos = upcomingStart + Math.min(4, upcomingLength);
+            insertPos = minPos + Math.floor(Math.random() * (maxPos - minPos + 1));
+          } else {
+            // Spread other songs at regular intervals with some randomness
+            // Calculate interval based on how many songs we're inserting
+            const interval = Math.max(3, Math.floor((newPlaylist.length - upcomingStart) / (shuffledRecs.length + 1)));
+            const basePos = upcomingStart + (i * interval);
+            // Add some randomness (+/- 1 position)
+            const jitter = Math.floor(Math.random() * 3) - 1;
+            insertPos = Math.min(newPlaylist.length, Math.max(upcomingStart + 1, basePos + jitter));
+          }
+
+          // Ensure insertPos is valid
+          insertPos = Math.min(insertPos, newPlaylist.length);
+          insertPos = Math.max(insertPos, upcomingStart);
+
+          // Insert song at calculated position
+          newPlaylist = [
+            ...newPlaylist.slice(0, insertPos),
+            song,
+            ...newPlaylist.slice(insertPos),
+          ];
+
+          // Track the song
           newQueuedIds.add(song.id);
           newRecentlyRecommended.push({
             songId: song.id,
