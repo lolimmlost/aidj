@@ -302,9 +302,9 @@ export const useAudioStore = create<AudioState>()(
     aiDJArtistBatchCounts: new Map<string, {count: number; lastQueued: number}>(),
     aiDJArtistFatigueCooldowns: new Map<string, number>(),
     aiDJUserActionInProgress: false,
-    // Crossfade initial state
+    // Crossfade initial state (default 0 = opt-in, user sets via Settings > Playback)
     crossfadeEnabled: true,
-    crossfadeDuration: 8.0,
+    crossfadeDuration: 0,
     lastClearedQueue: null,
     queuePanelOpen: false,
     recentlyPlayedIds: [],

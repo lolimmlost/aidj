@@ -177,6 +177,16 @@ function DashboardIndex() {
     }
   }, [session, loadPreferences]);
 
+  // Sync crossfade settings from preferences to audio store
+  useEffect(() => {
+    if (preferences?.playbackSettings?.crossfadeDuration !== undefined) {
+      const audioStore = useAudioStore.getState();
+      if (audioStore.crossfadeDuration !== preferences.playbackSettings.crossfadeDuration) {
+        audioStore.setCrossfadeDuration(preferences.playbackSettings.crossfadeDuration);
+      }
+    }
+  }, [preferences?.playbackSettings?.crossfadeDuration]);
+
   // Check for legacy feedback and prompt migration
   useEffect(() => {
     if (!session) return;

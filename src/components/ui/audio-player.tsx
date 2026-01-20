@@ -102,6 +102,11 @@ export function AudioPlayer() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Crossfade state (simple fade-out/fade-in, no deck swapping)
+  const fadeOutStartedRef = useRef<boolean>(false);
+  const fadeInNeededRef = useRef<boolean>(false);
+  const targetVolumeRef = useRef<number>(1); // Store target volume for fade-in
+
   // Track if we were playing before an iOS interruption (notification, call, etc.)
   const wasPlayingBeforeInterruptionRef = useRef<boolean>(false);
   const isUserInitiatedPauseRef = useRef<boolean>(false);
@@ -118,6 +123,7 @@ export function AudioPlayer() {
     duration,
     volume,
     isShuffled,
+    crossfadeDuration,
     setIsPlaying,
     setCurrentTime,
     setDuration,
@@ -382,6 +388,32 @@ export function AudioPlayer() {
             preloadAudioRef.current.load();
           }
         }
+
+        // CROSSFADE: Fade-out as song approaches end
+        const state = useAudioStore.getState();
+        const xfadeDuration = state.crossfadeDuration;
+
+        // DEBUG: Log crossfade state when near end
+        if (timeRemaining <= 15 && timeRemaining > 0) {
+          console.log(`[XFADE] timeRemaining=${Math.round(timeRemaining)}, xfadeDuration=${xfadeDuration}, fadeStarted=${fadeOutStartedRef.current}`);
+        }
+
+        if (xfadeDuration > 0 && timeRemaining <= xfadeDuration && timeRemaining > 0.1) {
+          if (!fadeOutStartedRef.current) {
+            // Start fade-out
+            fadeOutStartedRef.current = true;
+            fadeInNeededRef.current = true;
+            targetVolumeRef.current = state.volume; // Remember target volume for fade-in
+            debugLog('🎚️', 'FADEOUT', `Starting fade-out`, {
+              timeRemaining: Math.round(timeRemaining),
+              xfadeDuration
+            });
+          }
+          // Calculate fade progress and apply volume (equal power curve)
+          const fadeProgress = 1 - (timeRemaining / xfadeDuration);
+          const fadeVolume = Math.cos(fadeProgress * Math.PI / 2) * targetVolumeRef.current;
+          audio.volume = Math.max(0, fadeVolume);
+        }
       }
     };
 
@@ -416,6 +448,39 @@ export function AudioPlayer() {
         currentTime: Math.round(audio.currentTime),
         networkState: networkStateMap[audio.networkState]
       });
+
+      // CROSSFADE: Fade-in if needed (after fade-out from previous song)
+      if (fadeInNeededRef.current) {
+        fadeInNeededRef.current = false;
+        fadeOutStartedRef.current = false; // Reset for next song
+        const targetVolume = targetVolumeRef.current;
+        const state = useAudioStore.getState();
+        const xfadeDuration = state.crossfadeDuration;
+
+        if (xfadeDuration > 0) {
+          debugLog('🎚️', 'FADEIN', `Starting fade-in`, { targetVolume, xfadeDuration });
+
+          // Start at 0 volume and fade in
+          audio.volume = 0;
+          const fadeSteps = 30;
+          const fadeInterval = (xfadeDuration * 1000) / fadeSteps;
+          let step = 0;
+
+          const fadeInInterval = setInterval(() => {
+            step++;
+            const progress = step / fadeSteps;
+            // Equal power curve for fade-in
+            const fadeVolume = Math.sin(progress * Math.PI / 2) * targetVolume;
+            audio.volume = Math.min(targetVolume, fadeVolume);
+
+            if (step >= fadeSteps) {
+              clearInterval(fadeInInterval);
+              audio.volume = targetVolume; // Ensure we hit exact target
+              debugLog('🎚️', 'FADEIN', `Fade-in complete`, {});
+            }
+          }, fadeInterval);
+        }
+      }
     };
 
     // 🔍 DEBUG: Track pause event with context

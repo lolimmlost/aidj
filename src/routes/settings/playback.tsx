@@ -22,12 +22,15 @@ export function PlaybackSettings() {
 
   const [localSettings, setLocalSettings] = useState(preferences.playbackSettings);
 
-  // Sync volume with audio store on mount
+  // Sync volume and crossfade with audio store on mount
   useEffect(() => {
     if (preferences.playbackSettings.volume !== audioStore.volume) {
       audioStore.setVolume(preferences.playbackSettings.volume);
     }
-  }, [preferences.playbackSettings.volume, audioStore]);
+    if (preferences.playbackSettings.crossfadeDuration !== audioStore.crossfadeDuration) {
+      audioStore.setCrossfadeDuration(preferences.playbackSettings.crossfadeDuration);
+    }
+  }, [preferences.playbackSettings.volume, preferences.playbackSettings.crossfadeDuration, audioStore]);
 
   const handleVolumeChange = (value: number[]) => {
     const newVolume = value[0];
@@ -36,12 +39,21 @@ export function PlaybackSettings() {
     audioStore.setVolume(newVolume);
   };
 
+  const handleCrossfadeChange = (value: number[]) => {
+    const newDuration = value[0];
+    setLocalSettings({ ...localSettings, crossfadeDuration: newDuration });
+    // Update audio store immediately for real-time feedback
+    audioStore.setCrossfadeDuration(newDuration);
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     setMessage(null);
 
     try {
       await setPlaybackSettings(localSettings);
+      // Ensure audio store is synced
+      audioStore.setCrossfadeDuration(localSettings.crossfadeDuration);
       setMessage({ type: 'success', text: 'Playback settings saved successfully' });
     } catch {
       setMessage({ type: 'error', text: 'Failed to save playback settings' });
@@ -108,9 +120,7 @@ export function PlaybackSettings() {
             max={10}
             step={1}
             value={[localSettings.crossfadeDuration]}
-            onValueChange={(value) =>
-              setLocalSettings({ ...localSettings, crossfadeDuration: value[0] })
-            }
+            onValueChange={handleCrossfadeChange}
             className="mt-2"
           />
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">

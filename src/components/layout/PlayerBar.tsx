@@ -201,13 +201,35 @@ const formatTime = (time: number) => {
  * ============================================================================
  */
 export function PlayerBar() {
-  const audioRef = useRef<HTMLAudioElement>(null);
+  // Dual-deck audio system for true crossfade
+  const deckARef = useRef<HTMLAudioElement>(null);
+  const deckBRef = useRef<HTMLAudioElement>(null);
+  const activeDeckRef = useRef<'A' | 'B'>('A');
+
+
   const hasScrobbledRef = useRef<boolean>(false);
   const scrobbleThresholdReachedRef = useRef<boolean>(false);
   const currentSongIdRef = useRef<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
   const [showVisualizer, setShowVisualizer] = useState(false);
+
+  // Crossfade state for dual-deck system
+  const crossfadeInProgressRef = useRef<boolean>(false);
+  const crossfadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const crossfadeCanPlayFiredRef = useRef<boolean>(false); // Prevent duplicate canplaythrough handling
+  const crossfadeJustCompletedRef = useRef<boolean>(false); // Prevent reload after crossfade
+  const nextSongPreloadedRef = useRef<boolean>(false);
+  const targetVolumeRef = useRef<number>(1);
+
+  // Helper to get active and inactive decks
+  const getActiveDeck = useCallback(() => {
+    return activeDeckRef.current === 'A' ? deckARef.current : deckBRef.current;
+  }, []);
+
+  const getInactiveDeck = useCallback(() => {
+    return activeDeckRef.current === 'A' ? deckBRef.current : deckARef.current;
+  }, []);
 
   const {
     playlist,
@@ -217,6 +239,7 @@ export function PlayerBar() {
     duration,
     volume,
     isShuffled,
+    crossfadeDuration,
     setIsPlaying,
     setCurrentTime,
     setDuration,
@@ -290,9 +313,15 @@ export function PlayerBar() {
     likeMutate(!isLiked);
   }, [currentSong, isLikePending, isLiked, likeMutate]);
 
+  // Load song on the active deck (normal playback)
   const loadSong = useCallback((song: typeof currentSong) => {
-    const audio = audioRef.current;
+    const audio = getActiveDeck();
     if (audio && song) {
+      // Clear any running crossfade interval
+      if (crossfadeIntervalRef.current) {
+        clearInterval(crossfadeIntervalRef.current);
+        crossfadeIntervalRef.current = null;
+      }
       audio.src = song.url;
       audio.load();
       setCurrentTime(0);
@@ -300,11 +329,28 @@ export function PlayerBar() {
       hasScrobbledRef.current = false;
       scrobbleThresholdReachedRef.current = false;
       currentSongIdRef.current = song.id;
+      // Reset crossfade refs for new song
+      crossfadeInProgressRef.current = false;
+      crossfadeCanPlayFiredRef.current = false;
+      nextSongPreloadedRef.current = false;
+      console.log(`[XFADE] loadSong called on deck ${activeDeckRef.current}`);
     }
-  }, [setCurrentTime, setDuration]);
+  }, [setCurrentTime, setDuration, getActiveDeck]);
+
+  // Preload song on inactive deck for crossfade
+  const preloadNextSong = useCallback((song: typeof currentSong) => {
+    const inactiveDeck = getInactiveDeck();
+    if (inactiveDeck && song) {
+      console.log(`[XFADE] Preloading next song on inactive deck`);
+      inactiveDeck.src = song.url;
+      inactiveDeck.load();
+      inactiveDeck.volume = 0;
+      nextSongPreloadedRef.current = true;
+    }
+  }, [getInactiveDeck]);
 
   const togglePlayPause = useCallback(() => {
-    const audio = audioRef.current;
+    const audio = getActiveDeck();
     if (audio) {
       if (isPlaying) {
         audio.pause();
@@ -317,43 +363,237 @@ export function PlayerBar() {
       }
       setIsPlaying(!isPlaying);
     }
-  }, [isPlaying, setIsPlaying]);
+  }, [isPlaying, setIsPlaying, getActiveDeck]);
 
   const seek = useCallback((time: number) => {
-    const audio = audioRef.current;
+    const audio = getActiveDeck();
     if (audio && !isNaN(time) && isFinite(time)) {
       audio.currentTime = time;
       setCurrentTime(time);
     }
-  }, [setCurrentTime]);
+  }, [setCurrentTime, getActiveDeck]);
 
   const changeVolume = useCallback((newVolume: number) => {
     const clampedVolume = Math.max(0, Math.min(1, newVolume));
     setVolume(clampedVolume);
-    if (audioRef.current) {
-      audioRef.current.volume = clampedVolume;
+    // Only set volume on active deck if not crossfading
+    const activeDeck = getActiveDeck();
+    if (activeDeck && !crossfadeInProgressRef.current) {
+      activeDeck.volume = clampedVolume;
     }
-  }, [setVolume]);
+    targetVolumeRef.current = clampedVolume;
+  }, [setVolume, getActiveDeck]);
 
-  // Audio event listeners
+  // Start true crossfade between decks
+  const startCrossfade = useCallback((nextSongData: typeof currentSong, xfadeDuration: number) => {
+    if (crossfadeInProgressRef.current || !nextSongData) return;
+
+    const activeDeck = getActiveDeck();
+    const inactiveDeck = getInactiveDeck();
+    if (!activeDeck || !inactiveDeck) return;
+
+    // Clear any existing interval (safety check)
+    if (crossfadeIntervalRef.current) {
+      clearInterval(crossfadeIntervalRef.current);
+      crossfadeIntervalRef.current = null;
+    }
+
+    console.log(`[XFADE] Starting TRUE crossfade, duration=${xfadeDuration}s`);
+    crossfadeInProgressRef.current = true;
+    crossfadeCanPlayFiredRef.current = false; // Reset for this crossfade
+    targetVolumeRef.current = activeDeck.volume > 0 ? activeDeck.volume : 1;
+
+    // Preload and start the next song on inactive deck
+    inactiveDeck.src = nextSongData.url;
+    inactiveDeck.load();
+    inactiveDeck.volume = 0;
+
+    // Helper to abort crossfade and reset state
+    const abortCrossfade = (reason: string) => {
+      console.log(`[XFADE] Aborting crossfade: ${reason}`);
+      inactiveDeck.removeEventListener('canplaythrough', onCanPlayThrough);
+      if (crossfadeIntervalRef.current) {
+        clearInterval(crossfadeIntervalRef.current);
+        crossfadeIntervalRef.current = null;
+      }
+      crossfadeInProgressRef.current = false;
+      crossfadeCanPlayFiredRef.current = false;
+      // Restore active deck volume
+      activeDeck.volume = targetVolumeRef.current;
+    };
+
+    // Wait for inactive deck to be ready, then start crossfade
+    const onCanPlayThrough = () => {
+      // Guard: only fire once per crossfade
+      if (crossfadeCanPlayFiredRef.current) {
+        console.log(`[XFADE] canplaythrough already fired, ignoring duplicate`);
+        return;
+      }
+      crossfadeCanPlayFiredRef.current = true;
+      inactiveDeck.removeEventListener('canplaythrough', onCanPlayThrough);
+      console.log(`[XFADE] Inactive deck ready, starting playback and crossfade`);
+
+      // Start playing the next song - CRITICAL: handle failure on mobile
+      inactiveDeck.play()
+        .then(() => {
+          console.log(`[XFADE] Inactive deck play() succeeded`);
+        })
+        .catch((err) => {
+          console.error(`[XFADE] Inactive deck play() FAILED:`, err);
+          abortCrossfade('play() failed - likely autoplay blocked');
+          return; // Don't start the crossfade interval
+        });
+
+      const fadeStartTime = Date.now();
+      crossfadeIntervalRef.current = setInterval(() => {
+        // Safety check: if inactive deck isn't actually playing, abort
+        if (inactiveDeck.paused && crossfadeInProgressRef.current) {
+          abortCrossfade('inactive deck not playing');
+          return;
+        }
+
+        const elapsed = (Date.now() - fadeStartTime) / 1000;
+        const fadeProgress = Math.min(elapsed / xfadeDuration, 1);
+
+        // Equal power crossfade curves
+        const fadeOutVolume = Math.cos(fadeProgress * Math.PI / 2) * targetVolumeRef.current;
+        const fadeInVolume = Math.sin(fadeProgress * Math.PI / 2) * targetVolumeRef.current;
+
+        activeDeck.volume = Math.max(0, fadeOutVolume);
+        inactiveDeck.volume = Math.min(targetVolumeRef.current, fadeInVolume);
+
+        // Debug log every second
+        if (Math.floor(elapsed) !== Math.floor(elapsed - 0.05) && elapsed > 0.05) {
+          console.log(`[XFADE] Progress: ${Math.round(fadeProgress * 100)}%, active=${fadeOutVolume.toFixed(2)}, incoming=${fadeInVolume.toFixed(2)}`);
+        }
+
+        if (fadeProgress >= 1) {
+          // Crossfade complete
+          if (crossfadeIntervalRef.current) {
+            clearInterval(crossfadeIntervalRef.current);
+            crossfadeIntervalRef.current = null;
+          }
+
+          // Stop the old deck
+          activeDeck.pause();
+          activeDeck.currentTime = 0;
+
+          // Swap active deck
+          activeDeckRef.current = activeDeckRef.current === 'A' ? 'B' : 'A';
+          inactiveDeck.volume = targetVolumeRef.current;
+
+          console.log(`[XFADE] Crossfade complete, active deck is now ${activeDeckRef.current}`);
+
+          // Mark crossfade as just completed - this prevents the useEffect from reloading the song
+          crossfadeJustCompletedRef.current = true;
+
+          // Update the currentSongId to match the new song BEFORE calling nextSong
+          currentSongIdRef.current = nextSongData.id;
+
+          // Update store state
+          crossfadeInProgressRef.current = false;
+          nextSongPreloadedRef.current = false;
+
+          // Trigger nextSong in store to update the currentSongIndex
+          nextSong();
+
+          // Reset the "just completed" flag after a short delay
+          setTimeout(() => {
+            crossfadeJustCompletedRef.current = false;
+          }, 100);
+        }
+      }, 50);
+    };
+
+    inactiveDeck.addEventListener('canplaythrough', onCanPlayThrough);
+
+    // Timeout fallback in case canplaythrough doesn't fire
+    setTimeout(() => {
+      // Only fire if crossfade is in progress AND we haven't started the interval yet
+      if (!crossfadeInProgressRef.current || crossfadeCanPlayFiredRef.current) return;
+      if (inactiveDeck.readyState >= 3) {
+        console.log(`[XFADE] Timeout fallback: forcing canplaythrough`);
+        onCanPlayThrough();
+      } else {
+        // canplaythrough never fired and deck not ready - abort
+        abortCrossfade('timeout - deck never became ready');
+      }
+    }, 2000);
+
+    // Safety timeout: if crossfade is still in progress after xfadeDuration + 5s, something is wrong
+    setTimeout(() => {
+      if (crossfadeInProgressRef.current) {
+        abortCrossfade('safety timeout exceeded');
+      }
+    }, (xfadeDuration + 5) * 1000);
+  }, [getActiveDeck, getInactiveDeck, nextSong]);
+
+  // Audio event listeners for BOTH decks (needed for crossfade to work properly)
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    const deckA = deckARef.current;
+    const deckB = deckBRef.current;
+    if (!deckA || !deckB) return;
 
-    const updateTime = () => {
-      setCurrentTime(audio.currentTime);
-      if (audio.duration > 0 && currentSong) {
-        const playedPercentage = (audio.currentTime / audio.duration) * 100;
+    // Create handlers that check if the event came from the active deck
+    const createUpdateTime = (deck: HTMLAudioElement, deckName: 'A' | 'B') => () => {
+      // Only process timeupdate from active deck
+      if (activeDeckRef.current !== deckName) return;
+
+      setCurrentTime(deck.currentTime);
+      if (deck.duration > 0 && currentSong) {
+        const playedPercentage = (deck.currentTime / deck.duration) * 100;
         if (playedPercentage >= 50 && !scrobbleThresholdReachedRef.current) {
           scrobbleThresholdReachedRef.current = true;
+        }
+
+        // CROSSFADE: Check if we should start crossfade
+        const timeRemaining = deck.duration - deck.currentTime;
+        const state = useAudioStore.getState();
+        const xfadeDuration = state.crossfadeDuration;
+
+        // Debug log when near end
+        if (timeRemaining <= 15 && timeRemaining > 0 && Math.floor(timeRemaining) % 3 === 0) {
+          console.log(`[XFADE] Deck ${deckName}: remaining=${Math.round(timeRemaining)}s, xfadeDuration=${xfadeDuration}, crossfading=${crossfadeInProgressRef.current}`);
+        }
+
+        // Start crossfade when approaching end
+        if (xfadeDuration > 0 && timeRemaining <= xfadeDuration && timeRemaining > 0.5 && !crossfadeInProgressRef.current) {
+          // Get next song from playlist
+          const nextIndex = (currentSongIndex + 1) % playlist.length;
+          const nextSongData = playlist[nextIndex];
+
+          if (nextSongData && playlist.length > 1) {
+            startCrossfade(nextSongData, xfadeDuration);
+          }
         }
       }
     };
 
-    const updateDuration = () => setDuration(audio.duration);
-    const onCanPlay = () => setIsLoading(false);
-    const onWaiting = () => setIsLoading(true);
-    const onEnded = () => {
+    const createUpdateDuration = (deck: HTMLAudioElement, deckName: 'A' | 'B') => () => {
+      if (activeDeckRef.current !== deckName) return;
+      setDuration(deck.duration);
+    };
+
+    const createOnCanPlay = (deckName: 'A' | 'B') => () => {
+      if (activeDeckRef.current !== deckName) return;
+      setIsLoading(false);
+    };
+
+    const createOnWaiting = (deckName: 'A' | 'B') => () => {
+      if (activeDeckRef.current !== deckName) return;
+      setIsLoading(true);
+    };
+
+    const createOnEnded = (deck: HTMLAudioElement, deckName: 'A' | 'B') => () => {
+      // Only process ended from active deck
+      if (activeDeckRef.current !== deckName) return;
+
+      // If crossfade already handled the transition, don't do anything
+      if (crossfadeInProgressRef.current) {
+        console.log(`[XFADE] onEnded fired on deck ${deckName} but crossfade in progress, skipping`);
+        return;
+      }
+
       if (currentSongIdRef.current && !hasScrobbledRef.current && currentSong) {
         hasScrobbledRef.current = true;
         // Scrobble to Navidrome
@@ -375,8 +615,8 @@ export function PlayerBar() {
             title: currentSong.name || currentSong.title || 'Unknown',
             album: currentSong.album,
             genre: currentSong.genre,
-            duration: audio.duration,
-            playDuration: audio.currentTime,
+            duration: deck.duration,
+            playDuration: deck.currentTime,
           }),
         })
           .then(res => {
@@ -389,24 +629,80 @@ export function PlayerBar() {
           })
           .catch(err => console.warn('Failed to record listening history:', err));
       }
-      nextSong();
+
+      // MOBILE FIX: Load and play next song directly on the audio element
+      // This maintains the "playback chain" that mobile browsers require
+      // If we go through React state updates, the browser loses the user gesture context
+      const nextIndex = (currentSongIndex + 1) % playlist.length;
+      const nextSongData = playlist[nextIndex];
+
+      if (nextSongData && playlist.length > 0) {
+        console.log(`[MOBILE] Direct transition to next song: ${nextSongData.name || nextSongData.title}`);
+
+        // Reset scrobble tracking for new song
+        hasScrobbledRef.current = false;
+        scrobbleThresholdReachedRef.current = false;
+        currentSongIdRef.current = nextSongData.id;
+
+        // Directly set src and play - don't call load() as it breaks the playback chain
+        deck.src = nextSongData.url;
+        deck.play().catch(err => {
+          console.error('[MOBILE] Direct play failed:', err);
+        });
+
+        // Update store state (this won't trigger reload due to currentSongIdRef check)
+        nextSong();
+      } else {
+        // Fallback: just call nextSong if no next song data
+        nextSong();
+      }
     };
 
-    audio.addEventListener('timeupdate', updateTime);
-    audio.addEventListener('loadedmetadata', updateDuration);
-    audio.addEventListener('canplay', onCanPlay);
-    audio.addEventListener('waiting', onWaiting);
-    audio.addEventListener('ended', onEnded);
-    audio.volume = volume;
+    // Create handlers for each deck
+    const updateTimeA = createUpdateTime(deckA, 'A');
+    const updateTimeB = createUpdateTime(deckB, 'B');
+    const updateDurationA = createUpdateDuration(deckA, 'A');
+    const updateDurationB = createUpdateDuration(deckB, 'B');
+    const onCanPlayA = createOnCanPlay('A');
+    const onCanPlayB = createOnCanPlay('B');
+    const onWaitingA = createOnWaiting('A');
+    const onWaitingB = createOnWaiting('B');
+    const onEndedA = createOnEnded(deckA, 'A');
+    const onEndedB = createOnEnded(deckB, 'B');
+
+    // Register listeners on both decks
+    deckA.addEventListener('timeupdate', updateTimeA);
+    deckA.addEventListener('loadedmetadata', updateDurationA);
+    deckA.addEventListener('canplay', onCanPlayA);
+    deckA.addEventListener('waiting', onWaitingA);
+    deckA.addEventListener('ended', onEndedA);
+
+    deckB.addEventListener('timeupdate', updateTimeB);
+    deckB.addEventListener('loadedmetadata', updateDurationB);
+    deckB.addEventListener('canplay', onCanPlayB);
+    deckB.addEventListener('waiting', onWaitingB);
+    deckB.addEventListener('ended', onEndedB);
+
+    // Set initial volume on active deck if not crossfading
+    const activeDeck = getActiveDeck();
+    if (activeDeck && !crossfadeInProgressRef.current) {
+      activeDeck.volume = volume;
+    }
 
     return () => {
-      audio.removeEventListener('timeupdate', updateTime);
-      audio.removeEventListener('loadedmetadata', updateDuration);
-      audio.removeEventListener('canplay', onCanPlay);
-      audio.removeEventListener('waiting', onWaiting);
-      audio.removeEventListener('ended', onEnded);
+      deckA.removeEventListener('timeupdate', updateTimeA);
+      deckA.removeEventListener('loadedmetadata', updateDurationA);
+      deckA.removeEventListener('canplay', onCanPlayA);
+      deckA.removeEventListener('waiting', onWaitingA);
+      deckA.removeEventListener('ended', onEndedA);
+
+      deckB.removeEventListener('timeupdate', updateTimeB);
+      deckB.removeEventListener('loadedmetadata', updateDurationB);
+      deckB.removeEventListener('canplay', onCanPlayB);
+      deckB.removeEventListener('waiting', onWaitingB);
+      deckB.removeEventListener('ended', onEndedB);
     };
-  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong, queryClient]);
+  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong, queryClient, startCrossfade, getActiveDeck, playlist]);
 
   // Track the canplay handler so we can manage it properly
   const canPlayHandlerRef = useRef<(() => void) | null>(null);
@@ -416,7 +712,19 @@ export function PlayerBar() {
   useEffect(() => {
     if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {
       const song = playlist[currentSongIndex];
-      const audio = audioRef.current;
+      const audio = getActiveDeck();
+
+      // Skip if crossfade just completed - the song is already loaded and playing on the new active deck
+      if (crossfadeJustCompletedRef.current) {
+        console.log(`[XFADE] Skipping loadSong - crossfade just completed, song already playing`);
+        return;
+      }
+
+      // Skip if song ID already matches (e.g., direct transition in onEnded for mobile)
+      if (audio && song && currentSongIdRef.current === song.id) {
+        console.log(`[MOBILE] Skipping loadSong - already loaded via direct transition`);
+        return;
+      }
 
       if (audio && song && currentSongIdRef.current !== song.id) {
         // Capture isPlaying at this moment - store sets isPlaying: true when playNow is called
@@ -460,26 +768,32 @@ export function PlayerBar() {
         };
       }
     }
-  }, [currentSongIndex, playlist, isPlaying, loadSong]);
+  }, [currentSongIndex, playlist, isPlaying, loadSong, getActiveDeck]);
 
   // Cleanup listeners on unmount
   useEffect(() => {
     return () => {
-      const audio = audioRef.current;
-      if (audio) {
-        if (canPlayHandlerRef.current) {
-          audio.removeEventListener('canplay', canPlayHandlerRef.current);
+      // Clean up both decks
+      [deckARef.current, deckBRef.current].forEach(audio => {
+        if (audio) {
+          if (canPlayHandlerRef.current) {
+            audio.removeEventListener('canplay', canPlayHandlerRef.current);
+          }
+          if (errorHandlerRef.current) {
+            audio.removeEventListener('error', errorHandlerRef.current);
+          }
         }
-        if (errorHandlerRef.current) {
-          audio.removeEventListener('error', errorHandlerRef.current);
-        }
+      });
+      // Clear crossfade interval if running
+      if (crossfadeIntervalRef.current) {
+        clearInterval(crossfadeIntervalRef.current);
       }
     };
   }, []);
 
   // Handle play/pause state changes (for toggling on existing loaded song)
   useEffect(() => {
-    const audio = audioRef.current;
+    const audio = getActiveDeck();
     if (!audio || !audio.src) return;
 
     // Only handle pause immediately; play is handled by canplay listener or when ready
@@ -490,7 +804,7 @@ export function PlayerBar() {
       audio.play().catch(console.error);
     }
     // If isPlaying is true but readyState < 2, the canplay handler will start playback
-  }, [isPlaying]);
+  }, [isPlaying, getActiveDeck]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -534,11 +848,13 @@ export function PlayerBar() {
 
   // Media Session API for iOS lock screen / notification controls
   // iOS requires handlers to be set during 'playing' event, not on mount
+  // IMPORTANT: Register on BOTH decks for crossfade to work with iOS background playback
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
 
-    const audio = audioRef.current;
-    if (!audio || !currentSong) return;
+    const deckA = deckARef.current;
+    const deckB = deckBRef.current;
+    if (!deckA || !deckB || !currentSong) return;
 
     const setupMediaSession = () => {
       // Build artwork array for lock screen display
@@ -558,13 +874,14 @@ export function PlayerBar() {
         artwork: artwork.length > 0 ? artwork : undefined,
       });
 
-      // Update position state
-      if (audio.duration && isFinite(audio.duration)) {
+      // Update position state from active deck
+      const activeDeck = getActiveDeck();
+      if (activeDeck && activeDeck.duration && isFinite(activeDeck.duration)) {
         try {
           navigator.mediaSession.setPositionState({
-            duration: audio.duration,
-            playbackRate: audio.playbackRate,
-            position: audio.currentTime,
+            duration: activeDeck.duration,
+            playbackRate: activeDeck.playbackRate,
+            position: activeDeck.currentTime,
           });
         } catch {
           // Position state not supported
@@ -582,13 +899,15 @@ export function PlayerBar() {
       try {
         navigator.mediaSession.setActionHandler('play', () => {
           console.log('🎛️ Media Session: play');
-          audio.play();
+          const activeDeck = getActiveDeck();
+          if (activeDeck) activeDeck.play();
           setIsPlaying(true);
         });
 
         navigator.mediaSession.setActionHandler('pause', () => {
           console.log('🎛️ Media Session: pause');
-          audio.pause();
+          const activeDeck = getActiveDeck();
+          if (activeDeck) activeDeck.pause();
           setIsPlaying(false);
         });
 
@@ -598,8 +917,8 @@ export function PlayerBar() {
           previousSong();
           // Need to trigger play after state update
           setTimeout(() => {
-            const newAudio = audioRef.current;
-            if (newAudio) newAudio.play().catch(console.error);
+            const activeDeck = getActiveDeck();
+            if (activeDeck) activeDeck.play().catch(console.error);
           }, 100);
         });
 
@@ -608,8 +927,8 @@ export function PlayerBar() {
           nextSong();
           // Need to trigger play after state update
           setTimeout(() => {
-            const newAudio = audioRef.current;
-            if (newAudio) newAudio.play().catch(console.error);
+            const activeDeck = getActiveDeck();
+            if (activeDeck) activeDeck.play().catch(console.error);
           }, 100);
         });
 
@@ -617,7 +936,8 @@ export function PlayerBar() {
         navigator.mediaSession.setActionHandler('seekto', (details) => {
           if (details.seekTime !== undefined && isFinite(details.seekTime)) {
             console.log('🎛️ Media Session: seekto', details.seekTime);
-            audio.currentTime = details.seekTime;
+            const activeDeck = getActiveDeck();
+            if (activeDeck) activeDeck.currentTime = details.seekTime;
           }
         });
 
@@ -632,12 +952,13 @@ export function PlayerBar() {
     };
 
     const handleTimeUpdate = () => {
-      if (audio.duration && isFinite(audio.duration) && isFinite(audio.currentTime)) {
+      const activeDeck = getActiveDeck();
+      if (activeDeck && activeDeck.duration && isFinite(activeDeck.duration) && isFinite(activeDeck.currentTime)) {
         try {
           navigator.mediaSession.setPositionState({
-            duration: audio.duration,
-            playbackRate: audio.playbackRate,
-            position: audio.currentTime,
+            duration: activeDeck.duration,
+            playbackRate: activeDeck.playbackRate,
+            position: activeDeck.currentTime,
           });
         } catch {
           // Ignore
@@ -645,23 +966,29 @@ export function PlayerBar() {
       }
     };
 
-    audio.addEventListener('playing', handlePlaying);
-    audio.addEventListener('pause', handlePause);
-    audio.addEventListener('loadedmetadata', setupMediaSession);
-    audio.addEventListener('timeupdate', handleTimeUpdate);
+    // Register handlers on BOTH decks for iOS background playback during crossfade
+    [deckA, deckB].forEach(deck => {
+      deck.addEventListener('playing', handlePlaying);
+      deck.addEventListener('pause', handlePause);
+      deck.addEventListener('loadedmetadata', setupMediaSession);
+      deck.addEventListener('timeupdate', handleTimeUpdate);
+    });
 
-    // Initial setup if already playing
-    if (!audio.paused) {
+    // Initial setup if active deck is already playing
+    const activeDeck = getActiveDeck();
+    if (activeDeck && !activeDeck.paused) {
       handlePlaying();
     } else {
       setupMediaSession();
     }
 
     return () => {
-      audio.removeEventListener('playing', handlePlaying);
-      audio.removeEventListener('pause', handlePause);
-      audio.removeEventListener('loadedmetadata', setupMediaSession);
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      [deckA, deckB].forEach(deck => {
+        deck.removeEventListener('playing', handlePlaying);
+        deck.removeEventListener('pause', handlePause);
+        deck.removeEventListener('loadedmetadata', setupMediaSession);
+        deck.removeEventListener('timeupdate', handleTimeUpdate);
+      });
 
       try {
         navigator.mediaSession.setActionHandler('play', null);
@@ -673,7 +1000,7 @@ export function PlayerBar() {
         // Ignore cleanup errors
       }
     };
-  }, [currentSong, setIsPlaying, previousSong, nextSong]);
+  }, [currentSong, setIsPlaying, previousSong, nextSong, getActiveDeck]);
 
   if (!currentSong) return null;
 
@@ -949,8 +1276,9 @@ export function PlayerBar() {
         </div>
       </div>
 
-      {/* Hidden Audio Element - shared between mobile and desktop */}
-      <audio ref={audioRef} preload="metadata" crossOrigin="anonymous" className="hidden" />
+      {/* Dual-Deck Audio Elements for crossfade */}
+      <audio ref={deckARef} preload="metadata" crossOrigin="anonymous" className="hidden" />
+      <audio ref={deckBRef} preload="metadata" crossOrigin="anonymous" className="hidden" />
 
       {/* Lyrics Modal */}
       <LyricsModal isOpen={showLyrics} onClose={() => setShowLyrics(false)} />
@@ -959,7 +1287,7 @@ export function PlayerBar() {
       <VisualizerModal
         isOpen={showVisualizer}
         onClose={() => setShowVisualizer(false)}
-        audioElement={audioRef.current}
+        audioElement={getActiveDeck()}
       />
     </>
   );
