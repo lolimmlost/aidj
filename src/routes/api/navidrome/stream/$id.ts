@@ -112,6 +112,9 @@ export const Route = createFileRoute("/api/navidrome/stream/$id")({
       clonedHeaders.set('Cache-Control', 'no-cache');
       clonedHeaders.set('Accept-Ranges', 'bytes');
 
+      // Override Cloudflare's restrictive permissions-policy to allow autoplay
+      clonedHeaders.set('Permissions-Policy', 'autoplay=(self), camera=(), microphone=(), usb=()');
+
       // Ensure proper content type for audio
       const contentType = response.headers.get('content-type') || 'audio/mpeg';
       clonedHeaders.set('Content-Type', contentType);

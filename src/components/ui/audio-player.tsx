@@ -98,6 +98,11 @@ export function AudioPlayer() {
   const preloadAudioRef = useRef<HTMLAudioElement | null>(null); // For preloading next song
   const preloadedSongIdRef = useRef<string | null>(null); // Track what's preloaded
   const activeDeckRef = useRef<'A' | 'B'>('A'); // Track which audio element is currently playing
+
+  // Crossfade state tracking
+  const crossfadeInProgressRef = useRef<boolean>(false);
+  const crossfadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const crossfadeStartedForSongRef = useRef<string | null>(null); // Prevent double-triggering
   const hasScrobbledRef = useRef<boolean>(false);
   const scrobbleThresholdReachedRef = useRef<boolean>(false);
   const currentSongIdRef = useRef<string | null>(null);
@@ -364,13 +369,140 @@ export function AudioPlayer() {
         // iOS FIX: Preload next song when 10 seconds from end (or 90% through)
         // This ensures the next song is ready to play instantly when current ends
         const timeRemaining = audio.duration - audio.currentTime;
-        if (timeRemaining <= 10 || playedPercentage >= 90) {
-          const state = useAudioStore.getState();
+
+        // Get crossfade settings from store
+        const state = useAudioStore.getState();
+        const xfadeDuration = state.crossfadeDuration;
+        const xfadeEnabled = state.crossfadeEnabled && xfadeDuration > 0;
+
+        // DEBUG: Log crossfade state when approaching potential trigger
+        if (timeRemaining <= 15 && timeRemaining > 0) {
+          debugLog('🔍', 'XFADE_CHECK', `Crossfade check`, {
+            timeRemaining: Math.round(timeRemaining),
+            xfadeDuration,
+            xfadeEnabled,
+            crossfadeEnabled: state.crossfadeEnabled,
+            inProgress: crossfadeInProgressRef.current,
+            startedFor: crossfadeStartedForSongRef.current,
+            currentSongId: currentSong?.id,
+            activeDeck: activeDeckRef.current
+          });
+        }
+
+        // CROSSFADE: Start crossfade when approaching end of song
+        if (xfadeEnabled &&
+            timeRemaining <= xfadeDuration &&
+            timeRemaining > 0.5 && // Don't start if too close to end
+            !crossfadeInProgressRef.current &&
+            crossfadeStartedForSongRef.current !== currentSong?.id) {
+
+          const nextIndex = (state.currentSongIndex + 1) % state.playlist.length;
+          const nextTrack = state.playlist[nextIndex];
+          const audio2 = audioRef2.current;
+
+          if (nextTrack && audio2 && state.playlist.length > 1) {
+            debugLog('🎚️', 'CROSSFADE', `Starting crossfade`, {
+              currentSong: currentSong?.name || currentSong?.title,
+              nextSong: nextTrack.name || nextTrack.title,
+              duration: xfadeDuration,
+              timeRemaining: Math.round(timeRemaining)
+            });
+
+            // Mark crossfade in progress
+            crossfadeInProgressRef.current = true;
+            crossfadeStartedForSongRef.current = currentSong?.id || null;
+
+            // Load next song into secondary deck
+            audio2.src = nextTrack.url;
+            audio2.volume = 0;
+            audio2.load();
+
+            // Wait for secondary deck to be ready, then start crossfade
+            const onAudio2CanPlay = () => {
+              audio2.removeEventListener('canplay', onAudio2CanPlay);
+
+              // Start playing secondary deck (muted initially)
+              audio2.play().then(() => {
+                debugLog('🎚️', 'CROSSFADE', `Secondary deck playing, starting fade`, {});
+
+                // Animate volume crossfade using equal power curve
+                const fadeSteps = 30; // 30 steps for smooth fade
+                const fadeInterval = (xfadeDuration * 1000) / fadeSteps;
+                let step = 0;
+
+                crossfadeIntervalRef.current = setInterval(() => {
+                  step++;
+                  const progress = step / fadeSteps;
+
+                  // Equal power crossfade curve for constant perceived loudness
+                  const fadeOutGain = Math.cos(progress * Math.PI / 2);
+                  const fadeInGain = Math.sin(progress * Math.PI / 2);
+
+                  // Apply volumes (respecting user's volume setting)
+                  const userVolume = useAudioStore.getState().volume;
+                  audio.volume = fadeOutGain * userVolume;
+                  audio2.volume = fadeInGain * userVolume;
+
+                  if (step >= fadeSteps) {
+                    // Crossfade complete
+                    if (crossfadeIntervalRef.current) {
+                      clearInterval(crossfadeIntervalRef.current);
+                      crossfadeIntervalRef.current = null;
+                    }
+
+                    debugLog('🎚️', 'CROSSFADE', `Crossfade complete, deck B now active`, {});
+
+                    // Stop deck A (old song)
+                    audio.pause();
+                    audio.src = '';
+
+                    // Deck B is now the active deck
+                    activeDeckRef.current = 'B';
+
+                    // Set duration from deck B
+                    if (audio2.duration && isFinite(audio2.duration)) {
+                      setDuration(audio2.duration);
+                    }
+
+                    // Update state to reflect new song
+                    hasScrobbledRef.current = false;
+                    scrobbleThresholdReachedRef.current = false;
+                    currentSongIdRef.current = nextTrack.id;
+
+                    // Advance to next song in store
+                    nextSong();
+
+                    // Reset crossfade state
+                    crossfadeInProgressRef.current = false;
+                  }
+                }, fadeInterval);
+              }).catch((err) => {
+                debugLog('❌', 'CROSSFADE', `Secondary deck play failed, falling back`, { error: err.message });
+                crossfadeInProgressRef.current = false;
+                crossfadeStartedForSongRef.current = null;
+              });
+            };
+
+            audio2.addEventListener('canplay', onAudio2CanPlay, { once: true });
+
+            // Timeout fallback if canplay never fires
+            setTimeout(() => {
+              if (crossfadeInProgressRef.current && !crossfadeIntervalRef.current) {
+                debugLog('⚠️', 'CROSSFADE', `Canplay timeout, aborting crossfade`, {});
+                audio2.removeEventListener('canplay', onAudio2CanPlay);
+                crossfadeInProgressRef.current = false;
+                crossfadeStartedForSongRef.current = null;
+              }
+            }, 5000);
+          }
+        }
+        // Standard preload (when crossfade not active)
+        else if (timeRemaining <= 10 || playedPercentage >= 90) {
           const nextIndex = (state.currentSongIndex + 1) % state.playlist.length;
           const nextTrack = state.playlist[nextIndex];
 
           // Only preload if we haven't already preloaded this song
-          if (nextTrack && preloadedSongIdRef.current !== nextTrack.id) {
+          if (nextTrack && preloadedSongIdRef.current !== nextTrack.id && !crossfadeInProgressRef.current) {
             debugLog('📥', 'PRELOAD', `Starting preload`, {
               nextSong: nextTrack.name || nextTrack.title,
               remainingTime: Math.round(timeRemaining)
@@ -571,6 +703,15 @@ export function AudioPlayer() {
       // =============================================================================
       // 🔍 PHASE 1: Song Transition Logging (CRITICAL - This is where iOS fails)
       // =============================================================================
+
+      // CROSSFADE: If crossfade already handled this transition, skip onEnded logic
+      if (crossfadeInProgressRef.current || crossfadeStartedForSongRef.current === currentSongIdRef.current) {
+        debugLog('🎚️', 'ENDED', `Skipping onEnded - crossfade handled transition`, {});
+        // Reset crossfade tracking for next song
+        crossfadeStartedForSongRef.current = null;
+        return;
+      }
+
       const state = useAudioStore.getState();
 
       debugLog('🔴', 'ENDED', `Song ended - attempting transition`, {
@@ -767,6 +908,11 @@ export function AudioPlayer() {
       if (stallRecoveryTimeout) {
         clearTimeout(stallRecoveryTimeout);
       }
+      // Clean up crossfade interval
+      if (crossfadeIntervalRef.current) {
+        clearInterval(crossfadeIntervalRef.current);
+        crossfadeIntervalRef.current = null;
+      }
       clearInterval(heartbeatInterval);
       audio.removeEventListener('timeupdate', updateTime);
       audio.removeEventListener('loadedmetadata', updateDuration);
@@ -780,6 +926,164 @@ export function AudioPlayer() {
       audio.removeEventListener('suspend', onSuspend);
     };
   }, [volume, currentSongIndex, setCurrentTime, setDuration, setIsPlaying, nextSong, currentSong]);
+
+  // Crossfade: Track timeupdate from deck B when it's the active deck
+  useEffect(() => {
+    const audio2 = audioRef2.current;
+    if (!audio2) return;
+
+    const updateTimeFromDeckB = () => {
+      // Only update state if deck B is active (after crossfade)
+      if (activeDeckRef.current === 'B') {
+        setCurrentTime(audio2.currentTime);
+
+        // Check crossfade trigger for next song (same logic as deck A)
+        const state = useAudioStore.getState();
+        const xfadeDuration = state.crossfadeDuration;
+        const xfadeEnabled = state.crossfadeEnabled && xfadeDuration > 0;
+
+        if (audio2.duration > 0) {
+          const timeRemaining = audio2.duration - audio2.currentTime;
+          const currentSongFromState = state.playlist[state.currentSongIndex];
+
+          if (xfadeEnabled &&
+              timeRemaining <= xfadeDuration &&
+              timeRemaining > 0.5 &&
+              !crossfadeInProgressRef.current &&
+              crossfadeStartedForSongRef.current !== currentSongFromState?.id) {
+
+            const nextIndex = (state.currentSongIndex + 1) % state.playlist.length;
+            const nextTrack = state.playlist[nextIndex];
+            const audio1 = audioRef.current; // Use deck A for the crossfade target
+
+            if (nextTrack && audio1 && state.playlist.length > 1) {
+              debugLog('🎚️', 'CROSSFADE', `Starting crossfade from deck B`, {
+                currentSong: currentSongFromState?.name || currentSongFromState?.title,
+                nextSong: nextTrack.name || nextTrack.title,
+                duration: xfadeDuration
+              });
+
+              crossfadeInProgressRef.current = true;
+              crossfadeStartedForSongRef.current = currentSongFromState?.id || null;
+
+              audio1.src = nextTrack.url;
+              audio1.volume = 0;
+              audio1.load();
+
+              const onAudio1CanPlay = () => {
+                audio1.removeEventListener('canplay', onAudio1CanPlay);
+
+                audio1.play().then(() => {
+                  const fadeSteps = 30;
+                  const fadeInterval = (xfadeDuration * 1000) / fadeSteps;
+                  let step = 0;
+
+                  crossfadeIntervalRef.current = setInterval(() => {
+                    step++;
+                    const progress = step / fadeSteps;
+                    const fadeOutGain = Math.cos(progress * Math.PI / 2);
+                    const fadeInGain = Math.sin(progress * Math.PI / 2);
+                    const userVolume = useAudioStore.getState().volume;
+
+                    audio2.volume = fadeOutGain * userVolume;
+                    audio1.volume = fadeInGain * userVolume;
+
+                    if (step >= fadeSteps) {
+                      if (crossfadeIntervalRef.current) {
+                        clearInterval(crossfadeIntervalRef.current);
+                        crossfadeIntervalRef.current = null;
+                      }
+
+                      audio2.pause();
+                      audio2.src = '';
+                      activeDeckRef.current = 'A';
+
+                      hasScrobbledRef.current = false;
+                      scrobbleThresholdReachedRef.current = false;
+                      currentSongIdRef.current = nextTrack.id;
+
+                      nextSong();
+                      crossfadeInProgressRef.current = false;
+                    }
+                  }, fadeInterval);
+                }).catch(() => {
+                  crossfadeInProgressRef.current = false;
+                  crossfadeStartedForSongRef.current = null;
+                });
+              };
+
+              audio1.addEventListener('canplay', onAudio1CanPlay, { once: true });
+            }
+          }
+        }
+      }
+    };
+
+    const updateDurationFromDeckB = () => {
+      if (activeDeckRef.current === 'B') {
+        setDuration(audio2.duration);
+      }
+    };
+
+    // Handle song end on deck B - transition to next song on deck A
+    const onDeckBEnded = () => {
+      if (activeDeckRef.current !== 'B') return;
+
+      // If crossfade already handled this, skip
+      if (crossfadeInProgressRef.current) {
+        debugLog('🎚️', 'DECK_B_ENDED', `Skipping - crossfade in progress`, {});
+        return;
+      }
+
+      debugLog('🎚️', 'DECK_B_ENDED', `Song ended on deck B, transitioning to deck A`, {});
+
+      const state = useAudioStore.getState();
+      const nextIndex = (state.currentSongIndex + 1) % state.playlist.length;
+      const nextTrack = state.playlist[nextIndex];
+      const audio1 = audioRef.current;
+
+      if (nextTrack && audio1 && state.playlist.length > 1) {
+        // Load next song into deck A
+        audio1.src = nextTrack.url;
+        audio1.volume = state.volume;
+
+        const onAudio1Ready = () => {
+          audio1.removeEventListener('canplay', onAudio1Ready);
+          audio1.play().then(() => {
+            debugLog('🎚️', 'DECK_B_ENDED', `Deck A playing next song`, {});
+            activeDeckRef.current = 'A';
+            audio2.src = '';
+
+            // Update duration
+            if (audio1.duration && isFinite(audio1.duration)) {
+              setDuration(audio1.duration);
+            }
+
+            // Update state
+            hasScrobbledRef.current = false;
+            scrobbleThresholdReachedRef.current = false;
+            currentSongIdRef.current = nextTrack.id;
+            nextSong();
+          }).catch((err) => {
+            debugLog('❌', 'DECK_B_ENDED', `Deck A play failed`, { error: err.message });
+          });
+        };
+
+        audio1.addEventListener('canplay', onAudio1Ready, { once: true });
+        audio1.load();
+      }
+    };
+
+    audio2.addEventListener('timeupdate', updateTimeFromDeckB);
+    audio2.addEventListener('loadedmetadata', updateDurationFromDeckB);
+    audio2.addEventListener('ended', onDeckBEnded);
+
+    return () => {
+      audio2.removeEventListener('timeupdate', updateTimeFromDeckB);
+      audio2.removeEventListener('loadedmetadata', updateDurationFromDeckB);
+      audio2.removeEventListener('ended', onDeckBEnded);
+    };
+  }, [setCurrentTime, setDuration, nextSong]);
 
   useEffect(() => {
     if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {

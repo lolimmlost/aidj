@@ -1,0 +1,5 @@
+/*
+  Permissions-Policy: autoplay=(self), camera=(), microphone=(), usb=()
+
+/api/navidrome/stream/*
+  Permissions-Policy: autoplay=(self), camera=(), microphone=(), usb=()
