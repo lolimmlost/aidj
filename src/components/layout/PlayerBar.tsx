@@ -466,75 +466,75 @@ export function PlayerBar() {
       console.log(`[XFADE] Inactive deck ready, starting playback and crossfade`);
 
       // Start playing the next song - CRITICAL: handle failure on mobile
+      // Only start the crossfade interval AFTER play() succeeds
       inactiveDeck.play()
         .then(() => {
-          console.log(`[XFADE] Inactive deck play() succeeded`);
+          console.log(`[XFADE] Inactive deck play() succeeded, starting crossfade interval`);
+
+          const fadeStartTime = Date.now();
+          crossfadeIntervalRef.current = setInterval(() => {
+            // Safety check: if inactive deck stopped playing mid-crossfade, abort
+            if (inactiveDeck.paused && crossfadeInProgressRef.current) {
+              abortCrossfade('inactive deck stopped playing');
+              return;
+            }
+
+            const elapsed = (Date.now() - fadeStartTime) / 1000;
+            const fadeProgress = Math.min(elapsed / xfadeDuration, 1);
+
+            // Equal power crossfade curves
+            const fadeOutVolume = Math.cos(fadeProgress * Math.PI / 2) * targetVolumeRef.current;
+            const fadeInVolume = Math.sin(fadeProgress * Math.PI / 2) * targetVolumeRef.current;
+
+            activeDeck.volume = Math.max(0, fadeOutVolume);
+            inactiveDeck.volume = Math.min(targetVolumeRef.current, fadeInVolume);
+
+            // Debug log every second
+            if (Math.floor(elapsed) !== Math.floor(elapsed - 0.05) && elapsed > 0.05) {
+              console.log(`[XFADE] Progress: ${Math.round(fadeProgress * 100)}%, active=${fadeOutVolume.toFixed(2)}, incoming=${fadeInVolume.toFixed(2)}`);
+        }
+
+            if (fadeProgress >= 1) {
+              // Crossfade complete
+              if (crossfadeIntervalRef.current) {
+                clearInterval(crossfadeIntervalRef.current);
+                crossfadeIntervalRef.current = null;
+              }
+
+              // Stop the old deck
+              activeDeck.pause();
+              activeDeck.currentTime = 0;
+
+              // Swap active deck
+              activeDeckRef.current = activeDeckRef.current === 'A' ? 'B' : 'A';
+              inactiveDeck.volume = targetVolumeRef.current;
+
+              console.log(`[XFADE] Crossfade complete, active deck is now ${activeDeckRef.current}`);
+
+              // Mark crossfade as just completed - this prevents the useEffect from reloading the song
+              crossfadeJustCompletedRef.current = true;
+
+              // Update the currentSongId to match the new song BEFORE calling nextSong
+              currentSongIdRef.current = nextSongData.id;
+
+              // Update store state
+              crossfadeInProgressRef.current = false;
+              nextSongPreloadedRef.current = false;
+
+              // Trigger nextSong in store to update the currentSongIndex
+              nextSong();
+
+              // Reset the "just completed" flag after a short delay
+              setTimeout(() => {
+                crossfadeJustCompletedRef.current = false;
+              }, 100);
+            }
+          }, 50);
         })
         .catch((err) => {
           console.error(`[XFADE] Inactive deck play() FAILED:`, err);
           abortCrossfade('play() failed - likely autoplay blocked');
-          return; // Don't start the crossfade interval
         });
-
-      const fadeStartTime = Date.now();
-      crossfadeIntervalRef.current = setInterval(() => {
-        // Safety check: if inactive deck isn't actually playing, abort
-        if (inactiveDeck.paused && crossfadeInProgressRef.current) {
-          abortCrossfade('inactive deck not playing');
-          return;
-        }
-
-        const elapsed = (Date.now() - fadeStartTime) / 1000;
-        const fadeProgress = Math.min(elapsed / xfadeDuration, 1);
-
-        // Equal power crossfade curves
-        const fadeOutVolume = Math.cos(fadeProgress * Math.PI / 2) * targetVolumeRef.current;
-        const fadeInVolume = Math.sin(fadeProgress * Math.PI / 2) * targetVolumeRef.current;
-
-        activeDeck.volume = Math.max(0, fadeOutVolume);
-        inactiveDeck.volume = Math.min(targetVolumeRef.current, fadeInVolume);
-
-        // Debug log every second
-        if (Math.floor(elapsed) !== Math.floor(elapsed - 0.05) && elapsed > 0.05) {
-          console.log(`[XFADE] Progress: ${Math.round(fadeProgress * 100)}%, active=${fadeOutVolume.toFixed(2)}, incoming=${fadeInVolume.toFixed(2)}`);
-        }
-
-        if (fadeProgress >= 1) {
-          // Crossfade complete
-          if (crossfadeIntervalRef.current) {
-            clearInterval(crossfadeIntervalRef.current);
-            crossfadeIntervalRef.current = null;
-          }
-
-          // Stop the old deck
-          activeDeck.pause();
-          activeDeck.currentTime = 0;
-
-          // Swap active deck
-          activeDeckRef.current = activeDeckRef.current === 'A' ? 'B' : 'A';
-          inactiveDeck.volume = targetVolumeRef.current;
-
-          console.log(`[XFADE] Crossfade complete, active deck is now ${activeDeckRef.current}`);
-
-          // Mark crossfade as just completed - this prevents the useEffect from reloading the song
-          crossfadeJustCompletedRef.current = true;
-
-          // Update the currentSongId to match the new song BEFORE calling nextSong
-          currentSongIdRef.current = nextSongData.id;
-
-          // Update store state
-          crossfadeInProgressRef.current = false;
-          nextSongPreloadedRef.current = false;
-
-          // Trigger nextSong in store to update the currentSongIndex
-          nextSong();
-
-          // Reset the "just completed" flag after a short delay
-          setTimeout(() => {
-            crossfadeJustCompletedRef.current = false;
-          }, 100);
-        }
-      }, 50);
     };
 
     inactiveDeck.addEventListener('canplaythrough', onCanPlayThrough);
