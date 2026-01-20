@@ -704,13 +704,15 @@ export function AudioPlayer() {
       // 🔍 PHASE 1: Song Transition Logging (CRITICAL - This is where iOS fails)
       // =============================================================================
 
-      // CROSSFADE: If crossfade already handled this transition, skip onEnded logic
-      if (crossfadeInProgressRef.current || crossfadeStartedForSongRef.current === currentSongIdRef.current) {
-        debugLog('🎚️', 'ENDED', `Skipping onEnded - crossfade handled transition`, {});
-        // Reset crossfade tracking for next song
-        crossfadeStartedForSongRef.current = null;
+      // CROSSFADE: Only skip if crossfade is actively running (interval exists)
+      if (crossfadeInProgressRef.current && crossfadeIntervalRef.current) {
+        debugLog('🎚️', 'ENDED', `Skipping onEnded - crossfade actively running`, {});
         return;
       }
+
+      // Reset crossfade tracking for safety
+      crossfadeStartedForSongRef.current = null;
+      crossfadeInProgressRef.current = false;
 
       const state = useAudioStore.getState();
 
