@@ -221,6 +221,7 @@ export function PlayerBar() {
   const crossfadeJustCompletedRef = useRef<boolean>(false); // Prevent reload after crossfade
   const nextSongPreloadedRef = useRef<boolean>(false);
   const targetVolumeRef = useRef<number>(1);
+  const decksPrimedRef = useRef<boolean>(false); // Track if both decks have been user-activated for mobile
 
   // Helper to get active and inactive decks
   const getActiveDeck = useCallback(() => {
@@ -356,6 +357,37 @@ export function PlayerBar() {
         audio.pause();
       } else {
         setIsLoading(true);
+
+        // MOBILE FIX: Prime both decks on first user interaction
+        // This gives both audio elements the "user activated" flag needed for crossfade
+        if (!decksPrimedRef.current) {
+          const inactiveDeck = getInactiveDeck();
+          if (inactiveDeck) {
+            console.log('[MOBILE] Priming both decks for crossfade support');
+            // Create a silent audio context moment to "activate" the inactive deck
+            // We play and immediately pause with volume 0
+            const originalVolume = inactiveDeck.volume;
+            inactiveDeck.volume = 0;
+            // Use a data URL for a tiny silent audio to prime the element
+            const originalSrc = inactiveDeck.src;
+            // Silent MP3 (smallest valid MP3)
+            inactiveDeck.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAgAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbD/////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+M4xAANCAJYAUAAAP/jOMQADQW+XgFJAAD/4zjEAA5QGneBSRgA/+M4xAAOAAJYAUEAAA==';
+            inactiveDeck.play()
+              .then(() => {
+                inactiveDeck.pause();
+                inactiveDeck.src = originalSrc || '';
+                inactiveDeck.volume = originalVolume;
+                decksPrimedRef.current = true;
+                console.log('[MOBILE] Inactive deck primed successfully');
+              })
+              .catch((e) => {
+                console.log('[MOBILE] Could not prime inactive deck:', e);
+                inactiveDeck.src = originalSrc || '';
+                inactiveDeck.volume = originalVolume;
+              });
+          }
+        }
+
         audio.play().catch((e) => {
           setIsLoading(false);
           console.error('Play failed:', e);
@@ -363,7 +395,7 @@ export function PlayerBar() {
       }
       setIsPlaying(!isPlaying);
     }
-  }, [isPlaying, setIsPlaying, getActiveDeck]);
+  }, [isPlaying, setIsPlaying, getActiveDeck, getInactiveDeck]);
 
   const seek = useCallback((time: number) => {
     const audio = getActiveDeck();
