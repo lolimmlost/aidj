@@ -1,5 +1,6 @@
 // AI DJ Settings Panel
 // Story 3.9: AI DJ Toggle Mode
+// Updated for profile-based drip-feed recommendations
 
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
@@ -7,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { usePreferencesStore } from '@/lib/stores/preferences';
 import { useAudioStore } from '@/lib/stores/audio';
 import { toast } from 'sonner';
@@ -14,6 +16,12 @@ import { toast } from 'sonner';
 export function AIDJSettings() {
   const { preferences, setRecommendationSettings } = usePreferencesStore();
 
+  // Primary setting: Drip-feed interval
+  const [dripInterval, setDripInterval] = useState(
+    preferences.recommendationSettings.aiDJDripInterval ?? 3
+  );
+
+  // Legacy settings (moved to advanced)
   const [threshold, setThreshold] = useState(
     preferences.recommendationSettings.aiDJQueueThreshold
   );
@@ -23,12 +31,16 @@ export function AIDJSettings() {
   const [useContext, setUseContext] = useState(
     preferences.recommendationSettings.aiDJUseCurrentContext
   );
+
+  // DJ Matching settings
   const [djMatchingEnabled, setDjMatchingEnabled] = useState(
     preferences.recommendationSettings.djMatchingEnabled ?? true
   );
   const [bpmAnalysisEnabled, setBpmAnalysisEnabled] = useState(
     preferences.recommendationSettings.bpmAnalysisEnabled ?? false
   );
+
+  // Queue Seeding settings
   const [seedQueueEnabled, setSeedQueueEnabled] = useState(
     preferences.recommendationSettings.aiDJSeedQueueEnabled ?? false
   );
@@ -36,10 +48,13 @@ export function AIDJSettings() {
     preferences.recommendationSettings.aiDJSeedDensity ?? 2
   );
 
+  // UI state
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   // Sync with preferences changes
   useEffect(() => {
-    // Use setTimeout to avoid cascading renders
     const timeoutId = setTimeout(() => {
+      setDripInterval(preferences.recommendationSettings.aiDJDripInterval ?? 3);
       setThreshold(preferences.recommendationSettings.aiDJQueueThreshold);
       setBatchSize(preferences.recommendationSettings.aiDJBatchSize);
       setUseContext(preferences.recommendationSettings.aiDJUseCurrentContext);
@@ -52,6 +67,18 @@ export function AIDJSettings() {
     return () => clearTimeout(timeoutId);
   }, [preferences.recommendationSettings]);
 
+  // Handle drip interval change
+  const handleDripIntervalChange = async (value: number) => {
+    setDripInterval(value);
+    try {
+      await setRecommendationSettings({ aiDJDripInterval: value });
+    } catch (error) {
+      console.error('Failed to update drip interval:', error);
+      toast.error('Failed to update recommendation frequency');
+      setDripInterval(preferences.recommendationSettings.aiDJDripInterval ?? 3);
+    }
+  };
+
   // Handle threshold change with immediate save
   const handleThresholdChange = async (value: number) => {
     setThreshold(value);
@@ -60,7 +87,6 @@ export function AIDJSettings() {
     } catch (error) {
       console.error('Failed to update threshold:', error);
       toast.error('Failed to update queue threshold');
-      // Revert on error
       setThreshold(preferences.recommendationSettings.aiDJQueueThreshold);
     }
   };
@@ -73,7 +99,6 @@ export function AIDJSettings() {
     } catch (error) {
       console.error('Failed to update batch size:', error);
       toast.error('Failed to update batch size');
-      // Revert on error
       setBatchSize(preferences.recommendationSettings.aiDJBatchSize);
     }
   };
@@ -86,7 +111,6 @@ export function AIDJSettings() {
     } catch (error) {
       console.error('Failed to update context setting:', error);
       toast.error('Failed to update context setting');
-      // Revert on error
       setUseContext(preferences.recommendationSettings.aiDJUseCurrentContext);
     }
   };
@@ -163,55 +187,29 @@ export function AIDJSettings() {
       )}
 
       <div className="space-y-6">
-        {/* Queue Threshold Slider */}
+        {/* Primary Setting: Recommendation Frequency (Drip-feed) */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <Label htmlFor="ai-dj-threshold" className="text-sm font-medium">
-              Queue Threshold
+            <Label htmlFor="ai-dj-drip" className="text-sm font-medium">
+              Recommendation Frequency
             </Label>
             <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
-              {threshold} {threshold === 1 ? 'song' : 'songs'}
+              Every {dripInterval} songs
             </span>
           </div>
           <Slider
-            id="ai-dj-threshold"
-            min={1}
+            id="ai-dj-drip"
+            min={2}
             max={5}
             step={1}
-            value={[threshold]}
-            onValueChange={(value) => handleThresholdChange(value[0])}
+            value={[dripInterval]}
+            onValueChange={(value) => handleDripIntervalChange(value[0])}
             className="cursor-pointer"
             disabled={isAIDJDisabled}
-            aria-label="Queue threshold"
+            aria-label="Recommendation frequency"
           />
           <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
-            Add more songs when queue has {threshold} {threshold === 1 ? 'song' : 'songs'} left
-          </p>
-        </div>
-
-        {/* Batch Size Slider */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <Label htmlFor="ai-dj-batch" className="text-sm font-medium">
-              Batch Size
-            </Label>
-            <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
-              {batchSize} {batchSize === 1 ? 'song' : 'songs'}
-            </span>
-          </div>
-          <Slider
-            id="ai-dj-batch"
-            min={1}
-            max={10}
-            step={1}
-            value={[batchSize]}
-            onValueChange={(value) => handleBatchSizeChange(value[0])}
-            className="cursor-pointer"
-            disabled={isAIDJDisabled}
-            aria-label="Batch size"
-          />
-          <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
-            Add {batchSize} {batchSize === 1 ? 'song' : 'songs'} at a time
+            Add 1 AI recommendation every {dripInterval} songs you play
           </p>
         </div>
 
@@ -222,7 +220,7 @@ export function AIDJSettings() {
               Use Current Context
             </Label>
             <p className="text-xs text-gray-600 dark:text-gray-400">
-              Base recommendations on currently playing song and recent queue
+              Base recommendations on currently playing song
             </p>
           </div>
           <Switch
@@ -250,7 +248,7 @@ export function AIDJSettings() {
                 BPM/Energy/Key Matching
               </Label>
               <p className="text-xs text-gray-600 dark:text-gray-400">
-                Score recommendations by tempo, energy level, and musical key for smoother transitions
+                Score recommendations by tempo and musical key for smoother transitions
               </p>
             </div>
             <Switch
@@ -269,11 +267,11 @@ export function AIDJSettings() {
                 Auto BPM Analysis
               </Label>
               <p className="text-xs text-gray-600 dark:text-gray-400">
-                Automatically detect BPM during playback using audio analysis
+                Detect BPM during playback using audio analysis
               </p>
               {bpmAnalysisEnabled && (
                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                  ⚡ May use extra CPU during playback
+                  May use extra CPU during playback
                 </p>
               )}
             </div>
@@ -303,7 +301,7 @@ export function AIDJSettings() {
                 Seed Recommendations Throughout Queue
               </Label>
               <p className="text-xs text-gray-600 dark:text-gray-400">
-                Inject AI recommendations throughout your existing queue immediately, not just at the end
+                Inject AI picks throughout your queue, not just at the end
               </p>
             </div>
             <Switch
@@ -338,7 +336,7 @@ export function AIDJSettings() {
                 aria-label="Seed density"
               />
               <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
-                Insert {seedDensity} AI recommendation{seedDensity > 1 ? 's' : ''} for every 10 songs in your queue
+                Insert {seedDensity} AI recommendation{seedDensity > 1 ? 's' : ''} for every 10 songs
               </p>
             </div>
           )}
@@ -349,7 +347,7 @@ export function AIDJSettings() {
             size="sm"
             onClick={() => {
               const audioStore = useAudioStore.getState();
-              if (audioStore.queue.length === 0) {
+              if (audioStore.playlist.length === 0) {
                 toast.error('Add some songs to your queue first');
                 return;
               }
@@ -363,21 +361,94 @@ export function AIDJSettings() {
           </Button>
         </div>
 
+        {/* Advanced Settings (Collapsible) */}
+        <div className="pt-4 border-t border-purple-200 dark:border-purple-700">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="flex items-center justify-between w-full text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+          >
+            <span>Advanced Settings</span>
+            {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+
+          {showAdvanced && (
+            <div className="mt-4 space-y-4 pl-2 border-l-2 border-purple-200 dark:border-purple-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+                These settings control fallback behavior when queue runs low
+              </p>
+
+              {/* Queue Threshold Slider */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label htmlFor="ai-dj-threshold" className="text-sm font-medium">
+                    Queue Threshold (Fallback)
+                  </Label>
+                  <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
+                    {threshold} {threshold === 1 ? 'song' : 'songs'}
+                  </span>
+                </div>
+                <Slider
+                  id="ai-dj-threshold"
+                  min={1}
+                  max={5}
+                  step={1}
+                  value={[threshold]}
+                  onValueChange={(value) => handleThresholdChange(value[0])}
+                  className="cursor-pointer"
+                  disabled={isAIDJDisabled}
+                  aria-label="Queue threshold"
+                />
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+                  Add batch when queue has {threshold} {threshold === 1 ? 'song' : 'songs'} left
+                </p>
+              </div>
+
+              {/* Batch Size Slider */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label htmlFor="ai-dj-batch" className="text-sm font-medium">
+                    Batch Size (Fallback)
+                  </Label>
+                  <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
+                    {batchSize} {batchSize === 1 ? 'song' : 'songs'}
+                  </span>
+                </div>
+                <Slider
+                  id="ai-dj-batch"
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={[batchSize]}
+                  onValueChange={(value) => handleBatchSizeChange(value[0])}
+                  className="cursor-pointer"
+                  disabled={isAIDJDisabled}
+                  aria-label="Batch size"
+                />
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+                  Add {batchSize} {batchSize === 1 ? 'song' : 'songs'} at a time when queue is low
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Preview Summary */}
         <div className="mt-6 p-4 rounded-lg bg-white/50 dark:bg-black/20 border border-purple-200 dark:border-purple-800">
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Preview:
+            How it works:
           </p>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            AI DJ will add <span className="font-semibold text-purple-600 dark:text-purple-400">{batchSize} {batchSize === 1 ? 'song' : 'songs'}</span>{' '}
-            when <span className="font-semibold text-purple-600 dark:text-purple-400">{threshold} {threshold === 1 ? 'song remains' : 'songs remain'}</span> in your queue
-            {useContext ? ', based on what you\'re currently listening to' : ''}.
+            AI DJ adds <span className="font-semibold text-purple-600 dark:text-purple-400">1 song</span> every{' '}
+            <span className="font-semibold text-purple-600 dark:text-purple-400">{dripInterval} songs</span> you play
+            {useContext ? ', based on what you\'re listening to' : ''}.
+            {threshold <= 2 && ` If queue runs low, adds ${batchSize} songs at once.`}
           </p>
         </div>
 
         {/* Note about saving */}
         <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-          Note: Changes are saved automatically when you adjust the settings above.
+          Changes are saved automatically.
         </p>
       </div>
     </Card>
@@ -387,6 +458,10 @@ export function AIDJSettings() {
 // Hook version for inline use in settings pages
 export function useAIDJSettingsSync() {
   const { preferences, setRecommendationSettings } = usePreferencesStore();
+
+  const updateDripInterval = async (interval: number) => {
+    await setRecommendationSettings({ aiDJDripInterval: interval });
+  };
 
   const updateThreshold = async (threshold: number) => {
     await setRecommendationSettings({ aiDJQueueThreshold: threshold });
@@ -401,9 +476,11 @@ export function useAIDJSettingsSync() {
   };
 
   return {
+    dripInterval: preferences.recommendationSettings.aiDJDripInterval ?? 3,
     threshold: preferences.recommendationSettings.aiDJQueueThreshold,
     batchSize: preferences.recommendationSettings.aiDJBatchSize,
     useContext: preferences.recommendationSettings.aiDJUseCurrentContext,
+    updateDripInterval,
     updateThreshold,
     updateBatchSize,
     updateUseContext,

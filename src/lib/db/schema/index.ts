@@ -12,3 +12,4 @@ export * from "./playlist-export.schema";
 export * from "./music-identity.schema";
 export * from "./lyrics-cache.schema";
 export * from "./background-discovery.schema";
+export * from "./profile.schema";

@@ -406,6 +406,88 @@ export async function applyCompoundScoreBoost(
 }
 
 // ============================================================================
+// Full Profile Calculation
+// ============================================================================
+
+/**
+ * Calculate complete user profile for AI DJ recommendations
+ *
+ * This is the main entry point for profile updates.
+ * It orchestrates all profile-related calculations:
+ * 1. Sync liked songs to feedback table
+ * 2. Calculate compound scores from listening history
+ * 3. Calculate artist affinities
+ * 4. Calculate temporal preferences
+ *
+ * Should be called:
+ * - On app startup (if profile data is stale)
+ * - After significant listening activity (10+ plays)
+ * - Via API endpoint (for manual refresh)
+ *
+ * @param userId - The user's ID
+ * @param daysBack - Number of days to look back (default: 14)
+ */
+export async function calculateFullUserProfile(
+  userId: string,
+  daysBack: number = LOOKBACK_DAYS
+): Promise<{
+  compoundScores: number;
+  artistAffinities: number;
+  temporalPreferences: number;
+  likedSongsSync: { synced: number; unstarred: number };
+}> {
+  console.log(`👤 [Profile] Starting full profile calculation for user ${userId}`);
+  const startTime = Date.now();
+
+  // Dynamically import to avoid circular dependencies
+  const { syncLikedSongsToFeedback } = await import('./liked-songs-sync');
+  const { calculateArtistAffinities, calculateTemporalPreferences } = await import('./artist-affinity');
+
+  // Step 1: Sync liked songs to feedback table
+  console.log(`👤 [Profile] Step 1/4: Syncing liked songs...`);
+  let likedResult = { synced: 0, unstarred: 0 };
+  try {
+    const syncResult = await syncLikedSongsToFeedback(userId);
+    likedResult = { synced: syncResult.synced, unstarred: syncResult.unstarred };
+  } catch (error) {
+    console.error(`👤 [Profile] Failed to sync liked songs:`, error);
+    // Continue with other steps even if this fails
+  }
+
+  // Step 2: Calculate compound scores from listening history
+  console.log(`👤 [Profile] Step 2/4: Calculating compound scores...`);
+  const compoundCount = await calculateCompoundScores(userId, daysBack);
+
+  // Step 3: Calculate artist affinities
+  console.log(`👤 [Profile] Step 3/4: Calculating artist affinities...`);
+  let artistCount = 0;
+  try {
+    artistCount = await calculateArtistAffinities(userId, daysBack * 6); // 90 days for artist affinity
+  } catch (error) {
+    console.error(`👤 [Profile] Failed to calculate artist affinities:`, error);
+  }
+
+  // Step 4: Calculate temporal preferences
+  console.log(`👤 [Profile] Step 4/4: Calculating temporal preferences...`);
+  let temporalCount = 0;
+  try {
+    temporalCount = await calculateTemporalPreferences(userId, daysBack * 6); // 90 days for temporal prefs
+  } catch (error) {
+    console.error(`👤 [Profile] Failed to calculate temporal preferences:`, error);
+  }
+
+  const elapsed = Date.now() - startTime;
+  console.log(`👤 [Profile] Complete in ${elapsed}ms: ${compoundCount} compound scores, ${artistCount} artist affinities, ${temporalCount} temporal prefs, ${likedResult.synced} liked songs synced`);
+
+  return {
+    compoundScores: compoundCount,
+    artistAffinities: artistCount,
+    temporalPreferences: temporalCount,
+    likedSongsSync: likedResult,
+  };
+}
+
+// ============================================================================
 // Exports for Testing
 // ============================================================================
 

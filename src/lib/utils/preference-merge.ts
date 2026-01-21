@@ -55,6 +55,8 @@ export const DEFAULT_RECOMMENDATION_SETTINGS: RecommendationSettings = {
   // Queue Seeding defaults
   aiDJSeedQueueEnabled: false, // Disabled by default - user opt-in
   aiDJSeedDensity: 2, // 2 recommendations per 10 songs
+  // Drip-feed model
+  aiDJDripInterval: 3, // Add 1 recommendation every 3 songs (default)
   // Playlist Autoplay Queueing with Smart Transitions
   autoplayEnabled: false,
   autoplayBlendMode: 'crossfade',

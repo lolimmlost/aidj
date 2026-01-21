@@ -38,6 +38,8 @@ export interface RecommendationSettings {
   // Queue Seeding - inject recommendations throughout queue immediately
   aiDJSeedQueueEnabled?: boolean; // Seed recommendations throughout queue when AI DJ is enabled
   aiDJSeedDensity?: number; // How many recommendations per 10 songs (1-5, default: 2)
+  // Drip-feed model: add 1 recommendation every N songs (2-5, default: 3)
+  aiDJDripInterval?: number;
   // Playlist Autoplay Queueing with Smart Transitions
   autoplayEnabled: boolean; // Master toggle for autoplay when playlist ends
   autoplayBlendMode: 'crossfade' | 'silence' | 'reverb_tail'; // Transition effect between songs

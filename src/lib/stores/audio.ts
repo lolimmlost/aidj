@@ -217,6 +217,8 @@ interface AudioState {
   aiDJArtistFatigueCooldowns: Map<string, number>;
   // Flag to prevent auto-refresh during user actions
   aiDJUserActionInProgress: boolean;
+  // Drip-feed recommendation model: add 1 rec every N songs played
+  songsPlayedSinceLastRec: number;
   // Crossfade settings
   crossfadeEnabled: boolean;
   crossfadeDuration: number;
@@ -304,6 +306,8 @@ export const useAudioStore = create<AudioState>()(
     aiDJArtistBatchCounts: new Map<string, {count: number; lastQueued: number}>(),
     aiDJArtistFatigueCooldowns: new Map<string, number>(),
     aiDJUserActionInProgress: false,
+    // Drip-feed recommendation model
+    songsPlayedSinceLastRec: 0,
     // Crossfade initial state (default 0 = opt-in, user sets via Settings > Playback)
     crossfadeEnabled: true,
     crossfadeDuration: 0,
@@ -444,7 +448,14 @@ export const useAudioStore = create<AudioState>()(
       }
 
       const newIndex = (state.currentSongIndex + 1) % state.playlist.length;
-      set({ currentSongIndex: newIndex });
+
+      // Drip-feed model: increment songs played counter when AI DJ is enabled
+      const newSongsPlayed = state.aiDJEnabled ? state.songsPlayedSinceLastRec + 1 : state.songsPlayedSinceLastRec;
+
+      set({
+        currentSongIndex: newIndex,
+        songsPlayedSinceLastRec: newSongsPlayed,
+      });
 
       // Trigger AI DJ monitoring when song changes (but not on initial load or manual skips)
       if (state.aiDJEnabled && state.currentSongIndex > 0) {
@@ -812,28 +823,37 @@ export const useAudioStore = create<AudioState>()(
         return;
       }
 
-      // Check queue threshold - provide fallback if undefined
+      // Drip-feed model: add 1 recommendation every N songs played
+      // Get interval from preferences (fallback to 3 if not set)
+      const dripInterval = recommendationSettings.aiDJDripInterval ?? 3;
+
+      // Check if we've played enough songs to add a recommendation
+      // Also check if queue is nearly empty (fallback to old threshold behavior)
       const threshold = recommendationSettings.aiDJQueueThreshold ?? 2;
-      const needsRefill = checkQueueThreshold(
+      const needsRefillByThreshold = checkQueueThreshold(
         state.currentSongIndex,
         state.playlist.length,
         threshold
       );
+      const needsRefillByDrip = state.songsPlayedSinceLastRec >= dripInterval;
 
-      if (!needsRefill) {
-        // Removed console.log to prevent visual flashing during state changes
+      if (!needsRefillByThreshold && !needsRefillByDrip) {
+        // Neither drip interval reached nor queue low
         return;
       }
 
-      // Check cooldown
-      if (!checkCooldown(state.aiDJLastQueueTime)) {
-        const remaining = Math.ceil((30000 - (Date.now() - state.aiDJLastQueueTime)) / 1000);
+      // Check cooldown (reduced from 30s to 10s for drip-feed model)
+      if (!checkCooldown(state.aiDJLastQueueTime, 10000)) {
+        const remaining = Math.ceil((10000 - (Date.now() - state.aiDJLastQueueTime)) / 1000);
         console.log(`🎵 AI DJ: Cooldown active, ${remaining}s remaining`);
         return;
       }
 
+      // Determine if this is a drip-feed trigger or threshold trigger
+      const isDripTrigger = needsRefillByDrip && !needsRefillByThreshold;
+
       // All checks passed, fetch recommendations
-      console.log('🎵 AI DJ: Queue needs refill, fetching recommendations...');
+      console.log(`🎵 AI DJ: ${isDripTrigger ? 'Drip interval reached' : 'Queue needs refill'}, fetching recommendation...`);
       set({ aiDJIsLoading: true, aiDJError: null });
 
       try {
@@ -906,6 +926,9 @@ export const useAudioStore = create<AudioState>()(
           ...fatigueExcludedArtists
         ]));
 
+        // Drip-feed model: request 1 song for drip triggers, batch size for threshold triggers
+        const requestBatchSize = isDripTrigger ? 1 : (recommendationSettings.aiDJBatchSize ?? 3);
+
         // Call API endpoint to generate recommendations (server-side only)
         const response = await fetch('/api/ai-dj/recommendations', {
           method: 'POST',
@@ -918,16 +941,18 @@ export const useAudioStore = create<AudioState>()(
             recentQueue,
             fullPlaylist: state.playlist,
             currentSongIndex: state.currentSongIndex,
-            batchSize: recommendationSettings.aiDJBatchSize,
+            batchSize: requestBatchSize,
             useFeedbackForPersonalization: recommendationSettings.useFeedbackForPersonalization,
             excludeSongIds: allExclusions,
             excludeArtists: allExcludedArtists, // Phase 4.1: Include fatigue-excluded artists
             artistBatchCounts, // Phase 1.2: Pass artist counts for cross-batch diversity
             genreExploration: recommendationSettings.aiDJGenreExploration ?? 50, // Phase 4.2: Genre exploration level
-            skipAutoRefresh: true, // Add flag to prevent auto-refresh loops
+            skipAutoRefresh: isDripTrigger, // Silent for drip-feed, show toast for threshold
             // DJ matching settings for BPM/energy/key scoring
             djMatchingEnabled: recommendationSettings.djMatchingEnabled ?? true,
             djMatchingMinScore: recommendationSettings.djMatchingMinScore ?? 0.5,
+            // Use profile-based recommendations for drip-feed
+            useProfileBased: isDripTrigger,
           }),
         });
 
@@ -1041,6 +1066,7 @@ export const useAudioStore = create<AudioState>()(
           aiDJArtistFatigueCooldowns: newFatigueCooldowns, // Phase 4.1: Track artist fatigue
           aiDJIsLoading: false,
           aiDJError: null,
+          songsPlayedSinceLastRec: 0, // Reset drip-feed counter after adding recommendations
         });
 
         // Only show toast if this wasn't an auto-refresh that should be silent
@@ -1671,6 +1697,7 @@ export const useAudioStore = create<AudioState>()(
         state.aiDJIsLoading = false;
         state.aiDJError = null;
         state.aiDJUserActionInProgress = false;
+        state.songsPlayedSinceLastRec = 0; // Reset drip-feed counter
         // Reinitialize Set (can't be serialized in JSON)
         state.aiQueuedSongIds = new Set<string>();
         // Reset autoplay transient state
