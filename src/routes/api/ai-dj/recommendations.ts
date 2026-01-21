@@ -125,7 +125,20 @@ export async function POST({ request }: { request: Request }) {
       const userId = session?.user?.id;
 
       const body = await request.json();
-      const { currentSong, recentQueue, fullPlaylist, batchSize, excludeSongIds, excludeArtists, artistBatchCounts, genreExploration, skipAutoRefresh } = body as {
+      const {
+        currentSong,
+        recentQueue,
+        fullPlaylist,
+        batchSize,
+        excludeSongIds,
+        excludeArtists,
+        artistBatchCounts,
+        genreExploration,
+        skipAutoRefresh,
+        // DJ matching settings
+        djMatchingEnabled,
+        djMatchingMinScore,
+      } = body as {
         currentSong: Song;
         recentQueue?: Song[];
         fullPlaylist?: Song[];
@@ -137,6 +150,9 @@ export async function POST({ request }: { request: Request }) {
         artistBatchCounts?: Record<string, number>; // Phase 1.2: Artist counts for cross-batch diversity
         genreExploration?: number; // Phase 4.2: Genre exploration level 0-100
         skipAutoRefresh?: boolean;
+        // DJ matching settings (BPM/energy/key)
+        djMatchingEnabled?: boolean;
+        djMatchingMinScore?: number;
       };
 
       if (!currentSong) {
@@ -184,12 +200,24 @@ export async function POST({ request }: { request: Request }) {
           artist: currentSong.artist,
           title: currentSong.title || currentSong.name,
           genre: currentSong.genre || queueContext.genres[0], // Pass genre for fallback
+          // DJ metadata for matching (passed from client if available)
+          bpm: currentSong.bpm,
+          key: currentSong.key,
+          energy: currentSong.energy,
         },
         limit: batchSize || 3,
         excludeSongIds: excludeSongIds || [],
         excludeArtists: excludeArtists || [],
         queueContext, // Pass queue context for smarter fallback (includes artistBatchCounts)
         userId, // Phase 3.3: Pass userId for skip-based scoring
+        // DJ matching settings for BPM/energy/key scoring
+        djMatching: djMatchingEnabled ? {
+          enabled: true,
+          currentBpm: currentSong.bpm,
+          currentKey: currentSong.key,
+          currentEnergy: currentSong.energy,
+          minDJScore: djMatchingMinScore ?? 0.5,
+        } : undefined,
       });
 
       console.log(`✅ AI DJ: Got ${result.songs.length} recommendations from ${result.source}`);

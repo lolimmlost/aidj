@@ -267,6 +267,8 @@ interface AudioState {
   setAIUserActionInProgress: (inProgress: boolean) => void;
   // Nudge mode - "more like this" for current song (Story 3.9 enhancement)
   nudgeMoreLikeThis: () => Promise<void>;
+  // Queue seeding - inject recommendations throughout existing queue
+  seedQueueWithRecommendations: () => Promise<void>;
   // Crossfade actions
   setCrossfadeEnabled: (enabled: boolean) => void;
   setCrossfadeDuration: (duration: number) => void;
@@ -753,9 +755,21 @@ export const useAudioStore = create<AudioState>()(
           console.error('Failed to sync AI DJ setting to preferences:', error);
         });
 
-      // If enabled, trigger monitoring
+      // If enabled, trigger monitoring and potentially seeding
       if (enabled) {
         const state = get();
+
+        // Check if queue seeding is enabled
+        const { recommendationSettings } = usePreferencesStore.getState().preferences;
+        if (recommendationSettings.aiDJSeedQueueEnabled) {
+          // Seed the queue with recommendations throughout
+          console.log('🌱 AI DJ enabled with seeding - seeding queue');
+          state.seedQueueWithRecommendations().catch(error => {
+            console.error('Queue seeding error:', error);
+          });
+        }
+
+        // Also run normal monitoring
         state.monitorQueueForAIDJ().catch(error => {
           console.error('AI DJ monitoring error:', error);
         });
@@ -911,6 +925,9 @@ export const useAudioStore = create<AudioState>()(
             artistBatchCounts, // Phase 1.2: Pass artist counts for cross-batch diversity
             genreExploration: recommendationSettings.aiDJGenreExploration ?? 50, // Phase 4.2: Genre exploration level
             skipAutoRefresh: true, // Add flag to prevent auto-refresh loops
+            // DJ matching settings for BPM/energy/key scoring
+            djMatchingEnabled: recommendationSettings.djMatchingEnabled ?? true,
+            djMatchingMinScore: recommendationSettings.djMatchingMinScore ?? 0.5,
           }),
         });
 
@@ -1135,6 +1152,9 @@ export const useAudioStore = create<AudioState>()(
             batchSize,
             excludeSongIds: allExclusions,
             skipAutoRefresh: true, // User-initiated, show toast
+            // DJ matching settings for BPM/energy/key scoring
+            djMatchingEnabled: recommendationSettings.djMatchingEnabled ?? true,
+            djMatchingMinScore: recommendationSettings.djMatchingMinScore ?? 0.5,
           }),
         });
 
@@ -1231,6 +1251,169 @@ export const useAudioStore = create<AudioState>()(
         console.error('🎵 Nudge Error:', errorMessage);
         set({ aiDJIsLoading: false, aiDJError: errorMessage });
         toast.error('Nudge failed', { description: errorMessage });
+      }
+    },
+
+    /**
+     * Seed Queue with Recommendations
+     *
+     * Injects AI recommendations throughout the existing queue immediately.
+     * Uses seed density setting to determine how many recommendations to add.
+     * Applies DJ matching to find optimal insertion points.
+     */
+    seedQueueWithRecommendations: async () => {
+      const state = get();
+
+      if (state.aiDJIsLoading) {
+        console.log('🌱 Seed Queue: Already loading, skipping');
+        return;
+      }
+
+      const { recommendationSettings } = usePreferencesStore.getState().preferences;
+
+      // Check if seeding is enabled
+      if (!recommendationSettings.aiDJSeedQueueEnabled) {
+        console.log('🌱 Seed Queue: Seeding disabled, skipping');
+        return;
+      }
+
+      // Need at least a few songs in queue to seed
+      const upcomingStart = state.currentSongIndex + 1;
+      const upcomingSongs = state.playlist.slice(upcomingStart);
+
+      if (upcomingSongs.length < 3) {
+        console.log('🌱 Seed Queue: Not enough songs in queue to seed');
+        toast.info('Queue too short', { description: 'Add more songs to enable queue seeding' });
+        return;
+      }
+
+      console.log(`🌱 Seed Queue: Starting to seed ${upcomingSongs.length} upcoming songs`);
+      set({ aiDJIsLoading: true, aiDJError: null });
+
+      try {
+        const density = recommendationSettings.aiDJSeedDensity ?? 2;
+        const songsPerRecommendation = Math.floor(10 / density); // e.g., density 2 = every 5 songs
+
+        // Collect seed points - songs we'll base recommendations on
+        const seedPoints: { song: Song; insertAfterIndex: number }[] = [];
+
+        for (let i = 0; i < upcomingSongs.length; i += songsPerRecommendation) {
+          const song = upcomingSongs[i];
+          if (song && !state.aiQueuedSongIds.has(song.id)) {
+            seedPoints.push({
+              song,
+              insertAfterIndex: upcomingStart + i,
+            });
+          }
+        }
+
+        if (seedPoints.length === 0) {
+          console.log('🌱 Seed Queue: No valid seed points found');
+          set({ aiDJIsLoading: false });
+          return;
+        }
+
+        console.log(`🌱 Seed Queue: Found ${seedPoints.length} seed points`);
+
+        // Get exclusions
+        const recentlyPlayed = state.playlist.slice(
+          Math.max(0, state.currentSongIndex - 10),
+          state.currentSongIndex + upcomingSongs.length
+        ).map(s => s.id);
+
+        const recentlyRecommended = state.aiDJRecentlyRecommended
+          .filter(rec => Date.now() - rec.timestamp < 7200000)
+          .map(rec => rec.songId);
+
+        const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed])];
+
+        // Fetch one recommendation per seed point
+        const allRecommendations: { song: Song; insertAfterIndex: number }[] = [];
+
+        for (const seedPoint of seedPoints) {
+          try {
+            const response = await fetch('/api/ai-dj/recommendations', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                currentSong: seedPoint.song,
+                batchSize: 1, // One recommendation per seed
+                excludeSongIds: [...allExclusions, ...allRecommendations.map(r => r.song.id)],
+                skipAutoRefresh: true,
+                djMatchingEnabled: recommendationSettings.djMatchingEnabled ?? true,
+                djMatchingMinScore: recommendationSettings.djMatchingMinScore ?? 0.5,
+              }),
+            });
+
+            if (response.ok) {
+              const { recommendations } = await response.json();
+              if (recommendations && recommendations.length > 0) {
+                allRecommendations.push({
+                  song: recommendations[0],
+                  insertAfterIndex: seedPoint.insertAfterIndex,
+                });
+              }
+            }
+          } catch (error) {
+            console.warn(`🌱 Seed Queue: Failed to get recommendation for "${seedPoint.song.title}":`, error);
+          }
+        }
+
+        if (allRecommendations.length === 0) {
+          console.log('🌱 Seed Queue: No recommendations found');
+          set({ aiDJIsLoading: false });
+          toast.info('No recommendations found', { description: 'Try adding different songs to your queue' });
+          return;
+        }
+
+        // Sort by insert index descending so we can insert without shifting issues
+        allRecommendations.sort((a, b) => b.insertAfterIndex - a.insertAfterIndex);
+
+        // Build new playlist with recommendations inserted
+        let newPlaylist = [...state.playlist];
+        const newQueuedIds = new Set(state.aiQueuedSongIds);
+        const now = Date.now();
+        const newRecentlyRecommended = [...state.aiDJRecentlyRecommended];
+
+        for (const rec of allRecommendations) {
+          // Account for previous insertions
+          const adjustedIndex = rec.insertAfterIndex + 1;
+          newPlaylist.splice(adjustedIndex, 0, rec.song);
+          newQueuedIds.add(rec.song.id);
+          newRecentlyRecommended.push({
+            songId: rec.song.id,
+            timestamp: now,
+            artist: rec.song.artist,
+          });
+        }
+
+        // Update original playlist if shuffled
+        let newOriginalPlaylist = state.originalPlaylist;
+        if (state.isShuffled && state.originalPlaylist.length > 0) {
+          newOriginalPlaylist = [...state.originalPlaylist, ...allRecommendations.map(r => r.song)];
+        }
+
+        set({
+          playlist: newPlaylist,
+          originalPlaylist: newOriginalPlaylist,
+          aiDJLastQueueTime: now,
+          aiQueuedSongIds: newQueuedIds,
+          aiDJRecentlyRecommended: newRecentlyRecommended,
+          aiDJIsLoading: false,
+          aiDJError: null,
+        });
+
+        console.log(`🌱 Seed Queue: Successfully seeded ${allRecommendations.length} recommendations`);
+        toast.success(`🌱 Seeded ${allRecommendations.length} AI recommendations`, {
+          description: 'Recommendations have been scattered throughout your queue',
+        });
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to seed queue';
+        console.error('🌱 Seed Queue Error:', errorMessage);
+        set({ aiDJIsLoading: false, aiDJError: errorMessage });
+        toast.error('Queue seeding failed', { description: errorMessage });
       }
     },
 
@@ -1353,6 +1536,9 @@ export const useAudioStore = create<AudioState>()(
             batchSize,
             excludeSongIds: allExclusions,
             skipAutoRefresh: false,
+            // DJ matching settings for BPM/energy/key scoring
+            djMatchingEnabled: usePreferencesStore.getState().preferences.recommendationSettings.djMatchingEnabled ?? true,
+            djMatchingMinScore: usePreferencesStore.getState().preferences.recommendationSettings.djMatchingMinScore ?? 0.5,
           }),
         });
 
