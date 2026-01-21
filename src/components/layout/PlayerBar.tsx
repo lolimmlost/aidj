@@ -501,15 +501,25 @@ export function PlayerBar() {
                 crossfadeIntervalRef.current = null;
               }
 
-              // Stop the old deck
+              // Stop the old deck completely - pause, reset, and clear source
+              // This prevents the old deck from accidentally playing when phone unlocks
               activeDeck.pause();
               activeDeck.currentTime = 0;
+              const oldDeckRef = activeDeck; // Keep reference before swap
 
               // Swap active deck
               activeDeckRef.current = activeDeckRef.current === 'A' ? 'B' : 'A';
               inactiveDeck.volume = targetVolumeRef.current;
 
               console.log(`[XFADE] Crossfade complete, active deck is now ${activeDeckRef.current}`);
+
+              // Clear the old deck's source after a short delay to prevent accidental playback
+              // Use silent audio data URL instead of empty string to avoid error events
+              setTimeout(() => {
+                oldDeckRef.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAgAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbD/////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+M4xAANCAJYAUAAAP/jOMQADQW+XgFJAAD/4zjEAA5QGneBSRgA/+M4xAAOAAJYAUEAAA==';
+                oldDeckRef.pause();
+                console.log(`[XFADE] Cleared old deck source to prevent accidental playback`);
+              }, 200);
 
               // Mark crossfade as just completed - this prevents the useEffect from reloading the song
               crossfadeJustCompletedRef.current = true;
@@ -778,7 +788,15 @@ export function PlayerBar() {
         };
 
         const handleError = (e: Event) => {
-          console.error('Audio load error:', (e.target as HTMLAudioElement)?.error);
+          // Only handle errors from the active deck - ignore errors from inactive deck
+          // (e.g., when we clear the old deck's source after crossfade)
+          const errorDeck = e.target as HTMLAudioElement;
+          const activeDeck = getActiveDeck();
+          if (errorDeck !== activeDeck) {
+            console.log('[XFADE] Ignoring error from inactive deck');
+            return;
+          }
+          console.error('Audio load error:', errorDeck?.error);
           setIsLoading(false);
         };
 
