@@ -60,11 +60,12 @@ export function checkQueueThreshold(
  * Generate contextual AI DJ recommendations based on current playback
  * Phase 3: Now uses Last.fm-based unified recommendations service for better accuracy and speed
  * Phase 5: Added BPM/energy/key matching for smoother DJ-style transitions
+ * Phase 6: Added userId for multi-signal blended scoring (compound, feedback, skip, temporal)
  *
  * @param context - Current song and recent queue context
  * @param batchSize - Number of songs to recommend (1-10)
- * @param _userId - User ID (unused in new implementation)
- * @param _useFeedbackForPersonalization - Whether to use feedback (unused in new implementation)
+ * @param userId - User ID for personalized blended scoring (compound, feedback, skip, temporal)
+ * @param _useFeedbackForPersonalization - Whether to use feedback (unused, blended scoring handles this)
  * @param excludeSongIds - Song IDs to exclude from recommendations
  * @param excludeArtists - Artists to exclude from recommendations
  * @returns Array of recommended songs
@@ -72,7 +73,7 @@ export function checkQueueThreshold(
 export async function generateContextualRecommendations(
   context: AIContext,
   batchSize: number,
-  _userId?: string,
+  userId?: string,
   _useFeedbackForPersonalization: boolean = true,
   excludeSongIds: string[] = [],
   excludeArtists: string[] = []
@@ -114,6 +115,7 @@ export async function generateContextualRecommendations(
     // Use the unified recommendations service with 'similar' mode
     // This now uses Last.fm for song similarity (much faster and more accurate)
     // Phase 5: Pass DJ matching options for BPM/energy/key-aware filtering
+    // Phase 6: Pass userId for multi-signal blended scoring
     const result = await getRecommendations({
       mode: 'similar',
       currentSong: {
@@ -128,10 +130,19 @@ export async function generateContextualRecommendations(
       excludeSongIds,
       excludeArtists,
       djMatching: djMatchingOptions,
+      userId, // Enable blended multi-signal scoring when userId is available
     });
 
     if (result.songs.length === 0) {
       throw new ServiceError('AI_DJ_NO_RECOMMENDATIONS', 'No similar songs found in your library');
+    }
+
+    // Log blended scoring results
+    if (result.metadata?.blendedScoringApplied) {
+      console.log(`🎯 AI DJ: Blended scoring applied - ${result.metadata.totalCandidates} candidates, ${result.metadata.uniqueArtists} unique artists`);
+      if (result.metadata.blendedSourceCounts) {
+        console.log(`📊 AI DJ: Sources - ${JSON.stringify(result.metadata.blendedSourceCounts)}`);
+      }
     }
 
     // Log DJ matching results if enabled

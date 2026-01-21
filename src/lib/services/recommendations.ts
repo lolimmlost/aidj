@@ -33,6 +33,10 @@ import {
   MIN_DJ_SCORE_THRESHOLD,
   type SongWithDJMetadata,
 } from './dj-match-scorer';
+import {
+  getBlendedRecommendations,
+  type BlendedMetadata,
+} from './blended-recommendation-scorer';
 
 /**
  * Get the Last.fm client, initializing with API key from config if needed
@@ -100,11 +104,17 @@ export interface RecommendationRequest {
   queueContext?: QueueContext;
   /** DJ matching options for BPM/energy/key-based filtering and ranking */
   djMatching?: DJMatchingOptions;
+  /**
+   * Use multi-signal blended scoring instead of sequential fallbacks.
+   * Default: true when userId is provided.
+   * Set to false to use the legacy sequential fallback chain.
+   */
+  useBlendedScoring?: boolean;
 }
 
 export interface RecommendationResult {
   songs: Song[];
-  source: 'lastfm' | 'smart-playlist' | 'fallback' | 'compound';
+  source: 'lastfm' | 'smart-playlist' | 'fallback' | 'compound' | 'blended';
   mode: RecommendationMode;
   /** Optional metadata about the recommendation */
   metadata?: {
@@ -125,6 +135,14 @@ export interface RecommendationResult {
     djScoredCount?: number;
     /** Average DJ score of returned songs */
     avgDJScore?: number;
+    /** Whether blended multi-signal scoring was used */
+    blendedScoringApplied?: boolean;
+    /** Source distribution from blended scoring */
+    blendedSourceCounts?: Record<string, number>;
+    /** Average scores from blended scoring */
+    blendedAvgScores?: Record<string, number>;
+    /** Number of unique artists in results */
+    uniqueArtists?: number;
   };
 }
 
@@ -208,12 +226,74 @@ async function getSimilarSongs(
     userId,
     compoundScoreWeight = 0.3,
     queueContext,
+    djMatching,
+    useBlendedScoring,
   } = request;
 
   if (!currentSong) {
     throw new Error('currentSong required for similar mode');
   }
 
+  // Use blended scoring when userId is available (default: true)
+  // This replaces the sequential fallback chain with multi-signal scoring
+  const shouldUseBlendedScoring = useBlendedScoring !== false && userId;
+
+  if (shouldUseBlendedScoring) {
+    console.log(`🎯 [Recommendations] Using blended multi-signal scoring for "${currentSong.artist} - ${currentSong.title}"`);
+
+    try {
+      const { songs, metadata } = await getBlendedRecommendations(
+        {
+          artist: currentSong.artist,
+          title: currentSong.title,
+          genre: currentSong.genre,
+          bpm: currentSong.bpm,
+          key: currentSong.key,
+          energy: currentSong.energy,
+        },
+        {
+          userId,
+          limit,
+          excludeSongIds,
+          excludeArtists,
+          queueContext: queueContext ? {
+            genres: queueContext.genres,
+            artists: queueContext.artists,
+            artistBatchCounts: queueContext.artistBatchCounts,
+          } : undefined,
+          djMatching: djMatching ? {
+            enabled: djMatching.enabled,
+            currentBpm: djMatching.currentBpm,
+            currentKey: djMatching.currentKey,
+            currentEnergy: djMatching.currentEnergy,
+          } : undefined,
+        }
+      );
+
+      if (songs.length > 0) {
+        return {
+          songs,
+          source: 'blended',
+          mode: 'similar',
+          metadata: {
+            totalCandidates: metadata.totalCandidates,
+            blendedScoringApplied: true,
+            blendedSourceCounts: metadata.sourceCounts,
+            blendedAvgScores: metadata.avgScores,
+            uniqueArtists: metadata.uniqueArtists,
+            djMatchingApplied: djMatching?.enabled ?? false,
+          },
+        };
+      }
+
+      // Fall through to legacy path if blended scoring returns no results
+      console.log('⚠️ [Recommendations] Blended scoring returned no results, falling back to legacy path');
+    } catch (error) {
+      console.warn('⚠️ [Recommendations] Blended scoring failed, falling back to legacy path:', error);
+    }
+  }
+
+  // Legacy sequential fallback chain (used when userId is not available or blended scoring fails)
   const lastFm = await getLastFmClientWithConfig();
 
   if (!lastFm) {

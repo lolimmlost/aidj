@@ -305,6 +305,41 @@ export class LastFmClient {
   }
 
   /**
+   * Get similar tracks WITHOUT enriching with Navidrome library status
+   * Use this when you want to avoid rate limiting from parallel searches
+   * Then manually search for library matches sequentially
+   */
+  async getSimilarTracksRaw(artist: string, track: string, limit: number = 20): Promise<Array<{
+    name: string;
+    artist: string;
+    match?: number;
+    url?: string;
+  }>> {
+    const cacheKey = `similar-tracks-raw:${artist}:${track}:${limit}`;
+    const cached = this.getFromCache<Array<{ name: string; artist: string; match?: number; url?: string }>>(cacheKey);
+    if (cached) return cached;
+
+    console.log(`[Last.fm] Fetching similar tracks (raw) for "${artist} - ${track}"`);
+
+    const response = await this.request<LastFmSimilarTracksResponse>('track.getsimilar', {
+      artist,
+      track,
+      limit,
+    });
+
+    const tracks = (response.similartracks?.track || []).map(t => ({
+      name: t.name,
+      artist: getArtistName(t.artist),
+      match: t.match,
+      url: t.url,
+    }));
+
+    console.log(`[Last.fm] Found ${tracks.length} similar tracks (raw)`);
+    this.setCache(cacheKey, tracks);
+    return tracks;
+  }
+
+  /**
    * Get artists similar to a given artist
    * @param artist - Artist name
    * @param limit - Maximum number of results (default: 20)
@@ -356,6 +391,35 @@ export class LastFmClient {
 
     this.setCache(cacheKey, enriched);
     return enriched;
+  }
+
+  /**
+   * Get similar artists from Last.fm WITHOUT checking library status
+   * Use this when you want to avoid rate limiting from parallel searches
+   * @param artist - Artist name
+   * @param limit - Maximum number of results (default: 20)
+   */
+  async getSimilarArtistsRaw(artist: string, limit: number = 20): Promise<Array<{ name: string; match: number; url?: string }>> {
+    const cacheKey = `similar-artists-raw:${artist}:${limit}`;
+    const cached = this.getFromCache<Array<{ name: string; match: number; url?: string }>>(cacheKey);
+    if (cached) return cached;
+
+    console.log(`[Last.fm] Fetching similar artists (raw) for "${artist}"`);
+
+    const response = await this.request<LastFmSimilarArtistsResponse>('artist.getsimilar', {
+      artist,
+      limit,
+    });
+
+    const artists = (response.similarartists?.artist || []).map(a => ({
+      name: a.name,
+      match: a.match,
+      url: a.url,
+    }));
+
+    console.log(`[Last.fm] Found ${artists.length} similar artists (raw)`);
+    this.setCache(cacheKey, artists);
+    return artists;
   }
 
   /**
