@@ -467,6 +467,30 @@ export function PlayerBar() {
       inactiveDeck.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAgAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbD/////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+M4xAANCAJYAUAAAP/jOMQADQW+XgFJAAD/4zjEAA5QGneBSRgA/+M4xAAOAAJYAUEAAA==';
 
       console.log(`⚠️ [XFADE] Abort cleanup complete - active deck remains ${activeDeckRef.current}`);
+
+      // CRITICAL: Check if the active deck's song has already ended
+      // If so, onEnded was skipped because crossfade was in progress, so we need to
+      // trigger the fallback transition here
+      const songHasEnded = activeDeck.duration > 0 &&
+        (activeDeck.currentTime >= activeDeck.duration - 0.5 || activeDeck.ended);
+
+      if (songHasEnded && nextSongData) {
+        console.log(`⚠️ [XFADE] Active deck song has ended - triggering fallback transition to: ${nextSongData.name || nextSongData.title}`);
+
+        // Reset scrobble tracking for new song
+        hasScrobbledRef.current = false;
+        scrobbleThresholdReachedRef.current = false;
+        currentSongIdRef.current = nextSongData.id;
+
+        // Load and play next song directly on active deck (same as onEnded does)
+        activeDeck.src = nextSongData.url;
+        activeDeck.play().catch(err => {
+          console.error('⚠️ [XFADE] Fallback transition play failed:', err);
+        });
+
+        // Update store state
+        nextSong();
+      }
     };
 
     // Wait for inactive deck to be ready, then start crossfade
