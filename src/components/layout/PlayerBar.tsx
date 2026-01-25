@@ -223,6 +223,11 @@ export function PlayerBar() {
   const targetVolumeRef = useRef<number>(1);
   const decksPrimedRef = useRef<boolean>(false); // Track if both decks have been user-activated for mobile
 
+  // Media Session debounce state (refs to survive remounts during Bluetooth changes)
+  const mediaSessionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mediaSessionPendingActionRef = useRef<'play' | 'pause' | null>(null);
+  const mediaSessionLastExecutedRef = useRef<{ action: 'play' | 'pause'; time: number } | null>(null);
+
   // Helper to get active and inactive decks
   const getActiveDeck = useCallback(() => {
     return activeDeckRef.current === 'A' ? deckARef.current : deckBRef.current;
@@ -1004,13 +1009,41 @@ export function PlayerBar() {
 
     // Debounce mechanism for Bluetooth disconnect/reconnect rapid events
     // iOS sends rapid play/pause toggling when Bluetooth state changes
-    let mediaSessionDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
-    let pendingAction: 'play' | 'pause' | null = null;
+    // State is stored in refs to survive component remounts during Bluetooth changes
     const DEBOUNCE_MS = 300;
+    const COOLDOWN_MS = 500; // Minimum time between executing opposite actions
 
     const executeMediaAction = (action: 'play' | 'pause') => {
       const activeDeck = getActiveDeck();
       if (!activeDeck) return;
+
+      // Cooldown check: prevent rapid toggling (play->pause->play etc.)
+      const lastExec = mediaSessionLastExecutedRef.current;
+      if (lastExec && lastExec.action !== action) {
+        const timeSinceLastExec = Date.now() - lastExec.time;
+        if (timeSinceLastExec < COOLDOWN_MS) {
+          console.log(`🎛️ Media Session: cooldown active (${timeSinceLastExec}ms since ${lastExec.action}) - checking audio state`);
+          // Instead of ignoring, check what the audio is actually doing
+          const audioIsPlaying = !activeDeck.paused;
+          if ((action === 'play' && audioIsPlaying) || (action === 'pause' && !audioIsPlaying)) {
+            console.log(`🎛️ Media Session: audio already ${audioIsPlaying ? 'playing' : 'paused'} - syncing store only`);
+            setIsPlaying(audioIsPlaying);
+            mediaSessionLastExecutedRef.current = { action, time: Date.now() };
+            return;
+          }
+        }
+      }
+
+      // Reality check: don't pause audio that's playing if store says play, and vice versa
+      const storeIsPlaying = useAudioStore.getState().isPlaying;
+      const audioIsPlaying = !activeDeck.paused;
+
+      if (action === 'pause' && audioIsPlaying && storeIsPlaying) {
+        // Store says play, audio is playing, but Media Session says pause
+        // This is likely a spurious event from Bluetooth disconnect
+        console.log('🎛️ Media Session: ignoring pause - store+audio both say playing (likely Bluetooth glitch)');
+        return;
+      }
 
       if (action === 'play') {
         console.log('🎛️ Media Session: executing play');
@@ -1023,29 +1056,31 @@ export function PlayerBar() {
         activeDeck.pause();
         setIsPlaying(false);
       }
+
+      mediaSessionLastExecutedRef.current = { action, time: Date.now() };
     };
 
     const debouncedMediaAction = (action: 'play' | 'pause') => {
       // If same action is pending, ignore duplicate
-      if (pendingAction === action) {
+      if (mediaSessionPendingActionRef.current === action) {
         console.log(`🎛️ Media Session: ignoring duplicate ${action}`);
         return;
       }
 
-      pendingAction = action;
+      mediaSessionPendingActionRef.current = action;
 
       // Clear any existing timeout
-      if (mediaSessionDebounceTimeout) {
-        clearTimeout(mediaSessionDebounceTimeout);
+      if (mediaSessionDebounceRef.current) {
+        clearTimeout(mediaSessionDebounceRef.current);
       }
 
       // Wait for rapid events to settle before executing
-      mediaSessionDebounceTimeout = setTimeout(() => {
-        if (pendingAction) {
-          executeMediaAction(pendingAction);
-          pendingAction = null;
+      mediaSessionDebounceRef.current = setTimeout(() => {
+        if (mediaSessionPendingActionRef.current) {
+          executeMediaAction(mediaSessionPendingActionRef.current);
+          mediaSessionPendingActionRef.current = null;
         }
-        mediaSessionDebounceTimeout = null;
+        mediaSessionDebounceRef.current = null;
       }, DEBOUNCE_MS);
     };
 
@@ -1093,10 +1128,17 @@ export function PlayerBar() {
 
       // IMPORTANT: Only set up Media Session for the ACTIVE deck
       // iOS may auto-resume the inactive deck (with silent data URL) on visibility change
-      if (!isActiveDeck) {
+      // BUT: During crossfade, we WANT the inactive deck to play (it's the new song fading in)
+      if (!isActiveDeck && !crossfadeInProgressRef.current) {
         console.log(`🎛️ PlayerBar: Ignoring playing event from inactive deck - stopping it`);
         playingDeck.pause();
         playingDeck.currentTime = 0;
+        return;
+      }
+
+      // During crossfade, don't set up Media Session for the inactive deck (let crossfade handle it)
+      if (!isActiveDeck && crossfadeInProgressRef.current) {
+        console.log(`🎛️ PlayerBar: Inactive deck playing during crossfade - allowing it`);
         return;
       }
 
@@ -1195,10 +1237,12 @@ export function PlayerBar() {
     }
 
     return () => {
-      // Clear debounce timeout
-      if (mediaSessionDebounceTimeout) {
-        clearTimeout(mediaSessionDebounceTimeout);
+      // Clear debounce timeout (use ref so it persists across remounts)
+      if (mediaSessionDebounceRef.current) {
+        clearTimeout(mediaSessionDebounceRef.current);
+        mediaSessionDebounceRef.current = null;
       }
+      mediaSessionPendingActionRef.current = null;
 
       [deckA, deckB].forEach(deck => {
         deck.removeEventListener('playing', handlePlaying);
@@ -1218,6 +1262,46 @@ export function PlayerBar() {
       }
     };
   }, [currentSong, setIsPlaying, previousSong, nextSong, getActiveDeck]);
+
+  // ==========================================================================
+  // VISIBILITY CHANGE RECOVERY - Sync store state with actual audio state
+  // Helps recover from Bluetooth disconnect/reconnect and iOS background scenarios
+  // ==========================================================================
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+
+      const activeDeck = getActiveDeck();
+      if (!activeDeck) return;
+
+      // Small delay to let iOS settle after visibility change
+      setTimeout(() => {
+        const storeIsPlaying = useAudioStore.getState().isPlaying;
+        const audioIsPlaying = !activeDeck.paused;
+
+        // If there's a mismatch, sync store to match audio reality
+        if (storeIsPlaying !== audioIsPlaying) {
+          console.log(`👁️ [VISIBILITY] State mismatch on visibility - store=${storeIsPlaying}, audio=${audioIsPlaying ? 'playing' : 'paused'}`);
+
+          // Trust the audio element's state as the source of truth
+          if (audioIsPlaying) {
+            console.log('👁️ [VISIBILITY] Audio is playing - syncing store to playing');
+            setIsPlaying(true);
+          } else {
+            // Only sync to paused if the audio actually has a source loaded
+            // (don't sync empty/cleared decks to paused state)
+            if (activeDeck.src && activeDeck.src.indexOf('data:audio') === -1 && activeDeck.readyState >= 2) {
+              console.log('👁️ [VISIBILITY] Audio is paused with valid source - syncing store to paused');
+              setIsPlaying(false);
+            }
+          }
+        }
+      }, 200);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [getActiveDeck, setIsPlaying]);
 
   // ==========================================================================
   // DEBUG LOGGING for iOS audio issues
