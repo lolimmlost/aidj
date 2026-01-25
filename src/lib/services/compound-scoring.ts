@@ -147,7 +147,9 @@ export async function calculateCompoundScores(
     }
 
     // Calculate recency weight for this source song
-    const daysSincePlay = (now.getTime() - play.lastPlayed.getTime()) / (1000 * 60 * 60 * 24);
+    // Note: SQL aggregation returns string, need to convert to Date
+    const lastPlayedDate = new Date(play.lastPlayed);
+    const daysSincePlay = (now.getTime() - lastPlayedDate.getTime()) / (1000 * 60 * 60 * 24);
     const recencyWeight = Math.exp(-RECENCY_DECAY_RATE * daysSincePlay);
 
     // Accumulate scores for each similar track

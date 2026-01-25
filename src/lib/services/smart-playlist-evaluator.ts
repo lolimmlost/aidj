@@ -27,7 +27,6 @@ interface SmartPlaylistRules {
  * Evaluate smart playlist rules and return matching songs
  */
 export async function evaluateSmartPlaylistRules(rules: SmartPlaylistRules): Promise<SubsonicSong[]> {
-  console.log('🔍 Evaluating smart playlist rules:', JSON.stringify(rules, null, 2));
 
   try {
     // Get all songs from library
@@ -129,8 +128,6 @@ function applyCondition(songs: SubsonicSong[], condition: RuleCondition): Subson
 
   const field = Object.keys(fieldValue)[0];
   const value = fieldValue[field];
-
-  console.log(`  📌 Applying condition: ${operator} ${field} ${JSON.stringify(value)}`);
 
   return songs.filter(song => {
     const songValue = getSongField(song, field);

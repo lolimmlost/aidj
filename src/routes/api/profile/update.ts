@@ -14,28 +14,28 @@
  * - Via user-triggered refresh
  */
 
-import type { APIEvent } from '@solidjs/start/server';
-import { getSession } from '@/lib/auth/session';
+import { createFileRoute } from "@tanstack/react-router";
+import { auth } from '@/lib/auth/auth';
 import { calculateFullUserProfile } from '@/lib/services/compound-scoring';
 
-export async function POST(event: APIEvent) {
+export async function POST({ request }: { request: Request }) {
   try {
     // Verify authentication
-    const session = await getSession(event.request);
-    if (!session?.userId) {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session?.user?.id) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    const userId = session.userId;
+    const userId = session.user.id;
     console.log(`👤 [ProfileAPI] Profile update requested for user ${userId}`);
 
     // Parse optional parameters from request body
     let daysBack = 14; // Default lookback
     try {
-      const body = await event.request.json();
+      const body = await request.json();
       if (body.daysBack && typeof body.daysBack === 'number') {
         daysBack = Math.min(Math.max(body.daysBack, 7), 90); // Clamp between 7-90 days
       }
@@ -73,18 +73,18 @@ export async function POST(event: APIEvent) {
   }
 }
 
-export async function GET(event: APIEvent) {
+export async function GET({ request }: { request: Request }) {
   try {
     // Verify authentication
-    const session = await getSession(event.request);
-    if (!session?.userId) {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session?.user?.id) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    const userId = session.userId;
+    const userId = session.user.id;
 
     // Import services dynamically to avoid circular dependencies
     const { getTopArtistsByAffinity, getPreferredGenresForNow } = await import('@/lib/services/artist-affinity');
@@ -129,3 +129,12 @@ export async function GET(event: APIEvent) {
     );
   }
 }
+
+export const Route = createFileRoute("/api/profile/update")({
+  server: {
+    handlers: {
+      POST,
+      GET,
+    },
+  },
+});

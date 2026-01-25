@@ -1443,8 +1443,6 @@ export async function searchSongsByCriteria(criteria: {
     const matchedSongs: SubsonicSong[] = [];
     const seedSongIds: string[] = [];
 
-    console.log('🎯 Smart Playlist Criteria:', JSON.stringify(criteria, null, 2));
-
     // Strategy 1: If artists specified, find seed songs and get recommendations
     if (criteria.artists && criteria.artists.length > 0) {
       console.log('🎨 Building recommendations from seed artists:', criteria.artists);
@@ -1672,18 +1670,11 @@ export async function getTopArtists(limit: number = 5): Promise<ArtistWithDetail
     const endpoint = `/rest/getAlbumList2?type=frequent&size=100`;
     const data = await apiFetch(endpoint) as any;
 
-    console.log('🎨 [getTopArtists] Raw API response:', JSON.stringify(data, null, 2));
-
     // Extract albums from response
     const albums = data?.['subsonic-response']?.albumList2?.album ||
                    data?.albumList2?.album ||
                    data?.album ||
                    [];
-
-    console.log('🎨 [getTopArtists] Found albums:', albums.length);
-    if (albums.length > 0) {
-      console.log('🎨 [getTopArtists] First album sample:', JSON.stringify(albums[0], null, 2));
-    }
 
     if (!albums || albums.length === 0) {
       // Fallback to song count method

@@ -35,7 +35,7 @@ import {
   LOOKBACK_DAYS,
 } from '../compound-scoring';
 import { db } from '@/lib/db';
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 
 describe('Compound Scoring Service', () => {
   beforeEach(() => {

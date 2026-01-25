@@ -3,7 +3,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createDJQueueManager } from '../dj-queue-manager';
-import type { Song } from '@/components/ui/audio-player';
+import type { Song } from '@/lib/types/song';
 
 // Mock song data
 const mockSongs: Song[] = [

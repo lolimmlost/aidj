@@ -34,7 +34,7 @@ import {
   getCurrentTimeContext,
 } from './artist-affinity';
 import { calculateSkipScores } from './skip-scoring';
-import { searchSongsQuick as searchSongs } from './navidrome';
+import { getSongsByIds } from './navidrome';
 
 // ============================================================================
 // Constants
@@ -407,34 +407,15 @@ export async function getProfileBasedRecommendations(
     console.log(`     compound=${candidate.components.compoundScore.toFixed(2)}, liked=${candidate.components.likedBoost.toFixed(2)}, similar=${candidate.components.similarityScore.toFixed(2)}, artist=${candidate.components.artistAffinity.toFixed(2)}`);
   }
 
-  // Fetch full song data from Navidrome
-  const songs: Song[] = [];
+  // Fetch full song data from Navidrome using IDs directly (NO SEARCH API CALLS)
+  const songIds = topCandidates.map(c => c.songId);
+  let songs: Song[] = [];
 
-  for (const candidate of topCandidates) {
-    try {
-      // Search for the song by artist and title
-      const searchResults = await searchSongs(
-        `${candidate.artist} ${candidate.title}`,
-        3
-      );
-
-      // Find matching song
-      const matchingSong = searchResults.find(s =>
-        s.id === candidate.songId ||
-        (s.artist?.toLowerCase() === candidate.artist.toLowerCase() &&
-         (s.title?.toLowerCase() === candidate.title.toLowerCase() ||
-          s.name?.toLowerCase() === candidate.title.toLowerCase()))
-      );
-
-      if (matchingSong) {
-        songs.push(matchingSong);
-      } else if (searchResults.length > 0) {
-        // Fallback to first search result if exact match not found
-        songs.push(searchResults[0]);
-      }
-    } catch (error) {
-      console.error(`🎯 [ProfileRec] Failed to fetch song "${candidate.artist} - ${candidate.title}":`, error);
-    }
+  try {
+    songs = await getSongsByIds(songIds);
+    console.log(`🎯 [ProfileRec] Fetched ${songs.length} songs by ID`);
+  } catch (error) {
+    console.error(`🎯 [ProfileRec] Failed to fetch songs by ID:`, error);
   }
 
   console.log(`🎯 [ProfileRec] Returning ${songs.length} recommendations`);
@@ -462,28 +443,19 @@ export async function getRecommendationsFromLikedSongs(
       )
     )
     .orderBy(sql`RANDOM()`)
-    .limit(limit * 2);
+    .limit(limit);
 
-  const songs: Song[] = [];
+  // Fetch songs by ID directly (NO SEARCH API CALLS)
+  const songIds = likedSongs.map(s => s.songId);
 
-  for (const liked of likedSongs) {
-    try {
-      const searchResults = await searchSongs(
-        `${liked.artist} ${liked.title}`,
-        1
-      );
-
-      if (searchResults.length > 0) {
-        songs.push(searchResults[0]);
-      }
-
-      if (songs.length >= limit) break;
-    } catch (error) {
-      console.error(`🎯 [ProfileRec] Failed to fetch liked song "${liked.artist} - ${liked.title}":`, error);
-    }
+  try {
+    const songs = await getSongsByIds(songIds);
+    console.log(`🎯 [ProfileRec] Fetched ${songs.length} liked songs by ID`);
+    return songs;
+  } catch (error) {
+    console.error(`🎯 [ProfileRec] Failed to fetch liked songs by ID:`, error);
+    return [];
   }
-
-  return songs;
 }
 
 /**

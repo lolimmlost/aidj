@@ -6,6 +6,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { getRecommendations } from '@/lib/services/recommendations';
+import { getProfileBasedRecommendations, hasProfileData } from '@/lib/services/profile-recommendations';
 import { getSongsByIds } from '@/lib/services/navidrome';
 import type { Song } from '@/lib/types/song';
 import { auth } from '@/lib/auth/auth';
@@ -138,6 +139,8 @@ export async function POST({ request }: { request: Request }) {
         // DJ matching settings
         djMatchingEnabled,
         djMatchingMinScore,
+        // Profile-based recommendations flag
+        useProfileBased,
       } = body as {
         currentSong: Song;
         recentQueue?: Song[];
@@ -153,6 +156,8 @@ export async function POST({ request }: { request: Request }) {
         // DJ matching settings (BPM/energy/key)
         djMatchingEnabled?: boolean;
         djMatchingMinScore?: number;
+        // Profile-based recommendations (drip-feed model)
+        useProfileBased?: boolean;
       };
 
       if (!currentSong) {
@@ -192,35 +197,93 @@ export async function POST({ request }: { request: Request }) {
         }
       }
 
-      // Use the unified recommendations service with 'similar' mode
-      // This now uses Last.fm for song similarity (much faster and more accurate)
-      const result = await getRecommendations({
-        mode: 'similar',
-        currentSong: {
-          artist: currentSong.artist,
-          title: currentSong.title || currentSong.name,
-          genre: currentSong.genre || queueContext.genres[0], // Pass genre for fallback
-          // DJ metadata for matching (passed from client if available)
-          bpm: currentSong.bpm,
-          key: currentSong.key,
-          energy: currentSong.energy,
-        },
-        limit: batchSize || 3,
-        excludeSongIds: excludeSongIds || [],
-        excludeArtists: excludeArtists || [],
-        queueContext, // Pass queue context for smarter fallback (includes artistBatchCounts)
-        userId, // Phase 3.3: Pass userId for skip-based scoring
-        // DJ matching settings for BPM/energy/key scoring
-        djMatching: djMatchingEnabled ? {
-          enabled: true,
-          currentBpm: currentSong.bpm,
-          currentKey: currentSong.key,
-          currentEnergy: currentSong.energy,
-          minDJScore: djMatchingMinScore ?? 0.5,
-        } : undefined,
-      });
+      // Check if we should use profile-based recommendations (drip-feed model)
+      // Profile-based uses ZERO API calls - all from pre-computed database
+      let result: { songs: Song[]; source: string };
 
-      console.log(`✅ AI DJ: Got ${result.songs.length} recommendations from ${result.source}`);
+      if (useProfileBased && userId) {
+        // Check if user has profile data
+        const profileDataExists = await hasProfileData(userId);
+
+        if (profileDataExists) {
+          console.log(`🎯 AI DJ: Using profile-based recommendations (zero API calls)`);
+
+          const profileSongs = await getProfileBasedRecommendations(
+            userId,
+            currentSong,
+            {
+              limit: batchSize || 1,
+              excludeSongIds: excludeSongIds || [],
+              excludeArtists: excludeArtists || [],
+              enforceDiversity: true,
+            }
+          );
+
+          result = {
+            songs: profileSongs,
+            source: 'profile-based',
+          };
+
+          console.log(`✅ AI DJ: Got ${result.songs.length} recommendations from profile (zero API calls)`);
+        } else {
+          console.log(`⚠️ AI DJ: No profile data, falling back to standard recommendations`);
+          // Fall through to standard recommendations
+          result = await getRecommendations({
+            mode: 'similar',
+            currentSong: {
+              artist: currentSong.artist,
+              title: currentSong.title || currentSong.name,
+              genre: currentSong.genre || queueContext.genres[0],
+              bpm: currentSong.bpm,
+              key: currentSong.key,
+              energy: currentSong.energy,
+            },
+            limit: batchSize || 3,
+            excludeSongIds: excludeSongIds || [],
+            excludeArtists: excludeArtists || [],
+            queueContext,
+            userId,
+            djMatching: djMatchingEnabled ? {
+              enabled: true,
+              currentBpm: currentSong.bpm,
+              currentKey: currentSong.key,
+              currentEnergy: currentSong.energy,
+              minDJScore: djMatchingMinScore ?? 0.5,
+            } : undefined,
+          });
+          console.log(`✅ AI DJ: Got ${result.songs.length} recommendations from ${result.source}`);
+        }
+      } else {
+        // Use the unified recommendations service with 'similar' mode
+        // This uses Last.fm for song similarity
+        result = await getRecommendations({
+          mode: 'similar',
+          currentSong: {
+            artist: currentSong.artist,
+            title: currentSong.title || currentSong.name,
+            genre: currentSong.genre || queueContext.genres[0], // Pass genre for fallback
+            // DJ metadata for matching (passed from client if available)
+            bpm: currentSong.bpm,
+            key: currentSong.key,
+            energy: currentSong.energy,
+          },
+          limit: batchSize || 3,
+          excludeSongIds: excludeSongIds || [],
+          excludeArtists: excludeArtists || [],
+          queueContext, // Pass queue context for smarter fallback (includes artistBatchCounts)
+          userId, // Phase 3.3: Pass userId for skip-based scoring
+          // DJ matching settings for BPM/energy/key scoring
+          djMatching: djMatchingEnabled ? {
+            enabled: true,
+            currentBpm: currentSong.bpm,
+            currentKey: currentSong.key,
+            currentEnergy: currentSong.energy,
+            minDJScore: djMatchingMinScore ?? 0.5,
+          } : undefined,
+        });
+
+        console.log(`✅ AI DJ: Got ${result.songs.length} recommendations from ${result.source}`);
+      }
 
       // Phase 4.1: Calculate artist fatigue for the recommended artists
       const artistFatigueCooldowns: Record<string, number> = {};
