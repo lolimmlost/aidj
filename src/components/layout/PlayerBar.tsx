@@ -430,7 +430,7 @@ export function PlayerBar() {
       crossfadeIntervalRef.current = null;
     }
 
-    console.log(`[XFADE] Starting TRUE crossfade, duration=${xfadeDuration}s`);
+    console.log(`🔀 [XFADE] Starting TRUE crossfade, duration=${xfadeDuration}s, from deck ${activeDeckRef.current}`);
     crossfadeInProgressRef.current = true;
     crossfadeCanPlayFiredRef.current = false; // Reset for this crossfade
     targetVolumeRef.current = activeDeck.volume > 0 ? activeDeck.volume : 1;
@@ -442,7 +442,7 @@ export function PlayerBar() {
 
     // Helper to abort crossfade and reset state
     const abortCrossfade = (reason: string) => {
-      console.log(`[XFADE] Aborting crossfade: ${reason}`);
+      console.warn(`⚠️ [XFADE] Aborting crossfade: ${reason}`);
       inactiveDeck.removeEventListener('canplaythrough', onCanPlayThrough);
       if (crossfadeIntervalRef.current) {
         clearInterval(crossfadeIntervalRef.current);
@@ -450,8 +450,18 @@ export function PlayerBar() {
       }
       crossfadeInProgressRef.current = false;
       crossfadeCanPlayFiredRef.current = false;
+
       // Restore active deck volume
       activeDeck.volume = targetVolumeRef.current;
+
+      // Reset inactive deck to clean state
+      inactiveDeck.pause();
+      inactiveDeck.currentTime = 0;
+      inactiveDeck.volume = 0;
+      // Clear source to prevent accidental playback (use silent audio to avoid error events)
+      inactiveDeck.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAgAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbD/////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+M4xAANCAJYAUAAAP/jOMQADQW+XgFJAAD/4zjEAA5QGneBSRgA/+M4xAAOAAJYAUEAAA==';
+
+      console.log(`⚠️ [XFADE] Abort cleanup complete - active deck remains ${activeDeckRef.current}`);
     };
 
     // Wait for inactive deck to be ready, then start crossfade
@@ -473,6 +483,16 @@ export function PlayerBar() {
 
           const fadeStartTime = Date.now();
           crossfadeIntervalRef.current = setInterval(() => {
+            // Check if user paused - abort crossfade and pause both decks
+            const storeState = useAudioStore.getState();
+            if (!storeState.isPlaying && crossfadeInProgressRef.current) {
+              console.log('[XFADE] User paused during crossfade - aborting');
+              activeDeck.pause();
+              inactiveDeck.pause();
+              abortCrossfade('user paused');
+              return;
+            }
+
             // Safety check: if inactive deck stopped playing mid-crossfade, abort
             if (inactiveDeck.paused && crossfadeInProgressRef.current) {
               abortCrossfade('inactive deck stopped playing');
@@ -513,13 +533,12 @@ export function PlayerBar() {
 
               console.log(`[XFADE] Crossfade complete, active deck is now ${activeDeckRef.current}`);
 
-              // Clear the old deck's source after a short delay to prevent accidental playback
+              // Clear the old deck's source IMMEDIATELY to prevent accidental playback
+              // iOS can suspend the page at any time, so we can't rely on setTimeout
               // Use silent audio data URL instead of empty string to avoid error events
-              setTimeout(() => {
-                oldDeckRef.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAgAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbD/////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+M4xAANCAJYAUAAAP/jOMQADQW+XgFJAAD/4zjEAA5QGneBSRgA/+M4xAAOAAJYAUEAAA==';
-                oldDeckRef.pause();
-                console.log(`[XFADE] Cleared old deck source to prevent accidental playback`);
-              }, 200);
+              oldDeckRef.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAgAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbD/////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+M4xAANCAJYAUAAAP/jOMQADQW+XgFJAAD/4zjEAA5QGneBSRgA/+M4xAAOAAJYAUEAAA==';
+              oldDeckRef.pause();
+              console.log(`[XFADE] Cleared old deck source to prevent accidental playback`);
 
               // Mark crossfade as just completed - this prevents the useEffect from reloading the song
               crossfadeJustCompletedRef.current = true;
@@ -542,7 +561,7 @@ export function PlayerBar() {
           }, 50);
         })
         .catch((err) => {
-          console.error(`[XFADE] Inactive deck play() FAILED:`, err);
+          console.error(`❌ [XFADE] Inactive deck play() FAILED: ${err.name} - ${err.message}`);
           abortCrossfade('play() failed - likely autoplay blocked');
         });
     };
@@ -560,11 +579,55 @@ export function PlayerBar() {
         // canplaythrough never fired and deck not ready - abort
         abortCrossfade('timeout - deck never became ready');
       }
-    }, 2000);
+    }, 5000);  // 5 seconds for iOS - needs time for multiple range requests
 
     // Safety timeout: if crossfade is still in progress after xfadeDuration + 5s, something is wrong
+    // BUT: iOS throttles intervals when screen is locked, so the fade may have essentially completed
+    // Check if incoming deck is playing successfully before aborting
     setTimeout(() => {
-      if (crossfadeInProgressRef.current) {
+      if (!crossfadeInProgressRef.current) return; // Already completed
+
+      // Check if incoming deck (inactiveDeck at start) is playing and has progressed
+      // This means the crossfade essentially succeeded but interval got throttled
+      if (!inactiveDeck.paused && inactiveDeck.currentTime > 1) {
+        console.log(`[XFADE] Safety timeout: incoming deck playing at ${inactiveDeck.currentTime.toFixed(1)}s - completing crossfade`);
+
+        // Clear the interval if still running
+        if (crossfadeIntervalRef.current) {
+          clearInterval(crossfadeIntervalRef.current);
+          crossfadeIntervalRef.current = null;
+        }
+
+        // Complete the crossfade properly
+        activeDeck.pause();
+        activeDeck.currentTime = 0;
+        const oldDeckRef = activeDeck;
+
+        // Swap active deck
+        activeDeckRef.current = activeDeckRef.current === 'A' ? 'B' : 'A';
+        inactiveDeck.volume = targetVolumeRef.current;
+
+        console.log(`[XFADE] Crossfade force-completed, active deck is now ${activeDeckRef.current}`);
+
+        // Clear old deck source IMMEDIATELY - can't rely on setTimeout with iOS
+        oldDeckRef.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAgAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbD/////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+M4xAANCAJYAUAAAP/jOMQADQW+XgFJAAD/4zjEAA5QGneBSRgA/+M4xAAOAAJYAUEAAA==';
+        oldDeckRef.pause();
+        console.log(`[XFADE] Cleared old deck source`);
+
+        // Mark as completed
+        crossfadeJustCompletedRef.current = true;
+        currentSongIdRef.current = nextSongData.id;
+        crossfadeInProgressRef.current = false;
+        nextSongPreloadedRef.current = false;
+
+        nextSong();
+
+        setTimeout(() => {
+          crossfadeJustCompletedRef.current = false;
+        }, 100);
+      } else {
+        // Incoming deck not playing - genuine failure, abort
+        console.warn(`⚠️ [XFADE] Safety timeout: incoming deck not playing (paused=${inactiveDeck.paused}, time=${inactiveDeck.currentTime}) - aborting`);
         abortCrossfade('safety timeout exceeded');
       }
     }, (xfadeDuration + 5) * 1000);
@@ -756,6 +819,12 @@ export function PlayerBar() {
       const song = playlist[currentSongIndex];
       const audio = getActiveDeck();
 
+      // Skip if crossfade is in progress - the crossfade handles song loading
+      if (crossfadeInProgressRef.current) {
+        console.log(`[XFADE] Skipping loadSong - crossfade in progress`);
+        return;
+      }
+
       // Skip if crossfade just completed - the song is already loaded and playing on the new active deck
       if (crossfadeJustCompletedRef.current) {
         console.log(`[XFADE] Skipping loadSong - crossfade just completed, song already playing`);
@@ -846,12 +915,21 @@ export function PlayerBar() {
     const audio = getActiveDeck();
     if (!audio || !audio.src) return;
 
+    // Debug log store state changes
+    if (localStorage.getItem('debug') === 'true') {
+      console.log(`🎮 [STORE] isPlaying=${isPlaying} | audio.paused=${audio.paused} readyState=${audio.readyState}`);
+    }
+
     // Only handle pause immediately; play is handled by canplay listener or when ready
     if (!isPlaying) {
       audio.pause();
     } else if (audio.readyState >= 2) {
       // Only try to play if audio is ready (has enough data)
-      audio.play().catch(console.error);
+      audio.play().catch((err) => {
+        if (localStorage.getItem('debug') === 'true') {
+          console.error(`❌ [PLAY] Failed: ${err.name} - ${err.message}`);
+        }
+      });
     }
     // If isPlaying is true but readyState < 2, the canplay handler will start playback
   }, [isPlaying, getActiveDeck]);
@@ -906,6 +984,53 @@ export function PlayerBar() {
     const deckB = deckBRef.current;
     if (!deckA || !deckB || !currentSong) return;
 
+    // Debounce mechanism for Bluetooth disconnect/reconnect rapid events
+    // iOS sends rapid play/pause toggling when Bluetooth state changes
+    let mediaSessionDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
+    let pendingAction: 'play' | 'pause' | null = null;
+    const DEBOUNCE_MS = 300;
+
+    const executeMediaAction = (action: 'play' | 'pause') => {
+      const activeDeck = getActiveDeck();
+      if (!activeDeck) return;
+
+      if (action === 'play') {
+        console.log('🎛️ Media Session: executing play');
+        activeDeck.play().catch(err => {
+          console.error('🎛️ Media Session play failed:', err);
+        });
+        setIsPlaying(true);
+      } else {
+        console.log('🎛️ Media Session: executing pause');
+        activeDeck.pause();
+        setIsPlaying(false);
+      }
+    };
+
+    const debouncedMediaAction = (action: 'play' | 'pause') => {
+      // If same action is pending, ignore duplicate
+      if (pendingAction === action) {
+        console.log(`🎛️ Media Session: ignoring duplicate ${action}`);
+        return;
+      }
+
+      pendingAction = action;
+
+      // Clear any existing timeout
+      if (mediaSessionDebounceTimeout) {
+        clearTimeout(mediaSessionDebounceTimeout);
+      }
+
+      // Wait for rapid events to settle before executing
+      mediaSessionDebounceTimeout = setTimeout(() => {
+        if (pendingAction) {
+          executeMediaAction(pendingAction);
+          pendingAction = null;
+        }
+        mediaSessionDebounceTimeout = null;
+      }, DEBOUNCE_MS);
+    };
+
     const setupMediaSession = () => {
       // Build artwork array for lock screen display
       const artwork: MediaImage[] = [];
@@ -941,24 +1066,32 @@ export function PlayerBar() {
 
     // iOS FIX: Set action handlers inside 'playing' event
     // Key: Do NOT set seekbackward/seekforward - iOS shows seek OR track buttons, not both
-    const handlePlaying = () => {
+    const handlePlaying = (event: Event) => {
+      const playingDeck = event.target as HTMLAudioElement;
+      const isActiveDeck = playingDeck === (activeDeckRef.current === 'A' ? deckA : deckB);
+
+      // IMPORTANT: Only set up Media Session for the ACTIVE deck
+      // iOS may auto-resume the inactive deck (with silent data URL) on visibility change
+      if (!isActiveDeck) {
+        console.log(`🎛️ PlayerBar: Ignoring playing event from inactive deck - stopping it`);
+        playingDeck.pause();
+        playingDeck.currentTime = 0;
+        return;
+      }
+
       console.log('🎛️ PlayerBar: Audio playing - setting up Media Session');
       setupMediaSession();
       navigator.mediaSession.playbackState = 'playing';
 
       try {
         navigator.mediaSession.setActionHandler('play', () => {
-          console.log('🎛️ Media Session: play');
-          const activeDeck = getActiveDeck();
-          if (activeDeck) activeDeck.play();
-          setIsPlaying(true);
+          console.log('🎛️ Media Session: play requested');
+          debouncedMediaAction('play');
         });
 
         navigator.mediaSession.setActionHandler('pause', () => {
-          console.log('🎛️ Media Session: pause');
-          const activeDeck = getActiveDeck();
-          if (activeDeck) activeDeck.pause();
-          setIsPlaying(false);
+          console.log('🎛️ Media Session: pause requested');
+          debouncedMediaAction('pause');
         });
 
         // previoustrack and nexttrack - shows as skip buttons on iOS
@@ -1033,6 +1166,11 @@ export function PlayerBar() {
     }
 
     return () => {
+      // Clear debounce timeout
+      if (mediaSessionDebounceTimeout) {
+        clearTimeout(mediaSessionDebounceTimeout);
+      }
+
       [deckA, deckB].forEach(deck => {
         deck.removeEventListener('playing', handlePlaying);
         deck.removeEventListener('pause', handlePause);
@@ -1051,6 +1189,125 @@ export function PlayerBar() {
       }
     };
   }, [currentSong, setIsPlaying, previousSong, nextSong, getActiveDeck]);
+
+  // ==========================================================================
+  // DEBUG LOGGING for iOS audio issues
+  // Only active when ?debug=true
+  // ==========================================================================
+  useEffect(() => {
+    // Only enable if debug mode is active
+    if (typeof window === 'undefined' || localStorage.getItem('debug') !== 'true') {
+      return;
+    }
+
+    const deckA = deckARef.current;
+    const deckB = deckBRef.current;
+    if (!deckA || !deckB) return;
+
+    const networkStateMap: Record<number, string> = {
+      0: 'EMPTY', 1: 'IDLE', 2: 'LOADING', 3: 'NO_SOURCE'
+    };
+    const readyStateMap: Record<number, string> = {
+      0: 'NOTHING', 1: 'METADATA', 2: 'CURRENT', 3: 'FUTURE', 4: 'ENOUGH'
+    };
+
+    const logAudioState = (event: string, deck: 'A' | 'B', audio: HTMLAudioElement) => {
+      console.log(`🔊 [${event}] Deck ${deck} | paused=${audio.paused} network=${networkStateMap[audio.networkState]} ready=${readyStateMap[audio.readyState]} time=${audio.currentTime.toFixed(1)} src=${audio.src ? 'SET' : 'NONE'}`);
+    };
+
+    // Audio element events
+    const events = ['play', 'pause', 'playing', 'waiting', 'stalled', 'suspend', 'abort', 'emptied', 'error', 'ended', 'canplay', 'canplaythrough', 'loadstart', 'loadeddata', 'loadedmetadata'];
+
+    const createHandler = (deck: 'A' | 'B', audio: HTMLAudioElement) => (e: Event) => {
+      logAudioState(e.type.toUpperCase(), deck, audio);
+      if (e.type === 'error' && audio.error) {
+        console.error(`❌ [ERROR] Deck ${deck} code=${audio.error.code} msg=${audio.error.message}`);
+      }
+    };
+
+    const handlerA = createHandler('A', deckA);
+    const handlerB = createHandler('B', deckB);
+
+    events.forEach(evt => {
+      deckA.addEventListener(evt, handlerA);
+      deckB.addEventListener(evt, handlerB);
+    });
+
+    // Network state changes
+    const handleOnline = () => console.log('🌐 [NETWORK] Online');
+    const handleOffline = () => console.log('🌐 [NETWORK] Offline');
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Visibility changes (app going to background)
+    const handleVisibility = () => {
+      const state = document.visibilityState;
+      const active = getActiveDeck();
+      console.log(`👁️ [VISIBILITY] ${state} | isPlaying=${isPlaying} paused=${active?.paused}`);
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // Page lifecycle events (iOS-specific)
+    const handlePageHide = (e: PageTransitionEvent) => {
+      console.log(`📄 [PAGEHIDE] persisted=${e.persisted}`);
+    };
+    const handlePageShow = (e: PageTransitionEvent) => {
+      const active = getActiveDeck();
+      console.log(`📄 [PAGESHOW] persisted=${e.persisted} paused=${active?.paused}`);
+    };
+    const handleFreeze = () => console.log('🧊 [FREEZE] Page frozen');
+    const handleResume = () => {
+      const active = getActiveDeck();
+      console.log(`▶️ [RESUME] Page resumed | paused=${active?.paused}`);
+    };
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('pageshow', handlePageShow);
+    document.addEventListener('freeze', handleFreeze);
+    document.addEventListener('resume', handleResume);
+
+    // Log initial state
+    console.log('🔧 [DEBUG] Audio debug logging enabled');
+    console.log(`🌐 [NETWORK] Initial: ${navigator.onLine ? 'Online' : 'Offline'}`);
+    logAudioState('INIT', 'A', deckA);
+    logAudioState('INIT', 'B', deckB);
+
+    // Periodic state logging every 10 seconds + inactive deck safety check
+    const stateInterval = setInterval(() => {
+      const active = getActiveDeck();
+      const activeDeckLabel = activeDeckRef.current;
+      const inactive = activeDeckLabel === 'A' ? deckB : deckA;
+      const inactiveDeckLabel = activeDeckLabel === 'A' ? 'B' : 'A';
+
+      if (active) {
+        console.log(`📊 [STATE] Deck ${activeDeckLabel} | playing=${!active.paused} time=${active.currentTime.toFixed(1)}/${active.duration?.toFixed(1) || '?'} network=${networkStateMap[active.networkState]} ready=${readyStateMap[active.readyState]} buffered=${active.buffered.length > 0 ? active.buffered.end(0).toFixed(1) : '0'}`);
+      }
+
+      // SAFETY CHECK: If inactive deck is playing and no crossfade is in progress, stop it
+      // This catches cases where crossfade cleanup failed (e.g., iOS suspended setTimeout)
+      if (inactive && !inactive.paused && !crossfadeInProgressRef.current) {
+        console.warn(`⚠️ [SAFETY] Deck ${inactiveDeckLabel} playing unexpectedly (time=${inactive.currentTime.toFixed(1)}) - stopping it`);
+        inactive.pause();
+        inactive.currentTime = 0;
+        inactive.volume = 0;
+        inactive.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAgAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbD/////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+M4xAANCAJYAUAAAP/jOMQADQW+XgFJAAD/4zjEAA5QGneBSRgA/+M4xAAOAAJYAUEAAA==';
+      }
+    }, 10000);
+
+    return () => {
+      clearInterval(stateInterval);
+      events.forEach(evt => {
+        deckA.removeEventListener(evt, handlerA);
+        deckB.removeEventListener(evt, handlerB);
+      });
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('pageshow', handlePageShow);
+      document.removeEventListener('freeze', handleFreeze);
+      document.removeEventListener('resume', handleResume);
+    };
+  }, [getActiveDeck, isPlaying]);
 
   if (!currentSong) return null;
 
