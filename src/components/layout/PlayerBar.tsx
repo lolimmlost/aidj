@@ -693,6 +693,17 @@ export function PlayerBar() {
       // Only process ended from active deck
       if (activeDeckRef.current !== deckName) return;
 
+      // CRITICAL: Ignore ENDED events for very short audio (e.g., silent data URL)
+      // iOS may auto-resume the silent audio on visibility change, causing it to immediately end
+      // The silent data URL has duration ~0.1s, real songs are much longer
+      if (deck.duration && deck.duration < 5) {
+        console.log(`[MOBILE] Ignoring ended event for short audio (duration=${deck.duration.toFixed(2)}s) - likely silent data URL`);
+        // Also pause and reset this deck to prevent further issues
+        deck.pause();
+        deck.currentTime = 0;
+        return;
+      }
+
       // If crossfade already handled the transition, don't do anything
       if (crossfadeInProgressRef.current) {
         console.log(`[XFADE] onEnded fired on deck ${deckName} but crossfade in progress, skipping`);
@@ -922,6 +933,13 @@ export function PlayerBar() {
 
     // Only handle pause immediately; play is handled by canplay listener or when ready
     if (!isPlaying) {
+      // DEFENSIVE: Don't pause audio that's actually playing - store might be stale
+      // (e.g., after component remount, HMR, or visibility change)
+      if (!audio.paused) {
+        console.log('🎮 [STORE] Store says pause but audio is playing - syncing store to match reality');
+        setIsPlaying(true);
+        return;
+      }
       audio.pause();
     } else if (audio.readyState >= 2) {
       // Only try to play if audio is ready (has enough data)
@@ -1066,8 +1084,11 @@ export function PlayerBar() {
 
     // iOS FIX: Set action handlers inside 'playing' event
     // Key: Do NOT set seekbackward/seekforward - iOS shows seek OR track buttons, not both
-    const handlePlaying = (event: Event) => {
-      const playingDeck = event.target as HTMLAudioElement;
+    const handlePlaying = (event?: Event) => {
+      // Get the deck that fired the event, or fall back to active deck for direct calls
+      const playingDeck = event?.target as HTMLAudioElement | undefined ?? getActiveDeck();
+      if (!playingDeck) return;
+
       const isActiveDeck = playingDeck === (activeDeckRef.current === 'A' ? deckA : deckB);
 
       // IMPORTANT: Only set up Media Session for the ACTIVE deck
@@ -1082,6 +1103,14 @@ export function PlayerBar() {
       console.log('🎛️ PlayerBar: Audio playing - setting up Media Session');
       setupMediaSession();
       navigator.mediaSession.playbackState = 'playing';
+
+      // CRITICAL: Sync store state when audio starts playing
+      // This prevents the isPlaying sync useEffect from incorrectly pausing audio
+      // that started playing via crossfade or other non-store-triggered means
+      if (!useAudioStore.getState().isPlaying) {
+        console.log('🎛️ PlayerBar: Syncing store isPlaying=true (audio started externally)');
+        setIsPlaying(true);
+      }
 
       try {
         navigator.mediaSession.setActionHandler('play', () => {
