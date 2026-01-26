@@ -952,12 +952,31 @@ export function PlayerBar() {
 
   // Handle play/pause state changes (for toggling on existing loaded song)
   useEffect(() => {
-    const audio = getActiveDeck();
-    if (!audio || !audio.src) return;
+    const deckA = deckARef.current;
+    const deckB = deckBRef.current;
+    if (!deckA || !deckB) return;
+
+    // CRITICAL: Check if activeDeckRef is pointing to the wrong deck
+    // This can happen after component remount when activeDeckRef resets to 'A'
+    // but Deck B was actually playing
+    const deckAIsReallyPlaying = !deckA.paused && deckA.currentTime > 0 && deckA.src && deckA.src.indexOf('data:audio') === -1;
+    const deckBIsReallyPlaying = !deckB.paused && deckB.currentTime > 0 && deckB.src && deckB.src.indexOf('data:audio') === -1;
+
+    // Correct activeDeckRef if needed
+    if (deckBIsReallyPlaying && !deckAIsReallyPlaying && activeDeckRef.current === 'A') {
+      console.log('🎮 [STORE] Correcting activeDeckRef: Deck B is playing but ref says A');
+      activeDeckRef.current = 'B';
+    } else if (deckAIsReallyPlaying && !deckBIsReallyPlaying && activeDeckRef.current === 'B') {
+      console.log('🎮 [STORE] Correcting activeDeckRef: Deck A is playing but ref says B');
+      activeDeckRef.current = 'A';
+    }
+
+    const audio = activeDeckRef.current === 'A' ? deckA : deckB;
+    if (!audio.src) return;
 
     // Debug log store state changes
     if (localStorage.getItem('debug') === 'true') {
-      console.log(`🎮 [STORE] isPlaying=${isPlaying} | audio.paused=${audio.paused} readyState=${audio.readyState}`);
+      console.log(`🎮 [STORE] isPlaying=${isPlaying} | audio.paused=${audio.paused} readyState=${audio.readyState} deck=${activeDeckRef.current}`);
     }
 
     // Only handle pause immediately; play is handled by canplay listener or when ready
@@ -979,7 +998,7 @@ export function PlayerBar() {
       });
     }
     // If isPlaying is true but readyState < 2, the canplay handler will start playback
-  }, [isPlaying, getActiveDeck]);
+  }, [isPlaying, setIsPlaying]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -1290,16 +1309,33 @@ export function PlayerBar() {
   // ==========================================================================
   // VISIBILITY CHANGE RECOVERY - Sync store state with actual audio state
   // Helps recover from Bluetooth disconnect/reconnect and iOS background scenarios
+  // Also fixes activeDeckRef if component remounted and lost track of which deck is playing
   // ==========================================================================
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
 
-      const activeDeck = getActiveDeck();
-      if (!activeDeck) return;
+      const deckA = deckARef.current;
+      const deckB = deckBRef.current;
+      if (!deckA || !deckB) return;
 
       // Small delay to let iOS settle after visibility change
       setTimeout(() => {
+        // CRITICAL: Check which deck is ACTUALLY playing
+        // Component remount can reset activeDeckRef to 'A' even if Deck B was playing
+        const deckAIsPlaying = !deckA.paused && deckA.currentTime > 0 && deckA.src && deckA.src.indexOf('data:audio') === -1;
+        const deckBIsPlaying = !deckB.paused && deckB.currentTime > 0 && deckB.src && deckB.src.indexOf('data:audio') === -1;
+
+        // Fix activeDeckRef if it's pointing to the wrong deck
+        if (deckBIsPlaying && !deckAIsPlaying && activeDeckRef.current === 'A') {
+          console.log('👁️ [VISIBILITY] Correcting activeDeckRef: Deck B is playing but ref says A');
+          activeDeckRef.current = 'B';
+        } else if (deckAIsPlaying && !deckBIsPlaying && activeDeckRef.current === 'B') {
+          console.log('👁️ [VISIBILITY] Correcting activeDeckRef: Deck A is playing but ref says B');
+          activeDeckRef.current = 'A';
+        }
+
+        const activeDeck = activeDeckRef.current === 'A' ? deckA : deckB;
         const storeIsPlaying = useAudioStore.getState().isPlaying;
         const audioIsPlaying = !activeDeck.paused;
 
@@ -1325,7 +1361,7 @@ export function PlayerBar() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [getActiveDeck, setIsPlaying]);
+  }, [setIsPlaying]);
 
   // ==========================================================================
   // DEBUG LOGGING for iOS audio issues
