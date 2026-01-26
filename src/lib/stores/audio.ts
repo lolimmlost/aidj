@@ -1154,17 +1154,15 @@ export const useAudioStore = create<AudioState>()(
         const preferencesState = usePreferencesStore.getState();
         const { recommendationSettings } = preferencesState.preferences;
 
-        // Build exclusions list - recent songs in queue
-        const recentlyPlayed = state.playlist.slice(
-          Math.max(0, state.currentSongIndex - 10),
-          state.currentSongIndex + 5
-        ).map(song => song.id);
+        // Build exclusions list - ALL songs in queue (prevent duplicates)
+        // This fixes the "duplicate key" React errors when same song is added twice
+        const allPlaylistSongIds = state.playlist.map(song => song.id);
 
         const recentlyRecommended = state.aiDJRecentlyRecommended
           .filter(rec => Date.now() - rec.timestamp < 7200000) // 2 hour window
           .map(rec => rec.songId);
 
-        const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed])];
+        const allExclusions = [...new Set([...recentlyRecommended, ...allPlaylistSongIds])];
 
         // Call API - use larger batch for nudge mode
         const batchSize = Math.max(recommendationSettings.aiDJBatchSize || 3, 5);

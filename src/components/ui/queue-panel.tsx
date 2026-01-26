@@ -37,9 +37,11 @@ interface SortableQueueItemProps {
   currentFeedback?: 'thumbs_up' | 'thumbs_down' | null;
   onFeedback?: (songId: string, songTitle: string, artist: string, type: 'thumbs_up' | 'thumbs_down') => void;
   onSkipAutoplay?: (songId: string) => void;
+  /** Unique sortable ID for drag-and-drop (handles duplicate songs) */
+  sortableId?: string;
 }
 
-const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued, isAutoplayQueued, currentFeedback, onFeedback, onSkipAutoplay }: SortableQueueItemProps) {
+const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued, isAutoplayQueued, currentFeedback, onFeedback, onSkipAutoplay, sortableId }: SortableQueueItemProps) {
   const {
     attributes,
     listeners,
@@ -47,7 +49,7 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: song.id });
+  } = useSortable({ id: sortableId || song.id });
 
   const isLiked = currentFeedback === 'thumbs_up';
   const isDisliked = currentFeedback === 'thumbs_down';
@@ -728,7 +730,7 @@ export function QueuePanel() {
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext
-                  items={upcomingQueue.map(s => s.id)}
+                  items={upcomingQueue.map((s, i) => `${s.id}-${i}`)}
                   strategy={verticalListSortingStrategy}
                 >
                   <div className="h-[25vh] md:h-[40vh] overflow-y-auto overflow-x-hidden pr-1 md:pr-2 space-y-2">
@@ -738,9 +740,12 @@ export function QueuePanel() {
                       const isAIQueued = aiQueuedSongIds.has(song.id);
                       const isAutoplayQueued = autoplayQueuedSongIds.has(song.id);
                       const isAutoQueued = isAIQueued || isAutoplayQueued;
+                      // Use index in key to handle duplicate songs in queue
+                      const sortableId = `${song.id}-${index}`;
                       return (
                         <SortableQueueItem
-                          key={song.id}
+                          key={sortableId}
+                          sortableId={sortableId}
                           song={song}
                           index={index}
                           actualIndex={actualIndex}
