@@ -984,7 +984,22 @@ export const useAudioStore = create<AudioState>()(
         }
 
         // Add recommendations to queue
-        const newPlaylist = [...state.playlist, ...recommendations];
+        // For drip-feed: insert RIGHT AFTER current song (plays next)
+        // For threshold refill: append to end of queue
+        let newPlaylist: Song[];
+        if (isDripTrigger) {
+          // Insert after current song position
+          const insertIndex = state.currentSongIndex + 1;
+          newPlaylist = [
+            ...state.playlist.slice(0, insertIndex),
+            ...recommendations,
+            ...state.playlist.slice(insertIndex),
+          ];
+          console.log(`🎵 AI DJ: Drip recommendation inserted at position ${insertIndex} (plays next)`);
+        } else {
+          // Threshold refill - append to end
+          newPlaylist = [...state.playlist, ...recommendations];
+        }
         const newQueuedIds = new Set(state.aiQueuedSongIds);
 
         // Track newly recommended songs with artist info
