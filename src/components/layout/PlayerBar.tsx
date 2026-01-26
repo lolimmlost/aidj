@@ -996,17 +996,6 @@ export function PlayerBar() {
         setIsPlaying(true);
         return;
       }
-      // CRITICAL: If audio has progressed (was playing) but iOS briefly paused it,
-      // don't permanently pause it - try to resume instead
-      // This handles iOS visibility change behavior where audio gets briefly paused
-      if (audio.currentTime > 0 && hasRealSong(audio) && audio.readyState >= 2) {
-        console.log('🎮 [STORE] Store says pause but audio has progress - resuming instead');
-        audio.play().catch((err) => {
-          console.log('🎮 [STORE] Resume failed, accepting paused state:', err.message);
-        });
-        setIsPlaying(true);
-        return;
-      }
       audio.pause();
     } else if (audio.readyState >= 2) {
       // Only try to play if audio is ready (has enough data)
