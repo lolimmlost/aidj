@@ -956,18 +956,26 @@ export function PlayerBar() {
     const deckB = deckBRef.current;
     if (!deckA || !deckB) return;
 
+    // Helper to check if a deck has a real song (not silent data URL)
+    const hasRealSong = (deck: HTMLAudioElement) =>
+      deck.src && deck.src.indexOf('data:audio') === -1;
+
     // CRITICAL: Check if activeDeckRef is pointing to the wrong deck
     // This can happen after component remount when activeDeckRef resets to 'A'
     // but Deck B was actually playing
-    const deckAIsReallyPlaying = !deckA.paused && deckA.currentTime > 0 && deckA.src && deckA.src.indexOf('data:audio') === -1;
-    const deckBIsReallyPlaying = !deckB.paused && deckB.currentTime > 0 && deckB.src && deckB.src.indexOf('data:audio') === -1;
+    //
+    // Use currentTime > 0 as the PRIMARY signal - if a deck has progressed, it WAS playing
+    // Don't rely on !paused because iOS may briefly pause audio during visibility changes
+    const deckAWasPlaying = deckA.currentTime > 0 && hasRealSong(deckA);
+    const deckBWasPlaying = deckB.currentTime > 0 && hasRealSong(deckB);
 
-    // Correct activeDeckRef if needed
-    if (deckBIsReallyPlaying && !deckAIsReallyPlaying && activeDeckRef.current === 'A') {
-      console.log('🎮 [STORE] Correcting activeDeckRef: Deck B is playing but ref says A');
+    // Correct activeDeckRef based on which deck has actually been playing
+    // A deck that has progressed (currentTime > 0) is clearly the active one
+    if (deckBWasPlaying && !deckAWasPlaying && activeDeckRef.current === 'A') {
+      console.log('🎮 [STORE] Correcting activeDeckRef: Deck B has progress but ref says A');
       activeDeckRef.current = 'B';
-    } else if (deckAIsReallyPlaying && !deckBIsReallyPlaying && activeDeckRef.current === 'B') {
-      console.log('🎮 [STORE] Correcting activeDeckRef: Deck A is playing but ref says B');
+    } else if (deckAWasPlaying && !deckBWasPlaying && activeDeckRef.current === 'B') {
+      console.log('🎮 [STORE] Correcting activeDeckRef: Deck A has progress but ref says B');
       activeDeckRef.current = 'A';
     }
 
@@ -976,7 +984,7 @@ export function PlayerBar() {
 
     // Debug log store state changes
     if (localStorage.getItem('debug') === 'true') {
-      console.log(`🎮 [STORE] isPlaying=${isPlaying} | audio.paused=${audio.paused} readyState=${audio.readyState} deck=${activeDeckRef.current}`);
+      console.log(`🎮 [STORE] isPlaying=${isPlaying} | audio.paused=${audio.paused} readyState=${audio.readyState} time=${audio.currentTime.toFixed(1)} deck=${activeDeckRef.current}`);
     }
 
     // Only handle pause immediately; play is handled by canplay listener or when ready
@@ -985,6 +993,17 @@ export function PlayerBar() {
       // (e.g., after component remount, HMR, or visibility change)
       if (!audio.paused) {
         console.log('🎮 [STORE] Store says pause but audio is playing - syncing store to match reality');
+        setIsPlaying(true);
+        return;
+      }
+      // CRITICAL: If audio has progressed (was playing) but iOS briefly paused it,
+      // don't permanently pause it - try to resume instead
+      // This handles iOS visibility change behavior where audio gets briefly paused
+      if (audio.currentTime > 0 && hasRealSong(audio) && audio.readyState >= 2) {
+        console.log('🎮 [STORE] Store says pause but audio has progress - resuming instead');
+        audio.play().catch((err) => {
+          console.log('🎮 [STORE] Resume failed, accepting paused state:', err.message);
+        });
         setIsPlaying(true);
         return;
       }
@@ -1319,41 +1338,61 @@ export function PlayerBar() {
       const deckB = deckBRef.current;
       if (!deckA || !deckB) return;
 
+      // Helper to check if a deck has a real song (not silent data URL)
+      const hasRealSong = (deck: HTMLAudioElement) =>
+        deck.src && deck.src.indexOf('data:audio') === -1;
+
       // Small delay to let iOS settle after visibility change
       setTimeout(() => {
-        // CRITICAL: Check which deck is ACTUALLY playing
-        // Component remount can reset activeDeckRef to 'A' even if Deck B was playing
-        const deckAIsPlaying = !deckA.paused && deckA.currentTime > 0 && deckA.src && deckA.src.indexOf('data:audio') === -1;
-        const deckBIsPlaying = !deckB.paused && deckB.currentTime > 0 && deckB.src && deckB.src.indexOf('data:audio') === -1;
+        // CRITICAL: Use currentTime > 0 as the PRIMARY signal for which deck was playing
+        // Don't rely on !paused because iOS may briefly pause audio during visibility changes
+        const deckAHasProgress = deckA.currentTime > 0 && hasRealSong(deckA);
+        const deckBHasProgress = deckB.currentTime > 0 && hasRealSong(deckB);
 
-        // Fix activeDeckRef if it's pointing to the wrong deck
-        if (deckBIsPlaying && !deckAIsPlaying && activeDeckRef.current === 'A') {
-          console.log('👁️ [VISIBILITY] Correcting activeDeckRef: Deck B is playing but ref says A');
+        // Fix activeDeckRef based on which deck has actual playback progress
+        if (deckBHasProgress && !deckAHasProgress && activeDeckRef.current === 'A') {
+          console.log('👁️ [VISIBILITY] Correcting activeDeckRef: Deck B has progress but ref says A');
           activeDeckRef.current = 'B';
-        } else if (deckAIsPlaying && !deckBIsPlaying && activeDeckRef.current === 'B') {
-          console.log('👁️ [VISIBILITY] Correcting activeDeckRef: Deck A is playing but ref says B');
+        } else if (deckAHasProgress && !deckBHasProgress && activeDeckRef.current === 'B') {
+          console.log('👁️ [VISIBILITY] Correcting activeDeckRef: Deck A has progress but ref says B');
           activeDeckRef.current = 'A';
         }
 
         const activeDeck = activeDeckRef.current === 'A' ? deckA : deckB;
         const storeIsPlaying = useAudioStore.getState().isPlaying;
-        const audioIsPlaying = !activeDeck.paused;
+        const audioIsActuallyPlaying = !activeDeck.paused;
+        const audioHadProgress = activeDeck.currentTime > 0 && hasRealSong(activeDeck);
+
+        console.log(`👁️ [VISIBILITY] State check: store=${storeIsPlaying}, audio=${audioIsActuallyPlaying ? 'playing' : 'paused'}, progress=${activeDeck.currentTime.toFixed(1)}s, deck=${activeDeckRef.current}`);
+
+        // KEY INSIGHT: If audio has progress (currentTime > 0), it WAS playing
+        // iOS may have briefly paused it during visibility change
+        // In this case, we should try to RESUME, not sync to paused
+        if (audioHadProgress && !audioIsActuallyPlaying) {
+          console.log('👁️ [VISIBILITY] Audio has progress but is paused - attempting resume');
+          activeDeck.play()
+            .then(() => {
+              console.log('👁️ [VISIBILITY] Resume successful');
+              setIsPlaying(true);
+            })
+            .catch((err) => {
+              console.log('👁️ [VISIBILITY] Resume failed:', err.message);
+              // If resume fails, sync store to paused
+              setIsPlaying(false);
+            });
+          return;
+        }
 
         // If there's a mismatch, sync store to match audio reality
-        if (storeIsPlaying !== audioIsPlaying) {
-          console.log(`👁️ [VISIBILITY] State mismatch on visibility - store=${storeIsPlaying}, audio=${audioIsPlaying ? 'playing' : 'paused'}`);
+        if (storeIsPlaying !== audioIsActuallyPlaying) {
+          console.log(`👁️ [VISIBILITY] State mismatch - syncing store to ${audioIsActuallyPlaying ? 'playing' : 'paused'}`);
 
-          // Trust the audio element's state as the source of truth
-          if (audioIsPlaying) {
-            console.log('👁️ [VISIBILITY] Audio is playing - syncing store to playing');
+          if (audioIsActuallyPlaying) {
             setIsPlaying(true);
-          } else {
-            // Only sync to paused if the audio actually has a source loaded
+          } else if (activeDeck.readyState >= 2 && hasRealSong(activeDeck)) {
+            // Only sync to paused if audio is ready and has valid source
             // (don't sync empty/cleared decks to paused state)
-            if (activeDeck.src && activeDeck.src.indexOf('data:audio') === -1 && activeDeck.readyState >= 2) {
-              console.log('👁️ [VISIBILITY] Audio is paused with valid source - syncing store to paused');
-              setIsPlaying(false);
-            }
+            setIsPlaying(false);
           }
         }
       }, 200);
