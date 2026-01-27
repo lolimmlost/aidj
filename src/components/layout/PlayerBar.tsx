@@ -1370,7 +1370,47 @@ export function PlayerBar() {
         const audioIsActuallyPlaying = !activeDeck.paused;
         const audioHadProgress = activeDeck.currentTime > 0 && hasRealSong(activeDeck);
 
-        console.log(`👁️ [VISIBILITY] State check: store=${storeIsPlaying}, audio=${audioIsActuallyPlaying ? 'playing' : 'paused'}, progress=${activeDeck.currentTime.toFixed(1)}s, deck=${activeDeckRef.current}`);
+        // Check for buffer stall: audio not paused but time at or past buffered amount
+        // This happens when playback catches up to the buffer and stalls
+        const getBufferedEnd = (deck: HTMLAudioElement) => {
+          if (deck.buffered.length > 0) {
+            return deck.buffered.end(deck.buffered.length - 1);
+          }
+          return 0;
+        };
+        const bufferedEnd = getBufferedEnd(activeDeck);
+        const isStalled = audioHadProgress && activeDeck.currentTime >= bufferedEnd - 0.5;
+
+        console.log(`👁️ [VISIBILITY] State check: store=${storeIsPlaying}, audio=${audioIsActuallyPlaying ? 'playing' : 'paused'}, progress=${activeDeck.currentTime.toFixed(1)}s, buffered=${bufferedEnd.toFixed(1)}s, stalled=${isStalled}, deck=${activeDeckRef.current}`);
+
+        // STALL RECOVERY: If audio was stalled (buffer underrun), try to resume
+        // Stalled audio may appear as playing (paused=false) but time is frozen
+        // Force a play() call to kick the browser into continuing to buffer and play
+        if (isStalled && storeIsPlaying) {
+          console.log('👁️ [VISIBILITY] Audio stalled (buffer underrun) - attempting recovery');
+          activeDeck.play()
+            .then(() => {
+              console.log('👁️ [VISIBILITY] Stall recovery: play() succeeded');
+              setIsPlaying(true);
+            })
+            .catch((err) => {
+              console.log('👁️ [VISIBILITY] Stall recovery: play() failed:', err.message);
+              // Try seeking back slightly to trigger re-buffer
+              const seekTarget = Math.max(0, activeDeck.currentTime - 2);
+              console.log(`👁️ [VISIBILITY] Stall recovery: seeking back to ${seekTarget.toFixed(1)}s`);
+              activeDeck.currentTime = seekTarget;
+              activeDeck.play()
+                .then(() => {
+                  console.log('👁️ [VISIBILITY] Stall recovery: seek + play succeeded');
+                  setIsPlaying(true);
+                })
+                .catch(() => {
+                  console.log('👁️ [VISIBILITY] Stall recovery failed - syncing to paused');
+                  setIsPlaying(false);
+                });
+            });
+          return;
+        }
 
         // KEY INSIGHT: If audio has progress (currentTime > 0), it WAS playing
         // iOS may have briefly paused it during visibility change
