@@ -222,6 +222,7 @@ export function PlayerBar() {
   const nextSongPreloadedRef = useRef<boolean>(false);
   const targetVolumeRef = useRef<number>(1);
   const decksPrimedRef = useRef<boolean>(false); // Track if both decks have been user-activated for mobile
+  const isPrimingRef = useRef<boolean>(false); // Track if we're actively priming (to allow inactive deck play)
 
   // Media Session debounce state (refs to survive remounts during Bluetooth changes)
   const mediaSessionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -377,18 +378,22 @@ export function PlayerBar() {
             const originalSrc = inactiveDeck.src;
             // Silent MP3 (smallest valid MP3)
             inactiveDeck.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAgAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbD/////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+M4xAANCAJYAUAAAP/jOMQADQW+XgFJAAD/4zjEAA5QGneBSRgA/+M4xAAOAAJYAUEAAA==';
+            // Set flag to allow handlePlaying to ignore this deck during priming
+            isPrimingRef.current = true;
             inactiveDeck.play()
               .then(() => {
                 inactiveDeck.pause();
                 inactiveDeck.src = originalSrc || '';
                 inactiveDeck.volume = originalVolume;
                 decksPrimedRef.current = true;
+                isPrimingRef.current = false;
                 console.log('[MOBILE] Inactive deck primed successfully');
               })
               .catch((e) => {
                 console.log('[MOBILE] Could not prime inactive deck:', e);
                 inactiveDeck.src = originalSrc || '';
                 inactiveDeck.volume = originalVolume;
+                isPrimingRef.current = false;
               });
           }
         }
@@ -1186,11 +1191,17 @@ export function PlayerBar() {
 
       // IMPORTANT: Only set up Media Session for the ACTIVE deck
       // iOS may auto-resume the inactive deck (with silent data URL) on visibility change
-      // BUT: During crossfade, we WANT the inactive deck to play (it's the new song fading in)
-      if (!isActiveDeck && !crossfadeInProgressRef.current) {
+      // BUT: During crossfade or priming, we WANT the inactive deck to play
+      if (!isActiveDeck && !crossfadeInProgressRef.current && !isPrimingRef.current) {
         console.log(`🎛️ PlayerBar: Ignoring playing event from inactive deck - stopping it`);
         playingDeck.pause();
         playingDeck.currentTime = 0;
+        return;
+      }
+
+      // During priming, don't set up Media Session for the inactive deck (let priming handle it)
+      if (!isActiveDeck && isPrimingRef.current) {
+        console.log(`🎛️ PlayerBar: Inactive deck playing during priming - allowing it`);
         return;
       }
 
