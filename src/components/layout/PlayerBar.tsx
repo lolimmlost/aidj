@@ -1085,15 +1085,22 @@ export function PlayerBar() {
         }
       }
 
-      // Reality check: don't pause audio that's playing if store says play, and vice versa
+      // Reality check: only block spurious pause events during rapid toggling (Bluetooth glitch)
+      // If enough time has passed since last event, trust it as a user-initiated action
+      const GLITCH_WINDOW_MS = 2000; // Only suspect Bluetooth glitch within 2 seconds of last action
       const storeIsPlaying = useAudioStore.getState().isPlaying;
       const audioIsPlaying = !activeDeck.paused;
+      const lastExecTime = mediaSessionLastExecutedRef.current?.time || 0;
+      const timeSinceLastAction = Date.now() - lastExecTime;
 
       if (action === 'pause' && audioIsPlaying && storeIsPlaying) {
-        // Store says play, audio is playing, but Media Session says pause
-        // This is likely a spurious event from Bluetooth disconnect
-        console.log('🎛️ Media Session: ignoring pause - store+audio both say playing (likely Bluetooth glitch)');
-        return;
+        // Only block if we're in rapid-event territory (potential Bluetooth glitch)
+        if (timeSinceLastAction < GLITCH_WINDOW_MS && lastExecTime > 0) {
+          console.log(`🎛️ Media Session: ignoring pause - within glitch window (${timeSinceLastAction}ms since last action)`);
+          return;
+        }
+        // Otherwise, it's been a while - trust it as a user-initiated pause
+        console.log(`🎛️ Media Session: accepting pause - ${timeSinceLastAction}ms since last action (user-initiated)`);
       }
 
       if (action === 'play') {
