@@ -229,6 +229,13 @@ export function PlayerBar() {
   const mediaSessionPendingActionRef = useRef<'play' | 'pause' | null>(null);
   const mediaSessionLastExecutedRef = useRef<{ action: 'play' | 'pause'; time: number } | null>(null);
 
+  // Stall watchdog state - monitors playback progress and recovers from stalls
+  const lastProgressTimeRef = useRef<number>(Date.now());
+  const lastProgressValueRef = useRef<number>(0);
+  const stallWatchdogIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recoveryAttemptRef = useRef<number>(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
   // Helper to get active and inactive decks
   const getActiveDeck = useCallback(() => {
     return activeDeckRef.current === 'A' ? deckARef.current : deckBRef.current;
@@ -319,6 +326,140 @@ export function PlayerBar() {
     if (!currentSong || isLikePending) return;
     likeMutate(!isLiked);
   }, [currentSong, isLikePending, isLiked, likeMutate]);
+
+  // ==========================================================================
+  // STALL RECOVERY SYSTEM - Detects and recovers from audio playback stalls
+  // iOS Safari is notorious for stalling audio without firing proper events
+  // ==========================================================================
+
+  // Check and resume AudioContext if suspended (iOS suspends it when backgrounded)
+  const checkAndResumeAudioContext = useCallback(async (): Promise<boolean> => {
+    try {
+      // Get or create AudioContext
+      if (!audioContextRef.current) {
+        const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (AudioContextClass) {
+          audioContextRef.current = new AudioContextClass();
+        }
+      }
+
+      const ctx = audioContextRef.current;
+      if (!ctx) return true; // No AudioContext support, proceed anyway
+
+      if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
+        console.log(`🔊 [AUDIO CONTEXT] State is "${ctx.state}" - attempting resume`);
+        await ctx.resume();
+        console.log('🔊 [AUDIO CONTEXT] Resumed successfully');
+        return true;
+      }
+
+      return true;
+    } catch (err) {
+      console.error('🔊 [AUDIO CONTEXT] Resume failed:', err);
+      return false;
+    }
+  }, []);
+
+  // Centralized stall recovery with escalating strategies
+  const attemptStallRecovery = useCallback(async (audio: HTMLAudioElement, source: string): Promise<boolean> => {
+    const MAX_RECOVERY_ATTEMPTS = 3;
+    const attempt = ++recoveryAttemptRef.current;
+    const savedTime = audio.currentTime;
+
+    console.log(`🔧 [RECOVERY] Attempt ${attempt}/${MAX_RECOVERY_ATTEMPTS} from ${source} at ${savedTime.toFixed(1)}s`);
+
+    // Max attempts reached - skip to next song
+    if (attempt > MAX_RECOVERY_ATTEMPTS) {
+      console.log('🔧 [RECOVERY] Max attempts reached - skipping to next song');
+      recoveryAttemptRef.current = 0;
+      nextSong();
+
+      // Try to play the next song
+      setTimeout(() => {
+        const deck = getActiveDeck();
+        if (deck) {
+          deck.play().catch(err => console.error('🔧 [RECOVERY] Next song play failed:', err));
+        }
+      }, 500);
+
+      return false;
+    }
+
+    // Always check AudioContext first
+    await checkAndResumeAudioContext();
+
+    try {
+      if (attempt === 1) {
+        // Attempt 1: Simple play() to kick the browser into continuing to buffer
+        console.log('🔧 [RECOVERY] Strategy 1: play() to kick buffering');
+        await audio.play();
+        console.log('🔧 [RECOVERY] Attempt 1 succeeded');
+      } else if (attempt === 2) {
+        // Attempt 2: Seek back a few seconds and play
+        const seekTarget = Math.max(0, savedTime - 3);
+        console.log(`🔧 [RECOVERY] Strategy 2: seek back to ${seekTarget.toFixed(1)}s`);
+        audio.currentTime = seekTarget;
+        await audio.play();
+        console.log('🔧 [RECOVERY] Attempt 2 succeeded');
+      } else {
+        // Attempt 3: Full reload - clear src, set it again, seek, play
+        const src = audio.src;
+        const seekTarget = Math.max(0, savedTime - 5);
+        console.log(`🔧 [RECOVERY] Strategy 3: full reload, seek to ${seekTarget.toFixed(1)}s`);
+
+        audio.pause();
+        audio.src = '';
+        audio.load();
+
+        // Small delay for cleanup
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        audio.src = src;
+        audio.load();
+
+        // Wait for enough data to seek
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Reload timeout')), 10000);
+          const onCanPlay = () => {
+            clearTimeout(timeout);
+            audio.removeEventListener('canplay', onCanPlay);
+            resolve();
+          };
+          audio.addEventListener('canplay', onCanPlay);
+        });
+
+        audio.currentTime = seekTarget;
+        await audio.play();
+        console.log('🔧 [RECOVERY] Attempt 3 succeeded');
+      }
+
+      // Success - reset counter after playback stabilizes
+      setTimeout(() => {
+        // Only reset if we're still playing (didn't stall again immediately)
+        const deck = getActiveDeck();
+        if (deck && !deck.paused) {
+          recoveryAttemptRef.current = 0;
+          console.log('🔧 [RECOVERY] Playback stable - reset recovery counter');
+        }
+      }, 5000);
+
+      // Update progress tracking refs to prevent immediate re-trigger
+      lastProgressTimeRef.current = Date.now();
+      lastProgressValueRef.current = audio.currentTime;
+
+      return true;
+    } catch (err) {
+      console.log(`🔧 [RECOVERY] Attempt ${attempt} failed:`, (err as Error).message);
+      return false;
+    }
+  }, [checkAndResumeAudioContext, getActiveDeck, nextSong]);
+
+  // Reset recovery attempts when song changes
+  useEffect(() => {
+    recoveryAttemptRef.current = 0;
+    lastProgressValueRef.current = 0;
+    lastProgressTimeRef.current = Date.now();
+  }, [currentSongIndex]);
 
   // Load song on the active deck (normal playback)
   const loadSong = useCallback((song: typeof currentSong) => {
@@ -723,6 +864,42 @@ export function PlayerBar() {
       setIsLoading(true);
     };
 
+    // Stalled event handler - fires when browser can't get data for ~3 seconds
+    // Safari fires this spuriously during normal load, so we need to filter carefully
+    const lastStalledTimeRef = { current: 0 }; // Local ref for debouncing within this effect
+    const createOnStalled = (deck: HTMLAudioElement, deckName: 'A' | 'B') => () => {
+      // Only process from active deck
+      if (activeDeckRef.current !== deckName) return;
+
+      // Ignore if audio is paused (not expecting progress)
+      if (deck.paused) return;
+
+      // Ignore during initial load (currentTime near 0)
+      if (deck.currentTime < 2) return;
+
+      // Ignore if crossfade in progress
+      if (crossfadeInProgressRef.current) return;
+
+      // Debounce: don't fire repeatedly within 10 seconds
+      const now = Date.now();
+      if (now - lastStalledTimeRef.current < 10000) return;
+      lastStalledTimeRef.current = now;
+
+      // Check if we're actually buffer-starved
+      const bufferedEnd = deck.buffered.length > 0
+        ? deck.buffered.end(deck.buffered.length - 1)
+        : 0;
+
+      // Only trigger recovery if currentTime is at or past buffered amount
+      if (deck.currentTime >= bufferedEnd - 1) {
+        console.log(`🔴 [STALLED EVENT] Deck ${deckName} genuinely stalled at ${deck.currentTime.toFixed(1)}s (buffered: ${bufferedEnd.toFixed(1)}s)`);
+        attemptStallRecovery(deck, 'stalled-event');
+      } else {
+        // Safari false positive - we have buffer, just log it
+        console.log(`🟡 [STALLED EVENT] Deck ${deckName} stalled event but has buffer (time: ${deck.currentTime.toFixed(1)}s, buffered: ${bufferedEnd.toFixed(1)}s) - ignoring`);
+      }
+    };
+
     const createOnEnded = (deck: HTMLAudioElement, deckName: 'A' | 'B') => () => {
       // Only process ended from active deck
       if (activeDeckRef.current !== deckName) return;
@@ -817,6 +994,8 @@ export function PlayerBar() {
     const onCanPlayB = createOnCanPlay('B');
     const onWaitingA = createOnWaiting('A');
     const onWaitingB = createOnWaiting('B');
+    const onStalledA = createOnStalled(deckA, 'A');
+    const onStalledB = createOnStalled(deckB, 'B');
     const onEndedA = createOnEnded(deckA, 'A');
     const onEndedB = createOnEnded(deckB, 'B');
 
@@ -825,12 +1004,14 @@ export function PlayerBar() {
     deckA.addEventListener('loadedmetadata', updateDurationA);
     deckA.addEventListener('canplay', onCanPlayA);
     deckA.addEventListener('waiting', onWaitingA);
+    deckA.addEventListener('stalled', onStalledA);
     deckA.addEventListener('ended', onEndedA);
 
     deckB.addEventListener('timeupdate', updateTimeB);
     deckB.addEventListener('loadedmetadata', updateDurationB);
     deckB.addEventListener('canplay', onCanPlayB);
     deckB.addEventListener('waiting', onWaitingB);
+    deckB.addEventListener('stalled', onStalledB);
     deckB.addEventListener('ended', onEndedB);
 
     // Set initial volume on active deck if not crossfading
@@ -844,15 +1025,17 @@ export function PlayerBar() {
       deckA.removeEventListener('loadedmetadata', updateDurationA);
       deckA.removeEventListener('canplay', onCanPlayA);
       deckA.removeEventListener('waiting', onWaitingA);
+      deckA.removeEventListener('stalled', onStalledA);
       deckA.removeEventListener('ended', onEndedA);
 
       deckB.removeEventListener('timeupdate', updateTimeB);
       deckB.removeEventListener('loadedmetadata', updateDurationB);
       deckB.removeEventListener('canplay', onCanPlayB);
       deckB.removeEventListener('waiting', onWaitingB);
+      deckB.removeEventListener('stalled', onStalledB);
       deckB.removeEventListener('ended', onEndedB);
     };
-  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong, queryClient, startCrossfade, getActiveDeck, playlist]);
+  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong, queryClient, startCrossfade, getActiveDeck, playlist, attemptStallRecovery]);
 
   // Track the canplay handler so we can manage it properly
   const canPlayHandlerRef = useRef<(() => void) | null>(null);
@@ -1333,6 +1516,89 @@ export function PlayerBar() {
   }, [currentSong, setIsPlaying, previousSong, nextSong, getActiveDeck]);
 
   // ==========================================================================
+  // STALL WATCHDOG - Real-time monitoring of playback progress
+  // Detects when audio stops advancing despite being in "playing" state
+  // This catches stalls mid-playback, not just on visibility change
+  // ==========================================================================
+  useEffect(() => {
+    const STALL_THRESHOLD_MS = 5000; // 5 seconds no progress = stall
+    const CHECK_INTERVAL_MS = 2000;  // Check every 2 seconds
+    const MIN_PROGRESS_DELTA = 0.5;  // Minimum progress to consider "advancing"
+
+    // Clear any existing interval
+    if (stallWatchdogIntervalRef.current) {
+      clearInterval(stallWatchdogIntervalRef.current);
+      stallWatchdogIntervalRef.current = null;
+    }
+
+    // Only run watchdog when we should be playing
+    if (!isPlaying) {
+      return;
+    }
+
+    console.log('🐕 [WATCHDOG] Starting stall watchdog');
+
+    stallWatchdogIntervalRef.current = setInterval(() => {
+      const audio = getActiveDeck();
+
+      // Skip checks if audio not ready or paused
+      if (!audio || audio.paused) return;
+
+      // Skip if crossfade in progress (different timing applies)
+      if (crossfadeInProgressRef.current) return;
+
+      // Skip if store says we shouldn't be playing
+      if (!useAudioStore.getState().isPlaying) return;
+
+      // Skip if no real audio loaded
+      if (!audio.src || audio.src.indexOf('data:audio') !== -1) return;
+
+      const now = Date.now();
+      const currentProgress = audio.currentTime;
+
+      // Check if time has advanced meaningfully
+      if (currentProgress > lastProgressValueRef.current + MIN_PROGRESS_DELTA) {
+        // Progress made - reset watchdog
+        lastProgressTimeRef.current = now;
+        lastProgressValueRef.current = currentProgress;
+        // Reset recovery attempts on healthy progress
+        if (recoveryAttemptRef.current > 0) {
+          recoveryAttemptRef.current = 0;
+        }
+        return;
+      }
+
+      // No progress - check if we've exceeded the stall threshold
+      const timeSinceProgress = now - lastProgressTimeRef.current;
+
+      if (timeSinceProgress > STALL_THRESHOLD_MS) {
+        // STALL DETECTED!
+        console.log(`🚨 [WATCHDOG] Stall detected! No progress for ${(timeSinceProgress / 1000).toFixed(1)}s at ${currentProgress.toFixed(1)}s`);
+
+        // Log buffer state for diagnostics
+        const bufferedEnd = audio.buffered.length > 0
+          ? audio.buffered.end(audio.buffered.length - 1)
+          : 0;
+        console.log(`🚨 [WATCHDOG] Buffer state: currentTime=${currentProgress.toFixed(1)}, buffered=${bufferedEnd.toFixed(1)}, readyState=${audio.readyState}`);
+
+        // Attempt recovery
+        attemptStallRecovery(audio, 'watchdog');
+
+        // Reset timing to prevent rapid re-triggering
+        lastProgressTimeRef.current = now;
+      }
+    }, CHECK_INTERVAL_MS);
+
+    return () => {
+      if (stallWatchdogIntervalRef.current) {
+        clearInterval(stallWatchdogIntervalRef.current);
+        stallWatchdogIntervalRef.current = null;
+        console.log('🐕 [WATCHDOG] Stopped stall watchdog');
+      }
+    };
+  }, [isPlaying, getActiveDeck, attemptStallRecovery]);
+
+  // ==========================================================================
   // VISIBILITY CHANGE RECOVERY - Sync store state with actual audio state
   // Helps recover from Bluetooth disconnect/reconnect and iOS background scenarios
   // Also fixes activeDeckRef if component remounted and lost track of which deck is playing
@@ -1383,32 +1649,11 @@ export function PlayerBar() {
 
         console.log(`👁️ [VISIBILITY] State check: store=${storeIsPlaying}, audio=${audioIsActuallyPlaying ? 'playing' : 'paused'}, progress=${activeDeck.currentTime.toFixed(1)}s, buffered=${bufferedEnd.toFixed(1)}s, stalled=${isStalled}, deck=${activeDeckRef.current}`);
 
-        // STALL RECOVERY: If audio was stalled (buffer underrun), try to resume
+        // STALL RECOVERY: If audio was stalled (buffer underrun), use centralized recovery
         // Stalled audio may appear as playing (paused=false) but time is frozen
-        // Force a play() call to kick the browser into continuing to buffer and play
         if (isStalled && storeIsPlaying) {
-          console.log('👁️ [VISIBILITY] Audio stalled (buffer underrun) - attempting recovery');
-          activeDeck.play()
-            .then(() => {
-              console.log('👁️ [VISIBILITY] Stall recovery: play() succeeded');
-              setIsPlaying(true);
-            })
-            .catch((err) => {
-              console.log('👁️ [VISIBILITY] Stall recovery: play() failed:', err.message);
-              // Try seeking back slightly to trigger re-buffer
-              const seekTarget = Math.max(0, activeDeck.currentTime - 2);
-              console.log(`👁️ [VISIBILITY] Stall recovery: seeking back to ${seekTarget.toFixed(1)}s`);
-              activeDeck.currentTime = seekTarget;
-              activeDeck.play()
-                .then(() => {
-                  console.log('👁️ [VISIBILITY] Stall recovery: seek + play succeeded');
-                  setIsPlaying(true);
-                })
-                .catch(() => {
-                  console.log('👁️ [VISIBILITY] Stall recovery failed - syncing to paused');
-                  setIsPlaying(false);
-                });
-            });
+          console.log('👁️ [VISIBILITY] Audio stalled (buffer underrun) - delegating to recovery system');
+          attemptStallRecovery(activeDeck, 'visibility-stall');
           return;
         }
 
@@ -1417,16 +1662,22 @@ export function PlayerBar() {
         // In this case, we should try to RESUME, not sync to paused
         if (audioHadProgress && !audioIsActuallyPlaying) {
           console.log('👁️ [VISIBILITY] Audio has progress but is paused - attempting resume');
-          activeDeck.play()
-            .then(() => {
-              console.log('👁️ [VISIBILITY] Resume successful');
-              setIsPlaying(true);
-            })
-            .catch((err) => {
-              console.log('👁️ [VISIBILITY] Resume failed:', err.message);
-              // If resume fails, sync store to paused
-              setIsPlaying(false);
-            });
+          // Check AudioContext first, then try to play
+          checkAndResumeAudioContext().then(() => {
+            activeDeck.play()
+              .then(() => {
+                console.log('👁️ [VISIBILITY] Resume successful');
+                setIsPlaying(true);
+                // Update progress tracking
+                lastProgressTimeRef.current = Date.now();
+                lastProgressValueRef.current = activeDeck.currentTime;
+              })
+              .catch((err) => {
+                console.log('👁️ [VISIBILITY] Resume failed:', err.message);
+                // If resume fails, sync store to paused
+                setIsPlaying(false);
+              });
+          });
           return;
         }
 
@@ -1447,7 +1698,7 @@ export function PlayerBar() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [setIsPlaying]);
+  }, [setIsPlaying, attemptStallRecovery, checkAndResumeAudioContext]);
 
   // ==========================================================================
   // DEBUG LOGGING for iOS audio issues
