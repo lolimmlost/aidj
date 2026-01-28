@@ -837,6 +837,10 @@ export function PlayerBar() {
         }
 
         // Start crossfade when approaching end
+        // Skip if duration is not yet known (Infinity) - can't calculate time remaining
+        if (!isFinite(deck.duration)) {
+          return;
+        }
         if (xfadeDuration > 0 && timeRemaining <= xfadeDuration && timeRemaining > 0.5 && !crossfadeInProgressRef.current) {
           // Get next song from playlist
           const nextIndex = (currentSongIndex + 1) % playlist.length;
@@ -1062,6 +1066,28 @@ export function PlayerBar() {
       // Skip if song ID already matches (e.g., direct transition in onEnded for mobile)
       if (audio && song && currentSongIdRef.current === song.id) {
         console.log(`[MOBILE] Skipping loadSong - already loaded via direct transition`);
+        return;
+      }
+
+      // REMOUNT RECOVERY: If either deck already has this song loaded with progress, don't reload
+      // This catches component remounts where refs reset but audio elements retained state
+      // Check if the audio src contains the song ID (URL pattern: /stream/songId)
+      const deckA = deckARef.current;
+      const deckB = deckBRef.current;
+      const deckAHasSong = deckA && deckA.currentTime > 0 && deckA.src && deckA.src.includes(song.id);
+      const deckBHasSong = deckB && deckB.currentTime > 0 && deckB.src && deckB.src.includes(song.id);
+
+      if (deckAHasSong || deckBHasSong) {
+        const correctDeck = deckAHasSong ? 'A' : 'B';
+        const deckWithSong = deckAHasSong ? deckA : deckB;
+        console.log(`[REMOUNT] Skipping loadSong - Deck ${correctDeck} already has this song at ${deckWithSong!.currentTime.toFixed(1)}s`);
+
+        // Restore refs to match reality
+        currentSongIdRef.current = song.id;
+        if (activeDeckRef.current !== correctDeck) {
+          console.log(`[REMOUNT] Correcting activeDeckRef: was ${activeDeckRef.current}, should be ${correctDeck}`);
+          activeDeckRef.current = correctDeck;
+        }
         return;
       }
 
