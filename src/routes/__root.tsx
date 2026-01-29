@@ -167,12 +167,14 @@ function RootComponent() {
           <div className={`transition-all duration-300 ${hasActiveSong && !isAuthPage ? 'pb-24 md:pb-20' : ''}`}>
             <Outlet />
           </div>
-          {hasActiveSong && !isAuthPage && (
+          {/* CRITICAL: Always render PlayerBar to preserve audio elements across state changes.
+             Unmounting destroys <audio> elements and kills playback. Hide visually instead. */}
+          {!isAuthPage && (
             <>
-              <div className={`transition-all duration-300 fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)] ${isPlaying ? 'bg-background border-t' : 'opacity-50'}`}>
+              <div className={`transition-all duration-300 fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)] ${!hasActiveSong ? 'hidden' : isPlaying ? 'bg-background border-t' : 'opacity-50'}`}>
                 <PlayerBar />
               </div>
-              <QueuePanel />
+              {hasActiveSong && <QueuePanel />}
             </>
           )}
         </>

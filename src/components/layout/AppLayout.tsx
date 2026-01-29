@@ -206,11 +206,14 @@ export function AppLayout({ children }: AppLayoutProps) {
       </div>
 
       {/* Bottom Player Bar - Fixed to viewport bottom on all screen sizes */}
-      {hasActiveSong && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
-          <PlayerBar />
-        </div>
-      )}
+      {/* CRITICAL: Always render PlayerBar to preserve audio elements across state changes.
+         Unmounting destroys <audio> elements and kills playback. Hide visually instead. */}
+      <div className={cn(
+        "fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]",
+        !hasActiveSong && "hidden"
+      )}>
+        <PlayerBar />
+      </div>
 
       {/* Queue Panel - Slide-out drawer */}
       <QueuePanel />
