@@ -34,9 +34,13 @@ export const Route = createFileRoute("/api/listening-history/by-hour")({
           }
 
           const url = new URL(request.url);
+          const fromParam = url.searchParams.get('from');
+          const toParam = url.searchParams.get('to');
           const preset = (url.searchParams.get('preset') || 'month') as 'week' | 'month' | 'year';
 
-          const range = getPresetRange(preset);
+          const range = fromParam && toParam
+            ? { start: new Date(fromParam), end: new Date(toParam) }
+            : getPresetRange(preset);
           const hourlyData = await getListeningByHour(session.user.id, range.start, range.end);
 
           return new Response(

@@ -38,10 +38,28 @@ export const Route = createFileRoute("/api/listening-history/interest-over-time"
 
           const url = new URL(request.url);
           const artistFilter = url.searchParams.get('artist');
+          const fromParam = url.searchParams.get('from');
+          const toParam = url.searchParams.get('to');
           const months = Math.min(Math.max(parseInt(url.searchParams.get('months') || '6'), 1), 12);
 
-          const cutoffDate = new Date();
-          cutoffDate.setMonth(cutoffDate.getMonth() - months);
+          let cutoffDate: Date;
+          let endDate: Date;
+          let effectiveMonths: number;
+
+          if (fromParam && toParam) {
+            cutoffDate = new Date(fromParam);
+            endDate = new Date(toParam);
+            // Calculate months between from and to
+            effectiveMonths = Math.max(1,
+              (endDate.getFullYear() - cutoffDate.getFullYear()) * 12
+              + endDate.getMonth() - cutoffDate.getMonth() + 1
+            );
+          } else {
+            endDate = new Date();
+            cutoffDate = new Date();
+            cutoffDate.setMonth(cutoffDate.getMonth() - months);
+            effectiveMonths = months;
+          }
 
           if (artistFilter) {
             // Single artist mode - monthly play counts
@@ -62,7 +80,7 @@ export const Route = createFileRoute("/api/listening-history/interest-over-time"
               .orderBy(sql`to_char(${listeningHistory.playedAt}, 'YYYY-MM')`);
 
             // Fill in missing months
-            const filled = fillMonths(data, months);
+            const filled = fillMonths(data, effectiveMonths, endDate);
 
             return new Response(
               JSON.stringify({
@@ -111,7 +129,7 @@ export const Route = createFileRoute("/api/listening-history/interest-over-time"
                 .groupBy(sql`to_char(${listeningHistory.playedAt}, 'YYYY-MM')`)
                 .orderBy(sql`to_char(${listeningHistory.playedAt}, 'YYYY-MM')`);
 
-              const filled = fillMonths(monthlyData, months);
+              const filled = fillMonths(monthlyData, effectiveMonths, endDate);
 
               // Calculate trend (rising/falling/stable)
               const recentHalf = filled.slice(-Math.ceil(filled.length / 2));
@@ -157,14 +175,15 @@ export const Route = createFileRoute("/api/listening-history/interest-over-time"
  */
 function fillMonths(
   data: Array<{ month: string; plays: number }>,
-  monthsBack: number
+  monthsBack: number,
+  referenceDate?: Date
 ): Array<{ month: string; plays: number }> {
   const monthMap = new Map(data.map(d => [d.month, d.plays]));
   const result: Array<{ month: string; plays: number }> = [];
 
-  const now = new Date();
+  const ref = referenceDate || new Date();
   for (let i = monthsBack - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const d = new Date(ref.getFullYear(), ref.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     result.push({ month: key, plays: monthMap.get(key) || 0 });
   }

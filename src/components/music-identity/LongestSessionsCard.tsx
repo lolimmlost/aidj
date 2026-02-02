@@ -15,6 +15,8 @@ import { Timer, Music } from 'lucide-react';
 
 interface LongestSessionsCardProps {
   preset?: 'week' | 'month' | 'year';
+  from?: string;
+  to?: string;
 }
 
 function formatDuration(minutes: number): string {
@@ -43,6 +45,8 @@ function formatTime(iso: string): string {
 
 export const LongestSessionsCard = memo(function LongestSessionsCard({
   preset = 'month',
+  from,
+  to,
 }: LongestSessionsCardProps) {
   const { data, isLoading, error } = useQuery<{
     success: boolean;
@@ -53,9 +57,12 @@ export const LongestSessionsCard = memo(function LongestSessionsCard({
       songCount: number;
     }>;
   }>({
-    queryKey: ['longest-sessions', preset],
+    queryKey: ['longest-sessions', from || preset, to],
     queryFn: async () => {
-      const res = await fetch(`/api/listening-history/sessions?preset=${preset}&limit=5`);
+      const params = from && to
+        ? `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&limit=5`
+        : `preset=${preset}&limit=5`;
+      const res = await fetch(`/api/listening-history/sessions?${params}`);
       if (!res.ok) throw new Error('Failed to fetch sessions');
       return res.json();
     },

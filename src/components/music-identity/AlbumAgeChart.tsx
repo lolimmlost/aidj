@@ -23,6 +23,8 @@ import { Disc3 } from 'lucide-react';
 
 interface AlbumAgeChartProps {
   preset?: 'week' | 'month' | 'year';
+  from?: string;
+  to?: string;
 }
 
 const DECADE_COLORS: Record<string, string> = {
@@ -41,6 +43,8 @@ function getDecadeColor(decade: string): string {
 
 export const AlbumAgeChart = memo(function AlbumAgeChart({
   preset = 'month',
+  from,
+  to,
 }: AlbumAgeChartProps) {
   const { data, isLoading, error } = useQuery<{
     success: boolean;
@@ -48,9 +52,12 @@ export const AlbumAgeChart = memo(function AlbumAgeChart({
     avgDecade: string | null;
     songsAnalyzed: number;
   }>({
-    queryKey: ['album-ages', preset],
+    queryKey: ['album-ages', from || preset, to],
     queryFn: async () => {
-      const res = await fetch(`/api/listening-history/album-ages?preset=${preset}`);
+      const params = from && to
+        ? `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+        : `preset=${preset}`;
+      const res = await fetch(`/api/listening-history/album-ages?${params}`);
       if (!res.ok) throw new Error('Failed to fetch album ages');
       return res.json();
     },

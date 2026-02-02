@@ -71,8 +71,12 @@ export const Route = createFileRoute("/api/listening-history/album-ages")({
           }
 
           const url = new URL(request.url);
+          const fromParam = url.searchParams.get('from');
+          const toParam = url.searchParams.get('to');
           const preset = (url.searchParams.get('preset') || 'month') as 'week' | 'month' | 'year';
-          const range = getPresetRange(preset);
+          const range = fromParam && toParam
+            ? { start: new Date(fromParam), end: new Date(toParam) }
+            : getPresetRange(preset);
 
           // Get unique songs from listening history
           const songs = await db

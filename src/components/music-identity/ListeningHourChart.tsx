@@ -33,6 +33,8 @@ interface HourlyData {
 
 interface ListeningHourChartProps {
   preset?: 'week' | 'month' | 'year';
+  from?: string;
+  to?: string;
 }
 
 // ============================================================================
@@ -66,11 +68,16 @@ const TIME_COLORS: Record<string, string> = {
 
 export const ListeningHourChart = memo(function ListeningHourChart({
   preset = 'month',
+  from,
+  to,
 }: ListeningHourChartProps) {
   const { data, isLoading, error } = useQuery<{ success: boolean; data: HourlyData[] }>({
-    queryKey: ['listening-by-hour', preset],
+    queryKey: ['listening-by-hour', from || preset, to],
     queryFn: async () => {
-      const res = await fetch(`/api/listening-history/by-hour?preset=${preset}`);
+      const params = from && to
+        ? `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+        : `preset=${preset}`;
+      const res = await fetch(`/api/listening-history/by-hour?${params}`);
       if (!res.ok) throw new Error('Failed to fetch hourly data');
       return res.json();
     },
@@ -123,7 +130,7 @@ export const ListeningHourChart = memo(function ListeningHourChart({
           When You Listen
         </CardTitle>
         <CardDescription>
-          {totalPlays.toLocaleString()} plays this {preset}
+          {totalPlays.toLocaleString()} plays{!from && ` this ${preset}`}
           {peakHour && (
             <> &middot; Peak at <strong>{formatHour(peakHour.hour)}</strong> ({peakHour.plays} plays)</>
           )}

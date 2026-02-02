@@ -25,6 +25,8 @@ import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 interface InterestOverTimeChartProps {
   months?: number;
+  from?: string;
+  to?: string;
 }
 
 const ARTIST_COLORS = [
@@ -55,6 +57,8 @@ const trendColors = {
 
 export const InterestOverTimeChart = memo(function InterestOverTimeChart({
   months = 6,
+  from,
+  to,
 }: InterestOverTimeChartProps) {
   const { data, isLoading, error } = useQuery<{
     success: boolean;
@@ -65,9 +69,12 @@ export const InterestOverTimeChart = memo(function InterestOverTimeChart({
       trend: 'rising' | 'falling' | 'stable';
     }>;
   }>({
-    queryKey: ['interest-over-time', months],
+    queryKey: ['interest-over-time', from || months, to],
     queryFn: async () => {
-      const res = await fetch(`/api/listening-history/interest-over-time?months=${months}`);
+      const params = from && to
+        ? `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+        : `months=${months}`;
+      const res = await fetch(`/api/listening-history/interest-over-time?${params}`);
       if (!res.ok) throw new Error('Failed to fetch interest data');
       return res.json();
     },
@@ -123,7 +130,7 @@ export const InterestOverTimeChart = memo(function InterestOverTimeChart({
           Artist Interest Over Time
         </CardTitle>
         <CardDescription>
-          How your top artists trend over the last {months} months
+          How your top artists trend{!from ? ` over the last ${months} months` : ''}
         </CardDescription>
       </CardHeader>
       <CardContent>
