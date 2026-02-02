@@ -13,12 +13,13 @@ import appCss from "~/styles.css?url";
 
 import { ThemeProvider } from "~/components/theme-provider";
 import { Toaster } from "~/components/ui/sonner";
-import { AudioPlayer } from "~/components/ui/audio-player";
+import { PlayerBar } from "~/components/layout/PlayerBar";
 import { QueuePanel } from "~/components/ui/queue-panel";
 import { MobileNav } from "~/components/ui/mobile-nav";
 import { AppLayout } from "~/components/layout";
 import { useAudioStore } from "~/lib/stores/audio";
 import { useServiceWorker } from "~/lib/hooks/useServiceWorker";
+import { useEruda } from "~/lib/hooks/useEruda";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -29,7 +30,7 @@ export const Route = createRootRouteWithContext<{
     // better-auth's cookieCache is also enabled server-side to reduce server-to-db calls, see /src/lib/auth/auth.ts
     const user = await context.queryClient.ensureQueryData({
       ...authQueryOptions(),
-      revalidateIfStale: true,
+      revalidateIfStale: false,
     });
     return { user };
   },
@@ -135,6 +136,9 @@ function RootComponent() {
   // Register service worker for PWA functionality
   useServiceWorker();
 
+  // Load Eruda debug console if ?debug=true in URL
+  useEruda();
+
   // Use new AppLayout for main app routes (dashboard, library, playlists, dj, settings, music-identity)
   const useNewLayout = currentPath.startsWith('/dashboard') ||
                        currentPath.startsWith('/library') ||
@@ -163,12 +167,14 @@ function RootComponent() {
           <div className={`transition-all duration-300 ${hasActiveSong && !isAuthPage ? 'pb-24 md:pb-20' : ''}`}>
             <Outlet />
           </div>
-          {hasActiveSong && !isAuthPage && (
+          {/* CRITICAL: Always render PlayerBar to preserve audio elements across state changes.
+             Unmounting destroys <audio> elements and kills playback. Hide visually instead. */}
+          {!isAuthPage && (
             <>
-              <div className={`transition-all duration-300 fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)] ${isPlaying ? 'bg-background border-t' : 'opacity-50'}`}>
-                <AudioPlayer />
+              <div className={`transition-all duration-300 fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)] ${!hasActiveSong ? 'hidden' : isPlaying ? 'bg-background border-t' : 'opacity-50'}`}>
+                <PlayerBar />
               </div>
-              <QueuePanel />
+              {hasActiveSong && <QueuePanel />}
             </>
           )}
         </>

@@ -27,6 +27,13 @@ export const userPreferences = pgTable("user_preferences", {
     autoplayBlendMode: 'crossfade' | 'silence' | 'reverb_tail'; // Transition effect between songs
     autoplayTransitionDuration: number; // Duration in seconds (1-10)
     autoplaySmartTransitions: boolean; // Use AI to determine optimal transition type
+    // DJ Matching Settings (BPM/Energy/Key)
+    djMatchingEnabled?: boolean; // Enable BPM/energy/key scoring for AI DJ recommendations
+    bpmAnalysisEnabled?: boolean; // Auto-analyze BPM during playback
+    djMatchingMinScore?: number; // Minimum DJ score threshold (0-1)
+    // Queue Seeding Settings
+    aiDJSeedQueueEnabled?: boolean; // Seed recommendations throughout queue when AI DJ enabled
+    aiDJSeedDensity?: number; // How many recommendations per 10 songs (1-5)
   }>().default({
     aiEnabled: true,
     frequency: 'always',

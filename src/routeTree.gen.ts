@@ -58,6 +58,7 @@ import { Route as ApiRecommendationsExportRouteImport } from './routes/api/recom
 import { Route as ApiRecommendationsDiscoveryAnalyticsRouteImport } from './routes/api/recommendations/discovery-analytics'
 import { Route as ApiRecommendationsClearRouteImport } from './routes/api/recommendations/clear'
 import { Route as ApiRecommendationsAnalyticsRouteImport } from './routes/api/recommendations/analytics'
+import { Route as ApiProfileUpdateRouteImport } from './routes/api/profile/update'
 import { Route as ApiPlaylistsSyncRouteImport } from './routes/api/playlists/sync'
 import { Route as ApiPlaylistsJoinRouteImport } from './routes/api/playlists/join'
 import { Route as ApiPlaylistsImportRouteImport } from './routes/api/playlists/import'
@@ -90,6 +91,7 @@ import { Route as ApiLastfmSearchRouteImport } from './routes/api/lastfm/search'
 import { Route as ApiDownloadsQueueRouteImport } from './routes/api/downloads/queue'
 import { Route as ApiDiscoveryFeedInteractionsRouteImport } from './routes/api/discovery-feed/interactions'
 import { Route as ApiDiscoveryFeedAnalyticsRouteImport } from './routes/api/discovery-feed/analytics'
+import { Route as ApiDebugLogsRouteImport } from './routes/api/debug/logs'
 import { Route as ApiBackgroundDiscoveryTriggerRouteImport } from './routes/api/background-discovery/trigger'
 import { Route as ApiBackgroundDiscoverySuggestionsRouteImport } from './routes/api/background-discovery/suggestions'
 import { Route as ApiBackgroundDiscoveryStatusRouteImport } from './routes/api/background-discovery/status'
@@ -385,6 +387,11 @@ const ApiRecommendationsAnalyticsRoute =
     path: '/analytics',
     getParentRoute: () => ApiRecommendationsRoute,
   } as any)
+const ApiProfileUpdateRoute = ApiProfileUpdateRouteImport.update({
+  id: '/api/profile/update',
+  path: '/api/profile/update',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPlaylistsSyncRoute = ApiPlaylistsSyncRouteImport.update({
   id: '/api/playlists/sync',
   path: '/api/playlists/sync',
@@ -550,6 +557,11 @@ const ApiDiscoveryFeedAnalyticsRoute =
     path: '/api/discovery-feed/analytics',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiDebugLogsRoute = ApiDebugLogsRouteImport.update({
+  id: '/api/debug/logs',
+  path: '/api/debug/logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBackgroundDiscoveryTriggerRoute =
   ApiBackgroundDiscoveryTriggerRouteImport.update({
     id: '/api/background-discovery/trigger',
@@ -814,6 +826,7 @@ export interface FileRoutesByFullPath {
   '/api/background-discovery/status': typeof ApiBackgroundDiscoveryStatusRoute
   '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
+  '/api/debug/logs': typeof ApiDebugLogsRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
@@ -846,6 +859,7 @@ export interface FileRoutesByFullPath {
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
   '/api/playlists/join': typeof ApiPlaylistsJoinRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
+  '/api/profile/update': typeof ApiProfileUpdateRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
   '/api/recommendations/clear': typeof ApiRecommendationsClearRoute
   '/api/recommendations/discovery-analytics': typeof ApiRecommendationsDiscoveryAnalyticsRoute
@@ -935,6 +949,7 @@ export interface FileRoutesByTo {
   '/api/background-discovery/status': typeof ApiBackgroundDiscoveryStatusRoute
   '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
+  '/api/debug/logs': typeof ApiDebugLogsRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
@@ -967,6 +982,7 @@ export interface FileRoutesByTo {
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
   '/api/playlists/join': typeof ApiPlaylistsJoinRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
+  '/api/profile/update': typeof ApiProfileUpdateRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
   '/api/recommendations/clear': typeof ApiRecommendationsClearRoute
   '/api/recommendations/discovery-analytics': typeof ApiRecommendationsDiscoveryAnalyticsRoute
@@ -1060,6 +1076,7 @@ export interface FileRoutesById {
   '/api/background-discovery/status': typeof ApiBackgroundDiscoveryStatusRoute
   '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
+  '/api/debug/logs': typeof ApiDebugLogsRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
@@ -1092,6 +1109,7 @@ export interface FileRoutesById {
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
   '/api/playlists/join': typeof ApiPlaylistsJoinRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
+  '/api/profile/update': typeof ApiProfileUpdateRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
   '/api/recommendations/clear': typeof ApiRecommendationsClearRoute
   '/api/recommendations/discovery-analytics': typeof ApiRecommendationsDiscoveryAnalyticsRoute
@@ -1185,6 +1203,7 @@ export interface FileRouteTypes {
     | '/api/background-discovery/status'
     | '/api/background-discovery/suggestions'
     | '/api/background-discovery/trigger'
+    | '/api/debug/logs'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
     | '/api/downloads/queue'
@@ -1217,6 +1236,7 @@ export interface FileRouteTypes {
     | '/api/playlists/import'
     | '/api/playlists/join'
     | '/api/playlists/sync'
+    | '/api/profile/update'
     | '/api/recommendations/analytics'
     | '/api/recommendations/clear'
     | '/api/recommendations/discovery-analytics'
@@ -1306,6 +1326,7 @@ export interface FileRouteTypes {
     | '/api/background-discovery/status'
     | '/api/background-discovery/suggestions'
     | '/api/background-discovery/trigger'
+    | '/api/debug/logs'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
     | '/api/downloads/queue'
@@ -1338,6 +1359,7 @@ export interface FileRouteTypes {
     | '/api/playlists/import'
     | '/api/playlists/join'
     | '/api/playlists/sync'
+    | '/api/profile/update'
     | '/api/recommendations/analytics'
     | '/api/recommendations/clear'
     | '/api/recommendations/discovery-analytics'
@@ -1430,6 +1452,7 @@ export interface FileRouteTypes {
     | '/api/background-discovery/status'
     | '/api/background-discovery/suggestions'
     | '/api/background-discovery/trigger'
+    | '/api/debug/logs'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
     | '/api/downloads/queue'
@@ -1462,6 +1485,7 @@ export interface FileRouteTypes {
     | '/api/playlists/import'
     | '/api/playlists/join'
     | '/api/playlists/sync'
+    | '/api/profile/update'
     | '/api/recommendations/analytics'
     | '/api/recommendations/clear'
     | '/api/recommendations/discovery-analytics'
@@ -1547,6 +1571,7 @@ export interface RootRouteChildren {
   ApiBackgroundDiscoveryStatusRoute: typeof ApiBackgroundDiscoveryStatusRoute
   ApiBackgroundDiscoverySuggestionsRoute: typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   ApiBackgroundDiscoveryTriggerRoute: typeof ApiBackgroundDiscoveryTriggerRoute
+  ApiDebugLogsRoute: typeof ApiDebugLogsRoute
   ApiDiscoveryFeedAnalyticsRoute: typeof ApiDiscoveryFeedAnalyticsRoute
   ApiDiscoveryFeedInteractionsRoute: typeof ApiDiscoveryFeedInteractionsRoute
   ApiDownloadsQueueRoute: typeof ApiDownloadsQueueRoute
@@ -1579,6 +1604,7 @@ export interface RootRouteChildren {
   ApiPlaylistsImportRoute: typeof ApiPlaylistsImportRoute
   ApiPlaylistsJoinRoute: typeof ApiPlaylistsJoinRoute
   ApiPlaylistsSyncRoute: typeof ApiPlaylistsSyncRoute
+  ApiProfileUpdateRoute: typeof ApiProfileUpdateRoute
   MusicIdentityShareTokenRoute: typeof MusicIdentityShareTokenRoute
   PlaylistsJoinShareCodeRoute: typeof PlaylistsJoinShareCodeRoute
   ApiDiscoveryFeedIndexRoute: typeof ApiDiscoveryFeedIndexRoute
@@ -1952,6 +1978,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRecommendationsAnalyticsRouteImport
       parentRoute: typeof ApiRecommendationsRoute
     }
+    '/api/profile/update': {
+      id: '/api/profile/update'
+      path: '/api/profile/update'
+      fullPath: '/api/profile/update'
+      preLoaderRoute: typeof ApiProfileUpdateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/playlists/sync': {
       id: '/api/playlists/sync'
       path: '/api/playlists/sync'
@@ -2174,6 +2207,13 @@ declare module '@tanstack/react-router' {
       path: '/api/discovery-feed/analytics'
       fullPath: '/api/discovery-feed/analytics'
       preLoaderRoute: typeof ApiDiscoveryFeedAnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/debug/logs': {
+      id: '/api/debug/logs'
+      path: '/api/debug/logs'
+      fullPath: '/api/debug/logs'
+      preLoaderRoute: typeof ApiDebugLogsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/background-discovery/trigger': {
@@ -2659,6 +2699,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBackgroundDiscoverySuggestionsRoute:
     ApiBackgroundDiscoverySuggestionsRouteWithChildren,
   ApiBackgroundDiscoveryTriggerRoute: ApiBackgroundDiscoveryTriggerRoute,
+  ApiDebugLogsRoute: ApiDebugLogsRoute,
   ApiDiscoveryFeedAnalyticsRoute: ApiDiscoveryFeedAnalyticsRoute,
   ApiDiscoveryFeedInteractionsRoute: ApiDiscoveryFeedInteractionsRoute,
   ApiDownloadsQueueRoute: ApiDownloadsQueueRoute,
@@ -2692,6 +2733,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPlaylistsImportRoute: ApiPlaylistsImportRoute,
   ApiPlaylistsJoinRoute: ApiPlaylistsJoinRoute,
   ApiPlaylistsSyncRoute: ApiPlaylistsSyncRoute,
+  ApiProfileUpdateRoute: ApiProfileUpdateRoute,
   MusicIdentityShareTokenRoute: MusicIdentityShareTokenRoute,
   PlaylistsJoinShareCodeRoute: PlaylistsJoinShareCodeRoute,
   ApiDiscoveryFeedIndexRoute: ApiDiscoveryFeedIndexRoute,

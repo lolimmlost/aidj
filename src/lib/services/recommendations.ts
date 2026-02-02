@@ -25,6 +25,18 @@ import {
   applyCompoundScoreBoost,
   getCompoundScoredRecommendations,
 } from './compound-scoring';
+import {
+  scoreAndRankForDJ,
+  enrichSongWithDJMetadata,
+  enrichSongsWithDJMetadata,
+  DJ_WEIGHTS,
+  MIN_DJ_SCORE_THRESHOLD,
+  type SongWithDJMetadata,
+} from './dj-match-scorer';
+import {
+  getBlendedRecommendations,
+  type BlendedMetadata,
+} from './blended-recommendation-scorer';
 
 /**
  * Get the Last.fm client, initializing with API key from config if needed
@@ -52,10 +64,30 @@ export interface QueueContext {
   genreExploration?: number; // Phase 4.2: Genre exploration level 0-100 (0=strict, 100=adventurous)
 }
 
+/** DJ matching options for BPM/energy/key scoring */
+export interface DJMatchingOptions {
+  /** Enable DJ-style BPM/energy/key matching */
+  enabled: boolean;
+  /** Current song's BPM (if known) */
+  currentBpm?: number;
+  /** Current song's musical key (e.g., "Am", "C", "F#m") */
+  currentKey?: string;
+  /** Current song's energy level (0-1) */
+  currentEnergy?: number;
+  /** Minimum DJ score threshold (0-1, default 0.5) */
+  minDJScore?: number;
+  /** Custom weights for BPM/energy/key scoring */
+  weights?: {
+    bpm?: number;
+    energy?: number;
+    key?: number;
+  };
+}
+
 export interface RecommendationRequest {
   mode: RecommendationMode;
   /** For 'similar' and 'discovery' modes - the seed song */
-  currentSong?: { artist: string; title: string; genre?: string };
+  currentSong?: { artist: string; title: string; genre?: string; bpm?: number; key?: string; energy?: number };
   /** For 'mood' and 'discovery' modes - natural language description for genre-first discovery */
   moodDescription?: string;
   /** Maximum number of songs to return */
@@ -70,11 +102,19 @@ export interface RecommendationRequest {
   compoundScoreWeight?: number;
   /** Queue context for smarter fallback (genres, artists from current queue) */
   queueContext?: QueueContext;
+  /** DJ matching options for BPM/energy/key-based filtering and ranking */
+  djMatching?: DJMatchingOptions;
+  /**
+   * Use multi-signal blended scoring instead of sequential fallbacks.
+   * Default: true when userId is provided.
+   * Set to false to use the legacy sequential fallback chain.
+   */
+  useBlendedScoring?: boolean;
 }
 
 export interface RecommendationResult {
   songs: Song[];
-  source: 'lastfm' | 'smart-playlist' | 'fallback' | 'compound';
+  source: 'lastfm' | 'smart-playlist' | 'fallback' | 'compound' | 'blended';
   mode: RecommendationMode;
   /** Optional metadata about the recommendation */
   metadata?: {
@@ -85,6 +125,24 @@ export interface RecommendationResult {
     compoundScoreApplied?: boolean;
     /** Number of songs that had compound scores */
     compoundScoredCount?: number;
+    /** Whether skip scoring was applied */
+    skipScoringApplied?: boolean;
+    /** Number of songs filtered by skip scoring */
+    skipFilteredCount?: number;
+    /** Whether DJ matching was applied */
+    djMatchingApplied?: boolean;
+    /** Number of songs that passed DJ score threshold */
+    djScoredCount?: number;
+    /** Average DJ score of returned songs */
+    avgDJScore?: number;
+    /** Whether blended multi-signal scoring was used */
+    blendedScoringApplied?: boolean;
+    /** Source distribution from blended scoring */
+    blendedSourceCounts?: Record<string, number>;
+    /** Average scores from blended scoring */
+    blendedAvgScores?: Record<string, number>;
+    /** Number of unique artists in results */
+    uniqueArtists?: number;
   };
 }
 
@@ -168,12 +226,74 @@ async function getSimilarSongs(
     userId,
     compoundScoreWeight = 0.3,
     queueContext,
+    djMatching,
+    useBlendedScoring,
   } = request;
 
   if (!currentSong) {
     throw new Error('currentSong required for similar mode');
   }
 
+  // Use blended scoring when userId is available (default: true)
+  // This replaces the sequential fallback chain with multi-signal scoring
+  const shouldUseBlendedScoring = useBlendedScoring !== false && userId;
+
+  if (shouldUseBlendedScoring) {
+    console.log(`🎯 [Recommendations] Using blended multi-signal scoring for "${currentSong.artist} - ${currentSong.title}"`);
+
+    try {
+      const { songs, metadata } = await getBlendedRecommendations(
+        {
+          artist: currentSong.artist,
+          title: currentSong.title,
+          genre: currentSong.genre,
+          bpm: currentSong.bpm,
+          key: currentSong.key,
+          energy: currentSong.energy,
+        },
+        {
+          userId,
+          limit,
+          excludeSongIds,
+          excludeArtists,
+          queueContext: queueContext ? {
+            genres: queueContext.genres,
+            artists: queueContext.artists,
+            artistBatchCounts: queueContext.artistBatchCounts,
+          } : undefined,
+          djMatching: djMatching ? {
+            enabled: djMatching.enabled,
+            currentBpm: djMatching.currentBpm,
+            currentKey: djMatching.currentKey,
+            currentEnergy: djMatching.currentEnergy,
+          } : undefined,
+        }
+      );
+
+      if (songs.length > 0) {
+        return {
+          songs,
+          source: 'blended',
+          mode: 'similar',
+          metadata: {
+            totalCandidates: metadata.totalCandidates,
+            blendedScoringApplied: true,
+            blendedSourceCounts: metadata.sourceCounts,
+            blendedAvgScores: metadata.avgScores,
+            uniqueArtists: metadata.uniqueArtists,
+            djMatchingApplied: djMatching?.enabled ?? false,
+          },
+        };
+      }
+
+      // Fall through to legacy path if blended scoring returns no results
+      console.log('⚠️ [Recommendations] Blended scoring returned no results, falling back to legacy path');
+    } catch (error) {
+      console.warn('⚠️ [Recommendations] Blended scoring failed, falling back to legacy path:', error);
+    }
+  }
+
+  // Legacy sequential fallback chain (used when userId is not available or blended scoring fails)
   const lastFm = await getLastFmClientWithConfig();
 
   if (!lastFm) {
@@ -281,8 +401,65 @@ async function getSimilarSongs(
       }
     }
 
+    // DJ Matching: Apply BPM/energy/key scoring if enabled
+    let djMatchingApplied = false;
+    let djScoredCount = 0;
+    let avgDJScore: number | undefined = undefined;
+
+    const { djMatching } = request;
+    if (djMatching?.enabled && songs.length > 0) {
+      try {
+        // Create a source song object with DJ metadata
+        const sourceSong: SongWithDJMetadata = {
+          id: 'current',
+          name: currentSong.title,
+          title: currentSong.title,
+          artist: currentSong.artist,
+          albumId: '',
+          duration: 0,
+          track: 0,
+          url: '',
+          genre: currentSong.genre,
+          bpm: djMatching.currentBpm || currentSong.bpm,
+          key: djMatching.currentKey || currentSong.key,
+          energy: djMatching.currentEnergy || currentSong.energy,
+        };
+
+        // Calculate custom weights if provided
+        const weights = {
+          bpm: djMatching.weights?.bpm ?? DJ_WEIGHTS.bpm,
+          energy: djMatching.weights?.energy ?? DJ_WEIGHTS.energy,
+          key: djMatching.weights?.key ?? DJ_WEIGHTS.key,
+        };
+
+        const minScore = djMatching.minDJScore ?? MIN_DJ_SCORE_THRESHOLD;
+
+        // Score and rank songs by DJ compatibility
+        const scored = await scoreAndRankForDJ(sourceSong, songs, {
+          minScore,
+          maxResults: limit * 2, // Get extra to allow for filtering
+          weights,
+          enrichMetadata: true,
+        });
+
+        if (scored.length > 0) {
+          // Replace songs with DJ-scored results
+          songs = scored.map(s => s.song);
+          djMatchingApplied = true;
+          djScoredCount = scored.length;
+          avgDJScore = scored.reduce((sum, s) => sum + s.djScore.totalScore, 0) / scored.length;
+
+          console.log(`🎧 [Recommendations] DJ matching applied: ${djScoredCount} songs pass threshold, avg score ${(avgDJScore * 100).toFixed(1)}%`);
+        } else {
+          console.log('⚠️ [Recommendations] DJ matching found no songs above threshold, keeping original order');
+        }
+      } catch (error) {
+        console.warn('⚠️ [Recommendations] DJ matching failed, using original order:', error);
+      }
+    }
+
     return {
-      songs,
+      songs: songs.slice(0, limit),
       source: 'lastfm',
       mode: 'similar',
       metadata: {
@@ -292,6 +469,9 @@ async function getSimilarSongs(
         compoundScoredCount,
         skipScoringApplied,
         skipFilteredCount,
+        djMatchingApplied,
+        djScoredCount,
+        avgDJScore,
       },
     };
   } catch (error) {

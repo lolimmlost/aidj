@@ -1,7 +1,7 @@
 import { useAudioStore } from '@/lib/stores/audio';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { X, Music, Trash2, GripVertical, Plus, RotateCcw, ThumbsUp, ThumbsDown, Shuffle, SkipForward } from 'lucide-react';
+import { X, Music, Trash2, GripVertical, Plus, RotateCcw, ThumbsUp, ThumbsDown, Shuffle, SkipForward, Sparkles } from 'lucide-react';
 import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { CreatePlaylistDialog } from '@/components/playlists/CreatePlaylistDialog';
 import { useQueryClient } from '@tanstack/react-query';
@@ -37,9 +37,11 @@ interface SortableQueueItemProps {
   currentFeedback?: 'thumbs_up' | 'thumbs_down' | null;
   onFeedback?: (songId: string, songTitle: string, artist: string, type: 'thumbs_up' | 'thumbs_down') => void;
   onSkipAutoplay?: (songId: string) => void;
+  /** Unique sortable ID for drag-and-drop (handles duplicate songs) */
+  sortableId?: string;
 }
 
-const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued, isAutoplayQueued, currentFeedback, onFeedback, onSkipAutoplay }: SortableQueueItemProps) {
+const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued, isAutoplayQueued, currentFeedback, onFeedback, onSkipAutoplay, sortableId }: SortableQueueItemProps) {
   const {
     attributes,
     listeners,
@@ -47,7 +49,7 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: song.id });
+  } = useSortable({ id: sortableId || song.id });
 
   const isLiked = currentFeedback === 'thumbs_up';
   const isDisliked = currentFeedback === 'thumbs_down';
@@ -328,6 +330,7 @@ export function QueuePanel() {
     autoplayQueuedSongIds,
     autoplayLastQueueTime,
     skipAutoplayedSong,
+    nudgeMoreLikeThis,
   } = useAudioStore();
   const [isOpen, setIsOpen] = useState(false);
   const [timeSinceLastQueue, setTimeSinceLastQueue] = useState(0);
@@ -727,7 +730,7 @@ export function QueuePanel() {
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext
-                  items={upcomingQueue.map(s => s.id)}
+                  items={upcomingQueue.map((s, i) => `${s.id}-${i}`)}
                   strategy={verticalListSortingStrategy}
                 >
                   <div className="h-[25vh] md:h-[40vh] overflow-y-auto overflow-x-hidden pr-1 md:pr-2 space-y-2">
@@ -737,9 +740,12 @@ export function QueuePanel() {
                       const isAIQueued = aiQueuedSongIds.has(song.id);
                       const isAutoplayQueued = autoplayQueuedSongIds.has(song.id);
                       const isAutoQueued = isAIQueued || isAutoplayQueued;
+                      // Use index in key to handle duplicate songs in queue
+                      const sortableId = `${song.id}-${index}`;
                       return (
                         <SortableQueueItem
-                          key={song.id}
+                          key={sortableId}
+                          sortableId={sortableId}
                           song={song}
                           index={index}
                           actualIndex={actualIndex}
@@ -789,6 +795,22 @@ export function QueuePanel() {
                     </Button>
                   )}
                 </div>
+
+                {/* More Like This Button */}
+                {currentSong && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      nudgeMoreLikeThis();
+                      toast.success(`Finding more songs like "${currentSong.title || currentSong.name}"...`);
+                    }}
+                    className="w-full h-8 md:h-9 text-xs md:text-sm bg-gradient-to-r from-purple-500/5 to-pink-500/5 hover:from-purple-500/10 hover:to-pink-500/10 border-purple-500/20 hover:border-purple-500/30 text-purple-600/80 dark:text-purple-400/80 hover:text-purple-600 dark:hover:text-purple-400 transition-all duration-200 group"
+                  >
+                    <Sparkles className="mr-1 md:mr-2 h-3.5 w-3.5 md:h-4 md:w-4 group-hover:scale-110 transition-transform" />
+                    More Like This
+                  </Button>
+                )}
 
                 {undoTimeRemaining !== null && undoTimeRemaining > 0 ? (
                   <Button

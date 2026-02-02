@@ -34,6 +34,13 @@ const PreferencesSchema = z.object({
     harmonicMixingEnabled: z.boolean().optional(),
     harmonicMixingMode: z.enum(['strict', 'flexible', 'off']).optional(),
     bpmTolerance: z.number().min(0).max(20).optional(),
+    // DJ Matching Settings (BPM/Energy/Key)
+    djMatchingEnabled: z.boolean().optional(),
+    bpmAnalysisEnabled: z.boolean().optional(),
+    djMatchingMinScore: z.number().min(0).max(1).optional(),
+    // Queue Seeding Settings
+    aiDJSeedQueueEnabled: z.boolean().optional(),
+    aiDJSeedDensity: z.number().min(1).max(5).optional(),
   }).optional(),
   playbackSettings: z.object({
     volume: z.number().min(0).max(1).optional(),

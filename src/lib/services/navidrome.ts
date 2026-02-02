@@ -237,6 +237,19 @@ export interface SubsonicSong {
   rating?: number;
   loved?: boolean;
   bitrate?: number;
+  // DJ-related metadata (from ID3 tags if available)
+  bpm?: number;           // Beats per minute (TBPM tag)
+  musicBrainzId?: string; // MusicBrainz ID for external lookups
+}
+
+// Extended song metadata for DJ features
+export interface ExtendedSongMetadata {
+  id: string;
+  bpm?: number;           // BPM from ID3 TBPM tag
+  key?: string;           // Musical key from ID3 TKEY tag (e.g., "Am", "C", "F#m")
+  energy?: number;        // Energy level 0-1 (estimated if not available)
+  fetchedAt: number;      // Timestamp when metadata was fetched
+  source: 'navidrome' | 'estimated'; // Where the data came from
 }
 
 export interface NavidromePlaylist {
@@ -1430,8 +1443,6 @@ export async function searchSongsByCriteria(criteria: {
     const matchedSongs: SubsonicSong[] = [];
     const seedSongIds: string[] = [];
 
-    console.log('🎯 Smart Playlist Criteria:', JSON.stringify(criteria, null, 2));
-
     // Strategy 1: If artists specified, find seed songs and get recommendations
     if (criteria.artists && criteria.artists.length > 0) {
       console.log('🎨 Building recommendations from seed artists:', criteria.artists);
@@ -1659,18 +1670,11 @@ export async function getTopArtists(limit: number = 5): Promise<ArtistWithDetail
     const endpoint = `/rest/getAlbumList2?type=frequent&size=100`;
     const data = await apiFetch(endpoint) as any;
 
-    console.log('🎨 [getTopArtists] Raw API response:', JSON.stringify(data, null, 2));
-
     // Extract albums from response
     const albums = data?.['subsonic-response']?.albumList2?.album ||
                    data?.albumList2?.album ||
                    data?.album ||
                    [];
-
-    console.log('🎨 [getTopArtists] Found albums:', albums.length);
-    if (albums.length > 0) {
-      console.log('🎨 [getTopArtists] First album sample:', JSON.stringify(albums[0], null, 2));
-    }
 
     if (!albums || albums.length === 0) {
       // Fallback to song count method
@@ -1802,6 +1806,101 @@ export async function getMostPlayedSongs(limit: number = 5): Promise<SubsonicSon
  * Get recently played songs
  * Uses Navidrome's getNowPlaying or getAlbumList2 with type=recent
  */
+/**
+ * Get extended metadata for a single song
+ * Uses Subsonic API getSong to fetch detailed song info including BPM/key from ID3 tags
+ *
+ * @param songId - The Navidrome song ID
+ * @returns Extended song metadata with BPM, key, etc.
+ */
+export async function getSongWithExtendedMetadata(songId: string): Promise<ExtendedSongMetadata> {
+  try {
+    // Use Subsonic getSong endpoint which returns full song details
+    const endpoint = `/rest/getSong?id=${encodeURIComponent(songId)}`;
+    const data = await apiFetch(endpoint) as any;
+
+    // Handle Subsonic response structure
+    const song = data['subsonic-response']?.song || data.song;
+
+    if (!song) {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Song not found: ${songId}`);
+    }
+
+    // Extract BPM and key from response
+    // Navidrome may expose these via custom fields or standard Subsonic fields
+    const bpm = song.bpm ? parseInt(song.bpm) : undefined;
+    const key = song.musicBrainzId ? undefined : undefined; // Key is not standard in Subsonic API
+
+    // Note: Navidrome/Subsonic API doesn't expose key directly
+    // We'll need to rely on the metadata cache and estimation for key
+
+    return {
+      id: songId,
+      bpm: bpm && !isNaN(bpm) ? bpm : undefined,
+      key: undefined, // Key detection will be handled separately
+      energy: undefined, // Energy estimation will be handled separately
+      fetchedAt: Date.now(),
+      source: bpm ? 'navidrome' : 'estimated',
+    };
+  } catch (error) {
+    console.warn(`Failed to get extended metadata for song ${songId}:`, error);
+    return {
+      id: songId,
+      bpm: undefined,
+      key: undefined,
+      energy: undefined,
+      fetchedAt: Date.now(),
+      source: 'estimated',
+    };
+  }
+}
+
+/**
+ * Get extended metadata for multiple songs in batch
+ * More efficient than calling getSongWithExtendedMetadata for each song
+ *
+ * @param songIds - Array of Navidrome song IDs
+ * @returns Map of songId to extended metadata
+ */
+export async function getSongsWithExtendedMetadata(songIds: string[]): Promise<Map<string, ExtendedSongMetadata>> {
+  const results = new Map<string, ExtendedSongMetadata>();
+
+  if (songIds.length === 0) return results;
+
+  // Navidrome doesn't have a batch getSong endpoint, so we'll use the native API
+  // which returns more fields when querying by ID
+  try {
+    const songs = await getSongsByIds(songIds);
+
+    for (const song of songs) {
+      // The native API may include genre which we can use for energy estimation
+      results.set(song.id, {
+        id: song.id,
+        bpm: undefined, // Native API doesn't expose BPM
+        key: undefined,
+        energy: undefined,
+        fetchedAt: Date.now(),
+        source: 'estimated',
+      });
+    }
+
+    // For songs with missing data, try to get via Subsonic API (slower but more complete)
+    const missingSongIds = songIds.filter(id => !results.has(id));
+    for (const songId of missingSongIds.slice(0, 10)) { // Limit to avoid too many requests
+      try {
+        const metadata = await getSongWithExtendedMetadata(songId);
+        results.set(songId, metadata);
+      } catch {
+        // Skip failed songs
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to get batch extended metadata:', error);
+  }
+
+  return results;
+}
+
 export async function getRecentlyPlayedSongs(limit: number = 10): Promise<SubsonicSong[]> {
   try {
     // Get recently played albums

@@ -48,6 +48,15 @@ export const DEFAULT_RECOMMENDATION_SETTINGS: RecommendationSettings = {
   harmonicMixingEnabled: true,
   harmonicMixingMode: 'flexible',
   bpmTolerance: 6,
+  // DJ Matching defaults
+  djMatchingEnabled: true, // Enable by default for better DJ experience
+  bpmAnalysisEnabled: false, // Disabled by default (requires user opt-in for performance)
+  djMatchingMinScore: 0.5, // 50% minimum threshold
+  // Queue Seeding defaults
+  aiDJSeedQueueEnabled: false, // Disabled by default - user opt-in
+  aiDJSeedDensity: 2, // 2 recommendations per 10 songs
+  // Drip-feed model
+  aiDJDripInterval: 3, // Add 1 recommendation every 3 songs (default)
   // Playlist Autoplay Queueing with Smart Transitions
   autoplayEnabled: false,
   autoplayBlendMode: 'crossfade',

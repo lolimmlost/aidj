@@ -38,7 +38,7 @@ export const defaultQueryOptions = {
   gcTime: GC_TIMES.STANDARD,
   refetchOnWindowFocus: false,
   refetchOnMount: false,
-  refetchOnReconnect: 'always' as const,
+  refetchOnReconnect: false,
   retry: 2,
   retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
 };
