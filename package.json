@@ -35,7 +35,9 @@
     "test:ci:e2e": "playwright test tests/e2e/ --headed=false --coverage --reporter=html,line,json --project=e2e",
     "deploy": "npm run build:cloudflare && wrangler pages deploy .output/public",
     "deploy:production": "npm run build:cloudflare && wrangler pages deploy .output/public --branch=main",
-    "deploy:preview": "npm run build:cloudflare && wrangler pages deploy .output/public --branch=preview"
+    "deploy:preview": "npm run build:cloudflare && wrangler pages deploy .output/public --branch=preview",
+    "readme:screenshots": "npx tsx scripts/capture-readme-screenshots.ts",
+    "readme:update": "npx tsx scripts/update-readme-with-screenshots.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
