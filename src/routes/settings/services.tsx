@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Download, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Download, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { queryKeys } from '@/lib/query/keys';
 
 type LLMProviderType = 'ollama' | 'openrouter' | 'glm' | 'anthropic';
 
@@ -54,9 +56,16 @@ export function ServicesSettings() {
     success: boolean;
     imported?: number;
     skipped?: number;
-    totalScrobbles?: number;
+    scores?: number;
     error?: string;
   } | null>(null);
+  const [backfillProgress, setBackfillProgress] = useState<{
+    phase: string;
+    detail: string;
+  } | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queryClient = useQueryClient();
+  const importStatsRef = useRef<{ imported: number; skipped: number }>({ imported: 0, skipped: 0 });
 
   // Load existing config on mount
   useEffect(() => {
@@ -202,11 +211,121 @@ export function ServicesSettings() {
     }
   };
 
+  const invalidateCaches = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['listening-by-hour'] });
+    queryClient.invalidateQueries({ queryKey: ['album-ages'] });
+    queryClient.invalidateQueries({ queryKey: ['longest-sessions'] });
+    queryClient.invalidateQueries({ queryKey: ['interest-over-time'] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.recommendations.all() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.musicIdentity.all() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.discoveryFeed.all() });
+  }, [queryClient]);
+
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  }, []);
+
+  const startPolling = useCallback((jobId: string) => {
+    stopPolling();
+
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/lastfm/backfill?jobId=${jobId}`);
+        if (!res.ok) {
+          // 404 = job finished and was cleaned up, stop polling
+          if (res.status === 404) {
+            stopPolling();
+            // If we're still in running state, the job completed between polls
+            setBackfillRunning(running => {
+              if (running) {
+                setBackfillProgress(null);
+                setBackfillResult({
+                  success: true,
+                  imported: importStatsRef.current.imported,
+                  skipped: importStatsRef.current.skipped,
+                });
+                invalidateCaches();
+              }
+              return false;
+            });
+          }
+          return;
+        }
+
+        const json = await res.json();
+        const data = json.event;
+        if (!data) return;
+
+        if (data.phase === 'import' && !data.status) {
+          importStatsRef.current = { imported: data.imported, skipped: data.skipped };
+          setBackfillProgress({
+            phase: 'import',
+            detail: `Importing scrobbles... Page ${data.page}/${data.totalPages} (${data.imported.toLocaleString()} imported)`,
+          });
+        } else if (data.phase === 'import' && data.status === 'completed') {
+          importStatsRef.current = { imported: data.imported, skipped: data.skipped };
+          setBackfillProgress({
+            phase: 'import',
+            detail: `Import complete: ${data.imported.toLocaleString()} imported, ${data.skipped.toLocaleString()} skipped`,
+          });
+        } else if (data.phase === 'similarity' && !data.status) {
+          setBackfillProgress({
+            phase: 'similarity',
+            detail: `Building recommendations... ${data.processed}/${data.total} tracks analyzed`,
+          });
+        } else if (data.phase === 'similarity' && data.status === 'completed') {
+          setBackfillProgress({
+            phase: 'similarity',
+            detail: `Similarity analysis complete: ${data.processed} tracks processed`,
+          });
+        } else if (data.phase === 'scoring' && data.status === 'running') {
+          setBackfillProgress({
+            phase: 'scoring',
+            detail: 'Updating your profile...',
+          });
+        } else if (data.phase === 'scoring' && data.status === 'completed') {
+          setBackfillProgress({
+            phase: 'scoring',
+            detail: `Profile updated with ${data.scores} scores`,
+          });
+        } else if (data.phase === 'done') {
+          stopPolling();
+          setBackfillRunning(false);
+          setBackfillProgress(null);
+          setBackfillResult({
+            success: true,
+            imported: importStatsRef.current.imported,
+            skipped: importStatsRef.current.skipped,
+          });
+          invalidateCaches();
+        } else if (data.phase === 'error') {
+          stopPolling();
+          setBackfillRunning(false);
+          setBackfillProgress(null);
+          setBackfillResult({ success: false, error: data.error });
+        }
+      } catch {
+        // Network blip — keep polling, don't fail the UI
+      }
+    }, 2000);
+  }, [invalidateCaches, stopPolling]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
+
   // Run Last.fm scrobble backfill
   const runBackfill = async () => {
     if (!backfillUsername.trim() || backfillRunning) return;
     setBackfillRunning(true);
     setBackfillResult(null);
+    setBackfillProgress({ phase: 'starting', detail: 'Starting backfill...' });
+    importStatsRef.current = { imported: 0, skipped: 0 };
 
     try {
       const res = await fetch('/api/lastfm/backfill', {
@@ -215,23 +334,24 @@ export function ServicesSettings() {
         body: JSON.stringify({ username: backfillUsername.trim(), maxPages: 50 }),
       });
       const json = await res.json();
-      if (json.success) {
-        setBackfillResult({
-          success: true,
-          imported: json.data.imported,
-          skipped: json.data.skipped,
-          totalScrobbles: json.data.totalScrobbles,
-        });
+
+      if (res.status === 202 && json.jobId) {
+        startPolling(json.jobId);
+      } else if (res.status === 409 && json.jobId) {
+        // Already running, reconnect to existing job's polling
+        startPolling(json.jobId);
       } else {
+        setBackfillRunning(false);
+        setBackfillProgress(null);
         setBackfillResult({
           success: false,
-          error: json.data?.error || json.error || 'Backfill failed',
+          error: json.error || 'Failed to start backfill',
         });
       }
     } catch {
-      setBackfillResult({ success: false, error: 'Request failed' });
-    } finally {
       setBackfillRunning(false);
+      setBackfillProgress(null);
+      setBackfillResult({ success: false, error: 'Request failed' });
     }
   };
 
@@ -666,13 +786,22 @@ export function ServicesSettings() {
                   onClick={runBackfill}
                   disabled={backfillRunning || !backfillUsername.trim()}
                 >
-                  {backfillRunning ? 'Importing...' : 'Import Scrobbles'}
+                  {backfillRunning ? (
+                    <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Running...</>
+                  ) : 'Import Scrobbles'}
                 </Button>
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 Your public Last.fm profile username. Imports up to 50 pages of recent scrobbles.
               </p>
             </div>
+
+            {backfillProgress && (
+              <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-400">
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                <div>{backfillProgress.detail}</div>
+              </div>
+            )}
 
             {backfillResult && (
               <div
@@ -690,9 +819,9 @@ export function ServicesSettings() {
                 <div>
                   {backfillResult.success ? (
                     <>
-                      Imported <strong>{backfillResult.imported}</strong> scrobbles
-                      {backfillResult.skipped ? ` (${backfillResult.skipped} duplicates skipped)` : ''}
-                      {backfillResult.totalScrobbles ? ` out of ${backfillResult.totalScrobbles} total` : ''}
+                      Imported <strong>{backfillResult.imported?.toLocaleString()}</strong> scrobbles
+                      {backfillResult.skipped ? ` (${backfillResult.skipped.toLocaleString()} duplicates skipped)` : ''}
+                      . Recommendations and profile updated.
                     </>
                   ) : (
                     <>Backfill failed: {backfillResult.error}</>

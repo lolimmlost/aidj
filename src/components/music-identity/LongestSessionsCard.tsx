@@ -11,7 +11,8 @@ import { memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Timer, Music } from 'lucide-react';
+import { Timer, Music, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface LongestSessionsCardProps {
   preset?: 'week' | 'month' | 'year';
@@ -48,7 +49,7 @@ export const LongestSessionsCard = memo(function LongestSessionsCard({
   from,
   to,
 }: LongestSessionsCardProps) {
-  const { data, isLoading, error } = useQuery<{
+  const { data, isLoading, error, refetch } = useQuery<{
     success: boolean;
     sessions: Array<{
       startTime: string;
@@ -86,8 +87,41 @@ export const LongestSessionsCard = memo(function LongestSessionsCard({
     );
   }
 
-  if (error || !data?.sessions?.length) {
-    return null;
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Timer className="h-5 w-5 text-primary" />
+            Longest Sessions
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <p className="text-sm text-muted-foreground mb-3">Failed to load session data</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data?.sessions?.length) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Timer className="h-5 w-5 text-primary" />
+            Longest Sessions
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground text-center py-8">No listening data for this period</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   const sessions = data.sessions;

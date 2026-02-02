@@ -19,7 +19,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { Disc3 } from 'lucide-react';
+import { Disc3, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface AlbumAgeChartProps {
   preset?: 'week' | 'month' | 'year';
@@ -46,7 +47,7 @@ export const AlbumAgeChart = memo(function AlbumAgeChart({
   from,
   to,
 }: AlbumAgeChartProps) {
-  const { data, isLoading, error } = useQuery<{
+  const { data, isLoading, error, refetch } = useQuery<{
     success: boolean;
     distribution: Array<{ decade: string; plays: number }>;
     avgDecade: string | null;
@@ -87,8 +88,41 @@ export const AlbumAgeChart = memo(function AlbumAgeChart({
     );
   }
 
-  if (error || !chartData.length) {
-    return null;
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Disc3 className="h-5 w-5 text-primary" />
+            Music Through The Decades
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <p className="text-sm text-muted-foreground mb-3">Failed to load album age data</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!chartData.length) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Disc3 className="h-5 w-5 text-primary" />
+            Music Through The Decades
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground text-center py-8">No listening data for this period</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

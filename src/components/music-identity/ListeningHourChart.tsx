@@ -20,7 +20,8 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { Clock } from 'lucide-react';
+import { Clock, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 // ============================================================================
 // Types
@@ -71,7 +72,7 @@ export const ListeningHourChart = memo(function ListeningHourChart({
   from,
   to,
 }: ListeningHourChartProps) {
-  const { data, isLoading, error } = useQuery<{ success: boolean; data: HourlyData[] }>({
+  const { data, isLoading, error, refetch } = useQuery<{ success: boolean; data: HourlyData[] }>({
     queryKey: ['listening-by-hour', from || preset, to],
     queryFn: async () => {
       const params = from && to
@@ -118,8 +119,41 @@ export const ListeningHourChart = memo(function ListeningHourChart({
     );
   }
 
-  if (error || !chartData.length) {
-    return null; // Silently hide if no data
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-primary" />
+            When You Listen
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <p className="text-sm text-muted-foreground mb-3">Failed to load listening hour data</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!chartData.length) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-primary" />
+            When You Listen
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground text-center py-8">No listening data for this period</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

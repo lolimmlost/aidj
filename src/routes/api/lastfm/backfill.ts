@@ -2,22 +2,79 @@
  * Last.fm Scrobble Backfill API Endpoint
  *
  * POST /api/lastfm/backfill - Start a scrobble backfill from Last.fm
+ *   Returns 202 Accepted with { jobId } to poll via GET.
+ *   Returns 409 Conflict if a backfill is already running for this user.
  *
- * Body:
- * - username: Last.fm username (required)
- * - fromDate: ISO date string to start from (optional)
- * - maxPages: Maximum pages to fetch (optional, default: 50)
+ * GET /api/lastfm/backfill?jobId=xxx - Poll current job status
+ *   Returns the latest BackfillEvent for the job, or 404 if not found.
  *
  * @see docs/architecture/analytics-discovery-upgrades-plan.md - Item 3.1
  */
 
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../lib/auth/auth';
-import { runScrobbleBackfill } from '../../../lib/services/lastfm-backfill';
+import {
+  isBackfillActive,
+  getActiveBackfill,
+  registerBackfillJob,
+  runFullBackfillPipeline,
+} from '../../../lib/services/lastfm-backfill';
+import type { BackfillJob } from '../../../lib/services/lastfm-backfill';
 
 export const Route = createFileRoute("/api/lastfm/backfill")({
   server: {
     handlers: {
+      // Poll job status
+      GET: async ({ request }) => {
+        try {
+          const session = await auth.api.getSession({
+            headers: request.headers,
+            query: { disableCookieCache: true },
+          });
+
+          if (!session?.user?.id) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+              status: 401,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          const url = new URL(request.url);
+          const jobId = url.searchParams.get('jobId');
+
+          if (!jobId) {
+            return new Response(
+              JSON.stringify({ error: 'jobId query parameter is required' }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+
+          const job = getActiveBackfill(session.user.id);
+
+          if (!job || job.jobId !== jobId) {
+            return new Response(
+              JSON.stringify({ error: 'Job not found' }),
+              { status: 404, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+
+          return new Response(
+            JSON.stringify({
+              jobId: job.jobId,
+              event: job.latestEvent,
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          console.error('📥 [BackfillAPI] GET error:', error);
+          return new Response(
+            JSON.stringify({ error: 'Internal server error' }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      },
+
+      // Start a new backfill
       POST: async ({ request }) => {
         try {
           const session = await auth.api.getSession({
@@ -30,6 +87,17 @@ export const Route = createFileRoute("/api/lastfm/backfill")({
               status: 401,
               headers: { 'Content-Type': 'application/json' },
             });
+          }
+
+          const userId = session.user.id;
+
+          // Check for active backfill (concurrency guard)
+          if (isBackfillActive(userId)) {
+            const existing = getActiveBackfill(userId)!;
+            return new Response(
+              JSON.stringify({ error: 'Backfill already in progress', jobId: existing.jobId }),
+              { status: 409, headers: { 'Content-Type': 'application/json' } }
+            );
           }
 
           let body: { username?: string; fromDate?: string; maxPages?: number } = {};
@@ -51,29 +119,38 @@ export const Route = createFileRoute("/api/lastfm/backfill")({
 
           const fromDate = body.fromDate ? new Date(body.fromDate) : undefined;
           const maxPages = body.maxPages ? Math.min(Math.max(body.maxPages, 1), 100) : 50;
+          const jobId = crypto.randomUUID();
 
-          console.log(`📥 [BackfillAPI] Starting backfill for user ${session.user.id}, Last.fm: ${body.username}`);
+          // Create and register the job
+          const job: BackfillJob = {
+            jobId,
+            userId,
+            progress: {
+              status: 'running',
+              totalScrobbles: 0,
+              imported: 0,
+              skipped: 0,
+              currentPage: 0,
+              totalPages: 0,
+            },
+            latestEvent: null,
+          };
 
-          const result = await runScrobbleBackfill({
-            username: body.username,
-            userId: session.user.id,
-            fromDate,
-            maxPages,
+          registerBackfillJob(userId, job);
+
+          console.log(`📥 [BackfillAPI] Starting pipeline for user ${userId}, Last.fm: ${body.username}, jobId: ${jobId}`);
+
+          // Fire-and-forget: the pipeline runs in the background
+          runFullBackfillPipeline(
+            { username: body.username, userId, fromDate, maxPages },
+            job,
+          ).catch(error => {
+            console.error('📥 [BackfillAPI] Unhandled pipeline error:', error);
           });
 
           return new Response(
-            JSON.stringify({
-              success: result.status === 'completed',
-              data: {
-                status: result.status,
-                totalScrobbles: result.totalScrobbles,
-                imported: result.imported,
-                skipped: result.skipped,
-                pagesProcessed: result.currentPage,
-                error: result.error,
-              },
-            }),
-            { status: result.status === 'error' ? 500 : 200, headers: { 'Content-Type': 'application/json' } }
+            JSON.stringify({ jobId }),
+            { status: 202, headers: { 'Content-Type': 'application/json' } }
           );
         } catch (error) {
           console.error('📥 [BackfillAPI] Error:', error);
