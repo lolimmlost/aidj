@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Download, CheckCircle2, AlertCircle } from 'lucide-react';
 
 type LLMProviderType = 'ollama' | 'openrouter' | 'glm' | 'anthropic';
 
@@ -45,6 +46,17 @@ export function ServicesSettings() {
   } | null>(null);
   const [testing, setTesting] = useState(false);
   const [lastfmTesting, setLastfmTesting] = useState(false);
+
+  // Last.fm backfill state
+  const [backfillUsername, setBackfillUsername] = useState('');
+  const [backfillRunning, setBackfillRunning] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<{
+    success: boolean;
+    imported?: number;
+    skipped?: number;
+    totalScrobbles?: number;
+    error?: string;
+  } | null>(null);
 
   // Load existing config on mount
   useEffect(() => {
@@ -187,6 +199,39 @@ export function ServicesSettings() {
       }));
     } finally {
       setLastfmTesting(false);
+    }
+  };
+
+  // Run Last.fm scrobble backfill
+  const runBackfill = async () => {
+    if (!backfillUsername.trim() || backfillRunning) return;
+    setBackfillRunning(true);
+    setBackfillResult(null);
+
+    try {
+      const res = await fetch('/api/lastfm/backfill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: backfillUsername.trim(), maxPages: 50 }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setBackfillResult({
+          success: true,
+          imported: json.data.imported,
+          skipped: json.data.skipped,
+          totalScrobbles: json.data.totalScrobbles,
+        });
+      } else {
+        setBackfillResult({
+          success: false,
+          error: json.data?.error || json.error || 'Backfill failed',
+        });
+      }
+    } catch {
+      setBackfillResult({ success: false, error: 'Request failed' });
+    } finally {
+      setBackfillRunning(false);
     }
   };
 
@@ -591,6 +636,70 @@ export function ServicesSettings() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Last.fm Scrobble Backfill Section */}
+          <div className="p-4 border rounded-lg space-y-4 bg-indigo-50 dark:bg-indigo-900/10">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Download className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              Last.fm Scrobble Backfill
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Import your listening history from Last.fm to enrich analytics and recommendations.
+              This syncs your scrobbles into the local listening history database.
+            </p>
+
+            <div>
+              <Label htmlFor="backfillUsername">Last.fm Username</Label>
+              <div className="flex gap-2 mt-2">
+                <Input
+                  id="backfillUsername"
+                  placeholder="your-lastfm-username"
+                  value={backfillUsername}
+                  onChange={(e) => setBackfillUsername(e.target.value)}
+                  className="flex-1"
+                  disabled={backfillRunning}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={runBackfill}
+                  disabled={backfillRunning || !backfillUsername.trim()}
+                >
+                  {backfillRunning ? 'Importing...' : 'Import Scrobbles'}
+                </Button>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Your public Last.fm profile username. Imports up to 50 pages of recent scrobbles.
+              </p>
+            </div>
+
+            {backfillResult && (
+              <div
+                className={`flex items-start gap-2 p-3 rounded-md text-sm ${
+                  backfillResult.success
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                    : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                }`}
+              >
+                {backfillResult.success ? (
+                  <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                )}
+                <div>
+                  {backfillResult.success ? (
+                    <>
+                      Imported <strong>{backfillResult.imported}</strong> scrobbles
+                      {backfillResult.skipped ? ` (${backfillResult.skipped} duplicates skipped)` : ''}
+                      {backfillResult.totalScrobbles ? ` out of ${backfillResult.totalScrobbles} total` : ''}
+                    </>
+                  ) : (
+                    <>Backfill failed: {backfillResult.error}</>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Save Button */}

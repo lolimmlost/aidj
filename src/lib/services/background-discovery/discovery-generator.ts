@@ -23,7 +23,7 @@ import { getLastFmClient } from '../lastfm';
 import { getConfigAsync } from '@/lib/config/config';
 import type { EnrichedTrack } from '../lastfm/types';
 import { search as navidromeSearch, getArtists as getNavidromeArtists } from '../navidrome';
-import { resolveArtistImage } from '../image-resolver';
+import { batchResolveImages, resolveAlbumImage } from '../image-resolver';
 
 // ============================================================================
 // Types
@@ -623,33 +623,47 @@ export async function generateSuggestions(
 
   console.log(`[DiscoveryGenerator] Returning ${limited.length} ranked suggestions`);
 
-  // Resolve missing images via Deezer fallback (Item 2.1)
-  const resolved = await Promise.allSettled(
-    limited.map(async s => {
-      const imageUrl = await resolveArtistImage(s.artistName, s.imageUrl);
-      return { ...s, imageUrl };
-    })
+  // Resolve missing images via Deezer fallback with concurrency limit (Item 2.1)
+  // Step 1: Batch resolve artist images for items without artwork
+  const resolvedArtistImages = await batchResolveImages(
+    limited.map(s => ({ artistName: s.artistName, imageUrl: s.imageUrl }))
   );
 
+  // Step 2: Try album-specific images for suggestions that have album names but still no image
+  const needsAlbumImage = limited.filter(
+    s => s.albumName && !s.imageUrl && !resolvedArtistImages.has(s.artistName.toLowerCase())
+  );
+  const albumImageResults = await Promise.allSettled(
+    needsAlbumImage.slice(0, 5).map(async s => {
+      const url = await resolveAlbumImage(s.artistName, s.albumName!);
+      return { key: s.artistName.toLowerCase(), url };
+    })
+  );
+  const resolvedAlbumImages = new Map<string, string>();
+  for (const r of albumImageResults) {
+    if (r.status === 'fulfilled' && r.value.url) {
+      resolvedAlbumImages.set(r.value.key, r.value.url);
+    }
+  }
+
   // Convert to database insert format
-  return resolved.map((r, i) => {
-    const s = r.status === 'fulfilled' ? r.value : limited[i];
-    return {
-      userId,
-      artistName: s.artistName,
-      trackName: s.trackName,
-      albumName: s.albumName,
-      source: s.source,
-      seedArtist: s.seedArtist,
-      seedTrack: s.seedTrack,
-      matchScore: s.matchScore,
-      status: 'pending' as const,
-      lastFmUrl: s.lastFmUrl,
-      imageUrl: s.imageUrl,
-      genres: s.genres,
-      explanation: s.explanation,
-    };
-  });
+  return limited.map(s => ({
+    userId,
+    artistName: s.artistName,
+    trackName: s.trackName,
+    albumName: s.albumName,
+    source: s.source,
+    seedArtist: s.seedArtist,
+    seedTrack: s.seedTrack,
+    matchScore: s.matchScore,
+    status: 'pending' as const,
+    lastFmUrl: s.lastFmUrl,
+    imageUrl: resolvedArtistImages.get(s.artistName.toLowerCase())
+      || resolvedAlbumImages.get(s.artistName.toLowerCase())
+      || s.imageUrl,
+    genres: s.genres,
+    explanation: s.explanation,
+  }));
 }
 
 /**

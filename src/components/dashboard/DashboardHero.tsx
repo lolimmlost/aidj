@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAudioStore } from '@/lib/stores/audio';
 import { cn } from '@/lib/utils';
 import { formatPercentChange } from '@/lib/utils/period-comparison';
+import { useDynamicColors } from '@/hooks/useDynamicColors';
 
 interface DashboardHeroProps {
   userName?: string;
@@ -226,23 +227,42 @@ interface NowPlayingWidgetProps {
 function NowPlayingWidget({ song, isPlaying, onTogglePlay }: NowPlayingWidgetProps) {
   const title = song.title || song.name || 'Unknown Track';
   const artist = song.artist || 'Unknown Artist';
+  const { style: dynamicStyle, colors } = useDynamicColors(song.albumArt);
 
   return (
-    <div className="now-playing-card p-4 sm:p-5 w-full lg:w-auto lg:min-w-[320px] animate-fade-up">
+    <div
+      className="now-playing-card p-4 sm:p-5 w-full lg:w-auto lg:min-w-[320px] animate-fade-up"
+      style={{
+        ...dynamicStyle,
+        ...(colors ? { borderColor: `${colors.primary}30` } : {}),
+      }}
+    >
       <div className="relative z-10 flex items-center gap-4">
         {/* Album Art / Vinyl */}
         <div className="relative">
           <div
             className={cn(
-              'w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center',
+              'w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center overflow-hidden',
               'vinyl-spin',
-              isPlaying && 'playing'
+              isPlaying && 'playing',
+              !song.albumArt && 'bg-gradient-to-br from-primary/20 to-primary/5'
             )}
           >
-            <Disc3 className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
+            {song.albumArt ? (
+              <img
+                src={song.albumArt}
+                alt={title}
+                className="w-full h-full object-cover rounded-full"
+              />
+            ) : (
+              <Disc3 className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
+            )}
           </div>
           {isPlaying && (
-            <div className="absolute inset-0 rounded-full bg-primary/10 pulse-ring" />
+            <div
+              className="absolute inset-0 rounded-full pulse-ring"
+              style={{ backgroundColor: colors ? `${colors.primary}15` : 'var(--primary-10, rgba(var(--primary), 0.1))' }}
+            />
           )}
         </div>
 

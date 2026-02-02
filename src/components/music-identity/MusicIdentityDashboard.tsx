@@ -38,6 +38,9 @@ import { TrendAnalysisWidget } from './TrendAnalysisWidget';
 import { MoodProfileChart } from './MoodProfileChart';
 import { ShareableCard } from './ShareableCard';
 import { ListeningHourChart } from './ListeningHourChart';
+import { AlbumAgeChart } from './AlbumAgeChart';
+import { LongestSessionsCard } from './LongestSessionsCard';
+import { InterestOverTimeChart } from './InterestOverTimeChart';
 
 // ============================================================================
 // Types
@@ -483,7 +486,14 @@ const MusicIdentityDetail = memo(function MusicIdentityDetail({
 
         <TabsContent value="overview" className="space-y-4">
           <OverviewTab summary={summary} />
-          <ListeningHourChart />
+          <div className="grid gap-4 md:grid-cols-2">
+            <ListeningHourChart />
+            <LongestSessionsCard />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <AlbumAgeChart />
+            <InterestOverTimeChart />
+          </div>
         </TabsContent>
 
         <TabsContent value="trends" className="space-y-4">
