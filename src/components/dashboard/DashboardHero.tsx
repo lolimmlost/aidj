@@ -1,12 +1,36 @@
 import { Link } from '@tanstack/react-router';
-import { Play, Pause, Music2, Disc3, Sparkles } from 'lucide-react';
+import { Play, Pause, Music2, Disc3, Sparkles, TrendingUp, TrendingDown } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useAudioStore } from '@/lib/stores/audio';
 import { cn } from '@/lib/utils';
+import { formatPercentChange } from '@/lib/utils/period-comparison';
 
 interface DashboardHeroProps {
   userName?: string;
   availableRecommendations: number;
   playlistSongsReady: number;
+}
+
+interface ListeningStatsResponse {
+  success: boolean;
+  preset: string;
+  current: {
+    totalPlays: number;
+    uniqueTracks: number;
+    uniqueArtists: number;
+    totalMinutesListened: number;
+    completionRate: number;
+  };
+  deltas: {
+    totalPlays: number | null;
+    uniqueTracks: number | null;
+    uniqueArtists: number | null;
+    totalMinutesListened: number | null;
+  };
+  diversity: {
+    entropy: number;
+    uniqueArtists: number;
+  };
 }
 
 /**
@@ -22,6 +46,17 @@ export function DashboardHero({
   const isPlaying = useAudioStore((s) => s.isPlaying);
   const setIsPlaying = useAudioStore((s) => s.setIsPlaying);
   const aiDJEnabled = useAudioStore((s) => s.aiDJEnabled);
+
+  const { data: stats } = useQuery<ListeningStatsResponse>({
+    queryKey: ['listening-stats', 'week'],
+    queryFn: async () => {
+      const res = await fetch('/api/listening-history/stats?preset=week');
+      if (!res.ok) throw new Error('Failed to fetch stats');
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -63,7 +98,23 @@ export function DashboardHero({
           </div>
 
           {/* Quick Stats - Desktop */}
-          <div className="hidden sm:flex items-center gap-3 stagger-children">
+          <div className="hidden sm:flex items-center gap-3 stagger-children flex-wrap">
+            {stats?.current && (
+              <>
+                <StatPill
+                  label="Plays this week"
+                  value={stats.current.totalPlays}
+                  color="violet"
+                  delta={stats.deltas?.totalPlays}
+                />
+                <StatPill
+                  label="Artists"
+                  value={stats.current.uniqueArtists}
+                  color="amber"
+                  delta={stats.deltas?.uniqueArtists}
+                />
+              </>
+            )}
             <StatPill
               label="Recommendations"
               value={availableRecommendations}
@@ -97,6 +148,15 @@ export function DashboardHero({
 
       {/* Mobile Quick Stats */}
       <div className="flex sm:hidden items-center gap-2 mt-4 overflow-x-auto pb-1">
+        {stats?.current && (
+          <StatPill
+            label="Plays"
+            value={stats.current.totalPlays}
+            color="violet"
+            delta={stats.deltas?.totalPlays}
+            compact
+          />
+        )}
         <StatPill label="Recs" value={availableRecommendations} color="violet" compact />
         <StatPill label="Ready" value={playlistSongsReady} color="emerald" compact />
         {aiDJEnabled && (
@@ -115,14 +175,17 @@ interface StatPillProps {
   value: number;
   color: 'violet' | 'emerald' | 'amber';
   compact?: boolean;
+  delta?: number | null;
 }
 
-function StatPill({ label, value, color, compact = false }: StatPillProps) {
+function StatPill({ label, value, color, compact = false, delta }: StatPillProps) {
   const colorClasses = {
     violet: 'bg-violet-500/10 border-violet-500/20 text-violet-600 dark:text-violet-400',
     emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400',
     amber: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400',
   };
+
+  const formattedDelta = delta != null ? formatPercentChange(delta) : null;
 
   return (
     <div
@@ -136,6 +199,20 @@ function StatPill({ label, value, color, compact = false }: StatPillProps) {
       <span className={cn('text-muted-foreground', compact ? 'text-xs' : 'text-xs')}>
         {label}
       </span>
+      {formattedDelta && (
+        <span
+          className={cn(
+            'flex items-center gap-0.5 text-xs font-medium',
+            delta != null && delta > 0 && 'text-emerald-600 dark:text-emerald-400',
+            delta != null && delta < 0 && 'text-red-500 dark:text-red-400',
+            delta === 0 && 'text-muted-foreground'
+          )}
+        >
+          {delta != null && delta > 0 && <TrendingUp className="w-3 h-3" />}
+          {delta != null && delta < 0 && <TrendingDown className="w-3 h-3" />}
+          {formattedDelta}
+        </span>
+      )}
     </div>
   );
 }

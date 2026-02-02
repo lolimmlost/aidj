@@ -70,8 +70,13 @@ import { Route as ApiMusicIdentityIdRouteImport } from './routes/api/music-ident
 import { Route as ApiMetubeStatusRouteImport } from './routes/api/metube/status'
 import { Route as ApiMetubeDeleteRouteImport } from './routes/api/metube/delete'
 import { Route as ApiMetubeAddRouteImport } from './routes/api/metube/add'
+import { Route as ApiListeningHistoryStatsRouteImport } from './routes/api/listening-history/stats'
+import { Route as ApiListeningHistorySessionsRouteImport } from './routes/api/listening-history/sessions'
 import { Route as ApiListeningHistoryRecordRouteImport } from './routes/api/listening-history/record'
+import { Route as ApiListeningHistoryInterestOverTimeRouteImport } from './routes/api/listening-history/interest-over-time'
 import { Route as ApiListeningHistoryCompoundScoresRouteImport } from './routes/api/listening-history/compound-scores'
+import { Route as ApiListeningHistoryByHourRouteImport } from './routes/api/listening-history/by-hour'
+import { Route as ApiListeningHistoryAlbumAgesRouteImport } from './routes/api/listening-history/album-ages'
 import { Route as ApiLidarrUnmonitorRouteImport } from './routes/api/lidarr/unmonitor'
 import { Route as ApiLidarrStatusRouteImport } from './routes/api/lidarr/status'
 import { Route as ApiLidarrSearchAlbumRouteImport } from './routes/api/lidarr/search-album'
@@ -88,6 +93,7 @@ import { Route as ApiLastfmTestRouteImport } from './routes/api/lastfm/test'
 import { Route as ApiLastfmSimilarTracksRouteImport } from './routes/api/lastfm/similar-tracks'
 import { Route as ApiLastfmSimilarArtistsRouteImport } from './routes/api/lastfm/similar-artists'
 import { Route as ApiLastfmSearchRouteImport } from './routes/api/lastfm/search'
+import { Route as ApiLastfmBackfillRouteImport } from './routes/api/lastfm/backfill'
 import { Route as ApiDownloadsQueueRouteImport } from './routes/api/downloads/queue'
 import { Route as ApiDiscoveryFeedInteractionsRouteImport } from './routes/api/discovery-feed/interactions'
 import { Route as ApiDiscoveryFeedAnalyticsRouteImport } from './routes/api/discovery-feed/analytics'
@@ -447,16 +453,46 @@ const ApiMetubeAddRoute = ApiMetubeAddRouteImport.update({
   path: '/api/metube/add',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiListeningHistoryStatsRoute =
+  ApiListeningHistoryStatsRouteImport.update({
+    id: '/api/listening-history/stats',
+    path: '/api/listening-history/stats',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiListeningHistorySessionsRoute =
+  ApiListeningHistorySessionsRouteImport.update({
+    id: '/api/listening-history/sessions',
+    path: '/api/listening-history/sessions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiListeningHistoryRecordRoute =
   ApiListeningHistoryRecordRouteImport.update({
     id: '/api/listening-history/record',
     path: '/api/listening-history/record',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiListeningHistoryInterestOverTimeRoute =
+  ApiListeningHistoryInterestOverTimeRouteImport.update({
+    id: '/api/listening-history/interest-over-time',
+    path: '/api/listening-history/interest-over-time',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiListeningHistoryCompoundScoresRoute =
   ApiListeningHistoryCompoundScoresRouteImport.update({
     id: '/api/listening-history/compound-scores',
     path: '/api/listening-history/compound-scores',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiListeningHistoryByHourRoute =
+  ApiListeningHistoryByHourRouteImport.update({
+    id: '/api/listening-history/by-hour',
+    path: '/api/listening-history/by-hour',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiListeningHistoryAlbumAgesRoute =
+  ApiListeningHistoryAlbumAgesRouteImport.update({
+    id: '/api/listening-history/album-ages',
+    path: '/api/listening-history/album-ages',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiLidarrUnmonitorRoute = ApiLidarrUnmonitorRouteImport.update({
@@ -538,6 +574,11 @@ const ApiLastfmSimilarArtistsRoute = ApiLastfmSimilarArtistsRouteImport.update({
 const ApiLastfmSearchRoute = ApiLastfmSearchRouteImport.update({
   id: '/api/lastfm/search',
   path: '/api/lastfm/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLastfmBackfillRoute = ApiLastfmBackfillRouteImport.update({
+  id: '/api/lastfm/backfill',
+  path: '/api/lastfm/backfill',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDownloadsQueueRoute = ApiDownloadsQueueRouteImport.update({
@@ -830,6 +871,7 @@ export interface FileRoutesByFullPath {
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
+  '/api/lastfm/backfill': typeof ApiLastfmBackfillRoute
   '/api/lastfm/search': typeof ApiLastfmSearchRoute
   '/api/lastfm/similar-artists': typeof ApiLastfmSimilarArtistsRoute
   '/api/lastfm/similar-tracks': typeof ApiLastfmSimilarTracksRoute
@@ -846,8 +888,13 @@ export interface FileRoutesByFullPath {
   '/api/lidarr/search-album': typeof ApiLidarrSearchAlbumRoute
   '/api/lidarr/status': typeof ApiLidarrStatusRoute
   '/api/lidarr/unmonitor': typeof ApiLidarrUnmonitorRoute
+  '/api/listening-history/album-ages': typeof ApiListeningHistoryAlbumAgesRoute
+  '/api/listening-history/by-hour': typeof ApiListeningHistoryByHourRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
+  '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
+  '/api/listening-history/sessions': typeof ApiListeningHistorySessionsRoute
+  '/api/listening-history/stats': typeof ApiListeningHistoryStatsRoute
   '/api/metube/add': typeof ApiMetubeAddRoute
   '/api/metube/delete': typeof ApiMetubeDeleteRoute
   '/api/metube/status': typeof ApiMetubeStatusRoute
@@ -953,6 +1000,7 @@ export interface FileRoutesByTo {
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
+  '/api/lastfm/backfill': typeof ApiLastfmBackfillRoute
   '/api/lastfm/search': typeof ApiLastfmSearchRoute
   '/api/lastfm/similar-artists': typeof ApiLastfmSimilarArtistsRoute
   '/api/lastfm/similar-tracks': typeof ApiLastfmSimilarTracksRoute
@@ -969,8 +1017,13 @@ export interface FileRoutesByTo {
   '/api/lidarr/search-album': typeof ApiLidarrSearchAlbumRoute
   '/api/lidarr/status': typeof ApiLidarrStatusRoute
   '/api/lidarr/unmonitor': typeof ApiLidarrUnmonitorRoute
+  '/api/listening-history/album-ages': typeof ApiListeningHistoryAlbumAgesRoute
+  '/api/listening-history/by-hour': typeof ApiListeningHistoryByHourRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
+  '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
+  '/api/listening-history/sessions': typeof ApiListeningHistorySessionsRoute
+  '/api/listening-history/stats': typeof ApiListeningHistoryStatsRoute
   '/api/metube/add': typeof ApiMetubeAddRoute
   '/api/metube/delete': typeof ApiMetubeDeleteRoute
   '/api/metube/status': typeof ApiMetubeStatusRoute
@@ -1080,6 +1133,7 @@ export interface FileRoutesById {
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
+  '/api/lastfm/backfill': typeof ApiLastfmBackfillRoute
   '/api/lastfm/search': typeof ApiLastfmSearchRoute
   '/api/lastfm/similar-artists': typeof ApiLastfmSimilarArtistsRoute
   '/api/lastfm/similar-tracks': typeof ApiLastfmSimilarTracksRoute
@@ -1096,8 +1150,13 @@ export interface FileRoutesById {
   '/api/lidarr/search-album': typeof ApiLidarrSearchAlbumRoute
   '/api/lidarr/status': typeof ApiLidarrStatusRoute
   '/api/lidarr/unmonitor': typeof ApiLidarrUnmonitorRoute
+  '/api/listening-history/album-ages': typeof ApiListeningHistoryAlbumAgesRoute
+  '/api/listening-history/by-hour': typeof ApiListeningHistoryByHourRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
+  '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
+  '/api/listening-history/sessions': typeof ApiListeningHistorySessionsRoute
+  '/api/listening-history/stats': typeof ApiListeningHistoryStatsRoute
   '/api/metube/add': typeof ApiMetubeAddRoute
   '/api/metube/delete': typeof ApiMetubeDeleteRoute
   '/api/metube/status': typeof ApiMetubeStatusRoute
@@ -1207,6 +1266,7 @@ export interface FileRouteTypes {
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
     | '/api/downloads/queue'
+    | '/api/lastfm/backfill'
     | '/api/lastfm/search'
     | '/api/lastfm/similar-artists'
     | '/api/lastfm/similar-tracks'
@@ -1223,8 +1283,13 @@ export interface FileRouteTypes {
     | '/api/lidarr/search-album'
     | '/api/lidarr/status'
     | '/api/lidarr/unmonitor'
+    | '/api/listening-history/album-ages'
+    | '/api/listening-history/by-hour'
     | '/api/listening-history/compound-scores'
+    | '/api/listening-history/interest-over-time'
     | '/api/listening-history/record'
+    | '/api/listening-history/sessions'
+    | '/api/listening-history/stats'
     | '/api/metube/add'
     | '/api/metube/delete'
     | '/api/metube/status'
@@ -1330,6 +1395,7 @@ export interface FileRouteTypes {
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
     | '/api/downloads/queue'
+    | '/api/lastfm/backfill'
     | '/api/lastfm/search'
     | '/api/lastfm/similar-artists'
     | '/api/lastfm/similar-tracks'
@@ -1346,8 +1412,13 @@ export interface FileRouteTypes {
     | '/api/lidarr/search-album'
     | '/api/lidarr/status'
     | '/api/lidarr/unmonitor'
+    | '/api/listening-history/album-ages'
+    | '/api/listening-history/by-hour'
     | '/api/listening-history/compound-scores'
+    | '/api/listening-history/interest-over-time'
     | '/api/listening-history/record'
+    | '/api/listening-history/sessions'
+    | '/api/listening-history/stats'
     | '/api/metube/add'
     | '/api/metube/delete'
     | '/api/metube/status'
@@ -1456,6 +1527,7 @@ export interface FileRouteTypes {
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
     | '/api/downloads/queue'
+    | '/api/lastfm/backfill'
     | '/api/lastfm/search'
     | '/api/lastfm/similar-artists'
     | '/api/lastfm/similar-tracks'
@@ -1472,8 +1544,13 @@ export interface FileRouteTypes {
     | '/api/lidarr/search-album'
     | '/api/lidarr/status'
     | '/api/lidarr/unmonitor'
+    | '/api/listening-history/album-ages'
+    | '/api/listening-history/by-hour'
     | '/api/listening-history/compound-scores'
+    | '/api/listening-history/interest-over-time'
     | '/api/listening-history/record'
+    | '/api/listening-history/sessions'
+    | '/api/listening-history/stats'
     | '/api/metube/add'
     | '/api/metube/delete'
     | '/api/metube/status'
@@ -1575,6 +1652,7 @@ export interface RootRouteChildren {
   ApiDiscoveryFeedAnalyticsRoute: typeof ApiDiscoveryFeedAnalyticsRoute
   ApiDiscoveryFeedInteractionsRoute: typeof ApiDiscoveryFeedInteractionsRoute
   ApiDownloadsQueueRoute: typeof ApiDownloadsQueueRoute
+  ApiLastfmBackfillRoute: typeof ApiLastfmBackfillRoute
   ApiLastfmSearchRoute: typeof ApiLastfmSearchRoute
   ApiLastfmSimilarArtistsRoute: typeof ApiLastfmSimilarArtistsRoute
   ApiLastfmSimilarTracksRoute: typeof ApiLastfmSimilarTracksRoute
@@ -1591,8 +1669,13 @@ export interface RootRouteChildren {
   ApiLidarrSearchAlbumRoute: typeof ApiLidarrSearchAlbumRoute
   ApiLidarrStatusRoute: typeof ApiLidarrStatusRoute
   ApiLidarrUnmonitorRoute: typeof ApiLidarrUnmonitorRoute
+  ApiListeningHistoryAlbumAgesRoute: typeof ApiListeningHistoryAlbumAgesRoute
+  ApiListeningHistoryByHourRoute: typeof ApiListeningHistoryByHourRoute
   ApiListeningHistoryCompoundScoresRoute: typeof ApiListeningHistoryCompoundScoresRoute
+  ApiListeningHistoryInterestOverTimeRoute: typeof ApiListeningHistoryInterestOverTimeRoute
   ApiListeningHistoryRecordRoute: typeof ApiListeningHistoryRecordRoute
+  ApiListeningHistorySessionsRoute: typeof ApiListeningHistorySessionsRoute
+  ApiListeningHistoryStatsRoute: typeof ApiListeningHistoryStatsRoute
   ApiMetubeAddRoute: typeof ApiMetubeAddRoute
   ApiMetubeDeleteRoute: typeof ApiMetubeDeleteRoute
   ApiMetubeStatusRoute: typeof ApiMetubeStatusRoute
@@ -2062,6 +2145,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMetubeAddRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/listening-history/stats': {
+      id: '/api/listening-history/stats'
+      path: '/api/listening-history/stats'
+      fullPath: '/api/listening-history/stats'
+      preLoaderRoute: typeof ApiListeningHistoryStatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/listening-history/sessions': {
+      id: '/api/listening-history/sessions'
+      path: '/api/listening-history/sessions'
+      fullPath: '/api/listening-history/sessions'
+      preLoaderRoute: typeof ApiListeningHistorySessionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/listening-history/record': {
       id: '/api/listening-history/record'
       path: '/api/listening-history/record'
@@ -2069,11 +2166,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiListeningHistoryRecordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/listening-history/interest-over-time': {
+      id: '/api/listening-history/interest-over-time'
+      path: '/api/listening-history/interest-over-time'
+      fullPath: '/api/listening-history/interest-over-time'
+      preLoaderRoute: typeof ApiListeningHistoryInterestOverTimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/listening-history/compound-scores': {
       id: '/api/listening-history/compound-scores'
       path: '/api/listening-history/compound-scores'
       fullPath: '/api/listening-history/compound-scores'
       preLoaderRoute: typeof ApiListeningHistoryCompoundScoresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/listening-history/by-hour': {
+      id: '/api/listening-history/by-hour'
+      path: '/api/listening-history/by-hour'
+      fullPath: '/api/listening-history/by-hour'
+      preLoaderRoute: typeof ApiListeningHistoryByHourRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/listening-history/album-ages': {
+      id: '/api/listening-history/album-ages'
+      path: '/api/listening-history/album-ages'
+      fullPath: '/api/listening-history/album-ages'
+      preLoaderRoute: typeof ApiListeningHistoryAlbumAgesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/lidarr/unmonitor': {
@@ -2186,6 +2304,13 @@ declare module '@tanstack/react-router' {
       path: '/api/lastfm/search'
       fullPath: '/api/lastfm/search'
       preLoaderRoute: typeof ApiLastfmSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/lastfm/backfill': {
+      id: '/api/lastfm/backfill'
+      path: '/api/lastfm/backfill'
+      fullPath: '/api/lastfm/backfill'
+      preLoaderRoute: typeof ApiLastfmBackfillRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/downloads/queue': {
@@ -2703,6 +2828,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDiscoveryFeedAnalyticsRoute: ApiDiscoveryFeedAnalyticsRoute,
   ApiDiscoveryFeedInteractionsRoute: ApiDiscoveryFeedInteractionsRoute,
   ApiDownloadsQueueRoute: ApiDownloadsQueueRoute,
+  ApiLastfmBackfillRoute: ApiLastfmBackfillRoute,
   ApiLastfmSearchRoute: ApiLastfmSearchRoute,
   ApiLastfmSimilarArtistsRoute: ApiLastfmSimilarArtistsRoute,
   ApiLastfmSimilarTracksRoute: ApiLastfmSimilarTracksRoute,
@@ -2719,9 +2845,15 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLidarrSearchAlbumRoute: ApiLidarrSearchAlbumRoute,
   ApiLidarrStatusRoute: ApiLidarrStatusRoute,
   ApiLidarrUnmonitorRoute: ApiLidarrUnmonitorRoute,
+  ApiListeningHistoryAlbumAgesRoute: ApiListeningHistoryAlbumAgesRoute,
+  ApiListeningHistoryByHourRoute: ApiListeningHistoryByHourRoute,
   ApiListeningHistoryCompoundScoresRoute:
     ApiListeningHistoryCompoundScoresRoute,
+  ApiListeningHistoryInterestOverTimeRoute:
+    ApiListeningHistoryInterestOverTimeRoute,
   ApiListeningHistoryRecordRoute: ApiListeningHistoryRecordRoute,
+  ApiListeningHistorySessionsRoute: ApiListeningHistorySessionsRoute,
+  ApiListeningHistoryStatsRoute: ApiListeningHistoryStatsRoute,
   ApiMetubeAddRoute: ApiMetubeAddRoute,
   ApiMetubeDeleteRoute: ApiMetubeDeleteRoute,
   ApiMetubeStatusRoute: ApiMetubeStatusRoute,

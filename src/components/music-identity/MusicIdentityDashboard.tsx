@@ -37,6 +37,7 @@ import { MusicIdentityCard } from './MusicIdentityCard';
 import { TrendAnalysisWidget } from './TrendAnalysisWidget';
 import { MoodProfileChart } from './MoodProfileChart';
 import { ShareableCard } from './ShareableCard';
+import { ListeningHourChart } from './ListeningHourChart';
 
 // ============================================================================
 // Types
@@ -482,6 +483,7 @@ const MusicIdentityDetail = memo(function MusicIdentityDetail({
 
         <TabsContent value="overview" className="space-y-4">
           <OverviewTab summary={summary} />
+          <ListeningHourChart />
         </TabsContent>
 
         <TabsContent value="trends" className="space-y-4">

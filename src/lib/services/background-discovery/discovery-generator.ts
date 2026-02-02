@@ -23,6 +23,7 @@ import { getLastFmClient } from '../lastfm';
 import { getConfigAsync } from '@/lib/config/config';
 import type { EnrichedTrack } from '../lastfm/types';
 import { search as navidromeSearch, getArtists as getNavidromeArtists } from '../navidrome';
+import { resolveArtistImage } from '../image-resolver';
 
 // ============================================================================
 // Types
@@ -622,22 +623,33 @@ export async function generateSuggestions(
 
   console.log(`[DiscoveryGenerator] Returning ${limited.length} ranked suggestions`);
 
+  // Resolve missing images via Deezer fallback (Item 2.1)
+  const resolved = await Promise.allSettled(
+    limited.map(async s => {
+      const imageUrl = await resolveArtistImage(s.artistName, s.imageUrl);
+      return { ...s, imageUrl };
+    })
+  );
+
   // Convert to database insert format
-  return limited.map(s => ({
-    userId,
-    artistName: s.artistName,
-    trackName: s.trackName,
-    albumName: s.albumName,
-    source: s.source,
-    seedArtist: s.seedArtist,
-    seedTrack: s.seedTrack,
-    matchScore: s.matchScore,
-    status: 'pending' as const,
-    lastFmUrl: s.lastFmUrl,
-    imageUrl: s.imageUrl,
-    genres: s.genres,
-    explanation: s.explanation,
-  }));
+  return resolved.map((r, i) => {
+    const s = r.status === 'fulfilled' ? r.value : limited[i];
+    return {
+      userId,
+      artistName: s.artistName,
+      trackName: s.trackName,
+      albumName: s.albumName,
+      source: s.source,
+      seedArtist: s.seedArtist,
+      seedTrack: s.seedTrack,
+      matchScore: s.matchScore,
+      status: 'pending' as const,
+      lastFmUrl: s.lastFmUrl,
+      imageUrl: s.imageUrl,
+      genres: s.genres,
+      explanation: s.explanation,
+    };
+  });
 }
 
 /**

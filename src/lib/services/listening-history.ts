@@ -490,6 +490,215 @@ export async function getFrequentlySkippedSongs(
 }
 
 // ============================================================================
+// Phase: Dashboard Analytics
+// ============================================================================
+
+/**
+ * Get listening stats for a specific date range.
+ * Used for period-over-period comparison cards on the dashboard.
+ *
+ * @see docs/architecture/analytics-discovery-upgrades-plan.md - Item 1.1
+ */
+export async function getListeningStatsByPeriod(
+  userId: string,
+  start: Date,
+  end: Date
+): Promise<{
+  totalPlays: number;
+  uniqueTracks: number;
+  uniqueArtists: number;
+  totalMinutesListened: number;
+  completionRate: number;
+}> {
+  const results = await db
+    .select({
+      totalPlays: sql<number>`count(*)::int`,
+      uniqueTracks: sql<number>`count(distinct ${listeningHistory.songId})::int`,
+      uniqueArtists: sql<number>`count(distinct ${listeningHistory.artist})::int`,
+      totalSeconds: sql<number>`coalesce(sum(${listeningHistory.playDuration}), 0)::int`,
+      completedCount: sql<number>`coalesce(sum(${listeningHistory.completed}), 0)::int`,
+    })
+    .from(listeningHistory)
+    .where(
+      and(
+        eq(listeningHistory.userId, userId),
+        gte(listeningHistory.playedAt, start),
+        lte(listeningHistory.playedAt, end)
+      )
+    );
+
+  const row = results[0];
+  const totalPlays = row?.totalPlays || 0;
+
+  return {
+    totalPlays,
+    uniqueTracks: row?.uniqueTracks || 0,
+    uniqueArtists: row?.uniqueArtists || 0,
+    totalMinutesListened: Math.round((row?.totalSeconds || 0) / 60),
+    completionRate: totalPlays > 0 ? Math.round((row?.completedCount || 0) / totalPlays * 100) : 0,
+  };
+}
+
+/**
+ * Get listening activity grouped by hour of day.
+ * Used for the listening hour distribution chart.
+ *
+ * @see docs/architecture/analytics-discovery-upgrades-plan.md - Item 1.2
+ */
+export async function getListeningByHour(
+  userId: string,
+  start?: Date,
+  end?: Date
+): Promise<Array<{ hour: number; plays: number }>> {
+  const conditions = [eq(listeningHistory.userId, userId)];
+  if (start) conditions.push(gte(listeningHistory.playedAt, start));
+  if (end) conditions.push(lte(listeningHistory.playedAt, end));
+
+  const results = await db
+    .select({
+      hour: sql<number>`extract(hour from ${listeningHistory.playedAt})::int`,
+      plays: sql<number>`count(*)::int`,
+    })
+    .from(listeningHistory)
+    .where(and(...conditions))
+    .groupBy(sql`extract(hour from ${listeningHistory.playedAt})`)
+    .orderBy(sql`extract(hour from ${listeningHistory.playedAt})`);
+
+  // Fill in all 24 hours (some may have 0 plays)
+  const hourMap = new Map(results.map(r => [r.hour, r.plays]));
+  return Array.from({ length: 24 }, (_, i) => ({
+    hour: i,
+    plays: hourMap.get(i) || 0,
+  }));
+}
+
+/**
+ * Get artist diversity metric for a given period.
+ * Shannon entropy: higher = more diverse listening.
+ *
+ * @see docs/architecture/analytics-discovery-upgrades-plan.md - Item 1.3
+ */
+export async function getArtistDiversity(
+  userId: string,
+  start: Date,
+  end: Date
+): Promise<{ entropy: number; uniqueArtists: number; totalPlays: number }> {
+  const results = await db
+    .select({
+      artist: listeningHistory.artist,
+      plays: sql<number>`count(*)::int`,
+    })
+    .from(listeningHistory)
+    .where(
+      and(
+        eq(listeningHistory.userId, userId),
+        gte(listeningHistory.playedAt, start),
+        lte(listeningHistory.playedAt, end)
+      )
+    )
+    .groupBy(listeningHistory.artist);
+
+  const totalPlays = results.reduce((sum, r) => sum + r.plays, 0);
+  if (totalPlays === 0) return { entropy: 0, uniqueArtists: 0, totalPlays: 0 };
+
+  // Shannon entropy: -sum(p * ln(p))
+  let entropy = 0;
+  for (const row of results) {
+    const p = row.plays / totalPlays;
+    if (p > 0) entropy -= p * Math.log(p);
+  }
+
+  return {
+    entropy: Math.round(entropy * 100) / 100,
+    uniqueArtists: results.length,
+    totalPlays,
+  };
+}
+
+/**
+ * Detect longest continuous listening sessions.
+ * A session is defined as consecutive plays with no gap > gapMinutes.
+ *
+ * @see docs/architecture/analytics-discovery-upgrades-plan.md - Item 1.5
+ */
+export async function getLongestSessions(
+  userId: string,
+  start: Date,
+  end: Date,
+  gapMinutes: number = 15,
+  limit: number = 5
+): Promise<Array<{
+  startTime: Date;
+  endTime: Date;
+  durationMinutes: number;
+  songCount: number;
+}>> {
+  // Get all plays in the period, ordered by time
+  const plays = await db
+    .select({
+      playedAt: listeningHistory.playedAt,
+      playDuration: listeningHistory.playDuration,
+    })
+    .from(listeningHistory)
+    .where(
+      and(
+        eq(listeningHistory.userId, userId),
+        gte(listeningHistory.playedAt, start),
+        lte(listeningHistory.playedAt, end)
+      )
+    )
+    .orderBy(listeningHistory.playedAt);
+
+  if (plays.length === 0) return [];
+
+  const gapMs = gapMinutes * 60 * 1000;
+  const sessions: Array<{
+    startTime: Date;
+    endTime: Date;
+    durationMinutes: number;
+    songCount: number;
+  }> = [];
+
+  let sessionStart = plays[0].playedAt;
+  let sessionEnd = new Date(
+    plays[0].playedAt.getTime() + (plays[0].playDuration || 0) * 1000
+  );
+  let songCount = 1;
+
+  for (let i = 1; i < plays.length; i++) {
+    const play = plays[i];
+    const timeSinceLastEnd = play.playedAt.getTime() - sessionEnd.getTime();
+
+    if (timeSinceLastEnd <= gapMs) {
+      // Continue session
+      const playEnd = new Date(play.playedAt.getTime() + (play.playDuration || 0) * 1000);
+      if (playEnd > sessionEnd) sessionEnd = playEnd;
+      songCount++;
+    } else {
+      // End current session, start new one
+      const durationMinutes = Math.round((sessionEnd.getTime() - sessionStart.getTime()) / 60000);
+      if (songCount >= 2) {
+        sessions.push({ startTime: sessionStart, endTime: sessionEnd, durationMinutes, songCount });
+      }
+      sessionStart = play.playedAt;
+      sessionEnd = new Date(play.playedAt.getTime() + (play.playDuration || 0) * 1000);
+      songCount = 1;
+    }
+  }
+
+  // Don't forget the last session
+  const durationMinutes = Math.round((sessionEnd.getTime() - sessionStart.getTime()) / 60000);
+  if (songCount >= 2) {
+    sessions.push({ startTime: sessionStart, endTime: sessionEnd, durationMinutes, songCount });
+  }
+
+  // Return top sessions by duration
+  return sessions
+    .sort((a, b) => b.durationMinutes - a.durationMinutes)
+    .slice(0, limit);
+}
+
+// ============================================================================
 // Exports for Testing
 // ============================================================================
 
