@@ -126,7 +126,7 @@ export const AlbumAgeChart = memo(function AlbumAgeChart({
   }
 
   return (
-    <Card>
+    <Card className="overflow-hidden min-w-0">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Disc3 className="h-5 w-5 text-primary" />
@@ -140,7 +140,7 @@ export const AlbumAgeChart = memo(function AlbumAgeChart({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-48">
+        <div className="h-48 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
               <XAxis

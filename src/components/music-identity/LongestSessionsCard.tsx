@@ -128,7 +128,7 @@ export const LongestSessionsCard = memo(function LongestSessionsCard({
   const longest = sessions[0];
 
   return (
-    <Card>
+    <Card className="overflow-hidden min-w-0">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Timer className="h-5 w-5 text-primary" />

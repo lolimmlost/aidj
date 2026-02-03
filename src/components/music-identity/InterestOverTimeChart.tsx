@@ -157,7 +157,7 @@ export const InterestOverTimeChart = memo(function InterestOverTimeChart({
   }
 
   return (
-    <Card>
+    <Card className="overflow-hidden min-w-0">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-primary" />
@@ -168,7 +168,7 @@ export const InterestOverTimeChart = memo(function InterestOverTimeChart({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-56">
+        <div className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
               <XAxis
