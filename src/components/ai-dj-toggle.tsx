@@ -69,17 +69,17 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
     }
   }, [aiDJEnabled, isUpdating, setAIDJEnabled, setRecommendationSettings]);
 
-  // Sync with preferences on mount and when preferences change
+  // Sync preferences → audio store on load or external preference changes.
+  // Only react to preferences changes (not audio store changes) to avoid
+  // a race condition where the effect reverts a user toggle before the
+  // async preference update completes.
   useEffect(() => {
-    // Use setTimeout to avoid cascading renders and potential visual flashing
-    const timeoutId = setTimeout(() => {
-      if (preferences.recommendationSettings.aiDJEnabled !== aiDJEnabled) {
-        setAIDJEnabled(preferences.recommendationSettings.aiDJEnabled);
-      }
-    }, 0);
-
-    return () => clearTimeout(timeoutId);
-  }, [preferences.recommendationSettings.aiDJEnabled, aiDJEnabled, setAIDJEnabled]);
+    const prefValue = preferences.recommendationSettings.aiDJEnabled;
+    const currentAudioValue = useAudioStore.getState().aiDJEnabled;
+    if (prefValue !== currentAudioValue) {
+      setAIDJEnabled(prefValue);
+    }
+  }, [preferences.recommendationSettings.aiDJEnabled, setAIDJEnabled]);
 
   // Switch toggle handler for full mode
   const handleSwitchToggle = async (checked: boolean) => {
