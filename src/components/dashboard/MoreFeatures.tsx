@@ -74,8 +74,7 @@ function QuickLink({ to, icon, label, color, className = '' }: QuickLinkProps) {
     <Link to={to} className={cn('group', className)}>
       <div
         className={cn(
-          'flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-border/50 bg-card/30',
-          'transition-all duration-200 hover:-translate-y-0.5',
+          'quick-access-link',
           colorClasses[color]
         )}
       >

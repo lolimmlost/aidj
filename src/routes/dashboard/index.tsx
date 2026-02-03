@@ -2,36 +2,18 @@ import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-ro
 import { toast } from 'sonner';
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo, Suspense, lazy } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { VirtualizedList } from '@/components/ui/virtualized-list';
 import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
 import { usePreferencesStore, type SourceMode } from '@/lib/stores/preferences';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { search } from '@/lib/services/navidrome';
-import { OllamaErrorBoundary } from '@/components/ollama-error-boundary';
 import { Skeleton } from '@/components/ui/skeleton';
 import { hasLegacyFeedback, migrateLegacyFeedback, isMigrationCompleted } from '@/lib/utils/feedback-migration';
-import { Play, Plus, ListPlus, Download, ChevronDown, ChevronUp } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import type { Song } from '@/lib/types/song';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 // Critical components - loaded immediately
 import { DashboardHero } from '@/components/dashboard/DashboardHero';
 import { QuickActions, STYLE_PRESETS, type StylePreset } from '@/components/dashboard/quick-actions';
-import { SourceModeSelector, SourceBadge } from '@/components/playlist/source-mode-selector';
-import { GenerationProgress } from '@/components/ui/generation-progress';
-import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { useDiscoveryQueueStore } from '@/lib/stores/discovery-queue';
-// Virtualization for large lists
-import { RecommendationCard } from '@/components/recommendations/RecommendationCard';
 // Centralized query management for optimized caching
 import { queryKeys, queryPresets } from '@/lib/query';
 // Lazy loading utilities for deferred content
@@ -49,11 +31,9 @@ const MoreFeatures = lazy(() => import('@/components/dashboard/MoreFeatures').th
 // PreferenceInsights - moved to Analytics page (accessible via sidebar)
 // const PreferenceInsights = lazy(() => import('@/components/recommendations/PreferenceInsights').then(m => ({ default: m.PreferenceInsights })));
 
-// DiscoveryQueuePanel - loaded after initial render
-const DiscoveryQueuePanel = lazy(() => import('@/components/discovery/DiscoveryQueuePanel').then(m => ({ default: m.DiscoveryQueuePanel })));
-
-// MixCompatibilityBadges - only loaded when needed (harmonic mixing)
-const MixCompatibilityBadges = lazy(() => import('@/components/dj/mix-compatibility-badges').then(m => ({ default: m.MixCompatibilityBadges })));
+import { AIRecommendationsSection } from '@/components/dashboard/AIRecommendationsSection';
+import { DiscoveryQueueSection } from '@/components/dashboard/DiscoveryQueueSection';
+import { CustomPlaylistSection, type PlaylistItem } from '@/components/dashboard/CustomPlaylistSection';
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context }) => {
@@ -569,22 +549,6 @@ function DashboardIndex() {
     }
   };
 
-  interface PlaylistItem {
-    song: string;
-    explanation: string;
-    songId?: string;
-    url?: string;
-    missing?: boolean;
-    // Story 7.1: Source mode fields
-    isDiscovery?: boolean;
-    inLibrary?: boolean;
-    // Story 7.2: Discovery source tracking
-    discoverySource?: 'lastfm' | 'ollama' | 'library';
-    // Story 7.5: Harmonic mixing metadata
-    bpm?: number;
-    key?: string;
-  }
-
   // Story 7.5: Get current song for harmonic mixing comparison
   const currentSong = useAudioStore((state) =>
     state.playlist[state.currentSongIndex] || null
@@ -911,6 +875,98 @@ function DashboardIndex() {
     }
   }, []);
 
+  const handleGenerate = useCallback(() => {
+    setGenerationStage('generating');
+    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.generatedByStyle(trimmedStyle, sourceMode, mixRatio) });
+    refetchPlaylist();
+  }, [queryClient, trimmedStyle, sourceMode, mixRatio, refetchPlaylist]);
+
+  const handleRegenerate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.generatedByStyle(debouncedStyle, sourceMode, mixRatio) });
+    setGenerationStage('generating');
+    refetchPlaylist();
+  }, [queryClient, debouncedStyle, sourceMode, mixRatio, refetchPlaylist]);
+
+  const handleSongQueue = useCallback((item: PlaylistItem, position: 'now' | 'next' | 'end') => {
+    if (!item.songId || !item.url) return;
+    const parts = item.song.split(' - ');
+    const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
+    const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
+    const songForPlayer: Song = {
+      id: item.songId,
+      name: title,
+      title,
+      albumId: '',
+      duration: 0,
+      track: 1,
+      url: item.url,
+      artist,
+    };
+    setAIUserActionInProgress(true);
+    if (position === 'now') {
+      playNow(item.songId, songForPlayer);
+      toast.success(`Now playing: ${title}`);
+    } else if (position === 'next') {
+      addToQueueNext([songForPlayer]);
+      toast.success(`Added "${title}" to play next`);
+    } else {
+      addToQueueEnd([songForPlayer]);
+      toast.success(`Added "${title}" to end of queue`);
+    }
+    setTimeout(() => setAIUserActionInProgress(false), 2000);
+  }, [playNow, addToQueueNext, addToQueueEnd, setAIUserActionInProgress]);
+
+  const handleDiscoveryAdd = useCallback(async (item: PlaylistItem, index: number) => {
+    const parts = item.song.split(' - ');
+    const artist = parts.length >= 2 ? parts[0].trim() : '';
+    const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
+    const toastId = `lidarr-add-${index}`;
+    try {
+      toast.loading(`Searching for "${title}" by ${artist}...`, { id: toastId, duration: Infinity });
+      const response = await fetch('/api/lidarr/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ song: item.song }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        addDiscovery({
+          song: item.song,
+          artist,
+          title,
+          source: item.discoverySource === 'lastfm' ? 'lastfm' : 'ollama',
+          lidarrArtistId: data.artistId,
+        });
+        toast.success(data.message || `Found and added "${title}" to download queue`, {
+          id: toastId,
+          description: 'Tracking in Discovery Queue',
+          duration: 5000,
+        });
+      } else {
+        toast.error(data.message || data.error || 'Could not find automatically', {
+          id: toastId,
+          description: 'Opening downloads page for manual search...',
+          duration: 3000,
+        });
+        setTimeout(() => navigate({ to: '/downloads', search: { search: artist } }), 1500);
+      }
+    } catch (error) {
+      console.error('Lidarr add error:', error);
+      toast.error('Failed to search', {
+        id: toastId,
+        description: 'Opening downloads page...',
+        duration: 3000,
+      });
+      setTimeout(() => {
+        window.location.href = `/downloads?search=${encodeURIComponent(artist)}`;
+      }, 1500);
+    }
+  }, [addDiscovery, navigate]);
+
+  const handleSearchSimilar = useCallback((artist: string) => {
+    navigate({ to: '/library', search: { search: artist } });
+  }, [navigate]);
+
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-20">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6 lg:space-y-8">
@@ -931,658 +987,50 @@ function DashboardIndex() {
         />
 
 
-      {/* AI Recommendations Section - conditionally rendered based on user preferences */}
-      {preferences.dashboardLayout.showRecommendations && (
-        <OllamaErrorBoundary>
-          <section className="glass-card-premium p-5 sm:p-6 space-y-5">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <button
-                onClick={() => setRecommendationsCollapsed(!recommendationsCollapsed)}
-                className="flex items-center gap-3 text-left group"
-              >
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-500">
-                    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-                    <span className="text-gradient-brand">AI Recommendations</span>
-                    <span className="badge-purple text-[10px]">AI</span>
-                  </h2>
-                  <p className="text-xs text-muted-foreground">Personalized picks based on your taste</p>
-                </div>
-                {recommendationsCollapsed ? (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors ml-1" />
-                ) : (
-                  <ChevronUp className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors ml-1" />
-                )}
-              </button>
-              {!recommendationsCollapsed && (
-                <div className="flex gap-2 w-full sm:w-auto">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => refetchRecommendations()}
-                    disabled={isLoading}
-                    className="flex-1 sm:flex-none min-h-[44px] hover:bg-primary/5 hover:border-primary/50 transition-all rounded-xl"
-                    aria-label="Refresh recommendations"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`mr-2 ${isLoading ? 'animate-spin' : ''}`}>
-                      <path d="M21 2v6h-6"/>
-                      <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
-                      <path d="M3 22v-6h6"/>
-                      <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
-                    </svg>
-                    {isLoading ? 'Loading...' : 'Refresh'}
-                  </Button>
-                  <Select value={type} onValueChange={(value) => setType(value as 'similar' | 'mood')}>
-                    <SelectTrigger className="w-full sm:w-[180px] min-h-[44px] rounded-xl">
-                      <SelectValue placeholder="Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="similar">Similar Artists</SelectItem>
-                      <SelectItem value="mood">Mood-Based</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-            {recommendationsCollapsed && (
-              <p className="text-sm text-muted-foreground pl-[52px]">Tap to explore personalized recommendations</p>
-            )}
-            {!recommendationsCollapsed && (
-              <>
-            {isLoading && (
-              <Card className="bg-card text-card-foreground border-card">
-                <CardHeader>
-                  <Skeleton className="h-6 w-48" />
-                  <Skeleton className="h-4 w-64 mt-2" />
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {[...Array(5)].map((_, index) => (
-                      <div key={index} className="p-2 border rounded space-y-2">
-                        <div className="flex justify-between items-center">
-                          <Skeleton className="h-5 w-3/4" />
-                          <Skeleton className="h-8 w-20" />
-                        </div>
-                        <Skeleton className="h-4 w-full" />
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-            {error && (
-            <p className="text-destructive">
-              Error loading recommendations: {error.message}
-              {error.message.includes('rate limit') && (
-                <span className="block text-sm mt-1">💡 Please wait a moment before refreshing again</span>
-              )}
-            </p>
-          )}
-            {recommendations && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-500/5 to-pink-500/5 border border-purple-500/10 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-500/10 rounded-lg">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-600">
-                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Based on your listening history</p>
-                      <p className="text-xs text-muted-foreground">
-                        {recommendations.data.recommendations.filter((rec: { foundInLibrary?: boolean }) => rec.foundInLibrary).length} of {recommendations.data.recommendations.length} songs in your library • Updated {new Date(recommendations.timestamp).toLocaleTimeString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+        <AIRecommendationsSection
+          show={preferences.dashboardLayout.showRecommendations}
+          collapsed={recommendationsCollapsed}
+          onToggleCollapse={() => setRecommendationsCollapsed(!recommendationsCollapsed)}
+          type={type}
+          onTypeChange={(value) => setType(value as 'similar' | 'mood')}
+          isLoading={isLoading}
+          error={error}
+          recommendations={recommendations}
+          onRefresh={() => refetchRecommendations()}
+          songFeedback={songFeedback}
+          onFeedback={(params) => feedbackMutation.mutate(params)}
+          isFeedbackPending={feedbackMutation.isPending}
+          onQueueAction={handleQueueAction}
+        />
 
-                {/* Virtualized recommendations list for performance with large result sets */}
-                <VirtualizedList
-                  items={recommendations.data.recommendations}
-                  itemHeight={140}
-                  containerHeight={Math.min(500, Math.max(280, recommendations.data.recommendations.length * 140))}
-                  getItemKey={(rec: { song: string }) => rec.song}
-                  gap={12}
-                  overscan={3}
-                  className="rounded-lg"
-                  renderItem={(rec: { song: string; foundInLibrary?: boolean; actualSong?: CachedSong; searchError?: boolean; explanation?: string }, index: number) => {
-                    const currentFeedback = songFeedback[rec.song];
-                    const hasFeedback = currentFeedback !== undefined && currentFeedback !== null;
+        <DiscoveryQueueSection />
 
-                    return (
-                      <RecommendationCard
-                        key={rec.song}
-                        rec={rec}
-                        index={index}
-                        currentFeedback={currentFeedback}
-                        hasFeedback={hasFeedback}
-                        onFeedback={(type) => feedbackMutation.mutate({
-                          song: rec.song,
-                          feedbackType: type,
-                          songId: rec.actualSong?.id
-                        })}
-                        onQueueAction={(position) => handleQueueAction(rec.song, position)}
-                        isPending={feedbackMutation.isPending}
-                      />
-                    );
-                  }}
-                />
-              </div>
-            )}
-              </>
-            )}
-          </section>
-        </OllamaErrorBoundary>
-      )}
-
-      {/* Preference Analytics Widget - Moved to sidebar (Analytics link) */}
-      {/* Taste Profile is now accessible via sidebar → Analytics */}
-
-      {/* Story 7.3: Discovery Queue Panel - Deferred loading */}
-      <DeferredDiscoveryQueue />
-
-      {/* DJ Features Section - WIP, commented out for now */}
-      {/* <DeferredDJFeatures /> */}
-
-      <OllamaErrorBoundary>
-        <section className="glass-card-premium p-5 sm:p-6 space-y-5">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <button
-              onClick={() => setPlaylistCollapsed(!playlistCollapsed)}
-              className="flex items-center gap-3 text-left group"
-            >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-cyan-500">
-                  <path d="M9 18V5l12-2v13"/>
-                  <circle cx="6" cy="18" r="3"/>
-                  <circle cx="18" cy="16" r="3"/>
-                </svg>
-              </div>
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-                  <span className="bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">Custom Playlist</span>
-                  <span className="badge-info text-[10px]">AI</span>
-                </h2>
-                <p className="text-xs text-muted-foreground">Describe your vibe, get a playlist</p>
-              </div>
-              {playlistCollapsed ? (
-                <ChevronDown className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors ml-1" />
-              ) : (
-                <ChevronUp className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors ml-1" />
-              )}
-            </button>
-            {!playlistCollapsed && (
-              <Button onClick={clearPlaylistCache} variant="outline" size="sm" className="min-h-[44px] w-full sm:w-auto hover:bg-destructive/5 hover:border-destructive/50 transition-all rounded-xl" aria-label="Clear playlist cache">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                  <path d="M3 6h18"/>
-                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                </svg>
-                Clear Cache
-              </Button>
-            )}
-          </div>
-          {playlistCollapsed && (
-            <p className="text-sm text-muted-foreground pl-[52px]">Tap to create a custom AI-generated playlist</p>
-          )}
-          {!playlistCollapsed && (
-            <>
-
-        <div className="space-y-4">
-          {/* Source Mode Selector */}
-          <div>
-            <label className="text-sm font-medium mb-2 block text-muted-foreground">Source</label>
-            <SourceModeSelector
-              value={sourceMode}
-              onChange={setSourceMode}
-              mixRatio={mixRatio}
-              onMixRatioChange={setMixRatio}
-            />
-          </div>
-
-          {/* Input Area */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
-                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
-              </svg>
-              <Input
-                placeholder="Describe your vibe... (e.g., 'Chill Sunday morning', 'Late night coding')"
-                value={style}
-                onChange={(e) => setStyle(e.target.value)}
-                className="pl-12 h-12 sm:h-14 bg-background/80 border-border/50 focus:border-primary/50 rounded-xl text-base transition-all"
-                aria-label="Playlist style"
-              />
-            </div>
-            <button
-              onClick={() => {
-                setGenerationStage('generating');
-                queryClient.invalidateQueries({ queryKey: queryKeys.playlists.generatedByStyle(trimmedStyle, sourceMode, mixRatio) });
-                refetchPlaylist();
-              }}
-              disabled={!trimmedStyle}
-              className="action-button h-12 sm:h-14 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              aria-label="Generate playlist now"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
-              </svg>
-              Generate
-            </button>
-          </div>
-        </div>
-
-        {/* Show debouncing indicator */}
-        {trimmedStyle && trimmedStyle !== debouncedStyle && (
-          <p className="text-sm text-muted-foreground animate-pulse">
-            ⏳ Typing detected... playlist will generate when you stop typing
-          </p>
-        )}
-
-        {playlistLoading && (
-          <Card className="bg-card text-card-foreground border-card" aria-busy="true" aria-live="polite">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  Generating Playlist
-                  {activePreset && (
-                    <span className="text-sm font-normal text-muted-foreground">
-                      &quot;{STYLE_PRESETS.find(p => p.id === activePreset)?.label || trimmedStyle}&quot;
-                    </span>
-                  )}
-                </h3>
-                {/* Story 7.4: Cancel button for long operations */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={cancelPlaylistGeneration}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="m15 9-6 6"/>
-                    <path d="m9 9 6 6"/>
-                  </svg>
-                  Cancel
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <GenerationProgress stage={generationStage} />
-            </CardContent>
-          </Card>
-        )}
-        {playlistError && playlistError.message !== 'cancelled' && (
-          <p className="text-destructive">
-            Error: {playlistError.message}
-            {playlistError.message.includes('rate limit') && (
-              <span className="block text-sm mt-1">💡 Please wait a moment before generating another playlist</span>
-            )}
-          </p>
-        )}
-        {playlistData && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 border border-blue-500/10 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-500/10 rounded-lg">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
-                    <path d="M9 18V5l12-2v13"/>
-                    <circle cx="6" cy="18" r="3"/>
-                    <circle cx="18" cy="16" r="3"/>
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Generated Playlist: "{debouncedStyle || style}"</p>
-                  {/* Story 7.1: Show source mode info in summary */}
-                  <p className="text-xs text-muted-foreground">
-                    {sourceMode === 'library' ? (
-                      `${(playlistData.data.playlist as PlaylistItem[]).filter(item => item.songId).length} of 5 songs found in your library`
-                    ) : sourceMode === 'discovery' ? (
-                      `${(playlistData.data.playlist as PlaylistItem[]).length} new discoveries to explore`
-                    ) : (
-                      `${(playlistData.data.playlist as PlaylistItem[]).filter(item => item.inLibrary).length} library + ${(playlistData.data.playlist as PlaylistItem[]).filter(item => item.isDiscovery).length} discoveries`
-                    )}
-                    {' '}<span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-muted">
-                      {sourceMode === 'library' ? 'Library Only' : sourceMode === 'discovery' ? 'Discovery' : `Mix ${mixRatio}/${100-mixRatio}`}
-                    </span>
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white shadow-sm" aria-label="Add playlist to queue">
-                      <ListPlus className="mr-1 h-4 w-4" />
-                      Queue
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem
-                      onClick={() => handlePlaylistQueueAction('now')}
-                      className="min-h-[44px]"
-                    >
-                      <Play className="mr-2 h-4 w-4" />
-                      Play Now (First Song)
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handlePlaylistQueueAction('next')}
-                      className="min-h-[44px]"
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add All to Play Next
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handlePlaylistQueueAction('end')}
-                      className="min-h-[44px]"
-                    >
-                      <ListPlus className="mr-2 h-4 w-4" />
-                      Add All to End
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    // Use query key factory for cache invalidation - React Query handles caching
-                    queryClient.invalidateQueries({ queryKey: queryKeys.playlists.generatedByStyle(debouncedStyle, sourceMode, mixRatio) });
-                    // Reset generation stage to show loading immediately
-                    setGenerationStage('generating');
-                    console.log(`🗑️ Invalidated cache for "${debouncedStyle}" (${sourceMode}), regenerating...`);
-                    refetchPlaylist();
-                  }}
-                  aria-label="Regenerate playlist"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                    <path d="M21 2v6h-6"/>
-                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
-                    <path d="M3 22v-6h6"/>
-                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
-                  </svg>
-                  Regenerate
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3">
-              {(playlistData.data.playlist as PlaylistItem[]).map((item, index: number) => {
-                const hasSong = !!item.songId;
-                const isDiscovery = item.isDiscovery || false;
-                // Story 7.1: Determine card styling based on source
-                // Story 7.2: Different colors for Last.fm vs AI discoveries
-                const isLastFm = item.discoverySource === 'lastfm';
-                const cardStyle = hasSong
-                  ? 'border-green-500/30 bg-gradient-to-br from-green-500/5 to-green-600/5 hover:border-green-500/50'
-                  : isDiscovery
-                    ? isLastFm
-                      ? 'border-red-500/30 bg-gradient-to-br from-red-500/5 to-pink-500/5 hover:border-red-500/50'
-                      : 'border-purple-500/30 bg-gradient-to-br from-purple-500/5 to-pink-500/5 hover:border-purple-500/50'
-                    : 'border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-red-500/5 hover:border-orange-500/50';
-
-                return (
-                  <div
-                    key={index}
-                    className={`group rounded-xl border transition-all duration-300 hover:shadow-md ${cardStyle}`}
-                  >
-                    <div className="p-4 sm:p-5">
-                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-background/80 text-xs font-medium">
-                              {index + 1}
-                            </span>
-                            <span className="font-semibold text-base">{item.song}</span>
-                            {/* Story 7.2: Use SourceBadge with discoverySource */}
-                            <SourceBadge
-                              inLibrary={hasSong}
-                              isDiscovery={isDiscovery && !hasSong}
-                              discoverySource={item.discoverySource}
-                            />
-                            {!hasSong && !isDiscovery && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
-                                Not Found
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground">{item.explanation}</p>
-                          {/* Story 7.5: Harmonic mixing badges - lazy loaded */}
-                          {currentSong && (item.bpm || item.key) && (
-                            <div className="mt-1">
-                              <Suspense fallback={<Skeleton className="h-5 w-20" />}>
-                                <MixCompatibilityBadges
-                                  currentBpm={currentSong.bpm}
-                                  currentKey={currentSong.key}
-                                  candidateBpm={item.bpm}
-                                  candidateKey={item.key}
-                                  compact
-                                  showLabel
-                                />
-                              </Suspense>
-                            </div>
-                          )}
-                          {/* Story 7.1: Show discovery info */}
-                          {isDiscovery && !hasSong && (
-                            <p className={`text-xs ${isLastFm ? 'text-red-600 dark:text-red-400' : 'text-purple-600 dark:text-purple-400'}`}>
-                              {isLastFm ? 'From Last.fm - similar to artists in your library' : 'AI discovery - search or add to your library'}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {/* Feedback buttons for playlist recommendations */}
-                          <SongFeedbackButtons
-                            songId={item.songId || undefined}
-                            artistName={item.song.split(' - ')[0] || 'Unknown'}
-                            songTitle={item.song.split(' - ').slice(1).join(' - ') || item.song}
-                            source="playlist_generator"
-                            likeMessage="Good recommendation"
-                            dislikeMessage="Bad recommendation"
-                            size="sm"
-                          />
-                          {hasSong ? (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  className="bg-green-600 hover:bg-green-700 text-white shadow-sm"
-                                >
-                                  <ListPlus className="mr-1 h-4 w-4" />
-                                  Queue
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-40">
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    const parts = item.song.split(' - ');
-                                    const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
-                                    const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
-
-                                    const songForPlayer = {
-                                      id: item.songId!,
-                                      name: title,
-                                      title: title,
-                                      albumId: '',
-                                      duration: 0,
-                                      track: 1,
-                                      url: item.url!,
-                                      artist: artist,
-                                    };
-
-                                    // Use playNow to preserve shuffle state
-                                    playNow(item.songId!, songForPlayer);
-                                    toast.success(`Now playing: ${title}`);
-                                    
-                                    // Set user action flag to prevent AI DJ auto-refresh
-                                    setAIUserActionInProgress(true);
-                                    setTimeout(() => setAIUserActionInProgress(false), 2000);
-                                  }}
-                                  className="min-h-[44px]"
-                                >
-                                  <Play className="mr-2 h-4 w-4" />
-                                  Play Now
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    const parts = item.song.split(' - ');
-                                    const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
-                                    const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
-                                    
-                                    const { addToQueueNext } = useAudioStore.getState();
-                                    addToQueueNext([{
-                                      id: item.songId!,
-                                      name: title,
-                                      title: title,
-                                      albumId: '',
-                                      duration: 0,
-                                      track: 1,
-                                      url: item.url!,
-                                      artist: artist,
-                                    }]);
-                                    toast.success(`Added "${title}" to play next`);
-                                    
-                                    // Set user action flag to prevent AI DJ auto-refresh
-                                    setAIUserActionInProgress(true);
-                                    setTimeout(() => setAIUserActionInProgress(false), 2000);
-                                  }}
-                                  className="min-h-[44px]"
-                                >
-                                  <Play className="mr-2 h-4 w-4" />
-                                  Play Next
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    const parts = item.song.split(' - ');
-                                    const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
-                                    const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
-
-                                    const { addToQueueEnd } = useAudioStore.getState();
-                                    addToQueueEnd([{
-                                      id: item.songId!,
-                                      name: title,
-                                      title: title,
-                                      albumId: '',
-                                      duration: 0,
-                                      track: 1,
-                                      url: item.url!,
-                                      artist: artist,
-                                    }]);
-                                    toast.success(`Added "${title}" to end of queue`);
-                                    
-                                    // Set user action flag to prevent AI DJ auto-refresh
-                                    setAIUserActionInProgress(true);
-                                    setTimeout(() => setAIUserActionInProgress(false), 2000);
-                                  }}
-                                  className="min-h-[44px]"
-                                >
-                                  <Plus className="mr-2 h-4 w-4" />
-                                  Add to End
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          ) : isDiscovery ? (
-                            /* Story 7.1: Discovery song - show Download button */
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={async () => {
-                                const parts = item.song.split(' - ');
-                                const artist = parts.length >= 2 ? parts[0].trim() : '';
-                                const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
-                                const toastId = `lidarr-add-${index}`;
-
-                                // Try to add directly to Lidarr
-                                try {
-                                  toast.loading(`🔍 Searching for "${title}" by ${artist}...`, { id: toastId, duration: Infinity });
-                                  const response = await fetch('/api/lidarr/add', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ song: item.song }),
-                                  });
-                                  const data = await response.json();
-
-                                  if (response.ok) {
-                                    // Story 7.3: Track discovery in queue
-                                    addDiscovery({
-                                      song: item.song,
-                                      artist,
-                                      title,
-                                      source: item.discoverySource === 'lastfm' ? 'lastfm' : 'ollama',
-                                      lidarrArtistId: data.artistId,
-                                    });
-                                    toast.success(`✅ ${data.message || `Found and added "${title}" to download queue`}`, {
-                                      id: toastId,
-                                      description: 'Tracking in Discovery Queue',
-                                      duration: 5000,
-                                    });
-                                  } else {
-                                    // If adding failed, navigate to downloads page to search manually
-                                    toast.error(`❌ ${data.message || data.error || 'Could not find automatically'}`, {
-                                      id: toastId,
-                                      description: 'Opening downloads page for manual search...',
-                                      duration: 3000,
-                                    });
-                                    setTimeout(() => navigate({ to: '/downloads', search: { search: artist } }), 1500);
-                                  }
-                                } catch (error) {
-                                  console.error('Lidarr add error:', error);
-                                  toast.error('Failed to search', {
-                                    id: toastId,
-                                    description: 'Opening downloads page...',
-                                    duration: 3000,
-                                  });
-                                  setTimeout(() => {
-                                    window.location.href = `/downloads?search=${encodeURIComponent(artist)}`;
-                                  }, 1500);
-                                }
-                              }}
-                              className="border-purple-500/30 hover:bg-purple-500/10 text-purple-700 dark:text-purple-300"
-                            >
-                              <Download className="mr-1 h-4 w-4" />
-                              Find & Download
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const [artistPart] = item.song.split(' - ');
-                                if (artistPart) {
-                                  navigate({ to: '/library', search: { search: artistPart.trim() } });
-                                }
-                              }}
-                              className="border-orange-500/30 hover:bg-orange-500/10"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                                <circle cx="11" cy="11" r="8"/>
-                                <path d="m21 21-4.35-4.35"/>
-                              </svg>
-                              Search Similar
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {(playlistData.data.playlist as PlaylistItem[]).length === 0 && (
-              <div className="text-center p-8 border border-dashed rounded-xl">
-                <p className="text-muted-foreground">No matching songs found. Try a different style or theme.</p>
-              </div>
-            )}
-          </div>
-        )}
-          </>
-          )}
-        </section>
-      </OllamaErrorBoundary>
+        <CustomPlaylistSection
+          collapsed={playlistCollapsed}
+          onToggleCollapse={() => setPlaylistCollapsed(!playlistCollapsed)}
+          style={style}
+          onStyleChange={setStyle}
+          trimmedStyle={trimmedStyle}
+          debouncedStyle={debouncedStyle}
+          sourceMode={sourceMode}
+          onSourceModeChange={setSourceMode}
+          mixRatio={mixRatio}
+          onMixRatioChange={setMixRatio}
+          data={playlistData}
+          isLoading={playlistLoading}
+          error={playlistError}
+          generationStage={generationStage}
+          activePreset={activePreset}
+          currentSong={currentSong}
+          onGenerate={handleGenerate}
+          onCancel={cancelPlaylistGeneration}
+          onClearCache={clearPlaylistCache}
+          onRegenerate={handleRegenerate}
+          onQueuePlaylist={handlePlaylistQueueAction}
+          onSongQueue={handleSongQueue}
+          onDiscoveryAdd={handleDiscoveryAdd}
+          onSearchSimilar={handleSearchSimilar}
+        />
 
       {/* Additional Features - Compact Grid - Deferred loading (bottom of page) */}
       <DeferredMoreFeatures />
@@ -1613,24 +1061,6 @@ function DashboardIndex() {
 //     </Suspense>
 //   );
 // }
-
-/**
- * Deferred DiscoveryQueuePanel - loads after idle callback
- * Discovery queue is secondary to main dashboard content
- */
-function DeferredDiscoveryQueue() {
-  const shouldRender = useDeferredRender(500);
-
-  if (!shouldRender) {
-    return null; // No skeleton - panel may be hidden anyway
-  }
-
-  return (
-    <Suspense fallback={null}>
-      <DiscoveryQueuePanel />
-    </Suspense>
-  );
-}
 
 /**
  * Deferred DJFeatures - loads after 1.5 second delay

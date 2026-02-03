@@ -181,9 +181,9 @@ interface StatPillProps {
 
 function StatPill({ label, value, color, compact = false, delta }: StatPillProps) {
   const colorClasses = {
-    violet: 'bg-violet-500/10 border-violet-500/20 text-violet-600 dark:text-violet-400',
-    emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400',
-    amber: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400',
+    violet: 'stat-pill-violet',
+    emerald: 'stat-pill-emerald',
+    amber: 'stat-pill-amber',
   };
 
   const formattedDelta = delta != null ? formatPercentChange(delta) : null;
