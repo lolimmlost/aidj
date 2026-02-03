@@ -229,6 +229,55 @@ function enforceDiversity(
   return result;
 }
 
+/**
+ * Weighted random sampling from scored candidates.
+ * Selects N items with probability proportional to (score ^ exponent).
+ * The exponent controls how much higher scores are favored:
+ *   exponent=1  → linear (mild preference for high scores)
+ *   exponent=2  → quadratic (stronger preference)
+ *   exponent=0.5 → sqrt (more uniform, more exploration)
+ *
+ * We use exponent=1.5 as a balance: high scores are clearly favored
+ * but mid-range candidates still get regular selection.
+ */
+function weightedRandomSample(
+  candidates: ScoredCandidate[],
+  count: number,
+  exponent: number = 1.5
+): ScoredCandidate[] {
+  if (candidates.length <= count) return candidates;
+
+  // Pre-sort so logging shows the actual winners vs. what pure top-N would pick
+  const sorted = [...candidates].sort((a, b) => b.profileScore - a.profileScore);
+
+  // Build cumulative weight array
+  const weights = sorted.map(c => Math.pow(Math.max(c.profileScore, 0.001), exponent));
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+
+  const selected: ScoredCandidate[] = [];
+  const usedIndices = new Set<number>();
+
+  for (let i = 0; i < count && usedIndices.size < sorted.length; i++) {
+    let r = Math.random() * totalWeight;
+    let chosenIdx = 0;
+
+    for (let j = 0; j < sorted.length; j++) {
+      if (usedIndices.has(j)) continue;
+      r -= weights[j];
+      if (r <= 0) {
+        chosenIdx = j;
+        break;
+      }
+      chosenIdx = j; // fallback to last non-used
+    }
+
+    selected.push(sorted[chosenIdx]);
+    usedIndices.add(chosenIdx);
+  }
+
+  return selected;
+}
+
 // ============================================================================
 // Main Recommendation Function
 // ============================================================================
@@ -390,10 +439,11 @@ export async function getProfileBasedRecommendations(
     console.log(`🎯 [ProfileRec] ${finalCandidates.length} candidates after diversity enforcement`);
   }
 
-  // Step 7: Get top N and fetch full song data
-  const topCandidates = finalCandidates
-    .sort((a, b) => b.profileScore - a.profileScore)
-    .slice(0, limit);
+  // Step 7: Select top N using weighted random sampling
+  // This prevents the same highest-scoring artist from winning every drip request.
+  // Candidates are sampled with probability proportional to their score,
+  // so high-scoring songs are still favored but lower-scoring ones have a chance.
+  const topCandidates = weightedRandomSample(finalCandidates, limit);
 
   if (topCandidates.length === 0) {
     console.log(`🎯 [ProfileRec] No candidates remaining after filtering`);

@@ -891,6 +891,22 @@ export const useAudioStore = create<AudioState>()(
         // Note: User-specific artist blocklist is loaded server-side in the recommendations API
         // using the artist-blocklist service for consistent filtering
 
+        // Get artists already in the upcoming queue to prevent concentration
+        // Look ahead at the next N songs to avoid recommending artists already queued
+        const upcomingSlice = state.playlist.slice(
+          state.currentSongIndex + 1,
+          state.currentSongIndex + 11 // Next 10 songs
+        );
+        const upcomingArtistCounts = new Map<string, number>();
+        for (const song of upcomingSlice) {
+          if (song.artist) {
+            const key = song.artist.toLowerCase();
+            upcomingArtistCounts.set(key, (upcomingArtistCounts.get(key) || 0) + 1);
+          }
+        }
+        // Exclude artists that already appear in upcoming queue
+        const upcomingArtists = Array.from(upcomingArtistCounts.keys());
+
         // Combine all exclusions
         const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed])];
 
@@ -920,10 +936,11 @@ export const useAudioStore = create<AudioState>()(
           set({ aiDJArtistFatigueCooldowns: cleanedFatigueCooldowns });
         }
 
-        // Combine fatigue-excluded artists with recently recommended artists
+        // Combine fatigue-excluded artists with recently recommended artists and upcoming queue artists
         const allExcludedArtists = Array.from(new Set([
           ...recentlyRecommendedArtists,
-          ...fatigueExcludedArtists
+          ...fatigueExcludedArtists,
+          ...upcomingArtists,
         ]));
 
         // Drip-feed model: request 1 song for drip triggers, batch size for threshold triggers
@@ -1694,6 +1711,8 @@ export const useAudioStore = create<AudioState>()(
       isShuffled: state.isShuffled,
       originalPlaylist: state.originalPlaylist,
       aiDJEnabled: state.aiDJEnabled,
+      // AI DJ diversity tracking (survives page refresh)
+      aiDJRecentlyRecommended: state.aiDJRecentlyRecommended,
       crossfadeEnabled: state.crossfadeEnabled,
       crossfadeDuration: state.crossfadeDuration,
       // Autoplay settings
@@ -1713,6 +1732,14 @@ export const useAudioStore = create<AudioState>()(
         state.songsPlayedSinceLastRec = 0; // Reset drip-feed counter
         // Reinitialize Set (can't be serialized in JSON)
         state.aiQueuedSongIds = new Set<string>();
+        // Clean up expired entries from persisted recently recommended list
+        const now = Date.now();
+        if (state.aiDJRecentlyRecommended?.length) {
+          state.aiDJRecentlyRecommended = state.aiDJRecentlyRecommended.filter(
+            rec => now - rec.timestamp < 28800000 // Keep entries within 8-hour window
+          );
+          console.log(`🎵 Restored ${state.aiDJRecentlyRecommended.length} recent AI DJ recommendations`);
+        }
         // Reset autoplay transient state
         state.autoplayIsLoading = false;
         state.autoplayTransitionActive = false;
