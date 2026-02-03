@@ -63,11 +63,11 @@ interface QuickLinkProps {
 
 function QuickLink({ to, icon, label, color, className = '' }: QuickLinkProps) {
   const colorClasses = {
-    violet: 'hover:bg-violet-500/5 hover:border-violet-500/30 [&_svg]:group-hover:text-violet-500',
-    cyan: 'hover:bg-cyan-500/5 hover:border-cyan-500/30 [&_svg]:group-hover:text-cyan-500',
-    emerald: 'hover:bg-emerald-500/5 hover:border-emerald-500/30 [&_svg]:group-hover:text-emerald-500',
-    rose: 'hover:bg-rose-500/5 hover:border-rose-500/30 [&_svg]:group-hover:text-rose-500',
-    amber: 'hover:bg-amber-500/5 hover:border-amber-500/30 [&_svg]:group-hover:text-amber-500',
+    violet: 'hover:bg-violet-500/5 hover:border-violet-500/30 [&_svg]:text-violet-500',
+    cyan: 'hover:bg-cyan-500/5 hover:border-cyan-500/30 [&_svg]:text-cyan-500',
+    emerald: 'hover:bg-emerald-500/5 hover:border-emerald-500/30 [&_svg]:text-emerald-500',
+    rose: 'hover:bg-rose-500/5 hover:border-rose-500/30 [&_svg]:text-rose-500',
+    amber: 'hover:bg-amber-500/5 hover:border-amber-500/30 [&_svg]:text-amber-500',
   };
 
   return (
@@ -78,11 +78,11 @@ function QuickLink({ to, icon, label, color, className = '' }: QuickLinkProps) {
           colorClasses[color]
         )}
       >
-        <div className="text-muted-foreground transition-colors">
+        <div className="transition-colors">
           {icon}
         </div>
         <span className="text-sm font-medium flex-1">{label}</span>
-        <ArrowRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground/50 transition-all group-hover:translate-x-0.5" />
+        <ArrowRight className="hidden sm:block h-4 w-4 shrink-0 text-muted-foreground/50 group-hover:text-foreground/50 transition-all group-hover:translate-x-0.5" />
       </div>
     </Link>
   );

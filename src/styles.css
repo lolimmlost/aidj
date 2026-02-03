@@ -764,8 +764,8 @@
 
   /* ── Quick Access Link ── */
   .quick-access-link {
-    @apply flex items-center gap-3 rounded-xl border border-border/50 p-4
-           transition-all duration-200 min-h-[56px] bg-card/30;
+    @apply flex items-center gap-2 sm:gap-3 rounded-xl border border-border/50 p-3 sm:p-4
+           transition-all duration-200 min-h-[48px] sm:min-h-[56px] bg-card/30;
   }
 
   .quick-access-link:hover {
