@@ -377,6 +377,18 @@
 
   /* ===== AIDJ Dashboard Design System ===== */
 
+  /* Prevent horizontal scrolling in page-level scroll areas.
+     Radix ScrollArea wraps content in display:table which expands
+     to fit content width, breaking layout with wide horizontal
+     scroll children. Override to block so width is constrained. */
+  main [data-radix-scroll-area-viewport] {
+    overflow-x: hidden !important;
+  }
+
+  main [data-radix-scroll-area-viewport] > div {
+    display: block !important;
+  }
+
   /* Mood Card Base */
   .mood-card {
     @apply relative overflow-hidden rounded-2xl p-5 cursor-pointer

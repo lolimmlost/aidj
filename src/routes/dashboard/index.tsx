@@ -968,8 +968,8 @@ function DashboardIndex() {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-background pb-24 md:pb-20">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6 lg:space-y-8">
+    <div className="min-h-screen bg-background pb-24 md:pb-20 overflow-x-hidden">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6 lg:space-y-8">
         {/* Hero Section */}
         <DashboardHero
           userName={session?.user?.name}
