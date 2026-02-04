@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { useState } from 'react';
 import {
   ListMusic, Play, Trash2, X, Plus, Shuffle,
-  Heart, Sparkles, ChevronLeft, MoreHorizontal, Music2, Pause, GripVertical,
+  Heart, Sparkles, MoreHorizontal, Music2, Pause, GripVertical,
   Users, SkipForward
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { PageLayout } from '@/components/ui/page-layout';
 import { useAudioStore } from '@/lib/stores/audio';
 import { playPlaylist, loadPlaylistIntoQueue } from '@/lib/utils/playlist-helpers';
 import { cn } from '@/lib/utils';
@@ -717,41 +718,41 @@ function PlaylistDetailPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto p-3 sm:p-6">
+      <PageLayout title="Playlist" backLink="/playlists" backLabel="Playlists" compact>
         <div className="text-center py-8 text-destructive">
           Error loading playlist: {error instanceof Error ? error.message : 'Unknown error'}
         </div>
         <div className="text-center">
           <Button asChild variant="outline">
-            <Link to="/playlists">← Back to Playlists</Link>
+            <Link to="/playlists">Back to Playlists</Link>
           </Button>
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
+      <PageLayout title="Loading..." backLink="/playlists" backLabel="Playlists" compact>
         <Skeleton className="h-12 w-64" />
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-96 w-full" />
-      </div>
+      </PageLayout>
     );
   }
 
   if (!playlist) {
     return (
-      <div className="container mx-auto p-3 sm:p-6">
+      <PageLayout title="Not Found" backLink="/playlists" backLabel="Playlists" compact>
         <div className="text-center py-8">
           <p className="text-muted-foreground">Playlist not found</p>
         </div>
         <div className="text-center">
           <Button asChild variant="outline">
-            <Link to="/playlists">← Back to Playlists</Link>
+            <Link to="/playlists">Back to Playlists</Link>
           </Button>
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
@@ -761,55 +762,38 @@ function PlaylistDetailPage() {
   );
 
   return (
-    <div className="min-h-screen">
-      {/* Hero Header with Gradient */}
+    <PageLayout
+      title={playlist.name}
+      description={`${playlist.songs.length} songs`}
+      backLink="/playlists"
+      backLabel="Playlists"
+      compact
+      fullWidth
+    >
+      {/* Hero Actions with Gradient */}
       <div className={cn(
         "relative bg-gradient-to-b pb-3 sm:pb-4",
         getPlaylistGradient()
       )}>
         <div className="px-3 sm:px-4 lg:px-6">
-          {/* Back button */}
-          <div className="pt-1.5 pb-1.5 sm:pt-2 sm:pb-2">
-            <Link
-              to="/playlists"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span>Back</span>
-            </Link>
-          </div>
-
-          {/* Playlist Info - Two rows: header + buttons */}
-          <div className="flex flex-col gap-4">
-            {/* Row 1: Cover + Title */}
-            <div className="flex flex-row gap-3 sm:gap-4 items-center">
-              {/* Playlist Cover/Icon */}
-              <div className={cn(
-                "w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 rounded-lg shadow-lg flex items-center justify-center shrink-0",
-                isLikedSongsPlaylist
-                  ? "bg-gradient-to-br from-rose-500 to-pink-600"
-                  : isSmartPlaylist
-                    ? "bg-gradient-to-br from-violet-500 to-purple-600"
-                    : "bg-gradient-to-br from-primary/80 to-primary"
-              )}>
-                {playlistIconType === 'heart' && <Heart className="h-7 w-7 sm:h-8 sm:w-8 md:h-10 md:w-10 lg:h-12 lg:w-12 text-white" />}
-                {playlistIconType === 'sparkles' && <Sparkles className="h-7 w-7 sm:h-8 sm:w-8 md:h-10 md:w-10 lg:h-12 lg:w-12 text-white" />}
-                {playlistIconType === 'list' && <ListMusic className="h-7 w-7 sm:h-8 sm:w-8 md:h-10 md:w-10 lg:h-12 lg:w-12 text-white" />}
-              </div>
-
-              {/* Title + Count */}
-              <div className="flex-1 min-w-0">
-                <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold truncate leading-tight">
-                  {playlist.name}
-                </h1>
-                <div className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                  {playlist.songs.length} songs
-                </div>
-              </div>
+          {/* Playlist Cover + Action Buttons */}
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* Playlist Cover/Icon */}
+            <div className={cn(
+              "w-12 h-12 sm:w-14 sm:h-14 rounded-lg shadow-lg flex items-center justify-center shrink-0",
+              isLikedSongsPlaylist
+                ? "bg-gradient-to-br from-rose-500 to-pink-600"
+                : isSmartPlaylist
+                  ? "bg-gradient-to-br from-violet-500 to-purple-600"
+                  : "bg-gradient-to-br from-primary/80 to-primary"
+            )}>
+              {playlistIconType === 'heart' && <Heart className="h-6 w-6 sm:h-7 sm:w-7 text-white" />}
+              {playlistIconType === 'sparkles' && <Sparkles className="h-6 w-6 sm:h-7 sm:w-7 text-white" />}
+              {playlistIconType === 'list' && <ListMusic className="h-6 w-6 sm:h-7 sm:w-7 text-white" />}
             </div>
 
-            {/* Row 2: Action Buttons */}
-            <div className="flex items-center gap-2">
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 flex-1">
               {/* Main Play Button */}
               <Button
                 onClick={handlePlayAll}
@@ -1006,6 +990,6 @@ function PlaylistDetailPage() {
           </>
         )}
       </div>
-    </div>
+    </PageLayout>
   );
 }

@@ -123,7 +123,7 @@ function SuggestionCard({
         entityType="artist"
         artist={suggestion.artistName}
         album={suggestion.albumName ?? undefined}
-        className="w-14 h-14 rounded-md bg-gradient-to-br from-primary/20 via-purple-500/20 to-pink-500/20 flex items-center justify-center flex-shrink-0 overflow-hidden"
+        className={`rounded-md flex items-center justify-center flex-shrink-0 overflow-hidden ${suggestion.imageUrl ? 'w-14 h-14' : 'w-8 h-8 bg-muted'}`}
       >
         {suggestion.imageUrl ? (
           <img
@@ -135,7 +135,7 @@ function SuggestionCard({
             }}
           />
         ) : (
-          <Music2 className="h-6 w-6 text-primary/50" />
+          <Music2 className="h-3.5 w-3.5 text-muted-foreground/50" />
         )}
       </CoverArtApproval>
 

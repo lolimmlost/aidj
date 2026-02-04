@@ -23,10 +23,26 @@ export interface UnifiedTask {
   };
   lastRunAt: string | null;
   nextRunAt: string | null;
+  /** Human-readable interval, e.g. "30 minutes", "12 hours" */
+  interval: string | null;
+  /** Human-readable duration of last run, e.g. "45s", "1m 12s" */
+  lastDuration: string | null;
   error?: string;
   canTrigger: boolean;
   canCancel: boolean;
   stats?: Record<string, number>;
+}
+
+/**
+ * Format milliseconds into a human-readable duration string
+ */
+function formatDurationMs(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
 }
 
 /**
@@ -60,6 +76,8 @@ export async function getAllTaskStatuses(userId: string): Promise<UnifiedTask[]>
       } : undefined,
       lastRunAt: syncStatus.lastSyncAt?.toISOString() ?? null,
       nextRunAt: syncStatus.nextSyncAt?.toISOString() ?? null,
+      interval: `${syncStatus.intervalMinutes} minutes`,
+      lastDuration: syncStatus.lastDurationMs != null ? formatDurationMs(syncStatus.lastDurationMs) : null,
       error: syncStatus.consecutiveFailures > 0
         ? `${syncStatus.consecutiveFailures} consecutive failures`
         : undefined,
@@ -75,6 +93,8 @@ export async function getAllTaskStatuses(userId: string): Promise<UnifiedTask[]>
       status: 'idle',
       lastRunAt: null,
       nextRunAt: null,
+      interval: '30 minutes',
+      lastDuration: null,
       canTrigger: true,
       canCancel: false,
     });
@@ -97,6 +117,8 @@ export async function getAllTaskStatuses(userId: string): Promise<UnifiedTask[]>
           : 'idle',
       lastRunAt: discoveryStatus.lastRunAt?.toISOString() ?? null,
       nextRunAt: discoveryStatus.nextRunAt?.toISOString() ?? null,
+      interval: `${discoveryStatus.frequencyHours} hours`,
+      lastDuration: discoveryStatus.lastDurationMs != null ? formatDurationMs(discoveryStatus.lastDurationMs) : null,
       error: discoveryStatus.lastError ?? undefined,
       canTrigger: !discoveryStatus.isRunning,
       canCancel: false,
@@ -116,6 +138,8 @@ export async function getAllTaskStatuses(userId: string): Promise<UnifiedTask[]>
       status: 'idle',
       lastRunAt: null,
       nextRunAt: null,
+      interval: '12 hours',
+      lastDuration: null,
       canTrigger: true,
       canCancel: false,
     });
@@ -146,6 +170,8 @@ export async function getAllTaskStatuses(userId: string): Promise<UnifiedTask[]>
         } : undefined,
         lastRunAt: null,
         nextRunAt: null,
+        interval: null,
+        lastDuration: null,
         error: progress.error,
         canTrigger: false,
         canCancel: false,
@@ -163,6 +189,8 @@ export async function getAllTaskStatuses(userId: string): Promise<UnifiedTask[]>
         status: 'idle',
         lastRunAt: null,
         nextRunAt: null,
+        interval: null,
+        lastDuration: null,
         canTrigger: false,
         canCancel: false,
       });
@@ -176,6 +204,8 @@ export async function getAllTaskStatuses(userId: string): Promise<UnifiedTask[]>
       status: 'idle',
       lastRunAt: null,
       nextRunAt: null,
+      interval: null,
+      lastDuration: null,
       canTrigger: false,
       canCancel: false,
     });

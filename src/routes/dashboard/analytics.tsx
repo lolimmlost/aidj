@@ -7,6 +7,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { AnalyticsDashboard } from '../../components/recommendations/AnalyticsDashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
+import { PageLayout } from '@/components/ui/page-layout';
 import { useState } from 'react';
 import { TrendingUp, Clock, ArrowRight, FlaskConical, BarChart3 } from 'lucide-react';
 
@@ -18,15 +19,13 @@ function AnalyticsPage() {
   const [period, setPeriod] = useState<'30d' | '90d' | '1y'>('30d');
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 space-y-4 sm:space-y-6 py-4 sm:py-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Music Analytics</h1>
-          <p className="text-sm text-muted-foreground">
-            Visualize your music taste evolution and recommendation quality
-          </p>
-        </div>
-
+    <PageLayout
+      title="Music Analytics"
+      description="Visualize your music taste evolution"
+      icon={<BarChart3 className="h-5 w-5" />}
+      backLink="/dashboard"
+      backLabel="Dashboard"
+      actions={
         <div className="w-full sm:w-[180px]">
           <select
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -38,8 +37,8 @@ function AnalyticsPage() {
             <option value="1y">Last Year</option>
           </select>
         </div>
-      </div>
-
+      }
+    >
       {/* Advanced Discovery Analytics Feature Card */}
       <Card className="border-secondary/20 bg-gradient-to-r from-secondary/5 to-primary/5">
         <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-3 sm:py-4">
@@ -89,6 +88,6 @@ function AnalyticsPage() {
       </Card>
 
       <AnalyticsDashboard period={period} />
-    </div>
+    </PageLayout>
   );
 }

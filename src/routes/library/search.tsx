@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { search } from '@/lib/services/navidrome';
@@ -13,6 +13,7 @@ import { AddToQueueButton } from '@/components/playlists/AddToQueueButton';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { VirtualizedList } from '@/components/ui/virtualized-list';
+import { PageLayout } from '@/components/ui/page-layout';
 
 export const Route = createFileRoute('/library/search')({
   beforeLoad: async ({ context }) => {
@@ -50,17 +51,13 @@ function SearchPage() {
 
   return (
     <NavidromeErrorBoundary>
-      <div className="container mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6 max-w-4xl">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <div className="flex items-center gap-3">
-            <SearchIcon className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground" />
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Search Music Library</h1>
-          </div>
-          <Link to="/dashboard" className="text-primary hover:underline text-sm min-h-[44px] flex items-center">
-            ← Dashboard
-          </Link>
-        </div>
-
+      <PageLayout
+        title="Search Library"
+        icon={<SearchIcon className="h-5 w-5" />}
+        backLink="/library"
+        backLabel="Library"
+        compact
+      >
         <Card>
           <CardContent className="p-4 sm:p-6">
             <div className="space-y-2">
@@ -256,7 +253,7 @@ function SearchPage() {
             />
           </div>
         )}
-      </div>
+      </PageLayout>
     </NavidromeErrorBoundary>
   );
 }

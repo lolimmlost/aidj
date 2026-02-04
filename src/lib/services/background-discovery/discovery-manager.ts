@@ -55,6 +55,8 @@ export interface BackgroundDiscoveryStatus {
   totalApproved: number;
   totalRejected: number;
   pendingCount: number;
+  lastDurationMs: number | null;
+  frequencyHours: number;
 }
 
 export type DiscoveryEventType =
@@ -94,6 +96,7 @@ class BackgroundDiscoveryManager {
   private lastRunAt: Date | null = null;
   private nextRunAt: Date | null = null;
   private lastError: string | null = null;
+  private lastDurationMs: number | null = null;
   private listeners: Set<DiscoveryEventListener> = new Set();
 
   private constructor() {
@@ -201,6 +204,8 @@ class BackgroundDiscoveryManager {
     // Update job state to running
     await this.updateJobState({ isRunning: true });
 
+    const runStartTime = Date.now();
+
     try {
       // Generate suggestions
       const suggestions = await generateSuggestions(
@@ -211,6 +216,7 @@ class BackgroundDiscoveryManager {
       // Store suggestions
       const storedCount = await storeSuggestions(suggestions);
 
+      this.lastDurationMs = Date.now() - runStartTime;
       this.lastRunAt = new Date();
       this.consecutiveFailures = 0;
       this.lastError = null;
@@ -290,6 +296,8 @@ class BackgroundDiscoveryManager {
       totalApproved: state?.totalApproved ?? 0,
       totalRejected: state?.totalRejected ?? 0,
       pendingCount,
+      lastDurationMs: this.lastDurationMs,
+      frequencyHours: this.config.frequencyHours,
     };
   }
 

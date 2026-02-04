@@ -43,7 +43,8 @@ export function MoreFeatures() {
           color="emerald"
         />
         <QuickLink
-          to="/settings/recommendations"
+          to="/settings"
+          search={{ tab: 'recommendations' }}
           icon={<Heart className="h-5 w-5" />}
           label="Preferences"
           color="rose"
@@ -61,13 +62,14 @@ export function MoreFeatures() {
 
 interface QuickLinkProps {
   to: string;
+  search?: Record<string, string>;
   icon: React.ReactNode;
   label: string;
   color: 'violet' | 'cyan' | 'emerald' | 'rose' | 'amber' | 'teal';
   className?: string;
 }
 
-function QuickLink({ to, icon, label, color, className = '' }: QuickLinkProps) {
+function QuickLink({ to, search, icon, label, color, className = '' }: QuickLinkProps) {
   const colorClasses = {
     violet: 'hover:bg-violet-500/5 hover:border-violet-500/30 [&_svg]:text-violet-500',
     cyan: 'hover:bg-cyan-500/5 hover:border-cyan-500/30 [&_svg]:text-cyan-500',
@@ -78,7 +80,7 @@ function QuickLink({ to, icon, label, color, className = '' }: QuickLinkProps) {
   };
 
   return (
-    <Link to={to} className={cn('group', className)}>
+    <Link to={to} search={search} className={cn('group', className)}>
       <div
         className={cn(
           'quick-access-link',

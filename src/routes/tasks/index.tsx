@@ -1,9 +1,17 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ListTodo, Play, Square, RefreshCw, Clock, AlertCircle, CheckCircle2, Loader2, Sparkles, Library, Radio } from 'lucide-react';
+import { ListTodo, Play, Square, RefreshCw, AlertCircle, Loader2, Sparkles, Library, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { PageLayout, PageSection } from '@/components/ui/page-layout';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { UnifiedTask } from '@/lib/services/task-aggregator';
@@ -18,6 +26,12 @@ export const Route = createFileRoute('/tasks/')(
     component: TasksPage,
   }
 );
+
+const TASK_ICONS: Record<string, React.ReactNode> = {
+  'library-sync': <Library className="h-4 w-4" />,
+  'discovery': <Sparkles className="h-4 w-4" />,
+  'lastfm-backfill': <Radio className="h-4 w-4" />,
+};
 
 function TasksPage() {
   const queryClient = useQueryClient();
@@ -47,7 +61,7 @@ function TasksPage() {
       if (!res.ok) throw new Error('Failed to perform action');
       return res.json();
     },
-    onSuccess: (_, { taskId, action }) => {
+    onSuccess: (_, { action }) => {
       toast.success(action === 'trigger' ? 'Task started' : 'Task cancelled');
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
@@ -57,6 +71,7 @@ function TasksPage() {
   });
 
   const tasks = data ?? [];
+  const activeTasks = tasks.filter(t => t.status === 'running');
 
   return (
     <PageLayout
@@ -76,93 +91,178 @@ function TasksPage() {
         </Button>
       }
     >
-      <PageSection>
+      {/* Scheduled Tasks Table */}
+      <PageSection title="Scheduled">
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3].map(i => (
-              <Card key={i} className="p-6 animate-pulse">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-muted" />
-                  <div className="h-5 w-32 rounded bg-muted" />
+          <Card className="p-0 overflow-hidden">
+            <div className="animate-pulse space-y-0">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="flex items-center gap-4 px-4 py-3 border-b last:border-b-0">
+                  <div className="h-4 w-32 rounded bg-muted" />
+                  <div className="h-4 w-20 rounded bg-muted" />
+                  <div className="h-4 w-16 rounded bg-muted" />
+                  <div className="h-4 w-12 rounded bg-muted" />
+                  <div className="h-4 w-16 rounded bg-muted" />
                 </div>
-                <div className="h-4 w-full rounded bg-muted mb-2" />
-                <div className="h-2 w-full rounded-full bg-muted" />
-              </Card>
-            ))}
-          </div>
+              ))}
+            </div>
+          </Card>
         ) : error ? (
           <Card className="p-8 text-center">
             <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-3" />
             <p className="text-muted-foreground">Failed to load task statuses</p>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {tasks.map(task => (
-              <TaskCard
+          <Card className="p-0 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="pl-4">Name</TableHead>
+                  <TableHead>Interval</TableHead>
+                  <TableHead className="hidden sm:table-cell">Last Execution</TableHead>
+                  <TableHead className="hidden md:table-cell">Last Duration</TableHead>
+                  <TableHead className="hidden sm:table-cell">Next Execution</TableHead>
+                  <TableHead className="pr-4 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tasks.map(task => (
+                  <ScheduledTaskRow
+                    key={task.id}
+                    task={task}
+                    onTrigger={() => actionMutation.mutate({ taskId: task.id, action: 'trigger' })}
+                    isActioning={actionMutation.isPending}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
+      </PageSection>
+
+      {/* Active Tasks */}
+      <PageSection title="Active">
+        {activeTasks.length > 0 ? (
+          <div className="space-y-3">
+            {activeTasks.map(task => (
+              <ActiveTaskCard
                 key={task.id}
                 task={task}
-                onTrigger={() => actionMutation.mutate({ taskId: task.id, action: 'trigger' })}
                 onCancel={() => actionMutation.mutate({ taskId: task.id, action: 'cancel' })}
                 isActioning={actionMutation.isPending}
               />
             ))}
           </div>
+        ) : (
+          <p className="text-sm text-muted-foreground py-4">No tasks are currently running</p>
         )}
       </PageSection>
     </PageLayout>
   );
 }
 
-const TASK_ICONS: Record<string, React.ReactNode> = {
-  'library-sync': <Library className="h-5 w-5" />,
-  'discovery': <Sparkles className="h-5 w-5" />,
-  'lastfm-backfill': <Radio className="h-5 w-5" />,
-};
-
-const STATUS_CONFIG = {
-  idle: { icon: Clock, color: 'text-muted-foreground', bg: 'bg-muted', label: 'Idle' },
-  running: { icon: Loader2, color: 'text-blue-500', bg: 'bg-blue-500/10', label: 'Running' },
-  completed: { icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10', label: 'Completed' },
-  error: { icon: AlertCircle, color: 'text-destructive', bg: 'bg-destructive/10', label: 'Error' },
-};
-
-function TaskCard({
+function ScheduledTaskRow({
   task,
   onTrigger,
-  onCancel,
   isActioning,
 }: {
   task: UnifiedTask;
   onTrigger: () => void;
+  isActioning: boolean;
+}) {
+  const isRunning = task.status === 'running';
+  const isError = task.status === 'error';
+
+  return (
+    <TableRow>
+      <TableCell className="pl-4">
+        <div className="flex items-center gap-2.5">
+          <span className={cn(
+            'flex-shrink-0',
+            isError ? 'text-destructive' : 'text-muted-foreground',
+          )}>
+            {TASK_ICONS[task.type] || <ListTodo className="h-4 w-4" />}
+          </span>
+          <div className="min-w-0">
+            <span className="font-medium text-sm">{task.name}</span>
+            {isError && task.error && (
+              <p className="text-xs text-destructive truncate">{task.error}</p>
+            )}
+          </div>
+        </div>
+      </TableCell>
+      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+        {task.interval ?? '\u2014'}
+      </TableCell>
+      <TableCell className="text-muted-foreground text-sm whitespace-nowrap hidden sm:table-cell">
+        {task.lastRunAt ? formatRelativeTime(task.lastRunAt) : '\u2014'}
+      </TableCell>
+      <TableCell className="text-muted-foreground text-sm whitespace-nowrap hidden md:table-cell">
+        {task.lastDuration ?? '\u2014'}
+      </TableCell>
+      <TableCell className="text-muted-foreground text-sm whitespace-nowrap hidden sm:table-cell">
+        {isRunning ? (
+          <span className="text-blue-500 flex items-center gap-1.5">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Running
+          </span>
+        ) : task.nextRunAt ? (
+          formatRelativeTime(task.nextRunAt)
+        ) : '\u2014'}
+      </TableCell>
+      <TableCell className="pr-4 text-right">
+        {task.canTrigger && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onTrigger}
+            disabled={isActioning}
+            title="Run now"
+          >
+            {isRunning ? (
+              <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+          </Button>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function ActiveTaskCard({
+  task,
+  onCancel,
+  isActioning,
+}: {
+  task: UnifiedTask;
   onCancel: () => void;
   isActioning: boolean;
 }) {
-  const config = STATUS_CONFIG[task.status];
-  const StatusIcon = config.icon;
-
   return (
-    <Card className="p-5 flex flex-col gap-4">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', config.bg, config.color)}>
-            {TASK_ICONS[task.type] || <ListTodo className="h-5 w-5" />}
-          </div>
-          <div>
-            <h3 className="font-semibold text-sm">{task.name}</h3>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <StatusIcon className={cn('h-3.5 w-3.5', config.color, task.status === 'running' && 'animate-spin')} />
-              <span className={cn('text-xs font-medium', config.color)}>{config.label}</span>
-            </div>
-          </div>
+    <Card className="p-4">
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Loader2 className="h-4 w-4 animate-spin text-blue-500 flex-shrink-0" />
+          <span className="font-medium text-sm truncate">{task.name}</span>
         </div>
+        {task.canCancel && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onCancel}
+            disabled={isActioning}
+            className="flex-shrink-0 text-destructive hover:text-destructive"
+          >
+            <Square className="h-3.5 w-3.5 mr-1.5" />
+            Cancel
+          </Button>
+        )}
       </div>
 
-      {/* Description */}
-      <p className="text-xs text-muted-foreground leading-relaxed">{task.description}</p>
-
-      {/* Progress bar */}
-      {task.progress && task.status === 'running' && (
+      {task.progress && (
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{task.progress.message}</span>
@@ -179,74 +279,8 @@ function TaskCard({
           </p>
         </div>
       )}
-
-      {/* Error message */}
-      {task.error && (
-        <p className="text-xs text-destructive bg-destructive/10 rounded-md px-3 py-2">
-          {task.error}
-        </p>
-      )}
-
-      {/* Stats */}
-      {task.stats && Object.keys(task.stats).length > 0 && (
-        <div className="flex gap-3 flex-wrap">
-          {Object.entries(task.stats).map(([key, value]) => (
-            <div key={key} className="text-xs">
-              <span className="text-muted-foreground">{formatStatKey(key)}: </span>
-              <span className="font-medium">{value.toLocaleString()}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Timestamps */}
-      <div className="text-xs text-muted-foreground space-y-0.5">
-        {task.lastRunAt && (
-          <p>Last run: {formatRelativeTime(task.lastRunAt)}</p>
-        )}
-        {task.nextRunAt && task.status !== 'running' && (
-          <p>Next run: {formatRelativeTime(task.nextRunAt)}</p>
-        )}
-      </div>
-
-      {/* Actions */}
-      {(task.canTrigger || task.canCancel) && (
-        <div className="flex gap-2 mt-auto pt-2 border-t">
-          {task.canTrigger && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onTrigger}
-              disabled={isActioning}
-              className="flex-1"
-            >
-              <Play className="h-3.5 w-3.5 mr-1.5" />
-              Run Now
-            </Button>
-          )}
-          {task.canCancel && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onCancel}
-              disabled={isActioning}
-              className="flex-1 text-destructive hover:text-destructive"
-            >
-              <Square className="h-3.5 w-3.5 mr-1.5" />
-              Cancel
-            </Button>
-          )}
-        </div>
-      )}
     </Card>
   );
-}
-
-function formatStatKey(key: string): string {
-  return key
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, s => s.toUpperCase())
-    .trim();
 }
 
 function formatRelativeTime(isoString: string): string {

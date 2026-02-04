@@ -2,7 +2,9 @@ import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { PageLayout } from '@/components/ui/page-layout'
 import { toast } from 'sonner'
+import { Clock } from 'lucide-react'
 import {
   type DownloadStatus,
   formatFileSize,
@@ -162,33 +164,32 @@ function DownloadStatusPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-6">
+      <PageLayout
+        title="Download Queue"
+        description="Active and queued downloads"
+        icon={<Clock className="h-5 w-5" />}
+        backLink="/downloads"
+        backLabel="Downloads"
+      >
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
             <p className="mt-4 text-muted-foreground">Loading download status...</p>
           </div>
         </div>
-      </div>
+      </PageLayout>
     )
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold">Download Status</h1>
-          <p className="text-muted-foreground">
-            Monitor your download queue and history
-          </p>
-        </div>
+    <PageLayout
+      title="Download Queue"
+      description="Active and queued downloads"
+      icon={<Clock className="h-5 w-5" />}
+      backLink="/downloads"
+      backLabel="Downloads"
+      actions={
         <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            onClick={() => navigate({ to: '/dashboard' })}
-          >
-            ← Dashboard
-          </Button>
           <Button
             variant="outline"
             onClick={() => navigate({ to: '/downloads' })}
@@ -206,8 +207,8 @@ function DownloadStatusPage() {
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
         </div>
-      </div>
-
+      }
+    >
       {/* Statistics */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         <Card>
@@ -355,11 +356,11 @@ function DownloadStatusPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <span>Searching for Albums</span>
-              <span className="text-xs px-2 py-1 rounded bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+              <span className="text-xs px-2 py-1 rounded bg-orange-500/10 text-orange-600 dark:text-orange-400">
                 {status.wanted.length} missing
               </span>
               {status.wanted.some(a => a.searchStatus === 'searching') && (
-                <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 animate-pulse">
+                <span className="text-xs px-2 py-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 animate-pulse">
                   Active searches
                 </span>
               )}
@@ -392,23 +393,23 @@ function DownloadStatusPage() {
                         <h3 className="font-medium">{album.title}</h3>
                         {/* Search Status Badge */}
                         {isSearching && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 flex items-center gap-1">
+                          <span className="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-1">
                             <span className="animate-spin h-3 w-3 border border-blue-600 border-t-transparent rounded-full"></span>
                             Searching...
                           </span>
                         )}
                         {wasSearchedRecently && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                          <span className="text-xs px-2 py-0.5 rounded bg-green-500/10 text-green-600 dark:text-green-400">
                             Searched - Awaiting Results
                           </span>
                         )}
                         {!isSearching && !wasSearchedRecently && album.monitored && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                          <span className="text-xs px-2 py-0.5 rounded bg-orange-500/10 text-orange-600 dark:text-orange-400">
                             Waiting
                           </span>
                         )}
                         {album.grabbed && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                          <span className="text-xs px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400">
                             Grabbed
                           </span>
                         )}
@@ -470,6 +471,6 @@ function DownloadStatusPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageLayout>
   )
 }

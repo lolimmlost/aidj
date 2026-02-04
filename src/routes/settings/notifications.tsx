@@ -75,7 +75,7 @@ export function NotificationSettings() {
 
         {/* Permission Status */}
         {isNotificationSupported && permissionStatus === 'denied' && (
-          <div className="p-4 rounded-md bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
+          <div className="p-4 rounded-md bg-destructive/10 text-destructive">
             Notification permissions are blocked. Please enable them in your browser settings to receive notifications.
           </div>
         )}
@@ -84,7 +84,7 @@ export function NotificationSettings() {
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="browser-notifications">Browser Notifications</Label>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Receive desktop notifications for important events
             </p>
           </div>
@@ -100,7 +100,7 @@ export function NotificationSettings() {
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="download-completion">Download Completion</Label>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Notify when song downloads are complete
             </p>
           </div>
@@ -117,7 +117,7 @@ export function NotificationSettings() {
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="recommendation-updates">Recommendation Updates</Label>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Notify when new recommendations are available
             </p>
           </div>
@@ -163,8 +163,8 @@ export function NotificationSettings() {
           <div
             className={`p-4 rounded-md ${
               message.type === 'success'
-                ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-                : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                : 'bg-destructive/10 text-destructive'
             }`}
           >
             {message.text}

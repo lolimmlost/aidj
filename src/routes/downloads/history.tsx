@@ -2,7 +2,9 @@ import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { PageLayout } from '@/components/ui/page-layout'
 import { toast } from 'sonner'
+import { History } from 'lucide-react'
 import { exportDownloadHistory, clearDownloadHistory } from '@/lib/services/lidarr'
 import {
   type DownloadHistoryItem,
@@ -120,33 +122,30 @@ function DownloadHistoryPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-6">
+      <PageLayout
+        title="Download History"
+        icon={<History className="h-5 w-5" />}
+        backLink="/downloads"
+        backLabel="Downloads"
+      >
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
             <p className="mt-4 text-muted-foreground">Loading download history...</p>
           </div>
         </div>
-      </div>
+      </PageLayout>
     )
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold">Download History</h1>
-          <p className="text-muted-foreground">
-            View and manage your completed downloads
-          </p>
-        </div>
+    <PageLayout
+      title="Download History"
+      icon={<History className="h-5 w-5" />}
+      backLink="/downloads"
+      backLabel="Downloads"
+      actions={
         <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            onClick={() => navigate({ to: '/dashboard' })}
-          >
-            ← Dashboard
-          </Button>
           <Button
             variant="outline"
             onClick={() => navigate({ to: '/downloads' })}
@@ -167,8 +166,8 @@ function DownloadHistoryPage() {
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
         </div>
-      </div>
-
+      }
+    >
       {/* Statistics */}
       {history.length > 0 && (
         <div className="grid gap-4 md:grid-cols-4">
@@ -311,6 +310,6 @@ function DownloadHistoryPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageLayout>
   )
 }

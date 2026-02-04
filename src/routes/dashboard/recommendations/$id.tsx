@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 import { queryKeys } from '@/lib/query';
+import { PageLayout } from '@/components/ui/page-layout';
 
 export const Route = createFileRoute('/dashboard/recommendations/$id')({
   beforeLoad: async ({ context }) => {
@@ -37,10 +38,10 @@ function RecommendationDetail() {
 
   // Get song name from search params (?song=Artist%20-%20Title)
   const song = (search as { song?: string }).song;
-  
+
   // Fetch existing feedback for this song
   const { data: feedbackData } = useSongFeedback(song ? [song] : []);
-  
+
   // Use derived state instead of separate state
   const existingFeedback = feedbackData?.feedback && song && feedbackData.feedback[song] ? feedbackData.feedback[song] : null;
   const currentFeedbackState = optimisticFeedback || existingFeedback;
@@ -124,7 +125,7 @@ function RecommendationDetail() {
 
   if (!song) {
     return (
-      <div className="container mx-auto p-6">
+      <PageLayout title="Error" backLink="/dashboard" backLabel="Dashboard" compact>
         <Card>
           <CardHeader>
             <CardTitle>Error</CardTitle>
@@ -136,7 +137,7 @@ function RecommendationDetail() {
             </p>
           </CardContent>
         </Card>
-      </div>
+      </PageLayout>
     );
   }
 
@@ -183,19 +184,21 @@ function RecommendationDetail() {
       addToQueueEnd([audioSong]);
       toast.success(`Added "${title}" to end of queue`);
     }
-    
+
     // Clear the flag after a short delay
     setTimeout(() => setAIUserActionInProgress(false), 2000);
   };
 
   return (
-    <div className="container mx-auto p-6">
+    <PageLayout
+      title={song}
+      description="AI-powered recommendation from your music library"
+      backLink="/dashboard"
+      backLabel="Dashboard"
+      compact
+    >
       <Card className="bg-card text-card-foreground border-card">
-        <CardHeader>
-          <CardTitle>{song}</CardTitle>
-          <CardDescription>AI-powered recommendation from your music library</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-6">
           <p className="text-muted-foreground whitespace-pre-wrap">{explanation}</p>
 
           {/* Feedback Buttons */}
@@ -254,7 +257,7 @@ function RecommendationDetail() {
           </DropdownMenu>
         </CardContent>
       </Card>
-    </div>
+    </PageLayout>
   );
 }
 

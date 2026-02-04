@@ -405,7 +405,7 @@ export function ServicesSettings() {
         {/* Configuration Form */}
         <form onSubmit={onSubmit} className="space-y-6">
           {/* LLM Provider Section */}
-          <div className="p-4 border rounded-lg space-y-4 bg-gray-50 dark:bg-gray-800/50">
+          <div className="p-4 border rounded-lg space-y-4 bg-muted/50">
             <h3 className="text-lg font-semibold">AI Provider Configuration</h3>
 
             {/* Provider Selection */}
@@ -425,7 +425,7 @@ export function ServicesSettings() {
                   <SelectItem value="anthropic">Anthropic / z.ai (Cloud)</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Choose between local (Ollama) or cloud-based AI providers
               </p>
             </div>
@@ -444,7 +444,7 @@ export function ServicesSettings() {
                     onChange={(e) => update('ollamaUrl', e.target.value)}
                     className="mt-2"
                   />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Local Ollama server URL
                   </p>
                 </div>
@@ -483,7 +483,7 @@ export function ServicesSettings() {
                     onChange={(e) => update('openrouterApiKey', e.target.value)}
                     className="mt-2"
                   />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Get your API key from{' '}
                     <a
                       href="https://openrouter.ai/keys"
@@ -512,7 +512,7 @@ export function ServicesSettings() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Pay-per-use pricing varies by model
                   </p>
                 </div>
@@ -533,7 +533,7 @@ export function ServicesSettings() {
                     onChange={(e) => update('glmApiKey', e.target.value)}
                     className="mt-2"
                   />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Get your API key from{' '}
                     <a
                       href="https://open.bigmodel.cn"
@@ -562,7 +562,7 @@ export function ServicesSettings() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Zhipu AI models (glm-4-plus recommended for best performance)
                   </p>
                 </div>
@@ -583,7 +583,7 @@ export function ServicesSettings() {
                     onChange={(e) => update('anthropicApiKey', e.target.value)}
                     className="mt-2"
                   />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Your Anthropic or z.ai API key
                   </p>
                 </div>
@@ -598,8 +598,8 @@ export function ServicesSettings() {
                     onChange={(e) => update('anthropicBaseUrl', e.target.value)}
                     className="mt-2"
                   />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Use <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">https://api.z.ai/api/anthropic</code> for z.ai proxy
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Use <code className="bg-muted px-1 rounded">https://api.z.ai/api/anthropic</code> for z.ai proxy
                   </p>
                 </div>
                 <div>
@@ -619,7 +619,7 @@ export function ServicesSettings() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Claude models (Haiku is fastest/cheapest, Opus is most capable)
                   </p>
                 </div>
@@ -643,7 +643,7 @@ export function ServicesSettings() {
                 onChange={(e) => update('navidromeUrl', e.target.value)}
                 className="mt-2"
               />
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Music server for streaming and library management
               </p>
             </div>
@@ -660,7 +660,7 @@ export function ServicesSettings() {
                 onChange={(e) => update('lidarrUrl', e.target.value)}
                 className="mt-2"
               />
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Automatic music collection management
               </p>
             </div>
@@ -677,7 +677,7 @@ export function ServicesSettings() {
                 onChange={(e) => update('metubeUrl', e.target.value)}
                 className="mt-2"
               />
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 YouTube/SoundCloud downloader via{' '}
                 <a
                   href="https://github.com/alexta69/metube"
@@ -699,7 +699,7 @@ export function ServicesSettings() {
               </svg>
               Discovery Services
             </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Optional services to help you discover new music similar to what you already enjoy.
             </p>
 
@@ -726,7 +726,7 @@ export function ServicesSettings() {
                   {lastfmTesting ? 'Testing...' : 'Test'}
                 </Button>
               </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Get your free API key from{' '}
                 <a
                   href="https://www.last.fm/api/account/create"
@@ -742,10 +742,10 @@ export function ServicesSettings() {
                 <div
                   className={`mt-2 text-sm px-2 py-1 rounded inline-block ${
                     testStatuses.lastfmApiKey === 'connected'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                       : testStatuses.lastfmApiKey === 'not configured'
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'bg-destructive/10 text-destructive'
                   }`}
                 >
                   {testStatuses.lastfmApiKey === 'connected'
@@ -764,7 +764,7 @@ export function ServicesSettings() {
               <Download className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               Last.fm Scrobble Backfill
             </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Import your listening history from Last.fm to enrich analytics and recommendations.
               This syncs your scrobbles into the local listening history database.
             </p>
@@ -791,7 +791,7 @@ export function ServicesSettings() {
                   ) : 'Import Scrobbles'}
                 </Button>
               </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Your public Last.fm profile username. Imports up to 50 pages of recent scrobbles.
               </p>
             </div>
@@ -807,8 +807,8 @@ export function ServicesSettings() {
               <div
                 className={`flex items-start gap-2 p-3 rounded-md text-sm ${
                   backfillResult.success
-                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
-                    : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                    ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                    : 'bg-destructive/10 text-destructive'
                 }`}
               >
                 {backfillResult.success ? (
@@ -844,8 +844,8 @@ export function ServicesSettings() {
           <div
             className={`p-4 rounded-md ${
               status.includes('success')
-                ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-                : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                : 'bg-destructive/10 text-destructive'
             }`}
           >
             {status}
@@ -865,16 +865,16 @@ export function ServicesSettings() {
           </Button>
 
           {testStatuses && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 p-4 bg-muted/50 rounded-lg">
               <div className="text-center">
                 <div className="font-medium mb-1">AI Provider</div>
                 <div
                   className={`text-sm px-2 py-1 rounded ${
                     testStatuses.llmProvider === 'connected'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                       : testStatuses.llmProvider === 'not configured'
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'bg-destructive/10 text-destructive'
                   }`}
                 >
                   {testStatuses.llmProvider || 'Not configured'}
@@ -885,10 +885,10 @@ export function ServicesSettings() {
                 <div
                   className={`text-sm px-2 py-1 rounded ${
                     testStatuses.navidromeUrl === 'connected'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                       : testStatuses.navidromeUrl === 'not configured'
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'bg-destructive/10 text-destructive'
                   }`}
                 >
                   {testStatuses.navidromeUrl || 'Not configured'}
@@ -899,10 +899,10 @@ export function ServicesSettings() {
                 <div
                   className={`text-sm px-2 py-1 rounded ${
                     testStatuses.lidarrUrl === 'connected'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                       : testStatuses.lidarrUrl === 'not configured'
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'bg-destructive/10 text-destructive'
                   }`}
                 >
                   {testStatuses.lidarrUrl || 'Not configured'}
@@ -913,10 +913,10 @@ export function ServicesSettings() {
                 <div
                   className={`text-sm px-2 py-1 rounded ${
                     testStatuses.metubeUrl === 'connected'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                       : testStatuses.metubeUrl === 'not configured'
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'bg-destructive/10 text-destructive'
                   }`}
                 >
                   {testStatuses.metubeUrl || 'Not configured'}
@@ -929,10 +929,10 @@ export function ServicesSettings() {
                 <div
                   className={`text-sm px-2 py-1 rounded ${
                     testStatuses.ollamaUrl === 'connected'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                       : testStatuses.ollamaUrl === 'not configured'
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'bg-destructive/10 text-destructive'
                   }`}
                 >
                   {testStatuses.ollamaUrl || 'Not configured'}

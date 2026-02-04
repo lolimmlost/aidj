@@ -37,7 +37,7 @@ export function ProfileSettings() {
   if (!session) {
     return (
       <Card className="p-6">
-        <p className="text-gray-600 dark:text-gray-400">Please log in to view your profile.</p>
+        <p className="text-muted-foreground">Please log in to view your profile.</p>
       </Card>
     );
   }
@@ -57,7 +57,7 @@ export function ProfileSettings() {
             disabled
             className="mt-2"
           />
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Email cannot be changed
           </p>
         </div>
@@ -85,7 +85,7 @@ export function ProfileSettings() {
         {/* Account Creation Date */}
         <div>
           <Label>Account Created</Label>
-          <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
+          <p className="text-sm text-muted-foreground mt-2">
             {session.user.createdAt
               ? new Date(session.user.createdAt).toLocaleDateString('en-US', {
                   year: 'numeric',
@@ -101,8 +101,8 @@ export function ProfileSettings() {
           <div
             className={`p-4 rounded-md ${
               message.type === 'success'
-                ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-                : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                : 'bg-destructive/10 text-destructive'
             }`}
           >
             {message.text}

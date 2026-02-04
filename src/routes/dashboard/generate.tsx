@@ -7,6 +7,7 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { usePreferencesStore, type SourceMode } from '@/lib/stores/preferences';
 import { search } from '@/lib/services/navidrome';
 import { Button } from '@/components/ui/button';
+import { PageLayout } from '@/components/ui/page-layout';
 import type { Song } from '@/lib/types/song';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 import { useDiscoveryQueueStore } from '@/lib/stores/discovery-queue';
@@ -14,7 +15,7 @@ import { queryKeys, queryPresets } from '@/lib/query';
 import { AIRecommendationsSection } from '@/components/dashboard/AIRecommendationsSection';
 import { CustomPlaylistSection, type PlaylistItem } from '@/components/dashboard/CustomPlaylistSection';
 import { STYLE_PRESETS } from '@/components/dashboard/quick-actions';
-import { ArrowLeft, Sparkles, Music } from 'lucide-react';
+import { Sparkles, Music } from 'lucide-react';
 
 export const Route = createFileRoute("/dashboard/generate")({
   beforeLoad: async ({ context }) => {
@@ -693,71 +694,57 @@ function GeneratePage() {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-background pb-24 md:pb-20 overflow-x-hidden">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <Link to="/dashboard" className="shrink-0">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Sparkles className="h-6 w-6 text-primary" />
-              AI Studio
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              AI-powered recommendations and playlist generation
-            </p>
-          </div>
-        </div>
+    <PageLayout
+      title="AI Studio"
+      description="Generate recommendations and playlists"
+      icon={<Sparkles className="h-5 w-5" />}
+      backLink="/dashboard"
+      backLabel="Dashboard"
+    >
+      {/* AI Recommendations */}
+      <AIRecommendationsSection
+        show={true}
+        collapsed={recommendationsCollapsed}
+        onToggleCollapse={() => setRecommendationsCollapsed(!recommendationsCollapsed)}
+        type={type}
+        onTypeChange={(value) => setType(value as 'similar' | 'mood')}
+        isLoading={isLoading}
+        error={error}
+        recommendations={recommendations}
+        onRefresh={() => refetchRecommendations()}
+        songFeedback={songFeedback}
+        onFeedback={(params) => feedbackMutation.mutate(params)}
+        isFeedbackPending={feedbackMutation.isPending}
+        onQueueAction={handleQueueAction}
+      />
 
-        {/* AI Recommendations */}
-        <AIRecommendationsSection
-          show={true}
-          collapsed={recommendationsCollapsed}
-          onToggleCollapse={() => setRecommendationsCollapsed(!recommendationsCollapsed)}
-          type={type}
-          onTypeChange={(value) => setType(value as 'similar' | 'mood')}
-          isLoading={isLoading}
-          error={error}
-          recommendations={recommendations}
-          onRefresh={() => refetchRecommendations()}
-          songFeedback={songFeedback}
-          onFeedback={(params) => feedbackMutation.mutate(params)}
-          isFeedbackPending={feedbackMutation.isPending}
-          onQueueAction={handleQueueAction}
-        />
-
-        {/* Custom Playlist Generation */}
-        <CustomPlaylistSection
-          collapsed={playlistCollapsed}
-          onToggleCollapse={() => setPlaylistCollapsed(!playlistCollapsed)}
-          style={style}
-          onStyleChange={setStyle}
-          trimmedStyle={trimmedStyle}
-          debouncedStyle={debouncedStyle}
-          sourceMode={sourceMode}
-          onSourceModeChange={setSourceMode}
-          mixRatio={mixRatio}
-          onMixRatioChange={setMixRatio}
-          data={playlistData}
-          isLoading={playlistLoading}
-          error={playlistError}
-          generationStage={generationStage}
-          activePreset={activePreset}
-          currentSong={currentSong}
-          onGenerate={handleGenerate}
-          onCancel={cancelPlaylistGeneration}
-          onClearCache={clearPlaylistCache}
-          onRegenerate={handleRegenerate}
-          onQueuePlaylist={handlePlaylistQueueAction}
-          onSongQueue={handleSongQueue}
-          onDiscoveryAdd={handleDiscoveryAdd}
-          onSearchSimilar={handleSearchSimilar}
-        />
-      </div>
-    </div>
+      {/* Custom Playlist Generation */}
+      <CustomPlaylistSection
+        collapsed={playlistCollapsed}
+        onToggleCollapse={() => setPlaylistCollapsed(!playlistCollapsed)}
+        style={style}
+        onStyleChange={setStyle}
+        trimmedStyle={trimmedStyle}
+        debouncedStyle={debouncedStyle}
+        sourceMode={sourceMode}
+        onSourceModeChange={setSourceMode}
+        mixRatio={mixRatio}
+        onMixRatioChange={setMixRatio}
+        data={playlistData}
+        isLoading={playlistLoading}
+        error={playlistError}
+        generationStage={generationStage}
+        activePreset={activePreset}
+        currentSong={currentSong}
+        onGenerate={handleGenerate}
+        onCancel={cancelPlaylistGeneration}
+        onClearCache={clearPlaylistCache}
+        onRegenerate={handleRegenerate}
+        onQueuePlaylist={handlePlaylistQueueAction}
+        onSongQueue={handleSongQueue}
+        onDiscoveryAdd={handleDiscoveryAdd}
+        onSearchSimilar={handleSearchSimilar}
+      />
+    </PageLayout>
   );
 }

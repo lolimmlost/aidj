@@ -3,10 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { getAlbums, getArtistDetail, getSongsByArtist } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
-import { Loader2, Music, ArrowLeft, Disc, ListMusic, Play, Plus, ListPlus } from 'lucide-react';
+import { Loader2, Music, Disc, ListMusic, Play, Plus, ListPlus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Breadcrumb, breadcrumbItems } from '@/components/ui/breadcrumb';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -18,6 +17,7 @@ import {
 import { toast } from 'sonner';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
+import { PageLayout } from '@/components/ui/page-layout';
 
 export const Route = createFileRoute('/library/artists/$id')({
   beforeLoad: async ({ context }) => {
@@ -78,15 +78,6 @@ function ArtistDetail() {
   const error = artistError || albumsError || songsError;
   const isLoading = loadingArtist || loadingAlbums || loadingSongs;
 
-  // Build breadcrumb items
-  const breadcrumbPath = [
-    breadcrumbItems.dashboard,
-    breadcrumbItems.artists,
-    {
-      label: artist?.name || 'Loading...',
-    },
-  ];
-
   const handleSongClick = (songId: string) => {
     playSong(songId, songs);
   };
@@ -124,17 +115,12 @@ function ArtistDetail() {
 
   if (error) {
     return (
-      <div className="container mx-auto p-3 sm:p-6">
-        {/* Breadcrumb */}
-        <Breadcrumb
-          items={[
-            breadcrumbItems.dashboard,
-            breadcrumbItems.artists,
-            { label: 'Error' },
-          ]}
-          className="mb-4"
-        />
-
+      <PageLayout
+        title="Error"
+        backLink="/library"
+        backLabel="Library"
+        compact
+      >
         <Card className="p-6 bg-destructive/10 border-destructive">
           <h2 className="text-xl font-bold text-destructive mb-2">
             Error loading artist
@@ -142,17 +128,18 @@ function ArtistDetail() {
           <p className="text-sm mb-4">{error.message}</p>
           <Button variant="outline" asChild>
             <Link to="/library/artists">
-              <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Artists
             </Link>
           </Button>
         </Card>
-      </div>
+      </PageLayout>
     );
   }
 
   const sortedAlbums = [...albums].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   const sortedSongs = [...songs].sort((a, b) => (a.name || a.title || '').localeCompare(b.name || b.title || ''));
+
+  const artistName = artist?.name || 'Unknown Artist';
 
   const renderAlbumCard = (album: typeof albums[0]) => (
     <Card
@@ -290,55 +277,13 @@ function ArtistDetail() {
   );
 
   return (
-    <div className="container mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
-      {/* Breadcrumb Navigation */}
-      <Breadcrumb items={breadcrumbPath} />
-
-      {/* Header Card */}
-      <Card>
-        <CardContent className="p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-            {/* Artist Info */}
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
-                <Music className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
-              </div>
-              <div>
-                {loadingArtist ? (
-                  <>
-                    <Skeleton className="h-8 w-48 mb-2" />
-                    <Skeleton className="h-4 w-24" />
-                  </>
-                ) : (
-                  <>
-                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                      {artist?.name || 'Unknown Artist'}
-                    </h1>
-                    <p className="text-sm sm:text-base text-muted-foreground mt-1">
-                      {albums.length} {albums.length === 1 ? 'album' : 'albums'}
-                      {' '}&bull;{' '}
-                      {songs.length} {songs.length === 1 ? 'song' : 'songs'}
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Back Button */}
-            <Button
-              variant="outline"
-              asChild
-              className="min-h-[44px]"
-            >
-              <Link to="/library/artists">
-                <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
-                <span>Back to Artists</span>
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
+    <PageLayout
+      title={artistName}
+      description={`${albums.length} ${albums.length === 1 ? 'album' : 'albums'} \u2022 ${songs.length} ${songs.length === 1 ? 'song' : 'songs'}`}
+      backLink="/library"
+      backLabel="Library"
+      compact
+    >
       {/* Tabs for Albums/Songs */}
       {isLoading ? (
         <div className="flex justify-center py-12">
@@ -444,16 +389,6 @@ function ArtistDetail() {
           </TabsContent>
         </Tabs>
       )}
-
-      {/* Bottom Navigation */}
-      <div className="text-center pt-4 border-t">
-        <Button variant="ghost" asChild className="min-h-[44px]">
-          <Link to="/library/artists">
-            <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
-            Back to Artists
-          </Link>
-        </Button>
-      </div>
-    </div>
+    </PageLayout>
   );
 }

@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
-import { Youtube, Music, Download, Clock, ArrowLeft } from 'lucide-react'
+import { Youtube, Music, Download, Clock } from 'lucide-react'
+import { PageLayout } from '@/components/ui/page-layout'
 
 export const Route = createFileRoute('/downloads/')({
   validateSearch: (search: Record<string, unknown>) => {
@@ -83,8 +84,8 @@ function DownloadsPage() {
 
       // Check Navidrome availability
       navidromeResults.forEach(song => {
-        const existing = combinedResults.find(r => 
-          r.name.toLowerCase() === song.name.toLowerCase() || 
+        const existing = combinedResults.find(r =>
+          r.name.toLowerCase() === song.name.toLowerCase() ||
           (r.artist && r.artist.toLowerCase() === song.artist?.toLowerCase())
         )
         if (existing) {
@@ -157,28 +158,13 @@ function DownloadsPage() {
   }, []) // Only run on mount
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate({ to: '/dashboard' })}
-            className="shrink-0 min-h-[44px] min-w-[44px]"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold flex items-center gap-2">
-              <Download className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8" />
-              Downloads
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Add music to your library
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2 pl-12 sm:pl-0">
+    <PageLayout
+      title="Downloads"
+      description="Add music to your library"
+      icon={<Download className="h-5 w-5" />}
+      backLink=""
+      actions={
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             onClick={() => navigate({ to: '/downloads/status' })}
@@ -195,8 +181,8 @@ function DownloadsPage() {
             History
           </Button>
         </div>
-      </div>
-
+      }
+    >
       {/* Download Options */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card
@@ -255,8 +241,8 @@ function DownloadsPage() {
               onKeyDown={handleKeyDown}
               disabled={isSearching}
             />
-            <Button 
-              onClick={handleSearch} 
+            <Button
+              onClick={handleSearch}
               disabled={isSearching || !searchQuery.trim()}
             >
               {isSearching ? 'Searching...' : 'Search'}
@@ -309,8 +295,8 @@ function DownloadsPage() {
                 <Card key={item.id} className="overflow-hidden">
                   <div className="aspect-square bg-muted flex items-center justify-center">
                     {item.coverUrl ? (
-                      <img 
-                        src={item.coverUrl} 
+                      <img
+                        src={item.coverUrl}
                         alt={item.name}
                         className="w-full h-full object-cover"
                       />
@@ -338,14 +324,14 @@ function DownloadsPage() {
                         </div>
                         <div className="flex flex-col gap-1">
                           {item.inNavidrome && (
-                            <div className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                            <div className="text-xs bg-green-500/10 text-green-600 dark:text-green-400 px-2 py-1 rounded">
                               In Library
                             </div>
                           )}
                           <div className={`text-xs px-2 py-1 rounded ${
-                            item.type === 'artist' 
-                              ? 'bg-blue-100 text-blue-800' 
-                              : 'bg-gray-100 text-gray-800'
+                            item.type === 'artist'
+                              ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                              : 'bg-muted text-muted-foreground'
                           }`}>
                             {item.type}
                           </div>
@@ -357,7 +343,7 @@ function DownloadsPage() {
                         onClick={() => handleAddToLidarr(item)}
                         disabled={item.inNavidrome || isAdding === item.id}
                       >
-                        {isAdding === item.id ? 'Adding...' : 
+                        {isAdding === item.id ? 'Adding...' :
                          item.inNavidrome ? 'Already in Library' : 'Add to Queue'}
                       </Button>
                     </div>
@@ -379,6 +365,6 @@ function DownloadsPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageLayout>
   )
 }

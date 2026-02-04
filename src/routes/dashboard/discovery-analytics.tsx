@@ -12,10 +12,10 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { AdvancedDiscoveryAnalytics } from '../../components/recommendations/AdvancedDiscoveryAnalytics';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
+import { PageLayout } from '@/components/ui/page-layout';
 import { useState } from 'react';
 import {
   BarChart3,
-  ArrowLeft,
   TrendingUp,
   FlaskConical,
   Sparkles,
@@ -61,27 +61,14 @@ function DiscoveryAnalyticsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24 md:pb-20">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:gap-4">
-        <div className="flex items-start gap-3 sm:gap-4">
-          <Link to="/dashboard/analytics">
-            <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9 sm:h-10 sm:w-10">
-              <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
-            </Button>
-          </Link>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight truncate">
-              Discovery Analytics
-            </h1>
-            <p className="text-sm text-muted-foreground line-clamp-2">
-              Recommendation effectiveness and listening patterns
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
+    <PageLayout
+      title="Discovery Analytics"
+      description="A/B testing and engagement patterns"
+      icon={<FlaskConical className="h-5 w-5" />}
+      backLink="/dashboard/analytics"
+      backLabel="Analytics"
+      actions={
+        <>
           <Button
             variant="outline"
             size="sm"
@@ -96,9 +83,9 @@ function DiscoveryAnalyticsPage() {
             <Download className="mr-1.5 h-3.5 w-3.5 sm:mr-2 sm:h-4 sm:w-4" />
             <span className="hidden xs:inline">Export</span>
           </Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {/* Feature Highlights - Hidden on mobile for cleaner view */}
       <div className="hidden sm:grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <FeatureCard
@@ -154,8 +141,7 @@ function DiscoveryAnalyticsPage() {
           </div>
         </CardContent>
       </Card>
-      </div>
-    </div>
+    </PageLayout>
   );
 }
 

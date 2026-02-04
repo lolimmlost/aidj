@@ -65,6 +65,8 @@ export interface BackgroundSyncStatus {
   nextSyncAt: Date | null;
   consecutiveFailures: number;
   progress: SyncProgress | null;
+  lastDurationMs: number | null;
+  intervalMinutes: number;
 }
 
 /**
@@ -86,6 +88,7 @@ class BackgroundSyncManager {
   private listeners: Set<SyncEventListener> = new Set();
   private lastActivityTime: number = Date.now();
   private activityListenerAttached: boolean = false;
+  private lastDurationMs: number | null = null;
 
   private constructor() {
     this.config = { ...DEFAULT_BACKGROUND_SYNC_CONFIG };
@@ -202,9 +205,12 @@ class BackgroundSyncManager {
       this.emitEvent(event);
     });
 
+    const syncStartTime = Date.now();
+
     try {
       const result = await this.syncService.start();
 
+      this.lastDurationMs = Date.now() - syncStartTime;
       this.lastSyncAt = new Date();
       this.consecutiveFailures = 0;
 
@@ -281,6 +287,8 @@ class BackgroundSyncManager {
       nextSyncAt: this.nextSyncAt,
       consecutiveFailures: this.consecutiveFailures,
       progress: this.syncService?.getProgress() ?? null,
+      lastDurationMs: this.lastDurationMs,
+      intervalMinutes: this.config.intervalMinutes,
     };
   }
 
