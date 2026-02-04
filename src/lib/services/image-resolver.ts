@@ -1,13 +1,16 @@
 /**
  * Multi-Source Image Resolver
  *
- * Cascading image resolution: Navidrome -> Last.fm -> Deezer (free, no-auth fallback)
+ * Cascading image resolution: Saved DB -> Navidrome -> Last.fm -> Deezer (free, no-auth fallback)
  * Used to fill in missing artist/album artwork across the app.
  *
  * @see docs/architecture/analytics-discovery-upgrades-plan.md - Item 2.1
  */
 
 import { getDeezerArtistImage, getDeezerAlbumImage } from './deezer';
+import { eq } from 'drizzle-orm';
+import { db } from '../db';
+import { savedCoverArt } from '../db/schema/saved-cover-art.schema';
 
 /**
  * Resolve an artist image URL from available sources.
@@ -19,11 +22,26 @@ import { getDeezerArtistImage, getDeezerAlbumImage } from './deezer';
  */
 export async function resolveArtistImage(
   artistName: string,
-  primaryImageUrl?: string | null
+  primaryImageUrl?: string | null,
+  entityId?: string
 ): Promise<string | null> {
   // Use primary source if it has a valid URL
   if (primaryImageUrl && !isPlaceholderImage(primaryImageUrl)) {
     return primaryImageUrl;
+  }
+
+  // Check saved cover art DB
+  if (entityId) {
+    try {
+      const saved = await db
+        .select({ imageUrl: savedCoverArt.imageUrl })
+        .from(savedCoverArt)
+        .where(eq(savedCoverArt.entityId, entityId))
+        .limit(1);
+      if (saved.length > 0) return saved[0].imageUrl;
+    } catch {
+      // DB check failed, continue to Deezer
+    }
   }
 
   // Fall back to Deezer
@@ -46,10 +64,25 @@ export async function resolveArtistImage(
 export async function resolveAlbumImage(
   artist: string,
   album: string,
-  primaryImageUrl?: string | null
+  primaryImageUrl?: string | null,
+  entityId?: string
 ): Promise<string | null> {
   if (primaryImageUrl && !isPlaceholderImage(primaryImageUrl)) {
     return primaryImageUrl;
+  }
+
+  // Check saved cover art DB
+  if (entityId) {
+    try {
+      const saved = await db
+        .select({ imageUrl: savedCoverArt.imageUrl })
+        .from(savedCoverArt)
+        .where(eq(savedCoverArt.entityId, entityId))
+        .limit(1);
+      if (saved.length > 0) return saved[0].imageUrl;
+    } catch {
+      // DB check failed, continue to Deezer
+    }
   }
 
   try {

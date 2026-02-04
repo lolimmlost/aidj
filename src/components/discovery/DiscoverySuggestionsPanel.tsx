@@ -30,6 +30,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CoverArtApproval } from '@/components/ui/cover-art-approval';
 
 // Simple relative time formatter
 function formatTimeAgo(dateString: string | null): string {
@@ -115,8 +116,15 @@ function SuggestionCard({
         {isSelected && <Check className="h-3 w-3" />}
       </button>
 
-      {/* Album art placeholder */}
-      <div className="w-14 h-14 rounded-md bg-gradient-to-br from-primary/20 via-purple-500/20 to-pink-500/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
+      {/* Album art */}
+      <CoverArtApproval
+        imageUrl={suggestion.imageUrl ?? ''}
+        entityId={`artist:${suggestion.artistName}`}
+        entityType="artist"
+        artist={suggestion.artistName}
+        album={suggestion.albumName ?? undefined}
+        className="w-14 h-14 rounded-md bg-gradient-to-br from-primary/20 via-purple-500/20 to-pink-500/20 flex items-center justify-center flex-shrink-0 overflow-hidden"
+      >
         {suggestion.imageUrl ? (
           <img
             src={suggestion.imageUrl}
@@ -129,7 +137,7 @@ function SuggestionCard({
         ) : (
           <Music2 className="h-6 w-6 text-primary/50" />
         )}
-      </div>
+      </CoverArtApproval>
 
       {/* Track info */}
       <div className="flex-1 min-w-0">

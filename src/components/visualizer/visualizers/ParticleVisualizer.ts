@@ -1,4 +1,5 @@
 import type { Visualizer, VisualizerContext } from '../types';
+import { getAdaptiveCount } from '../perf-utils';
 
 interface Particle {
   x: number;
@@ -14,7 +15,7 @@ interface Particle {
 }
 
 let particles: Particle[] = [];
-const MAX_PARTICLES = 80; // Reduced from 200
+const BASE_MAX_PARTICLES = 80;
 
 // Cached center orb gradient
 let cachedOrbGradient: CanvasGradient | null = null;
@@ -57,8 +58,9 @@ export const ParticleVisualizer: Visualizer = {
   },
 
   render: (ctx: VisualizerContext) => {
-    const { ctx: c, width, height, centerX, centerY, audioData, colors, deltaTime } = ctx;
+    const { ctx: c, width, height, centerX, centerY, audioData, colors, deltaTime, quality } = ctx;
     const { bass, mid, treble, volume, isBeat } = audioData;
+    const maxParticles = getAdaptiveCount(BASE_MAX_PARTICLES, quality);
 
     // Semi-transparent clear for trail effect
     c.fillStyle = colors.background;
@@ -68,7 +70,7 @@ export const ParticleVisualizer: Visualizer = {
 
     // Spawn new particles on beats or randomly (reduced rate)
     const spawnRate = isBeat ? 5 : Math.floor(volume * 2);
-    for (let i = 0; i < spawnRate && particles.length < MAX_PARTICLES; i++) {
+    for (let i = 0; i < spawnRate && particles.length < maxParticles; i++) {
       particles.push(createParticle(centerX, centerY));
     }
 

@@ -55,8 +55,14 @@ export const Route = createFileRoute("/api/playlists/$id")({
         .where(eq(playlistSongs.playlistId, id))
         .orderBy(asc(playlistSongs.position));
 
-      // Try to enrich songs with Navidrome metadata (duration, album, etc.)
-      let enrichedSongs = songs.map(s => ({ ...s, duration: null as number | null, album: null as string | null }));
+      // Try to enrich songs with Navidrome metadata (duration, album, albumId, starred, etc.)
+      let enrichedSongs = songs.map(s => ({
+        ...s,
+        duration: null as number | null,
+        album: null as string | null,
+        albumId: null as string | null,
+        starred: false,
+      }));
 
       try {
         const songIds = songs.map(s => s.songId);
@@ -72,6 +78,8 @@ export const Route = createFileRoute("/api/playlists/$id")({
               ...s,
               duration: details?.duration ?? null,
               album: details?.album ?? null,
+              albumId: details?.albumId ?? null,
+              starred: (details as any)?.starred ?? false,
             };
           });
         }

@@ -20,6 +20,7 @@ import {
   Play,
   User,
   TrendingUp,
+  ListTodo,
 } from 'lucide-react';
 import { MusicTasteDebugPanel } from '@/components/debug/MusicTasteDebugPanel';
 import { cn } from '@/lib/utils';
@@ -397,6 +398,12 @@ function LeftSidebar() {
                 icon={<Download className="h-4 w-4" />}
                 label="Downloads"
                 active={currentPath.startsWith('/downloads')}
+              />
+              <NavItem
+                to="/tasks"
+                icon={<ListTodo className="h-4 w-4" />}
+                label="Tasks"
+                active={currentPath.startsWith('/tasks')}
               />
               <NavItem
                 to="/dashboard/library-growth"

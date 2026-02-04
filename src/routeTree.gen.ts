@@ -9,10 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ConfigRouteImport } from './routes/config'
 import { Route as DashboardRouteRouteImport } from './routes/dashboard/route'
 import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TasksIndexRouteImport } from './routes/tasks/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as PlaylistsIndexRouteImport } from './routes/playlists/index'
 import { Route as MusicIdentityIndexRouteImport } from './routes/music-identity/index'
@@ -29,6 +29,7 @@ import { Route as DjSettingsRouteImport } from './routes/dj/settings'
 import { Route as DjSetBuilderRouteImport } from './routes/dj/set-builder'
 import { Route as DashboardMoodTimelineRouteImport } from './routes/dashboard/mood-timeline'
 import { Route as DashboardLibraryGrowthRouteImport } from './routes/dashboard/library-growth'
+import { Route as DashboardGenerateRouteImport } from './routes/dashboard/generate'
 import { Route as DashboardDiscoveryAnalyticsRouteImport } from './routes/dashboard/discovery-analytics'
 import { Route as DashboardDiscoverRouteImport } from './routes/dashboard/discover'
 import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard/analytics'
@@ -42,6 +43,7 @@ import { Route as ApiCacheRouteImport } from './routes/api/cache'
 import { Route as authSignupRouteImport } from './routes/(auth)/signup'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as LibraryArtistsIndexRouteImport } from './routes/library/artists/index'
+import { Route as ApiTasksIndexRouteImport } from './routes/api/tasks/index'
 import { Route as ApiPlaylistsIndexRouteImport } from './routes/api/playlists/index'
 import { Route as ApiMusicIdentityIndexRouteImport } from './routes/api/music-identity/index'
 import { Route as ApiLyricsIndexRouteImport } from './routes/api/lyrics/index'
@@ -65,6 +67,7 @@ import { Route as ApiPlaylistsImportRouteImport } from './routes/api/playlists/i
 import { Route as ApiPlaylistsExportRouteImport } from './routes/api/playlists/export'
 import { Route as ApiPlaylistsDownloadRouteImport } from './routes/api/playlists/download'
 import { Route as ApiPlaylistsIdRouteImport } from './routes/api/playlists/$id'
+import { Route as ApiNavidromeStarRouteImport } from './routes/api/navidrome/star'
 import { Route as ApiNavidromeSearchRouteImport } from './routes/api/navidrome/search'
 import { Route as ApiMusicIdentityIdRouteImport } from './routes/api/music-identity/$id'
 import { Route as ApiMetubeStatusRouteImport } from './routes/api/metube/status'
@@ -98,6 +101,7 @@ import { Route as ApiDownloadsQueueRouteImport } from './routes/api/downloads/qu
 import { Route as ApiDiscoveryFeedInteractionsRouteImport } from './routes/api/discovery-feed/interactions'
 import { Route as ApiDiscoveryFeedAnalyticsRouteImport } from './routes/api/discovery-feed/analytics'
 import { Route as ApiDebugLogsRouteImport } from './routes/api/debug/logs'
+import { Route as ApiCoverArtSaveRouteImport } from './routes/api/cover-art/save'
 import { Route as ApiBackgroundDiscoveryTriggerRouteImport } from './routes/api/background-discovery/trigger'
 import { Route as ApiBackgroundDiscoverySuggestionsRouteImport } from './routes/api/background-discovery/suggestions'
 import { Route as ApiBackgroundDiscoveryStatusRouteImport } from './routes/api/background-discovery/status'
@@ -140,11 +144,6 @@ import { Route as ApiNavidromeStreamIdIdRouteImport } from './routes/api/navidro
 import { Route as ApiNavidromeApiArtistIdRouteImport } from './routes/api/navidrome/api/artist/$id'
 import { Route as ApiNavidromeApiAlbumIdRouteImport } from './routes/api/navidrome/api/album/$id'
 
-const ConfigRoute = ConfigRouteImport.update({
-  id: '/config',
-  path: '/config',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DashboardRouteRoute = DashboardRouteRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -157,6 +156,11 @@ const authRouteRoute = authRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TasksIndexRoute = TasksIndexRouteImport.update({
+  id: '/tasks/',
+  path: '/tasks/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
@@ -239,6 +243,11 @@ const DashboardLibraryGrowthRoute = DashboardLibraryGrowthRouteImport.update({
   path: '/library-growth',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardGenerateRoute = DashboardGenerateRouteImport.update({
+  id: '/generate',
+  path: '/generate',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const DashboardDiscoveryAnalyticsRoute =
   DashboardDiscoveryAnalyticsRouteImport.update({
     id: '/discovery-analytics',
@@ -304,6 +313,11 @@ const LibraryArtistsIndexRoute = LibraryArtistsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => LibraryArtistsRoute,
+} as any)
+const ApiTasksIndexRoute = ApiTasksIndexRouteImport.update({
+  id: '/api/tasks/',
+  path: '/api/tasks/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPlaylistsIndexRoute = ApiPlaylistsIndexRouteImport.update({
   id: '/api/playlists/',
@@ -426,6 +440,11 @@ const ApiPlaylistsDownloadRoute = ApiPlaylistsDownloadRouteImport.update({
 const ApiPlaylistsIdRoute = ApiPlaylistsIdRouteImport.update({
   id: '/api/playlists/$id',
   path: '/api/playlists/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiNavidromeStarRoute = ApiNavidromeStarRouteImport.update({
+  id: '/api/navidrome/star',
+  path: '/api/navidrome/star',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiNavidromeSearchRoute = ApiNavidromeSearchRouteImport.update({
@@ -601,6 +620,11 @@ const ApiDiscoveryFeedAnalyticsRoute =
 const ApiDebugLogsRoute = ApiDebugLogsRouteImport.update({
   id: '/api/debug/logs',
   path: '/api/debug/logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCoverArtSaveRoute = ApiCoverArtSaveRouteImport.update({
+  id: '/api/cover-art/save',
+  path: '/api/cover-art/save',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiBackgroundDiscoveryTriggerRoute =
@@ -830,7 +854,6 @@ const ApiNavidromeApiAlbumIdRoute = ApiNavidromeApiAlbumIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteRouteWithChildren
-  '/config': typeof ConfigRoute
   '/login': typeof authLoginRoute
   '/signup': typeof authSignupRoute
   '/api/cache': typeof ApiCacheRoute
@@ -843,6 +866,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/discover': typeof DashboardDiscoverRoute
   '/dashboard/discovery-analytics': typeof DashboardDiscoveryAnalyticsRoute
+  '/dashboard/generate': typeof DashboardGenerateRoute
   '/dashboard/library-growth': typeof DashboardLibraryGrowthRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
@@ -859,6 +883,7 @@ export interface FileRoutesByFullPath {
   '/music-identity': typeof MusicIdentityIndexRoute
   '/playlists': typeof PlaylistsIndexRoute
   '/settings': typeof SettingsIndexRoute
+  '/tasks': typeof TasksIndexRoute
   '/api/ai-dj/recommendations': typeof ApiAiDjRecommendationsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -867,6 +892,7 @@ export interface FileRoutesByFullPath {
   '/api/background-discovery/status': typeof ApiBackgroundDiscoveryStatusRoute
   '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
+  '/api/cover-art/save': typeof ApiCoverArtSaveRoute
   '/api/debug/logs': typeof ApiDebugLogsRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
@@ -900,6 +926,7 @@ export interface FileRoutesByFullPath {
   '/api/metube/status': typeof ApiMetubeStatusRoute
   '/api/music-identity/$id': typeof ApiMusicIdentityIdRoute
   '/api/navidrome/search': typeof ApiNavidromeSearchRoute
+  '/api/navidrome/star': typeof ApiNavidromeStarRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
   '/api/playlists/download': typeof ApiPlaylistsDownloadRoute
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
@@ -923,6 +950,7 @@ export interface FileRoutesByFullPath {
   '/api/lyrics': typeof ApiLyricsIndexRoute
   '/api/music-identity': typeof ApiMusicIdentityIndexRoute
   '/api/playlists': typeof ApiPlaylistsIndexRoute
+  '/api/tasks': typeof ApiTasksIndexRoute
   '/library/artists/': typeof LibraryArtistsIndexRoute
   '/api/background-discovery/suggestions/$id': typeof ApiBackgroundDiscoverySuggestionsIdRoute
   '/api/discovery-feed/notifications/preferences': typeof ApiDiscoveryFeedNotificationsPreferencesRoute
@@ -960,7 +988,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/config': typeof ConfigRoute
   '/login': typeof authLoginRoute
   '/signup': typeof authSignupRoute
   '/api/cache': typeof ApiCacheRoute
@@ -973,6 +1000,7 @@ export interface FileRoutesByTo {
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/discover': typeof DashboardDiscoverRoute
   '/dashboard/discovery-analytics': typeof DashboardDiscoveryAnalyticsRoute
+  '/dashboard/generate': typeof DashboardGenerateRoute
   '/dashboard/library-growth': typeof DashboardLibraryGrowthRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
@@ -988,6 +1016,7 @@ export interface FileRoutesByTo {
   '/music-identity': typeof MusicIdentityIndexRoute
   '/playlists': typeof PlaylistsIndexRoute
   '/settings': typeof SettingsIndexRoute
+  '/tasks': typeof TasksIndexRoute
   '/api/ai-dj/recommendations': typeof ApiAiDjRecommendationsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -996,6 +1025,7 @@ export interface FileRoutesByTo {
   '/api/background-discovery/status': typeof ApiBackgroundDiscoveryStatusRoute
   '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
+  '/api/cover-art/save': typeof ApiCoverArtSaveRoute
   '/api/debug/logs': typeof ApiDebugLogsRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
@@ -1029,6 +1059,7 @@ export interface FileRoutesByTo {
   '/api/metube/status': typeof ApiMetubeStatusRoute
   '/api/music-identity/$id': typeof ApiMusicIdentityIdRoute
   '/api/navidrome/search': typeof ApiNavidromeSearchRoute
+  '/api/navidrome/star': typeof ApiNavidromeStarRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
   '/api/playlists/download': typeof ApiPlaylistsDownloadRoute
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
@@ -1052,6 +1083,7 @@ export interface FileRoutesByTo {
   '/api/lyrics': typeof ApiLyricsIndexRoute
   '/api/music-identity': typeof ApiMusicIdentityIndexRoute
   '/api/playlists': typeof ApiPlaylistsIndexRoute
+  '/api/tasks': typeof ApiTasksIndexRoute
   '/library/artists': typeof LibraryArtistsIndexRoute
   '/api/background-discovery/suggestions/$id': typeof ApiBackgroundDiscoverySuggestionsIdRoute
   '/api/discovery-feed/notifications/preferences': typeof ApiDiscoveryFeedNotificationsPreferencesRoute
@@ -1092,7 +1124,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/(auth)': typeof authRouteRouteWithChildren
   '/dashboard': typeof DashboardRouteRouteWithChildren
-  '/config': typeof ConfigRoute
   '/(auth)/login': typeof authLoginRoute
   '/(auth)/signup': typeof authSignupRoute
   '/api/cache': typeof ApiCacheRoute
@@ -1105,6 +1136,7 @@ export interface FileRoutesById {
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/discover': typeof DashboardDiscoverRoute
   '/dashboard/discovery-analytics': typeof DashboardDiscoveryAnalyticsRoute
+  '/dashboard/generate': typeof DashboardGenerateRoute
   '/dashboard/library-growth': typeof DashboardLibraryGrowthRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
@@ -1121,6 +1153,7 @@ export interface FileRoutesById {
   '/music-identity/': typeof MusicIdentityIndexRoute
   '/playlists/': typeof PlaylistsIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/tasks/': typeof TasksIndexRoute
   '/api/ai-dj/recommendations': typeof ApiAiDjRecommendationsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -1129,6 +1162,7 @@ export interface FileRoutesById {
   '/api/background-discovery/status': typeof ApiBackgroundDiscoveryStatusRoute
   '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
+  '/api/cover-art/save': typeof ApiCoverArtSaveRoute
   '/api/debug/logs': typeof ApiDebugLogsRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
@@ -1162,6 +1196,7 @@ export interface FileRoutesById {
   '/api/metube/status': typeof ApiMetubeStatusRoute
   '/api/music-identity/$id': typeof ApiMusicIdentityIdRoute
   '/api/navidrome/search': typeof ApiNavidromeSearchRoute
+  '/api/navidrome/star': typeof ApiNavidromeStarRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
   '/api/playlists/download': typeof ApiPlaylistsDownloadRoute
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
@@ -1185,6 +1220,7 @@ export interface FileRoutesById {
   '/api/lyrics/': typeof ApiLyricsIndexRoute
   '/api/music-identity/': typeof ApiMusicIdentityIndexRoute
   '/api/playlists/': typeof ApiPlaylistsIndexRoute
+  '/api/tasks/': typeof ApiTasksIndexRoute
   '/library/artists/': typeof LibraryArtistsIndexRoute
   '/api/background-discovery/suggestions/$id': typeof ApiBackgroundDiscoverySuggestionsIdRoute
   '/api/discovery-feed/notifications/preferences': typeof ApiDiscoveryFeedNotificationsPreferencesRoute
@@ -1225,7 +1261,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
-    | '/config'
     | '/login'
     | '/signup'
     | '/api/cache'
@@ -1238,6 +1273,7 @@ export interface FileRouteTypes {
     | '/dashboard/analytics'
     | '/dashboard/discover'
     | '/dashboard/discovery-analytics'
+    | '/dashboard/generate'
     | '/dashboard/library-growth'
     | '/dashboard/mood-timeline'
     | '/dj/set-builder'
@@ -1254,6 +1290,7 @@ export interface FileRouteTypes {
     | '/music-identity'
     | '/playlists'
     | '/settings'
+    | '/tasks'
     | '/api/ai-dj/recommendations'
     | '/api/auth/$'
     | '/api/auth/login'
@@ -1262,6 +1299,7 @@ export interface FileRouteTypes {
     | '/api/background-discovery/status'
     | '/api/background-discovery/suggestions'
     | '/api/background-discovery/trigger'
+    | '/api/cover-art/save'
     | '/api/debug/logs'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
@@ -1295,6 +1333,7 @@ export interface FileRouteTypes {
     | '/api/metube/status'
     | '/api/music-identity/$id'
     | '/api/navidrome/search'
+    | '/api/navidrome/star'
     | '/api/playlists/$id'
     | '/api/playlists/download'
     | '/api/playlists/export'
@@ -1318,6 +1357,7 @@ export interface FileRouteTypes {
     | '/api/lyrics'
     | '/api/music-identity'
     | '/api/playlists'
+    | '/api/tasks'
     | '/library/artists/'
     | '/api/background-discovery/suggestions/$id'
     | '/api/discovery-feed/notifications/preferences'
@@ -1355,7 +1395,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/config'
     | '/login'
     | '/signup'
     | '/api/cache'
@@ -1368,6 +1407,7 @@ export interface FileRouteTypes {
     | '/dashboard/analytics'
     | '/dashboard/discover'
     | '/dashboard/discovery-analytics'
+    | '/dashboard/generate'
     | '/dashboard/library-growth'
     | '/dashboard/mood-timeline'
     | '/dj/set-builder'
@@ -1383,6 +1423,7 @@ export interface FileRouteTypes {
     | '/music-identity'
     | '/playlists'
     | '/settings'
+    | '/tasks'
     | '/api/ai-dj/recommendations'
     | '/api/auth/$'
     | '/api/auth/login'
@@ -1391,6 +1432,7 @@ export interface FileRouteTypes {
     | '/api/background-discovery/status'
     | '/api/background-discovery/suggestions'
     | '/api/background-discovery/trigger'
+    | '/api/cover-art/save'
     | '/api/debug/logs'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
@@ -1424,6 +1466,7 @@ export interface FileRouteTypes {
     | '/api/metube/status'
     | '/api/music-identity/$id'
     | '/api/navidrome/search'
+    | '/api/navidrome/star'
     | '/api/playlists/$id'
     | '/api/playlists/download'
     | '/api/playlists/export'
@@ -1447,6 +1490,7 @@ export interface FileRouteTypes {
     | '/api/lyrics'
     | '/api/music-identity'
     | '/api/playlists'
+    | '/api/tasks'
     | '/library/artists'
     | '/api/background-discovery/suggestions/$id'
     | '/api/discovery-feed/notifications/preferences'
@@ -1486,7 +1530,6 @@ export interface FileRouteTypes {
     | '/'
     | '/(auth)'
     | '/dashboard'
-    | '/config'
     | '/(auth)/login'
     | '/(auth)/signup'
     | '/api/cache'
@@ -1499,6 +1542,7 @@ export interface FileRouteTypes {
     | '/dashboard/analytics'
     | '/dashboard/discover'
     | '/dashboard/discovery-analytics'
+    | '/dashboard/generate'
     | '/dashboard/library-growth'
     | '/dashboard/mood-timeline'
     | '/dj/set-builder'
@@ -1515,6 +1559,7 @@ export interface FileRouteTypes {
     | '/music-identity/'
     | '/playlists/'
     | '/settings/'
+    | '/tasks/'
     | '/api/ai-dj/recommendations'
     | '/api/auth/$'
     | '/api/auth/login'
@@ -1523,6 +1568,7 @@ export interface FileRouteTypes {
     | '/api/background-discovery/status'
     | '/api/background-discovery/suggestions'
     | '/api/background-discovery/trigger'
+    | '/api/cover-art/save'
     | '/api/debug/logs'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
@@ -1556,6 +1602,7 @@ export interface FileRouteTypes {
     | '/api/metube/status'
     | '/api/music-identity/$id'
     | '/api/navidrome/search'
+    | '/api/navidrome/star'
     | '/api/playlists/$id'
     | '/api/playlists/download'
     | '/api/playlists/export'
@@ -1579,6 +1626,7 @@ export interface FileRouteTypes {
     | '/api/lyrics/'
     | '/api/music-identity/'
     | '/api/playlists/'
+    | '/api/tasks/'
     | '/library/artists/'
     | '/api/background-discovery/suggestions/$id'
     | '/api/discovery-feed/notifications/preferences'
@@ -1619,7 +1667,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   authRouteRoute: typeof authRouteRouteWithChildren
   DashboardRouteRoute: typeof DashboardRouteRouteWithChildren
-  ConfigRoute: typeof ConfigRoute
   ApiCacheRoute: typeof ApiCacheRoute
   ApiConfigRoute: typeof ApiConfigRoute
   ApiDebugLibraryRoute: typeof ApiDebugLibraryRoute
@@ -1640,6 +1687,7 @@ export interface RootRouteChildren {
   MusicIdentityIndexRoute: typeof MusicIdentityIndexRoute
   PlaylistsIndexRoute: typeof PlaylistsIndexRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
+  TasksIndexRoute: typeof TasksIndexRoute
   ApiAiDjRecommendationsRoute: typeof ApiAiDjRecommendationsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
@@ -1648,6 +1696,7 @@ export interface RootRouteChildren {
   ApiBackgroundDiscoveryStatusRoute: typeof ApiBackgroundDiscoveryStatusRoute
   ApiBackgroundDiscoverySuggestionsRoute: typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   ApiBackgroundDiscoveryTriggerRoute: typeof ApiBackgroundDiscoveryTriggerRoute
+  ApiCoverArtSaveRoute: typeof ApiCoverArtSaveRoute
   ApiDebugLogsRoute: typeof ApiDebugLogsRoute
   ApiDiscoveryFeedAnalyticsRoute: typeof ApiDiscoveryFeedAnalyticsRoute
   ApiDiscoveryFeedInteractionsRoute: typeof ApiDiscoveryFeedInteractionsRoute
@@ -1681,6 +1730,7 @@ export interface RootRouteChildren {
   ApiMetubeStatusRoute: typeof ApiMetubeStatusRoute
   ApiMusicIdentityIdRoute: typeof ApiMusicIdentityIdRoute
   ApiNavidromeSearchRoute: typeof ApiNavidromeSearchRoute
+  ApiNavidromeStarRoute: typeof ApiNavidromeStarRoute
   ApiPlaylistsIdRoute: typeof ApiPlaylistsIdRouteWithChildren
   ApiPlaylistsDownloadRoute: typeof ApiPlaylistsDownloadRoute
   ApiPlaylistsExportRoute: typeof ApiPlaylistsExportRoute
@@ -1694,6 +1744,7 @@ export interface RootRouteChildren {
   ApiLyricsIndexRoute: typeof ApiLyricsIndexRoute
   ApiMusicIdentityIndexRoute: typeof ApiMusicIdentityIndexRoute
   ApiPlaylistsIndexRoute: typeof ApiPlaylistsIndexRoute
+  ApiTasksIndexRoute: typeof ApiTasksIndexRoute
   ApiDiscoveryFeedNotificationsPreferencesRoute: typeof ApiDiscoveryFeedNotificationsPreferencesRoute
   ApiLibrarySyncAbortRoute: typeof ApiLibrarySyncAbortRoute
   ApiLibrarySyncPauseRoute: typeof ApiLibrarySyncPauseRoute
@@ -1718,13 +1769,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/config': {
-      id: '/config'
-      path: '/config'
-      fullPath: '/config'
-      preLoaderRoute: typeof ConfigRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -1744,6 +1788,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks/': {
+      id: '/tasks/'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof TasksIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings/': {
@@ -1858,6 +1909,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardLibraryGrowthRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/dashboard/generate': {
+      id: '/dashboard/generate'
+      path: '/generate'
+      fullPath: '/dashboard/generate'
+      preLoaderRoute: typeof DashboardGenerateRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/dashboard/discovery-analytics': {
       id: '/dashboard/discovery-analytics'
       path: '/discovery-analytics'
@@ -1948,6 +2006,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/library/artists/'
       preLoaderRoute: typeof LibraryArtistsIndexRouteImport
       parentRoute: typeof LibraryArtistsRoute
+    }
+    '/api/tasks/': {
+      id: '/api/tasks/'
+      path: '/api/tasks'
+      fullPath: '/api/tasks'
+      preLoaderRoute: typeof ApiTasksIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/playlists/': {
       id: '/api/playlists/'
@@ -2108,6 +2173,13 @@ declare module '@tanstack/react-router' {
       path: '/api/playlists/$id'
       fullPath: '/api/playlists/$id'
       preLoaderRoute: typeof ApiPlaylistsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/navidrome/star': {
+      id: '/api/navidrome/star'
+      path: '/api/navidrome/star'
+      fullPath: '/api/navidrome/star'
+      preLoaderRoute: typeof ApiNavidromeStarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/navidrome/search': {
@@ -2339,6 +2411,13 @@ declare module '@tanstack/react-router' {
       path: '/api/debug/logs'
       fullPath: '/api/debug/logs'
       preLoaderRoute: typeof ApiDebugLogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cover-art/save': {
+      id: '/api/cover-art/save'
+      path: '/api/cover-art/save'
+      fullPath: '/api/cover-art/save'
+      preLoaderRoute: typeof ApiCoverArtSaveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/background-discovery/trigger': {
@@ -2649,6 +2728,7 @@ interface DashboardRouteRouteChildren {
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
   DashboardDiscoverRoute: typeof DashboardDiscoverRoute
   DashboardDiscoveryAnalyticsRoute: typeof DashboardDiscoveryAnalyticsRoute
+  DashboardGenerateRoute: typeof DashboardGenerateRoute
   DashboardLibraryGrowthRoute: typeof DashboardLibraryGrowthRoute
   DashboardMoodTimelineRoute: typeof DashboardMoodTimelineRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
@@ -2659,6 +2739,7 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
   DashboardDiscoverRoute: DashboardDiscoverRoute,
   DashboardDiscoveryAnalyticsRoute: DashboardDiscoveryAnalyticsRoute,
+  DashboardGenerateRoute: DashboardGenerateRoute,
   DashboardLibraryGrowthRoute: DashboardLibraryGrowthRoute,
   DashboardMoodTimelineRoute: DashboardMoodTimelineRoute,
   DashboardIndexRoute: DashboardIndexRoute,
@@ -2794,7 +2875,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   authRouteRoute: authRouteRouteWithChildren,
   DashboardRouteRoute: DashboardRouteRouteWithChildren,
-  ConfigRoute: ConfigRoute,
   ApiCacheRoute: ApiCacheRoute,
   ApiConfigRoute: ApiConfigRoute,
   ApiDebugLibraryRoute: ApiDebugLibraryRoute,
@@ -2815,6 +2895,7 @@ const rootRouteChildren: RootRouteChildren = {
   MusicIdentityIndexRoute: MusicIdentityIndexRoute,
   PlaylistsIndexRoute: PlaylistsIndexRoute,
   SettingsIndexRoute: SettingsIndexRoute,
+  TasksIndexRoute: TasksIndexRoute,
   ApiAiDjRecommendationsRoute: ApiAiDjRecommendationsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
@@ -2824,6 +2905,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBackgroundDiscoverySuggestionsRoute:
     ApiBackgroundDiscoverySuggestionsRouteWithChildren,
   ApiBackgroundDiscoveryTriggerRoute: ApiBackgroundDiscoveryTriggerRoute,
+  ApiCoverArtSaveRoute: ApiCoverArtSaveRoute,
   ApiDebugLogsRoute: ApiDebugLogsRoute,
   ApiDiscoveryFeedAnalyticsRoute: ApiDiscoveryFeedAnalyticsRoute,
   ApiDiscoveryFeedInteractionsRoute: ApiDiscoveryFeedInteractionsRoute,
@@ -2859,6 +2941,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMetubeStatusRoute: ApiMetubeStatusRoute,
   ApiMusicIdentityIdRoute: ApiMusicIdentityIdRoute,
   ApiNavidromeSearchRoute: ApiNavidromeSearchRoute,
+  ApiNavidromeStarRoute: ApiNavidromeStarRoute,
   ApiPlaylistsIdRoute: ApiPlaylistsIdRouteWithChildren,
   ApiPlaylistsDownloadRoute: ApiPlaylistsDownloadRoute,
   ApiPlaylistsExportRoute: ApiPlaylistsExportRoute,
@@ -2872,6 +2955,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLyricsIndexRoute: ApiLyricsIndexRoute,
   ApiMusicIdentityIndexRoute: ApiMusicIdentityIndexRoute,
   ApiPlaylistsIndexRoute: ApiPlaylistsIndexRoute,
+  ApiTasksIndexRoute: ApiTasksIndexRoute,
   ApiDiscoveryFeedNotificationsPreferencesRoute:
     ApiDiscoveryFeedNotificationsPreferencesRoute,
   ApiLibrarySyncAbortRoute: ApiLibrarySyncAbortRoute,

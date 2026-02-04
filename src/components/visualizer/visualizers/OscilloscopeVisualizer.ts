@@ -18,7 +18,7 @@ export const OscilloscopeVisualizer: Visualizer = {
   },
 
   render: (ctx: VisualizerContext) => {
-    const { ctx: c, width, height, audioData, colors } = ctx;
+    const { ctx: c, width, height, audioData, colors, quality } = ctx;
     const { waveformData, bass, mid, treble, volume, isBeat } = audioData;
 
     // Clear with slight fade for phosphor effect
@@ -73,7 +73,7 @@ export const OscilloscopeVisualizer: Visualizer = {
     }
 
     // Draw main waveform (Lissajous-style with thickness based on audio)
-    const step = 2;
+    const step = quality === 'low' ? 6 : quality === 'medium' ? 4 : 2;
     const lineWidth = 2 + volume * 4;
 
     c.strokeStyle = cachedGradient;

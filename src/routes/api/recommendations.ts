@@ -11,9 +11,10 @@ import {
 
 const POST = withAuthAndErrorHandling(
   async ({ request }) => {
-    const { prompt, limit = 20 } = await request.json() as {
+    const { prompt, limit = 20, currentSongId } = await request.json() as {
       prompt: string;
       limit?: number;
+      currentSongId?: string;
       // Deprecated: These are no longer used
       model?: string;
       useGenreFiltering?: boolean;
@@ -23,13 +24,15 @@ const POST = withAuthAndErrorHandling(
       return errorResponse('MISSING_REQUIRED_FIELD', 'Prompt required', { status: 400 });
     }
 
-    console.log(`🎭 Generating mood-based recommendations for: "${prompt}"`);
+    console.log(`🎭 Generating mood-based recommendations for: "${prompt}"${currentSongId ? ` (current song: ${currentSongId})` : ''}`);
 
     // Use the unified recommendations service with 'mood' mode
     // AI translates the mood to a smart playlist query, then Navidrome evaluates it
+    // Phase 3.1B: currentSongId enables getSimilarSongs fallback when AI fails
     const result = await getRecommendations({
       mode: 'mood',
       moodDescription: prompt,
+      currentSongId,
       limit,
     });
 

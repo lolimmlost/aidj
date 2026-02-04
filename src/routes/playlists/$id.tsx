@@ -5,7 +5,7 @@ import { useState } from 'react';
 import {
   ListMusic, Play, Trash2, X, Plus, Shuffle,
   Heart, Sparkles, ChevronLeft, MoreHorizontal, Music2, Pause, GripVertical,
-  Users
+  Users, SkipForward
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -67,6 +67,8 @@ interface PlaylistSong {
   addedAt: Date;
   duration?: number | null;
   album?: string | null;
+  albumId?: string | null;
+  starred?: boolean;
 }
 
 interface PlaylistDetail {
@@ -86,6 +88,7 @@ interface SortableSongRowProps {
   onPlayFromSong: (index: number) => void;
   onAddSongToQueue: (song: PlaylistSong, position: 'now' | 'next' | 'end') => void;
   onRemoveSong: (songId: string) => void;
+  onToggleStar: (songId: string, currentlyStarred: boolean) => void;
   isRemovePending: boolean;
 }
 
@@ -97,6 +100,7 @@ function SortableSongRow({
   onPlayFromSong,
   onAddSongToQueue,
   onRemoveSong,
+  onToggleStar,
   isRemovePending,
 }: SortableSongRowProps) {
   const {
@@ -156,6 +160,20 @@ function SortableSongRow({
         )}
       </span>
 
+      {/* Album Art Thumbnail */}
+      {song.albumId ? (
+        <img
+          src={`/api/navidrome/rest/getCoverArt?id=${song.albumId}&size=80`}
+          alt=""
+          className="w-8 h-8 rounded shrink-0 object-cover bg-muted"
+          loading="lazy"
+        />
+      ) : (
+        <div className="w-8 h-8 rounded shrink-0 bg-muted flex items-center justify-center">
+          <Music2 className="h-3.5 w-3.5 text-muted-foreground/50" />
+        </div>
+      )}
+
       {/* Song Info - clickable with proper touch target */}
       <button
         type="button"
@@ -197,6 +215,30 @@ function SortableSongRow({
           year: 'numeric'
         })}
       </span>
+
+      {/* Star toggle - visible on hover */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className={cn(
+          "h-8 w-8 p-0 shrink-0 transition-opacity",
+          song.starred ? "opacity-100 text-rose-500 hover:text-rose-600" : "opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-rose-500"
+        )}
+        onClick={(e) => { e.stopPropagation(); onToggleStar(song.songId, !!song.starred); }}
+      >
+        <Heart className={cn("h-4 w-4", song.starred && "fill-current")} />
+      </Button>
+
+      {/* Play Next - visible on hover */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-8 w-8 p-0 shrink-0 opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+        onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'next'); }}
+        title="Play Next"
+      >
+        <SkipForward className="h-4 w-4" />
+      </Button>
 
       {/* Actions menu - Always visible on mobile, hover on desktop */}
       <DropdownMenu>
@@ -255,6 +297,7 @@ interface VirtualizedPlaylistSongsProps {
   onPlayFromSong: (index: number) => void;
   onAddSongToQueue: (song: PlaylistSong, position: 'now' | 'next' | 'end') => void;
   onRemoveSong: (songId: string) => void;
+  onToggleStar: (songId: string, currentlyStarred: boolean) => void;
   isRemovePending: boolean;
 }
 
@@ -267,6 +310,7 @@ function PlaylistSongsList({
   onPlayFromSong,
   onAddSongToQueue,
   onRemoveSong,
+  onToggleStar,
   isRemovePending,
 }: VirtualizedPlaylistSongsProps) {
   return (
@@ -275,10 +319,13 @@ function PlaylistSongsList({
       <div className="hidden sm:flex items-center gap-3 px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b border-border/50">
         <span className="w-6" /> {/* Drag handle space */}
         <span className="w-8 text-right">#</span>
+        <span className="w-8" /> {/* Art space */}
         <span className="flex-1">Title</span>
         <span className="hidden lg:block w-40 xl:w-48">Album</span>
         <span className="w-14 text-right">Time</span>
         <span className="hidden xl:block w-28 text-right">Added</span>
+        <span className="w-8" /> {/* Star */}
+        <span className="w-8" /> {/* Play next */}
         <span className="w-10" /> {/* Actions space */}
       </div>
 
@@ -303,6 +350,7 @@ function PlaylistSongsList({
                 onPlayFromSong={onPlayFromSong}
                 onAddSongToQueue={onAddSongToQueue}
                 onRemoveSong={onRemoveSong}
+                onToggleStar={onToggleStar}
                 isRemovePending={isRemovePending}
               />
             ))}
@@ -549,6 +597,43 @@ function PlaylistDetailPage() {
         setTimeout(() => setAIUserActionInProgress(false), 2000);
       }
     }
+  };
+
+  // Star/unstar mutation with optimistic update
+  const starMutation = useMutation({
+    mutationFn: async ({ songId, star }: { songId: string; star: boolean }) => {
+      const response = await fetch(`/api/navidrome/star?id=${songId}`, {
+        method: star ? 'POST' : 'DELETE',
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to ${star ? 'star' : 'unstar'} song`);
+      }
+      return response.json();
+    },
+    onMutate: async ({ songId, star }) => {
+      await queryClient.cancelQueries({ queryKey: ['playlist', id] });
+      const previousPlaylist = queryClient.getQueryData(['playlist', id]);
+      queryClient.setQueryData(['playlist', id], (old: PlaylistDetail | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          songs: old.songs.map(s =>
+            s.songId === songId ? { ...s, starred: star } : s
+          ),
+        };
+      });
+      return { previousPlaylist };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previousPlaylist) {
+        queryClient.setQueryData(['playlist', id], context.previousPlaylist);
+      }
+      toast.error('Failed to update star');
+    },
+  });
+
+  const handleToggleStar = (songId: string, currentlyStarred: boolean) => {
+    starMutation.mutate({ songId, star: !currentlyStarred });
   };
 
   const handleRemoveSong = (songId: string) => {
@@ -875,6 +960,7 @@ function PlaylistDetailPage() {
                 onPlayFromSong={handlePlayFromSong}
                 onAddSongToQueue={handleAddSongToQueue}
                 onRemoveSong={handleRemoveSong}
+                onToggleStar={handleToggleStar}
                 isRemovePending={removeSongMutation.isPending}
               />
             )}

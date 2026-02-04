@@ -69,7 +69,7 @@ function NavidromeErrorFallback({ error, reset }: NavidromeErrorFallbackProps) {
         <Button onClick={reset} variant="default">
           Try Again
         </Button>
-        <Button variant="outline" onClick={() => window.location.href = "/config"}>
+        <Button variant="outline" onClick={() => window.location.href = "/settings/services"}>
           Check Settings
         </Button>
       </div>

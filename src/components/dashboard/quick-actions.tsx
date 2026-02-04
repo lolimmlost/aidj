@@ -1,8 +1,10 @@
 /**
  * Quick Actions Component - Mood-based Playlist Generation
  * Beautiful gradient cards for instant playlist creation
+ * Navigates to /dashboard/generate with preset param
  */
 
+import { useNavigate } from '@tanstack/react-router';
 import { Sparkles, Zap, PartyPopper, Target, Compass, Music, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -67,7 +69,7 @@ export const STYLE_PRESETS: StylePreset[] = [
 ];
 
 interface QuickActionsProps {
-  onPresetClick: (preset: StylePreset) => void;
+  onPresetClick?: (preset: StylePreset) => void;
   onContinueListening?: () => void;
   lastPlayedSong?: { title: string; artist: string } | null;
   isLoading?: boolean;
@@ -81,6 +83,18 @@ export function QuickActions({
   activePreset = null,
   className,
 }: QuickActionsProps) {
+  const navigate = useNavigate();
+
+  const handlePresetClick = (preset: StylePreset) => {
+    // If a custom handler is provided (e.g., from generate page), use it
+    if (onPresetClick) {
+      onPresetClick(preset);
+      return;
+    }
+    // Default: navigate to generate page with preset
+    navigate({ to: '/dashboard/generate', search: { preset: preset.id } });
+  };
+
   return (
     <section className={cn('space-y-4', className)}>
       {/* Section Header */}
@@ -103,7 +117,7 @@ export function QuickActions({
               preset={preset}
               isActive={activePreset === preset.id}
               isLoading={isLoading && activePreset === preset.id}
-              onClick={() => onPresetClick(preset)}
+              onClick={() => handlePresetClick(preset)}
               compact
             />
           ))}
@@ -117,7 +131,7 @@ export function QuickActions({
             preset={preset}
             isActive={activePreset === preset.id}
             isLoading={isLoading && activePreset === preset.id}
-            onClick={() => onPresetClick(preset)}
+            onClick={() => handlePresetClick(preset)}
           />
         ))}
       </div>

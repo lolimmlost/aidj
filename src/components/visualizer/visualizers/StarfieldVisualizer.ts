@@ -1,4 +1,5 @@
 import type { Visualizer, VisualizerContext } from '../types';
+import { getAdaptiveCount } from '../perf-utils';
 
 interface Star {
   x: number;
@@ -9,16 +10,18 @@ interface Star {
   size: number;
 }
 
-const MAX_STARS = 200;
+const BASE_MAX_STARS = 200;
 let stars: Star[] = [];
 let initialized = false;
+let initializedCount = 0;
 
-function initStars(width: number, height: number) {
+function initStars(width: number, height: number, count: number) {
   stars = [];
-  for (let i = 0; i < MAX_STARS; i++) {
+  for (let i = 0; i < count; i++) {
     stars.push(createStar(width, height, true));
   }
   initialized = true;
+  initializedCount = count;
 }
 
 function createStar(width: number, height: number, randomZ: boolean): Star {
@@ -39,20 +42,23 @@ export const StarfieldVisualizer: Visualizer = {
   init: () => {
     stars = [];
     initialized = false;
+    initializedCount = 0;
   },
 
   cleanup: () => {
     stars = [];
     initialized = false;
+    initializedCount = 0;
   },
 
   render: (ctx: VisualizerContext) => {
-    const { ctx: c, width, height, centerX, centerY, audioData, colors } = ctx;
+    const { ctx: c, width, height, centerX, centerY, audioData, colors, quality } = ctx;
     const { bass, mid, volume, isBeat } = audioData;
+    const maxStars = getAdaptiveCount(BASE_MAX_STARS, quality);
 
-    // Initialize stars if needed
-    if (!initialized || stars.length === 0) {
-      initStars(width, height);
+    // Initialize stars if needed or count changed due to quality
+    if (!initialized || stars.length === 0 || initializedCount !== maxStars) {
+      initStars(width, height, maxStars);
     }
 
     // Clear canvas

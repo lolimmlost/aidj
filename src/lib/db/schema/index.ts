@@ -13,3 +13,4 @@ export * from "./music-identity.schema";
 export * from "./lyrics-cache.schema";
 export * from "./background-discovery.schema";
 export * from "./profile.schema";
+export * from "./saved-cover-art.schema";

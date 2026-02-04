@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { useAudioAnalyzer } from './useAudioAnalyzer';
 import { visualizers, getNextVisualizer, getPreviousVisualizer } from './visualizers';
 import { COLOR_THEMES, DEFAULT_SETTINGS, type Visualizer, type ColorTheme, type VisualizerSettings, type VisualizerContext } from './types';
+import { getQualityLevel, type QualityLevel } from './perf-utils';
 import { useAudioStore } from '@/lib/stores/audio';
 import { getLyrics, getCurrentLineIndex, type LyricLine, type LyricsResponse } from '@/lib/services/lyrics';
 
@@ -185,6 +186,7 @@ export function VisualizerModal({ isOpen, onClose, audioElement }: VisualizerMod
           colors: currentTheme,
           deltaTime: 0,
           time: 0,
+          quality: qualityRef.current,
         });
       }
     }
@@ -218,6 +220,7 @@ export function VisualizerModal({ isOpen, onClose, audioElement }: VisualizerMod
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const fpsLimitRef = useRef(settings.fpsLimit);
   const lastFrameTimeRef = useRef(0);
+  const qualityRef = useRef<QualityLevel>(settings.quality === 'auto' ? getQualityLevel() : settings.quality);
 
   // Keep refs in sync
   useEffect(() => { audioDataRef.current = audioData; }, [audioData]);
@@ -225,6 +228,7 @@ export function VisualizerModal({ isOpen, onClose, audioElement }: VisualizerMod
   useEffect(() => { currentVisualizerRef.current = currentVisualizer; }, [currentVisualizer]);
   useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
   useEffect(() => { fpsLimitRef.current = settings.fpsLimit; }, [settings.fpsLimit]);
+  useEffect(() => { qualityRef.current = settings.quality === 'auto' ? getQualityLevel() : settings.quality; }, [settings.quality]);
 
   // Animation loop - stable callback, no dependencies
   const animate = useCallback(() => {
@@ -292,6 +296,7 @@ export function VisualizerModal({ isOpen, onClose, audioElement }: VisualizerMod
         colors: currentThemeRef.current,
         deltaTime,
         time,
+        quality: qualityRef.current,
       };
     } else {
       // Update existing object (avoid creating new object every frame)
@@ -306,6 +311,7 @@ export function VisualizerModal({ isOpen, onClose, audioElement }: VisualizerMod
       vizCtx.colors = currentThemeRef.current;
       vizCtx.deltaTime = deltaTime;
       vizCtx.time = time;
+      vizCtx.quality = qualityRef.current;
     }
 
     // Render current visualizer
@@ -551,6 +557,30 @@ export function VisualizerModal({ isOpen, onClose, audioElement }: VisualizerMod
                 ))}
               </div>
               <p className="text-white/40 text-xs mt-1">Lower FPS saves battery</p>
+            </div>
+
+            {/* Quality */}
+            <div>
+              <label className="text-white/60 text-sm block mb-2">
+                Quality: {settings.quality === 'auto' ? 'Auto' : settings.quality.charAt(0).toUpperCase() + settings.quality.slice(1)}
+              </label>
+              <div className="flex gap-2">
+                {(['auto', 'high', 'medium', 'low'] as const).map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => setSettings((prev) => ({ ...prev, quality: q }))}
+                    className={cn(
+                      'flex-1 py-1.5 text-xs rounded transition-colors capitalize',
+                      settings.quality === q
+                        ? 'bg-white text-black font-medium'
+                        : 'bg-white/10 text-white/60 hover:bg-white/20'
+                    )}
+                  >
+                    {q === 'auto' ? 'Auto' : q}
+                  </button>
+                ))}
+              </div>
+              <p className="text-white/40 text-xs mt-1">Reduces particles and effects on lower settings</p>
             </div>
 
             {/* Auto-rotate */}
