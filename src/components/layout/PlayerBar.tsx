@@ -740,12 +740,16 @@ export function PlayerBar() {
               // Reinforce Media Session state after cleanup events settle
               // Mobile browsers may re-evaluate playback state when the old deck's
               // source is replaced and fires loadedmetadata/pause events
-              setTimeout(() => {
-                const newActive = getActiveDeck();
-                if (newActive && !newActive.paused) {
-                  navigator.mediaSession.playbackState = 'playing';
-                }
-              }, 500);
+              // The inactive deck can auto-play the preloaded song ~1s later,
+              // so reinforce at multiple intervals to cover the full window
+              for (const delay of [500, 1500, 3000]) {
+                setTimeout(() => {
+                  const newActive = getActiveDeck();
+                  if (newActive && !newActive.paused) {
+                    navigator.mediaSession.playbackState = 'playing';
+                  }
+                }, delay);
+              }
             }
           }, 50);
         })
@@ -1427,6 +1431,11 @@ export function PlayerBar() {
         console.log(`🎛️ PlayerBar: Ignoring playing event from inactive deck - stopping it`);
         playingDeck.pause();
         playingDeck.currentTime = 0;
+        // Reinforce Media Session state — the pause event from stopping the inactive deck
+        // can cause the browser/OS to show "paused" on the lockscreen
+        if (navigator.mediaSession) {
+          navigator.mediaSession.playbackState = 'playing';
+        }
         return;
       }
 
