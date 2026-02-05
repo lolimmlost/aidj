@@ -66,6 +66,7 @@ interface SortablePlaylistCardProps {
   isLoadingSongs: boolean;
   onAddToQueue: (playlist: Playlist, songs: PlaylistSong[], position: 'next' | 'end') => void;
   onPlayFromSong: (playlist: Playlist, songs: PlaylistSong[], startIndex: number) => void;
+  onPlayPlaylist: (playlist: Playlist) => void;
   onExport: (playlist: Playlist) => void;
   formatDuration: (seconds?: number | null) => string;
   formatLastSynced: (date?: Date | null) => string | null;
@@ -80,6 +81,7 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
   isLoadingSongs,
   onAddToQueue,
   onPlayFromSong,
+  onPlayPlaylist,
   onExport,
   formatDuration,
   formatLastSynced,
@@ -134,7 +136,7 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
     >
       <CardContent className="p-0">
         {/* Card Header */}
-        <div className="p-4 pb-3">
+        <div className="p-3 pb-2.5">
           <div className="flex items-start justify-between gap-2 mb-2">
             {/* Drag Handle - Always visible on mobile, hover on desktop */}
             <button
@@ -278,14 +280,13 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
             )}
           </button>
           <div className="w-px bg-border/50" />
-          <Link
-            to="/playlists/$id"
-            params={{ id: playlist.id }}
+          <button
+            onClick={() => onPlayPlaylist(playlist)}
             className="flex-1 flex items-center justify-center gap-2 min-h-[48px] py-3 text-sm font-medium hover:bg-accent active:bg-accent/80 transition-colors"
           >
             <Play className="h-4 w-4" />
             <span>Play</span>
-          </Link>
+          </button>
         </div>
 
         {/* Expanded Song List - Desktop only */}
@@ -563,6 +564,30 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     }
   }, []);
 
+  const handlePlayPlaylist = useCallback(async (playlist: Playlist) => {
+    try {
+      const { loadPlaylistIntoQueue } = await import('@/lib/utils/playlist-helpers');
+      const audioSongs = await loadPlaylistIntoQueue(playlist.id);
+
+      if (audioSongs.length === 0) {
+        toast.error('This playlist is empty');
+        return;
+      }
+
+      const { setPlaylist, playSong, setIsPlaying } = useAudioStore.getState();
+      setPlaylist(audioSongs);
+      playSong(audioSongs[0].id, audioSongs);
+      setIsPlaying(true);
+
+      toast.success(`Playing "${playlist.name}"`, {
+        description: `${audioSongs.length} songs`,
+      });
+    } catch (error) {
+      console.error('Failed to play playlist:', error);
+      toast.error('Failed to load playlist');
+    }
+  }, []);
+
   const handleExport = useCallback((playlist: Playlist) => {
     setSelectedPlaylist(playlist);
     setExportDialogOpen(true);
@@ -796,7 +821,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
           items={playlists.map((p) => p.id)}
           strategy={rectSortingStrategy}
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {playlists.map((playlist) => (
               <SortablePlaylistCard
                 key={playlist.id}
@@ -807,6 +832,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
                 isLoadingSongs={isLoadingSongs && expandedPlaylistId === playlist.id}
                 onAddToQueue={handleAddToQueue}
                 onPlayFromSong={handlePlayFromSong}
+                onPlayPlaylist={handlePlayPlaylist}
                 onExport={handleExport}
                 formatDuration={formatDuration}
                 formatLastSynced={formatLastSynced}

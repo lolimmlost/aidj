@@ -261,11 +261,11 @@ function DownloadStatusPage() {
           <CardContent>
             <div className="space-y-3">
               {status.queue.map((item) => (
-                <div key={item.id} className="flex items-start justify-between gap-4 p-4 border border-border/50 rounded-lg bg-card/50">
+                <div key={item.id} className="flex flex-col gap-3 p-4 border border-border/50 rounded-lg bg-card/50">
                   <div className="flex-1 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-foreground">{item.artistName}</h3>
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${getStatusColor(item.status)}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-semibold text-foreground truncate">{item.artistName}</h3>
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 ${getStatusColor(item.status)}`}>
                         {item.status}
                       </span>
                     </div>
@@ -302,7 +302,7 @@ function DownloadStatusPage() {
                     )}
                   </div>
 
-                  <div className="flex gap-2 flex-shrink-0">
+                  <div className="flex gap-2 sm:self-end">
                     {item.status === 'failed' && (
                       <Button
                         variant="outline"
@@ -387,7 +387,7 @@ function DownloadStatusPage() {
                     : 'bg-orange-50/50 dark:bg-orange-900/10';
 
                 return (
-                  <div key={album.id} className={`flex items-center justify-between p-4 border rounded-lg ${borderClass} ${bgClass}`}>
+                  <div key={album.id} className={`flex flex-col gap-3 p-4 border rounded-lg ${borderClass} ${bgClass}`}>
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-medium">{album.title}</h3>
@@ -417,7 +417,7 @@ function DownloadStatusPage() {
                       <p className="text-sm text-muted-foreground">
                         by {album.artistName}
                       </p>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                         {album.releaseDate && (
                           <span>Released: {new Date(album.releaseDate).toLocaleDateString()}</span>
                         )}
@@ -426,7 +426,7 @@ function DownloadStatusPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 sm:self-end">
                       <Button
                         variant="outline"
                         size="sm"

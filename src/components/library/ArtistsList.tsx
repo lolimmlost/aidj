@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { getArtists } from '@/lib/services/navidrome';
 import { Users, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,13 +14,38 @@ import { Link } from '@tanstack/react-router';
 import { PageLayout, PageSection, EmptyState, LoadingGrid } from '@/components/ui/page-layout';
 import { cn } from '@/lib/utils';
 
+function ArtistAvatar({ artistId, name }: { artistId: string; name: string }) {
+  const [imgError, setImgError] = useState(false);
+  const handleError = useCallback(() => setImgError(true), []);
+
+  if (imgError) {
+    return (
+      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center flex-shrink-0 group-hover:from-primary/30 group-hover:to-primary/10 transition-colors">
+        <span className="text-lg font-semibold text-primary">
+          {name.charAt(0).toUpperCase()}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={`/api/navidrome/rest/getCoverArt?id=${artistId}&size=96`}
+      alt={name}
+      className="w-12 h-12 rounded-full object-cover flex-shrink-0 bg-muted"
+      loading="lazy"
+      onError={handleError}
+    />
+  );
+}
+
 export function ArtistsList() {
   const [genre, setGenre] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
 
   const { data: artists = [], isLoading, error } = useQuery({
     queryKey: ['artists', genre],
-    queryFn: () => getArtists(0, 50),
+    queryFn: () => getArtists(0, 1000),
   });
 
   if (error) {
@@ -135,12 +160,8 @@ export function ArtistsList() {
                   'bg-card border-border hover:border-primary/30',
                   'hover:shadow-md hover:-translate-y-0.5'
                 )}>
-                  {/* Artist Avatar */}
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center flex-shrink-0 group-hover:from-primary/30 group-hover:to-primary/10 transition-colors">
-                    <span className="text-lg font-semibold text-primary">
-                      {artist.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
+                  {/* Artist Avatar with Cover Art */}
+                  <ArtistAvatar artistId={artist.id} name={artist.name} />
 
                   {/* Artist Info */}
                   <div className="flex-1 min-w-0">

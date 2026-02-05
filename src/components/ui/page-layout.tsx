@@ -42,7 +42,7 @@ export function PageLayout({
     )}>
       <div className={cn(
         'mx-auto',
-        !fullWidth && 'container px-4 sm:px-6 lg:px-8 py-6 sm:py-8'
+        !fullWidth && 'max-w-7xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6'
       )}>
         {/* Page Header */}
         <header className={cn(

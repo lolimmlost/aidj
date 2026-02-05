@@ -187,8 +187,7 @@ function generateMockAnalysis(song: Song): AudioAnalysis {
  */
 function extractGenreHints(song: Song): string[] {
   const hints: string[] = [];
-  const metadata = `${song.artist} ${song.name} ${song.album}`.toLowerCase();
-  
+
   // Common genre keywords
   const genreKeywords = [
     'rock', 'pop', 'jazz', 'classical', 'electronic', 'hip-hop', 'hip hop', 'rap',
@@ -197,13 +196,27 @@ function extractGenreHints(song: Song): string[] {
     'funk', 'disco', 'grunge', 'emo', 'ska', 'gospel', 'latin', 'world',
     'acoustic', 'instrumental', 'dubstep', 'drum', 'bass', 'trance', 'dub'
   ];
-  
-  for (const keyword of genreKeywords) {
-    if (metadata.includes(keyword)) {
-      hints.push(keyword);
+
+  // Check the actual genre tag from Navidrome first (most reliable source)
+  if (song.genre) {
+    const genreTag = song.genre.toLowerCase();
+    for (const keyword of genreKeywords) {
+      if (genreTag.includes(keyword)) {
+        hints.push(keyword);
+      }
     }
   }
-  
+
+  // Fall back to scanning artist/title/album text if no genre tag matches
+  if (hints.length === 0) {
+    const metadata = `${song.artist} ${song.name} ${song.album}`.toLowerCase();
+    for (const keyword of genreKeywords) {
+      if (metadata.includes(keyword)) {
+        hints.push(keyword);
+      }
+    }
+  }
+
   return hints;
 }
 
