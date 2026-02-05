@@ -633,12 +633,19 @@ export async function generateSuggestions(
   const needsAlbumImage = limited.filter(
     s => s.albumName && !s.imageUrl && !resolvedArtistImages.has(s.artistName.toLowerCase())
   );
-  const albumImageResults = await Promise.allSettled(
-    needsAlbumImage.slice(0, 5).map(async s => {
-      const url = await resolveAlbumImage(s.artistName, s.albumName!);
-      return { key: s.artistName.toLowerCase(), url };
-    })
-  );
+  // Process album image lookups in batches of 3 for rate limiting
+  const ALBUM_CONCURRENCY = 3;
+  const albumImageResults: PromiseSettledResult<{ key: string; url: string | null }>[] = [];
+  for (let i = 0; i < needsAlbumImage.length; i += ALBUM_CONCURRENCY) {
+    const batch = needsAlbumImage.slice(i, i + ALBUM_CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(async s => {
+        const url = await resolveAlbumImage(s.artistName, s.albumName!);
+        return { key: s.artistName.toLowerCase(), url };
+      })
+    );
+    albumImageResults.push(...results);
+  }
   const resolvedAlbumImages = new Map<string, string>();
   for (const r of albumImageResults) {
     if (r.status === 'fulfilled' && r.value.url) {

@@ -1000,30 +1000,36 @@ export const useAudioStore = create<AudioState>()(
           return;
         }
 
+        // Re-read current state for playlist mutation — the user may have
+        // skipped songs while the API call was in flight, so using the stale
+        // `state` captured at the start would reset currentSongIndex and
+        // insert at the wrong position.
+        const freshState = get();
+
         // Add recommendations to queue
         // For drip-feed: insert RIGHT AFTER current song (plays next)
         // For threshold refill: append to end of queue
         let newPlaylist: Song[];
         if (isDripTrigger) {
           // Insert after current song position
-          const insertIndex = state.currentSongIndex + 1;
+          const insertIndex = freshState.currentSongIndex + 1;
           newPlaylist = [
-            ...state.playlist.slice(0, insertIndex),
+            ...freshState.playlist.slice(0, insertIndex),
             ...recommendations,
-            ...state.playlist.slice(insertIndex),
+            ...freshState.playlist.slice(insertIndex),
           ];
           console.log(`🎵 AI DJ: Drip recommendation inserted at position ${insertIndex} (plays next)`);
         } else {
           // Threshold refill - append to end
-          newPlaylist = [...state.playlist, ...recommendations];
+          newPlaylist = [...freshState.playlist, ...recommendations];
         }
-        const newQueuedIds = new Set(state.aiQueuedSongIds);
+        const newQueuedIds = new Set(freshState.aiQueuedSongIds);
 
         // Track newly recommended songs with artist info
-        const newRecentlyRecommended = [...state.aiDJRecentlyRecommended];
+        const newRecentlyRecommended = [...freshState.aiDJRecentlyRecommended];
 
         // Phase 1.2: Update artist batch counts to prevent exhaustion
-        const newArtistBatchCounts = new Map(state.aiDJArtistBatchCounts);
+        const newArtistBatchCounts = new Map(freshState.aiDJArtistBatchCounts);
 
         recommendations.forEach((song: Song) => {
           newQueuedIds.add(song.id);
@@ -1078,19 +1084,19 @@ export const useAudioStore = create<AudioState>()(
         }
 
         // Check if we need to start playback (empty queue case)
-        const shouldStartPlayback = state.playlist.length === 0 || state.currentSongIndex === -1;
+        const shouldStartPlayback = freshState.playlist.length === 0 || freshState.currentSongIndex === -1;
 
         // If shuffled, also add to originalPlaylist so unshuffle preserves them
-        let newOriginalPlaylist = state.originalPlaylist;
-        if (state.isShuffled && state.originalPlaylist.length > 0) {
-          newOriginalPlaylist = [...state.originalPlaylist, ...recommendations];
+        let newOriginalPlaylist = freshState.originalPlaylist;
+        if (freshState.isShuffled && freshState.originalPlaylist.length > 0) {
+          newOriginalPlaylist = [...freshState.originalPlaylist, ...recommendations];
         }
 
         set({
           playlist: newPlaylist,
           originalPlaylist: newOriginalPlaylist,
-          currentSongIndex: shouldStartPlayback ? 0 : state.currentSongIndex,
-          isPlaying: shouldStartPlayback ? true : state.isPlaying,
+          currentSongIndex: shouldStartPlayback ? 0 : freshState.currentSongIndex,
+          isPlaying: shouldStartPlayback ? true : freshState.isPlaying,
           aiDJLastQueueTime: now,
           aiQueuedSongIds: newQueuedIds,
           aiDJRecentlyRecommended: cleanedRecentlyRecommended,

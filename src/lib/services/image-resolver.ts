@@ -97,7 +97,7 @@ export async function resolveAlbumImage(
  * Processes concurrently with a concurrency limit to avoid hammering Deezer.
  */
 export async function batchResolveImages(
-  items: Array<{ artistName: string; imageUrl?: string | null }>
+  items: Array<{ artistName: string; imageUrl?: string | null; entityId?: string }>
 ): Promise<Map<string, string>> {
   const resolved = new Map<string, string>();
   const CONCURRENCY = 3;
@@ -111,7 +111,8 @@ export async function batchResolveImages(
     const batch = needsResolution.slice(i, i + CONCURRENCY);
     const results = await Promise.allSettled(
       batch.map(async item => {
-        const url = await getDeezerArtistImage(item.artistName);
+        const entityId = item.entityId || `artist:${item.artistName}`;
+        const url = await resolveArtistImage(item.artistName, item.imageUrl, entityId);
         if (url) resolved.set(item.artistName.toLowerCase(), url);
       })
     );

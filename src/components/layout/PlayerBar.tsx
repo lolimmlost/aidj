@@ -712,6 +712,17 @@ export function PlayerBar() {
               // crossfade, and the old deck's 'pause' event could poison the state
               navigator.mediaSession.playbackState = 'playing';
 
+              // Remove canplay/error handlers from old deck BEFORE changing its source.
+              // The silent data URL loads instantly and fires canplay — if the old
+              // handler is still attached it calls play(), causing ghost playing/pause
+              // events that make the browser show "paused" on the lock screen.
+              if (canPlayHandlerRef.current) {
+                oldDeckRef.removeEventListener('canplay', canPlayHandlerRef.current);
+              }
+              if (errorHandlerRef.current) {
+                oldDeckRef.removeEventListener('error', errorHandlerRef.current);
+              }
+
               // Clear the old deck's source IMMEDIATELY to prevent accidental playback
               // iOS can suspend the page at any time, so we can't rely on setTimeout
               // Use silent audio data URL instead of empty string to avoid error events
@@ -801,6 +812,14 @@ export function PlayerBar() {
         inactiveDeck.volume = targetVolumeRef.current;
 
         console.log(`[XFADE] Crossfade force-completed, active deck is now ${activeDeckRef.current}`);
+
+        // Remove canplay/error handlers from old deck before changing source
+        if (canPlayHandlerRef.current) {
+          oldDeckRef.removeEventListener('canplay', canPlayHandlerRef.current);
+        }
+        if (errorHandlerRef.current) {
+          oldDeckRef.removeEventListener('error', errorHandlerRef.current);
+        }
 
         // Clear old deck source IMMEDIATELY - can't rely on setTimeout with iOS
         oldDeckRef.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAgAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbD/////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+M4xAANCAJYAUAAAP/jOMQADQW+XgFJAAD/4zjEAA5QGneBSRgA/+M4xAAOAAJYAUEAAA==';
@@ -1088,7 +1107,49 @@ export function PlayerBar() {
           console.log(`[MOBILE] Skipping loadSong - already loaded via direct transition`);
           return;
         }
-        console.log(`[NETWORK] Song ID matches but audio empty (readyState=${audio.readyState}) - reloading`);
+
+        // RECOVERY: Browser reclaimed audio resources while tab was backgrounded.
+        // The song ID matches but audio is empty — reload and restore position.
+        const storeState = useAudioStore.getState();
+        const wasPlaying = storeState.isPlaying;
+        const savedProgress = storeState.currentTime;
+        console.log(`[NETWORK] Song ID matches but audio empty (readyState=${audio.readyState}) - reloading (wasPlaying=${wasPlaying}, progress=${savedProgress.toFixed(1)}s)`);
+
+        // Remove old handlers
+        if (canPlayHandlerRef.current) {
+          audio.removeEventListener('canplay', canPlayHandlerRef.current);
+        }
+        if (errorHandlerRef.current) {
+          audio.removeEventListener('error', errorHandlerRef.current);
+        }
+
+        const recoveryCanPlay = () => {
+          audio.removeEventListener('canplay', recoveryCanPlay);
+          setIsLoading(false);
+          // Restore playback position
+          if (savedProgress > 0) {
+            audio.currentTime = savedProgress;
+          }
+          // Resume if we were playing before the tab was backgrounded
+          if (wasPlaying) {
+            audio.play()
+              .then(() => {
+                console.log(`[NETWORK] Recovery successful - resumed at ${savedProgress.toFixed(1)}s`);
+                setIsPlaying(true);
+              })
+              .catch((err) => {
+                console.log(`[NETWORK] Recovery play failed:`, err.message);
+                setIsPlaying(false);
+              });
+          }
+        };
+
+        canPlayHandlerRef.current = recoveryCanPlay;
+        audio.addEventListener('canplay', recoveryCanPlay);
+        setIsLoading(true);
+        audio.src = song.url;
+        audio.load();
+        return;
       }
 
       // REMOUNT RECOVERY: If either deck already has this song loaded with progress, don't reload
@@ -1428,11 +1489,11 @@ export function PlayerBar() {
       // iOS may auto-resume the inactive deck (with silent data URL) on visibility change
       // BUT: During crossfade or priming, we WANT the inactive deck to play
       if (!isActiveDeck && !crossfadeInProgressRef.current && !isPrimingRef.current) {
-        console.log(`🎛️ PlayerBar: Ignoring playing event from inactive deck - stopping it`);
-        playingDeck.pause();
-        playingDeck.currentTime = 0;
-        // Reinforce Media Session state — the pause event from stopping the inactive deck
-        // can cause the browser/OS to show "paused" on the lockscreen
+        console.log(`🎛️ PlayerBar: Ignoring playing event from inactive deck - muting it`);
+        // DON'T call pause() — the DOM pause event causes the browser/OS to show
+        // "paused" on the lockscreen, overriding our Media Session playbackState.
+        // Instead, mute the deck and let the tiny silent data URL play to completion.
+        playingDeck.volume = 0;
         if (navigator.mediaSession) {
           navigator.mediaSession.playbackState = 'playing';
         }

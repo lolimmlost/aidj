@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Check, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -10,6 +10,9 @@ export function isDeezerImage(url: string | null | undefined): boolean {
   if (!url) return false;
   return url.includes('dzcdn.net') || url.includes('deezer.com');
 }
+
+// Module-level cache to avoid re-checking same entities within a session
+const savedEntityCache = new Set<string>();
 
 interface CoverArtApprovalProps {
   imageUrl: string;
@@ -36,7 +39,21 @@ export function CoverArtApproval({
   className,
 }: CoverArtApprovalProps) {
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(savedEntityCache.has(entityId));
+
+  // Check DB on mount for Deezer images
+  useEffect(() => {
+    if (!isDeezerImage(imageUrl) || savedEntityCache.has(entityId)) return;
+    fetch(`/api/cover-art/save?entityId=${encodeURIComponent(entityId)}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(({ data }) => {
+        if (data?.saved) {
+          savedEntityCache.add(entityId);
+          setSaved(true);
+        }
+      })
+      .catch(() => {}); // Silently fail
+  }, [entityId, imageUrl]);
 
   if (!isDeezerImage(imageUrl) || saved) {
     return <>{children}</>;
@@ -51,6 +68,7 @@ export function CoverArtApproval({
       const res = await fetch('/api/cover-art/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           entityId,
           entityType,
@@ -62,6 +80,7 @@ export function CoverArtApproval({
       });
 
       if (res.ok) {
+        savedEntityCache.add(entityId);
         setSaved(true);
         toast.success('Artwork saved');
       } else {
@@ -80,7 +99,7 @@ export function CoverArtApproval({
       <button
         onClick={handleSave}
         disabled={saving}
-        className="absolute bottom-1 right-1 opacity-0 group-hover/art:opacity-100 transition-opacity bg-black/70 hover:bg-black/90 text-white rounded-full p-1 text-xs backdrop-blur-sm"
+        className="absolute bottom-1 right-1 opacity-70 hover:opacity-100 sm:opacity-0 sm:group-hover/art:opacity-100 transition-opacity bg-black/70 hover:bg-black/90 text-white rounded-full p-1 text-xs backdrop-blur-sm"
         title="Save artwork to library"
       >
         {saving ? (
