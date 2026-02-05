@@ -891,6 +891,22 @@ export const useAudioStore = create<AudioState>()(
         // Note: User-specific artist blocklist is loaded server-side in the recommendations API
         // using the artist-blocklist service for consistent filtering
 
+        // Get artists already in the upcoming queue to prevent concentration
+        // Look ahead at the next N songs to avoid recommending artists already queued
+        const upcomingSlice = state.playlist.slice(
+          state.currentSongIndex + 1,
+          state.currentSongIndex + 11 // Next 10 songs
+        );
+        const upcomingArtistCounts = new Map<string, number>();
+        for (const song of upcomingSlice) {
+          if (song.artist) {
+            const key = song.artist.toLowerCase();
+            upcomingArtistCounts.set(key, (upcomingArtistCounts.get(key) || 0) + 1);
+          }
+        }
+        // Exclude artists that already appear in upcoming queue
+        const upcomingArtists = Array.from(upcomingArtistCounts.keys());
+
         // Combine all exclusions
         const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed])];
 
@@ -920,10 +936,11 @@ export const useAudioStore = create<AudioState>()(
           set({ aiDJArtistFatigueCooldowns: cleanedFatigueCooldowns });
         }
 
-        // Combine fatigue-excluded artists with recently recommended artists
+        // Combine fatigue-excluded artists with recently recommended artists and upcoming queue artists
         const allExcludedArtists = Array.from(new Set([
           ...recentlyRecommendedArtists,
-          ...fatigueExcludedArtists
+          ...fatigueExcludedArtists,
+          ...upcomingArtists,
         ]));
 
         // Drip-feed model: request 1 song for drip triggers, batch size for threshold triggers
@@ -983,30 +1000,36 @@ export const useAudioStore = create<AudioState>()(
           return;
         }
 
+        // Re-read current state for playlist mutation — the user may have
+        // skipped songs while the API call was in flight, so using the stale
+        // `state` captured at the start would reset currentSongIndex and
+        // insert at the wrong position.
+        const freshState = get();
+
         // Add recommendations to queue
         // For drip-feed: insert RIGHT AFTER current song (plays next)
         // For threshold refill: append to end of queue
         let newPlaylist: Song[];
         if (isDripTrigger) {
           // Insert after current song position
-          const insertIndex = state.currentSongIndex + 1;
+          const insertIndex = freshState.currentSongIndex + 1;
           newPlaylist = [
-            ...state.playlist.slice(0, insertIndex),
+            ...freshState.playlist.slice(0, insertIndex),
             ...recommendations,
-            ...state.playlist.slice(insertIndex),
+            ...freshState.playlist.slice(insertIndex),
           ];
           console.log(`🎵 AI DJ: Drip recommendation inserted at position ${insertIndex} (plays next)`);
         } else {
           // Threshold refill - append to end
-          newPlaylist = [...state.playlist, ...recommendations];
+          newPlaylist = [...freshState.playlist, ...recommendations];
         }
-        const newQueuedIds = new Set(state.aiQueuedSongIds);
+        const newQueuedIds = new Set(freshState.aiQueuedSongIds);
 
         // Track newly recommended songs with artist info
-        const newRecentlyRecommended = [...state.aiDJRecentlyRecommended];
+        const newRecentlyRecommended = [...freshState.aiDJRecentlyRecommended];
 
         // Phase 1.2: Update artist batch counts to prevent exhaustion
-        const newArtistBatchCounts = new Map(state.aiDJArtistBatchCounts);
+        const newArtistBatchCounts = new Map(freshState.aiDJArtistBatchCounts);
 
         recommendations.forEach((song: Song) => {
           newQueuedIds.add(song.id);
@@ -1061,19 +1084,19 @@ export const useAudioStore = create<AudioState>()(
         }
 
         // Check if we need to start playback (empty queue case)
-        const shouldStartPlayback = state.playlist.length === 0 || state.currentSongIndex === -1;
+        const shouldStartPlayback = freshState.playlist.length === 0 || freshState.currentSongIndex === -1;
 
         // If shuffled, also add to originalPlaylist so unshuffle preserves them
-        let newOriginalPlaylist = state.originalPlaylist;
-        if (state.isShuffled && state.originalPlaylist.length > 0) {
-          newOriginalPlaylist = [...state.originalPlaylist, ...recommendations];
+        let newOriginalPlaylist = freshState.originalPlaylist;
+        if (freshState.isShuffled && freshState.originalPlaylist.length > 0) {
+          newOriginalPlaylist = [...freshState.originalPlaylist, ...recommendations];
         }
 
         set({
           playlist: newPlaylist,
           originalPlaylist: newOriginalPlaylist,
-          currentSongIndex: shouldStartPlayback ? 0 : state.currentSongIndex,
-          isPlaying: shouldStartPlayback ? true : state.isPlaying,
+          currentSongIndex: shouldStartPlayback ? 0 : freshState.currentSongIndex,
+          isPlaying: shouldStartPlayback ? true : freshState.isPlaying,
           aiDJLastQueueTime: now,
           aiQueuedSongIds: newQueuedIds,
           aiDJRecentlyRecommended: cleanedRecentlyRecommended,
@@ -1694,6 +1717,8 @@ export const useAudioStore = create<AudioState>()(
       isShuffled: state.isShuffled,
       originalPlaylist: state.originalPlaylist,
       aiDJEnabled: state.aiDJEnabled,
+      // AI DJ diversity tracking (survives page refresh)
+      aiDJRecentlyRecommended: state.aiDJRecentlyRecommended,
       crossfadeEnabled: state.crossfadeEnabled,
       crossfadeDuration: state.crossfadeDuration,
       // Autoplay settings
@@ -1713,6 +1738,14 @@ export const useAudioStore = create<AudioState>()(
         state.songsPlayedSinceLastRec = 0; // Reset drip-feed counter
         // Reinitialize Set (can't be serialized in JSON)
         state.aiQueuedSongIds = new Set<string>();
+        // Clean up expired entries from persisted recently recommended list
+        const now = Date.now();
+        if (state.aiDJRecentlyRecommended?.length) {
+          state.aiDJRecentlyRecommended = state.aiDJRecentlyRecommended.filter(
+            rec => now - rec.timestamp < 28800000 // Keep entries within 8-hour window
+          );
+          console.log(`🎵 Restored ${state.aiDJRecentlyRecommended.length} recent AI DJ recommendations`);
+        }
         // Reset autoplay transient state
         state.autoplayIsLoading = false;
         state.autoplayTransitionActive = false;

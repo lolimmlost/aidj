@@ -3,7 +3,7 @@
  *
  * Fetches lyrics from multiple sources with server-side caching:
  * 1. Database cache (30 days)
- * 2. Navidrome (embedded lyrics)
+ * 2. Navidrome (embedded lyrics via songId or artist/title)
  * 3. LRCLIB (free synced lyrics API)
  */
 
@@ -11,6 +11,8 @@ import { createFileRoute } from '@tanstack/react-router';
 import { db } from '@/lib/db';
 import { sql } from 'drizzle-orm';
 import { lyricsCache } from '@/lib/db/schema/lyrics-cache.schema';
+import { getConfig } from '@/lib/config/config';
+import { getAuthToken, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
 
 interface LyricLine {
   time: number;
@@ -87,6 +89,119 @@ function processLRCLIBData(data: any): LyricsResponse {
 }
 
 /**
+ * Build Navidrome Subsonic API URL with auth params
+ */
+function buildSubsonicUrl(endpoint: string, params: Record<string, string> = {}): string | null {
+  const config = getConfig();
+  if (!config.navidromeUrl || !subsonicToken || !subsonicSalt) {
+    return null;
+  }
+
+  const url = new URL(`${config.navidromeUrl}/rest/${endpoint}`);
+  url.searchParams.set('u', config.navidromeUsername || '');
+  url.searchParams.set('t', subsonicToken);
+  url.searchParams.set('s', subsonicSalt);
+  url.searchParams.set('v', '1.16.1');
+  url.searchParams.set('c', 'aidj');
+  url.searchParams.set('f', 'json');
+
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+
+  return url.toString();
+}
+
+/**
+ * Fetch lyrics from Navidrome server-side using Subsonic API
+ */
+async function fetchFromNavidrome(
+  artist: string,
+  title: string,
+  songId?: string
+): Promise<LyricsResponse | null> {
+  try {
+    const config = getConfig();
+    if (!config.navidromeUrl) return null;
+
+    // Ensure auth is ready
+    await getAuthToken();
+
+    // Try getLyricsBySongId first (OpenSubsonic extension) if we have songId
+    if (songId) {
+      const url = buildSubsonicUrl('getLyricsBySongId', { id: songId });
+      if (url) {
+        const response = await fetch(url);
+
+        if (response.ok) {
+          const data = await response.json();
+          const lyricsData = data?.['subsonic-response']?.lyricsList?.structuredLyrics;
+
+          if (lyricsData && lyricsData.length > 0) {
+            const syncedLyrics = lyricsData.find((l: { synced: boolean }) => l.synced);
+            const plainLyrics = lyricsData.find((l: { synced: boolean }) => !l.synced);
+
+            if (syncedLyrics?.line) {
+              const lines: LyricLine[] = syncedLyrics.line.map((l: { start: number; value: string }) => ({
+                time: l.start / 1000,
+                text: l.value,
+              }));
+              return {
+                lyrics: lines.map(l => l.text).join('\n'),
+                syncedLyrics: lines,
+                source: 'navidrome',
+              };
+            }
+
+            if (plainLyrics?.line) {
+              const text = plainLyrics.line.map((l: { value: string }) => l.value).join('\n');
+              return {
+                lyrics: text,
+                syncedLyrics: null,
+                source: 'navidrome',
+              };
+            }
+          }
+        }
+      }
+    }
+
+    // Fallback to getLyrics (original Subsonic API)
+    const url = buildSubsonicUrl('getLyrics', { artist, title });
+    if (url) {
+      const response = await fetch(url);
+
+      if (response.ok) {
+        const data = await response.json();
+        const lyrics = data?.['subsonic-response']?.lyrics;
+
+        if (lyrics?.value) {
+          if (lyrics.value.includes('[') && /\[\d{2}:\d{2}/.test(lyrics.value)) {
+            const parsed = parseLRC(lyrics.value);
+            return {
+              lyrics: parsed.map(l => l.text).join('\n'),
+              syncedLyrics: parsed,
+              source: 'navidrome',
+            };
+          }
+
+          return {
+            lyrics: lyrics.value,
+            syncedLyrics: null,
+            source: 'navidrome',
+          };
+        }
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error fetching lyrics from Navidrome:', error);
+    return null;
+  }
+}
+
+/**
  * Fetch lyrics from LRCLIB
  */
 async function fetchFromLRCLIB(
@@ -105,7 +220,7 @@ async function fetchFromLRCLIB(
         duration: Math.round(duration).toString(),
       });
 
-      console.log(`🎵 LRCLIB exact match attempt: ${params.toString()}`);
+      console.log(`[Lyrics] LRCLIB exact match attempt: ${params.toString()}`);
 
       const response = await fetch(`https://lrclib.net/api/get?${params.toString()}`, {
         headers: {
@@ -115,15 +230,15 @@ async function fetchFromLRCLIB(
 
       if (response.ok) {
         const data = await response.json();
-        console.log(`✅ LRCLIB exact match found!`);
+        console.log(`[Lyrics] LRCLIB exact match found`);
         return processLRCLIBData(data);
       }
 
-      console.log(`❌ LRCLIB exact match failed: ${response.status}`);
+      console.log(`[Lyrics] LRCLIB exact match failed: ${response.status}`);
     }
 
     // Fallback: Try search API
-    console.log(`🔍 LRCLIB search fallback: ${artist} - ${title}`);
+    console.log(`[Lyrics] LRCLIB search fallback: ${artist} - ${title}`);
     const searchParams = new URLSearchParams({
       track_name: title,
       artist_name: artist,
@@ -136,19 +251,18 @@ async function fetchFromLRCLIB(
     });
 
     if (!searchResponse.ok) {
-      console.log(`❌ LRCLIB search failed: ${searchResponse.status}`);
+      console.log(`[Lyrics] LRCLIB search failed: ${searchResponse.status}`);
       return null;
     }
 
     const searchResults = await searchResponse.json();
 
     if (!Array.isArray(searchResults) || searchResults.length === 0) {
-      console.log(`❌ LRCLIB search returned no results`);
+      console.log(`[Lyrics] LRCLIB search returned no results`);
       return null;
     }
 
-    // Use the first result
-    console.log(`✅ LRCLIB search found ${searchResults.length} results, using first match`);
+    console.log(`[Lyrics] LRCLIB search found ${searchResults.length} results, using first match`);
     return processLRCLIBData(searchResults[0]);
   } catch (error) {
     console.error('Error fetching from LRCLIB:', error);
@@ -157,31 +271,15 @@ async function fetchFromLRCLIB(
 }
 
 /**
- * Get cache key for lyrics lookup
- */
-function getCacheKey(artist: string, title: string, album?: string, duration?: number): string {
-  const parts = [
-    artist.toLowerCase().trim(),
-    title.toLowerCase().trim(),
-  ];
-  if (album) parts.push(album.toLowerCase().trim());
-  if (duration) parts.push(Math.round(duration).toString());
-  return parts.join('::');
-}
-
-/**
  * Check cache for lyrics
  */
 async function checkCache(
   artist: string,
   title: string,
-  album?: string,
-  duration?: number
 ): Promise<LyricsResponse | null> {
   try {
     const now = new Date();
 
-    // Build where clause to match song
     const result = await db
       .select()
       .from(lyricsCache)
@@ -239,10 +337,11 @@ async function saveToCache(
 async function getLyricsData(params: {
   artist: string;
   title: string;
+  songId?: string;
   album?: string;
   duration?: number;
 }): Promise<LyricsResponse> {
-  const { artist, title, album, duration } = params;
+  const { artist, title, songId, album, duration } = params;
 
   // Clean up artist and title
   const cleanTitle = title
@@ -259,24 +358,30 @@ async function getLyricsData(params: {
     .trim();
 
   // 1. Check cache first
-  const cached = await checkCache(cleanArtist, cleanTitle, album, duration);
+  const cached = await checkCache(cleanArtist, cleanTitle);
   if (cached) {
-    console.log(`✅ Lyrics cache HIT: ${cleanArtist} - ${cleanTitle}`);
+    console.log(`[Lyrics] Cache HIT: ${cleanArtist} - ${cleanTitle}`);
     return cached;
   }
 
-  console.log(`🔍 Lyrics cache MISS: ${cleanArtist} - ${cleanTitle}`);
+  console.log(`[Lyrics] Cache MISS: ${cleanArtist} - ${cleanTitle}`);
 
-  // 2. Try LRCLIB (Navidrome fetching happens client-side for now)
+  // 2. Try Navidrome (embedded lyrics)
+  const navidromeResult = await fetchFromNavidrome(cleanArtist, cleanTitle, songId);
+  if (navidromeResult && (navidromeResult.lyrics || navidromeResult.syncedLyrics)) {
+    await saveToCache(cleanArtist, cleanTitle, navidromeResult, album, duration);
+    return navidromeResult;
+  }
+
+  // 3. Try LRCLIB
   const lrclibResult = await fetchFromLRCLIB(cleanArtist, cleanTitle, album, duration);
 
   if (lrclibResult) {
-    // Cache the result
     await saveToCache(cleanArtist, cleanTitle, lrclibResult, album, duration);
     return lrclibResult;
   }
 
-  // 3. No lyrics found - cache the miss to prevent repeated lookups
+  // 4. No lyrics found - cache the miss to prevent repeated lookups
   const noLyricsResult: LyricsResponse = {
     lyrics: null,
     syncedLyrics: null,
@@ -292,6 +397,7 @@ const GET = async ({ request }: { request: Request }) => {
     const url = new URL(request.url);
     const artist = url.searchParams.get('artist');
     const title = url.searchParams.get('title');
+    const songId = url.searchParams.get('songId') || undefined;
     const album = url.searchParams.get('album') || undefined;
     const durationStr = url.searchParams.get('duration');
     const duration = durationStr ? parseFloat(durationStr) : undefined;
@@ -303,7 +409,7 @@ const GET = async ({ request }: { request: Request }) => {
       );
     }
 
-    const result = await getLyricsData({ artist, title, album, duration });
+    const result = await getLyricsData({ artist, title, songId, album, duration });
     return Response.json(result);
   } catch (error) {
     console.error('Lyrics API error:', error);

@@ -10,6 +10,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { lazy, Suspense } from 'react';
 import { Skeleton } from '../../components/ui/skeleton';
+import { PageLayout } from '@/components/ui/page-layout';
+import { TrendingUp } from 'lucide-react';
 
 // Lazy load the dashboard component for better performance
 const MoodTimelineDashboard = lazy(
@@ -22,11 +24,7 @@ export const Route = createFileRoute('/dashboard/mood-timeline')({
 
 function MoodTimelinePageSkeleton() {
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 space-y-4 sm:space-y-6 py-4 sm:py-6">
-      <div>
-        <Skeleton className="h-6 sm:h-8 w-36 sm:w-48 mb-2" />
-        <Skeleton className="h-4 w-64 sm:w-96" />
-      </div>
+    <div className="space-y-4 sm:space-y-6">
       <Skeleton className="h-10 sm:h-12 w-full" />
       <Skeleton className="h-[300px] sm:h-[500px] w-full" />
     </div>
@@ -35,10 +33,16 @@ function MoodTimelinePageSkeleton() {
 
 function MoodTimelinePage() {
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+    <PageLayout
+      title="Mood Timeline"
+      description="Music taste evolution visualization"
+      icon={<TrendingUp className="h-5 w-5" />}
+      backLink="/dashboard/analytics"
+      backLabel="Analytics"
+    >
       <Suspense fallback={<MoodTimelinePageSkeleton />}>
         <MoodTimelineDashboard />
       </Suspense>
-    </div>
+    </PageLayout>
   );
 }

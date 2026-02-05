@@ -50,6 +50,7 @@ import {
   ListMusic,
   Settings,
 } from 'lucide-react';
+import { PageLayout } from '@/components/ui/page-layout';
 
 export const Route = createFileRoute('/dj/set-builder')({
   beforeLoad: async ({ context }) => {
@@ -182,21 +183,21 @@ function SetBuilderPage() {
   );
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Set Builder</h1>
-          <p className="text-muted-foreground">
-            Create professional DJ sets with AI-assisted song selection
-          </p>
-        </div>
-        {currentSet && (
+    <PageLayout
+      title="Set Builder"
+      description="Plan professional DJ sets"
+      icon={<ListMusic className="h-5 w-5" />}
+      backLink="/dj"
+      backLabel="DJ Tools"
+      compact
+      actions={
+        currentSet ? (
           <Badge variant="secondary" className="text-lg px-4 py-2">
             {currentSet.songs.length} tracks • {currentSet.duration}min
           </Badge>
-        )}
-      </div>
-
+        ) : undefined
+      }
+    >
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="templates" className="flex items-center gap-2">
@@ -645,6 +646,6 @@ function SetBuilderPage() {
           )}
         </TabsContent>
       </Tabs>
-    </div>
+    </PageLayout>
   );
 }

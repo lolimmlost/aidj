@@ -2,12 +2,11 @@ import { createFileRoute, useParams, redirect, Link } from '@tanstack/react-rout
 import { useQuery } from '@tanstack/react-query';
 import { getSongs, getAlbumDetail, getArtistDetail } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
-import { Loader2, Play, Plus, ListPlus, ArrowLeft, Disc } from 'lucide-react';
+import { Loader2, Play, Plus, ListPlus, Disc } from 'lucide-react';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Breadcrumb, breadcrumbItems } from '@/components/ui/breadcrumb';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   DropdownMenu,
@@ -16,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { PageLayout } from '@/components/ui/page-layout';
 
 export const Route = createFileRoute('/library/artists/$id/albums/$albumId')({
   beforeLoad: async ({ context }) => {
@@ -73,19 +73,6 @@ function AlbumSongs() {
   const error = albumError || songsError;
   const isLoading = loadingAlbum || loadingArtist || loadingSongs;
 
-  // Build breadcrumb items
-  const breadcrumbPath = [
-    breadcrumbItems.dashboard,
-    breadcrumbItems.artists,
-    {
-      label: artist?.name || 'Artist',
-      href: `/library/artists/${artistId}`,
-    },
-    {
-      label: album?.name || 'Loading...',
-    },
-  ];
-
   const handleSongClick = (songId: string) => {
     playSong(songId, songs);
   };
@@ -127,105 +114,48 @@ function AlbumSongs() {
   const totalHours = Math.floor(totalMinutes / 60);
   const remainingMinutes = totalMinutes % 60;
 
+  const albumName = album?.name || 'Unknown Album';
+  const artistName = artist?.name || album?.artist || 'Unknown Artist';
+  const backPath = `/library/artists/${artistId}`;
+
   if (error) {
     return (
-      <div className="container mx-auto p-3 sm:p-6">
-        {/* Breadcrumb */}
-        <Breadcrumb
-          items={[
-            breadcrumbItems.dashboard,
-            breadcrumbItems.artists,
-            { label: 'Error' },
-          ]}
-          className="mb-4"
-        />
-
+      <PageLayout
+        title="Error"
+        backLink={backPath}
+        backLabel={artistName}
+        compact
+      >
         <Card className="p-6 bg-destructive/10 border-destructive">
           <h2 className="text-xl font-bold text-destructive mb-2">
             Error loading album
           </h2>
           <p className="text-sm mb-4">{error.message}</p>
           <Button variant="outline" asChild>
-            <Link to={`/library/artists/${artistId}`}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
+            <Link to={backPath}>
               Back to Artist
             </Link>
           </Button>
         </Card>
-      </div>
+      </PageLayout>
     );
   }
 
   // Sort songs by track number
   const sortedSongs = [...songs].sort((a, b) => a.track - b.track);
 
+  const durationText = totalDuration > 0
+    ? ` \u2022 ${totalHours > 0 ? `${totalHours} hr ${remainingMinutes} min` : `${totalMinutes} min`}`
+    : '';
+
   return (
-    <div className="container mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
-      {/* Breadcrumb Navigation */}
-      <Breadcrumb items={breadcrumbPath} />
-
-      {/* Header Card */}
-      <Card>
-        <CardContent className="p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-            {/* Album Info */}
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {album?.artwork ? (
-                  <img
-                    src={album.artwork}
-                    alt={`Album cover for ${album.name}`}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <Disc className="h-8 w-8 sm:h-10 sm:w-10 text-muted-foreground" />
-                )}
-              </div>
-              <div>
-                {loadingAlbum ? (
-                  <>
-                    <Skeleton className="h-8 w-48 mb-2" />
-                    <Skeleton className="h-4 w-32 mb-1" />
-                    <Skeleton className="h-4 w-24" />
-                  </>
-                ) : (
-                  <>
-                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                      {album?.name || 'Unknown Album'}
-                    </h1>
-                    <p className="text-sm sm:text-base text-muted-foreground mt-1">
-                      {artist?.name || album?.artist || 'Unknown Artist'}
-                      {album?.year ? ` • ${album.year}` : ''}
-                    </p>
-                    <p className="text-xs sm:text-sm text-muted-foreground">
-                      {songs.length} {songs.length === 1 ? 'song' : 'songs'}
-                      {totalDuration > 0 && (
-                        <>
-                          {' '}&bull;{' '}
-                          {totalHours > 0 ? `${totalHours} hr ${remainingMinutes} min` : `${totalMinutes} min`}
-                        </>
-                      )}
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Back Button */}
-            <Button
-              variant="outline"
-              asChild
-              className="min-h-[44px]"
-            >
-              <Link to={`/library/artists/${artistId}`}>
-                <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
-                <span>Back to Artist</span>
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
+    <PageLayout
+      title={albumName}
+      description={`${artistName}${album?.year ? ` \u2022 ${album.year}` : ''} \u2022 ${songs.length} ${songs.length === 1 ? 'song' : 'songs'}${durationText}`}
+      backLink={backPath}
+      backLabel={artistName}
+      compact
+    >
       {/* Songs List */}
       {isLoading ? (
         <div className="flex justify-center py-12">
@@ -324,16 +254,6 @@ function AlbumSongs() {
           ))}
         </div>
       )}
-
-      {/* Bottom Navigation */}
-      <div className="text-center pt-4 border-t">
-        <Button variant="ghost" asChild className="min-h-[44px]">
-          <Link to={`/library/artists/${artistId}`}>
-            <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
-            Back to Artist
-          </Link>
-        </Button>
-      </div>
-    </div>
+    </PageLayout>
   );
 }

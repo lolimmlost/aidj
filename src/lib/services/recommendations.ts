@@ -19,6 +19,7 @@ import type { EnrichedTrack } from './lastfm/types';
 import { evaluateSmartPlaylistRules } from './smart-playlist-evaluator';
 import { getSongsGlobal, getRandomSongs, search, type SubsonicSong } from './navidrome';
 import { translateMoodToQuery, toEvaluatorFormat, extractLastFmTags } from './mood-translator';
+import { getMoodFallbackSongs } from './mood-criteria-fallback';
 import type { Song } from '@/lib/types/song';
 import { getConfigAsync } from '@/lib/config/config';
 import {
@@ -90,6 +91,8 @@ export interface RecommendationRequest {
   currentSong?: { artist: string; title: string; genre?: string; bpm?: number; key?: string; energy?: number };
   /** For 'mood' and 'discovery' modes - natural language description for genre-first discovery */
   moodDescription?: string;
+  /** Optional current song ID for Navidrome getSimilarSongs fallback */
+  currentSongId?: string;
   /** Maximum number of songs to return */
   limit?: number;
   /** Song IDs to exclude from results */
@@ -617,11 +620,16 @@ async function getDiscoverySongs(
  * Uses AI to translate mood to smart playlist query, then evaluates against library
  *
  * Phase 2: Now uses mood-translator.ts for AI-powered mood→query translation
+ * Phase 3.1B: Enhanced fallback chain:
+ *   1. AI mood translation → smart playlist evaluation
+ *   2. getSimilarSongs(currentSongId) via Navidrome Subsonic API
+ *   3. Mood-mapped criteria → searchSongsByCriteria()
+ *   4. Random songs from library
  */
 async function getMoodBasedSongs(
   request: RecommendationRequest
 ): Promise<RecommendationResult> {
-  const { moodDescription, limit = 20 } = request;
+  const { moodDescription, currentSongId, limit = 20 } = request;
 
   if (!moodDescription) {
     throw new Error('moodDescription required for mood mode');
@@ -629,36 +637,59 @@ async function getMoodBasedSongs(
 
   console.log(`🎭 [Recommendations] Processing mood: "${moodDescription}"`);
 
+  // Step 1: Try AI mood translation → smart playlist evaluation
   try {
-    // Use AI-powered mood translator (falls back to keywords if LLM unavailable)
     const moodQuery = await translateMoodToQuery(moodDescription);
-
-    // Convert to evaluator format
     const evaluatorQuery = toEvaluatorFormat(moodQuery);
 
     console.log(`📝 [Recommendations] Generated query:`, JSON.stringify(evaluatorQuery));
 
-    // Evaluate smart playlist rules against library
     const songs = await evaluateSmartPlaylistRules({
       ...evaluatorQuery,
       limit: moodQuery.limit || limit,
     });
 
-    console.log(`✅ [Recommendations] Smart playlist returned ${songs.length} songs`);
+    if (songs.length > 0) {
+      console.log(`✅ [Recommendations] Smart playlist returned ${songs.length} songs`);
+      return {
+        songs: songs.map(subsonicSongToSong),
+        source: 'smart-playlist',
+        mode: 'mood',
+        metadata: {
+          totalCandidates: songs.length,
+        },
+      };
+    }
 
-    return {
-      songs: songs.map(subsonicSongToSong),
-      source: 'smart-playlist',
-      mode: 'mood',
-      metadata: {
-        totalCandidates: songs.length,
-      },
-    };
+    console.log('⚠️ [Recommendations] Smart playlist returned 0 songs, trying fallback chain');
   } catch (error) {
-    console.error('❌ [Recommendations] Smart playlist error:', error);
-    // Fallback to random high-rated songs
-    return fallbackToRandom(limit, 'smart_playlist_error');
+    console.warn('⚠️ [Recommendations] Smart playlist error, trying fallback chain:', error);
   }
+
+  // Steps 2-3: Navidrome-native fallback chain
+  // getSimilarSongs(currentSongId) → mood-mapped criteria → searchSongsByCriteria()
+  try {
+    const fallbackResult = await getMoodFallbackSongs(moodDescription, currentSongId, limit);
+
+    if (fallbackResult && fallbackResult.songs.length > 0) {
+      console.log(`✅ [Recommendations] Fallback chain returned ${fallbackResult.songs.length} songs via ${fallbackResult.source}`);
+      return {
+        songs: fallbackResult.songs.map(subsonicSongToSong),
+        source: 'fallback',
+        mode: 'mood',
+        metadata: {
+          totalCandidates: fallbackResult.songs.length,
+          fallbackReason: fallbackResult.source,
+        },
+      };
+    }
+  } catch (error) {
+    console.warn('⚠️ [Recommendations] Fallback chain error:', error);
+  }
+
+  // Step 4: Final fallback to random songs
+  console.log('⚠️ [Recommendations] All strategies exhausted, falling back to random');
+  return fallbackToRandom(limit, 'all_mood_strategies_exhausted');
 }
 
 // ============================================================================

@@ -8,6 +8,7 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import { useDiscoveryQueueStore } from './discovery-queue';
+import { isDeezerImage } from '@/components/ui/cover-art-approval';
 
 // ============================================================================
 // Types
@@ -221,6 +222,23 @@ export const useDiscoverySuggestionsStore = create<DiscoverySuggestionsState>()(
           throw new Error('Failed to approve suggestion');
         }
 
+        // Auto-save Deezer cover art on approval
+        if (suggestion.imageUrl && isDeezerImage(suggestion.imageUrl)) {
+          fetch('/api/cover-art/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              entityId: `artist:${suggestion.artistName}`,
+              entityType: 'artist',
+              artist: suggestion.artistName,
+              album: suggestion.albumName,
+              imageUrl: suggestion.imageUrl,
+              source: 'deezer',
+            }),
+          }).catch(() => {}); // Fire and forget
+        }
+
         // Remove from local state
         set(state => ({
           suggestions: state.suggestions.filter(s => s.id !== id),
@@ -383,6 +401,23 @@ export const useDiscoverySuggestionsStore = create<DiscoverySuggestionsState>()(
           });
 
           if (response.ok) {
+            // Auto-save Deezer cover art on approval
+            if (suggestion.imageUrl && isDeezerImage(suggestion.imageUrl)) {
+              fetch('/api/cover-art/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  entityId: `artist:${suggestion.artistName}`,
+                  entityType: 'artist',
+                  artist: suggestion.artistName,
+                  album: suggestion.albumName,
+                  imageUrl: suggestion.imageUrl,
+                  source: 'deezer',
+                }),
+              }).catch(() => {}); // Fire and forget
+            }
+
             // Remove from local state
             set(state => ({
               suggestions: state.suggestions.filter(s => s.id !== id),

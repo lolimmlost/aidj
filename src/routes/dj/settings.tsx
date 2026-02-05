@@ -1,9 +1,10 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Music, Waves } from "lucide-react";
+import { Waves } from "lucide-react";
 import { AutoplaySettings } from "@/components/autoplay-settings";
 import { AIDJSettings } from "@/components/ai-dj-settings";
+import { PageLayout } from "@/components/ui/page-layout";
 
 export const Route = createFileRoute("/dj/settings")({
   beforeLoad: async ({ context }) => {
@@ -16,30 +17,14 @@ export const Route = createFileRoute("/dj/settings")({
 
 function DJSettingsPage() {
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-4xl">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-4">
-            <Link to="/dj">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to DJ Tools
-              </Button>
-            </Link>
-          </div>
-          <div className="flex items-center gap-2 mt-4">
-            <Music className="h-8 w-8 text-primary" />
-            <div>
-              <h1 className="text-3xl font-bold">DJ Settings</h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Configure your DJ experience with advanced audio transitions and AI features
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <PageLayout
+      title="DJ Settings"
+      description="Configure AI DJ and audio transitions"
+      icon={<Waves className="h-5 w-5" />}
+      backLink="/dj"
+      backLabel="DJ Tools"
+      className="max-w-4xl"
+    >
       {/* Quick Links */}
       <Card className="p-4 bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
         <div className="flex items-center gap-2 text-sm">
@@ -94,6 +79,6 @@ function DJSettingsPage() {
           </p>
         </div>
       </Card>
-    </div>
+    </PageLayout>
   );
 }

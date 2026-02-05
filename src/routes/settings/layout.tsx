@@ -42,7 +42,7 @@ export function LayoutSettings() {
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="show-recommendations">Show Recommendations Section</Label>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Display AI-generated recommendations on the dashboard
             </p>
           </div>
@@ -59,7 +59,7 @@ export function LayoutSettings() {
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="show-recently-played">Show Recently Played Section</Label>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Display your recently played songs on the dashboard
             </p>
           </div>
@@ -73,12 +73,12 @@ export function LayoutSettings() {
         </div>
 
         {/* Widget Order - Future Enhancement */}
-        <div className="p-4 rounded-md bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+        <div className="p-4 rounded-md bg-muted/50 border border-border">
           <Label>Widget Order</Label>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+          <p className="text-sm text-muted-foreground mt-2">
             Drag & drop to reorder dashboard widgets
           </p>
-          <p className="text-sm text-gray-400 dark:text-gray-500 mt-2 italic">
+          <p className="text-sm text-muted-foreground mt-2 italic">
             Coming soon: Customize the order of dashboard sections
           </p>
         </div>
@@ -99,8 +99,8 @@ export function LayoutSettings() {
           <div
             className={`p-4 rounded-md ${
               message.type === 'success'
-                ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-                : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                : 'bg-destructive/10 text-destructive'
             }`}
           >
             {message.text}

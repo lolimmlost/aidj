@@ -1,4 +1,5 @@
 import type { Visualizer, VisualizerContext } from '../types';
+import { getAdaptiveCount } from '../perf-utils';
 
 // Store peak values for decay effect
 let peakBars: number[] = [];
@@ -24,7 +25,7 @@ export const BarsVisualizer: Visualizer = {
   },
 
   render: (ctx: VisualizerContext) => {
-    const { ctx: c, width, height, audioData, colors } = ctx;
+    const { ctx: c, width, height, audioData, colors, quality } = ctx;
     const { bars, bass } = audioData;
 
     // Clear canvas
@@ -33,7 +34,7 @@ export const BarsVisualizer: Visualizer = {
 
     if (bars.length === 0) return;
 
-    const numBars = Math.min(bars.length, 48); // Reduced bar count for performance
+    const numBars = Math.min(bars.length, getAdaptiveCount(48, quality));
     const barWidth = width / numBars;
     const gap = Math.max(1, barWidth * 0.12);
     const actualBarWidth = barWidth - gap;

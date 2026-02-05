@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Download, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { queryKeys } from '@/lib/query/keys';
 
 type LLMProviderType = 'ollama' | 'openrouter' | 'glm' | 'anthropic';
 
@@ -45,6 +48,24 @@ export function ServicesSettings() {
   } | null>(null);
   const [testing, setTesting] = useState(false);
   const [lastfmTesting, setLastfmTesting] = useState(false);
+
+  // Last.fm backfill state
+  const [backfillUsername, setBackfillUsername] = useState('');
+  const [backfillRunning, setBackfillRunning] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<{
+    success: boolean;
+    imported?: number;
+    skipped?: number;
+    scores?: number;
+    error?: string;
+  } | null>(null);
+  const [backfillProgress, setBackfillProgress] = useState<{
+    phase: string;
+    detail: string;
+  } | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queryClient = useQueryClient();
+  const importStatsRef = useRef<{ imported: number; skipped: number }>({ imported: 0, skipped: 0 });
 
   // Load existing config on mount
   useEffect(() => {
@@ -190,6 +211,150 @@ export function ServicesSettings() {
     }
   };
 
+  const invalidateCaches = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['listening-by-hour'] });
+    queryClient.invalidateQueries({ queryKey: ['album-ages'] });
+    queryClient.invalidateQueries({ queryKey: ['longest-sessions'] });
+    queryClient.invalidateQueries({ queryKey: ['interest-over-time'] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.recommendations.all() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.musicIdentity.all() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.discoveryFeed.all() });
+  }, [queryClient]);
+
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  }, []);
+
+  const startPolling = useCallback((jobId: string) => {
+    stopPolling();
+
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/lastfm/backfill?jobId=${jobId}`);
+        if (!res.ok) {
+          // 404 = job finished and was cleaned up, stop polling
+          if (res.status === 404) {
+            stopPolling();
+            // If we're still in running state, the job completed between polls
+            setBackfillRunning(running => {
+              if (running) {
+                setBackfillProgress(null);
+                setBackfillResult({
+                  success: true,
+                  imported: importStatsRef.current.imported,
+                  skipped: importStatsRef.current.skipped,
+                });
+                invalidateCaches();
+              }
+              return false;
+            });
+          }
+          return;
+        }
+
+        const json = await res.json();
+        const data = json.event;
+        if (!data) return;
+
+        if (data.phase === 'import' && !data.status) {
+          importStatsRef.current = { imported: data.imported, skipped: data.skipped };
+          setBackfillProgress({
+            phase: 'import',
+            detail: `Importing scrobbles... Page ${data.page}/${data.totalPages} (${data.imported.toLocaleString()} imported)`,
+          });
+        } else if (data.phase === 'import' && data.status === 'completed') {
+          importStatsRef.current = { imported: data.imported, skipped: data.skipped };
+          setBackfillProgress({
+            phase: 'import',
+            detail: `Import complete: ${data.imported.toLocaleString()} imported, ${data.skipped.toLocaleString()} skipped`,
+          });
+        } else if (data.phase === 'similarity' && !data.status) {
+          setBackfillProgress({
+            phase: 'similarity',
+            detail: `Building recommendations... ${data.processed}/${data.total} tracks analyzed`,
+          });
+        } else if (data.phase === 'similarity' && data.status === 'completed') {
+          setBackfillProgress({
+            phase: 'similarity',
+            detail: `Similarity analysis complete: ${data.processed} tracks processed`,
+          });
+        } else if (data.phase === 'scoring' && data.status === 'running') {
+          setBackfillProgress({
+            phase: 'scoring',
+            detail: 'Updating your profile...',
+          });
+        } else if (data.phase === 'scoring' && data.status === 'completed') {
+          setBackfillProgress({
+            phase: 'scoring',
+            detail: `Profile updated with ${data.scores} scores`,
+          });
+        } else if (data.phase === 'done') {
+          stopPolling();
+          setBackfillRunning(false);
+          setBackfillProgress(null);
+          setBackfillResult({
+            success: true,
+            imported: importStatsRef.current.imported,
+            skipped: importStatsRef.current.skipped,
+          });
+          invalidateCaches();
+        } else if (data.phase === 'error') {
+          stopPolling();
+          setBackfillRunning(false);
+          setBackfillProgress(null);
+          setBackfillResult({ success: false, error: data.error });
+        }
+      } catch {
+        // Network blip — keep polling, don't fail the UI
+      }
+    }, 2000);
+  }, [invalidateCaches, stopPolling]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
+
+  // Run Last.fm scrobble backfill
+  const runBackfill = async () => {
+    if (!backfillUsername.trim() || backfillRunning) return;
+    setBackfillRunning(true);
+    setBackfillResult(null);
+    setBackfillProgress({ phase: 'starting', detail: 'Starting backfill...' });
+    importStatsRef.current = { imported: 0, skipped: 0 };
+
+    try {
+      const res = await fetch('/api/lastfm/backfill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: backfillUsername.trim(), maxPages: 50 }),
+      });
+      const json = await res.json();
+
+      if (res.status === 202 && json.jobId) {
+        startPolling(json.jobId);
+      } else if (res.status === 409 && json.jobId) {
+        // Already running, reconnect to existing job's polling
+        startPolling(json.jobId);
+      } else {
+        setBackfillRunning(false);
+        setBackfillProgress(null);
+        setBackfillResult({
+          success: false,
+          error: json.error || 'Failed to start backfill',
+        });
+      }
+    } catch {
+      setBackfillRunning(false);
+      setBackfillProgress(null);
+      setBackfillResult({ success: false, error: 'Request failed' });
+    }
+  };
+
   // Model options for each provider
   const ollamaModels = ['llama2', 'llama3', 'llama3.1', 'llama3.2', 'qwen2.5', 'mixtral', 'codellama', 'mistral', 'gemma2'];
   const openrouterModels = [
@@ -240,7 +405,7 @@ export function ServicesSettings() {
         {/* Configuration Form */}
         <form onSubmit={onSubmit} className="space-y-6">
           {/* LLM Provider Section */}
-          <div className="p-4 border rounded-lg space-y-4 bg-gray-50 dark:bg-gray-800/50">
+          <div className="p-4 border rounded-lg space-y-4 bg-muted/50">
             <h3 className="text-lg font-semibold">AI Provider Configuration</h3>
 
             {/* Provider Selection */}
@@ -260,7 +425,7 @@ export function ServicesSettings() {
                   <SelectItem value="anthropic">Anthropic / z.ai (Cloud)</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Choose between local (Ollama) or cloud-based AI providers
               </p>
             </div>
@@ -279,7 +444,7 @@ export function ServicesSettings() {
                     onChange={(e) => update('ollamaUrl', e.target.value)}
                     className="mt-2"
                   />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Local Ollama server URL
                   </p>
                 </div>
@@ -318,7 +483,7 @@ export function ServicesSettings() {
                     onChange={(e) => update('openrouterApiKey', e.target.value)}
                     className="mt-2"
                   />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Get your API key from{' '}
                     <a
                       href="https://openrouter.ai/keys"
@@ -347,7 +512,7 @@ export function ServicesSettings() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Pay-per-use pricing varies by model
                   </p>
                 </div>
@@ -368,7 +533,7 @@ export function ServicesSettings() {
                     onChange={(e) => update('glmApiKey', e.target.value)}
                     className="mt-2"
                   />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Get your API key from{' '}
                     <a
                       href="https://open.bigmodel.cn"
@@ -397,7 +562,7 @@ export function ServicesSettings() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Zhipu AI models (glm-4-plus recommended for best performance)
                   </p>
                 </div>
@@ -418,7 +583,7 @@ export function ServicesSettings() {
                     onChange={(e) => update('anthropicApiKey', e.target.value)}
                     className="mt-2"
                   />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Your Anthropic or z.ai API key
                   </p>
                 </div>
@@ -433,8 +598,8 @@ export function ServicesSettings() {
                     onChange={(e) => update('anthropicBaseUrl', e.target.value)}
                     className="mt-2"
                   />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Use <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">https://api.z.ai/api/anthropic</code> for z.ai proxy
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Use <code className="bg-muted px-1 rounded">https://api.z.ai/api/anthropic</code> for z.ai proxy
                   </p>
                 </div>
                 <div>
@@ -454,7 +619,7 @@ export function ServicesSettings() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Claude models (Haiku is fastest/cheapest, Opus is most capable)
                   </p>
                 </div>
@@ -478,7 +643,7 @@ export function ServicesSettings() {
                 onChange={(e) => update('navidromeUrl', e.target.value)}
                 className="mt-2"
               />
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Music server for streaming and library management
               </p>
             </div>
@@ -495,7 +660,7 @@ export function ServicesSettings() {
                 onChange={(e) => update('lidarrUrl', e.target.value)}
                 className="mt-2"
               />
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Automatic music collection management
               </p>
             </div>
@@ -512,7 +677,7 @@ export function ServicesSettings() {
                 onChange={(e) => update('metubeUrl', e.target.value)}
                 className="mt-2"
               />
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 YouTube/SoundCloud downloader via{' '}
                 <a
                   href="https://github.com/alexta69/metube"
@@ -534,7 +699,7 @@ export function ServicesSettings() {
               </svg>
               Discovery Services
             </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Optional services to help you discover new music similar to what you already enjoy.
             </p>
 
@@ -561,7 +726,7 @@ export function ServicesSettings() {
                   {lastfmTesting ? 'Testing...' : 'Test'}
                 </Button>
               </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Get your free API key from{' '}
                 <a
                   href="https://www.last.fm/api/account/create"
@@ -577,10 +742,10 @@ export function ServicesSettings() {
                 <div
                   className={`mt-2 text-sm px-2 py-1 rounded inline-block ${
                     testStatuses.lastfmApiKey === 'connected'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                       : testStatuses.lastfmApiKey === 'not configured'
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'bg-destructive/10 text-destructive'
                   }`}
                 >
                   {testStatuses.lastfmApiKey === 'connected'
@@ -591,6 +756,79 @@ export function ServicesSettings() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Last.fm Scrobble Backfill Section */}
+          <div className="p-4 border rounded-lg space-y-4 bg-indigo-50 dark:bg-indigo-900/10">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Download className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              Last.fm Scrobble Backfill
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Import your listening history from Last.fm to enrich analytics and recommendations.
+              This syncs your scrobbles into the local listening history database.
+            </p>
+
+            <div>
+              <Label htmlFor="backfillUsername">Last.fm Username</Label>
+              <div className="flex gap-2 mt-2">
+                <Input
+                  id="backfillUsername"
+                  placeholder="your-lastfm-username"
+                  value={backfillUsername}
+                  onChange={(e) => setBackfillUsername(e.target.value)}
+                  className="flex-1"
+                  disabled={backfillRunning}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={runBackfill}
+                  disabled={backfillRunning || !backfillUsername.trim()}
+                >
+                  {backfillRunning ? (
+                    <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Running...</>
+                  ) : 'Import Scrobbles'}
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                Your public Last.fm profile username. Imports up to 50 pages of recent scrobbles.
+              </p>
+            </div>
+
+            {backfillProgress && (
+              <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-400">
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                <div>{backfillProgress.detail}</div>
+              </div>
+            )}
+
+            {backfillResult && (
+              <div
+                className={`flex items-start gap-2 p-3 rounded-md text-sm ${
+                  backfillResult.success
+                    ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                    : 'bg-destructive/10 text-destructive'
+                }`}
+              >
+                {backfillResult.success ? (
+                  <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                )}
+                <div>
+                  {backfillResult.success ? (
+                    <>
+                      Imported <strong>{backfillResult.imported?.toLocaleString()}</strong> scrobbles
+                      {backfillResult.skipped ? ` (${backfillResult.skipped.toLocaleString()} duplicates skipped)` : ''}
+                      . Recommendations and profile updated.
+                    </>
+                  ) : (
+                    <>Backfill failed: {backfillResult.error}</>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Save Button */}
@@ -606,8 +844,8 @@ export function ServicesSettings() {
           <div
             className={`p-4 rounded-md ${
               status.includes('success')
-                ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-                : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                : 'bg-destructive/10 text-destructive'
             }`}
           >
             {status}
@@ -627,16 +865,16 @@ export function ServicesSettings() {
           </Button>
 
           {testStatuses && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 p-4 bg-muted/50 rounded-lg">
               <div className="text-center">
                 <div className="font-medium mb-1">AI Provider</div>
                 <div
                   className={`text-sm px-2 py-1 rounded ${
                     testStatuses.llmProvider === 'connected'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                       : testStatuses.llmProvider === 'not configured'
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'bg-destructive/10 text-destructive'
                   }`}
                 >
                   {testStatuses.llmProvider || 'Not configured'}
@@ -647,10 +885,10 @@ export function ServicesSettings() {
                 <div
                   className={`text-sm px-2 py-1 rounded ${
                     testStatuses.navidromeUrl === 'connected'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                       : testStatuses.navidromeUrl === 'not configured'
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'bg-destructive/10 text-destructive'
                   }`}
                 >
                   {testStatuses.navidromeUrl || 'Not configured'}
@@ -661,10 +899,10 @@ export function ServicesSettings() {
                 <div
                   className={`text-sm px-2 py-1 rounded ${
                     testStatuses.lidarrUrl === 'connected'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                       : testStatuses.lidarrUrl === 'not configured'
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'bg-destructive/10 text-destructive'
                   }`}
                 >
                   {testStatuses.lidarrUrl || 'Not configured'}
@@ -675,10 +913,10 @@ export function ServicesSettings() {
                 <div
                   className={`text-sm px-2 py-1 rounded ${
                     testStatuses.metubeUrl === 'connected'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                       : testStatuses.metubeUrl === 'not configured'
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'bg-destructive/10 text-destructive'
                   }`}
                 >
                   {testStatuses.metubeUrl || 'Not configured'}
@@ -691,10 +929,10 @@ export function ServicesSettings() {
                 <div
                   className={`text-sm px-2 py-1 rounded ${
                     testStatuses.ollamaUrl === 'connected'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                       : testStatuses.ollamaUrl === 'not configured'
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'bg-destructive/10 text-destructive'
                   }`}
                 >
                   {testStatuses.ollamaUrl || 'Not configured'}

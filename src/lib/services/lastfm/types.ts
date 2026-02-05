@@ -149,6 +149,42 @@ export interface LastFmTrackInfoResponse {
   message?: string;
 }
 
+// user.getRecentTracks response - used for scrobble backfill
+export interface LastFmRecentTracksResponse {
+  recenttracks?: {
+    track: Array<{
+      name: string;
+      artist: {
+        '#text': string;
+        mbid?: string;
+      };
+      album: {
+        '#text': string;
+        mbid?: string;
+      };
+      date?: {
+        uts: string; // Unix timestamp
+        '#text': string;
+      };
+      '@attr'?: {
+        nowplaying?: string;
+      };
+      image?: LastFmImage[];
+      url?: string;
+      mbid?: string;
+    }>;
+    '@attr': {
+      user: string;
+      page: string;
+      perPage: string;
+      totalPages: string;
+      total: string;
+    };
+  };
+  error?: number;
+  message?: string;
+}
+
 // Enriched types with library status
 export interface EnrichedTrack {
   name: string;

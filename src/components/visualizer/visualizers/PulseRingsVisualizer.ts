@@ -1,4 +1,5 @@
 import type { Visualizer, VisualizerContext } from '../types';
+import { getAdaptiveCount } from '../perf-utils';
 
 interface Ring {
   radius: number;
@@ -27,7 +28,7 @@ export const PulseRingsVisualizer: Visualizer = {
   },
 
   render: (ctx: VisualizerContext) => {
-    const { ctx: c, width, height, centerX, centerY, audioData, colors, time } = ctx;
+    const { ctx: c, width, height, centerX, centerY, audioData, colors, time, quality } = ctx;
     const { bars, bass, mid, treble, volume, isBeat } = audioData;
 
     // Clear canvas
@@ -76,7 +77,7 @@ export const PulseRingsVisualizer: Visualizer = {
     c.globalAlpha = 1;
 
     // Draw frequency rings (static, pulsing with audio)
-    const numFreqRings = 5;
+    const numFreqRings = getAdaptiveCount(5, quality);
     const hasAudio = bars.length > 0;
     for (let i = 0; i < numFreqRings; i++) {
       const t = (i + 1) / (numFreqRings + 1);
@@ -87,7 +88,7 @@ export const PulseRingsVisualizer: Visualizer = {
       const pulseRadius = baseRadius * (1 + barValue * 0.3);
 
       // Draw ring segments based on frequency
-      const segments = 32;
+      const segments = getAdaptiveCount(32, quality);
       const segmentAngle = (Math.PI * 2) / segments;
 
       c.beginPath();

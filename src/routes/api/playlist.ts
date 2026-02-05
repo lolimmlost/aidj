@@ -13,6 +13,7 @@ interface PlaylistRequestBody {
   style: string;
   sourceMode?: SourceMode;
   mixRatio?: number;
+  currentSongId?: string;
 }
 
 export const Route = createFileRoute("/api/playlist")({
@@ -36,7 +37,7 @@ export const Route = createFileRoute("/api/playlist")({
     }
 
     try {
-      const { style, sourceMode = 'library', mixRatio = 70 } = await request.json() as PlaylistRequestBody;
+      const { style, sourceMode = 'library', mixRatio = 70, currentSongId } = await request.json() as PlaylistRequestBody;
       if (!style) {
         return new Response(JSON.stringify({ error: 'Style required' }), {
           status: 400,
@@ -44,7 +45,7 @@ export const Route = createFileRoute("/api/playlist")({
         });
       }
 
-      console.log(`🎯 Generating playlist for style: "${style}", sourceMode: ${sourceMode}, mixRatio: ${mixRatio}%`);
+      console.log(`🎯 Generating playlist for style: "${style}", sourceMode: ${sourceMode}, mixRatio: ${mixRatio}%${currentSongId ? `, currentSong: ${currentSongId}` : ''}`);
 
       // Track discovery source for UI visualization
       type DiscoverySource = 'lastfm' | 'smart-playlist' | 'library';
@@ -66,6 +67,7 @@ export const Route = createFileRoute("/api/playlist")({
         const moodResult = await getRecommendations({
           mode: 'mood',
           moodDescription: style,
+          currentSongId,
           limit: 1, // Just need one seed for artist similarity
         });
 
@@ -101,6 +103,7 @@ export const Route = createFileRoute("/api/playlist")({
           const fallbackResult = await getRecommendations({
             mode: 'mood',
             moodDescription: style,
+            currentSongId,
             limit,
           });
 
@@ -126,6 +129,7 @@ export const Route = createFileRoute("/api/playlist")({
         const libraryResult = await getRecommendations({
           mode: 'mood',
           moodDescription: style,
+          currentSongId,
           limit: libraryCount,
         });
 
@@ -188,6 +192,7 @@ export const Route = createFileRoute("/api/playlist")({
         const result = await getRecommendations({
           mode: 'mood',
           moodDescription: style,
+          currentSongId,
           limit,
         });
 

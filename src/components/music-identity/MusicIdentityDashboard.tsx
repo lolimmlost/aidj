@@ -37,6 +37,10 @@ import { MusicIdentityCard } from './MusicIdentityCard';
 import { TrendAnalysisWidget } from './TrendAnalysisWidget';
 import { MoodProfileChart } from './MoodProfileChart';
 import { ShareableCard } from './ShareableCard';
+import { ListeningHourChart } from './ListeningHourChart';
+import { AlbumAgeChart } from './AlbumAgeChart';
+import { LongestSessionsCard } from './LongestSessionsCard';
+import { InterestOverTimeChart } from './InterestOverTimeChart';
 
 // ============================================================================
 // Types
@@ -400,6 +404,19 @@ interface MusicIdentityDetailProps {
   isRefreshing: boolean;
 }
 
+function getSummaryDateRange(summary: MusicIdentitySummary): { from: string; to: string } {
+  if (summary.month) {
+    // Monthly summary: first day to last day of that month
+    const start = new Date(summary.year, summary.month - 1, 1);
+    const end = new Date(summary.year, summary.month, 0, 23, 59, 59, 999);
+    return { from: start.toISOString(), to: end.toISOString() };
+  }
+  // Yearly summary: Jan 1 to Dec 31
+  const start = new Date(summary.year, 0, 1);
+  const end = new Date(summary.year, 11, 31, 23, 59, 59, 999);
+  return { from: start.toISOString(), to: end.toISOString() };
+}
+
 const MusicIdentityDetail = memo(function MusicIdentityDetail({
   summary,
   onRefresh,
@@ -410,6 +427,8 @@ const MusicIdentityDetail = memo(function MusicIdentityDetail({
   const periodLabel = summary.month
     ? `${getMonthName(summary.month)} ${summary.year}`
     : `${summary.year}`;
+
+  const dateRange = getSummaryDateRange(summary);
 
   return (
     <div className="space-y-6">
@@ -482,6 +501,14 @@ const MusicIdentityDetail = memo(function MusicIdentityDetail({
 
         <TabsContent value="overview" className="space-y-4">
           <OverviewTab summary={summary} />
+          <div className="grid gap-4 md:grid-cols-2">
+            <ListeningHourChart from={dateRange.from} to={dateRange.to} />
+            <LongestSessionsCard from={dateRange.from} to={dateRange.to} />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <AlbumAgeChart from={dateRange.from} to={dateRange.to} />
+            <InterestOverTimeChart from={dateRange.from} to={dateRange.to} />
+          </div>
         </TabsContent>
 
         <TabsContent value="trends" className="space-y-4">

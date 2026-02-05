@@ -1,5 +1,7 @@
 // Visualizer types and interfaces
 
+import type { QualityLevel } from './perf-utils';
+
 export interface AudioData {
   // Raw frequency data (0-255 values)
   frequencyData: Uint8Array;
@@ -30,6 +32,7 @@ export interface VisualizerContext {
   colors: ColorTheme;
   deltaTime: number;
   time: number;
+  quality: QualityLevel;
 }
 
 export interface ColorTheme {
@@ -62,6 +65,7 @@ export interface VisualizerSettings {
   showLyrics: boolean; // Show lyrics overlay
   lyricsOffset: number; // Lyrics offset in seconds (-5 to +5)
   fpsLimit: 0 | 30 | 60; // 0 = unlimited (native), 30 = 30fps, 60 = 60fps (for battery saving)
+  quality: 'auto' | 'high' | 'medium' | 'low'; // Rendering quality for adaptive performance
 }
 
 // Preset color themes
@@ -141,4 +145,5 @@ export const DEFAULT_SETTINGS: VisualizerSettings = {
   showLyrics: true,
   lyricsOffset: 0,
   fpsLimit: 0, // Unlimited by default
+  quality: 'auto', // Auto-detect based on device
 };

@@ -1,161 +1,220 @@
-# AIDJ - AI-Assisted Music Library & Dashboard
+<h1 align="center">AIDJ</h1>
+<p align="center"><strong>Self-hosted, AI-powered music command center</strong></p>
 
-AIDJ (AI-assisted DJ) is a modern web application for managing and exploring your self-hosted music library. It provides a dashboard for configuration, user authentication, and a searchable music library integrated with Navidrome for streaming. AI-powered recommendations via Ollama are planned for future enhancements. All services run locally for privacy.
+<p align="center">
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/lolimmlost/aidj?style=flat-square" alt="License"></a>
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white" alt="React 19">
+  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white" alt="Tailwind CSS v4">
+  <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
+</p>
 
-- [React 19](https://react.dev) + [React Compiler](https://react.dev/learn/react-compiler)
-- TanStack [Start](https://tanstack.com/start/latest) + [Router](https://tanstack.com/router/latest) + [Query](https://tanstack.com/query/latest)
-- [Tailwind CSS v4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/)
-- [Drizzle ORM](https://orm.drizzle.team/) + PostgreSQL
-- [Better Auth](https://www.better-auth.com/)
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="AIDJ Dashboard" width="800">
+</p>
 
-## Project Overview
+---
 
-This application provides a unified interface for music management using local self-hosted services:
-- Navidrome for music library browsing and streaming
-- Planned: Ollama for AI-powered music recommendations
+## Screenshots
 
-All services run on your local network, ensuring your music data stays private.
+<table>
+  <tr>
+    <td><img src="docs/screenshots/dashboard.png" alt="Dashboard" width="400"></td>
+    <td><img src="docs/screenshots/music-identity.png" alt="Music Identity" width="400"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/dj-set-builder.png" alt="DJ Set Builder" width="400"></td>
+    <td><img src="docs/screenshots/library-artists.png" alt="Library Artists" width="400"></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/mobile-dashboard.png" alt="Mobile Dashboard" width="250"></td>
+    <td><img src="docs/screenshots/mobile-library.png" alt="Mobile Library" width="250"></td>
+    <td><img src="docs/screenshots/mobile-player.png" alt="Mobile Player" width="250"></td>
+  </tr>
+</table>
+
+> [See full screenshot gallery](docs/screenshots/GALLERY.md)
+
+---
+
+## Features
+
+### -- Music Library & Streaming
+
+- Navidrome-integrated browsing (artists, albums, songs)
+- Full-text search and album detail views
+- Audio streaming proxy
+- Background library sync & indexing
+
+### -- Advanced Audio Player
+
+- Dual-deck crossfade engine with gapless transitions
+- 10 real-time audio visualizers (bars, waveform, circular, particles, starfield, spiral, and more)
+- Lyrics display modal
+- Network-resilient playback with stall recovery & auto-resume
+- PWA with mobile controls & offline support
+
+### -- AI DJ & Recommendations
+
+- Multi-provider LLM support (Ollama, Anthropic, OpenRouter, GLM)
+- Compound scoring engine (play history + similarity + genre + artist fatigue)
+- DJ set builder with BPM analysis, harmonic mixing, energy flow
+- Mix compatibility badges
+- Background discovery with personalized suggestions
+- Discovery feed with interaction tracking & analytics
+
+### -- Music Identity (Spotify Wrapped-style)
+
+- Listening hour distribution chart
+- Album decade distribution
+- Longest sessions tracker
+- Artist interest trends over time
+- Mood profile analysis
+- Shareable identity cards with unique URLs
+
+### -- Analytics Dashboard
+
+- Play count & listening stats
+- Mood timeline
+- Seasonal patterns
+- Library growth
+- Discovery analytics (acceptance rate, genre exploration)
+- Recommendation performance tracking
+
+### -- Playlists
+
+- Create, edit, drag-and-drop reorder
+- Smart playlists with rule-based filters
+- Collaborative playlists with real-time song suggestions
+- Import/export (M3U, JSON)
+- Navidrome two-way sync
+- Liked songs sync
+
+### -- Downloads & Acquisition
+
+- YouTube audio downloads via MeTube
+- Lidarr album search, monitoring, & acquisition
+- Download queue management
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | [React 19](https://react.dev) + [React Compiler](https://react.dev/learn/react-compiler), [TanStack Start](https://tanstack.com/start/latest) / [Router](https://tanstack.com/router/latest) / [Query](https://tanstack.com/query/latest) |
+| Styling | [Tailwind CSS v4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) + [Radix UI](https://www.radix-ui.com/) |
+| State | [Zustand](https://zustand.docs.pmnd.rs/) |
+| Database | [PostgreSQL](https://www.postgresql.org/) + [Drizzle ORM](https://orm.drizzle.team/) |
+| Auth | [Better Auth](https://www.better-auth.com/) |
+| Charts | [Recharts](https://recharts.org/) |
+| Audio | Web Audio API, dual-deck crossfade engine |
+| Testing | [Vitest](https://vitest.dev/) + [React Testing Library](https://testing-library.com/), [Playwright](https://playwright.dev/) E2E |
+| CI/CD | GitHub Actions, Cloudflare Pages |
+
+---
+
+## Integrations
+
+| Service | Purpose | Required |
+|---------|---------|----------|
+| [Navidrome](https://www.navidrome.org/) | Music library & streaming | Yes |
+| [PostgreSQL](https://www.postgresql.org/) | Application database | Yes |
+| [Last.fm](https://www.last.fm/) | Scrobbling, similar tracks, history backfill | Optional |
+| [Lidarr](https://lidarr.audio/) | Music acquisition & monitoring | Optional |
+| [MeTube](https://github.com/alexta69/MeTube) | YouTube audio downloads | Optional |
+| [Ollama](https://ollama.com/) / LLM | AI DJ & recommendations | Optional |
+
+---
 
 ## Getting Started
 
-We use **npm** by default.
+### Prerequisites
 
-1. Clone this repository:
+- Node.js 20+
+- PostgreSQL
+- Navidrome instance
 
-   ```bash
-   git clone <repository-url>
-   cd aidj
-   ```
+### Setup
 
-2. Install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-3. Create a `.env` file based on the environment variables documented in [environment-configuration.md](./docs/environment-configuration.md).
-
-4. Push the schema to your database with drizzle-kit:
-
-   ```bash
-   npm run db:push
-   ```
-
-   https://orm.drizzle.team/docs/migrations
-
-5. Run the development server:
-
-   ```bash
-   npm run dev
-   ```
-
-The development server should now be running at [http://localhost:3000](http://localhost:3000).
-
-## CI/CD Pipeline
-
-This project includes automated CI/CD workflows using GitHub Actions that run on every push to `main` and pull requests. The pipeline ensures code quality through:
-
-### What the Pipeline Does
-- **Linting**: Runs ESLint to enforce code standards
-- **Building**: Compiles the project with Vite
-- **Testing**: Executes unit tests with Vitest, requiring >80% code coverage
-- **Security Scanning**: Uses Trivy for vulnerability detection and Gitleaks for secret scanning
-- **Coverage Reporting**: Uploads results to Codecov for detailed analysis
-
-### Viewing Pipeline Results
-- **Actions Tab**: View build and test results in the GitHub "Actions" tab
-- **Security Tab**: Review vulnerability and secret scan alerts
-- **Coverage**: Access detailed reports at [codecov.io](https://codecov.io) (requires `CODECOV_TOKEN` secret setup)
-
-### Required Repository Secrets
-For full CI/CD functionality, add these secrets in GitHub Settings > Secrets and variables > Actions:
-- `CODECOV_TOKEN`: For coverage report uploads (get from Codecov dashboard)
-
-### Local Workflow Replication
-Run these commands locally to match the CI environment:
 ```bash
-pnpm install
-pnpm lint
-pnpm test:coverage  # Requires >80% coverage
-pnpm build
-pnpm check-types
+git clone https://github.com/lolimmlost/aidj.git
+cd aidj
+npm install
+cp .env.example .env   # then edit with your service URLs and credentials
+npm run db:push
+npm run dev
 ```
 
-For detailed workflow configuration, see [.github/workflows/README.md](.github/workflows/README.md).
+The dev server starts at [http://localhost:3000](http://localhost:3000).
 
-## Configuration
+Optional services (Last.fm, Lidarr, MeTube, Ollama) can be configured later in Settings.
 
-Before running the application, you'll need to configure the following services in your `.env` file:
-
-1. Navidrome service URL and credentials
-2. Database connection (PostgreSQL)
-3. Planned: Ollama service URL for AI features
+---
 
 ## Project Structure
 
 ```
 src/
-├── components/           # Shared UI components (using shadcn/ui)
-├── lib/                  # Core utilities and services
-│   ├── auth/             # Better Auth implementation
-│   ├── db/               # Drizzle ORM setup and schema
-│   ├── config/           # App configuration
-│   ├── services/         # External service integrations (e.g., Navidrome)
-│   └── stores/           # State management (e.g., audio player)
-├── routes/               # TanStack Router file-based routes
-│   ├── (auth)/           # Login/Signup routes
-│   ├── api/              # API endpoints (auth, Navidrome proxy/streaming)
-│   ├── dashboard/        # Main dashboard
-│   ├── config/           # Configuration page
-│   └── library/          # Music library (artists, search, albums)
-└── styles.css            # Global Tailwind CSS
+├── components/          # UI components
+│   ├── dashboard/       # Dashboard widgets
+│   ├── discovery/       # Discovery queue & suggestions
+│   ├── discovery-feed/  # Discovery feed cards
+│   ├── dj/              # DJ tools & mix badges
+│   ├── downloads/       # Download management
+│   ├── layout/          # PlayerBar, sidebar, nav
+│   ├── library/         # Artist/album/song views
+│   ├── lyrics/          # Lyrics modal
+│   ├── music-identity/  # Wrapped-style analytics charts
+│   ├── playlists/       # Playlist CRUD, collaboration, smart playlists
+│   ├── recommendations/ # Rec cards, analytics, mood timeline
+│   ├── ui/              # shadcn/ui primitives
+│   └── visualizer/      # 10 audio visualizers
+├── lib/
+│   ├── auth/            # Better Auth config
+│   ├── db/              # Drizzle schema & migrations
+│   ├── services/        # Backend services (50+ modules)
+│   │   ├── ai-dj/       # AI DJ core engine
+│   │   ├── background-discovery/
+│   │   ├── cache/       # Caching layer
+│   │   ├── lastfm/      # Last.fm API client
+│   │   ├── lidarr/      # Lidarr integration
+│   │   ├── library-sync/# Navidrome sync
+│   │   ├── llm/         # LLM providers (Ollama, Anthropic, OpenRouter, GLM)
+│   │   └── offline/     # Offline/PWA support
+│   └── stores/          # Zustand stores
+├── routes/              # TanStack file-based routes
+│   ├── (auth)/          # Login / Signup
+│   ├── api/             # 80+ API endpoints
+│   ├── dashboard/       # Dashboard, analytics, discover, mood
+│   ├── dj/              # DJ set builder & settings
+│   ├── downloads/       # Download management
+│   ├── library/         # Artists / albums / search
+│   ├── music-identity/  # Wrapped-style identity page
+│   ├── playlists/       # Playlist views & collaboration
+│   └── settings/        # Playback, services, profile, notifications
+└── styles.css
 ```
 
-## Features
+---
 
-- User authentication with Better Auth (login/signup)
-- Music library browsing: artists, albums, search via Navidrome
-- Audio streaming with custom player
-- Dashboard for app overview
-- Configuration interface for services
-- Responsive UI with dark mode support (shadcn/ui + Tailwind)
-- Planned: AI music recommendations via Ollama
+## Development
+
+```bash
+npm run dev             # Start dev server
+npm run build           # Production build
+npm test                # Run tests (watch mode)
+npm run test:coverage   # Run with coverage (>80% required)
+npm run lint            # Lint with ESLint
+```
+
+CI runs lint, build, test, security scanning (Trivy + Gitleaks), and uploads coverage to Codecov on every push and PR. See [.github/workflows/README.md](.github/workflows/README.md) for details.
+
+---
 
 ## License
 
-Code in this template is public domain via [Unlicense](./LICENSE).
-
-## Development Workflow
-
-### Pre-commit Checks
-The project uses ESLint and Prettier for consistent code style. Consider using a pre-commit hook or run these before pushing:
-```bash
-pnpm lint:fix
-pnpm format
-pnpm test
-```
-
-### Testing
-Unit tests are written with Vitest and React Testing Library. Run tests with:
-```bash
-pnpm test          # Run tests in watch mode
-pnpm test:coverage # Run with coverage reporting
-pnpm test:ui       # Run with Vitest UI
-```
-
-Add new tests in `src/components/__tests__/` or alongside components. Coverage reports are generated in the `coverage/` directory.
-
-## Backlog Progress
-
-- Story 1.1: Project Setup and Basic Structure — Completed
-- Story 1.2: User Authentication System — Completed
-- Story 1.3: Service Configuration Interface — Completed
-- Story 1.4: Local Development Environment Setup — Completed
-- Story 1.5: Basic CI/CD Pipeline — Completed
-- Story 1.6: Secrets Management & Security Baseline — Completed
-- Epic 2: Music Library Integration — Completed (Navidrome API, Library UI, Audio Streaming & Player, Dashboard)
-- Story 2.1: AI Recommendations with Ollama — Planned
-
-## Contributing
-
-Contributions are welcome. Please follow the project's conventions and add new tasks to the backlog as needed.
+[Unlicense](./LICENSE) -- public domain.

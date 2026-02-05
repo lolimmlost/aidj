@@ -1,4 +1,5 @@
 import type { Visualizer, VisualizerContext } from '../types';
+import { getAdaptiveCount } from '../perf-utils';
 
 // Pre-calculated spiral points
 const NUM_ARMS = 6;
@@ -29,7 +30,7 @@ export const SpiralVisualizer: Visualizer = {
   cleanup: () => {},
 
   render: (ctx: VisualizerContext) => {
-    const { ctx: c, width, height, centerX, centerY, audioData, colors, time } = ctx;
+    const { ctx: c, width, height, centerX, centerY, audioData, colors, time, quality } = ctx;
     const { bars, bass, mid, treble, isBeat } = audioData;
 
     // Clear canvas
@@ -42,10 +43,11 @@ export const SpiralVisualizer: Visualizer = {
     const rotation = time * 0.3;
     const cosR = Math.cos(rotation);
     const sinR = Math.sin(rotation);
+    const numArms = getAdaptiveCount(NUM_ARMS, quality);
 
     // Draw spiral arms
-    for (let arm = 0; arm < NUM_ARMS; arm++) {
-      const armOffset = (arm / NUM_ARMS) * Math.PI * 2;
+    for (let arm = 0; arm < numArms; arm++) {
+      const armOffset = (arm / numArms) * Math.PI * 2;
       const cosA = Math.cos(armOffset);
       const sinA = Math.sin(armOffset);
 

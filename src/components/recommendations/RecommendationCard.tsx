@@ -4,7 +4,9 @@
  * Extracted from the dashboard to enable virtualization and reuse
  */
 
+import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -12,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Play, Plus, ListPlus } from 'lucide-react';
+import { Play, Plus, ListPlus, Download, Loader2 } from 'lucide-react';
 import type { Song } from '@/lib/types/song';
 
 type CachedSong = Song & {
@@ -173,22 +175,88 @@ export function RecommendationCard({
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled
-                className="opacity-50 cursor-not-allowed"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                  <path d="M5 12h14"/>
-                  <path d="M12 5v14"/>
-                </svg>
-                Unavailable
-              </Button>
+              <AddToLidarrButton song={rec.song} />
             )}
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Add to Lidarr button - sends the song to Lidarr for downloading.
+ * Uses the existing /api/lidarr/add endpoint.
+ *
+ * @see docs/architecture/analytics-discovery-upgrades-plan.md - Item 4.1
+ */
+function AddToLidarrButton({ song }: { song: string }) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [isAdded, setIsAdded] = useState(false);
+
+  const handleAdd = async () => {
+    setIsAdding(true);
+    try {
+      const res = await fetch('/api/lidarr/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ song }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && (data.success || data.message)) {
+        setIsAdded(true);
+        toast.success('Added to Lidarr', {
+          description: data.message || `Queued "${song}" for download`,
+        });
+      } else {
+        toast.error('Failed to add to Lidarr', {
+          description: data.error || data.message || 'Unknown error',
+        });
+      }
+    } catch {
+      toast.error('Failed to add to Lidarr', {
+        description: 'Could not connect to Lidarr',
+      });
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  if (isAdded) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        disabled
+        className="text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+      >
+        <Download className="mr-1 h-4 w-4" />
+        Queued
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleAdd}
+      disabled={isAdding}
+      className="hover:border-blue-500/50 hover:text-blue-600 dark:hover:text-blue-400"
+    >
+      {isAdding ? (
+        <>
+          <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+          Adding...
+        </>
+      ) : (
+        <>
+          <Download className="mr-1 h-4 w-4" />
+          Add to Lidarr
+        </>
+      )}
+    </Button>
   );
 }

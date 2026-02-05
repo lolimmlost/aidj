@@ -10,6 +10,7 @@ import { queryKeys } from '@/lib/query/keys';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PageLayout } from '@/components/ui/page-layout';
 import {
   Music,
   Sparkles,
@@ -110,26 +111,28 @@ function SharePage() {
 
   if (error || !summary) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardHeader>
-            <CardTitle className="text-destructive">Not Found</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground mb-4">
-              {error instanceof Error
-                ? error.message
-                : 'This music identity is not available or has been made private.'}
-            </p>
-            <Link to="/">
-              <Button>
-                <Home className="mr-2 h-4 w-4" />
-                Go Home
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
+      <PageLayout title="Music Identity" backLink="/music-identity" backLabel="Music Identity">
+        <div className="flex items-center justify-center p-4">
+          <Card className="max-w-md w-full">
+            <CardHeader>
+              <CardTitle className="text-destructive">Not Found</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground mb-4">
+                {error instanceof Error
+                  ? error.message
+                  : 'This music identity is not available or has been made private.'}
+              </p>
+              <Link to="/">
+                <Button>
+                  <Home className="mr-2 h-4 w-4" />
+                  Go Home
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </PageLayout>
     );
   }
 
@@ -138,8 +141,8 @@ function SharePage() {
     : `${summary.year}`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-500/5 to-pink-500/5">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-4xl">
+    <PageLayout title="Music Identity" backLink="/music-identity" backLabel="Music Identity">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-300 text-sm font-medium mb-4">
@@ -236,7 +239,7 @@ function SharePage() {
                   <div key={artist.name} className="flex items-center gap-3">
                     <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                       i === 0 ? 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-300' :
-                      i === 1 ? 'bg-gray-400/20 text-gray-700 dark:text-gray-300' :
+                      i === 1 ? 'bg-muted text-muted-foreground' :
                       i === 2 ? 'bg-orange-500/20 text-orange-700 dark:text-orange-300' :
                       'bg-muted'
                     }`}>
@@ -267,7 +270,7 @@ function SharePage() {
                   <div key={track.name} className="flex items-center gap-3">
                     <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                       i === 0 ? 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-300' :
-                      i === 1 ? 'bg-gray-400/20 text-gray-700 dark:text-gray-300' :
+                      i === 1 ? 'bg-muted text-muted-foreground' :
                       i === 2 ? 'bg-orange-500/20 text-orange-700 dark:text-orange-300' :
                       'bg-muted'
                     }`}>
@@ -333,14 +336,14 @@ function SharePage() {
           </Link>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
 
 function SharePageSkeleton() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-500/5 to-pink-500/5">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-4xl">
+    <PageLayout title="Music Identity" backLink="/music-identity" backLabel="Music Identity">
+      <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
           <Skeleton className="h-8 w-32 mx-auto mb-4" />
           <Skeleton className="h-12 w-64 mx-auto mb-2" />
@@ -372,7 +375,7 @@ function SharePageSkeleton() {
           ))}
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
 

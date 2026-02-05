@@ -15,8 +15,9 @@ export const GridVisualizer: Visualizer = {
   cleanup: () => {},
 
   render: (ctx: VisualizerContext) => {
-    const { ctx: c, width, height, centerX, centerY, audioData, colors, time } = ctx;
+    const { ctx: c, width, height, centerX, centerY, audioData, colors, time, quality } = ctx;
     const { bars, bass, mid, treble, isBeat } = audioData;
+    const cellStep = quality === 'low' ? 2 : 1;
 
     // Clear canvas
     c.fillStyle = colors.background;
@@ -55,12 +56,12 @@ export const GridVisualizer: Visualizer = {
     // Draw grid from back to front (3D effect)
     const perspective = 0.4;
 
-    for (let y = 0; y < GRID_SIZE; y++) {
+    for (let y = 0; y < GRID_SIZE; y += cellStep) {
       const rowY = y / GRID_SIZE;
       const scale = 1 - rowY * perspective;
       const offsetY = rowY * perspective * height * 0.3;
 
-      for (let x = 0; x < GRID_SIZE; x++) {
+      for (let x = 0; x < GRID_SIZE; x += cellStep) {
         const idx = y * GRID_SIZE + x;
         const value = gridValues[idx];
 
@@ -81,8 +82,8 @@ export const GridVisualizer: Visualizer = {
 
         c.globalAlpha = 0.3 + value * 0.7;
 
-        // Draw bar
-        const barWidth = cellWidth * scale * 0.8;
+        // Draw bar (scale width when skipping cells)
+        const barWidth = cellWidth * scale * 0.8 * cellStep;
         c.fillRect(
           baseX + (cellWidth * scale - barWidth) / 2,
           baseY + cellHeight * scale - barHeight,

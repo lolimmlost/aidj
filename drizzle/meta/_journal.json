@@ -120,6 +120,13 @@
       "when": 1769026870606,
       "tag": "0016_profile-tables",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1770165576163,
+      "tag": "0017_cold_eddie_brock",
+      "breakpoints": true
     }
   ]
 }

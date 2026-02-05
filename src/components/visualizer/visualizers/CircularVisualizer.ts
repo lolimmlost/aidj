@@ -1,4 +1,5 @@
 import type { Visualizer, VisualizerContext } from '../types';
+import type { QualityLevel } from '../perf-utils';
 
 // Store history for trails - reduced for performance
 let trailHistory: Float32Array[] = [];
@@ -52,8 +53,9 @@ export const CircularVisualizer: Visualizer = {
   },
 
   render: (ctx: VisualizerContext) => {
-    const { ctx: c, width, height, centerX, centerY, audioData, colors, time } = ctx;
+    const { ctx: c, width, height, centerX, centerY, audioData, colors, time, quality } = ctx;
     const { bars, bass, mid, treble, isBeat } = audioData;
+    const barStep = quality === 'low' ? 3 : quality === 'medium' ? 2 : 1;
 
     // Clear canvas
     c.fillStyle = colors.background;
@@ -115,7 +117,7 @@ export const CircularVisualizer: Visualizer = {
       c.lineWidth = 2;
       c.beginPath();
 
-      for (let i = 0; i < NUM_BARS; i += 2) {
+      for (let i = 0; i < NUM_BARS; i += Math.max(2, barStep)) {
         // Rotate pre-calculated trig values
         const baseCos = cosTable![i] * cosR - sinTable![i] * sinR;
         const baseSin = sinTable![i] * cosR + cosTable![i] * sinR;
@@ -139,7 +141,7 @@ export const CircularVisualizer: Visualizer = {
     c.strokeStyle = colors.primary;
     c.lineWidth = 3;
     c.beginPath();
-    for (let i = 0; i < zone1End; i++) {
+    for (let i = 0; i < zone1End; i += barStep) {
       const cos = cosTable![i] * cosR - sinTable![i] * sinR;
       const sin = sinTable![i] * cosR + cosTable![i] * sinR;
       const barLength = sampledBars[i] * maxBarLength;
@@ -151,7 +153,7 @@ export const CircularVisualizer: Visualizer = {
     // Zone 2: Secondary
     c.strokeStyle = colors.secondary;
     c.beginPath();
-    for (let i = zone1End; i < zone2End; i++) {
+    for (let i = zone1End; i < zone2End; i += barStep) {
       const cos = cosTable![i] * cosR - sinTable![i] * sinR;
       const sin = sinTable![i] * cosR + cosTable![i] * sinR;
       const barLength = sampledBars[i] * maxBarLength;
@@ -163,7 +165,7 @@ export const CircularVisualizer: Visualizer = {
     // Zone 3: Accent
     c.strokeStyle = colors.accent;
     c.beginPath();
-    for (let i = zone2End; i < NUM_BARS; i++) {
+    for (let i = zone2End; i < NUM_BARS; i += barStep) {
       const cos = cosTable![i] * cosR - sinTable![i] * sinR;
       const sin = sinTable![i] * cosR + cosTable![i] * sinR;
       const barLength = sampledBars[i] * maxBarLength;

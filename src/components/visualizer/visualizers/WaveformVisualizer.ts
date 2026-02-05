@@ -1,4 +1,5 @@
 import type { Visualizer, VisualizerContext } from '../types';
+import { getAdaptiveCount } from '../perf-utils';
 
 // History for trail effect - reduced for performance
 let waveHistory: Float32Array[] = [];
@@ -31,7 +32,7 @@ export const WaveformVisualizer: Visualizer = {
   },
 
   render: (ctx: VisualizerContext) => {
-    const { ctx: c, width, height, audioData, colors } = ctx;
+    const { ctx: c, width, height, audioData, colors, quality } = ctx;
     const { waveformData, bars, bass, treble, isBeat } = audioData;
 
     // Clear canvas
@@ -106,7 +107,7 @@ export const WaveformVisualizer: Visualizer = {
 
     // Draw frequency spectrum at bottom - batch by color
     const spectrumHeight = height * 0.12;
-    const numSpecBars = Math.min(bars.length, 24); // Reduced from 32
+    const numSpecBars = Math.min(bars.length, getAdaptiveCount(24, quality));
     const specBarWidth = width / numSpecBars;
 
     c.globalAlpha = 0.3;
@@ -130,8 +131,8 @@ export const WaveformVisualizer: Visualizer = {
     c.fill();
     c.globalAlpha = 1;
 
-    // Main waveform - use larger step for performance
-    const step = 4;
+    // Main waveform - use larger step for performance (higher on lower quality)
+    const step = quality === 'low' ? 8 : quality === 'medium' ? 6 : 4;
     const sliceWidth = width / (waveformData.length / step);
 
     // Build filled waveform path

@@ -4,8 +4,8 @@ import { toast } from 'sonner';
 import { useState } from 'react';
 import {
   ListMusic, Play, Trash2, X, Plus, Shuffle,
-  Heart, Sparkles, ChevronLeft, MoreHorizontal, Music2, Pause, GripVertical,
-  Users
+  Heart, Sparkles, MoreHorizontal, Music2, Pause, GripVertical,
+  Users, SkipForward
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,6 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { PageLayout } from '@/components/ui/page-layout';
 import { useAudioStore } from '@/lib/stores/audio';
 import { playPlaylist, loadPlaylistIntoQueue } from '@/lib/utils/playlist-helpers';
 import { cn } from '@/lib/utils';
@@ -67,6 +68,8 @@ interface PlaylistSong {
   addedAt: Date;
   duration?: number | null;
   album?: string | null;
+  albumId?: string | null;
+  starred?: boolean;
 }
 
 interface PlaylistDetail {
@@ -86,6 +89,7 @@ interface SortableSongRowProps {
   onPlayFromSong: (index: number) => void;
   onAddSongToQueue: (song: PlaylistSong, position: 'now' | 'next' | 'end') => void;
   onRemoveSong: (songId: string) => void;
+  onToggleStar: (songId: string, currentlyStarred: boolean) => void;
   isRemovePending: boolean;
 }
 
@@ -97,6 +101,7 @@ function SortableSongRow({
   onPlayFromSong,
   onAddSongToQueue,
   onRemoveSong,
+  onToggleStar,
   isRemovePending,
 }: SortableSongRowProps) {
   const {
@@ -156,6 +161,20 @@ function SortableSongRow({
         )}
       </span>
 
+      {/* Album Art Thumbnail */}
+      {song.albumId ? (
+        <img
+          src={`/api/navidrome/rest/getCoverArt?id=${song.albumId}&size=80`}
+          alt=""
+          className="w-8 h-8 rounded shrink-0 object-cover bg-muted"
+          loading="lazy"
+        />
+      ) : (
+        <div className="w-8 h-8 rounded shrink-0 bg-muted flex items-center justify-center">
+          <Music2 className="h-3.5 w-3.5 text-muted-foreground/50" />
+        </div>
+      )}
+
       {/* Song Info - clickable with proper touch target */}
       <button
         type="button"
@@ -197,6 +216,30 @@ function SortableSongRow({
           year: 'numeric'
         })}
       </span>
+
+      {/* Star toggle - visible on hover */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className={cn(
+          "h-8 w-8 p-0 shrink-0 transition-opacity",
+          song.starred ? "opacity-100 text-rose-500 hover:text-rose-600" : "opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-rose-500"
+        )}
+        onClick={(e) => { e.stopPropagation(); onToggleStar(song.songId, !!song.starred); }}
+      >
+        <Heart className={cn("h-4 w-4", song.starred && "fill-current")} />
+      </Button>
+
+      {/* Play Next - visible on hover */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-8 w-8 p-0 shrink-0 opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+        onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'next'); }}
+        title="Play Next"
+      >
+        <SkipForward className="h-4 w-4" />
+      </Button>
 
       {/* Actions menu - Always visible on mobile, hover on desktop */}
       <DropdownMenu>
@@ -255,6 +298,7 @@ interface VirtualizedPlaylistSongsProps {
   onPlayFromSong: (index: number) => void;
   onAddSongToQueue: (song: PlaylistSong, position: 'now' | 'next' | 'end') => void;
   onRemoveSong: (songId: string) => void;
+  onToggleStar: (songId: string, currentlyStarred: boolean) => void;
   isRemovePending: boolean;
 }
 
@@ -267,6 +311,7 @@ function PlaylistSongsList({
   onPlayFromSong,
   onAddSongToQueue,
   onRemoveSong,
+  onToggleStar,
   isRemovePending,
 }: VirtualizedPlaylistSongsProps) {
   return (
@@ -275,10 +320,13 @@ function PlaylistSongsList({
       <div className="hidden sm:flex items-center gap-3 px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b border-border/50">
         <span className="w-6" /> {/* Drag handle space */}
         <span className="w-8 text-right">#</span>
+        <span className="w-8" /> {/* Art space */}
         <span className="flex-1">Title</span>
         <span className="hidden lg:block w-40 xl:w-48">Album</span>
         <span className="w-14 text-right">Time</span>
         <span className="hidden xl:block w-28 text-right">Added</span>
+        <span className="w-8" /> {/* Star */}
+        <span className="w-8" /> {/* Play next */}
         <span className="w-10" /> {/* Actions space */}
       </div>
 
@@ -303,6 +351,7 @@ function PlaylistSongsList({
                 onPlayFromSong={onPlayFromSong}
                 onAddSongToQueue={onAddSongToQueue}
                 onRemoveSong={onRemoveSong}
+                onToggleStar={onToggleStar}
                 isRemovePending={isRemovePending}
               />
             ))}
@@ -551,6 +600,43 @@ function PlaylistDetailPage() {
     }
   };
 
+  // Star/unstar mutation with optimistic update
+  const starMutation = useMutation({
+    mutationFn: async ({ songId, star }: { songId: string; star: boolean }) => {
+      const response = await fetch(`/api/navidrome/star?id=${songId}`, {
+        method: star ? 'POST' : 'DELETE',
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to ${star ? 'star' : 'unstar'} song`);
+      }
+      return response.json();
+    },
+    onMutate: async ({ songId, star }) => {
+      await queryClient.cancelQueries({ queryKey: ['playlist', id] });
+      const previousPlaylist = queryClient.getQueryData(['playlist', id]);
+      queryClient.setQueryData(['playlist', id], (old: PlaylistDetail | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          songs: old.songs.map(s =>
+            s.songId === songId ? { ...s, starred: star } : s
+          ),
+        };
+      });
+      return { previousPlaylist };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previousPlaylist) {
+        queryClient.setQueryData(['playlist', id], context.previousPlaylist);
+      }
+      toast.error('Failed to update star');
+    },
+  });
+
+  const handleToggleStar = (songId: string, currentlyStarred: boolean) => {
+    starMutation.mutate({ songId, star: !currentlyStarred });
+  };
+
   const handleRemoveSong = (songId: string) => {
     removeSongMutation.mutate(songId);
   };
@@ -632,41 +718,41 @@ function PlaylistDetailPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto p-3 sm:p-6">
+      <PageLayout title="Playlist" backLink="/playlists" backLabel="Playlists" compact>
         <div className="text-center py-8 text-destructive">
           Error loading playlist: {error instanceof Error ? error.message : 'Unknown error'}
         </div>
         <div className="text-center">
           <Button asChild variant="outline">
-            <Link to="/playlists">← Back to Playlists</Link>
+            <Link to="/playlists">Back to Playlists</Link>
           </Button>
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
+      <PageLayout title="Loading..." backLink="/playlists" backLabel="Playlists" compact>
         <Skeleton className="h-12 w-64" />
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-96 w-full" />
-      </div>
+      </PageLayout>
     );
   }
 
   if (!playlist) {
     return (
-      <div className="container mx-auto p-3 sm:p-6">
+      <PageLayout title="Not Found" backLink="/playlists" backLabel="Playlists" compact>
         <div className="text-center py-8">
           <p className="text-muted-foreground">Playlist not found</p>
         </div>
         <div className="text-center">
           <Button asChild variant="outline">
-            <Link to="/playlists">← Back to Playlists</Link>
+            <Link to="/playlists">Back to Playlists</Link>
           </Button>
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
@@ -676,55 +762,38 @@ function PlaylistDetailPage() {
   );
 
   return (
-    <div className="min-h-screen">
-      {/* Hero Header with Gradient */}
+    <PageLayout
+      title={playlist.name}
+      description={`${playlist.songs.length} songs`}
+      backLink="/playlists"
+      backLabel="Playlists"
+      compact
+      fullWidth
+    >
+      {/* Hero Actions with Gradient */}
       <div className={cn(
         "relative bg-gradient-to-b pb-3 sm:pb-4",
         getPlaylistGradient()
       )}>
         <div className="px-3 sm:px-4 lg:px-6">
-          {/* Back button */}
-          <div className="pt-1.5 pb-1.5 sm:pt-2 sm:pb-2">
-            <Link
-              to="/playlists"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span>Back</span>
-            </Link>
-          </div>
-
-          {/* Playlist Info - Two rows: header + buttons */}
-          <div className="flex flex-col gap-4">
-            {/* Row 1: Cover + Title */}
-            <div className="flex flex-row gap-3 sm:gap-4 items-center">
-              {/* Playlist Cover/Icon */}
-              <div className={cn(
-                "w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 rounded-lg shadow-lg flex items-center justify-center shrink-0",
-                isLikedSongsPlaylist
-                  ? "bg-gradient-to-br from-rose-500 to-pink-600"
-                  : isSmartPlaylist
-                    ? "bg-gradient-to-br from-violet-500 to-purple-600"
-                    : "bg-gradient-to-br from-primary/80 to-primary"
-              )}>
-                {playlistIconType === 'heart' && <Heart className="h-7 w-7 sm:h-8 sm:w-8 md:h-10 md:w-10 lg:h-12 lg:w-12 text-white" />}
-                {playlistIconType === 'sparkles' && <Sparkles className="h-7 w-7 sm:h-8 sm:w-8 md:h-10 md:w-10 lg:h-12 lg:w-12 text-white" />}
-                {playlistIconType === 'list' && <ListMusic className="h-7 w-7 sm:h-8 sm:w-8 md:h-10 md:w-10 lg:h-12 lg:w-12 text-white" />}
-              </div>
-
-              {/* Title + Count */}
-              <div className="flex-1 min-w-0">
-                <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold truncate leading-tight">
-                  {playlist.name}
-                </h1>
-                <div className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                  {playlist.songs.length} songs
-                </div>
-              </div>
+          {/* Playlist Cover + Action Buttons */}
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* Playlist Cover/Icon */}
+            <div className={cn(
+              "w-12 h-12 sm:w-14 sm:h-14 rounded-lg shadow-lg flex items-center justify-center shrink-0",
+              isLikedSongsPlaylist
+                ? "bg-gradient-to-br from-rose-500 to-pink-600"
+                : isSmartPlaylist
+                  ? "bg-gradient-to-br from-violet-500 to-purple-600"
+                  : "bg-gradient-to-br from-primary/80 to-primary"
+            )}>
+              {playlistIconType === 'heart' && <Heart className="h-6 w-6 sm:h-7 sm:w-7 text-white" />}
+              {playlistIconType === 'sparkles' && <Sparkles className="h-6 w-6 sm:h-7 sm:w-7 text-white" />}
+              {playlistIconType === 'list' && <ListMusic className="h-6 w-6 sm:h-7 sm:w-7 text-white" />}
             </div>
 
-            {/* Row 2: Action Buttons */}
-            <div className="flex items-center gap-2">
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 flex-1">
               {/* Main Play Button */}
               <Button
                 onClick={handlePlayAll}
@@ -875,6 +944,7 @@ function PlaylistDetailPage() {
                 onPlayFromSong={handlePlayFromSong}
                 onAddSongToQueue={handleAddSongToQueue}
                 onRemoveSong={handleRemoveSong}
+                onToggleStar={handleToggleStar}
                 isRemovePending={removeSongMutation.isPending}
               />
             )}
@@ -920,6 +990,6 @@ function PlaylistDetailPage() {
           </>
         )}
       </div>
-    </div>
+    </PageLayout>
   );
 }

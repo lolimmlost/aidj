@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PageLayout } from '@/components/ui/page-layout';
 import {
   Select,
   SelectContent,
@@ -142,21 +143,14 @@ function YouTubeDownloadPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Youtube className="h-8 w-8 text-red-500" />
-            <h1 className="text-3xl font-bold">YouTube Download</h1>
-          </div>
-          <p className="text-muted-foreground">
-            Download music from YouTube, SoundCloud, Bandcamp, and more
-          </p>
-        </div>
+    <PageLayout
+      title="YouTube / SoundCloud"
+      description="Download from video platforms via MeTube"
+      icon={<Youtube className="h-5 w-5" />}
+      backLink="/downloads"
+      backLabel="Downloads"
+      actions={
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => navigate({ to: '/dashboard' })}>
-            Dashboard
-          </Button>
           <Button variant="outline" onClick={() => navigate({ to: '/downloads' })}>
             Lidarr Downloads
           </Button>
@@ -164,8 +158,8 @@ function YouTubeDownloadPage() {
             Download Status
           </Button>
         </div>
-      </div>
-
+      }
+    >
       {/* Connection Status */}
       {statusError ? (
         <Card className="border-destructive">
@@ -378,6 +372,6 @@ function YouTubeDownloadPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageLayout>
   );
 }

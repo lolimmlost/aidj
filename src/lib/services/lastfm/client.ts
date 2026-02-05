@@ -20,6 +20,7 @@ import type {
   LastFmSearchResponse,
   LastFmTagTopTracksResponse,
   LastFmTrackInfoResponse,
+  LastFmRecentTracksResponse,
   EnrichedTrack,
   EnrichedArtist,
 } from './types';
@@ -557,6 +558,63 @@ export class LastFmClient {
       console.warn(`[Last.fm] Failed to get track info for "${artist} - ${track}":`, error);
       return null;
     }
+  }
+
+  /**
+   * Get a user's recent scrobbled tracks from Last.fm
+   * Used for historical scrobble backfill into listening history.
+   *
+   * @param username - Last.fm username
+   * @param page - Page number (1-indexed)
+   * @param limit - Results per page (default: 200, max: 200)
+   * @param from - Unix timestamp to start from (optional)
+   * @param to - Unix timestamp to end at (optional)
+   *
+   * @see docs/architecture/analytics-discovery-upgrades-plan.md - Item 3.1
+   */
+  async getRecentTracks(
+    username: string,
+    page: number = 1,
+    limit: number = 200,
+    from?: number,
+    to?: number
+  ): Promise<{
+    tracks: Array<{
+      artist: string;
+      title: string;
+      album: string;
+      playedAt: Date | null;
+      nowPlaying: boolean;
+    }>;
+    totalPages: number;
+    total: number;
+  }> {
+    const params: Record<string, string | number> = {
+      user: username,
+      page,
+      limit: Math.min(limit, 200),
+    };
+    if (from) params.from = from;
+    if (to) params.to = to;
+
+    const response = await this.request<LastFmRecentTracksResponse>('user.getrecenttracks', params);
+
+    const rawTracks = response.recenttracks?.track || [];
+    const attr = response.recenttracks?.['@attr'];
+
+    const tracks = rawTracks.map(t => ({
+      artist: t.artist?.['#text'] || 'Unknown',
+      title: t.name,
+      album: t.album?.['#text'] || '',
+      playedAt: t.date?.uts ? new Date(parseInt(t.date.uts) * 1000) : null,
+      nowPlaying: t['@attr']?.nowplaying === 'true',
+    }));
+
+    return {
+      tracks,
+      totalPages: parseInt(attr?.totalPages || '1'),
+      total: parseInt(attr?.total || '0'),
+    };
   }
 
   /**

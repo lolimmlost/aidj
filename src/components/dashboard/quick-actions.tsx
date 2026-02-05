@@ -1,8 +1,10 @@
 /**
  * Quick Actions Component - Mood-based Playlist Generation
  * Beautiful gradient cards for instant playlist creation
+ * Navigates to /dashboard/generate with preset param
  */
 
+import { useNavigate } from '@tanstack/react-router';
 import { Sparkles, Zap, PartyPopper, Target, Compass, Music, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -67,7 +69,7 @@ export const STYLE_PRESETS: StylePreset[] = [
 ];
 
 interface QuickActionsProps {
-  onPresetClick: (preset: StylePreset) => void;
+  onPresetClick?: (preset: StylePreset) => void;
   onContinueListening?: () => void;
   lastPlayedSong?: { title: string; artist: string } | null;
   isLoading?: boolean;
@@ -81,6 +83,18 @@ export function QuickActions({
   activePreset = null,
   className,
 }: QuickActionsProps) {
+  const navigate = useNavigate();
+
+  const handlePresetClick = (preset: StylePreset) => {
+    // If a custom handler is provided (e.g., from generate page), use it
+    if (onPresetClick) {
+      onPresetClick(preset);
+      return;
+    }
+    // Default: navigate to generate page with preset
+    navigate({ to: '/dashboard/generate', search: { preset: preset.id } });
+  };
+
   return (
     <section className={cn('space-y-4', className)}>
       {/* Section Header */}
@@ -95,15 +109,29 @@ export function QuickActions({
         </div>
       </div>
 
-      {/* Mood Cards Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-children">
+      {/* Mobile: compact horizontal scroll */}
+      <div className="sm:hidden flex gap-2 overflow-x-auto pb-2">
+          {STYLE_PRESETS.map((preset) => (
+            <MoodCard
+              key={preset.id}
+              preset={preset}
+              isActive={activePreset === preset.id}
+              isLoading={isLoading && activePreset === preset.id}
+              onClick={() => handlePresetClick(preset)}
+              compact
+            />
+          ))}
+      </div>
+
+      {/* Desktop: grid */}
+      <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-children">
         {STYLE_PRESETS.map((preset) => (
           <MoodCard
             key={preset.id}
             preset={preset}
             isActive={activePreset === preset.id}
             isLoading={isLoading && activePreset === preset.id}
-            onClick={() => onPresetClick(preset)}
+            onClick={() => handlePresetClick(preset)}
           />
         ))}
       </div>
@@ -116,9 +144,34 @@ interface MoodCardProps {
   isActive: boolean;
   isLoading: boolean;
   onClick: () => void;
+  compact?: boolean;
 }
 
-function MoodCard({ preset, isActive, isLoading, onClick }: MoodCardProps) {
+function MoodCard({ preset, isActive, isLoading, onClick, compact = false }: MoodCardProps) {
+  if (compact) {
+    return (
+      <button
+        onClick={onClick}
+        disabled={isLoading}
+        className={cn(
+          'relative inline-flex items-center gap-2 px-4 py-2.5 rounded-full shrink-0',
+          'cursor-pointer transition-all duration-200 active:scale-95',
+          preset.gradient,
+          isActive && 'ring-2 ring-white/50 ring-offset-2 ring-offset-background',
+          isLoading && 'animate-pulse'
+        )}
+      >
+        <div className="opacity-90 [&_svg]:h-4 [&_svg]:w-4">
+          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : preset.icon}
+        </div>
+        <span className="font-semibold text-sm whitespace-nowrap">{preset.label}</span>
+        {isActive && !isLoading && (
+          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-white animate-pulse" />
+        )}
+      </button>
+    );
+  }
+
   return (
     <button
       onClick={onClick}

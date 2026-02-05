@@ -1,12 +1,37 @@
 import { Link } from '@tanstack/react-router';
-import { Play, Pause, Music2, Disc3, Sparkles } from 'lucide-react';
+import { Play, Pause, Music2, Disc3, Sparkles, TrendingUp, TrendingDown } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useAudioStore } from '@/lib/stores/audio';
 import { cn } from '@/lib/utils';
+import { formatPercentChange } from '@/lib/utils/period-comparison';
+import { useDynamicColors } from '@/hooks/useDynamicColors';
 
 interface DashboardHeroProps {
   userName?: string;
   availableRecommendations: number;
   playlistSongsReady: number;
+}
+
+interface ListeningStatsResponse {
+  success: boolean;
+  preset: string;
+  current: {
+    totalPlays: number;
+    uniqueTracks: number;
+    uniqueArtists: number;
+    totalMinutesListened: number;
+    completionRate: number;
+  };
+  deltas: {
+    totalPlays: number | null;
+    uniqueTracks: number | null;
+    uniqueArtists: number | null;
+    totalMinutesListened: number | null;
+  };
+  diversity: {
+    entropy: number;
+    uniqueArtists: number;
+  };
 }
 
 /**
@@ -22,6 +47,17 @@ export function DashboardHero({
   const isPlaying = useAudioStore((s) => s.isPlaying);
   const setIsPlaying = useAudioStore((s) => s.setIsPlaying);
   const aiDJEnabled = useAudioStore((s) => s.aiDJEnabled);
+
+  const { data: stats } = useQuery<ListeningStatsResponse>({
+    queryKey: ['listening-stats', 'week'],
+    queryFn: async () => {
+      const res = await fetch('/api/listening-history/stats?preset=week');
+      if (!res.ok) throw new Error('Failed to fetch stats');
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -63,7 +99,23 @@ export function DashboardHero({
           </div>
 
           {/* Quick Stats - Desktop */}
-          <div className="hidden sm:flex items-center gap-3 stagger-children">
+          <div className="hidden sm:flex items-center gap-3 stagger-children flex-wrap">
+            {stats?.current && (
+              <>
+                <StatPill
+                  label="Plays this week"
+                  value={stats.current.totalPlays}
+                  color="violet"
+                  delta={stats.deltas?.totalPlays}
+                />
+                <StatPill
+                  label="Artists"
+                  value={stats.current.uniqueArtists}
+                  color="amber"
+                  delta={stats.deltas?.uniqueArtists}
+                />
+              </>
+            )}
             <StatPill
               label="Recommendations"
               value={availableRecommendations}
@@ -97,6 +149,15 @@ export function DashboardHero({
 
       {/* Mobile Quick Stats */}
       <div className="flex sm:hidden items-center gap-2 mt-4 overflow-x-auto pb-1">
+        {stats?.current && (
+          <StatPill
+            label="Plays"
+            value={stats.current.totalPlays}
+            color="violet"
+            delta={stats.deltas?.totalPlays}
+            compact
+          />
+        )}
         <StatPill label="Recs" value={availableRecommendations} color="violet" compact />
         <StatPill label="Ready" value={playlistSongsReady} color="emerald" compact />
         {aiDJEnabled && (
@@ -115,14 +176,17 @@ interface StatPillProps {
   value: number;
   color: 'violet' | 'emerald' | 'amber';
   compact?: boolean;
+  delta?: number | null;
 }
 
-function StatPill({ label, value, color, compact = false }: StatPillProps) {
+function StatPill({ label, value, color, compact = false, delta }: StatPillProps) {
   const colorClasses = {
-    violet: 'bg-violet-500/10 border-violet-500/20 text-violet-600 dark:text-violet-400',
-    emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400',
-    amber: 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400',
+    violet: 'stat-pill-violet',
+    emerald: 'stat-pill-emerald',
+    amber: 'stat-pill-amber',
   };
+
+  const formattedDelta = delta != null ? formatPercentChange(delta) : null;
 
   return (
     <div
@@ -136,6 +200,20 @@ function StatPill({ label, value, color, compact = false }: StatPillProps) {
       <span className={cn('text-muted-foreground', compact ? 'text-xs' : 'text-xs')}>
         {label}
       </span>
+      {formattedDelta && (
+        <span
+          className={cn(
+            'flex items-center gap-0.5 text-xs font-medium',
+            delta != null && delta > 0 && 'text-emerald-600 dark:text-emerald-400',
+            delta != null && delta < 0 && 'text-red-500 dark:text-red-400',
+            delta === 0 && 'text-muted-foreground'
+          )}
+        >
+          {delta != null && delta > 0 && <TrendingUp className="w-3 h-3" />}
+          {delta != null && delta < 0 && <TrendingDown className="w-3 h-3" />}
+          {formattedDelta}
+        </span>
+      )}
     </div>
   );
 }
@@ -149,23 +227,42 @@ interface NowPlayingWidgetProps {
 function NowPlayingWidget({ song, isPlaying, onTogglePlay }: NowPlayingWidgetProps) {
   const title = song.title || song.name || 'Unknown Track';
   const artist = song.artist || 'Unknown Artist';
+  const { style: dynamicStyle, colors } = useDynamicColors(song.albumArt);
 
   return (
-    <div className="now-playing-card p-4 sm:p-5 w-full lg:w-auto lg:min-w-[320px] animate-fade-up">
+    <div
+      className="now-playing-card p-4 sm:p-5 w-full lg:w-auto lg:min-w-[320px] animate-fade-up"
+      style={{
+        ...dynamicStyle,
+        ...(colors ? { borderColor: `${colors.primary}30` } : {}),
+      }}
+    >
       <div className="relative z-10 flex items-center gap-4">
         {/* Album Art / Vinyl */}
         <div className="relative">
           <div
             className={cn(
-              'w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center',
+              'w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center overflow-hidden',
               'vinyl-spin',
-              isPlaying && 'playing'
+              isPlaying && 'playing',
+              !song.albumArt && 'bg-gradient-to-br from-primary/20 to-primary/5'
             )}
           >
-            <Disc3 className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
+            {song.albumArt ? (
+              <img
+                src={song.albumArt}
+                alt={title}
+                className="w-full h-full object-cover rounded-full"
+              />
+            ) : (
+              <Disc3 className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
+            )}
           </div>
           {isPlaying && (
-            <div className="absolute inset-0 rounded-full bg-primary/10 pulse-ring" />
+            <div
+              className="absolute inset-0 rounded-full pulse-ring"
+              style={{ backgroundColor: colors ? `${colors.primary}15` : 'var(--primary-10, rgba(var(--primary), 0.1))' }}
+            />
           )}
         </div>
 

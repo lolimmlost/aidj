@@ -1,4 +1,5 @@
 import type { Visualizer, VisualizerContext } from '../types';
+import { getAdaptiveCount } from '../perf-utils';
 
 // Simplified noise function
 function noise(angle: number, time: number): number {
@@ -26,7 +27,7 @@ export const BlobVisualizer: Visualizer = {
   },
 
   render: (ctx: VisualizerContext) => {
-    const { ctx: c, width, height, centerX, centerY, audioData, colors, time } = ctx;
+    const { ctx: c, width, height, centerX, centerY, audioData, colors, time, quality } = ctx;
     const { bars, bass, mid, treble, volume, isBeat } = audioData;
 
     // Clear canvas
@@ -34,7 +35,7 @@ export const BlobVisualizer: Visualizer = {
     c.fillRect(0, 0, width, height);
 
     const baseRadius = Math.min(width, height) * 0.2;
-    const points = 64; // Reduced from 128
+    const points = getAdaptiveCount(64, quality);
 
     // Cache gradients if colors or size changed
     const colorKey = colors.primary + colors.secondary + colors.accent;

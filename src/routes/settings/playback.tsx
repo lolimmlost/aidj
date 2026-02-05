@@ -71,7 +71,7 @@ export function PlaybackSettings() {
         <div>
           <div className="flex justify-between items-center mb-2">
             <Label htmlFor="volume">Default Volume</Label>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="text-sm text-muted-foreground">
               {Math.round(localSettings.volume * 100)}%
             </span>
           </div>
@@ -84,7 +84,7 @@ export function PlaybackSettings() {
             onValueChange={handleVolumeChange}
             className="mt-2"
           />
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Set the default volume level for playback
           </p>
         </div>
@@ -93,7 +93,7 @@ export function PlaybackSettings() {
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="autoplay">Autoplay Next Song</Label>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Automatically play the next song in the queue
             </p>
           </div>
@@ -110,7 +110,7 @@ export function PlaybackSettings() {
         <div>
           <div className="flex justify-between items-center mb-2">
             <Label htmlFor="crossfade">Crossfade Duration</Label>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="text-sm text-muted-foreground">
               {localSettings.crossfadeDuration}s
             </span>
           </div>
@@ -123,7 +123,7 @@ export function PlaybackSettings() {
             onValueChange={handleCrossfadeChange}
             className="mt-2"
           />
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Smooth transition between songs (0-10 seconds)
           </p>
         </div>
@@ -146,7 +146,7 @@ export function PlaybackSettings() {
               <SelectItem value="high">High (320kbps)</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Choose the default audio quality for streaming
           </p>
         </div>
@@ -167,8 +167,8 @@ export function PlaybackSettings() {
           <div
             className={`p-4 rounded-md ${
               message.type === 'success'
-                ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-                : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                : 'bg-destructive/10 text-destructive'
             }`}
           >
             {message.text}

@@ -708,6 +708,21 @@ export function PlayerBar() {
 
               console.log(`[XFADE] Crossfade complete, active deck is now ${activeDeckRef.current}`);
 
+              // Sync Media Session — the new deck's 'playing' event was ignored during
+              // crossfade, and the old deck's 'pause' event could poison the state
+              navigator.mediaSession.playbackState = 'playing';
+
+              // Remove canplay/error handlers from old deck BEFORE changing its source.
+              // The silent data URL loads instantly and fires canplay — if the old
+              // handler is still attached it calls play(), causing ghost playing/pause
+              // events that make the browser show "paused" on the lock screen.
+              if (canPlayHandlerRef.current) {
+                oldDeckRef.removeEventListener('canplay', canPlayHandlerRef.current);
+              }
+              if (errorHandlerRef.current) {
+                oldDeckRef.removeEventListener('error', errorHandlerRef.current);
+              }
+
               // Clear the old deck's source IMMEDIATELY to prevent accidental playback
               // iOS can suspend the page at any time, so we can't rely on setTimeout
               // Use silent audio data URL instead of empty string to avoid error events
@@ -732,6 +747,20 @@ export function PlayerBar() {
               setTimeout(() => {
                 crossfadeJustCompletedRef.current = false;
               }, 100);
+
+              // Reinforce Media Session state after cleanup events settle
+              // Mobile browsers may re-evaluate playback state when the old deck's
+              // source is replaced and fires loadedmetadata/pause events
+              // The inactive deck can auto-play the preloaded song ~1s later,
+              // so reinforce at multiple intervals to cover the full window
+              for (const delay of [500, 1500, 3000]) {
+                setTimeout(() => {
+                  const newActive = getActiveDeck();
+                  if (newActive && !newActive.paused) {
+                    navigator.mediaSession.playbackState = 'playing';
+                  }
+                }, delay);
+              }
             }
           }, 50);
         })
@@ -783,6 +812,14 @@ export function PlayerBar() {
         inactiveDeck.volume = targetVolumeRef.current;
 
         console.log(`[XFADE] Crossfade force-completed, active deck is now ${activeDeckRef.current}`);
+
+        // Remove canplay/error handlers from old deck before changing source
+        if (canPlayHandlerRef.current) {
+          oldDeckRef.removeEventListener('canplay', canPlayHandlerRef.current);
+        }
+        if (errorHandlerRef.current) {
+          oldDeckRef.removeEventListener('error', errorHandlerRef.current);
+        }
 
         // Clear old deck source IMMEDIATELY - can't rely on setTimeout with iOS
         oldDeckRef.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAgAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbD/////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+M4xAANCAJYAUAAAP/jOMQADQW+XgFJAAD/4zjEAA5QGneBSRgA/+M4xAAOAAJYAUEAAA==';
@@ -1063,9 +1100,55 @@ export function PlayerBar() {
         return;
       }
 
-      // Skip if song ID already matches (e.g., direct transition in onEnded for mobile)
+      // Skip if song ID already matches AND audio actually has data loaded
+      // After PWA reload, currentSongIdRef may match but audio.readyState=0 (empty element)
       if (audio && song && currentSongIdRef.current === song.id) {
-        console.log(`[MOBILE] Skipping loadSong - already loaded via direct transition`);
+        if (audio.readyState > 0) {
+          console.log(`[MOBILE] Skipping loadSong - already loaded via direct transition`);
+          return;
+        }
+
+        // RECOVERY: Browser reclaimed audio resources while tab was backgrounded.
+        // The song ID matches but audio is empty — reload and restore position.
+        const storeState = useAudioStore.getState();
+        const wasPlaying = storeState.isPlaying;
+        const savedProgress = storeState.currentTime;
+        console.log(`[NETWORK] Song ID matches but audio empty (readyState=${audio.readyState}) - reloading (wasPlaying=${wasPlaying}, progress=${savedProgress.toFixed(1)}s)`);
+
+        // Remove old handlers
+        if (canPlayHandlerRef.current) {
+          audio.removeEventListener('canplay', canPlayHandlerRef.current);
+        }
+        if (errorHandlerRef.current) {
+          audio.removeEventListener('error', errorHandlerRef.current);
+        }
+
+        const recoveryCanPlay = () => {
+          audio.removeEventListener('canplay', recoveryCanPlay);
+          setIsLoading(false);
+          // Restore playback position
+          if (savedProgress > 0) {
+            audio.currentTime = savedProgress;
+          }
+          // Resume if we were playing before the tab was backgrounded
+          if (wasPlaying) {
+            audio.play()
+              .then(() => {
+                console.log(`[NETWORK] Recovery successful - resumed at ${savedProgress.toFixed(1)}s`);
+                setIsPlaying(true);
+              })
+              .catch((err) => {
+                console.log(`[NETWORK] Recovery play failed:`, err.message);
+                setIsPlaying(false);
+              });
+          }
+        };
+
+        canPlayHandlerRef.current = recoveryCanPlay;
+        audio.addEventListener('canplay', recoveryCanPlay);
+        setIsLoading(true);
+        audio.src = song.url;
+        audio.load();
         return;
       }
 
@@ -1105,7 +1188,11 @@ export function PlayerBar() {
 
         const handleCanPlay = () => {
           setIsLoading(false);
-          if (shouldAutoPlay) {
+          // Use CURRENT store state, not the stale shouldAutoPlay closure.
+          // The audio streams via range requests (network=LOADING), so canplay
+          // fires repeatedly as new data arrives. Using the stale closure would
+          // force-resume audio the user has since paused.
+          if (useAudioStore.getState().isPlaying) {
             audio.play().catch(console.error);
           }
         };
@@ -1402,9 +1489,14 @@ export function PlayerBar() {
       // iOS may auto-resume the inactive deck (with silent data URL) on visibility change
       // BUT: During crossfade or priming, we WANT the inactive deck to play
       if (!isActiveDeck && !crossfadeInProgressRef.current && !isPrimingRef.current) {
-        console.log(`🎛️ PlayerBar: Ignoring playing event from inactive deck - stopping it`);
-        playingDeck.pause();
-        playingDeck.currentTime = 0;
+        console.log(`🎛️ PlayerBar: Ignoring playing event from inactive deck - muting it`);
+        // DON'T call pause() — the DOM pause event causes the browser/OS to show
+        // "paused" on the lockscreen, overriding our Media Session playbackState.
+        // Instead, mute the deck and let the tiny silent data URL play to completion.
+        playingDeck.volume = 0;
+        if (navigator.mediaSession) {
+          navigator.mediaSession.playbackState = 'playing';
+        }
         return;
       }
 
@@ -1479,7 +1571,13 @@ export function PlayerBar() {
       }
     };
 
-    const handlePause = () => {
+    const handlePause = (event: Event) => {
+      // Skip during crossfade — the old deck pauses while the new deck keeps playing
+      if (crossfadeInProgressRef.current) return;
+      // Only update Media Session when the ACTIVE deck pauses
+      const pausedDeck = event.target as HTMLAudioElement;
+      const currentActive = getActiveDeck();
+      if (pausedDeck !== currentActive) return;
       navigator.mediaSession.playbackState = 'paused';
     };
 
@@ -1498,11 +1596,22 @@ export function PlayerBar() {
       }
     };
 
+    // Guard: only update Media Session metadata from the active deck
+    // The inactive deck fires loadedmetadata when its source is replaced with
+    // silent data URL during crossfade cleanup — this can cause the browser to
+    // re-evaluate playback state and show 'paused' on the lock screen
+    const handleLoadedMetadata = (event: Event) => {
+      const deck = event.target as HTMLAudioElement;
+      const currentActive = getActiveDeck();
+      if (deck !== currentActive) return;
+      setupMediaSession();
+    };
+
     // Register handlers on BOTH decks for iOS background playback during crossfade
     [deckA, deckB].forEach(deck => {
       deck.addEventListener('playing', handlePlaying);
       deck.addEventListener('pause', handlePause);
-      deck.addEventListener('loadedmetadata', setupMediaSession);
+      deck.addEventListener('loadedmetadata', handleLoadedMetadata);
       deck.addEventListener('timeupdate', handleTimeUpdate);
     });
 
@@ -1525,7 +1634,7 @@ export function PlayerBar() {
       [deckA, deckB].forEach(deck => {
         deck.removeEventListener('playing', handlePlaying);
         deck.removeEventListener('pause', handlePause);
-        deck.removeEventListener('loadedmetadata', setupMediaSession);
+        deck.removeEventListener('loadedmetadata', handleLoadedMetadata);
         deck.removeEventListener('timeupdate', handleTimeUpdate);
       });
 
@@ -1567,11 +1676,38 @@ export function PlayerBar() {
     stallWatchdogIntervalRef.current = setInterval(() => {
       const audio = getActiveDeck();
 
-      // Skip checks if audio not ready or paused
-      if (!audio || audio.paused) return;
+      if (!audio) return;
 
-      // Skip if crossfade in progress (different timing applies)
+      // Skip during crossfade — deck transitions cause temporary paused states
       if (crossfadeInProgressRef.current) return;
+
+      // DESYNC DETECTION: store says playing but audio is paused
+      // This happens when the browser reloads the audio source after a network change
+      // (e.g., WiFi/cellular switch) — currentTime resets to 0, paused becomes true,
+      // but no offline/online event fires so handleOnline never triggers recovery
+      if (audio.paused) {
+        // Don't recover an audio element that naturally ended
+        if (audio.duration > 0 && audio.currentTime >= audio.duration - 0.5) return;
+
+        if (useAudioStore.getState().isPlaying && audio.src && audio.src.indexOf('data:audio') === -1) {
+          if (audio.readyState >= 2) {
+            const savedPosition = lastProgressValueRef.current;
+            console.log(`🚨 [WATCHDOG] Desync: store=playing, audio=paused at ${audio.currentTime.toFixed(1)}s (was ${savedPosition.toFixed(1)}s) readyState=${audio.readyState} - recovering`);
+
+            // Restore position if the browser reset it
+            if (audio.currentTime < 1 && savedPosition > 1) {
+              audio.currentTime = savedPosition;
+            }
+
+            audio.play().catch(err => {
+              console.error(`🚨 [WATCHDOG] Desync recovery failed: ${err.message}`);
+              attemptStallRecovery(audio, 'watchdog-desync');
+            });
+          }
+          // If readyState < 2, will check again on next interval
+        }
+        return;
+      }
 
       // Skip if store says we shouldn't be playing
       if (!useAudioStore.getState().isPlaying) return;
@@ -1686,8 +1822,10 @@ export function PlayerBar() {
         // KEY INSIGHT: If audio has progress (currentTime > 0), it WAS playing
         // iOS may have briefly paused it during visibility change
         // In this case, we should try to RESUME, not sync to paused
-        if (audioHadProgress && !audioIsActuallyPlaying) {
-          console.log('👁️ [VISIBILITY] Audio has progress but is paused - attempting resume');
+        // BUT: Only resume if the store ALSO says playing — if the user deliberately
+        // paused (e.g., from lock screen), storeIsPlaying will be false and we must respect that
+        if (audioHadProgress && !audioIsActuallyPlaying && storeIsPlaying) {
+          console.log('👁️ [VISIBILITY] Audio has progress but is paused (store says playing) - attempting resume');
           // Check AudioContext first, then try to play
           checkAndResumeAudioContext().then(() => {
             activeDeck.play()
@@ -1769,8 +1907,30 @@ export function PlayerBar() {
       deckB.addEventListener(evt, handlerB);
     });
 
-    // Network state changes
-    const handleOnline = () => console.log('🌐 [NETWORK] Online');
+    // Network state changes — attempt playback recovery when back online
+    const handleOnline = () => {
+      console.log('🌐 [NETWORK] Online');
+      const active = getActiveDeck();
+      if (!active) return;
+
+      // If store says playing but audio is paused/stalled, recover
+      if (isPlaying && active.paused) {
+        if (active.readyState >= 2) {
+          // Has buffered data, just needs play()
+          console.log('🌐 [NETWORK] Resuming playback after reconnect');
+          active.play().catch(err =>
+            console.error(`🌐 [NETWORK] Resume failed: ${err.message}`)
+          );
+        } else if (active.src && !active.src.startsWith('data:')) {
+          // Has a real src but no data — reload from last position
+          const savedTime = active.currentTime;
+          console.log(`🌐 [NETWORK] Reloading audio from ${savedTime.toFixed(1)}s after reconnect`);
+          active.load();
+          active.currentTime = savedTime;
+          // The canplay handler + isPlaying=true will trigger play()
+        }
+      }
+    };
     const handleOffline = () => console.log('🌐 [NETWORK] Offline');
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);

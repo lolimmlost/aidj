@@ -44,7 +44,7 @@ export function RecommendationSettings() {
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="ai-enabled">Enable AI Recommendations</Label>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Get personalized music recommendations powered by AI
             </p>
           </div>
@@ -75,7 +75,7 @@ export function RecommendationSettings() {
               <SelectItem value="weekly">Weekly</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             How often should we generate new recommendations?
           </p>
         </div>
@@ -84,7 +84,7 @@ export function RecommendationSettings() {
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="style-playlists">Style-Based Playlist Generation</Label>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Generate playlists based on music styles and moods
             </p>
           </div>
@@ -101,7 +101,7 @@ export function RecommendationSettings() {
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="seasonal-recs">Seasonal Recommendations</Label>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Automatically adjust recommendations based on season and time of year
             </p>
           </div>
@@ -118,7 +118,7 @@ export function RecommendationSettings() {
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="use-feedback">Use Feedback for Personalization</Label>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Use your song ratings and feedback to improve recommendations
             </p>
           </div>
@@ -135,7 +135,7 @@ export function RecommendationSettings() {
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="sync-navidrome">Sync Feedback to Navidrome</Label>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Star/unstar songs in Navidrome when you give thumbs up/down
             </p>
           </div>
@@ -152,7 +152,7 @@ export function RecommendationSettings() {
         <div className="flex items-center justify-between pt-4 border-t border-border/50">
           <div className="space-y-0.5">
             <Label htmlFor="ai-dj-enabled">AI DJ Mode</Label>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Automatically add songs to your queue based on what you're listening to
             </p>
           </div>
@@ -181,8 +181,8 @@ export function RecommendationSettings() {
           <div
             className={`p-4 rounded-md ${
               message.type === 'success'
-                ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-                : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                : 'bg-destructive/10 text-destructive'
             }`}
           >
             {message.text}

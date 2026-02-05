@@ -377,6 +377,18 @@
 
   /* ===== AIDJ Dashboard Design System ===== */
 
+  /* Prevent horizontal scrolling in page-level scroll areas.
+     Radix ScrollArea wraps content in display:table which expands
+     to fit content width, breaking layout with wide horizontal
+     scroll children. Override to block so width is constrained. */
+  main [data-radix-scroll-area-viewport] {
+    overflow-x: hidden !important;
+  }
+
+  main [data-radix-scroll-area-viewport] > div {
+    display: block !important;
+  }
+
   /* Mood Card Base */
   .mood-card {
     @apply relative overflow-hidden rounded-2xl p-5 cursor-pointer
@@ -564,7 +576,7 @@
 
   /* Action Button */
   .action-button {
-    @apply relative overflow-hidden rounded-xl px-6 py-3 font-semibold
+    @apply relative inline-flex items-center gap-2 overflow-hidden rounded-xl px-6 py-3 font-semibold
            transition-all duration-200 hover:scale-[1.02] active:scale-[0.98];
     background: var(--gradient-brand);
     @apply text-white;
@@ -724,5 +736,123 @@
     85%, 100% {
       transform: translateX(0);
     }
+  }
+
+  /* ── Text Gradient Subtle ── */
+  .text-gradient-subtle {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, var(--foreground), var(--muted-foreground));
+  }
+
+  /* ── Collapsible Section Header ── */
+  .collapsible-header {
+    @apply flex items-center justify-between w-full p-4 rounded-xl
+           cursor-pointer transition-colors duration-200;
+  }
+
+  .collapsible-header:hover {
+    @apply bg-muted/50;
+  }
+
+  /* ── Integration Cards ── */
+  .integration-card {
+    @apply relative rounded-2xl border border-border/50 p-5 backdrop-blur-sm
+           transition-all duration-200 bg-card/30;
+  }
+
+  .integration-card:hover {
+    @apply bg-card/50 border-primary/30;
+  }
+
+  /* ── Tech Badge ── */
+  .tech-badge {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium
+           border border-border/50 bg-card/50 transition-colors duration-200;
+  }
+
+  .tech-badge:hover {
+    @apply bg-card/80 border-primary/30;
+  }
+
+  /* ── Quick Access Link ── */
+  .quick-access-link {
+    @apply flex items-center gap-2 sm:gap-3 rounded-xl border border-border/50 p-3 sm:p-4
+           transition-all duration-200 min-h-[48px] sm:min-h-[56px] bg-card/30;
+  }
+
+  .quick-access-link:hover {
+    @apply -translate-y-0.5 bg-card/60;
+  }
+
+  /* ── Stat Pill color variants ── */
+  .stat-pill-violet {
+    @apply bg-violet-500/10 border-violet-500/20 text-violet-600
+           dark:text-violet-400;
+  }
+
+  .stat-pill-amber {
+    @apply bg-amber-500/10 border-amber-500/20 text-amber-600
+           dark:text-amber-400;
+  }
+
+  .stat-pill-emerald {
+    @apply bg-emerald-500/10 border-emerald-500/20 text-emerald-600
+           dark:text-emerald-400;
+  }
+
+  .stat-pill-cyan {
+    @apply bg-cyan-500/10 border-cyan-500/20 text-cyan-600
+           dark:text-cyan-400;
+  }
+
+  /* ── Badge Destructive ── */
+  .badge-destructive {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+           bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300;
+  }
+
+  /* ── Hero Glow Tertiary ── */
+  .hero-glow-tertiary {
+    @apply absolute w-80 h-80 rounded-full blur-3xl opacity-25 pointer-events-none;
+    background: var(--gradient-focus);
+    animation: float 12s ease-in-out infinite;
+  }
+
+  /* ── Grid Pattern Overlay ── */
+  .grid-pattern {
+    @apply absolute inset-0 pointer-events-none;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 60px 60px;
+    opacity: 0.4;
+  }
+
+  /* ── Dot Pattern Overlay ── */
+  .dot-pattern {
+    @apply absolute inset-0 pointer-events-none;
+    background-image: radial-gradient(var(--border) 1px, transparent 1px);
+    background-size: 24px 24px;
+    opacity: 0.5;
+  }
+
+  /* ── Bounce Subtle (scroll indicator) ── */
+  @keyframes bounce-subtle {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(8px); }
+  }
+
+  .animate-bounce-subtle {
+    animation: bounce-subtle 2s ease-in-out infinite;
+  }
+
+  /* ── Pulse Glow ── */
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 3s ease-in-out infinite;
   }
 }

@@ -1,7 +1,8 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Disc, ListMusic, Sparkles, Settings } from "lucide-react";
+import { Disc, ListMusic, Sparkles, Settings } from "lucide-react";
+import { PageLayout } from "@/components/ui/page-layout";
 
 export const Route = createFileRoute("/dj/")({
   beforeLoad: async ({ context }) => {
@@ -14,26 +15,17 @@ export const Route = createFileRoute("/dj/")({
 
 function DJIndex() {
   return (
-    <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-        <Link to="/dashboard" className="shrink-0">
-          <Button variant="outline" size="sm" className="min-h-[44px] w-full sm:w-auto">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
-        </Link>
-        <div className="flex items-center gap-2">
-          <Disc className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-          <h1 className="text-xl sm:text-2xl font-bold">DJ Tools</h1>
-        </div>
-      </div>
-
+    <PageLayout
+      title="DJ Tools"
+      description="AI-powered mixing and set building"
+      icon={<Disc className="h-5 w-5" />}
+      backLink=""
+    >
       {/* Feature Cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* DJ Settings */}
         <Link to="/dj/settings">
-          <Card className="h-full cursor-pointer hover:bg-muted/50 transition-colors border-primary/50 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
+          <Card className="h-full cursor-pointer hover:bg-muted/50 transition-colors border-primary/50 bg-primary/5">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Settings className="h-5 w-5 text-primary" />
@@ -117,6 +109,6 @@ function DJIndex() {
           <p><strong>Queue Management:</strong> Use the queue panel to reorder, remove, or shuffle upcoming songs.</p>
         </CardContent>
       </Card>
-    </div>
+    </PageLayout>
   );
 }
