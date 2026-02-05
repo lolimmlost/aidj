@@ -9,7 +9,7 @@
  * - Persistence of job state
  */
 
-import { eq, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { discoveryJobState, discoverySuggestions } from '@/lib/db/schema';
 import {
@@ -444,7 +444,10 @@ class BackgroundDiscoveryManager {
       .select({ count: sql<number>`count(*)::int` })
       .from(discoverySuggestions)
       .where(
-        eq(discoverySuggestions.userId, this.userId),
+        and(
+          eq(discoverySuggestions.userId, this.userId),
+          eq(discoverySuggestions.status, 'pending'),
+        )
       );
 
     return result[0]?.count ?? 0;

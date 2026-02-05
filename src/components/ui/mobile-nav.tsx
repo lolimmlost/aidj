@@ -1,13 +1,24 @@
 import React, { useState } from 'react';
-import { Link } from '@tanstack/react-router';
-import { Menu, X, Home, Music, Search, Settings, Download, LayoutDashboard, BarChart3, ListMusic, Sparkles, User, TrendingUp } from 'lucide-react';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { Menu, X, Home, Music, Search, Settings, Download, LayoutDashboard, BarChart3, ListMusic, Sparkles, User, TrendingUp, LogOut } from 'lucide-react';
 import { Button } from './button';
+import authClient from '@/lib/auth/auth-client';
+import { useAudioStore } from '@/lib/stores/audio';
 
 export function MobileNav() {
   const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
+  const { playlist, currentSongIndex } = useAudioStore();
+  const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
+
+  const handleSignOut = async () => {
+    closeMenu();
+    await authClient.signOut();
+    navigate({ to: '/login' });
+  };
 
   return (
     <>
@@ -42,7 +53,7 @@ export function MobileNav() {
         `}
         aria-label="Mobile navigation"
       >
-        <div className="flex flex-col h-full pt-20 pb-6 px-4 overflow-y-auto">
+        <div className={`flex flex-col h-full pt-20 px-4 overflow-y-auto ${hasActiveSong ? 'pb-28' : 'pb-6'}`}>
           <div className="space-y-2">
             <NavLink
               to="/dashboard"
@@ -113,6 +124,14 @@ export function MobileNav() {
               label="Home"
               onClick={closeMenu}
             />
+
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg hover:bg-destructive/10 hover:text-destructive transition-colors w-full text-muted-foreground"
+            >
+              <LogOut className="h-5 w-5" />
+              <span className="text-base">Sign Out</span>
+            </button>
           </div>
         </div>
       </nav>

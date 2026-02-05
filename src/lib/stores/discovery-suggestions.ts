@@ -87,6 +87,7 @@ interface DiscoverySuggestionsState {
   dismiss: (id: string) => Promise<void>;
   revert: (id: string) => Promise<void>;
   approveMultiple: (ids: string[]) => Promise<void>;
+  dismissAll: () => Promise<void>;
   triggerDiscovery: () => Promise<void>;
   updateSettings: (settings: Partial<DiscoverySettings>) => Promise<void>;
 
@@ -482,13 +483,42 @@ export const useDiscoverySuggestionsStore = create<DiscoverySuggestionsState>()(
       get().fetchStatus();
     },
 
+    dismissAll: async () => {
+      try {
+        const response = await fetch('/api/background-discovery/suggestions', {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to clear suggestions');
+        }
+
+        const { data } = await response.json();
+        set({ suggestions: [], hasMore: false, total: 0, loadedCount: 0 });
+        toast.success(data.message || 'All suggestions dismissed');
+
+        // Refresh status
+        get().fetchStatus();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to clear suggestions';
+        toast.error(message);
+        console.error('Error clearing suggestions:', error);
+      }
+    },
+
     triggerDiscovery: async () => {
       set({ isTriggering: true });
+
+      // Abort after 2 minutes to prevent stuck state
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120_000);
 
       try {
         const response = await fetch('/api/background-discovery/trigger', {
           method: 'POST',
           credentials: 'include',
+          signal: controller.signal,
         });
 
         if (!response.ok) {
@@ -503,10 +533,15 @@ export const useDiscoverySuggestionsStore = create<DiscoverySuggestionsState>()(
         await get().fetchSuggestions();
         await get().fetchStatus();
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to trigger discovery';
-        toast.error(message);
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          toast.error('Discovery timed out — try again');
+        } else {
+          const message = error instanceof Error ? error.message : 'Failed to trigger discovery';
+          toast.error(message);
+        }
         console.error('Error triggering discovery:', error);
       } finally {
+        clearTimeout(timeout);
         set({ isTriggering: false });
       }
     },

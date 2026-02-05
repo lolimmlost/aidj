@@ -14,6 +14,39 @@ import {
   successResponse,
 } from '@/lib/utils/api-response';
 
+// DELETE /api/background-discovery/suggestions - Dismiss all pending suggestions
+const DELETE = withAuthAndErrorHandling(
+  async ({ session }) => {
+    const userId = session.user.id;
+
+    const result = await db
+      .update(discoverySuggestions)
+      .set({
+        status: 'dismissed',
+        reviewedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(discoverySuggestions.userId, userId),
+          eq(discoverySuggestions.status, 'pending')
+        )
+      )
+      .returning({ id: discoverySuggestions.id });
+
+    return successResponse({
+      success: true,
+      message: `Dismissed ${result.length} suggestions`,
+      dismissedCount: result.length,
+    });
+  },
+  {
+    service: 'background-discovery',
+    operation: 'dismiss-all-suggestions',
+    defaultCode: 'DISMISS_ALL_ERROR',
+    defaultMessage: 'Failed to dismiss all suggestions',
+  }
+);
+
 // Request validation schema
 const SuggestionsQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).optional().default(20),
@@ -107,6 +140,7 @@ export const Route = createFileRoute("/api/background-discovery/suggestions")({
   server: {
     handlers: {
       GET,
+      DELETE,
     },
   },
 });

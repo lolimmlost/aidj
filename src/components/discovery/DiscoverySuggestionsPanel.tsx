@@ -28,6 +28,7 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CoverArtApproval } from '@/components/ui/cover-art-approval';
@@ -117,27 +118,29 @@ function SuggestionCard({
       </button>
 
       {/* Album art */}
-      <CoverArtApproval
-        imageUrl={suggestion.imageUrl ?? ''}
-        entityId={`artist:${suggestion.artistName}`}
-        entityType="artist"
-        artist={suggestion.artistName}
-        album={suggestion.albumName ?? undefined}
-        className={`rounded-md flex items-center justify-center flex-shrink-0 overflow-hidden ${suggestion.imageUrl ? 'w-14 h-14' : 'w-8 h-8 bg-muted'}`}
-      >
-        {suggestion.imageUrl ? (
-          <img
-            src={suggestion.imageUrl}
-            alt={`${suggestion.artistName} - ${suggestion.trackName}`}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-        ) : (
-          <Music2 className="h-3.5 w-3.5 text-muted-foreground/50" />
-        )}
-      </CoverArtApproval>
+      <div className="w-14 h-14 rounded-md flex items-center justify-center flex-shrink-0 overflow-hidden bg-muted">
+        <CoverArtApproval
+          imageUrl={suggestion.imageUrl ?? ''}
+          entityId={`artist:${suggestion.artistName}`}
+          entityType="artist"
+          artist={suggestion.artistName}
+          album={suggestion.albumName ?? undefined}
+          className="w-full h-full"
+        >
+          {suggestion.imageUrl ? (
+            <img
+              src={suggestion.imageUrl}
+              alt={`${suggestion.artistName} - ${suggestion.trackName}`}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          ) : (
+            <Music2 className="h-5 w-5 text-muted-foreground/50" />
+          )}
+        </CoverArtApproval>
+      </div>
 
       {/* Track info */}
       <div className="flex-1 min-w-0">
@@ -241,6 +244,7 @@ export function DiscoverySuggestionsPanel({
     reject,
     dismiss,
     approveMultiple,
+    dismissAll,
     triggerDiscovery,
   } = useDiscoverySuggestionsStore();
 
@@ -384,17 +388,32 @@ export function DiscoverySuggestionsPanel({
                   {selectedCount > 0 ? `Deselect (${selectedCount})` : 'Select All'}
                 </Button>
               </div>
-              {selectedCount > 0 && (
+              <div className="flex items-center gap-2">
+                {selectedCount > 0 && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-7 bg-green-600 hover:bg-green-700"
+                    onClick={approveSelected}
+                  >
+                    <Check className="h-3.5 w-3.5 mr-1" />
+                    Approve Selected ({selectedCount})
+                  </Button>
+                )}
                 <Button
-                  variant="default"
+                  variant="outline"
                   size="sm"
-                  className="h-7 bg-green-600 hover:bg-green-700"
-                  onClick={approveSelected}
+                  className="h-7 text-xs hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+                  onClick={() => {
+                    if (window.confirm(`Dismiss all ${pendingCount} pending suggestions?`)) {
+                      dismissAll();
+                    }
+                  }}
                 >
-                  <Check className="h-3.5 w-3.5 mr-1" />
-                  Approve Selected ({selectedCount})
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Clear Queue
                 </Button>
-              )}
+              </div>
             </div>
           )}
 
