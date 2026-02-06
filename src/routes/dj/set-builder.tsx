@@ -245,6 +245,11 @@ function SetBuilderPage() {
                     <Badge variant="outline">
                       {template.options.energyProfile}
                     </Badge>
+                    {template.options.targetBpm && (
+                      <Badge variant="outline">
+                        {template.options.targetBpm} BPM
+                      </Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -291,6 +296,19 @@ function SetBuilderPage() {
                   <div className="border-t border-border my-4" />
 
                   <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Target BPM: {customOptions.targetBpm || 120}</Label>
+                      <Slider
+                        value={[customOptions.targetBpm || 120]}
+                        onValueChange={([v]) =>
+                          setCustomOptions({ ...customOptions, targetBpm: v })
+                        }
+                        min={70}
+                        max={180}
+                        step={1}
+                      />
+                    </div>
+
                     <div className="space-y-2">
                       <Label>Duration: {customOptions.duration} minutes</Label>
                       <Slider
