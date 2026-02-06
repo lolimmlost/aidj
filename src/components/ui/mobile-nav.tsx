@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { Menu, X, Home, Music, Search, Settings, Download, LayoutDashboard, BarChart3, ListMusic, Sparkles, User, TrendingUp, LogOut } from 'lucide-react';
 import { Button } from './button';
+import { cn } from '@/lib/utils';
 import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
 
 export function MobileNav() {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
+  const routerState = useRouterState();
+  const currentPath = routerState.location.pathname;
   const { playlist, currentSongIndex } = useAudioStore();
   const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
 
@@ -60,60 +63,70 @@ export function MobileNav() {
               icon={<LayoutDashboard className="h-5 w-5" />}
               label="Dashboard"
               onClick={closeMenu}
+              active={currentPath === '/dashboard' || currentPath === '/dashboard/'}
             />
             <NavLink
               to="/dashboard/discover"
               icon={<Sparkles className="h-5 w-5" />}
               label="Discover"
               onClick={closeMenu}
+              active={currentPath.includes('/dashboard/discover')}
             />
             <NavLink
               to="/dashboard/analytics"
               icon={<BarChart3 className="h-5 w-5" />}
               label="Analytics"
               onClick={closeMenu}
+              active={currentPath.includes('/analytics')}
             />
             <NavLink
               to="/music-identity"
               icon={<User className="h-5 w-5" />}
               label="Music Identity"
               onClick={closeMenu}
+              active={currentPath.startsWith('/music-identity')}
             />
             <NavLink
               to="/library/artists"
               icon={<Music className="h-5 w-5" />}
               label="Browse Artists"
               onClick={closeMenu}
+              active={currentPath.includes('/library/artists')}
             />
             <NavLink
               to="/library/search"
               icon={<Search className="h-5 w-5" />}
               label="Search Library"
               onClick={closeMenu}
+              active={currentPath.includes('/library/search')}
             />
             <NavLink
               to="/playlists"
               icon={<ListMusic className="h-5 w-5" />}
               label="Playlists"
               onClick={closeMenu}
+              active={currentPath.startsWith('/playlists')}
             />
             <NavLink
               to="/downloads"
               icon={<Download className="h-5 w-5" />}
               label="Downloads"
               onClick={closeMenu}
+              active={currentPath.startsWith('/downloads')}
             />
             <NavLink
               to="/dashboard/library-growth"
               icon={<TrendingUp className="h-5 w-5" />}
               label="Library Growth"
               onClick={closeMenu}
+              active={currentPath.includes('/library-growth')}
             />
             <NavLink
               to="/settings"
               icon={<Settings className="h-5 w-5" />}
               label="Settings"
               onClick={closeMenu}
+              active={currentPath.startsWith('/settings')}
             />
 
             <div className="border-t border-border my-4" />
@@ -123,6 +136,7 @@ export function MobileNav() {
               icon={<Home className="h-5 w-5" />}
               label="Home"
               onClick={closeMenu}
+              active={currentPath === '/'}
             />
 
             <button
@@ -144,17 +158,20 @@ interface NavLinkProps {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
+  active?: boolean;
 }
 
-function NavLink({ to, icon, label, onClick }: NavLinkProps) {
+function NavLink({ to, icon, label, onClick, active }: NavLinkProps) {
   return (
     <Link
       to={to}
       onClick={onClick}
-      className="flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors"
-      activeProps={{
-        className: 'bg-accent text-accent-foreground font-medium',
-      }}
+      className={cn(
+        "flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg transition-colors",
+        active
+          ? "bg-accent text-accent-foreground font-medium"
+          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+      )}
     >
       {icon}
       <span className="text-base">{label}</span>

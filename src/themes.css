@@ -1,0 +1,414 @@
+/* ==========================================================
+   AIDJ Visual Themes
+   Each theme scoped via html[data-theme] for specificity over .dark.
+   Design principles from real music UI references:
+   - Commit to ONE atmospheric hue
+   - Card-to-background contrast: 3-5%, not 15%
+   - Borders nearly invisible or absent
+   - One dominant accent color
+   - Restrained effects — no gimmicks
+   ========================================================== */
+
+/* ----------------------------------------------------------
+   1. Midnight Club
+   Reference: Deep purple music dashboard. Purple permeates
+   everything — background, cards, the air between elements.
+   Single hot-pink accent for interactive elements.
+   Mode: dark
+   ---------------------------------------------------------- */
+html[data-theme="midnight-club"] {
+  --background: oklch(0.14 0.04 285);
+  --foreground: oklch(0.9 0.02 290);
+  --card: oklch(0.17 0.05 285);
+  --card-foreground: oklch(0.9 0.02 290);
+  --popover: oklch(0.17 0.05 285);
+  --popover-foreground: oklch(0.9 0.02 290);
+  --primary: oklch(0.7 0.25 330);
+  --primary-foreground: oklch(0.14 0.04 285);
+  --secondary: oklch(0.2 0.05 285);
+  --secondary-foreground: oklch(0.85 0.02 290);
+  --muted: oklch(0.19 0.045 285);
+  --muted-foreground: oklch(0.55 0.04 290);
+  --accent: oklch(0.22 0.06 285);
+  --accent-foreground: oklch(0.9 0.02 290);
+  --destructive: oklch(0.6 0.25 25);
+  --border: oklch(1 0 0 / 0.06);
+  --input: oklch(1 0 0 / 0.06);
+  --ring: oklch(0.7 0.25 330);
+
+  --chart-1: oklch(0.7 0.25 330);
+  --chart-2: oklch(0.6 0.2 285);
+  --chart-3: oklch(0.65 0.15 250);
+  --chart-4: oklch(0.55 0.18 300);
+  --chart-5: oklch(0.7 0.12 310);
+
+  --sidebar: oklch(0.12 0.035 285);
+  --sidebar-foreground: oklch(0.9 0.02 290);
+  --sidebar-primary: oklch(0.7 0.25 330);
+  --sidebar-primary-foreground: oklch(0.14 0.04 285);
+  --sidebar-accent: oklch(0.2 0.05 285);
+  --sidebar-accent-foreground: oklch(0.9 0.02 290);
+  --sidebar-border: oklch(1 0 0 / 0.05);
+  --sidebar-ring: oklch(0.7 0.25 330);
+
+  --aidj-violet: oklch(0.6 0.2 285);
+  --aidj-purple: oklch(0.55 0.22 300);
+  --aidj-magenta: oklch(0.7 0.25 330);
+  --aidj-cyan: oklch(0.6 0.12 250);
+  --aidj-emerald: oklch(0.6 0.15 160);
+  --aidj-amber: oklch(0.7 0.15 80);
+
+  --gradient-brand: linear-gradient(135deg, oklch(0.7 0.25 330), oklch(0.6 0.2 285));
+  --gradient-hero: linear-gradient(135deg, oklch(0.25 0.08 285), oklch(0.18 0.06 300));
+  --gradient-card-glow: radial-gradient(ellipse at top, oklch(0.7 0.25 330 / 0.06), transparent 60%);
+  --gradient-chill: linear-gradient(135deg, oklch(0.5 0.15 250), oklch(0.45 0.12 270));
+  --gradient-energy: linear-gradient(135deg, oklch(0.7 0.25 330), oklch(0.6 0.22 345));
+  --gradient-party: linear-gradient(135deg, oklch(0.65 0.22 310), oklch(0.6 0.2 285));
+  --gradient-focus: linear-gradient(135deg, oklch(0.5 0.15 250), oklch(0.45 0.12 230));
+  --gradient-discover: linear-gradient(135deg, oklch(0.55 0.2 285), oklch(0.5 0.18 300));
+
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2);
+  --shadow-md: 0 4px 12px oklch(0 0 0 / 0.25);
+  --shadow-lg: 0 8px 24px oklch(0 0 0 / 0.3);
+  --shadow-glow: 0 0 40px oklch(0.7 0.25 330 / 0.12);
+  --shadow-glow-sm: 0 0 20px oklch(0.7 0.25 330 / 0.08);
+
+  --radius: 0.75rem;
+
+  & body {
+    font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', ui-monospace, monospace;
+  }
+}
+
+
+/* ----------------------------------------------------------
+   2. Vinyl Lounge
+   Reference: Deezer lavender UI. Soft tinted background,
+   white cards that barely lift, one warm accent.
+   Airy, pastel, unhurried. Serif headings for warmth.
+   Mode: light
+   ---------------------------------------------------------- */
+html[data-theme="vinyl-lounge"] {
+  --background: oklch(0.94 0.02 70);
+  --foreground: oklch(0.22 0.02 50);
+  --card: oklch(0.97 0.012 75);
+  --card-foreground: oklch(0.22 0.02 50);
+  --popover: oklch(0.97 0.012 75);
+  --popover-foreground: oklch(0.22 0.02 50);
+  --primary: oklch(0.55 0.16 45);
+  --primary-foreground: oklch(0.97 0.01 75);
+  --secondary: oklch(0.92 0.015 70);
+  --secondary-foreground: oklch(0.35 0.02 50);
+  --muted: oklch(0.91 0.015 70);
+  --muted-foreground: oklch(0.5 0.03 50);
+  --accent: oklch(0.92 0.02 60);
+  --accent-foreground: oklch(0.3 0.02 50);
+  --destructive: oklch(0.55 0.2 25);
+  --border: oklch(0 0 0 / 0.06);
+  --input: oklch(0 0 0 / 0.04);
+  --ring: oklch(0.55 0.16 45);
+
+  --chart-1: oklch(0.55 0.16 45);
+  --chart-2: oklch(0.6 0.12 70);
+  --chart-3: oklch(0.5 0.1 30);
+  --chart-4: oklch(0.6 0.08 90);
+  --chart-5: oklch(0.55 0.1 15);
+
+  --sidebar: oklch(0.93 0.018 70);
+  --sidebar-foreground: oklch(0.22 0.02 50);
+  --sidebar-primary: oklch(0.55 0.16 45);
+  --sidebar-primary-foreground: oklch(0.97 0.01 75);
+  --sidebar-accent: oklch(0.91 0.02 65);
+  --sidebar-accent-foreground: oklch(0.3 0.02 50);
+  --sidebar-border: oklch(0 0 0 / 0.05);
+  --sidebar-ring: oklch(0.55 0.16 45);
+
+  --aidj-violet: oklch(0.5 0.12 30);
+  --aidj-purple: oklch(0.48 0.1 20);
+  --aidj-magenta: oklch(0.55 0.16 45);
+  --aidj-cyan: oklch(0.55 0.08 90);
+  --aidj-emerald: oklch(0.52 0.1 130);
+  --aidj-amber: oklch(0.6 0.14 65);
+
+  --gradient-brand: linear-gradient(135deg, oklch(0.55 0.16 45), oklch(0.5 0.12 30));
+  --gradient-hero: linear-gradient(135deg, oklch(0.95 0.02 60), oklch(0.93 0.018 75));
+  --gradient-card-glow: radial-gradient(ellipse at top, oklch(0.55 0.16 45 / 0.03), transparent 50%);
+  --gradient-chill: linear-gradient(135deg, oklch(0.55 0.08 90), oklch(0.5 0.06 110));
+  --gradient-energy: linear-gradient(135deg, oklch(0.6 0.14 65), oklch(0.55 0.16 45));
+  --gradient-party: linear-gradient(135deg, oklch(0.55 0.16 45), oklch(0.5 0.12 30));
+  --gradient-focus: linear-gradient(135deg, oklch(0.52 0.1 130), oklch(0.48 0.08 145));
+  --gradient-discover: linear-gradient(135deg, oklch(0.5 0.12 30), oklch(0.48 0.1 20));
+
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.04);
+  --shadow-md: 0 2px 8px oklch(0 0 0 / 0.06);
+  --shadow-lg: 0 4px 16px oklch(0 0 0 / 0.06);
+  --shadow-glow: none;
+  --shadow-glow-sm: none;
+
+  --radius: 0.75rem;
+
+  & h1, & h2, & h3, & h4, & h5, & h6 {
+    font-family: 'Georgia', 'Cambria', 'Times New Roman', serif;
+  }
+
+  & .glass-card,
+  & .glass-card-premium {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  & .audio-player-bar {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+
+/* ----------------------------------------------------------
+   3. Arctic Minimal
+   Reference: Lunkgem UI. Near-white, tons of breathing room,
+   single blue accent. No shadows, no glows, no glass.
+   Content-forward. Clean like a gallery wall.
+   Mode: light
+   ---------------------------------------------------------- */
+html[data-theme="arctic-minimal"] {
+  --background: oklch(0.97 0.003 250);
+  --foreground: oklch(0.18 0.02 250);
+  --card: oklch(0.99 0.002 250);
+  --card-foreground: oklch(0.18 0.02 250);
+  --popover: oklch(0.99 0.002 250);
+  --popover-foreground: oklch(0.18 0.02 250);
+  --primary: oklch(0.5 0.18 255);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.005 250);
+  --secondary-foreground: oklch(0.25 0.015 250);
+  --muted: oklch(0.95 0.004 250);
+  --muted-foreground: oklch(0.5 0.01 250);
+  --accent: oklch(0.95 0.006 250);
+  --accent-foreground: oklch(0.25 0.015 250);
+  --destructive: oklch(0.55 0.2 25);
+  --border: oklch(0 0 0 / 0.05);
+  --input: oklch(0 0 0 / 0.03);
+  --ring: oklch(0.5 0.18 255);
+
+  --chart-1: oklch(0.5 0.18 255);
+  --chart-2: oklch(0.58 0.14 255);
+  --chart-3: oklch(0.66 0.1 255);
+  --chart-4: oklch(0.74 0.07 255);
+  --chart-5: oklch(0.82 0.04 255);
+
+  --sidebar: oklch(0.96 0.003 250);
+  --sidebar-foreground: oklch(0.18 0.02 250);
+  --sidebar-primary: oklch(0.5 0.18 255);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.94 0.005 250);
+  --sidebar-accent-foreground: oklch(0.25 0.015 250);
+  --sidebar-border: oklch(0 0 0 / 0.04);
+  --sidebar-ring: oklch(0.5 0.18 255);
+
+  --aidj-violet: oklch(0.5 0.18 255);
+  --aidj-purple: oklch(0.45 0.15 260);
+  --aidj-magenta: oklch(0.5 0.18 255);
+  --aidj-cyan: oklch(0.55 0.12 240);
+  --aidj-emerald: oklch(0.5 0.14 235);
+  --aidj-amber: oklch(0.55 0.1 250);
+
+  --gradient-brand: linear-gradient(135deg, oklch(0.5 0.18 255), oklch(0.45 0.15 260));
+  --gradient-hero: linear-gradient(135deg, oklch(0.97 0.004 250), oklch(0.96 0.003 255));
+  --gradient-card-glow: radial-gradient(ellipse at top, transparent, transparent);
+  --gradient-chill: linear-gradient(135deg, oklch(0.55 0.12 240), oklch(0.5 0.1 250));
+  --gradient-energy: linear-gradient(135deg, oklch(0.5 0.18 255), oklch(0.48 0.16 260));
+  --gradient-party: linear-gradient(135deg, oklch(0.5 0.18 255), oklch(0.45 0.15 260));
+  --gradient-focus: linear-gradient(135deg, oklch(0.55 0.12 240), oklch(0.5 0.1 245));
+  --gradient-discover: linear-gradient(135deg, oklch(0.45 0.15 260), oklch(0.42 0.14 265));
+
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-glow: none;
+  --shadow-glow-sm: none;
+
+  --radius: 0.5rem;
+
+  & .card,
+  & .glass-card,
+  & .glass-card-premium {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+  }
+
+  & .audio-player-bar {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+  }
+
+  & .hero-glow,
+  & .hero-glow-secondary,
+  & .hero-glow-tertiary {
+    display: none;
+  }
+
+  & .now-playing-card {
+    box-shadow: none;
+  }
+
+  & .stat-card::before {
+    display: none;
+  }
+
+  & .action-button {
+    box-shadow: none;
+  }
+
+  & .action-button:hover {
+    box-shadow: none;
+    filter: brightness(1.1);
+  }
+}
+
+
+/* ----------------------------------------------------------
+   4. Deep Sea
+   Reference: Melo dark UI. Warm dark base (not pure black),
+   single teal accent for interactive elements only.
+   Everything else is the atmosphere. Cards barely lift.
+   Restrained — no heavy glows.
+   Mode: dark
+   ---------------------------------------------------------- */
+html[data-theme="deep-sea"] {
+  --background: oklch(0.15 0.03 200);
+  --foreground: oklch(0.88 0.02 195);
+  --card: oklch(0.18 0.035 200);
+  --card-foreground: oklch(0.88 0.02 195);
+  --popover: oklch(0.18 0.035 200);
+  --popover-foreground: oklch(0.88 0.02 195);
+  --primary: oklch(0.7 0.14 185);
+  --primary-foreground: oklch(0.15 0.03 200);
+  --secondary: oklch(0.2 0.03 200);
+  --secondary-foreground: oklch(0.82 0.02 195);
+  --muted: oklch(0.19 0.03 200);
+  --muted-foreground: oklch(0.55 0.03 195);
+  --accent: oklch(0.22 0.035 200);
+  --accent-foreground: oklch(0.88 0.02 195);
+  --destructive: oklch(0.6 0.22 25);
+  --border: oklch(1 0 0 / 0.06);
+  --input: oklch(1 0 0 / 0.05);
+  --ring: oklch(0.7 0.14 185);
+
+  --chart-1: oklch(0.7 0.14 185);
+  --chart-2: oklch(0.6 0.12 170);
+  --chart-3: oklch(0.55 0.1 210);
+  --chart-4: oklch(0.65 0.08 160);
+  --chart-5: oklch(0.6 0.1 195);
+
+  --sidebar: oklch(0.13 0.025 200);
+  --sidebar-foreground: oklch(0.88 0.02 195);
+  --sidebar-primary: oklch(0.7 0.14 185);
+  --sidebar-primary-foreground: oklch(0.15 0.03 200);
+  --sidebar-accent: oklch(0.2 0.03 200);
+  --sidebar-accent-foreground: oklch(0.88 0.02 195);
+  --sidebar-border: oklch(1 0 0 / 0.05);
+  --sidebar-ring: oklch(0.7 0.14 185);
+
+  --aidj-violet: oklch(0.55 0.1 210);
+  --aidj-purple: oklch(0.5 0.08 220);
+  --aidj-magenta: oklch(0.6 0.12 170);
+  --aidj-cyan: oklch(0.7 0.14 185);
+  --aidj-emerald: oklch(0.65 0.12 160);
+  --aidj-amber: oklch(0.7 0.08 150);
+
+  --gradient-brand: linear-gradient(135deg, oklch(0.7 0.14 185), oklch(0.6 0.12 170));
+  --gradient-hero: linear-gradient(135deg, oklch(0.2 0.04 200), oklch(0.17 0.035 210));
+  --gradient-card-glow: radial-gradient(ellipse at top, oklch(0.7 0.14 185 / 0.04), transparent 60%);
+  --gradient-chill: linear-gradient(135deg, oklch(0.55 0.1 210), oklch(0.5 0.08 220));
+  --gradient-energy: linear-gradient(135deg, oklch(0.65 0.12 160), oklch(0.6 0.1 150));
+  --gradient-party: linear-gradient(135deg, oklch(0.6 0.12 170), oklch(0.55 0.1 185));
+  --gradient-focus: linear-gradient(135deg, oklch(0.55 0.1 210), oklch(0.5 0.08 225));
+  --gradient-discover: linear-gradient(135deg, oklch(0.5 0.08 220), oklch(0.45 0.07 235));
+
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2);
+  --shadow-md: 0 4px 12px oklch(0 0 0 / 0.2);
+  --shadow-lg: 0 8px 24px oklch(0 0 0 / 0.25);
+  --shadow-glow: 0 0 30px oklch(0.7 0.14 185 / 0.06);
+  --shadow-glow-sm: 0 0 15px oklch(0.7 0.14 185 / 0.04);
+
+  --radius: 0.75rem;
+}
+
+
+/* ----------------------------------------------------------
+   5. Sunset Haze
+   Warm dark base with a burnt-orange/coral accent.
+   Like Melo but shifted warm. Cards are subtle.
+   The whole interface feels like golden hour.
+   Mode: dark
+   ---------------------------------------------------------- */
+html[data-theme="sunset-haze"] {
+  --background: oklch(0.15 0.02 30);
+  --foreground: oklch(0.9 0.02 40);
+  --card: oklch(0.18 0.025 30);
+  --card-foreground: oklch(0.9 0.02 40);
+  --popover: oklch(0.18 0.025 30);
+  --popover-foreground: oklch(0.9 0.02 40);
+  --primary: oklch(0.7 0.16 35);
+  --primary-foreground: oklch(0.15 0.02 30);
+  --secondary: oklch(0.2 0.025 30);
+  --secondary-foreground: oklch(0.85 0.02 40);
+  --muted: oklch(0.19 0.02 30);
+  --muted-foreground: oklch(0.55 0.03 35);
+  --accent: oklch(0.22 0.03 25);
+  --accent-foreground: oklch(0.9 0.02 40);
+  --destructive: oklch(0.6 0.22 25);
+  --border: oklch(1 0 0 / 0.06);
+  --input: oklch(1 0 0 / 0.05);
+  --ring: oklch(0.7 0.16 35);
+
+  --chart-1: oklch(0.7 0.16 35);
+  --chart-2: oklch(0.65 0.14 15);
+  --chart-3: oklch(0.72 0.1 55);
+  --chart-4: oklch(0.6 0.12 350);
+  --chart-5: oklch(0.68 0.13 45);
+
+  --sidebar: oklch(0.13 0.018 30);
+  --sidebar-foreground: oklch(0.9 0.02 40);
+  --sidebar-primary: oklch(0.7 0.16 35);
+  --sidebar-primary-foreground: oklch(0.15 0.02 30);
+  --sidebar-accent: oklch(0.2 0.025 30);
+  --sidebar-accent-foreground: oklch(0.9 0.02 40);
+  --sidebar-border: oklch(1 0 0 / 0.05);
+  --sidebar-ring: oklch(0.7 0.16 35);
+
+  --aidj-violet: oklch(0.6 0.12 350);
+  --aidj-purple: oklch(0.55 0.1 340);
+  --aidj-magenta: oklch(0.65 0.14 15);
+  --aidj-cyan: oklch(0.72 0.08 55);
+  --aidj-emerald: oklch(0.65 0.1 140);
+  --aidj-amber: oklch(0.75 0.14 60);
+
+  --gradient-brand: linear-gradient(135deg, oklch(0.7 0.16 35), oklch(0.65 0.14 15));
+  --gradient-hero: linear-gradient(135deg, oklch(0.2 0.03 30), oklch(0.17 0.025 20));
+  --gradient-card-glow: radial-gradient(ellipse at top, oklch(0.7 0.16 35 / 0.04), transparent 60%);
+  --gradient-chill: linear-gradient(135deg, oklch(0.6 0.12 350), oklch(0.55 0.1 340));
+  --gradient-energy: linear-gradient(135deg, oklch(0.75 0.14 60), oklch(0.7 0.16 45));
+  --gradient-party: linear-gradient(135deg, oklch(0.7 0.16 35), oklch(0.65 0.14 15));
+  --gradient-focus: linear-gradient(135deg, oklch(0.65 0.1 140), oklch(0.6 0.08 155));
+  --gradient-discover: linear-gradient(135deg, oklch(0.6 0.12 350), oklch(0.55 0.1 340));
+
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2);
+  --shadow-md: 0 4px 12px oklch(0 0 0 / 0.2);
+  --shadow-lg: 0 8px 24px oklch(0 0 0 / 0.25);
+  --shadow-glow: 0 0 30px oklch(0.7 0.16 35 / 0.08);
+  --shadow-glow-sm: 0 0 15px oklch(0.7 0.16 35 / 0.05);
+
+  --radius: 0.75rem;
+
+  & .hero-glow {
+    background: linear-gradient(135deg, oklch(0.7 0.16 35 / 0.5), oklch(0.65 0.14 15 / 0.3));
+  }
+
+  & .hero-glow-secondary {
+    background: linear-gradient(135deg, oklch(0.6 0.12 350 / 0.3), oklch(0.75 0.14 60 / 0.2));
+  }
+}

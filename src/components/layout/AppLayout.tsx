@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import authClient from '@/lib/auth/auth-client';
 import { MusicTasteDebugPanel } from '@/components/debug/MusicTasteDebugPanel';
+import { ThemeToggle } from '~/components/theme-toggle';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -478,12 +479,15 @@ function LeftSidebar() {
 
       {/* Bottom Settings & Sign Out */}
       <div className="p-3 border-t space-y-1">
-        <NavItem
-          to="/settings"
-          icon={<Settings className="h-4 w-4" />}
-          label="Settings"
-          active={currentPath.startsWith('/settings')}
-        />
+        <div className="flex items-center gap-2">
+          <NavItem
+            to="/settings"
+            icon={<Settings className="h-4 w-4" />}
+            label="Settings"
+            active={currentPath.startsWith('/settings')}
+          />
+          <ThemeToggle />
+        </div>
         <button
           onClick={async () => {
             await authClient.signOut();

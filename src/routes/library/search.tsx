@@ -43,8 +43,10 @@ function SearchPage() {
   };
 
   const handleSongClick = (songId: string) => {
+    const song = songs.find(s => s.id === songId);
+    if (!song) return;
     setAIUserActionInProgress(true);
-    playSong(songId, songs);
+    playSong(songId, [song]);
     setTimeout(() => setAIUserActionInProgress(false), 1000);
   };
 
@@ -53,8 +55,8 @@ function SearchPage() {
       <PageLayout
         title="Search Library"
         icon={<SearchIcon className="h-5 w-5" />}
-        backLink="/library"
-        backLabel="Library"
+        backLink="/dashboard"
+        backLabel="Dashboard"
         compact
       >
         <Card>
@@ -183,22 +185,26 @@ function SearchPage() {
                   </div>
 
                   {/* Mobile layout: two rows for better button visibility */}
-                  <div className="sm:hidden space-y-2">
-                    {/* Row 1: Track number, song info, play button */}
-                    <div className="flex items-center gap-2">
+                  <div className="sm:hidden space-y-1.5">
+                    {/* Row 1: Track number, song info (tappable) */}
+                    <div
+                      className="flex items-center gap-2 cursor-pointer"
+                      onClick={() => handleSongClick(song.id)}
+                    >
                       <div className="w-6 text-right text-xs text-muted-foreground flex-shrink-0">
                         {song.track}
                       </div>
-                      <div
-                        className="flex-1 min-w-0 cursor-pointer"
-                        onClick={() => handleSongClick(song.id)}
-                      >
+                      <div className="flex-1 min-w-0">
                         <div className="font-semibold text-sm truncate">{song.name || song.title || 'Unknown Song'}</div>
                         <div className="text-xs text-muted-foreground truncate">
                           {song.artist || 'Unknown Artist'}
                           {' • '}{Math.floor(song.duration / 60)}:{Math.floor(song.duration % 60).toString().padStart(2, '0')}
                         </div>
                       </div>
+                    </div>
+
+                    {/* Row 2: All action buttons together */}
+                    <div className="flex items-center gap-1 pl-8">
                       <div
                         className="text-muted-foreground cursor-pointer p-2 hover:text-primary min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0"
                         onClick={() => handleSongClick(song.id)}
@@ -214,10 +220,6 @@ function SearchPage() {
                       >
                         ▶
                       </div>
-                    </div>
-
-                    {/* Row 2: Action buttons - centered and always visible */}
-                    <div className="flex items-center justify-center gap-1 pl-8">
                       <SongFeedbackButtons
                         songId={song.id}
                         artistName={song.artist || 'Unknown Artist'}

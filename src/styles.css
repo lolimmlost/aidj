@@ -2,6 +2,8 @@
 
 @import "tw-animate-css";
 
+@import "./themes.css";
+
 @custom-variant dark (&:is(.dark *));
 @custom-variant landscape (@media (orientation: landscape));
 

@@ -684,10 +684,10 @@ export function PlayerBar() {
             activeDeck.volume = Math.max(0, fadeOutVolume);
             inactiveDeck.volume = Math.min(targetVolumeRef.current, fadeInVolume);
 
-            // Debug log every second
-            if (Math.floor(elapsed) !== Math.floor(elapsed - 0.05) && elapsed > 0.05) {
-              console.log(`[XFADE] Progress: ${Math.round(fadeProgress * 100)}%, active=${fadeOutVolume.toFixed(2)}, incoming=${fadeInVolume.toFixed(2)}`);
-        }
+            // Debug log every second (log when integer second changes)
+            if (Math.floor(elapsed) > Math.floor(elapsed - 0.06)) {
+              console.log(`[XFADE] Progress: ${Math.round(fadeProgress * 100)}%, active vol=${activeDeck.volume.toFixed(3)}, incoming vol=${inactiveDeck.volume.toFixed(3)}, target=${targetVolumeRef.current.toFixed(3)}`);
+            }
 
             if (fadeProgress >= 1) {
               // Crossfade complete
