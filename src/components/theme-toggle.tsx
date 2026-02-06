@@ -31,7 +31,7 @@ export function ThemeToggle() {
           <span className="sr-only">Theme settings</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
+      <DropdownMenuContent align="end" side="top" className="w-52">
         <DropdownMenuLabel className="text-xs text-muted-foreground">
           Visual Theme
         </DropdownMenuLabel>

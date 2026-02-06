@@ -121,44 +121,66 @@ export async function analyzeAudioFeatures(song: Song): Promise<AudioAnalysis> {
 }
 
 /**
- * Generate mock analysis data based on song metadata
- * This simulates what a real audio analysis would return
+ * Generate mock analysis data based on song metadata.
+ * Uses real BPM/key/energy from Navidrome when available,
+ * falls back to genre-based estimates for missing fields.
  */
 function generateMockAnalysis(song: Song): AudioAnalysis {
   const seed = hashString(`${song.artist}-${song.name}-${song.album}`);
   const random = seededRandom(seed);
-  
-  // Generate realistic BPM based on genre hints
-  let bpm = 120; // Default
   const genreHints = extractGenreHints(song);
-  
-  if (genreHints.includes('electronic') || genreHints.includes('techno') || genreHints.includes('house')) {
-    bpm = 120 + Math.floor(random() * 40); // 120-160 for electronic
-  } else if (genreHints.includes('dubstep') || genreHints.includes('drum')) {
-    bpm = 70 + Math.floor(random() * 30); // 70-100 for dubstep
-  } else if (genreHints.includes('rock') || genreHints.includes('punk')) {
-    bpm = 120 + Math.floor(random() * 60); // 120-180 for rock
-  } else if (genreHints.includes('hip-hop') || genreHints.includes('rap')) {
-    bpm = 80 + Math.floor(random() * 40); // 80-120 for hip-hop
-  } else if (genreHints.includes('jazz') || genreHints.includes('blues')) {
-    bpm = 60 + Math.floor(random() * 80); // 60-140 for jazz/blues
-  } else if (genreHints.includes('classical')) {
-    bpm = 60 + Math.floor(random() * 40); // 60-100 for classical
+
+  // Use real BPM from Navidrome if available
+  let bpm: number;
+  if (song.bpm && song.bpm > 0) {
+    bpm = song.bpm;
+  } else {
+    // Estimate BPM from genre with tight, realistic ranges
+    const genreBPM: Record<string, [number, number]> = {
+      'electronic': [124, 132], 'techno': [128, 138], 'house': [120, 130],
+      'trance': [130, 140], 'dubstep': [138, 142], 'drum': [170, 178],
+      'rock': [110, 140], 'punk': [150, 180], 'metal': [120, 160],
+      'hip-hop': [85, 100], 'rap': [80, 95], 'r&b': [90, 110],
+      'jazz': [100, 130], 'blues': [80, 120], 'soul': [90, 115],
+      'classical': [70, 100], 'ambient': [70, 100],
+      'pop': [100, 130], 'indie': [110, 135],
+      'folk': [90, 130], 'country': [100, 140],
+      'funk': [95, 115], 'disco': [115, 125],
+      'reggae': [70, 90], 'ska': [100, 120],
+      'latin': [90, 130],
+    };
+
+    bpm = 120; // Default fallback
+    for (const hint of genreHints) {
+      const range = genreBPM[hint];
+      if (range) {
+        const [min, max] = range;
+        bpm = min + Math.floor(random() * (max - min + 1));
+        break; // Use first genre match
+      }
+    }
   }
-  
-  // Generate musical key
+
+  // Use real key from Navidrome if available, otherwise generate from seed
   const keys: MusicalKey[] = [
     'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
     'Cm', 'C#m', 'Dm', 'D#m', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'A#m', 'Bm'
   ];
-  const key = keys[Math.floor(random() * keys.length)];
-  
-  // Generate other features
-  const energy = random(); // 0.0-1.0
+  let key: MusicalKey;
+  if (song.key && keys.includes(song.key as MusicalKey)) {
+    key = song.key as MusicalKey;
+  } else {
+    key = keys[Math.floor(random() * keys.length)];
+  }
+
+  // Use real energy from Navidrome if available, otherwise generate from seed
+  const energy = (song.energy != null && song.energy >= 0 && song.energy <= 1)
+    ? song.energy
+    : random();
   const danceability = 0.3 + (random() * 0.7); // 0.3-1.0 (most music is somewhat danceable)
   const valence = random(); // 0.0-1.0
-  const acousticness = genreHints.includes('acoustic') || genreHints.includes('folk') || genreHints.includes('classical') 
-    ? 0.6 + (random() * 0.4) 
+  const acousticness = genreHints.includes('acoustic') || genreHints.includes('folk') || genreHints.includes('classical')
+    ? 0.6 + (random() * 0.4)
     : random() * 0.5; // Higher acousticness for acoustic genres
   const instrumentalness = (song.artist?.toLowerCase().includes('instrumental') || genreHints.includes('ambient'))
     ? 0.7 + (random() * 0.3)
