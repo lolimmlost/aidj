@@ -65,7 +65,8 @@ Thumbs.db
 # Playwright test reports and results
 playwright-report/
 test-results/
-*.png
-*.md
+
+# Allow docs screenshots to be committed
+!docs/screenshots/*.png
 Navidrome-Smart-Playlist-Collection-main/
 bmad-temp/

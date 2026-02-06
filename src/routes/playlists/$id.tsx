@@ -769,6 +769,7 @@ function PlaylistDetailPage() {
       backLabel="Playlists"
       compact
       fullWidth
+      className="px-3 sm:px-4 lg:px-6"
     >
       {/* Hero Actions with Gradient */}
       <div className={cn(

@@ -13,6 +13,10 @@ export function isDeezerImage(url: string | null | undefined): boolean {
 
 // Module-level cache to avoid re-checking same entities within a session
 const savedEntityCache = new Set<string>();
+// Track entities we've already checked (even if not saved) to avoid duplicate requests
+const checkedEntityCache = new Set<string>();
+// Circuit breaker: if the API fails (e.g. missing table), stop making requests
+let circuitBroken = false;
 
 interface CoverArtApprovalProps {
   imageUrl: string;
@@ -43,16 +47,35 @@ export function CoverArtApproval({
 
   // Check DB on mount for Deezer images
   useEffect(() => {
-    if (!isDeezerImage(imageUrl) || savedEntityCache.has(entityId)) return;
+    if (
+      !isDeezerImage(imageUrl) ||
+      savedEntityCache.has(entityId) ||
+      checkedEntityCache.has(entityId) ||
+      circuitBroken
+    ) return;
+
+    // Mark as checked immediately to prevent duplicate in-flight requests
+    checkedEntityCache.add(entityId);
+
     fetch(`/api/cover-art/save?entityId=${encodeURIComponent(entityId)}`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(({ data }) => {
-        if (data?.saved) {
+      .then(r => {
+        if (!r.ok) {
+          // Server error (e.g. missing table) - trip the circuit breaker
+          circuitBroken = true;
+          return null;
+        }
+        return r.json();
+      })
+      .then((json) => {
+        if (json?.data?.saved) {
           savedEntityCache.add(entityId);
           setSaved(true);
         }
       })
-      .catch(() => {}); // Silently fail
+      .catch(() => {
+        // Network error - trip the circuit breaker
+        circuitBroken = true;
+      });
   }, [entityId, imageUrl]);
 
   if (!isDeezerImage(imageUrl) || saved) {

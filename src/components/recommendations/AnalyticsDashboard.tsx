@@ -565,7 +565,7 @@ const TasteProfileCard = memo(function TasteProfileCard({ analytics }: { analyti
           {topArtists.map((artist) => (
             <span
               key={artist.artist}
-              className="inline-flex items-center rounded-md bg-secondary/10 px-2 py-0.5 text-xs font-medium text-secondary"
+              className="inline-flex items-center rounded-md bg-secondary/10 px-2 py-0.5 text-xs font-medium text-secondary-foreground"
             >
               {artist.artist}
             </span>

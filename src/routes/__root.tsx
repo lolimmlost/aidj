@@ -146,7 +146,8 @@ function RootComponent() {
                        currentPath.startsWith('/dj') ||
                        currentPath.startsWith('/downloads') ||
                        currentPath.startsWith('/settings') ||
-                       currentPath.startsWith('/music-identity');
+                       currentPath.startsWith('/music-identity') ||
+                       currentPath.startsWith('/tasks');
 
   // Routes that should NOT have the new layout (landing, auth pages)
   const isAuthPage = currentPath.startsWith('/login') ||

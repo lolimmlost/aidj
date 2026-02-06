@@ -28,6 +28,8 @@ export interface DJSetPlanningOptions {
   artistAvoid?: string[]; // Artists to avoid
   era?: 'classic' | 'modern' | 'mixed'; // Era preference
   intensity: 'chill' | 'moderate' | 'high' | 'peak'; // Intensity level
+  targetBpm: number; // Center BPM for the set (templates override this)
+  bpmRange?: { min: number; max: number }; // Optional explicit BPM range
   transitionStyle: 'smooth' | 'dramatic' | 'varied'; // Transition style
   maxKeyChanges: number; // Maximum key changes in set
   minTransitionDuration: number; // Minimum transition duration in seconds
@@ -96,15 +98,16 @@ export const ENERGY_CURVE_TEMPLATES: Record<string, number[]> = {
   peak_plateau_peak: [0.5, 0.7, 0.9, 1.0, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4]
 };
 
-// BPM progression templates
+// BPM progression templates as offsets from the target BPM
+// Each value is added to the template's targetBpm to get the actual BPM
 export const BPM_PROGRESSION_TEMPLATES: Record<string, number[]> = {
-  steady: [120, 120, 120, 120, 120, 120, 120, 120, 120],
-  gradual_rise: [110, 115, 118, 120, 122, 124, 126, 128, 130, 132],
-  gradual_fall: [132, 130, 128, 126, 124, 122, 120, 118, 116, 114, 112],
-  wave: [115, 120, 125, 130, 125, 120, 115, 110, 115, 120, 125],
-  classic_house: [120, 122, 124, 126, 128, 126, 124, 122, 120, 118, 120],
-  progressive_trance: [128, 130, 132, 134, 136, 138, 140, 138, 136, 134, 132],
-  techno: [125, 126, 127, 128, 128, 128, 128, 128, 128, 128, 128]
+  steady: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+  gradual_rise: [-10, -5, -2, 0, 2, 4, 6, 8, 10, 12],
+  gradual_fall: [12, 10, 8, 6, 4, 2, 0, -2, -4, -6, -8],
+  wave: [-5, 0, 5, 10, 5, 0, -5, -10, -5, 0, 5],
+  classic_house: [0, 2, 4, 6, 8, 6, 4, 2, 0, -2, 0],
+  progressive_trance: [0, 2, 4, 6, 8, 10, 12, 10, 8, 6, 4],
+  techno: [0, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3]
 };
 
 // Default planning options
@@ -112,6 +115,7 @@ export const DEFAULT_PLANNING_OPTIONS: DJSetPlanningOptions = {
   duration: 60, // 1 hour
   energyProfile: 'wave',
   bpmProfile: 'wave',
+  targetBpm: 120, // Default center BPM (templates override this)
   harmonicMode: 'balanced',
   intensity: 'moderate',
   transitionStyle: 'smooth',
@@ -165,10 +169,11 @@ export async function planDJSet(
                       ENERGY_CURVE_TEMPLATES[opts.energyProfile] ||
                       generateEnergyCurve(opts.energyProfile, targetSongCount);
     
-    // Generate BPM progression
-    const bpmProgression = opts.customBPMCurve || 
-                        BPM_PROGRESSION_TEMPLATES[opts.bpmProfile] ||
-                        generateBPMProgression(opts.bpmProfile, targetSongCount);
+    // Generate BPM progression centered around targetBpm
+    const bpmOffsets = BPM_PROGRESSION_TEMPLATES[opts.bpmProfile];
+    const bpmProgression = opts.customBPMCurve ||
+                        (bpmOffsets ? bpmOffsets.map(offset => opts.targetBpm + offset) : null) ||
+                        generateBPMProgression(opts.bpmProfile, targetSongCount, opts.targetBpm);
     
     // Select and arrange songs
     const selectedSongs = await selectAndArrangeSongs(
@@ -253,41 +258,42 @@ function generateEnergyCurve(
 }
 
 /**
- * Generate BPM progression based on profile
+ * Generate BPM progression based on profile, centered around targetBpm
  */
 function generateBPMProgression(
   profile: DJSetPlanningOptions['bpmProfile'],
-  songCount: number
+  songCount: number,
+  targetBpm: number = 120
 ): number[] {
   const progression: number[] = [];
-  
+
   switch (profile) {
     case 'steady':
       for (let i = 0; i < songCount; i++) {
-        progression.push(120);
+        progression.push(targetBpm);
       }
       break;
     case 'gradual_rise':
       for (let i = 0; i < songCount; i++) {
-        progression.push(110 + (20 * i / (songCount - 1)));
+        progression.push(targetBpm - 10 + (20 * i / (songCount - 1)));
       }
       break;
     case 'gradual_fall':
       for (let i = 0; i < songCount; i++) {
-        progression.push(130 - (20 * i / (songCount - 1)));
+        progression.push(targetBpm + 10 - (20 * i / (songCount - 1)));
       }
       break;
     case 'wave':
       for (let i = 0; i < songCount; i++) {
         const position = i / (songCount - 1);
-        progression.push(120 + 10 * Math.sin(position * Math.PI * 2));
+        progression.push(targetBpm + 10 * Math.sin(position * Math.PI * 2));
       }
       break;
     default:
       // Default to steady
-      return generateBPMProgression('steady', songCount);
+      return generateBPMProgression('steady', songCount, targetBpm);
   }
-  
+
   return progression;
 }
 
@@ -772,6 +778,7 @@ export const PLANNING_TEMPLATES: Record<string, Partial<DJSetPlanningOptions>> =
   'club_energy': {
     energyProfile: 'rising',
     bpmProfile: 'gradual_rise',
+    targetBpm: 128,
     intensity: 'high',
     transitionStyle: 'dramatic',
     harmonicMode: 'energy',
@@ -781,6 +788,7 @@ export const PLANNING_TEMPLATES: Record<string, Partial<DJSetPlanningOptions>> =
   'festival_chill': {
     energyProfile: 'wave',
     bpmProfile: 'steady',
+    targetBpm: 105,
     intensity: 'moderate',
     transitionStyle: 'smooth',
     harmonicMode: 'balanced',
@@ -790,6 +798,7 @@ export const PLANNING_TEMPLATES: Record<string, Partial<DJSetPlanningOptions>> =
   'radio_friendly': {
     energyProfile: 'plateau',
     bpmProfile: 'steady',
+    targetBpm: 115,
     intensity: 'moderate',
     transitionStyle: 'smooth',
     harmonicMode: 'perfect_match',
@@ -801,6 +810,7 @@ export const PLANNING_TEMPLATES: Record<string, Partial<DJSetPlanningOptions>> =
     energyProfile: 'custom',
     customEnergyCurve: [0.2, 0.8, 0.4, 0.9, 0.3, 0.7, 0.5, 0.6, 0.8],
     bpmProfile: 'wave',
+    targetBpm: 118,
     intensity: 'moderate',
     transitionStyle: 'varied',
     harmonicMode: 'experimental',

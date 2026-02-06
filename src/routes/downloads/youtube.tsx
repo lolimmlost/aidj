@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Youtube, Download, Music, Video, List, Trash2, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Youtube, Download, Music, Video, List, Trash2, CheckCircle, AlertCircle, Loader2, Info } from 'lucide-react';
 import { queryKeys, queryPresets, createSmartPollingInterval } from '@/lib/query';
 
 export const Route = createFileRoute('/downloads/youtube')({
@@ -260,6 +260,24 @@ function YouTubeDownloadPage() {
               <span>Supported: YouTube, SoundCloud, Bandcamp, Vimeo, Dailymotion</span>
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Where do files go? */}
+      <Card className="border-blue-500/30 bg-blue-500/5">
+        <CardContent className="py-4">
+          <div className="flex gap-3">
+            <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p className="font-medium text-foreground">Where do downloaded files go?</p>
+              <p>
+                Files are saved to MeTube's configured output folder. To make them appear in your
+                music library, ensure MeTube's output directory is inside (or moved to) the folder
+                that Navidrome scans. You can configure this in MeTube's settings or set up a
+                post-download script to move files automatically.
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

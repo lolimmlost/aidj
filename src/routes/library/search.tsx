@@ -12,7 +12,6 @@ import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton'
 import { AddToQueueButton } from '@/components/playlists/AddToQueueButton';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
-import { VirtualizedList } from '@/components/ui/virtualized-list';
 import { PageLayout } from '@/components/ui/page-layout';
 
 export const Route = createFileRoute('/library/search')({
@@ -44,8 +43,10 @@ function SearchPage() {
   };
 
   const handleSongClick = (songId: string) => {
+    const song = songs.find(s => s.id === songId);
+    if (!song) return;
     setAIUserActionInProgress(true);
-    playSong(songId, songs);
+    playSong(songId, [song]);
     setTimeout(() => setAIUserActionInProgress(false), 1000);
   };
 
@@ -54,8 +55,8 @@ function SearchPage() {
       <PageLayout
         title="Search Library"
         icon={<SearchIcon className="h-5 w-5" />}
-        backLink="/library"
-        backLabel="Library"
+        backLink="/dashboard"
+        backLabel="Dashboard"
         compact
       >
         <Card>
@@ -124,133 +125,123 @@ function SearchPage() {
             </CardContent>
           </Card>
         ) : (
-          <div aria-live="polite">
-            {/* Virtualized search results for performance with large result sets */}
-            <VirtualizedList
-              items={songs}
-              itemHeight={120} // Approximate height for mobile (2 rows)
-              containerHeight={Math.min(600, window.innerHeight - 300)}
-              getItemKey={(song) => song.id}
-              gap={8}
-              overscan={3}
-              className="rounded-lg"
-              renderItem={(song) => (
-                <Card
-                  key={song.id}
-                  className="transition-all hover:shadow-md hover:border-primary/50"
-                >
-                  <CardContent className="p-3 sm:p-4">
-                    {/* Desktop layout: single row */}
-                    <div className="hidden sm:flex items-center gap-3">
-                      <div className="w-8 text-right text-sm text-muted-foreground flex-shrink-0">
+          <div aria-live="polite" className="space-y-2">
+            {songs.map((song) => (
+              <Card
+                key={song.id}
+                className="transition-all hover:shadow-md hover:border-primary/50"
+              >
+                <CardContent className="p-3 sm:p-4">
+                  {/* Desktop layout: single row */}
+                  <div className="hidden sm:flex items-center gap-3">
+                    <div className="w-8 text-right text-sm text-muted-foreground flex-shrink-0">
+                      {song.track}
+                    </div>
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => handleSongClick(song.id)}
+                    >
+                      <div className="font-semibold truncate">{song.name || song.title || 'Unknown Song'}</div>
+                      <div className="text-sm text-muted-foreground truncate">
+                        {song.artist || 'Unknown Artist'}
+                        {song.album && ` • ${song.album}`}
+                        {' • '}{Math.floor(song.duration / 60)}:{Math.floor(song.duration % 60).toString().padStart(2, '0')}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <SongFeedbackButtons
+                        songId={song.id}
+                        artistName={song.artist || 'Unknown Artist'}
+                        songTitle={song.name || song.title || 'Unknown Song'}
+                        currentFeedback={feedbackData?.feedback[song.id] || null}
+                        source="search"
+                      />
+                      <AddToPlaylistButton
+                        songId={song.id}
+                        artistName={song.artist || 'Unknown Artist'}
+                        songTitle={song.name || song.title || 'Unknown Song'}
+                      />
+                      <AddToQueueButton
+                        songId={song.id}
+                        artistName={song.artist || 'Unknown Artist'}
+                        songTitle={song.name || song.title || 'Unknown Song'}
+                      />
+                      <div
+                        className="text-muted-foreground cursor-pointer p-2 hover:text-primary min-w-[44px] min-h-[44px] flex items-center justify-center"
+                        onClick={() => handleSongClick(song.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleSongClick(song.id);
+                          }
+                        }}
+                        aria-label={`Play ${song.name || song.title || 'song'}`}
+                      >
+                        ▶
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mobile layout: two rows for better button visibility */}
+                  <div className="sm:hidden space-y-1.5">
+                    {/* Row 1: Track number, song info (tappable) */}
+                    <div
+                      className="flex items-center gap-2 cursor-pointer"
+                      onClick={() => handleSongClick(song.id)}
+                    >
+                      <div className="w-6 text-right text-xs text-muted-foreground flex-shrink-0">
                         {song.track}
                       </div>
-                      <div
-                        className="flex-1 min-w-0 cursor-pointer"
-                        onClick={() => handleSongClick(song.id)}
-                      >
-                        <div className="font-semibold truncate">{song.name || song.title || 'Unknown Song'}</div>
-                        <div className="text-sm text-muted-foreground truncate">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm truncate">{song.name || song.title || 'Unknown Song'}</div>
+                        <div className="text-xs text-muted-foreground truncate">
                           {song.artist || 'Unknown Artist'}
-                          {song.album && ` • ${song.album}`}
                           {' • '}{Math.floor(song.duration / 60)}:{Math.floor(song.duration % 60).toString().padStart(2, '0')}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <SongFeedbackButtons
-                          songId={song.id}
-                          artistName={song.artist || 'Unknown Artist'}
-                          songTitle={song.name || song.title || 'Unknown Song'}
-                          currentFeedback={feedbackData?.feedback[song.id] || null}
-                          source="search"
-                        />
-                        <AddToPlaylistButton
-                          songId={song.id}
-                          artistName={song.artist || 'Unknown Artist'}
-                          songTitle={song.name || song.title || 'Unknown Song'}
-                        />
-                        <AddToQueueButton
-                          songId={song.id}
-                          artistName={song.artist || 'Unknown Artist'}
-                          songTitle={song.name || song.title || 'Unknown Song'}
-                        />
-                        <div
-                          className="text-muted-foreground cursor-pointer p-2 hover:text-primary min-w-[44px] min-h-[44px] flex items-center justify-center"
-                          onClick={() => handleSongClick(song.id)}
-                          role="button"
-                          tabIndex={0}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              handleSongClick(song.id);
-                            }
-                          }}
-                          aria-label={`Play ${song.name || song.title || 'song'}`}
-                        >
-                          ▶
-                        </div>
-                      </div>
                     </div>
 
-                    {/* Mobile layout: two rows for better button visibility */}
-                    <div className="sm:hidden space-y-2">
-                      {/* Row 1: Track number, song info, play button */}
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 text-right text-xs text-muted-foreground flex-shrink-0">
-                          {song.track}
-                        </div>
-                        <div
-                          className="flex-1 min-w-0 cursor-pointer"
-                          onClick={() => handleSongClick(song.id)}
-                        >
-                          <div className="font-semibold text-sm truncate">{song.name || song.title || 'Unknown Song'}</div>
-                          <div className="text-xs text-muted-foreground truncate">
-                            {song.artist || 'Unknown Artist'}
-                            {' • '}{Math.floor(song.duration / 60)}:{Math.floor(song.duration % 60).toString().padStart(2, '0')}
-                          </div>
-                        </div>
-                        <div
-                          className="text-muted-foreground cursor-pointer p-2 hover:text-primary min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0"
-                          onClick={() => handleSongClick(song.id)}
-                          role="button"
-                          tabIndex={0}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              handleSongClick(song.id);
-                            }
-                          }}
-                          aria-label={`Play ${song.name || song.title || 'song'}`}
-                        >
-                          ▶
-                        </div>
+                    {/* Row 2: All action buttons together */}
+                    <div className="flex items-center gap-1 pl-8">
+                      <div
+                        className="text-muted-foreground cursor-pointer p-2 hover:text-primary min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0"
+                        onClick={() => handleSongClick(song.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleSongClick(song.id);
+                          }
+                        }}
+                        aria-label={`Play ${song.name || song.title || 'song'}`}
+                      >
+                        ▶
                       </div>
-
-                      {/* Row 2: Action buttons - centered and always visible */}
-                      <div className="flex items-center justify-center gap-1 pl-8">
-                        <SongFeedbackButtons
-                          songId={song.id}
-                          artistName={song.artist || 'Unknown Artist'}
-                          songTitle={song.name || song.title || 'Unknown Song'}
-                          currentFeedback={feedbackData?.feedback[song.id] || null}
-                          source="search"
-                        />
-                        <AddToPlaylistButton
-                          songId={song.id}
-                          artistName={song.artist || 'Unknown Artist'}
-                          songTitle={song.name || song.title || 'Unknown Song'}
-                        />
-                        <AddToQueueButton
-                          songId={song.id}
-                          artistName={song.artist || 'Unknown Artist'}
-                          songTitle={song.name || song.title || 'Unknown Song'}
-                        />
-                      </div>
+                      <SongFeedbackButtons
+                        songId={song.id}
+                        artistName={song.artist || 'Unknown Artist'}
+                        songTitle={song.name || song.title || 'Unknown Song'}
+                        currentFeedback={feedbackData?.feedback[song.id] || null}
+                        source="search"
+                      />
+                      <AddToPlaylistButton
+                        songId={song.id}
+                        artistName={song.artist || 'Unknown Artist'}
+                        songTitle={song.name || song.title || 'Unknown Song'}
+                      />
+                      <AddToQueueButton
+                        songId={song.id}
+                        artistName={song.artist || 'Unknown Artist'}
+                        songTitle={song.name || song.title || 'Unknown Song'}
+                      />
                     </div>
-                  </CardContent>
-                </Card>
-              )}
-            />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         )}
       </PageLayout>
