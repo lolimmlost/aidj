@@ -16,17 +16,17 @@ const lastHeartbeat = new WeakMap<WebSocket, number>();
 // Message types
 interface PlaybackMessage {
   type: 'state_update' | 'transfer' | 'command' | 'sync_request' | 'heartbeat';
-  payload?: any;
+  payload?: Record<string, unknown>;
   deviceId: string;
 }
 
 interface PlaybackCommand {
   action: 'play' | 'pause' | 'next' | 'previous' | 'seek' | 'volume' | 'shuffle';
-  value?: any;
+  value?: string | number | boolean;
 }
 
 // Session lookup function (to be implemented with your auth)
-type GetUserIdFromRequest = (request: any) => Promise<string | null>;
+type GetUserIdFromRequest = (request: import('http').IncomingMessage) => Promise<string | null>;
 
 /**
  * Setup WebSocket handlers for playback sync
@@ -52,7 +52,7 @@ export function setupPlaybackWebSocket(
     clearInterval(heartbeatInterval);
   });
 
-  wss.on('connection', async (ws: WebSocket, request: any) => {
+  wss.on('connection', async (ws: WebSocket, request: import('http').IncomingMessage) => {
     // Get user ID from session
     const userId = await getUserId(request);
     if (!userId) {
@@ -141,7 +141,7 @@ export function setupPlaybackWebSocket(
 /**
  * Broadcast to all devices of a user except the sender
  */
-function broadcastToUser(userId: string, sender: WebSocket, message: any) {
+function broadcastToUser(userId: string, sender: WebSocket, message: Record<string, unknown>) {
   const userConnections = connections.get(userId);
   if (!userConnections) return;
 
@@ -163,7 +163,7 @@ function broadcastToUser(userId: string, sender: WebSocket, message: any) {
 /**
  * Broadcast to all devices of a user including sender
  */
-function broadcastToAllDevices(userId: string, message: any) {
+function broadcastToAllDevices(userId: string, message: Record<string, unknown>) {
   const userConnections = connections.get(userId);
   if (!userConnections) return;
 

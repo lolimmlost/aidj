@@ -40,7 +40,7 @@ export function createReconnectingWebSocket(
   let retryCount = 0;
   let retryTimeout: ReturnType<typeof setTimeout> | null = null;
   let isDestroyed = false;
-  let messageQueue: string[] = [];
+  const messageQueue: string[] = [];
 
   // Limit queue size to prevent memory issues during long disconnects
   const MAX_QUEUE_SIZE = 100;
@@ -152,7 +152,8 @@ export function createReconnectingWebSocket(
       }
 
       // Forward other properties to the underlying WebSocket
-      return ws ? (ws as any)[prop] : undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic proxy forwarding requires any
+      return ws ? (ws as unknown as Record<string, any>)[prop as string] : undefined;
     },
   });
 }

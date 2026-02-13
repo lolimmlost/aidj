@@ -92,7 +92,6 @@ export function PlayerBar() {
     duration,
     volume,
     isShuffled,
-    crossfadeDuration,
     setIsPlaying,
     setCurrentTime,
     setDuration,
@@ -485,9 +484,10 @@ export function PlayerBar() {
       deckB.removeEventListener('stalled', onStalledB);
       deckB.removeEventListener('ended', onEndedB);
     };
-  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong, queryClient, startCrossfade, getActiveDeck, playlist, attemptStallRecovery, deckARef, deckBRef, activeDeckRef, crossfadeInProgressRef]);
+  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong, queryClient, startCrossfade, getActiveDeck, playlist, attemptStallRecovery, deckARef, deckBRef, activeDeckRef, crossfadeInProgressRef, lastProgressTimeRef, lastProgressValueRef]);
 
   // Load song when it changes
+  /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- loading state is set during async song load/recovery */
   useEffect(() => {
     if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {
       const song = playlist[currentSongIndex] as Song;
@@ -554,8 +554,11 @@ export function PlayerBar() {
           };
 
           canPlayHandlerRef.current = recoveryCanPlay;
+          // Listener is cleaned up via canPlayHandlerRef in the unmount effect
+          // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
           audio.addEventListener('canplay', recoveryCanPlay);
           setIsLoading(true);
+          // eslint-disable-next-line react-hooks/immutability -- DOM element property, not React state
           audio.src = song.url;
           audio.load();
           return;
@@ -605,7 +608,10 @@ export function PlayerBar() {
         canPlayHandlerRef.current = handleCanPlay;
         errorHandlerRef.current = handleError;
 
+        // Listeners are cleaned up via refs in the unmount effect below
+        // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
         audio.addEventListener('canplay', handleCanPlay);
+        // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
         audio.addEventListener('error', handleError);
         setIsLoading(true);
         loadSong(song);
@@ -618,12 +624,15 @@ export function PlayerBar() {
         };
       }
     }
-  }, [currentSongIndex, playlist, loadSong, getActiveDeck, setIsPlaying, crossfadeInProgressRef, crossfadeJustCompletedRef, deckARef, deckBRef, activeDeckRef]);
+  }, [currentSongIndex, playlist, loadSong, getActiveDeck, setIsPlaying, crossfadeInProgressRef, crossfadeJustCompletedRef, deckARef, deckBRef, activeDeckRef, lastProgressTimeRef, lastProgressValueRef]);
+  /* eslint-enable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect */
 
   // Cleanup listeners on unmount
   useEffect(() => {
+    const deckA = deckARef.current;
+    const deckB = deckBRef.current;
     return () => {
-      [deckARef.current, deckBRef.current].forEach(audio => {
+      [deckA, deckB].forEach(audio => {
         if (audio) {
           if (canPlayHandlerRef.current) {
             audio.removeEventListener('canplay', canPlayHandlerRef.current);

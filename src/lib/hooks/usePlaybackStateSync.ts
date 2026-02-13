@@ -4,13 +4,13 @@ import { useAudioStore } from '@/lib/stores/audio';
 export interface UsePlaybackStateSyncOptions {
   deckARef: React.RefObject<HTMLAudioElement | null>;
   deckBRef: React.RefObject<HTMLAudioElement | null>;
-  activeDeckRef: React.MutableRefObject<'A' | 'B'>;
+  activeDeckRef: React.RefObject<'A' | 'B'>;
   isPlaying: boolean;
   getActiveDeck: () => HTMLAudioElement | null;
   checkAndResumeAudioContext: () => Promise<boolean>;
   attemptStallRecovery: (audio: HTMLAudioElement, source: string) => Promise<boolean>;
-  lastProgressTimeRef: React.MutableRefObject<number>;
-  lastProgressValueRef: React.MutableRefObject<number>;
+  lastProgressTimeRef: React.RefObject<number>;
+  lastProgressValueRef: React.RefObject<number>;
 }
 
 /**
@@ -34,7 +34,7 @@ export function usePlaybackStateSync({
   lastProgressTimeRef,
   lastProgressValueRef,
 }: UsePlaybackStateSyncOptions): void {
-  const { setIsPlaying, setCurrentTime } = useAudioStore();
+  const { setIsPlaying } = useAudioStore();
 
   // Handle play/pause state changes
   useEffect(() => {
@@ -98,6 +98,7 @@ export function usePlaybackStateSync({
       const hasRealSong = (deck: HTMLAudioElement) =>
         deck.src && deck.src.indexOf('data:audio') === -1;
 
+      // eslint-disable-next-line @eslint-react/web-api/no-leaked-timeout -- one-shot delay inside event handler, no cleanup needed
       setTimeout(() => {
         // Use currentTime > 0 as the PRIMARY signal for which deck was playing
         const deckAHasProgress = deckA.currentTime > 0 && hasRealSong(deckA);

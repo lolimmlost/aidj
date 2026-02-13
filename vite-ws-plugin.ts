@@ -22,7 +22,7 @@ import { setupPlaybackWebSocket } from './src/lib/services/playback-websocket';
  *
  * Production uses proper session validation in server.ts
  */
-async function getUserIdFromRequest(request: any): Promise<string | null> {
+async function getUserIdFromRequest(request: import('http').IncomingMessage): Promise<string | null> {
   const url = new URL(request.url || '', `http://${request.headers.host}`);
 
   // Development: allow ?userId=xxx query param for testing

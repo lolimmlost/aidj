@@ -3,15 +3,15 @@ import { useAudioStore } from '@/lib/stores/audio';
 
 export interface UseStallRecoveryOptions {
   getActiveDeck: () => HTMLAudioElement | null;
-  crossfadeInProgressRef: React.MutableRefObject<boolean>;
+  crossfadeInProgressRef: React.RefObject<boolean>;
   onMaxAttemptsReached: () => void;
 }
 
 export interface UseStallRecoveryReturn {
-  recoveryAttemptRef: React.MutableRefObject<number>;
-  lastProgressTimeRef: React.MutableRefObject<number>;
-  lastProgressValueRef: React.MutableRefObject<number>;
-  audioContextRef: React.MutableRefObject<AudioContext | null>;
+  recoveryAttemptRef: React.RefObject<number>;
+  lastProgressTimeRef: React.RefObject<number>;
+  lastProgressValueRef: React.RefObject<number>;
+  audioContextRef: React.RefObject<AudioContext | null>;
   checkAndResumeAudioContext: () => Promise<boolean>;
   attemptStallRecovery: (audio: HTMLAudioElement, source: string) => Promise<boolean>;
   resetRecoveryState: () => void;
@@ -33,6 +33,7 @@ export function useStallRecovery({
 }: UseStallRecoveryOptions): UseStallRecoveryReturn {
   // Recovery state refs
   const recoveryAttemptRef = useRef<number>(0);
+  // eslint-disable-next-line react-hooks/purity -- initial timestamp for stall detection, safe in ref
   const lastProgressTimeRef = useRef<number>(Date.now());
   const lastProgressValueRef = useRef<number>(0);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -125,6 +126,7 @@ export function useStallRecovery({
         // Attempt 2: Seek back a few seconds and play
         const seekTarget = Math.max(0, savedTime - 3);
         console.log(`🔧 [RECOVERY] Strategy 2: seek back to ${seekTarget.toFixed(1)}s`);
+        // eslint-disable-next-line react-hooks/immutability -- DOM element property, not React state
         audio.currentTime = seekTarget;
         await playWithTimeout(audio);
         console.log('🔧 [RECOVERY] Attempt 2 succeeded');

@@ -20,7 +20,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 async function start() {
   // Import the built handler
   // In production, this will be the compiled output
-  let handler: any;
+  let handler: (req: import('http').IncomingMessage, res: import('http').ServerResponse) => void;
 
   try {
     // Try to import from build output first
