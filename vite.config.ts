@@ -4,6 +4,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
+import { viteWebSocketPlugin } from "./vite-ws-plugin";
 
 export default defineConfig({
   optimizeDeps: {
@@ -84,6 +85,8 @@ export default defineConfig({
     tsConfigPaths({
       projects: ["./tsconfig.json"],
     }),
+    // WebSocket support for playback sync (Spotify Connect-style)
+    viteWebSocketPlugin(),
     tanstackStart({
       // https://github.com/TanStack/router/discussions/2863#discussioncomment-13713677
       customViteReactPlugin: true,
