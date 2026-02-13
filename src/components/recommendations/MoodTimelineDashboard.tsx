@@ -11,8 +11,8 @@
  */
 
 import { useState, useCallback, lazy, Suspense, memo } from 'react';
+import type { TimelineDataPoint } from './MoodTimeline';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Card, CardContent } from '../ui/card';
 import { Skeleton } from '../ui/skeleton';
 import {
   TrendingUp,
@@ -65,7 +65,7 @@ export function MoodTimelineDashboard({
   const [activeTab, setActiveTab] = useState(defaultTab);
 
   // Handle period selection from timeline to navigate to playlist generator
-  const handlePeriodSelect = useCallback((period: any) => {
+  const handlePeriodSelect = useCallback((period: TimelineDataPoint) => {
     console.log('Period selected:', period);
     // Could auto-populate the playlist generator with this period
   }, []);

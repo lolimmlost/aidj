@@ -39,7 +39,7 @@ interface RecommendationCardProps {
 
 export function RecommendationCard({
   rec,
-  index,
+  index: _index,
   currentFeedback,
   hasFeedback,
   onFeedback,

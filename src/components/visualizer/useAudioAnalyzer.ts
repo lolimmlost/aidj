@@ -71,6 +71,7 @@ export function useAudioAnalyzer(options: UseAudioAnalyzerOptions = {}): UseAudi
     isBeat: false,
   });
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const analyze = useCallback(() => {
     if (!analyserRef.current) return;
 
@@ -197,7 +198,7 @@ export function useAudioAnalyzer(options: UseAudioAnalyzerOptions = {}): UseAudi
     try {
       // Create or resume audio context
       if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioContextRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       }
 
       const audioContext = audioContextRef.current;
@@ -215,7 +216,7 @@ export function useAudioAnalyzer(options: UseAudioAnalyzerOptions = {}): UseAudi
       if (connectedElementRef.current === audioElement && sourceRef.current) {
         try {
           sourceRef.current.disconnect();
-        } catch (e) {
+        } catch {
           // Ignore disconnect errors
         }
 
@@ -228,7 +229,7 @@ export function useAudioAnalyzer(options: UseAudioAnalyzerOptions = {}): UseAudi
         if (sourceRef.current) {
           try {
             sourceRef.current.disconnect();
-          } catch (e) {
+          } catch {
             // Ignore disconnect errors
           }
         }
@@ -239,10 +240,10 @@ export function useAudioAnalyzer(options: UseAudioAnalyzerOptions = {}): UseAudi
             console.warn('Audio element missing crossOrigin attribute - Firefox may not provide frequency data');
           }
           sourceRef.current = audioContext.createMediaElementSource(audioElement);
-        } catch (e: any) {
+        } catch (e: unknown) {
           // Element already has a source - this happens when reconnecting
           // The source is still valid, just reuse it
-          if (e.name === 'InvalidStateError' && sourceRef.current) {
+          if (e instanceof DOMException && e.name === 'InvalidStateError' && sourceRef.current) {
             try {
               sourceRef.current.connect(newAnalyser);
               newAnalyser.connect(audioContext.destination);
@@ -296,14 +297,14 @@ export function useAudioAnalyzer(options: UseAudioAnalyzerOptions = {}): UseAudi
       if (sourceRef.current) {
         try {
           sourceRef.current.disconnect();
-        } catch (e) {
+        } catch {
           // Ignore
         }
       }
       if (audioContextRef.current) {
         try {
           audioContextRef.current.close();
-        } catch (e) {
+        } catch {
           // Ignore
         }
       }

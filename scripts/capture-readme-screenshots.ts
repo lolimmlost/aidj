@@ -235,7 +235,7 @@ async function login(page: Page): Promise<boolean> {
 }
 
 async function captureScreenshot(page: Page, config: ScreenshotConfig): Promise<string | null> {
-  const { name, route, description, viewport, waitFor, actions, delay } = config;
+  const { name, route, viewport, waitFor, actions, delay } = config;
 
   try {
     // Set viewport

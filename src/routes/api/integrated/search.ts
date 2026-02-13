@@ -73,7 +73,7 @@ export const $checkAvailability = createServerFn({ method: "POST" })
           availability = albumResult.albums[0]?.album?.availability || { inLidarr: false, inNavidrome: false };
           break;
         
-        case 'song':
+        case 'song': {
           // Parse the query to extract artist and title (format: "Artist - Title" or just "Title")
           const songParts = data.query.split(' - ');
           const songArtist = songParts.length > 1 ? songParts[0] : '';
@@ -88,6 +88,7 @@ export const $checkAvailability = createServerFn({ method: "POST" })
             inNavidrome: await lidarrModule.checkSongAvailability(data.query),
           };
           break;
+        }
         
         default:
           throw new ServiceError('VALIDATION_ERROR', 'Invalid content type specified');

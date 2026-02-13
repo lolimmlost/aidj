@@ -44,11 +44,13 @@ export function SongFeedbackButtons({
   const effectiveFeedback = optimisticFeedback ?? currentFeedback ?? serverFeedback;
 
   // Reset optimistic state when server state updates (e.g., after mutation completes)
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (serverFeedback !== null) {
       setOptimisticFeedback(null); // Clear optimistic, use server state
     }
   }, [serverFeedback]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const feedbackMutation = useMutation({
     mutationFn: async (feedbackType: 'thumbs_up' | 'thumbs_down') => {

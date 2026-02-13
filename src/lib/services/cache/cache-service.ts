@@ -215,7 +215,7 @@ class CacheService {
    * Clear all caches
    */
   clearAll(): void {
-    for (const [namespace, cache] of this.caches) {
+    for (const [_namespace, cache] of this.caches) {
       cache.clear();
     }
     console.log('[CacheService] Cleared all caches');

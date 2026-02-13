@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { toast } from 'sonner';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
@@ -6,7 +6,6 @@ import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
 import { usePreferencesStore, type SourceMode } from '@/lib/stores/preferences';
 import { search } from '@/lib/services/navidrome';
-import { Button } from '@/components/ui/button';
 import { PageLayout } from '@/components/ui/page-layout';
 import type { Song } from '@/lib/types/song';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
@@ -15,17 +14,17 @@ import { queryKeys, queryPresets } from '@/lib/query';
 import { AIRecommendationsSection } from '@/components/dashboard/AIRecommendationsSection';
 import { CustomPlaylistSection, type PlaylistItem } from '@/components/dashboard/CustomPlaylistSection';
 import { STYLE_PRESETS } from '@/components/dashboard/quick-actions';
-import { Sparkles, Music } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 export const Route = createFileRoute("/dashboard/generate")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    preset: (search.preset as string) || undefined,
+  }),
   beforeLoad: async ({ context }) => {
     if (!context.user) {
       throw redirect({ to: '/login' });
     }
   },
-  validateSearch: (search: Record<string, unknown>) => ({
-    preset: (search.preset as string) || undefined,
-  }),
   component: GeneratePage,
 });
 
@@ -271,7 +270,7 @@ function GeneratePage() {
                 foundInLibrary: false
               });
             }
-          } catch (searchError) {
+          } catch {
             validatedRecommendations.push({
               ...rec,
               foundInLibrary: false,
@@ -290,7 +289,7 @@ function GeneratePage() {
         }
       }
 
-      return lastData as any;
+      return lastData as unknown;
     },
     enabled: false,
     ...queryPresets.recommendations,
@@ -377,14 +376,14 @@ function GeneratePage() {
             toast.success(`Added "${songForPlayer.name}" to end of queue`);
           }
           setTimeout(() => setAIUserActionInProgress(false), 2000);
-        } catch (queueError) {
+        } catch {
           toast.error('Failed to add song to queue');
           setAIUserActionInProgress(false);
         }
       } else {
         toast.error('Song not found in library');
       }
-    } catch (error) {
+    } catch {
       toast.error('An unexpected error occurred');
     }
   };
@@ -406,6 +405,7 @@ function GeneratePage() {
 
   // === Custom Playlist Query ===
   const { data: playlistData, isLoading: playlistLoading, error: playlistError, refetch: refetchPlaylist } = useQuery({
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: queryKeys.playlists.generatedByStyle(debouncedStyle, sourceMode, mixRatio),
     queryFn: async () => {
       abortControllerRef.current = new AbortController();
@@ -482,7 +482,7 @@ function GeneratePage() {
   // === Playlist Queue Handlers ===
   const handlePlaylistQueueAction = (position: 'now' | 'next' | 'end') => {
     if (!playlistData) return;
-    const resolvedSongs = ((playlistData as any).data.playlist as PlaylistItem[]).filter((item) => item.songId).map((item) => {
+    const resolvedSongs = ((playlistData as unknown as { data: { playlist: PlaylistItem[] } }).data.playlist).filter((item) => item.songId).map((item) => {
       const parts = item.song.split(' - ');
       const artist = parts.length >= 2 ? parts[0].trim() : 'Unknown Artist';
       const title = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : item.song;
@@ -677,7 +677,7 @@ function GeneratePage() {
         });
         setTimeout(() => navigate({ to: '/downloads', search: { search: artist } }), 1500);
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to search', {
         id: toastId,
         description: 'Opening downloads page...',

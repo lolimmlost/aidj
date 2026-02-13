@@ -28,15 +28,12 @@ import {
 } from './compound-scoring';
 import {
   scoreAndRankForDJ,
-  enrichSongWithDJMetadata,
-  enrichSongsWithDJMetadata,
   DJ_WEIGHTS,
   MIN_DJ_SCORE_THRESHOLD,
   type SongWithDJMetadata,
 } from './dj-match-scorer';
 import {
   getBlendedRecommendations,
-  type BlendedMetadata,
 } from './blended-recommendation-scorer';
 
 /**

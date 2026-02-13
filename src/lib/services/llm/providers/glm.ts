@@ -194,7 +194,7 @@ export class GLMClient implements LLMProvider {
     }
   }
 
-  async checkModelAvailability(model: string, timeoutMs = 5000): Promise<boolean> {
+  async checkModelAvailability(model: string, _timeoutMs = 5000): Promise<boolean> {
     // GLM known models
     const knownModels = [
       'glm-4',

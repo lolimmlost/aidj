@@ -1,8 +1,7 @@
 // Audio Buffer Analysis Service
 // Real-time BPM and key detection from audio buffers
 
-import type { Song } from '@/lib/types/song';
-import type { AudioAnalysis, MusicalKey } from './audio-analysis';
+import type { MusicalKey } from './audio-analysis';
 import { ServiceError } from '../utils';
 
 // Audio analysis result from buffer
@@ -624,7 +623,7 @@ function detectKeyFromKR(frequencyData: { magnitude: number[] }): MusicalKey {
 /**
  * Calculate BPM confidence
  */
-function calculateBPMConfidence(onsets: number[], bpm: number): number {
+function calculateBPMConfidence(onsets: number[], _bpm: number): number {
   if (onsets.length < 2) return 0.5;
   
   // Calculate regularity of intervals

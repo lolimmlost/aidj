@@ -593,7 +593,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     setExportDialogOpen(true);
   }, []);
 
-  const handleImportSuccess = useCallback((playlistId: string) => {
+  const handleImportSuccess = useCallback((_playlistId: string) => {
     queryClient.invalidateQueries({ queryKey: ['playlists'] });
     toast.success('Playlist imported!', {
       description: 'The playlist has been added to your library',

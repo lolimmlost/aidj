@@ -85,7 +85,7 @@ describe('SongFeedbackButtons', () => {
   describe('User Interactions', () => {
     it('calls feedback API when thumbs up is clicked', async () => {
       const user = userEvent.setup();
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ success: true, feedbackId: 'test-id' }),
       });
@@ -114,7 +114,7 @@ describe('SongFeedbackButtons', () => {
 
     it('calls feedback API when thumbs down is clicked', async () => {
       const user = userEvent.setup();
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ success: true, feedbackId: 'test-id' }),
       });
@@ -142,7 +142,7 @@ describe('SongFeedbackButtons', () => {
 
     it('prevents double-clicking the same feedback button', async () => {
       const user = userEvent.setup();
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ success: true, feedbackId: 'test-id' }),
       });
@@ -160,7 +160,7 @@ describe('SongFeedbackButtons', () => {
   describe('Optimistic Updates', () => {
     it('immediately updates UI when thumbs up is clicked', async () => {
       const user = userEvent.setup();
-      (global.fetch as any).mockImplementation(() => new Promise(() => {})); // Never resolves
+      (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise(() => {})); // Never resolves
 
       renderComponent();
 
@@ -175,7 +175,7 @@ describe('SongFeedbackButtons', () => {
 
     it('shows loading spinner during mutation', async () => {
       const user = userEvent.setup();
-      (global.fetch as any).mockImplementation(() => new Promise(() => {})); // Never resolves
+      (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise(() => {})); // Never resolves
 
       renderComponent();
 
@@ -196,7 +196,7 @@ describe('SongFeedbackButtons', () => {
       const user = userEvent.setup();
       const { toast } = await import('sonner');
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: false,
         json: async () => ({ error: 'Server error' }),
       });
@@ -222,7 +222,7 @@ describe('SongFeedbackButtons', () => {
       const user = userEvent.setup();
       const { toast } = await import('sonner');
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: false,
         status: 409,
         json: async () => ({ code: 'DUPLICATE_FEEDBACK' }),
@@ -284,7 +284,7 @@ describe('SongFeedbackButtons', () => {
       const user = userEvent.setup();
       const { toast } = await import('sonner');
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ success: true, feedbackId: 'test-id' }),
       });
@@ -306,7 +306,7 @@ describe('SongFeedbackButtons', () => {
       const user = userEvent.setup();
       const { toast } = await import('sonner');
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ success: true, feedbackId: 'test-id' }),
       });

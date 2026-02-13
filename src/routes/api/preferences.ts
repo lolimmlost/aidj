@@ -107,6 +107,7 @@ const POST = withAuthAndErrorHandling(
     if (!existingPrefs) {
       // Create new preferences with provided overrides using utility
       const newPrefs = createDefaultPreferences(session.user.id, validatedData);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- drizzle ORM type mismatch between preference utility return and schema insert type
       await db.insert(userPreferences).values(newPrefs as any);
       return successResponse(newPrefs);
     } else {
@@ -115,6 +116,7 @@ const POST = withAuthAndErrorHandling(
 
       await db
         .update(userPreferences)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- drizzle ORM type mismatch between preference utility return and schema update type
         .set(updatedPrefs as any)
         .where(eq(userPreferences.userId, session.user.id));
 

@@ -32,7 +32,7 @@ export async function POST({ request }: { request: Request }) {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
-  } catch (error) {
+  } catch {
     return new Response(JSON.stringify({ error: 'Invalid log data' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },

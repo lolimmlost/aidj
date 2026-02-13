@@ -12,7 +12,7 @@
  */
 
 import { db } from '@/lib/db';
-import { eq, and, gte, lte, sql, desc } from 'drizzle-orm';
+import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import {
   discoveryFeedAnalytics,
   discoveryFeedItems,

@@ -136,7 +136,7 @@ function normalizeGenre(genre: string): string {
   return genre
     .toLowerCase()
     .trim()
-    .replace(/[\/\-_]/g, ' ') // Replace separators with spaces
+    .replace(/[/\-_]/g, ' ') // Replace separators with spaces
     .replace(/\s+/g, ' ')     // Normalize whitespace
     .replace(/[^a-z0-9\s&]/g, ''); // Remove special chars except &
 }

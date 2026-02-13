@@ -4,7 +4,7 @@
  * Type definitions for the incremental library indexing and background sync system.
  */
 
-import type { Song, Artist, ArtistWithDetails } from '../navidrome';
+// navidrome type imports removed - unused in type definitions
 
 /**
  * Sync status for UI display

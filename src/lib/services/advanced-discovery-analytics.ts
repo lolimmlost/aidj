@@ -14,10 +14,9 @@ import { db } from '~/lib/db';
 import {
   recommendationFeedback,
   discoveryFeedItems,
-  discoveryFeedAnalytics,
   listeningPatterns,
 } from '~/lib/db/schema';
-import { eq, and, gte, lte, sql, desc } from 'drizzle-orm';
+import { eq, and, gte, lte } from 'drizzle-orm';
 import {
   extractArtist,
   getDateRange,
@@ -25,8 +24,6 @@ import {
   getTimeSlot,
   calculateConfidenceInterval,
   type DateRangePeriod,
-  type TrendDirection,
-  type TimeSlot,
 } from '~/lib/utils/analytics-helpers';
 
 // ============================================================================
@@ -127,7 +124,7 @@ interface CachedData<T> {
   timestamp: number;
 }
 
-const analyticsCache = new Map<string, CachedData<any>>();
+const analyticsCache = new Map<string, CachedData<unknown>>();
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 function getCached<T>(key: string): T | null {

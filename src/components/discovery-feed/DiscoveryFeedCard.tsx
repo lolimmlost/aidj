@@ -78,7 +78,7 @@ export const DiscoveryFeedCard = memo(function DiscoveryFeedCard({
   item,
   onPlay,
   onQueue,
-  onSave,
+  onSave: _onSave,
   onFeedback,
   onDismiss,
   isPending = false,

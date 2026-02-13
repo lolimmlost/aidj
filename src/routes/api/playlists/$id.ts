@@ -79,7 +79,7 @@ export const Route = createFileRoute("/api/playlists/$id")({
               duration: details?.duration ?? null,
               album: details?.album ?? null,
               albumId: details?.albumId ?? null,
-              starred: (details as any)?.starred ?? false,
+              starred: (details as Record<string, unknown>)?.starred ?? false,
             };
           });
         }

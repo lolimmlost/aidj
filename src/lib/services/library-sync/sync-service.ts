@@ -9,7 +9,7 @@
  * - Error handling with retry logic
  */
 
-import { eq, and, lt, notInArray, sql } from 'drizzle-orm';
+import { eq, and, lt, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import {
   librarySyncState,
@@ -29,9 +29,7 @@ import type {
   SyncEvent,
   SyncEventListener,
   SyncController,
-  IndexedSongData,
   IndexedArtistData,
-  DeltaResult,
   SyncStatus,
   SyncPhase,
 } from './types';

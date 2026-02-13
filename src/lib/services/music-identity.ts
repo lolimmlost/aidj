@@ -877,7 +877,7 @@ export async function generateMusicIdentitySummary(
   );
 
   // Generate title
-  const periodLabel = month ? `${getMonthName(month)} ${year}` : `${year}`;
+  const _periodLabel = month ? `${getMonthName(month)} ${year}` : `${year}`;
   const title = periodType === 'year'
     ? `Your ${year} Music Journey`
     : `${getMonthName(month!)} ${year} Wrapped`;

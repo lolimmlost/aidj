@@ -56,7 +56,7 @@ export async function extractDominantColors(imageUrl: string): Promise<DominantC
 }
 
 async function extractFromImage(imageUrl: string): Promise<DominantColors> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
 

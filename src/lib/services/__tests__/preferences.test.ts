@@ -11,7 +11,7 @@ import {
   clearPreferenceCache,
   clearAllPreferenceCaches,
 } from '../preferences';
-import type { UserPreferenceProfile, ListeningPatterns } from '../preferences';
+// Type imports removed - unused in test file
 
 // Mock the database
 vi.mock('../../db', () => ({

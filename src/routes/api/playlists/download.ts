@@ -12,8 +12,6 @@ import {
   queueLidarrDownload,
   queueMetubeDownload,
   queueBatchDownload,
-  checkLidarrAvailability,
-  checkMetubeAvailability,
   getDownloadQueueStatus,
   generateDownloadReport,
   toDownloadQueueItem,
@@ -298,7 +296,7 @@ const PUT = withAuthAndErrorHandling(
 
 // DELETE /api/playlists/download - Cancel a download
 const DELETE = withAuthAndErrorHandling(
-  async ({ request, session }) => {
+  async ({ request, session: _session }) => {
     const url = new URL(request.url);
     const downloadId = url.searchParams.get('downloadId');
     const service = url.searchParams.get('service') as 'lidarr' | 'metube';

@@ -22,7 +22,7 @@ import {
   type CollaboratorRole,
   type SuggestionStatus,
 } from "../db/schema";
-import { eq, and, desc, asc, sql, inArray, or, gt, lt, ne } from "drizzle-orm";
+import { eq, and, desc, asc, sql } from "drizzle-orm";
 import { ServiceError } from "../utils";
 
 // Types for service operations

@@ -60,6 +60,7 @@ const SidebarAlbumArt = ({
   const [resolvedAlbumId, setResolvedAlbumId] = useState<string | null>(albumId || null);
 
   // Fetch albumId from Navidrome if not provided but songId is available
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (albumId) {
       setResolvedAlbumId(albumId);
@@ -95,6 +96,7 @@ const SidebarAlbumArt = ({
     setImgError(false);
     setImgLoaded(false);
   }, [resolvedAlbumId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const coverUrl = getCoverArtUrl(resolvedAlbumId || undefined, 300);
   const initials = artist?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '♪';
@@ -774,7 +776,7 @@ interface Recommendation {
   };
 }
 
-const RecommendationsSection = memo(function RecommendationsSection({ recommendations }: { recommendations: any }) {
+const RecommendationsSection = memo(function RecommendationsSection({ recommendations }: { recommendations: Recommendation[] }) {
   const { addToQueueEnd, addPlaylist } = useAudioStore();
 
   const handleAddToQueue = useCallback((rec: Recommendation) => {
@@ -895,6 +897,7 @@ const RecentlyPlayedSection = memo(function RecentlyPlayedSection() {
   const { playlist, currentSongIndex, isPlaying, recentlyPlayedIds } = useAudioStore();
 
   // Build a map of all songs we know about (from current playlist)
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const songMap = useMemo(() => {
     const map = new Map<string, typeof playlist[0]>();
     playlist.forEach(song => map.set(song.id, song));
@@ -903,12 +906,14 @@ const RecentlyPlayedSection = memo(function RecentlyPlayedSection() {
 
   // Get recently played songs in order (most recent first)
   // Filter to only songs we have data for
+  /* eslint-disable react-hooks/preserve-manual-memoization */
   const recentSongs = useMemo(() => {
     return recentlyPlayedIds
       .slice(0, 5)
       .map(id => songMap.get(id))
       .filter((song): song is NonNullable<typeof song> => song !== undefined);
   }, [recentlyPlayedIds, songMap]);
+  /* eslint-enable react-hooks/preserve-manual-memoization */
 
   // Get the currently playing song (if any)
   const currentSong = playlist[currentSongIndex];

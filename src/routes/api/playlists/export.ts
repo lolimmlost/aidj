@@ -25,7 +25,7 @@ const ExportRequestSchema = z.object({
   includeMetadata: z.boolean().optional().default(true),
 });
 
-const BatchExportRequestSchema = z.object({
+const _BatchExportRequestSchema = z.object({
   playlistIds: z.array(z.string().uuid()).min(1).max(20),
   format: z.enum(['m3u', 'xspf', 'json']),
 });

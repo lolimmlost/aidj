@@ -109,7 +109,7 @@ export async function batchResolveImages(
 
   for (let i = 0; i < needsResolution.length; i += CONCURRENCY) {
     const batch = needsResolution.slice(i, i + CONCURRENCY);
-    const results = await Promise.allSettled(
+    await Promise.allSettled(
       batch.map(async item => {
         const entityId = item.entityId || `artist:${item.artistName}`;
         const url = await resolveArtistImage(item.artistName, item.imageUrl, entityId);

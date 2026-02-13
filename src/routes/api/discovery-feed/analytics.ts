@@ -16,7 +16,6 @@ import {
   getRealTimeMetrics,
   getQualityScore,
   getAnalyticsTrend,
-  type AnalyticsPeriod,
 } from '../../../lib/services/discovery-analytics';
 
 // Request validation schema

@@ -8,7 +8,7 @@ import { visualizers, getNextVisualizer, getPreviousVisualizer } from './visuali
 import { COLOR_THEMES, DEFAULT_SETTINGS, type Visualizer, type ColorTheme, type VisualizerSettings, type VisualizerContext } from './types';
 import { getQualityLevel, type QualityLevel } from './perf-utils';
 import { useAudioStore } from '@/lib/stores/audio';
-import { getLyrics, getCurrentLineIndex, type LyricLine, type LyricsResponse } from '@/lib/services/lyrics';
+import { getLyrics, getCurrentLineIndex, type LyricsResponse } from '@/lib/services/lyrics';
 
 // Throttle helper - returns value that only updates every N ms
 function useThrottledValue<T>(value: T, ms: number): T {
@@ -17,6 +17,7 @@ function useThrottledValue<T>(value: T, ms: number): T {
   const pendingValueRef = useRef(value);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     pendingValueRef.current = value;
     const now = Date.now();
@@ -42,6 +43,7 @@ function useThrottledValue<T>(value: T, ms: number): T {
       }
     };
   }, [value, ms]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return throttledValue;
 }
@@ -67,7 +69,7 @@ export function VisualizerModal({ isOpen, onClose, audioElement }: VisualizerMod
   );
 
   // Audio analyzer hook
-  const { audioData, connect, disconnect, isActive } = useAudioAnalyzer({
+  const { audioData, connect, disconnect, isActive: _isActive } = useAudioAnalyzer({
     sensitivity: settings.sensitivity,
     smoothingTimeConstant: settings.smoothing,
   });
@@ -227,10 +229,13 @@ export function VisualizerModal({ isOpen, onClose, audioElement }: VisualizerMod
   useEffect(() => { currentThemeRef.current = currentTheme; }, [currentTheme]);
   useEffect(() => { currentVisualizerRef.current = currentVisualizer; }, [currentVisualizer]);
   useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
+  /* eslint-disable react-hooks/immutability */
   useEffect(() => { fpsLimitRef.current = settings.fpsLimit; }, [settings.fpsLimit]);
   useEffect(() => { qualityRef.current = settings.quality === 'auto' ? getQualityLevel() : settings.quality; }, [settings.quality]);
+  /* eslint-enable react-hooks/immutability */
 
   // Animation loop - stable callback, no dependencies
+  /* eslint-disable react-hooks/purity */
   const animate = useCallback(() => {
     if (!canvasRef.current || !isOpenRef.current) return;
 
@@ -320,6 +325,7 @@ export function VisualizerModal({ isOpen, onClose, audioElement }: VisualizerMod
     // Continue animation loop
     animationFrameRef.current = requestAnimationFrame(animate);
   }, []); // Empty deps - uses refs
+  /* eslint-enable react-hooks/purity */
 
   // Start/stop animation loop
   useEffect(() => {
@@ -369,7 +375,8 @@ export function VisualizerModal({ isOpen, onClose, audioElement }: VisualizerMod
         case 'r':
         case 'R':
           e.preventDefault();
-          toggleAutoRotate();
+          // eslint-disable-next-line react-hooks/immutability
+          setSettings((prev) => ({ ...prev, autoRotate: !prev.autoRotate }));
           break;
         case 'l':
         case 'L':

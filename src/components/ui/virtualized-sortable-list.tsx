@@ -184,6 +184,7 @@ export function VirtualizedSortableList<T>({
               paddingRight: paddingX,
             }}
           >
+            {/* eslint-disable react-hooks/refs */}
             {virtualItems.map((virtualRow) => {
               const item = items[virtualRow.index];
               const itemId = getItemId(item);
@@ -209,6 +210,7 @@ export function VirtualizedSortableList<T>({
                 </div>
               );
             })}
+            {/* eslint-enable react-hooks/refs */}
           </div>
         </div>
       </SortableContext>

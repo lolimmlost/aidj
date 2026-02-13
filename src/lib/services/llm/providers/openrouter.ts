@@ -195,7 +195,7 @@ export class OpenRouterClient implements LLMProvider {
     }
   }
 
-  async checkModelAvailability(model: string, timeoutMs = 5000): Promise<boolean> {
+  async checkModelAvailability(model: string, _timeoutMs = 5000): Promise<boolean> {
     // OpenRouter doesn't have a direct model availability endpoint
     // We can check by making a minimal request or assume models are available
     // For now, we'll return true for known model patterns

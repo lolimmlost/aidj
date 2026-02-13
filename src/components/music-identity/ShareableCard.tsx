@@ -113,9 +113,11 @@ export const ShareableCard = memo(function ShareableCard({
     },
   });
 
+  const { mutate } = updateMutation;
+
   const handleTogglePublic = useCallback(() => {
-    updateMutation.mutate({ isPublic: !isPublic });
-  }, [isPublic, updateMutation]);
+    mutate({ isPublic: !isPublic });
+  }, [isPublic, mutate]);
 
   const handleCopyLink = useCallback(async () => {
     if (!shareUrl) return;
@@ -131,15 +133,15 @@ export const ShareableCard = memo(function ShareableCard({
   }, [shareUrl]);
 
   const handleUpdateCardSettings = useCallback((updates: Partial<CardData>) => {
-    updateMutation.mutate({
+    mutate({
       cardData: updates,
     });
-  }, [updateMutation]);
+  }, [mutate]);
 
   const handleUpdateTheme = useCallback((theme: string) => {
     setSelectedTheme(theme); // Optimistic update
-    updateMutation.mutate({ cardTheme: theme });
-  }, [updateMutation]);
+    mutate({ cardTheme: theme });
+  }, [mutate]);
 
   const periodLabel = summary.month
     ? `${getMonthName(summary.month)} ${summary.year}`

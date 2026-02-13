@@ -18,7 +18,7 @@ import {
   Legend,
 } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
+// Button import removed - unused currently
 import { Skeleton } from '../ui/skeleton';
 import { ArrowRight, TrendingUp, TrendingDown, Minus, Users, Music } from 'lucide-react';
 
@@ -282,12 +282,13 @@ const TasteComparisonSkeleton = memo(function TasteComparisonSkeleton() {
 
 export function TasteComparison({ pastPeriod, currentPeriod }: TasteComparisonProps) {
   const defaultPeriods = getDefaultPeriods();
-  const [periods, setPeriods] = useState({
+  const [periods, _setPeriods] = useState({
     past: pastPeriod || defaultPeriods.past,
     current: currentPeriod || defaultPeriods.current,
   });
 
   const { data: comparison, isLoading, error } = useQuery({
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: [
       'taste-comparison',
       periods.past.start.toISOString(),

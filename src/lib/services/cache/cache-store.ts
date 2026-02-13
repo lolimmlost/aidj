@@ -10,7 +10,6 @@ import type {
   CacheStats,
   CacheSetOptions,
   CacheGetOptions,
-  CacheNamespace,
   CacheEvent,
   CacheEventListener,
 } from './types';
@@ -226,7 +225,7 @@ export class CacheStore {
     const entry = this.cache.get(key);
     if (!entry) return null;
 
-    const { data, ...metadata } = entry;
+    const { data: _data, ...metadata } = entry;
     return metadata;
   }
 

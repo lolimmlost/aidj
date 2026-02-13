@@ -13,7 +13,7 @@ export const Route = createFileRoute("/(auth)/login")({
 
 function LoginForm() {
   const { redirectUrl } = Route.useRouteContext();
-  const router = useRouter();
+  const _router = useRouter();
   const queryClient = useQueryClient();
 
   const [isLoading, setIsLoading] = useState(false);

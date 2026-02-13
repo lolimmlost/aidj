@@ -30,7 +30,7 @@ export async function loadPlaylistIntoQueue(
 
   // Fetch full metadata for all songs in one batch using Navidrome's getSong endpoint
   const songIds = playlist.songs.map((s: PlaylistSong) => s.songId).join(',');
-  const songsMap = new Map<string, any>();
+  const songsMap = new Map<string, { id: string; title?: string; name?: string; artist?: string; album?: string; albumId?: string; duration?: string; track?: string }>();
 
   try {
     // Use Navidrome Subsonic API to get song metadata (f=json for JSON response)
@@ -43,7 +43,7 @@ export async function loadPlaylistIntoQueue(
         const songsArray = Array.isArray(subsonicResponse.song)
           ? subsonicResponse.song
           : [subsonicResponse.song];
-        songsArray.forEach((song: any) => {
+        songsArray.forEach((song: { id: string; title?: string; name?: string; artist?: string; album?: string; albumId?: string; duration?: string; track?: string }) => {
           songsMap.set(song.id, song);
         });
       }

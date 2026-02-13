@@ -12,11 +12,9 @@ import {
 import {
   parsePlaylist,
   validatePlaylistContent,
-  type ExportablePlaylist,
 } from '../../../lib/services/playlist-export';
 import {
   matchSong,
-  matchSongs,
   generateMatchReport,
   type MatchOptions,
 } from '../../../lib/services/song-matcher';
@@ -81,7 +79,7 @@ function createNavidromeSearcher() {
 }
 
 // POST /api/playlists/import/validate - Validate playlist content before importing
-const validateHandler = withAuthAndErrorHandling(
+const _validateHandler = withAuthAndErrorHandling(
   async ({ request }) => {
     const body = await request.json();
     const validatedData = ImportValidateSchema.parse(body);

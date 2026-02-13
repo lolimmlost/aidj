@@ -148,7 +148,7 @@ export function AudioPlayer() {
     duration,
     volume,
     isShuffled,
-    crossfadeDuration,
+    crossfadeDuration: _crossfadeDuration,
     setIsPlaying,
     setCurrentTime,
     setDuration,
@@ -1205,7 +1205,7 @@ export function AudioPlayer() {
 
     // Network Information API - detects WiFi/cellular changes
     const handleConnectionChange = () => {
-      const connection = (navigator as any).connection;
+      const connection = (navigator as unknown as { connection?: { effectiveType?: string; downlink?: number; addEventListener: (type: string, listener: () => void) => void; removeEventListener: (type: string, listener: () => void) => void } }).connection;
       debugLog('📶', 'NETWORK', `Connection type changed`, {
         effectiveType: connection?.effectiveType || 'unknown',
         downlink: connection?.downlink || 'unknown',
@@ -1221,7 +1221,7 @@ export function AudioPlayer() {
     window.addEventListener('offline', handleOffline);
 
     // Network Information API (Chrome/Android)
-    const connection = (navigator as any).connection;
+    const connection = (navigator as unknown as { connection?: { addEventListener: (type: string, listener: () => void) => void; removeEventListener: (type: string, listener: () => void) => void } }).connection;
     if (connection) {
       connection.addEventListener('change', handleConnectionChange);
     }
@@ -1656,7 +1656,7 @@ export function AudioPlayer() {
             playbackRate: audio.playbackRate,
             position: audio.currentTime,
           });
-        } catch (e) {
+        } catch {
           // Position state not supported
         }
       }
@@ -1673,7 +1673,6 @@ export function AudioPlayer() {
               console.log('🎛️ Reloading audio source after error...');
               // Force reload with fresh URL by setting src again
               if (currentSong?.url) {
-                const currentSrc = audio.src;
                 audio.src = ''; // Clear source
                 audio.src = currentSong.url + '?t=' + Date.now(); // Add cache-busting param
                 console.log('🎛️ Refreshed audio URL with cache buster');
@@ -1855,7 +1854,7 @@ export function AudioPlayer() {
             playbackRate: audio.playbackRate,
             position: audio.currentTime,
           });
-        } catch (e) {
+        } catch {
           // Ignore position state errors
         }
       }
@@ -1886,7 +1885,7 @@ export function AudioPlayer() {
         navigator.mediaSession.setActionHandler('previoustrack', null);
         navigator.mediaSession.setActionHandler('nexttrack', null);
         navigator.mediaSession.setActionHandler('seekto', null);
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     };

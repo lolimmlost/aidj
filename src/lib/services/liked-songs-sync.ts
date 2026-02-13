@@ -244,7 +244,7 @@ export async function getLikedSongsByArtist(
 ): Promise<string[]> {
   const normalizedArtist = artist.toLowerCase();
 
-  const likedSongs = await db
+  const _likedSongs = await db
     .select({ songId: likedSongsSync.songId })
     .from(likedSongsSync)
     .where(

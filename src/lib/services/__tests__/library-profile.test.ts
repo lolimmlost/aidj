@@ -269,6 +269,7 @@ describe('Library Profile Service', () => {
             }]),
           }),
         }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test mock for complex drizzle query chain
       } as any);
 
       const result = await getOrCreateLibraryProfile('user1', true);

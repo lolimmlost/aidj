@@ -2,7 +2,6 @@ import { ServiceError } from '../utils';
 import type {
   PlaylistExportFormat,
   PlaylistPlatform,
-  SongMatchResult,
 } from '../db/schema/playlist-export.schema';
 
 /**

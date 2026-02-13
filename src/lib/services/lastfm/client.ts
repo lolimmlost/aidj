@@ -13,7 +13,6 @@ import type {
   LastFmError,
   LastFmErrorCode,
   LastFmTrack,
-  LastFmArtist,
   LastFmSimilarTracksResponse,
   LastFmSimilarArtistsResponse,
   LastFmTopTracksResponse,

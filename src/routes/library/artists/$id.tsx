@@ -6,7 +6,6 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { Loader2, Music, Disc, ListMusic, Play, Plus, ListPlus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,

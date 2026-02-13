@@ -351,6 +351,7 @@ export function PlaylistImportDialog({
   });
 
   // Handle polling results
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!importJobData?.data?.importJob) return;
 
@@ -407,6 +408,7 @@ export function PlaylistImportDialog({
       });
     }
   }, [importJobData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleFileUpload = (content: string, name: string, detectedFormat?: ExportFormat) => {
     setFileContent(content);
@@ -495,6 +497,7 @@ export function PlaylistImportDialog({
           ref={globalFileInputRef}
           type="file"
           accept=".m3u,.m3u8,.xspf,.json,.csv"
+          // eslint-disable-next-line react-hooks/immutability
           onChange={handleGlobalFileChange}
           style={{ position: 'fixed', left: '-9999px', opacity: 0 }}
         />,

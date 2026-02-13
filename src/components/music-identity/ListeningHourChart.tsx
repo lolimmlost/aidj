@@ -86,6 +86,7 @@ export const ListeningHourChart = memo(function ListeningHourChart({
     retry: false,
   });
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const chartData = useMemo(() => {
     if (!data?.data) return [];
     return data.data.map(d => ({
@@ -96,6 +97,7 @@ export const ListeningHourChart = memo(function ListeningHourChart({
     }));
   }, [data]);
 
+  /* eslint-disable react-hooks/preserve-manual-memoization */
   const peakHour = useMemo(() => {
     if (!chartData.length) return null;
     return chartData.reduce((max, d) => d.plays > max.plays ? d : max, chartData[0]);
@@ -104,6 +106,7 @@ export const ListeningHourChart = memo(function ListeningHourChart({
   const totalPlays = useMemo(() => {
     return chartData.reduce((sum, d) => sum + d.plays, 0);
   }, [chartData]);
+  /* eslint-enable react-hooks/preserve-manual-memoization */
 
   if (isLoading) {
     return (

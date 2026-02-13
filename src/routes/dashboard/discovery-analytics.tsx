@@ -29,7 +29,7 @@ export const Route = createFileRoute('/dashboard/discovery-analytics')({
 });
 
 function DiscoveryAnalyticsPage() {
-  const [period, setPeriod] = useState<'7d' | '30d' | '90d' | '1y' | 'all'>('30d');
+  const [period, _setPeriod] = useState<'7d' | '30d' | '90d' | '1y' | 'all'>('30d');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const queryClient = useQueryClient();
 

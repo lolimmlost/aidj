@@ -81,7 +81,9 @@ if (typeof window !== 'undefined') {
   // Server side - load from db/config.json first, then override with env vars
   let fileConfig: Partial<ServiceConfig> = {};
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const fs = require('fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const path = require('path');
     const configPath = path.resolve(process.cwd(), 'db', 'config.json');
     if (fs.existsSync(configPath)) {

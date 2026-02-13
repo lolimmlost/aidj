@@ -11,7 +11,7 @@
 
 import { useCallback, useRef } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { recordSongPlayOffline, getLocalListeningHistory, isOnline } from '@/lib/services/offline';
+import { recordSongPlayOffline, getLocalListeningHistory } from '@/lib/services/offline';
 import authClient from '@/lib/auth/auth-client';
 
 interface RecordPlayParams {
@@ -130,7 +130,7 @@ export function usePlaybackTracking() {
     console.log(`[usePlaybackTracking] Started tracking: ${song.artist} - ${song.title}`);
   }, []);
 
-  const updatePlayback = useCallback((currentTime: number) => {
+  const updatePlayback = useCallback((_currentTime: number) => {
     const tracking = trackingRef.current;
     if (!tracking.song) return;
 

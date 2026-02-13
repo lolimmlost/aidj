@@ -42,7 +42,7 @@ import {
   MAX_SIMILAR_TRACKS_PER_SONG,
 } from '../listening-history';
 import { db } from '@/lib/db';
-import { getLastFmClient } from '@/lib/services/lastfm';
+// getLastFmClient import removed - unused in tests
 
 describe('Listening History Service', () => {
   beforeEach(() => {

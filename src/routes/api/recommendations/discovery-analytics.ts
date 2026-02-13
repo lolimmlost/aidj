@@ -19,7 +19,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from 'zod';
 import {
   withAuthAndErrorHandling,
-  successResponse,
 } from '../../../lib/utils/api-response';
 import {
   getDiscoveryAnalyticsSummary,

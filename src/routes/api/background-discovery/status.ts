@@ -78,7 +78,7 @@ const GET = withAuthAndErrorHandling(
         });
         managerStatus = await manager.getStatus();
       }
-    } catch (error) {
+    } catch {
       // Manager may not be initialized, try to initialize it
       console.log(`[BackgroundDiscovery] Initializing manager for user ${userId}`);
       try {

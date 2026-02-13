@@ -71,6 +71,7 @@ export const MoodProfileChart = memo(function MoodProfileChart({
   const { distribution, dominantMoods, moodByTimeOfDay, variationScore, emotionalRange } = moodProfile;
 
   // Prepare pie chart data
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const pieData = useMemo(() => {
     return Object.entries(distribution)
       .filter(([, value]) => value > 0)

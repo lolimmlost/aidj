@@ -1,4 +1,4 @@
-import { search as navidromeSearch, resolveSongByArtistTitle, type Artist as NavidromeArtist, type Song as NavidromeSong, getArtists as getNavidromeArtists, getAlbumDetail, type AlbumDetail } from './navidrome';
+import { search as navidromeSearch, resolveSongByArtistTitle, type Artist as NavidromeArtist, type Song as NavidromeSong, getArtists as getNavidromeArtists, getAlbumDetail } from './navidrome';
 import { search as lidarrSearch, getArtists as getLidarrArtists, LidarrArtist, type Album as LidarrAlbum, searchAlbums, searchAlbumByTitle, findArtistByName, getArtistAlbums } from './lidarr';
 import { mobileOptimization } from '@/lib/performance/mobile-optimization';
 import type { NavidromeAlbumData } from '@/lib/types/navidrome-api';

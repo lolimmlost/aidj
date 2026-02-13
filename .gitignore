@@ -70,3 +70,9 @@ test-results/
 !docs/screenshots/*.png
 Navidrome-Smart-Playlist-Collection-main/
 bmad-temp/
+
+# Agent output directories
+.ai/
+.automaker/
+.claude/
+.clinerules/

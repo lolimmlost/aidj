@@ -5,7 +5,7 @@
 
 import { db } from '../db';
 import { recommendationFeedback } from '../db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 
 export interface UserPreferenceProfile {
   userId: string;

@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   withAuthAndErrorHandling,
   successResponse,
-  errorResponse,
 } from "../../../../../lib/utils/api-response";
 import {
   enablePlaylistCollaboration,
@@ -19,7 +18,7 @@ const EnableCollaborationSchema = z.object({
 
 // GET /api/playlists/:id/collaboration - Get collaboration details
 const GET = withAuthAndErrorHandling(
-  async ({ request, params, session }) => {
+  async ({ params, session }) => {
     const { id } = params;
 
     const result = await getCollaborativePlaylist(id, session.user.id);

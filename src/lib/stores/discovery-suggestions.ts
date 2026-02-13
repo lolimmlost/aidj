@@ -384,7 +384,7 @@ export const useDiscoverySuggestionsStore = create<DiscoverySuggestionsState>()(
     },
 
     approveMultiple: async (ids: string[]) => {
-      let approvedCount = 0;
+      let _approvedCount = 0;
       let lidarrSuccessCount = 0;
       let lidarrFailCount = 0;
       const discoveryQueue = useDiscoveryQueueStore.getState();
@@ -433,7 +433,7 @@ export const useDiscoverySuggestionsStore = create<DiscoverySuggestionsState>()(
             });
 
             if (!result.isDuplicate) {
-              approvedCount++;
+              _approvedCount++;
 
               // Trigger Lidarr download
               try {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // Mock data
@@ -73,6 +73,7 @@ describe('DJ Workflow Integration Tests', () => {
   describe('DJ Mixer Workflow', () => {
     it('should navigate to DJ mixer page', async () => {
       const mockNavigate = vi.fn()
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       vi.mocked(require('@tanstack/react-router').useNavigate).mockReturnValue(mockNavigate)
       
       render(
@@ -224,7 +225,7 @@ describe('DJ Workflow Integration Tests', () => {
       
       render(<DJMixerInterface />)
 
-      const deckAButton = screen.getByTestId('deck-a')
+      const _deckAButton = screen.getByTestId('deck-a')
       const deckBButton = screen.getByTestId('deck-b')
       const nextButton = screen.getByTestId('next-button')
       
@@ -346,7 +347,7 @@ describe('DJ Workflow Integration Tests', () => {
       render(<DJMixerInterface />)
 
       const transitionType = screen.getByTestId('transition-type')
-      const transitionSelect = screen.getByTestId('transition-select')
+      const _transitionSelect = screen.getByTestId('transition-select')
       
       // Change transition type
       await userEvent.click(transitionType)
@@ -466,7 +467,7 @@ describe('DJ Workflow Integration Tests', () => {
       render(<DJMixerInterface />)
 
       const mixingStrategy = screen.getByTestId('mixing-strategy')
-      const strategySelect = screen.getByTestId('strategy-select')
+      const _strategySelect = screen.getByTestId('strategy-select')
       
       // Change mixing strategy
       await userEvent.click(mixingStrategy)
@@ -489,7 +490,7 @@ describe('DJ Workflow Integration Tests', () => {
 
   describe('Performance Requirements', () => {
     it('should meet DJ workflow latency requirements', async () => {
-      const startTime = performance.now()
+      const _startTime = performance.now()
       
       mockUseAudioStore.mockReturnValue({
         queue: mockSongs,

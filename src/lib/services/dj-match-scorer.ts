@@ -91,7 +91,7 @@ export interface DJScoreResult {
 export function scoreBPMMatch(
   bpm1?: number,
   bpm2?: number,
-  tolerance: number = BPM_THRESHOLDS.TIGHT
+  _tolerance: number = BPM_THRESHOLDS.TIGHT
 ): { score: number; diff?: number; diffPercent?: number; relationship: string } {
   // If either BPM is missing, return neutral score
   if (!bpm1 || !bpm2 || bpm1 <= 0 || bpm2 <= 0) {

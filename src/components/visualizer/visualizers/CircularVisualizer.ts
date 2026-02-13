@@ -1,5 +1,5 @@
 import type { Visualizer, VisualizerContext } from '../types';
-import type { QualityLevel } from '../perf-utils';
+// QualityLevel type removed - unused currently
 
 // Store history for trails - reduced for performance
 let trailHistory: Float32Array[] = [];

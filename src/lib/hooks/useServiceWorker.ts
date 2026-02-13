@@ -53,7 +53,7 @@ export function useServiceWorker() {
               minInterval: 15 * 60 * 1000, // 15 minutes
             });
             console.log('[PWA] Periodic background sync registered');
-          } catch (error) {
+          } catch {
             console.log('[PWA] Periodic background sync not available');
           }
         }
@@ -117,7 +117,7 @@ export function useServiceWorker() {
         await (registration as ServiceWorkerRegistration & { sync: { register: (tag: string) => Promise<void> } }).sync.register('sync-all');
         console.log('[PWA] Background sync registered');
         return;
-      } catch (error) {
+      } catch {
         console.log('[PWA] Background sync not available, using message');
       }
     }

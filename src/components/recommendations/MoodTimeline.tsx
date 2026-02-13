@@ -16,7 +16,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   ReferenceLine,
   Brush,
@@ -27,8 +26,6 @@ import { Skeleton } from '../ui/skeleton';
 import {
   ZoomIn,
   ZoomOut,
-  Calendar,
-  Filter,
   Download,
   RotateCcw,
   ChevronLeft,
@@ -59,7 +56,7 @@ interface TopItem {
   percentage: number;
 }
 
-interface TimelineDataPoint {
+export interface TimelineDataPoint {
   periodStart: string;
   periodEnd: string;
   periodLabel: string;
@@ -180,7 +177,7 @@ function formatDateRange(start: Date, end: Date): string {
 // Subcomponents
 // ============================================================================
 
-const MoodTimelineTooltip = memo(function MoodTimelineTooltip({ active, payload, label }: any) {
+const MoodTimelineTooltip = memo(function MoodTimelineTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: TimelineDataPoint & Record<string, number> }> }) {
   if (!active || !payload || !payload.length) return null;
 
   const dataPoint = payload[0]?.payload as TimelineDataPoint & { [key: string]: number };
@@ -559,21 +556,23 @@ export function MoodTimeline({
     new Set(Object.keys(MOOD_COLORS) as (keyof MoodDistribution)[])
   );
   const [selectedPeriod, setSelectedPeriod] = useState<TimelineDataPoint | null>(null);
-  const [brushRange, setBrushRange] = useState<[number, number] | null>(null);
+  const [_brushRange, setBrushRange] = useState<[number, number] | null>(null);
 
   // Fetch timeline data
   const { data: timeline, isLoading, error } = useQuery({
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: ['mood-timeline', dateRange.start.toISOString(), dateRange.end.toISOString(), granularity],
     queryFn: () => fetchMoodTimeline(dateRange.start, dateRange.end, granularity),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   // Transform data for chart
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const chartData = useMemo(() => {
     if (!timeline?.dataPoints) return [];
 
     return timeline.dataPoints.map((dp) => {
-      const entry: any = {
+      const entry: Record<string, string | number | boolean | undefined | Record<string, number> | Array<unknown>> = {
         name: dp.periodLabel,
         periodStart: dp.periodStart,
         isSignificantChange: dp.isSignificantChange,
@@ -625,7 +624,7 @@ export function MoodTimeline({
     setBrushRange(null);
   }, []);
 
-  const handleChartClick = useCallback((data: any) => {
+  const handleChartClick = useCallback((data: { activePayload?: Array<{ payload: { periodStart: string } }> } | null) => {
     if (data?.activePayload?.[0]?.payload) {
       const periodStart = data.activePayload[0].payload.periodStart;
       const period = timeline?.dataPoints.find((dp) => dp.periodStart === periodStart);

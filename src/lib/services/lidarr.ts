@@ -357,7 +357,7 @@ export async function search(query: string): Promise<{ artists: Artist[]; albums
     }
 
     // Use mobile-optimized batched requests
-    const qualitySettings = mobileOptimization.getQualitySettings();
+    const _qualitySettings = mobileOptimization.getQualitySettings();
 
     // Search artists and albums concurrently
     const [artists, albums] = await Promise.all([
