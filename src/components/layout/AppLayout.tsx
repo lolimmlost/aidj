@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, memo, useEffect } from 'react';
+import React, { useState, useCallback, memo, useEffect } from 'react';
 import { Link, useRouterState, useNavigate } from '@tanstack/react-router';
 import {
   Home,
@@ -9,7 +9,7 @@ import {
   Download,
   Settings,
   Heart,
-  Clock,
+
   Plus,
   ChevronRight,
   Disc3,
@@ -891,32 +891,32 @@ const RecommendationsSection = memo(function RecommendationsSection({ recommenda
 
 /**
  * Recently Played Section for Left Sidebar - memoized to prevent unnecessary re-renders
- * Shows songs in the order they were actually played (most recent first)
+ * Fetches from DB for cross-device history with full metadata
  */
 const RecentlyPlayedSection = memo(function RecentlyPlayedSection() {
-  const { playlist, currentSongIndex, isPlaying, recentlyPlayedIds } = useAudioStore();
-
-  // Build a map of all songs we know about (from current playlist)
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
-  const songMap = useMemo(() => {
-    const map = new Map<string, typeof playlist[0]>();
-    playlist.forEach(song => map.set(song.id, song));
-    return map;
-  }, [playlist]);
-
-  // Get recently played songs in order (most recent first)
-  // Filter to only songs we have data for
-  /* eslint-disable react-hooks/preserve-manual-memoization */
-  const recentSongs = useMemo(() => {
-    return recentlyPlayedIds
-      .slice(0, 5)
-      .map(id => songMap.get(id))
-      .filter((song): song is NonNullable<typeof song> => song !== undefined);
-  }, [recentlyPlayedIds, songMap]);
-  /* eslint-enable react-hooks/preserve-manual-memoization */
-
-  // Get the currently playing song (if any)
+  const { playlist, currentSongIndex, isPlaying } = useAudioStore();
   const currentSong = playlist[currentSongIndex];
+
+  // Fetch recently played from DB (cross-device, deduplicated)
+  const { data } = useQuery({
+    queryKey: ['listening-history', 'recent'],
+    queryFn: async () => {
+      const res = await fetch('/api/listening-history/recent?limit=10');
+      if (!res.ok) return { history: [] };
+      return res.json() as Promise<{ history: Array<{
+        id: string;
+        songId: string;
+        artist: string;
+        title: string;
+        album: string | null;
+        playedAt: string;
+      }> }>;
+    },
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const recentSongs = data?.history ?? [];
 
   if (recentSongs.length === 0) return null;
 
@@ -926,31 +926,27 @@ const RecentlyPlayedSection = memo(function RecentlyPlayedSection() {
         Recently Played
       </h3>
       <div className="space-y-1">
-        {recentSongs.map((song, index) => {
-          const isCurrentlyPlaying = currentSong?.id === song.id;
+        {recentSongs.slice(0, 5).map((entry) => {
+          const isCurrentlyPlaying = currentSong?.id === entry.songId;
           return (
             <div
-              key={`${song.id}-${index}`}
+              key={entry.id}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors cursor-pointer",
                 "hover:bg-accent/50",
                 isCurrentlyPlaying && "bg-accent/30"
               )}
             >
-              <div className="w-9 h-9 rounded bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0">
-                {isCurrentlyPlaying && isPlaying ? (
-                  <div className="flex gap-0.5">
-                    <div className="w-0.5 h-2.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" />
-                    <div className="w-0.5 h-3.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
-                    <div className="w-0.5 h-2.5 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
-                  </div>
-                ) : (
-                  <Clock className="h-3.5 w-3.5 text-blue-500/70" />
-                )}
+              <div className="w-9 h-9 rounded overflow-hidden flex-shrink-0">
+                <SidebarAlbumArt
+                  songId={entry.songId}
+                  artist={entry.artist}
+                  isPlaying={isCurrentlyPlaying && isPlaying}
+                />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate">{song.name || song.title}</p>
-                <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
+                <p className="text-sm font-medium truncate">{entry.title}</p>
+                <p className="text-xs text-muted-foreground truncate">{entry.artist}</p>
               </div>
             </div>
           );

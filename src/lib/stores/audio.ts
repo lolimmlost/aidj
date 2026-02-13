@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Song } from '@/lib/types/song';
+import { fromSyncSong } from '@/lib/types/sync';
+import type { PlaybackStateResponse } from '@/lib/types/sync';
+import { getDeviceInfo } from '@/lib/utils/device';
 import { usePreferencesStore } from './preferences';
 import { toast } from 'sonner';
 
@@ -243,6 +246,12 @@ interface AudioState {
   // WiFi reconnect recovery state
   wasPlayingBeforeUnload: boolean; // Persisted - captures playback intent before page unload
   pendingPlaybackResume: boolean; // Transient - signals that playback should resume after rehydration
+  // Cross-device sync timestamps (per-field conflict resolution)
+  queueUpdatedAt: string;
+  positionUpdatedAt: string;
+  playStateUpdatedAt: string;
+  // Remote device indicator (set when another device is active)
+  remoteDevice: { deviceId: string | null; deviceName: string | null; isPlaying: boolean } | null;
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
@@ -288,6 +297,9 @@ interface AudioState {
   skipAutoplayedSong: (songId: string) => void;
   // WiFi reconnect recovery actions
   setWasPlayingBeforeUnload: (value: boolean) => void;
+  // Cross-device sync actions
+  applyServerState: (server: PlaybackStateResponse) => void;
+  setRemoteDevice: (device: { deviceId: string | null; deviceName: string | null; isPlaying: boolean } | null) => void;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -331,6 +343,11 @@ export const useAudioStore = create<AudioState>()(
     // WiFi reconnect recovery initial state
     wasPlayingBeforeUnload: false,
     pendingPlaybackResume: false,
+    // Cross-device sync initial state
+    queueUpdatedAt: new Date().toISOString(),
+    positionUpdatedAt: new Date().toISOString(),
+    playStateUpdatedAt: new Date().toISOString(),
+    remoteDevice: null,
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -1715,6 +1732,56 @@ export const useAudioStore = create<AudioState>()(
 
     // WiFi reconnect recovery action
     setWasPlayingBeforeUnload: (value: boolean) => set({ wasPlayingBeforeUnload: value }),
+
+    // Cross-device sync actions
+    applyServerState: (server) => {
+      const local = get();
+      const merged: Partial<AudioState> = {};
+      let changed = false;
+
+      // Queue fields: only apply if server is newer
+      if (server.queueUpdatedAt > (local.queueUpdatedAt ?? '')) {
+        merged.playlist = server.queue.map(fromSyncSong);
+        merged.originalPlaylist = server.originalQueue.map(fromSyncSong);
+        merged.currentSongIndex = server.currentIndex;
+        merged.isShuffled = server.isShuffled;
+        merged.queueUpdatedAt = server.queueUpdatedAt;
+        changed = true;
+      }
+
+      // Position: only apply if server is newer
+      if (server.positionUpdatedAt > (local.positionUpdatedAt ?? '')) {
+        merged.currentTime = server.currentPositionMs / 1000;
+        merged.positionUpdatedAt = server.positionUpdatedAt;
+        changed = true;
+      }
+
+      // Volume: always accept from server if different
+      if (server.volume !== local.volume) {
+        merged.volume = server.volume;
+        changed = true;
+      }
+
+      // Never auto-set isPlaying to true (browser autoplay policy)
+      // Just track the remote device state
+      if (server.activeDevice?.id && server.isPlaying) {
+        const localDevice = typeof window !== 'undefined' ? getDeviceInfo() : null;
+        if (localDevice && server.activeDevice.id !== localDevice.deviceId) {
+          merged.remoteDevice = {
+            deviceId: server.activeDevice.id,
+            deviceName: server.activeDevice.name,
+            isPlaying: server.isPlaying,
+          };
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        set(merged);
+      }
+    },
+
+    setRemoteDevice: (device) => set({ remoteDevice: device }),
   }),
   {
     name: 'audio-player-storage',
@@ -1739,6 +1806,10 @@ export const useAudioStore = create<AudioState>()(
       autoplaySmartTransitions: state.autoplaySmartTransitions,
       // WiFi reconnect recovery
       wasPlayingBeforeUnload: state.wasPlayingBeforeUnload,
+      // Cross-device sync timestamps
+      queueUpdatedAt: state.queueUpdatedAt,
+      positionUpdatedAt: state.positionUpdatedAt,
+      playStateUpdatedAt: state.playStateUpdatedAt,
     }),
     // Don't restore isPlaying - let user manually resume
     onRehydrateStorage: () => (state) => {

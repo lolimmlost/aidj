@@ -67,6 +67,9 @@ import { Route as ApiPlaylistsImportRouteImport } from './routes/api/playlists/i
 import { Route as ApiPlaylistsExportRouteImport } from './routes/api/playlists/export'
 import { Route as ApiPlaylistsDownloadRouteImport } from './routes/api/playlists/download'
 import { Route as ApiPlaylistsIdRouteImport } from './routes/api/playlists/$id'
+import { Route as ApiPlaybackTransferRouteImport } from './routes/api/playback/transfer'
+import { Route as ApiPlaybackStateRouteImport } from './routes/api/playback/state'
+import { Route as ApiPlaybackDevicesRouteImport } from './routes/api/playback/devices'
 import { Route as ApiNavidromeStarRouteImport } from './routes/api/navidrome/star'
 import { Route as ApiNavidromeSearchRouteImport } from './routes/api/navidrome/search'
 import { Route as ApiMusicIdentityIdRouteImport } from './routes/api/music-identity/$id'
@@ -76,6 +79,7 @@ import { Route as ApiMetubeAddRouteImport } from './routes/api/metube/add'
 import { Route as ApiListeningHistoryStatsRouteImport } from './routes/api/listening-history/stats'
 import { Route as ApiListeningHistorySessionsRouteImport } from './routes/api/listening-history/sessions'
 import { Route as ApiListeningHistoryRecordRouteImport } from './routes/api/listening-history/record'
+import { Route as ApiListeningHistoryRecentRouteImport } from './routes/api/listening-history/recent'
 import { Route as ApiListeningHistoryInterestOverTimeRouteImport } from './routes/api/listening-history/interest-over-time'
 import { Route as ApiListeningHistoryCompoundScoresRouteImport } from './routes/api/listening-history/compound-scores'
 import { Route as ApiListeningHistoryByHourRouteImport } from './routes/api/listening-history/by-hour'
@@ -442,6 +446,21 @@ const ApiPlaylistsIdRoute = ApiPlaylistsIdRouteImport.update({
   path: '/api/playlists/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPlaybackTransferRoute = ApiPlaybackTransferRouteImport.update({
+  id: '/api/playback/transfer',
+  path: '/api/playback/transfer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPlaybackStateRoute = ApiPlaybackStateRouteImport.update({
+  id: '/api/playback/state',
+  path: '/api/playback/state',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPlaybackDevicesRoute = ApiPlaybackDevicesRouteImport.update({
+  id: '/api/playback/devices',
+  path: '/api/playback/devices',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiNavidromeStarRoute = ApiNavidromeStarRouteImport.update({
   id: '/api/navidrome/star',
   path: '/api/navidrome/star',
@@ -488,6 +507,12 @@ const ApiListeningHistoryRecordRoute =
   ApiListeningHistoryRecordRouteImport.update({
     id: '/api/listening-history/record',
     path: '/api/listening-history/record',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiListeningHistoryRecentRoute =
+  ApiListeningHistoryRecentRouteImport.update({
+    id: '/api/listening-history/recent',
+    path: '/api/listening-history/recent',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiListeningHistoryInterestOverTimeRoute =
@@ -918,6 +943,7 @@ export interface FileRoutesByFullPath {
   '/api/listening-history/by-hour': typeof ApiListeningHistoryByHourRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
   '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
+  '/api/listening-history/recent': typeof ApiListeningHistoryRecentRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
   '/api/listening-history/sessions': typeof ApiListeningHistorySessionsRoute
   '/api/listening-history/stats': typeof ApiListeningHistoryStatsRoute
@@ -927,6 +953,9 @@ export interface FileRoutesByFullPath {
   '/api/music-identity/$id': typeof ApiMusicIdentityIdRoute
   '/api/navidrome/search': typeof ApiNavidromeSearchRoute
   '/api/navidrome/star': typeof ApiNavidromeStarRoute
+  '/api/playback/devices': typeof ApiPlaybackDevicesRoute
+  '/api/playback/state': typeof ApiPlaybackStateRoute
+  '/api/playback/transfer': typeof ApiPlaybackTransferRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
   '/api/playlists/download': typeof ApiPlaylistsDownloadRoute
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
@@ -1051,6 +1080,7 @@ export interface FileRoutesByTo {
   '/api/listening-history/by-hour': typeof ApiListeningHistoryByHourRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
   '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
+  '/api/listening-history/recent': typeof ApiListeningHistoryRecentRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
   '/api/listening-history/sessions': typeof ApiListeningHistorySessionsRoute
   '/api/listening-history/stats': typeof ApiListeningHistoryStatsRoute
@@ -1060,6 +1090,9 @@ export interface FileRoutesByTo {
   '/api/music-identity/$id': typeof ApiMusicIdentityIdRoute
   '/api/navidrome/search': typeof ApiNavidromeSearchRoute
   '/api/navidrome/star': typeof ApiNavidromeStarRoute
+  '/api/playback/devices': typeof ApiPlaybackDevicesRoute
+  '/api/playback/state': typeof ApiPlaybackStateRoute
+  '/api/playback/transfer': typeof ApiPlaybackTransferRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
   '/api/playlists/download': typeof ApiPlaylistsDownloadRoute
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
@@ -1188,6 +1221,7 @@ export interface FileRoutesById {
   '/api/listening-history/by-hour': typeof ApiListeningHistoryByHourRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
   '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
+  '/api/listening-history/recent': typeof ApiListeningHistoryRecentRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
   '/api/listening-history/sessions': typeof ApiListeningHistorySessionsRoute
   '/api/listening-history/stats': typeof ApiListeningHistoryStatsRoute
@@ -1197,6 +1231,9 @@ export interface FileRoutesById {
   '/api/music-identity/$id': typeof ApiMusicIdentityIdRoute
   '/api/navidrome/search': typeof ApiNavidromeSearchRoute
   '/api/navidrome/star': typeof ApiNavidromeStarRoute
+  '/api/playback/devices': typeof ApiPlaybackDevicesRoute
+  '/api/playback/state': typeof ApiPlaybackStateRoute
+  '/api/playback/transfer': typeof ApiPlaybackTransferRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
   '/api/playlists/download': typeof ApiPlaylistsDownloadRoute
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
@@ -1325,6 +1362,7 @@ export interface FileRouteTypes {
     | '/api/listening-history/by-hour'
     | '/api/listening-history/compound-scores'
     | '/api/listening-history/interest-over-time'
+    | '/api/listening-history/recent'
     | '/api/listening-history/record'
     | '/api/listening-history/sessions'
     | '/api/listening-history/stats'
@@ -1334,6 +1372,9 @@ export interface FileRouteTypes {
     | '/api/music-identity/$id'
     | '/api/navidrome/search'
     | '/api/navidrome/star'
+    | '/api/playback/devices'
+    | '/api/playback/state'
+    | '/api/playback/transfer'
     | '/api/playlists/$id'
     | '/api/playlists/download'
     | '/api/playlists/export'
@@ -1458,6 +1499,7 @@ export interface FileRouteTypes {
     | '/api/listening-history/by-hour'
     | '/api/listening-history/compound-scores'
     | '/api/listening-history/interest-over-time'
+    | '/api/listening-history/recent'
     | '/api/listening-history/record'
     | '/api/listening-history/sessions'
     | '/api/listening-history/stats'
@@ -1467,6 +1509,9 @@ export interface FileRouteTypes {
     | '/api/music-identity/$id'
     | '/api/navidrome/search'
     | '/api/navidrome/star'
+    | '/api/playback/devices'
+    | '/api/playback/state'
+    | '/api/playback/transfer'
     | '/api/playlists/$id'
     | '/api/playlists/download'
     | '/api/playlists/export'
@@ -1594,6 +1639,7 @@ export interface FileRouteTypes {
     | '/api/listening-history/by-hour'
     | '/api/listening-history/compound-scores'
     | '/api/listening-history/interest-over-time'
+    | '/api/listening-history/recent'
     | '/api/listening-history/record'
     | '/api/listening-history/sessions'
     | '/api/listening-history/stats'
@@ -1603,6 +1649,9 @@ export interface FileRouteTypes {
     | '/api/music-identity/$id'
     | '/api/navidrome/search'
     | '/api/navidrome/star'
+    | '/api/playback/devices'
+    | '/api/playback/state'
+    | '/api/playback/transfer'
     | '/api/playlists/$id'
     | '/api/playlists/download'
     | '/api/playlists/export'
@@ -1722,6 +1771,7 @@ export interface RootRouteChildren {
   ApiListeningHistoryByHourRoute: typeof ApiListeningHistoryByHourRoute
   ApiListeningHistoryCompoundScoresRoute: typeof ApiListeningHistoryCompoundScoresRoute
   ApiListeningHistoryInterestOverTimeRoute: typeof ApiListeningHistoryInterestOverTimeRoute
+  ApiListeningHistoryRecentRoute: typeof ApiListeningHistoryRecentRoute
   ApiListeningHistoryRecordRoute: typeof ApiListeningHistoryRecordRoute
   ApiListeningHistorySessionsRoute: typeof ApiListeningHistorySessionsRoute
   ApiListeningHistoryStatsRoute: typeof ApiListeningHistoryStatsRoute
@@ -1731,6 +1781,9 @@ export interface RootRouteChildren {
   ApiMusicIdentityIdRoute: typeof ApiMusicIdentityIdRoute
   ApiNavidromeSearchRoute: typeof ApiNavidromeSearchRoute
   ApiNavidromeStarRoute: typeof ApiNavidromeStarRoute
+  ApiPlaybackDevicesRoute: typeof ApiPlaybackDevicesRoute
+  ApiPlaybackStateRoute: typeof ApiPlaybackStateRoute
+  ApiPlaybackTransferRoute: typeof ApiPlaybackTransferRoute
   ApiPlaylistsIdRoute: typeof ApiPlaylistsIdRouteWithChildren
   ApiPlaylistsDownloadRoute: typeof ApiPlaylistsDownloadRoute
   ApiPlaylistsExportRoute: typeof ApiPlaylistsExportRoute
@@ -2175,6 +2228,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPlaylistsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/playback/transfer': {
+      id: '/api/playback/transfer'
+      path: '/api/playback/transfer'
+      fullPath: '/api/playback/transfer'
+      preLoaderRoute: typeof ApiPlaybackTransferRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/playback/state': {
+      id: '/api/playback/state'
+      path: '/api/playback/state'
+      fullPath: '/api/playback/state'
+      preLoaderRoute: typeof ApiPlaybackStateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/playback/devices': {
+      id: '/api/playback/devices'
+      path: '/api/playback/devices'
+      fullPath: '/api/playback/devices'
+      preLoaderRoute: typeof ApiPlaybackDevicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/navidrome/star': {
       id: '/api/navidrome/star'
       path: '/api/navidrome/star'
@@ -2236,6 +2310,13 @@ declare module '@tanstack/react-router' {
       path: '/api/listening-history/record'
       fullPath: '/api/listening-history/record'
       preLoaderRoute: typeof ApiListeningHistoryRecordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/listening-history/recent': {
+      id: '/api/listening-history/recent'
+      path: '/api/listening-history/recent'
+      fullPath: '/api/listening-history/recent'
+      preLoaderRoute: typeof ApiListeningHistoryRecentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/listening-history/interest-over-time': {
@@ -2933,6 +3014,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiListeningHistoryCompoundScoresRoute,
   ApiListeningHistoryInterestOverTimeRoute:
     ApiListeningHistoryInterestOverTimeRoute,
+  ApiListeningHistoryRecentRoute: ApiListeningHistoryRecentRoute,
   ApiListeningHistoryRecordRoute: ApiListeningHistoryRecordRoute,
   ApiListeningHistorySessionsRoute: ApiListeningHistorySessionsRoute,
   ApiListeningHistoryStatsRoute: ApiListeningHistoryStatsRoute,
@@ -2942,6 +3024,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMusicIdentityIdRoute: ApiMusicIdentityIdRoute,
   ApiNavidromeSearchRoute: ApiNavidromeSearchRoute,
   ApiNavidromeStarRoute: ApiNavidromeStarRoute,
+  ApiPlaybackDevicesRoute: ApiPlaybackDevicesRoute,
+  ApiPlaybackStateRoute: ApiPlaybackStateRoute,
+  ApiPlaybackTransferRoute: ApiPlaybackTransferRoute,
   ApiPlaylistsIdRoute: ApiPlaylistsIdRouteWithChildren,
   ApiPlaylistsDownloadRoute: ApiPlaylistsDownloadRoute,
   ApiPlaylistsExportRoute: ApiPlaylistsExportRoute,

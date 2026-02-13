@@ -27,6 +27,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/query';
+import { usePlaybackSync } from '@/lib/hooks/usePlaybackSync';
+import { DeviceIndicator } from './DeviceIndicator';
+import { ResumePlaybackPrompt } from './ResumePlaybackPrompt';
 
 // Import extracted hooks
 import { useDualDeckAudio, Song, SILENT_AUDIO_DATA_URL } from '@/lib/hooks/useDualDeckAudio';
@@ -57,6 +60,9 @@ const formatTime = (time: number) => {
  * - usePlaybackStateSync: Store/audio state synchronization
  */
 export function PlayerBar() {
+  // Cross-device playback sync (WebSocket + REST)
+  usePlaybackSync();
+
   // Dual-deck audio system
   const {
     deckARef,
@@ -409,6 +415,8 @@ export function PlayerBar() {
             duration: deck.duration,
             playDuration: deck.currentTime,
           }),
+        }).then(() => {
+          queryClient.invalidateQueries({ queryKey: ['listening-history', 'recent'] });
         }).catch(err => console.warn('Failed to record listening history:', err));
       }
 
@@ -999,8 +1007,9 @@ export function PlayerBar() {
           </div>
         </div>
 
-        {/* Right: Volume + Queue + AI DJ */}
+        {/* Right: Volume + Queue + AI DJ + Device */}
         <div className="flex items-center gap-2 w-72 justify-end">
+          <DeviceIndicator />
           <AIDJToggle compact />
 
           <Button
@@ -1050,6 +1059,9 @@ export function PlayerBar() {
           </Button>
         </div>
       </div>
+
+      {/* Resume Playback Prompt (shown when another device is playing) */}
+      <ResumePlaybackPrompt />
 
       {/* Dual-Deck Audio Elements for crossfade */}
       <audio ref={deckARef} preload="metadata" crossOrigin="anonymous" className="hidden" />
