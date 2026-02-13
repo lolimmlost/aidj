@@ -240,6 +240,9 @@ interface AudioState {
   autoplayTransitionActive: boolean;
   autoplayLastQueueTime: number;
   autoplayQueuedSongIds: Set<string>;
+  // WiFi reconnect recovery state
+  wasPlayingBeforeUnload: boolean; // Persisted - captures playback intent before page unload
+  pendingPlaybackResume: boolean; // Transient - signals that playback should resume after rehydration
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
@@ -283,6 +286,8 @@ interface AudioState {
   triggerAutoplayQueueing: () => Promise<void>;
   setAutoplayTransitionActive: (active: boolean) => void;
   skipAutoplayedSong: (songId: string) => void;
+  // WiFi reconnect recovery actions
+  setWasPlayingBeforeUnload: (value: boolean) => void;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -323,6 +328,9 @@ export const useAudioStore = create<AudioState>()(
     autoplayTransitionActive: false,
     autoplayLastQueueTime: 0,
     autoplayQueuedSongIds: new Set<string>(),
+    // WiFi reconnect recovery initial state
+    wasPlayingBeforeUnload: false,
+    pendingPlaybackResume: false,
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -1704,6 +1712,9 @@ export const useAudioStore = create<AudioState>()(
         description: `"${skippedSong?.title || skippedSong?.name}" skipped`,
       });
     },
+
+    // WiFi reconnect recovery action
+    setWasPlayingBeforeUnload: (value: boolean) => set({ wasPlayingBeforeUnload: value }),
   }),
   {
     name: 'audio-player-storage',
@@ -1726,12 +1737,24 @@ export const useAudioStore = create<AudioState>()(
       autoplayBlendMode: state.autoplayBlendMode,
       autoplayTransitionDuration: state.autoplayTransitionDuration,
       autoplaySmartTransitions: state.autoplaySmartTransitions,
+      // WiFi reconnect recovery
+      wasPlayingBeforeUnload: state.wasPlayingBeforeUnload,
     }),
     // Don't restore isPlaying - let user manually resume
     onRehydrateStorage: () => (state) => {
       if (state) {
+        // WiFi reconnect recovery: Check if playback should resume
+        // wasPlayingBeforeUnload is saved before page unload/visibility hidden
+        // If it was true and we have a valid position, signal for recovery
+        const shouldAttemptResume = state.wasPlayingBeforeUnload && state.currentTime > 0;
+        if (shouldAttemptResume) {
+          console.log(`🎵 [RECOVERY] Playback was active before unload at ${state.currentTime.toFixed(1)}s - will attempt resume`);
+        }
+
         // Reset transient state on rehydration
-        state.isPlaying = false;
+        state.isPlaying = false; // Still start paused (browser won't autoplay anyway)
+        state.pendingPlaybackResume = shouldAttemptResume; // Signal for PlayerBar to resume
+        state.wasPlayingBeforeUnload = false; // Reset after reading
         state.aiDJIsLoading = false;
         state.aiDJError = null;
         state.aiDJUserActionInProgress = false;
