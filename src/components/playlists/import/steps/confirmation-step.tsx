@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle2, Music, AlertTriangle, ListMusic, Download, Loader2, ExternalLink, Eye } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, ListMusic, Download, Loader2, Eye } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 

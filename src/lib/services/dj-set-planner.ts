@@ -3,14 +3,12 @@
 
 import type { Song } from '@/lib/types/song';
 import type { AudioAnalysis } from './audio-analysis';
-import type { DJTransition, TransitionType } from './transition-effects';
-import type { HarmonicMode, HarmonicSetPlan } from './harmonic-mixer';
-import type { EnergyPattern } from './energy-flow-analyzer';
+import type { DJTransition, TransitionType, TransitionAnalysis } from './transition-effects';
+import type { HarmonicMode } from './harmonic-mixer';
 import { ServiceError } from '../utils';
 import { analyzeAudioFeatures } from './audio-analysis';
 import { analyzeTransition } from './transition-effects';
-import { getHarmonicMixingRecommendations } from './harmonic-mixer';
-import { analyzeEnergyFlow } from './energy-flow-analyzer';
+// getHarmonicMixingRecommendations and analyzeEnergyFlow removed - unused
 
 // DJ set planning options
 export interface DJSetPlanningOptions {
@@ -478,7 +476,7 @@ async function planTransitions(
  * Determine transition type based on analysis and options
  */
 function determineTransitionType(
-  analysis: any, // TransitionAnalysis type
+  analysis: TransitionAnalysis,
   options: DJSetPlanningOptions
 ): TransitionType {
   switch (options.transitionStyle) {
@@ -627,7 +625,7 @@ function generateSetNotes(
 function generateTransitionNotes(
   fromSong: DJSetSong,
   toSong: DJSetSong,
-  analysis: any // TransitionAnalysis type
+  _analysis: TransitionAnalysis
 ): string {
   const notes: string[] = [];
   

@@ -5,7 +5,7 @@
 
 import { db } from '../db';
 import { recommendationFeedback } from '../db/schema';
-import { eq, and, gte, sql, desc } from 'drizzle-orm';
+import { eq, and, gte } from 'drizzle-orm';
 import {
   extractArtist,
   getDaysAgo,
@@ -68,7 +68,7 @@ interface CachedAnalytics<T> {
   timestamp: number;
 }
 
-const analyticsCache = new Map<string, CachedAnalytics<any>>();
+const analyticsCache = new Map<string, CachedAnalytics<unknown>>();
 const ANALYTICS_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 function getCachedAnalytics<T>(key: string): T | null {

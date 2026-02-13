@@ -145,7 +145,7 @@ describe('Lidarr API Routes', () => {
         body: JSON.stringify({ song: 'Test Artist - Test Song' })
       })
 
-      const postHandler = (ServerRoute as any)._methods.POST
+      const postHandler = (ServerRoute as unknown as { _methods: { POST: (ctx: { request: Request }) => Promise<Response> } })._methods.POST
       const response = await postHandler({ request })
 
       expect(response.status).toBe(200)
@@ -164,7 +164,7 @@ describe('Lidarr API Routes', () => {
         body: JSON.stringify({ song: 'Test Artist - Test Song' })
       })
 
-      const postHandler = (ServerRoute as any)._methods.POST
+      const postHandler = (ServerRoute as unknown as { _methods: { POST: (ctx: { request: Request }) => Promise<Response> } })._methods.POST
       const response = await postHandler({ request })
 
       expect(response.status).toBe(401)
@@ -181,7 +181,7 @@ describe('Lidarr API Routes', () => {
         body: JSON.stringify({ song: 'Invalid song format' })
       })
 
-      const postHandler = (ServerRoute as any)._methods.POST
+      const postHandler = (ServerRoute as unknown as { _methods: { POST: (ctx: { request: Request }) => Promise<Response> } })._methods.POST
       const response = await postHandler({ request })
 
       expect(response.status).toBe(400)
@@ -199,7 +199,7 @@ describe('Lidarr API Routes', () => {
         body: JSON.stringify({ song: 'Unknown Artist - Test Song' })
       })
 
-      const postHandler = (ServerRoute as any)._methods.POST
+      const postHandler = (ServerRoute as unknown as { _methods: { POST: (ctx: { request: Request }) => Promise<Response> } })._methods.POST
       const response = await postHandler({ request })
 
       expect(response.status).toBe(404)
@@ -218,7 +218,7 @@ describe('Lidarr API Routes', () => {
         body: JSON.stringify({ song: 'Test Artist - Test Song' })
       })
 
-      const postHandler = (ServerRoute as any)._methods.POST
+      const postHandler = (ServerRoute as unknown as { _methods: { POST: (ctx: { request: Request }) => Promise<Response> } })._methods.POST
       const response = await postHandler({ request })
 
       expect(response.status).toBe(200)
@@ -238,7 +238,7 @@ describe('Lidarr API Routes', () => {
         body: JSON.stringify({ song: 'Test Artist - Test Song' })
       })
 
-      const postHandler = (ServerRoute as any)._methods.POST
+      const postHandler = (ServerRoute as unknown as { _methods: { POST: (ctx: { request: Request }) => Promise<Response> } })._methods.POST
       const response = await postHandler({ request })
 
       expect(response.status).toBe(200)
@@ -256,7 +256,7 @@ describe('Lidarr API Routes', () => {
         body: JSON.stringify({ song: 'Test Artist - Test Song' })
       })
 
-      const postHandler = (ServerRoute as any)._methods.POST
+      const postHandler = (ServerRoute as unknown as { _methods: { POST: (ctx: { request: Request }) => Promise<Response> } })._methods.POST
       const response = await postHandler({ request })
 
       expect(response.status).toBe(500)

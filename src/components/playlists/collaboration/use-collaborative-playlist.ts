@@ -211,7 +211,7 @@ export function useSuggestions(
   const { status = "pending", sortBy = "score", enabled = true } = options;
 
   return useQuery<{ suggestions: Suggestion[]; total: number }>({
-    queryKey: collaborationKeys.suggestions(playlistId, status),
+    queryKey: [...collaborationKeys.suggestions(playlistId, status), sortBy],
     queryFn: async () => {
       const params = new URLSearchParams({
         status,

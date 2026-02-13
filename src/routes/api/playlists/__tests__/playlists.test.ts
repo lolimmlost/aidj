@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 // Mock test for playlist API endpoints
 // Note: Full integration tests would require database setup
@@ -37,7 +37,7 @@ describe('Playlist API', () => {
 
   describe('GET /api/playlists', () => {
     it('should return empty array when user has no playlists', () => {
-      const playlists: any[] = [];
+      const playlists: { id: string; name: string; songCount: number }[] = [];
       expect(playlists).toHaveLength(0);
     });
 

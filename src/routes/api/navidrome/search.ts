@@ -14,7 +14,7 @@ const GET = withAuthAndErrorHandling(
   async ({ request }) => {
     const url = new URL(request.url);
     const query = url.searchParams.get('q') || '';
-    const type = url.searchParams.get('type') || 'song'; // song, album, artist
+    const _type = url.searchParams.get('type') || 'song'; // song, album, artist
     const start = parseInt(url.searchParams.get('start') || '0', 10);
     const limit = parseInt(url.searchParams.get('limit') || '20', 10);
 
@@ -47,7 +47,7 @@ const GET = withAuthAndErrorHandling(
 // Also support POST for consistency with other endpoints
 const POST = withAuthAndErrorHandling(
   async ({ request }) => {
-    const { query, type = 'song', start = 0, limit = 20 } = await request.json() as {
+    const { query, type: _type = 'song', start = 0, limit = 20 } = await request.json() as {
       query: string;
       type?: string;
       start?: number;

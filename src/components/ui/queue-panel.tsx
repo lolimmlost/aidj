@@ -213,7 +213,7 @@ interface VirtualizedQueueListProps {
   onFeedback: (songId: string, songTitle: string, artist: string, type: 'thumbs_up' | 'thumbs_down') => void;
 }
 
-const VirtualizedQueueList = memo(function VirtualizedQueueList({
+const _VirtualizedQueueList = memo(function VirtualizedQueueList({
   upcomingQueue,
   currentSongIndex,
   aiQueuedSongIds,

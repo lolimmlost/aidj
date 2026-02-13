@@ -1,4 +1,3 @@
-import { ServiceError } from '../utils';
 import { getConfig } from '@/lib/config/config';
 import * as lidarr from './lidarr';
 import * as metube from './metube';
@@ -108,7 +107,6 @@ export async function findInLidarr(song: ExportableSong): Promise<{
 }> {
   try {
     // Search for the artist
-    const searchQuery = `${song.artist} ${song.title}`;
     const albums = await lidarr.searchAlbumByTitle(song.title, song.artist);
 
     if (albums.length > 0) {

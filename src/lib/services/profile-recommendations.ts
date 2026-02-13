@@ -23,15 +23,13 @@ import {
   compoundScores,
   likedSongsSync,
 } from '../db/schema';
-import { eq, and, gte, desc, inArray, ne, sql } from 'drizzle-orm';
+import { eq, and, gte, desc, sql } from 'drizzle-orm';
 import type { Song } from '@/lib/types/song';
 import { getCompoundScoredRecommendations } from './compound-scoring';
 import { getLikedSongIds } from './liked-songs-sync';
 import {
-  getArtistAffinity,
   getArtistAffinities,
   getTemporalGenreBoost,
-  getCurrentTimeContext,
 } from './artist-affinity';
 import { calculateSkipScores } from './skip-scoring';
 import { getSongsByIds } from './navidrome';
@@ -50,7 +48,7 @@ const TEMPORAL_WEIGHT = 0.05;     // Time-of-day/season match
 
 // Diversity constraints
 const MAX_SONGS_PER_ARTIST = 1;    // Maximum songs from same artist in results
-const MAX_SIMILAR_GENRE_RATIO = 0.7;  // Maximum 70% from same genre
+const _MAX_SIMILAR_GENRE_RATIO = 0.7;  // Maximum 70% from same genre
 
 // ============================================================================
 // Types
@@ -125,7 +123,7 @@ async function getCachedSimilarTracks(
 /**
  * Get liked songs from the same genre as the seed song
  */
-async function getLikedSongsInGenre(
+async function _getLikedSongsInGenre(
   userId: string,
   seedGenre: string | undefined,
   limit: number = 20
@@ -356,8 +354,6 @@ export async function getProfileBasedRecommendations(
   console.log(`🎯 [ProfileRec] ${candidateMap.size} candidates after exclusions`);
 
   // Step 5: Score each candidate
-  const candidateSongIds = Array.from(candidateMap.keys());
-
   // Get artist affinities for all candidate artists
   const candidateArtists = Array.from(new Set(
     Array.from(candidateMap.values()).map(c => c.artist)

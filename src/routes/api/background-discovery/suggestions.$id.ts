@@ -219,7 +219,7 @@ const DELETE = withAuthAndErrorHandling(
     const suggestionId = (params as { id: string }).id;
     const userId = session.user.id;
 
-    const result = await db
+    await db
       .delete(discoverySuggestions)
       .where(
         and(

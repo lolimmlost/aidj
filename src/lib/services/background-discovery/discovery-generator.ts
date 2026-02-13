@@ -21,7 +21,7 @@ import {
 import { eq, and, gte, desc, sql } from 'drizzle-orm';
 import { getLastFmClient } from '../lastfm';
 import { getConfigAsync } from '@/lib/config/config';
-import type { EnrichedTrack } from '../lastfm/types';
+// EnrichedTrack type removed - unused
 import { search as navidromeSearch, getArtists as getNavidromeArtists } from '../navidrome';
 import { batchResolveImages, resolveAlbumImage } from '../image-resolver';
 
@@ -679,6 +679,6 @@ export async function generateSuggestions(
 export async function storeSuggestions(suggestions: DiscoverySuggestionInsert[]): Promise<number> {
   if (suggestions.length === 0) return 0;
 
-  const result = await db.insert(discoverySuggestions).values(suggestions);
+  await db.insert(discoverySuggestions).values(suggestions);
   return suggestions.length;
 }

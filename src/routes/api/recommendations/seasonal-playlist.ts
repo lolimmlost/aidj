@@ -9,8 +9,6 @@ import { db } from '../../../lib/db';
 import { recommendationFeedback } from '../../../lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
-import { Season } from '../../../lib/utils/temporal';
-
 const SeasonalPlaylistSchema = z.object({
   season: z.enum(['spring', 'summer', 'fall', 'winter']),
   month: z.number().int().min(1).max(12).optional(),

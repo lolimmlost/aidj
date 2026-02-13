@@ -1441,7 +1441,7 @@ export const useAudioStore = create<AudioState>()(
         allRecommendations.sort((a, b) => b.insertAfterIndex - a.insertAfterIndex);
 
         // Build new playlist with recommendations inserted
-        let newPlaylist = [...state.playlist];
+        const newPlaylist = [...state.playlist];
         const newQueuedIds = new Set(state.aiQueuedSongIds);
         const now = Date.now();
         const newRecentlyRecommended = [...state.aiDJRecentlyRecommended];

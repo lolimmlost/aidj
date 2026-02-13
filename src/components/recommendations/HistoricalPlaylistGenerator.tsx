@@ -16,7 +16,6 @@ import {
   Calendar,
   Music,
   Sparkles,
-  Play,
   Download,
   Clock,
   Disc3,
@@ -106,7 +105,7 @@ function getPeriodDates(preset: PresetPeriod, customStart?: Date, customEnd?: Da
   return { start, end };
 }
 
-function formatDate(date: Date): string {
+function _formatDate(date: Date): string {
   return date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',

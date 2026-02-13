@@ -15,10 +15,9 @@ import {
   discoveryNotificationPreferences,
   discoveryFeedItems,
   type ScheduledNotification,
-  type ScheduledNotificationInsert,
   type DiscoveryNotificationPreferences,
 } from '@/lib/db/schema/discovery-feed.schema';
-import { user } from '@/lib/db/schema/auth.schema';
+// user import removed - unused
 
 // ============================================================================
 // Types
@@ -349,7 +348,7 @@ export async function generateDailyNotifications(): Promise<{
   let processed = 0;
   let scheduled = 0;
 
-  for (const { userId, prefs } of usersWithPrefs) {
+  for (const { userId, prefs: _prefs } of usersWithPrefs) {
     processed++;
 
     try {

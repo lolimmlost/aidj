@@ -1,5 +1,5 @@
 import { createFileRoute, useSearch, redirect } from '@tanstack/react-router';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import authClient from '@/lib/auth/auth-client';

@@ -11,7 +11,6 @@ import { db } from '../db';
 import {
   recommendationFeedback,
   listeningHistory,
-  moodSnapshots,
   recommendationHistory,
   tasteSnapshots,
 } from '../db/schema';
@@ -19,11 +18,9 @@ import type {
   MoodDistribution,
   TopItem,
   TasteProfileExport,
-  MoodSnapshot,
-  RecommendationHistoryEntry,
   TasteSnapshot,
 } from '../db/schema/mood-history.schema';
-import { eq, and, gte, lte, desc, asc, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, desc, asc } from 'drizzle-orm';
 import { getSeason, type Season } from '../utils/temporal';
 import {
   extractArtist,
@@ -148,7 +145,7 @@ interface CachedData<T> {
   timestamp: number;
 }
 
-const timelineCache = new Map<string, CachedData<any>>();
+const timelineCache = new Map<string, CachedData<unknown>>();
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 function getCached<T>(key: string): T | null {

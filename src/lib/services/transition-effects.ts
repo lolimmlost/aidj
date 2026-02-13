@@ -513,8 +513,8 @@ function calculateTransitionParameters(
  */
 function getTransitionEffects(
   type: TransitionType,
-  currentAnalysis: AudioAnalysis,
-  nextAnalysis: AudioAnalysis
+  _currentAnalysis: AudioAnalysis,
+  _nextAnalysis: AudioAnalysis
 ): TransitionEffect[] {
   const effects: TransitionEffect[] = [];
 
@@ -652,7 +652,7 @@ function calculateBeatAlignment(currentAnalysis: AudioAnalysis, nextAnalysis: Au
  */
 function findTransitionPoints(
   currentAnalysis: AudioAnalysis,
-  nextAnalysis: AudioAnalysis
+  _nextAnalysis: AudioAnalysis
 ): Array<{ position: number; confidence: number; reason: string }> {
   const points: Array<{ position: number; confidence: number; reason: string }> = [];
   const duration = 240000; // Default 4 minutes in milliseconds
@@ -857,18 +857,18 @@ function applyFilter(
   // Simplified filter implementation
   // In a real implementation, this would use proper digital signal processing
   const frequency = parameters.frequency || 1000;
-  const resonance = parameters.resonance || 1;
+  const _resonance = parameters.resonance || 1;
   const filterType = parameters.filterType || 'lowpass';
 
   for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
     const data = buffer.getChannelData(channel);
-    
+
     for (let i = startSample; i < endSample; i++) {
       const progress = (i - startSample) / (endSample - startSample);
-      
+
       // Simple frequency sweep
       const currentFreq = frequency * (1 - progress * 0.8); // Sweep down
-      
+
       // Apply simple low-pass filter (simplified)
       if (filterType === 'lowpass') {
         const cutoff = currentFreq / buffer.sampleRate;
@@ -918,12 +918,12 @@ function applyReverb(
   endSample: number
 ): void {
   const roomSize = parameters.roomSize || 0.5;
-  const damping = parameters.damping || 0.5;
+  const _damping = parameters.damping || 0.5;
   const wetLevel = parameters.wetLevel || 0.5;
-  
+
   // Simplified reverb implementation
   // In a real implementation, this would use convolution or proper reverb algorithms
-  const reverbLength = Math.floor(roomSize * buffer.sampleRate * 2);
+  const _reverbLength = Math.floor(roomSize * buffer.sampleRate * 2);
   
   for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
     const data = buffer.getChannelData(channel);

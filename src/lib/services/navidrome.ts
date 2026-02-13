@@ -191,6 +191,23 @@ export interface RawSong {
   starred?: boolean; // Navidrome's "loved" field
 }
 
+/**
+ * Generic Subsonic API response wrapper
+ * All Subsonic API responses are wrapped in 'subsonic-response' with dynamic properties
+ * Uses index signature with permissive value type to allow deep property access on API responses
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+interface SubsonicApiResponse extends Record<string, SubsonicApiValue> {
+  'subsonic-response'?: SubsonicApiObject & {
+    status?: string;
+    error?: { message?: string };
+  };
+}
+
+/** Value type for deeply-nested Subsonic API JSON objects */
+type SubsonicApiValue = string | number | boolean | null | undefined | SubsonicApiObject | SubsonicApiValue[];
+interface SubsonicApiObject { [key: string]: SubsonicApiValue }
+
 interface SubsonicSearchResponse {
   // Subsonic API wraps everything in 'subsonic-response'
   'subsonic-response'?: {
@@ -573,8 +590,8 @@ async function apiFetch<T = unknown>(endpoint: string, options: RequestInit = {}
                 'NAVIDROME_API_ERROR',
                 `API request failed: ${response?.status ?? 'unknown'} ${response?.statusText ?? 'unknown error'}`
               );
-              (error as any).isRetriable = isRetriable;
-              throw error;
+              throw Object.assign(error, { isRetriable });
+
             }
 
             if (!response) {
@@ -599,16 +616,18 @@ async function apiFetch<T = unknown>(endpoint: string, options: RequestInit = {}
 
             // Timeout errors are retriable
             if (error instanceof Error && error.name === 'AbortError') {
-              const timeoutError = new ServiceError('NAVIDROME_TIMEOUT_ERROR', `API request timed out (${adaptiveTimeout}ms limit)`);
-              (timeoutError as any).isRetriable = true;
-              throw timeoutError;
+              throw Object.assign(
+                new ServiceError('NAVIDROME_TIMEOUT_ERROR', `API request timed out (${adaptiveTimeout}ms limit)`),
+                { isRetriable: true }
+              );
             }
 
             // Network errors are retriable
             if (error instanceof TypeError && error.message.includes('fetch')) {
-              const networkError = new ServiceError('NAVIDROME_NETWORK_ERROR', 'Network request failed');
-              (networkError as any).isRetriable = true;
-              throw networkError;
+              throw Object.assign(
+                new ServiceError('NAVIDROME_NETWORK_ERROR', 'Network request failed'),
+                { isRetriable: true }
+              );
             }
 
             throw error;
@@ -620,7 +639,7 @@ async function apiFetch<T = unknown>(endpoint: string, options: RequestInit = {}
           if (error instanceof ServiceError && error.code === 'NAVIDROME_AUTH_RETRY') {
             return false; // Don't retry auth errors here, handle in outer loop
           }
-          return (error as any).isRetriable === true;
+          return (error as Error & { isRetriable?: boolean }).isRetriable === true;
         }
       );
     } catch (error: unknown) {
@@ -1139,7 +1158,7 @@ export async function getStarredSongs(): Promise<SubsonicSong[]> {
     console.log(`⭐ Fetched ${starredSongs.length} starred songs from Navidrome`);
 
     // Map to SubsonicSong format
-    return starredSongs.map((song: any) => ({
+    return starredSongs.map((song: { id: string; title?: string; name?: string; artist?: string; album?: string; albumId?: string; duration?: number; track?: number }) => ({
       id: song.id,
       title: song.title || song.name || '',
       artist: song.artist || '',
@@ -1295,7 +1314,7 @@ export async function checkNavidromeConnectivity(): Promise<boolean> {
 export async function getPlaylists(): Promise<NavidromePlaylist[]> {
   try {
     const endpoint = `/rest/getPlaylists`;
-    const data = await apiFetch(endpoint) as any;
+    const data = await apiFetch(endpoint) as SubsonicApiResponse;
 
     // Handle Subsonic response structure
     const playlists = data['subsonic-response']?.playlists?.playlist || data.playlists?.playlist || [];
@@ -1313,7 +1332,7 @@ export async function getPlaylists(): Promise<NavidromePlaylist[]> {
 export async function getPlaylist(id: string): Promise<NavidromePlaylistWithSongs> {
   try {
     const endpoint = `/rest/getPlaylist?id=${encodeURIComponent(id)}`;
-    const data = await apiFetch(endpoint) as any;
+    const data = await apiFetch(endpoint) as SubsonicApiResponse;
 
     // Handle Subsonic response structure
     const playlist = data['subsonic-response']?.playlist || data.playlist;
@@ -1343,7 +1362,7 @@ export async function createPlaylist(name: string, songIds?: string[]): Promise<
       });
     }
 
-    const data = await apiFetch(endpoint, { method: 'POST' }) as any;
+    const data = await apiFetch(endpoint, { method: 'POST' }) as SubsonicApiResponse;
 
     // Handle Subsonic response structure
     const playlist = data['subsonic-response']?.playlist || data.playlist;
@@ -1377,7 +1396,7 @@ export async function updatePlaylist(id: string, name?: string, songIds?: string
       });
     }
 
-    const data = await apiFetch(endpoint, { method: 'POST' }) as any;
+    const data = await apiFetch(endpoint, { method: 'POST' }) as SubsonicApiResponse;
 
     // Check for Subsonic response status
     if (data['subsonic-response']?.status !== 'ok') {
@@ -1397,7 +1416,7 @@ export async function updatePlaylist(id: string, name?: string, songIds?: string
 export async function deletePlaylist(id: string): Promise<void> {
   try {
     const endpoint = `/rest/deletePlaylist?id=${encodeURIComponent(id)}`;
-    const data = await apiFetch(endpoint, { method: 'POST' }) as any;
+    const data = await apiFetch(endpoint, { method: 'POST' }) as SubsonicApiResponse;
 
     // Check for Subsonic response status
     if (data['subsonic-response']?.status !== 'ok') {
@@ -1421,7 +1440,7 @@ export async function deletePlaylist(id: string): Promise<void> {
 export async function getSimilarSongs(songId: string, count: number = 50): Promise<SubsonicSong[]> {
   try {
     const endpoint = `/rest/getSimilarSongs?id=${encodeURIComponent(songId)}&count=${count}`;
-    const data = await apiFetch(endpoint) as any;
+    const data = await apiFetch(endpoint) as SubsonicApiResponse;
     const songs = data['subsonic-response']?.similarSongs?.song || data.similarSongs?.song || [];
     console.log(`🎵 Found ${songs.length} similar songs for ${songId}`);
     return songs as SubsonicSong[];
@@ -1498,7 +1517,7 @@ export async function searchSongsByCriteria(criteria: {
           // Approach 1: Try getAlbumList2 with byGenre (requires genre tags)
           const genreEndpoint = `/rest/getAlbumList2?type=byGenre&genre=${encodeURIComponent(genre)}&size=50`;
           console.log(`🔍 Trying genre filter: ${genreEndpoint}`);
-          const genreData = await apiFetch(genreEndpoint) as any;
+          const genreData = await apiFetch(genreEndpoint) as SubsonicApiResponse;
           const genreAlbums = genreData['subsonic-response']?.albumList2?.album || genreData.albumList2?.album || [];
 
           console.log(`📀 Found ${genreAlbums.length} albums with genre tag "${genre}"`);
@@ -1535,7 +1554,7 @@ export async function searchSongsByCriteria(criteria: {
             // Approach 2: No genre tags - use random albums instead
             console.log(`⚠️ No genre tags found. Getting random recent albums instead...`);
             const randomEndpoint = `/rest/getAlbumList2?type=random&size=30`;
-            const randomData = await apiFetch(randomEndpoint) as any;
+            const randomData = await apiFetch(randomEndpoint) as SubsonicApiResponse;
             const randomAlbums = randomData['subsonic-response']?.albumList2?.album || randomData.albumList2?.album || [];
 
             console.log(`🎲 Got ${randomAlbums.length} random albums`);
@@ -1646,7 +1665,7 @@ export async function addSongsToPlaylist(playlistId: string, songIds: string[]):
       endpoint += `&songIdToAdd=${encodeURIComponent(songId)}`;
     });
 
-    const data = await apiFetch(endpoint, { method: 'POST' }) as any;
+    const data = await apiFetch(endpoint, { method: 'POST' }) as SubsonicApiResponse;
 
     // Check for Subsonic response status
     if (data['subsonic-response']?.status !== 'ok') {
@@ -1668,7 +1687,7 @@ export async function getTopArtists(limit: number = 5): Promise<ArtistWithDetail
   try {
     // Get frequently played albums via Subsonic API (has playCount field)
     const endpoint = `/rest/getAlbumList2?type=frequent&size=100`;
-    const data = await apiFetch(endpoint) as any;
+    const data = await apiFetch(endpoint) as SubsonicApiResponse;
 
     // Extract albums from response
     const albums = data?.['subsonic-response']?.albumList2?.album ||
@@ -1769,7 +1788,7 @@ export async function getMostPlayedSongs(limit: number = 5): Promise<SubsonicSon
   try {
     // Try to get frequently played songs first
     const endpoint = `/rest/getAlbumList2?type=frequent&size=${limit}`;
-    const data = await apiFetch(endpoint) as any;
+    const data = await apiFetch(endpoint) as SubsonicApiResponse;
 
     const albums = data['subsonic-response']?.albumList2?.album || data.albumList2?.album || [];
 
@@ -1817,7 +1836,7 @@ export async function getSongWithExtendedMetadata(songId: string): Promise<Exten
   try {
     // Use Subsonic getSong endpoint which returns full song details
     const endpoint = `/rest/getSong?id=${encodeURIComponent(songId)}`;
-    const data = await apiFetch(endpoint) as any;
+    const data = await apiFetch(endpoint) as SubsonicApiResponse;
 
     // Handle Subsonic response structure
     const song = data['subsonic-response']?.song || data.song;
@@ -1829,7 +1848,7 @@ export async function getSongWithExtendedMetadata(songId: string): Promise<Exten
     // Extract BPM and key from response
     // Navidrome may expose these via custom fields or standard Subsonic fields
     const bpm = song.bpm ? parseInt(song.bpm) : undefined;
-    const key = song.musicBrainzId ? undefined : undefined; // Key is not standard in Subsonic API
+    const _key = song.musicBrainzId ? undefined : undefined; // Key is not standard in Subsonic API
 
     // Note: Navidrome/Subsonic API doesn't expose key directly
     // We'll need to rely on the metadata cache and estimation for key
@@ -1905,7 +1924,7 @@ export async function getRecentlyPlayedSongs(limit: number = 10): Promise<Subson
   try {
     // Get recently played albums
     const endpoint = `/rest/getAlbumList2?type=recent&size=${Math.min(limit, 10)}`;
-    const data = await apiFetch(endpoint) as any;
+    const data = await apiFetch(endpoint) as SubsonicApiResponse;
 
     const albums = data['subsonic-response']?.albumList2?.album || data.albumList2?.album || [];
 

@@ -54,7 +54,7 @@ function parseLRC(lrcText: string): LyricLine[] {
 /**
  * Process LRCLIB API response data
  */
-function processLRCLIBData(data: any): LyricsResponse {
+function processLRCLIBData(data: { instrumental?: boolean; syncedLyrics?: string; plainLyrics?: string }): LyricsResponse {
   if (data.instrumental) {
     return {
       lyrics: null,

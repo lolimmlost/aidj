@@ -15,8 +15,8 @@ export const GridVisualizer: Visualizer = {
   cleanup: () => {},
 
   render: (ctx: VisualizerContext) => {
-    const { ctx: c, width, height, centerX, centerY, audioData, colors, time, quality } = ctx;
-    const { bars, bass, mid, treble, isBeat } = audioData;
+    const { ctx: c, width, height, audioData, colors, time, quality } = ctx;
+    const { bars, bass, isBeat } = audioData;
     const cellStep = quality === 'low' ? 2 : 1;
 
     // Clear canvas
@@ -116,7 +116,6 @@ export const GridVisualizer: Visualizer = {
     // Vertical lines
     c.beginPath();
     for (let x = 0; x <= GRID_SIZE; x++) {
-      const topScale = 1;
       const bottomScale = 1 - perspective;
       const topX = x * cellWidth;
       const bottomX = x * cellWidth * bottomScale + (width * (1 - bottomScale)) / 2;

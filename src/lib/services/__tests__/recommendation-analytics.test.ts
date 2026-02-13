@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { db } from '../../db';
-import { recommendationFeedback } from '../../db/schema';
+// recommendationFeedback import removed - unused
 import {
   getTasteEvolutionTimeline,
   getRecommendationQualityMetrics,
@@ -35,7 +35,7 @@ describe('Recommendation Analytics Service', () => {
         where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockResolvedValue([]),
       };
-      (db.select as any).mockReturnValue(mockDb);
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(mockDb);
 
       const result = await getTasteEvolutionTimeline(mockUserId, 30);
 
@@ -74,7 +74,7 @@ describe('Recommendation Analytics Service', () => {
         where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockResolvedValue(mockFeedback),
       };
-      (db.select as any).mockReturnValue(mockDb);
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(mockDb);
 
       const result = await getTasteEvolutionTimeline(mockUserId, 30);
 
@@ -88,7 +88,7 @@ describe('Recommendation Analytics Service', () => {
         where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockResolvedValue([]),
       };
-      (db.select as any).mockReturnValue(mockDb);
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(mockDb);
 
       const result = await getTasteEvolutionTimeline(mockUserId, 365);
 
@@ -101,7 +101,7 @@ describe('Recommendation Analytics Service', () => {
         where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockResolvedValue([]),
       };
-      (db.select as any).mockReturnValue(mockDb);
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(mockDb);
 
       await getTasteEvolutionTimeline(mockUserId, 30);
       await getTasteEvolutionTimeline(mockUserId, 30);
@@ -118,7 +118,7 @@ describe('Recommendation Analytics Service', () => {
         where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockResolvedValue([]),
       };
-      (db.select as any).mockReturnValue(mockDb);
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(mockDb);
 
       const result = await getRecommendationQualityMetrics(mockUserId);
 
@@ -140,7 +140,7 @@ describe('Recommendation Analytics Service', () => {
         where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockResolvedValue(mockFeedback),
       };
-      (db.select as any).mockReturnValue(mockDb);
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(mockDb);
 
       const result = await getRecommendationQualityMetrics(mockUserId);
 
@@ -171,7 +171,7 @@ describe('Recommendation Analytics Service', () => {
         where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockResolvedValue(mockFeedback),
       };
-      (db.select as any).mockReturnValue(mockDb);
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(mockDb);
 
       const result = await getRecommendationQualityMetrics(mockUserId);
 
@@ -186,7 +186,7 @@ describe('Recommendation Analytics Service', () => {
         where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockResolvedValue([]),
       };
-      (db.select as any).mockReturnValue(mockDb);
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(mockDb);
 
       const result = await getActivityTrends(mockUserId);
 
@@ -210,7 +210,7 @@ describe('Recommendation Analytics Service', () => {
         where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockResolvedValue(mockFeedback),
       };
-      (db.select as any).mockReturnValue(mockDb);
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(mockDb);
 
       const result = await getActivityTrends(mockUserId);
 
@@ -232,7 +232,7 @@ describe('Recommendation Analytics Service', () => {
         where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockResolvedValue(mockFeedback),
       };
-      (db.select as any).mockReturnValue(mockDb);
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(mockDb);
 
       const result = await getActivityTrends(mockUserId);
 
@@ -248,7 +248,7 @@ describe('Recommendation Analytics Service', () => {
         where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockResolvedValue([]),
       };
-      (db.select as any).mockReturnValue(mockDb);
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(mockDb);
 
       const result = await getDiscoveryInsights(mockUserId, 30);
 
@@ -288,7 +288,7 @@ describe('Recommendation Analytics Service', () => {
         where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockResolvedValue(mockFeedback),
       };
-      (db.select as any).mockReturnValue(mockDb);
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(mockDb);
 
       const result = await getDiscoveryInsights(mockUserId, 30);
 
@@ -311,7 +311,7 @@ describe('Recommendation Analytics Service', () => {
         where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockResolvedValue(mockFeedback),
       };
-      (db.select as any).mockReturnValue(mockDb);
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(mockDb);
 
       const result = await getDiscoveryInsights(mockUserId, 30);
 
@@ -327,7 +327,7 @@ describe('Recommendation Analytics Service', () => {
         where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockResolvedValue([]),
       };
-      (db.select as any).mockReturnValue(mockDb);
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(mockDb);
 
       await getTasteEvolutionTimeline(mockUserId, 30);
       clearAnalyticsCache(mockUserId);

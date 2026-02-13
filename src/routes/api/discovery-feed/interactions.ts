@@ -39,7 +39,7 @@ const InteractionsRequestSchema = z.object({
 
 // POST /api/discovery-feed/interactions
 const POST = withAuthAndErrorHandling(
-  async ({ request, session }) => {
+  async ({ request, session: _session }) => {
     const body = await request.json();
     const { interactions } = InteractionsRequestSchema.parse(body);
 

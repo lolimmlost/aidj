@@ -5,7 +5,7 @@
 
 import { db } from '../db';
 import { recommendationFeedback } from '../db/schema';
-import { eq, and, gte, sql, count } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { Season, getSeason } from '../utils/temporal';
 
 /**
@@ -143,7 +143,7 @@ async function analyzeSeasonalFeedback(
  * @returns Confidence score (0-1)
  */
 function calculateConfidence(
-  seasonalFeedback: any[],
+  seasonalFeedback: unknown[],
   totalFeedback: number,
   averageRating: number
 ): number {

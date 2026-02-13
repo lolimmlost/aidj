@@ -110,7 +110,7 @@ describe('Compound Scoring Service', () => {
         return mockSelectSimilar();
       });
 
-      const count = await calculateCompoundScores('user-123', 7);
+      const _count = await calculateCompoundScores('user-123', 7);
 
       // Should have attempted to process listening history
       expect(db.select).toHaveBeenCalled();

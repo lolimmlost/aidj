@@ -73,7 +73,7 @@ async function batchResolveYears(
 
   for (let i = 0; i < artistEntries.length; i += BATCH_SIZE) {
     const batch = artistEntries.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(
+    await Promise.allSettled(
       batch.map(async ([, artistSongs]) => {
         const artistName = artistSongs[0].artist;
         const searchResults = await search(artistName, 0, 50);

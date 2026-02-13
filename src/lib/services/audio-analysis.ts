@@ -815,7 +815,7 @@ export function calculateTransitionCompatibility(
   // Calculate individual compatibility scores
   const bpmComp = calculateBPMCompatibility(analysis1.bpm, analysis2.bpm);
   const keyComp = calculateKeyCompatibility(analysis1.key, analysis2.key);
-  const energyFlow = analyzeEnergyFlow(analysis1, analysis2);
+  const _energyFlow = analyzeEnergyFlow(analysis1, analysis2);
 
   // Energy compatibility (smooth transitions are better)
   const energyDiff = Math.abs(analysis1.energy - analysis2.energy);

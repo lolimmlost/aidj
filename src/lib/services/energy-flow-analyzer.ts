@@ -119,7 +119,7 @@ export async function analyzeEnergyFlow(
  */
 function extractEnergyLevels(analysis: AudioAnalysis, config: EnergyFlowConfig): number[] {
   const energyLevels: number[] = [];
-  const windowSize = config.analysisWindow;
+  const _windowSize = config.analysisWindow;
   
   // For now, we'll use the overall energy as a proxy for detailed levels
   // In a real implementation, this would analyze the audio buffer
@@ -349,7 +349,7 @@ function findFallingSegmentEnd(energyLevels: number[], startIndex: number, confi
 }
 
 function findPeakSegmentEnd(energyLevels: number[], startIndex: number, config: EnergyFlowConfig): number {
-  const threshold = config.peakThreshold;
+  const _threshold = config.peakThreshold;
   let peakIndex = startIndex;
   let peakValue = energyLevels[startIndex];
   
@@ -371,7 +371,7 @@ function findPeakSegmentEnd(energyLevels: number[], startIndex: number, config: 
 }
 
 function findValleySegmentEnd(energyLevels: number[], startIndex: number, config: EnergyFlowConfig): number {
-  const threshold = config.valleyThreshold;
+  const _threshold = config.valleyThreshold;
   let valleyIndex = startIndex;
   let valleyValue = energyLevels[startIndex];
   
@@ -395,7 +395,7 @@ function findValleySegmentEnd(energyLevels: number[], startIndex: number, config
 function findPlateauSegmentEnd(energyLevels: number[], startIndex: number, config: EnergyFlowConfig): number {
   const threshold = config.sensitivity;
   let plateauStart = startIndex;
-  let plateauEnd = startIndex;
+  let _plateauEnd = startIndex;
   
   // Find the start of plateau (stable energy)
   for (let i = startIndex; i < energyLevels.length; i++) {
@@ -410,7 +410,7 @@ function findPlateauSegmentEnd(energyLevels: number[], startIndex: number, confi
   for (let i = plateauStart; i < energyLevels.length; i++) {
     if (Math.abs(energyLevels[i] - energyLevels[i - 1]) > threshold || 
         Math.abs(energyLevels[i + 1] - energyLevels[i]) > threshold) {
-      plateauEnd = i;
+      _plateauEnd = i;
       break;
     }
   }
@@ -420,15 +420,15 @@ function findPlateauSegmentEnd(energyLevels: number[], startIndex: number, confi
 
 function findWaveSegmentEnd(energyLevels: number[], startIndex: number, config: EnergyFlowConfig): number {
   const wavelength = config.maxPatternDuration / 4; // Quarter wavelength
-  let waveEnd = startIndex;
-  
+  let _waveEnd = startIndex;
+
   for (let i = startIndex; i < energyLevels.length - wavelength; i++) {
     const wavePosition = (i - startIndex) / wavelength;
     const expectedValue = Math.sin(wavePosition * Math.PI * 2) * 0.5 + 0.5;
     const actualValue = energyLevels[i];
-    
+
     if (Math.abs(actualValue - expectedValue) < 0.3) {
-      waveEnd = i + wavelength;
+      _waveEnd = i + wavelength;
     }
   }
   
@@ -613,7 +613,7 @@ function determineTransitionDifficulty(
  */
 function getRecommendedTransitionType(
   patterns: EnergyPattern[],
-  flowComplexity: 'simple' | 'moderate' | 'complex'
+  _flowComplexity: 'simple' | 'moderate' | 'complex'
 ): string {
   // Analyze dominant pattern
   const dominantPattern = patterns[0] || { type: 'random' };

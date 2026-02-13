@@ -7,7 +7,7 @@
  * Story: Music Identity System - AI-Powered Yearly/Monthly Summaries
  */
 
-import { pgTable, text, timestamp, integer, real, index, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, index, jsonb } from "drizzle-orm/pg-core";
 import { user } from "./auth.schema";
 import type { MoodDistribution, TopItem } from "./mood-history.schema";
 

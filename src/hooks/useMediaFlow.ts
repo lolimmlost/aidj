@@ -26,7 +26,6 @@ import {
   checkDuplicates,
   MediaFlowErrorCodes,
   type MediaFlowItem,
-  type MediaFlowState,
   type DuplicateCheckResult,
 } from '@/lib/services/media-flow-manager';
 
@@ -127,7 +126,7 @@ export function useMediaFlow(): UseMediaFlowResult {
   const [failedCount, setFailedCount] = useState(0);
 
   // Abort controller ref for cancellation
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const _abortControllerRef = useRef<AbortController | null>(null);
 
   // Update counts when manager state changes
   useEffect(() => {
@@ -274,7 +273,7 @@ export function useMediaFlow(): UseMediaFlowResult {
     const {
       position = 'end',
       skipDuplicateCheck = false,
-      source = 'recommendation',
+      source: _source = 'recommendation',
       showToast = true,
     } = options;
 
@@ -473,7 +472,7 @@ export function useMediaFlow(): UseMediaFlowResult {
     title: string,
     options: { skipDuplicateCheck?: boolean } = {}
   ): Promise<{ success: boolean; error?: string }> => {
-    const { skipDuplicateCheck = true } = options; // Skip by default for play now
+    const { skipDuplicateCheck: _skipDuplicateCheck = true } = options; // Skip by default for play now
 
     setOperationState(prev => ({
       ...prev,

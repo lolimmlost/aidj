@@ -51,7 +51,7 @@ function getAvailableScreenshots(): ScreenshotInfo[] {
 }
 
 function generateReadme(screenshots: ScreenshotInfo[]): string {
-  const hasScreenshots = screenshots.some((s) => s.exists);
+  const _hasScreenshots = screenshots.some((s) => s.exists);
   const heroScreenshot = screenshots.find((s) => s.name === 'dashboard' && s.exists);
   const libraryScreenshot = screenshots.find((s) => s.name === 'library-artists' && s.exists);
   const djScreenshot = screenshots.find((s) => s.name === 'dj-set-builder' && s.exists);

@@ -173,6 +173,7 @@ export function useEruda(): { isLoaded: boolean; isEnabled: boolean } {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isEnabled, setIsEnabled] = useState(false);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     // Check if debug mode should be enabled
     const urlParams = new URLSearchParams(window.location.search);
@@ -237,6 +238,7 @@ export function useEruda(): { isLoaded: boolean; isEnabled: boolean } {
       // Don't destroy on unmount
     };
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return { isLoaded, isEnabled };
 }

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from 'zod';
 import { db } from '../../../lib/db';
-import { playlistDownloadJobs, playlistImportJobs } from '../../../lib/db/schema/playlist-export.schema';
+import { playlistDownloadJobs } from '../../../lib/db/schema/playlist-export.schema';
 import { eq } from 'drizzle-orm';
 import {
   withAuthAndErrorHandling,
@@ -239,7 +239,7 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
       const metadataProfiles = await metadataProfileResponse.json();
       metadataProfileId = metadataProfiles[0]?.id || 1;
     }
-  } catch (error) {
+  } catch {
     // Continue with defaults
   }
 
@@ -680,7 +680,7 @@ async function queueToMeTube(songs: { title: string; artist: string; album?: str
 
       // For now, we'll construct a YouTube Music search URL
       // In a real implementation, you'd use the YouTube Data API to search
-      const ytMusicUrl = `https://music.youtube.com/search?q=${encodeURIComponent(searchQuery)}`;
+      const _ytMusicUrl = `https://music.youtube.com/search?q=${encodeURIComponent(searchQuery)}`;
 
       // Queue to MeTube with a search-based URL
       // MeTube can accept search terms if configured properly

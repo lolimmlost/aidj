@@ -101,7 +101,7 @@ export async function syncNavidromePlaylists(userId: string): Promise<SyncResult
     }
 
     // 4. Handle deleted playlists (remaining in map)
-    for (const [navidromeId, localPlaylist] of localPlaylistsByNavidromeId) {
+    for (const [_navidromeId, localPlaylist] of localPlaylistsByNavidromeId) {
       try {
         // Mark as deleted but keep data (soft delete by removing navidromeId)
         await db

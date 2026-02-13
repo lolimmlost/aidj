@@ -249,8 +249,8 @@ function detectChordProgression(analysis: AudioAnalysis): string[] {
   
   const key = analysis.key;
   const isMinor = key.endsWith('m');
-  const rootNote = key.replace('m', '');
-  
+  const _rootNote = key.replace('m', '');
+
   // Common progressions for major keys
   const majorProgressions = [
     ['I', 'IV', 'V', 'I'],
@@ -316,7 +316,7 @@ function detectModulations(analysis: AudioAnalysis): { modulationCount: number; 
   // For now, we'll simulate based on genre and complexity
   
   const genreHints = extractGenreHints(analysis);
-  const complexity = analysis.instrumentalness; // Higher instrumental = more complex
+  const _complexity = analysis.instrumentalness; // Higher instrumental = more complex
   
   let modulationCount = 0;
   const modulationPoints: number[] = [];
@@ -818,8 +818,8 @@ export async function planHarmonicSet(
   const {
     startKey,
     preferredProgression = ['perfect_match', 'relative_minor', 'dominant', 'circle_progression'],
-    energyProfile = 'wave',
-    maxKeyChanges = 5
+    energyProfile: _energyProfile = 'wave',
+    maxKeyChanges: _maxKeyChanges = 5
   } = options;
   
   try {

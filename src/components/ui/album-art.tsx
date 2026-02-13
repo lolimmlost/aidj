@@ -31,6 +31,7 @@ export const AlbumArt = ({
   const [resolvedAlbumId, setResolvedAlbumId] = useState<string | null>(albumId || null);
 
   // Fetch albumId from Navidrome if not provided but songId is available
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (albumId) {
       setResolvedAlbumId(albumId);
@@ -66,6 +67,7 @@ export const AlbumArt = ({
     setImgError(false);
     setImgLoaded(false);
   }, [resolvedAlbumId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const sizeClasses = {
     sm: 'w-12 h-12',

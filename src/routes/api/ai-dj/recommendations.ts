@@ -76,7 +76,7 @@ async function extractQueueContext(recentQueue?: Song[], fullPlaylist?: Song[]):
                      (song as { genres?: string }).genres || '';
     if (genreStr && genreStr !== 'undefined') {
       // Split on common delimiters (some songs have "Rock, Alternative" etc)
-      const genres = genreStr.split(/[,\/;]/).map(g => g.trim().toLowerCase()).filter(Boolean);
+      const genres = genreStr.split(/[,/;]/).map(g => g.trim().toLowerCase()).filter(Boolean);
       for (const genre of genres) {
         if (genre && genre !== 'unknown') {
           // Phase 1.3: Apply recency weight to genre counts

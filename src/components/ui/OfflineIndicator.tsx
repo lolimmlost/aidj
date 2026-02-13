@@ -12,7 +12,7 @@
  */
 
 import React from 'react';
-import { Wifi, WifiOff, RefreshCw, Cloud, CloudOff } from 'lucide-react';
+import { WifiOff, RefreshCw, Cloud, CloudOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useOffline } from '@/lib/contexts/OfflineContext';
 import { Button } from '@/components/ui/button';

@@ -15,6 +15,7 @@ export function useSongFeedback(songIds: string[]) {
 
   return useQuery({
     // Use query key factory for consistent cache management
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: queryKeys.feedback.songs(songIds),
     queryFn: async (): Promise<FeedbackResponse> => {
       if (!session?.user?.id || songIds.length === 0) {

@@ -1,7 +1,6 @@
 // Web Audio API Integration Service
 // Provides real-time audio processing and visualization capabilities
 
-import type { Song } from '@/lib/types/song';
 import type { BufferAnalysis } from './audio-buffer-analyzer';
 import { ServiceError } from '../utils';
 
@@ -110,7 +109,7 @@ export class WebAudioProcessor {
   async initialize(): Promise<void> {
     try {
       // Create audio context
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      this.audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       
       // Create audio nodes
       await this.createAudioNodes();
@@ -377,7 +376,7 @@ export class WebAudioProcessor {
     
     // Perform buffer analysis
     this.analysisData = this.analyzeAudioBuffer({
-      getChannelData: (channel: number) => timeData,
+      getChannelData: (_channel: number) => timeData,
       length: timeData.length,
       sampleRate: this.config.sampleRate,
       numberOfChannels: 1

@@ -151,6 +151,7 @@ export function MusicIdentityDashboard() {
   const availablePeriods = data?.availablePeriods;
 
   // Group summaries by year
+  /* eslint-disable react-hooks/preserve-manual-memoization */
   const groupedSummaries = useMemo(() => {
     const grouped = new Map<number, MusicIdentitySummary[]>();
     for (const summary of summaries) {
@@ -162,6 +163,7 @@ export function MusicIdentityDashboard() {
     }
     return grouped;
   }, [summaries]);
+  /* eslint-enable react-hooks/preserve-manual-memoization */
 
   if (isLoading) {
     return <DashboardSkeleton />;

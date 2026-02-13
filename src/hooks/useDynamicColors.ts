@@ -30,6 +30,7 @@ export function useDynamicColors(imageUrl?: string | null): UseDynamicColorsResu
   const [isLoading, setIsLoading] = useState(false);
   const prevUrlRef = useRef<string | null>(null);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!imageUrl || imageUrl === prevUrlRef.current) return;
     prevUrlRef.current = imageUrl;
@@ -48,6 +49,7 @@ export function useDynamicColors(imageUrl?: string | null): UseDynamicColorsResu
       cancelled = true;
     };
   }, [imageUrl]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const style: React.CSSProperties = colors
     ? {

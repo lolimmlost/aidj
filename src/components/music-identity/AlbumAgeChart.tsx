@@ -66,6 +66,7 @@ export const AlbumAgeChart = memo(function AlbumAgeChart({
     retry: false,
   });
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const chartData = useMemo(() => {
     if (!data?.distribution) return [];
     return data.distribution.map(d => ({

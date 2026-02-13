@@ -339,8 +339,8 @@ describe('DJ Queue Manager', () => {
 
     it('should mark song as played', async () => {
       await queueManager.addSong(mockSongs[0]);
-      const next = queueManager.getNextSong();
-      
+      const _next = queueManager.getNextSong();
+
       queueManager.markSongPlayed();
       
       const queue = queueManager.getQueue();

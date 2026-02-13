@@ -9,7 +9,7 @@ import tseslint from "typescript-eslint";
 const { plugins, ...reactHooksConfig } = reactHooks.configs.recommended;
 
 export default tseslint.config({
-  ignores: ["dist", ".wrangler", ".vercel", ".netlify", ".output", ".nitro", "build/", "bmad-temp/"],
+  ignores: ["dist", ".wrangler", ".vercel", ".netlify", ".output", ".nitro", ".nitro/**", "build/", "bmad-temp/", "bmad-temp/**"],
   files: ["**/*.{ts,tsx}"],
   languageOptions: {
     parser: tseslint.parser,
@@ -34,5 +34,14 @@ export default tseslint.config({
   rules: {
     // You can override any rules here
     "@typescript-eslint/no-deprecated": "warn",
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      {
+        argsIgnorePattern: "^_",
+        varsIgnorePattern: "^_",
+        caughtErrorsIgnorePattern: "^_",
+        destructuredArrayIgnorePattern: "^_",
+      },
+    ],
   },
 });

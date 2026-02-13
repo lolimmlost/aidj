@@ -19,7 +19,6 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from 'recharts';
 import { TrendingUp, TrendingDown, Minus, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';

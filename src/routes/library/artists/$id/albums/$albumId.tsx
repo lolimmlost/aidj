@@ -7,7 +7,6 @@ import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
   DropdownMenu,
   DropdownMenuContent,

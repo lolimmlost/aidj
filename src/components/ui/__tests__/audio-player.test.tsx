@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // Use vi.hoisted to define mocks that can be used in vi.mock factories
 // Mock data must be defined inside hoisted callback to be available during module initialization
-const { mockUseAudioStore, mockSong, mockSong2 } = vi.hoisted(() => {
+const { mockUseAudioStore, mockSong, mockSong2: _mockSong2 } = vi.hoisted(() => {
   const mockSong = {
     id: '1',
     title: 'Test Song',
@@ -145,19 +145,19 @@ import { AudioPlayer } from '../audio-player'
 
 // Mock audio element for additional event handling
 const createMockAudio = () => {
-  const eventListeners: Record<string, Function[]> = {}
+  const eventListeners: Record<string, ((...args: unknown[]) => unknown)[]> = {}
 
   const audio = {
     play: vi.fn().mockResolvedValue(undefined),
     pause: vi.fn(),
     load: vi.fn(),
-    addEventListener: vi.fn((event: string, handler: Function) => {
+    addEventListener: vi.fn((event: string, handler: (...args: unknown[]) => unknown) => {
       if (!eventListeners[event]) {
         eventListeners[event] = []
       }
       eventListeners[event].push(handler)
     }),
-    removeEventListener: vi.fn((event: string, handler: Function) => {
+    removeEventListener: vi.fn((event: string, handler: (...args: unknown[]) => unknown) => {
       if (eventListeners[event]) {
         eventListeners[event] = eventListeners[event].filter(h => h !== handler)
       }
@@ -175,9 +175,11 @@ const createMockAudio = () => {
     ended: false,
     error: null,
     readyState: 4 // HAVE_ENOUGH_DATA
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test mock of HTMLAudioElement with partial implementation
   } as any
 
   // Mock HTMLAudioElement constructor
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test mock replacing global Audio constructor
   global.Audio = vi.fn(() => audio) as any
 
   return audio
@@ -660,6 +662,7 @@ describe('Audio Player Component', () => {
       it('should maintain audio quality during DJ operations', async () => {
         renderWithQueryClient(<AudioPlayer />)
         
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing test mock of Audio constructor
         const audio = global.Audio as any
         
         // Simulate DJ operations

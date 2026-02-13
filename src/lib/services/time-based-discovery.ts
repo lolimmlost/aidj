@@ -11,7 +11,7 @@
  */
 
 import { db } from '@/lib/db';
-import { eq, and, desc, sql, gte, lte, isNull, or } from 'drizzle-orm';
+import { eq, and, desc, sql, gte, lte, or } from 'drizzle-orm';
 import {
   listeningPatterns,
   discoveryFeedItems,
@@ -22,9 +22,8 @@ import {
   type DiscoveryFeedItemInsert,
 } from '@/lib/db/schema/discovery-feed.schema';
 import { listeningHistory } from '@/lib/db/schema/listening-history.schema';
-import { getRecommendations, type RecommendationResult } from './recommendations';
+import { getRecommendations } from './recommendations';
 import { getCompoundScoredRecommendations } from './compound-scoring';
-import type { Song } from '@/lib/types/song';
 
 // ============================================================================
 // Types

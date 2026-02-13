@@ -125,7 +125,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 /**
  * Type guard to check if a value is defined (not undefined)
  */
-function isDefined<T>(value: T | undefined): value is T {
+function _isDefined<T>(value: T | undefined): value is T {
   return value !== undefined;
 }
 

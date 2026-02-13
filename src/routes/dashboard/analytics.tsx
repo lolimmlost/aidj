@@ -5,7 +5,7 @@
 
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { AnalyticsDashboard } from '../../components/recommendations/AnalyticsDashboard';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { PageLayout } from '@/components/ui/page-layout';
 import { useState } from 'react';

@@ -13,12 +13,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 /**
  * Type for lazy component factories
  */
-type LazyFactory<T extends ComponentType<any>> = () => Promise<{ default: T }>;
+type LazyFactory<T extends ComponentType<Record<string, unknown>>> = () => Promise<{ default: T }>;
 
 /**
  * Options for lazy loading components
  */
-interface LazyLoadOptions {
+interface _LazyLoadOptions {
   /** Custom fallback component while loading */
   fallback?: ReactNode;
   /** Minimum delay before showing content (prevents flash) */
@@ -56,7 +56,7 @@ export function createLazyComponent<P extends object>(
   };
 
   // Attach preload function to the component
-  (WrappedComponent as any).preload = preload;
+  (WrappedComponent as unknown as { preload: typeof preload }).preload = preload;
 
   return WrappedComponent as typeof WrappedComponent & { preload: typeof preload };
 }

@@ -14,7 +14,7 @@ import {
   detectDanceability
 } from '../audio-analysis';
 import type { Song } from '@/lib/types/song';
-import type { AudioAnalysis, MusicalKey } from '../audio-analysis';
+import type { AudioAnalysis } from '../audio-analysis';
 
 // Mock song data
 const mockSong: Song = {

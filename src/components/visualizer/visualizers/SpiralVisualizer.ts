@@ -31,7 +31,7 @@ export const SpiralVisualizer: Visualizer = {
 
   render: (ctx: VisualizerContext) => {
     const { ctx: c, width, height, centerX, centerY, audioData, colors, time, quality } = ctx;
-    const { bars, bass, mid, treble, isBeat } = audioData;
+    const { bars, bass, mid, isBeat } = audioData;
 
     // Clear canvas
     c.fillStyle = colors.background;

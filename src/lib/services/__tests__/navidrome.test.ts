@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getArtists, getArtistDetail, getAlbums, getSongs, search, getTopSongs, getLibrarySummary, getArtistsWithDetails, getSongsGlobal, type Artist, type Album, type Song, type ArtistWithDetails, type LibrarySummary, type SubsonicSong, type RawSong } from '../navidrome';
+import { getArtists, type Artist, type Album, type Song, type SubsonicSong, type RawSong } from '../navidrome';
 import { getConfig } from '@/lib/config/config';
 
 // Mock the config module
@@ -420,7 +420,7 @@ describe('Navidrome Service Integration Tests', () => {
         headers: { 'content-type': 'application/json' },
       });
 
-      const emptyArtistResponse = new Response(JSON.stringify([]), {
+      const _emptyArtistResponse = new Response(JSON.stringify([]), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
@@ -430,7 +430,7 @@ describe('Navidrome Service Integration Tests', () => {
         headers: { 'content-type': 'application/json' },
       });
 
-      const emptyAlbumResponse = new Response(JSON.stringify([]), {
+      const _emptyAlbumResponse = new Response(JSON.stringify([]), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
@@ -1046,8 +1046,8 @@ describe('Navidrome Service Integration Tests', () => {
     it('should fallback to song search when no albums or artists found', async () => {
       const { search } = await import('../navidrome');
 
-      const mockEmptyAlbums: Album[] = [];
-      const mockEmptyArtists: Artist[] = [];
+      const _mockEmptyAlbums: Album[] = [];
+      const _mockEmptyArtists: Artist[] = [];
       const mockSongs: SubsonicSong[] = [{ id: 's1', title: 'Fallback Song', artist: 'Fallback', albumId: 'a1', duration: '180', track: '1' }];
 
       const validLoginResponse = new Response(JSON.stringify({

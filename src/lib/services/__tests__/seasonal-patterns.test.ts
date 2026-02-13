@@ -43,6 +43,7 @@ describe('Seasonal Pattern Detection', () => {
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue(mockFeedback),
         }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test mock for complex drizzle query chain
       } as any));
 
       const result = await detectSeasonalPreferences('user1');
@@ -82,6 +83,7 @@ describe('Seasonal Pattern Detection', () => {
               currentQuery === 3 ? createMockFeedback('fall', 50) : []
             ),
           }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test mock for complex drizzle query chain
         } as any;
       });
 
@@ -104,6 +106,7 @@ describe('Seasonal Pattern Detection', () => {
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([]),
         }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test mock for complex drizzle query chain
       } as any));
 
       const result = await analyzeMonthlyFeedback('user1', 10);
@@ -127,6 +130,7 @@ describe('Seasonal Pattern Detection', () => {
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue(mockFeedback),
         }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test mock for complex drizzle query chain
       } as any));
 
       const result = await analyzeMonthlyFeedback('user1', 10);
@@ -146,6 +150,7 @@ describe('Seasonal Pattern Detection', () => {
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([]),
         }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test mock for complex drizzle query chain
       } as any));
 
       const result = await hasSeasonalPatterns('user1');
@@ -182,6 +187,7 @@ describe('Seasonal Pattern Detection', () => {
               currentQuery === 2 ? createMockFeedback('summer', 50) : []
             ),
           }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test mock for complex drizzle query chain
         } as any;
       });
 

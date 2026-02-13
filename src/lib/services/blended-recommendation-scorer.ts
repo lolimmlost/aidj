@@ -17,8 +17,8 @@
  */
 
 import { db } from '../db';
-import { recommendationFeedback, trackSimilarities, compoundScores, listeningHistory } from '../db/schema';
-import { eq, and, gte, desc, sql, inArray, or } from 'drizzle-orm';
+import { recommendationFeedback } from '../db/schema';
+import { eq, and, inArray } from 'drizzle-orm';
 import type { Song } from '@/lib/types/song';
 // EnrichedTrack no longer needed - using raw Last.fm API with sequential lookups
 import type { LastFmClient } from './lastfm';
@@ -28,7 +28,7 @@ import { search, getRandomSongs } from './navidrome';
 import { getCompoundScoreBoosts } from './compound-scoring';
 import { calculateSkipScores } from './skip-scoring';
 import { calculateDJScore, enrichSongsWithDJMetadata, type SongWithDJMetadata } from './dj-match-scorer';
-import { getTimeSlot, getCurrentTimeContext, type TimeContext } from './time-based-discovery';
+import { getCurrentTimeContext, type TimeContext } from './time-based-discovery';
 import { getCurrentSeasonalPattern, type SeasonalPattern } from './seasonal-patterns';
 import { normalizeGenre, getGenreSimilarity } from './genre-hierarchy';
 
@@ -551,7 +551,7 @@ function scoreCandidate(
   const { song, sources } = candidate;
   const {
     seedSong,
-    timeContext,
+    timeContext: _timeContext,
     seasonalPattern,
     feedbackScores,
     skipPenalties,
@@ -705,14 +705,14 @@ export async function getBlendedRecommendations(
 
   // 3. Enrich songs with DJ metadata if DJ matching is enabled
   // Note: This may fail on server-side due to IndexedDB not being available
-  let enrichedSongs: Map<string, SongWithDJMetadata> = new Map();
+  const enrichedSongs: Map<string, SongWithDJMetadata> = new Map();
   if (djMatching?.enabled) {
     try {
       const enriched = await enrichSongsWithDJMetadata(songs);
       for (const song of enriched) {
         enrichedSongs.set(song.id, song);
       }
-    } catch (error) {
+    } catch {
       // IndexedDB not available on server-side, continue without DJ metadata
       // DJ scoring will use neutral 0.5 scores
     }

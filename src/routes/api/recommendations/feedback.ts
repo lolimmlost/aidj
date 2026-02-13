@@ -10,7 +10,6 @@ import { extractTemporalMetadata } from '../../../lib/utils/temporal';
 import { userPlaylists, playlistSongs } from '../../../lib/db/schema';
 import {
   withAuthAndErrorHandling,
-  successResponse,
   errorResponse,
   jsonResponse,
 } from '../../../lib/utils/api-response';

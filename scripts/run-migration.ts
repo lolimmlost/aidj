@@ -16,7 +16,7 @@ async function main() {
       AND table_name IN ('taste_snapshots', 'mood_snapshots', 'recommendation_history')
   `);
 
-  const existingTables = tableCheck.rows.map((r: any) => r.table_name);
+  const existingTables = tableCheck.rows.map((r: Record<string, unknown>) => r.table_name);
   console.log('Existing tables:', existingTables);
 
   // Create taste_snapshots if not exists

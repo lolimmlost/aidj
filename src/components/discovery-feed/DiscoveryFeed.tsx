@@ -50,7 +50,7 @@ export const DiscoveryFeed = memo(function DiscoveryFeed({
   className,
 }: DiscoveryFeedProps) {
   const {
-    items: _items, // Need to subscribe to items for re-renders when they change
+    // items is destructured via getFilteredItems below
     isLoading,
     error,
     hasMore,

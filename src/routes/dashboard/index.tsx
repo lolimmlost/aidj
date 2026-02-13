@@ -8,10 +8,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { hasLegacyFeedback, migrateLegacyFeedback, isMigrationCompleted } from '@/lib/utils/feedback-migration';
 // Critical components - loaded immediately
 import { DashboardHero } from '@/components/dashboard/DashboardHero';
-import { QuickActions, type StylePreset } from '@/components/dashboard/quick-actions';
+import { QuickActions } from '@/components/dashboard/quick-actions';
 import { DiscoveryQueueSection } from '@/components/dashboard/DiscoveryQueueSection';
 // Lazy loading utilities for deferred content
-import { useDeferredRender, FeatureCardSkeleton } from '@/lib/utils/lazy-components';
+import { useDeferredRender } from '@/lib/utils/lazy-components';
 import { Sparkles, Music, ArrowRight } from 'lucide-react';
 
 // Lazy-loaded components for non-critical sections

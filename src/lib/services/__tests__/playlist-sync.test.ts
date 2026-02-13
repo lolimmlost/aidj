@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { syncNavidromePlaylists, needsSync } from '../playlist-sync';
 import * as navidrome from '../navidrome';
 import { db } from '@/lib/db';
-import { userPlaylists, playlistSongs } from '@/lib/db/schema/playlists.schema';
+// Schema imports removed - unused in test file
 
 // Mock the navidrome service
 vi.mock('../navidrome', () => ({

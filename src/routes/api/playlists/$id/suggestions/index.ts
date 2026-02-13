@@ -84,7 +84,7 @@ const POST = withAuthAndErrorHandling(
 
 // PATCH /api/playlists/:id/suggestions - Process a suggestion (approve/reject)
 const PATCH = withAuthAndErrorHandling(
-  async ({ request, params, session }) => {
+  async ({ request, params: _params, session }) => {
     const body = await request.json();
     const validatedData = ProcessSuggestionSchema.parse(body);
 

@@ -32,7 +32,7 @@ interface LibraryItem {
  * Hook to cache library items when fetched
  */
 export function useCacheLibraryItems() {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
 
   const cacheItems = async (
     type: 'song' | 'artist' | 'album' | 'playlist',
@@ -137,7 +137,7 @@ export function useRecommendationsOffline(
  */
 export function usePrefetchLibrary() {
   const { data: session } = authClient.useSession();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
 
   useEffect(() => {
     if (!session?.user?.id || !isOnline()) return;

@@ -1,8 +1,7 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Upload, FileText, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type ExportFormat = 'm3u' | 'xspf' | 'json' | 'csv';
@@ -12,12 +11,11 @@ interface FileUploadStepProps {
   onTriggerFileSelect?: () => void;
 }
 
-export function FileUploadStep({ onFileUpload, onTriggerFileSelect }: FileUploadStepProps) {
+export function FileUploadStep({ onFileUpload, onTriggerFileSelect: _onTriggerFileSelect }: FileUploadStepProps) {
   const [pastedContent, setPastedContent] = useState('');
-  const [dragActive, setDragActive] = useState(false);
-  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [_dragActive, setDragActive] = useState(false);
+  const [_uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [_isLoading, setIsLoading] = useState(false);
 
   const detectFormat = (content: string, filename?: string): ExportFormat | undefined => {
     const trimmed = content.trim();
@@ -73,7 +71,7 @@ export function FileUploadStep({ onFileUpload, onTriggerFileSelect }: FileUpload
     }
   };
 
-  const handleDrag = useCallback((e: React.DragEvent) => {
+  const _handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.type === 'dragenter' || e.type === 'dragover') {
@@ -83,7 +81,7 @@ export function FileUploadStep({ onFileUpload, onTriggerFileSelect }: FileUpload
     }
   }, []);
 
-  const handleDrop = (e: React.DragEvent) => {
+  const _handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
@@ -93,7 +91,7 @@ export function FileUploadStep({ onFileUpload, onTriggerFileSelect }: FileUpload
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const _handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       handleFileInput(file);

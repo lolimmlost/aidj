@@ -142,7 +142,7 @@ function ConnectedAccounts() {
   useEffect(() => {
     async function fetchAccounts() {
       try {
-        const result = await (authClient as any).listAccounts?.();
+        const result = await (authClient as unknown as { listAccounts?: () => Promise<{ data?: Array<{ provider: string; accountId: string }> }> }).listAccounts?.();
         if (result?.data) {
           setAccounts(result.data);
         }
@@ -161,7 +161,7 @@ function ConnectedAccounts() {
   const handleConnect = async (provider: 'github' | 'google') => {
     setConnecting(provider);
     try {
-      await (authClient as any).linkSocial({
+      await (authClient as unknown as { linkSocial: (opts: { provider: string; callbackURL: string }) => Promise<void> }).linkSocial({
         provider,
         callbackURL: '/settings/profile',
       });
@@ -177,7 +177,7 @@ function ConnectedAccounts() {
     try {
       const account = accounts.find(a => a.provider === provider);
       if (account?.accountId) {
-        await (authClient as any).unlinkAccount?.({ providerId: provider });
+        await (authClient as unknown as { unlinkAccount?: (opts: { providerId: string }) => Promise<void> }).unlinkAccount?.({ providerId: provider });
         setAccounts(prev => prev.filter(a => a.provider !== provider));
         toast.success(`Disconnected ${provider}`);
       }

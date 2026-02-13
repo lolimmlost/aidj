@@ -70,7 +70,7 @@ describe('GET /api/recommendations/feedback', () => {
       mockGetSession.mockResolvedValue(mockSession);
 
       // Mock database response
-      (mockDb.select as any).mockReturnValue({
+      (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
         from: vi.fn(() => ({
           where: vi.fn(() =>
             Promise.resolve([
@@ -196,7 +196,7 @@ describe('GET /api/recommendations/feedback', () => {
       mockGetSession.mockResolvedValue(mockSession);
 
       // Mock database response with no results
-      (mockDb.select as any).mockReturnValue({
+      (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
         from: vi.fn(() => ({
           where: vi.fn(() => Promise.resolve([])),
         })),
@@ -242,7 +242,7 @@ describe('GET /api/recommendations/feedback', () => {
         Promise.resolve([{ songId: 'song1', feedbackType: 'thumbs_up' }])
       );
 
-      (mockDb.select as any).mockReturnValue({
+      (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
         from: vi.fn(() => ({
           where: mockWhere,
         })),
@@ -281,7 +281,7 @@ describe('GET /api/recommendations/feedback', () => {
       mockGetSession.mockResolvedValue(mockSession);
 
       // Mock database response with mixed feedback
-      (mockDb.select as any).mockReturnValue({
+      (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
         from: vi.fn(() => ({
           where: vi.fn(() =>
             Promise.resolve([
@@ -337,7 +337,7 @@ describe('GET /api/recommendations/feedback', () => {
       mockGetSession.mockResolvedValue(mockSession);
 
       // Mock database response with null songId
-      (mockDb.select as any).mockReturnValue({
+      (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
         from: vi.fn(() => ({
           where: vi.fn(() =>
             Promise.resolve([
@@ -389,7 +389,7 @@ describe('GET /api/recommendations/feedback', () => {
       mockGetSession.mockResolvedValue(mockSession);
 
       // Mock database error
-      (mockDb.select as any).mockReturnValue({
+      (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
         from: vi.fn(() => ({
           where: vi.fn(() => Promise.reject(new Error('Database connection failed'))),
         })),

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -141,7 +141,7 @@ vi.mock('sonner', () => ({
 }))
 
 vi.mock('@dnd-kit/core', () => ({
-  DndContext: ({ children }: any) => children,
+  DndContext: ({ children }: { children: React.ReactNode }) => children,
   closestCenter: vi.fn(),
   KeyboardSensor: vi.fn(),
   PointerSensor: vi.fn(),
@@ -164,7 +164,7 @@ vi.mock('@tanstack/react-virtual', () => ({
 }))
 
 vi.mock('@dnd-kit/sortable', () => ({
-  SortableContext: ({ children }: any) => children,
+  SortableContext: ({ children }: { children: React.ReactNode }) => children,
   arrayMove: vi.fn((array, from, to) => {
     const newArray = [...array]
     const item = newArray.splice(from, 1)[0]

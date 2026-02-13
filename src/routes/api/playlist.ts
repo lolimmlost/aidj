@@ -182,8 +182,6 @@ export const Route = createFileRoute("/api/playlist")({
             suggestions.push(discoverySongs[discIdx++]);
           } else if (libIdx < librarySongs.length) {
             suggestions.push(librarySongs[libIdx++]);
-          } else if (discIdx < discoverySongs.length) {
-            suggestions.push(discoverySongs[discIdx++]);
           }
         }
       } else {

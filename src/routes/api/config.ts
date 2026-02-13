@@ -3,7 +3,6 @@ import { getConfig, setConfig } from "~/lib/config/config";
 import {
   withErrorHandling,
   jsonResponse,
-  errorResponse,
 } from '../../lib/utils/api-response';
 
 const GET = withErrorHandling(
@@ -72,7 +71,7 @@ const POST = withErrorHandling(
     }
 
     // Accept a subset of keys for configuration
-    const allowed: Record<string, any> = {};
+    const allowed: Record<string, string> = {};
 
     // LLM Provider configuration
     if (typeof body.llmProvider === "string") allowed.llmProvider = body.llmProvider;
@@ -123,7 +122,7 @@ export const Route = createFileRoute("/api/config")({
   },
 });
 
-async function saveConfigToDb(cfg: Record<string, any>): Promise<void> {
+async function saveConfigToDb(cfg: Record<string, string>): Promise<void> {
   if (!cfg || Object.keys(cfg).length === 0) return;
 
   // Fallback to db/config.json
@@ -132,10 +131,10 @@ async function saveConfigToDb(cfg: Record<string, any>): Promise<void> {
     const fsMod = await import("fs/promises");
     const CONFIG_PATH = pathMod.resolve(process.cwd(), "db", "config.json");
     await fsMod.mkdir(pathMod.dirname(CONFIG_PATH), { recursive: true });
-    let existing: Record<string, any> = {};
+    let existing: Record<string, string> = {};
     try {
       const raw = await fsMod.readFile(CONFIG_PATH, "utf8");
-      existing = JSON.parse(raw) as Record<string, any>;
+      existing = JSON.parse(raw) as Record<string, string>;
     } catch {
       existing = {};
     }
