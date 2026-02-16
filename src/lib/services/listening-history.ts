@@ -70,7 +70,8 @@ export async function recordSongPlay(
     genre?: string;
     duration?: number;
   },
-  playDuration?: number
+  playDuration?: number,
+  userInitiatedSkip?: boolean
 ): Promise<void> {
   const completed = playDuration && song.duration
     ? (playDuration / song.duration >= COMPLETION_THRESHOLD ? 1 : 0)
@@ -87,6 +88,15 @@ export async function recordSongPlay(
     if (playPercentage < SKIP_MAX_PERCENTAGE && completed === 0) {
       skipDetected = 1;
       console.log(`⏭️ [ListeningHistory] Skip detected: ${song.artist} - ${song.title} (played ${Math.round(playPercentage * 100)}%)`);
+    }
+  }
+
+  // Explicit user skip overrides the 5-second minimum.
+  // When a user presses Next/Skip, that's intentional even if < 5s played.
+  if (userInitiatedSkip && completed === 0) {
+    skipDetected = 1;
+    if (playDuration !== undefined) {
+      console.log(`⏭️ [ListeningHistory] User-initiated skip: ${song.artist} - ${song.title} (played ${playDuration.toFixed(1)}s)`);
     }
   }
 

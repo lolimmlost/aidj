@@ -44,7 +44,7 @@ export const Route = createFileRoute("/api/listening-history/record")({
         album: body.album || null,
         genre: body.genre || null,
         duration: body.duration ? Math.floor(body.duration) : undefined,
-      }, body.playDuration ? Math.floor(body.playDuration) : undefined);
+      }, body.playDuration ? Math.floor(body.playDuration) : undefined, body.userInitiatedSkip === true);
 
       return new Response(
         JSON.stringify({ success: true, message: 'Song play recorded' }),

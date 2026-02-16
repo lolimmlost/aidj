@@ -6,6 +6,7 @@ import type { PlaybackStateResponse } from '@/lib/types/sync';
 import { getDeviceInfo } from '@/lib/utils/device';
 import { usePreferencesStore } from './preferences';
 import { toast } from 'sonner';
+import { selectBestShuffle } from '@/lib/utils/shuffle-scoring';
 
 // Client-side helper functions (moved from ai-dj.ts to avoid server imports)
 function checkQueueThreshold(
@@ -19,182 +20,6 @@ function checkQueueThreshold(
 
 function checkCooldown(lastQueueTime: number, cooldownMs: number = 30000): boolean {
   return Date.now() - lastQueueTime >= cooldownMs;
-}
-
-/**
- * Fisher-Yates shuffle algorithm - produces unbiased permutations in O(n) time
- * This is the industry-standard shuffle algorithm used by Spotify and other music players
- */
-function fisherYatesShuffle<T>(array: T[]): T[] {
-  const result = [...array];
-  for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
-
-/**
- * Calculate freshness score for a shuffle sequence
- * Lower score = better (songs played recently appear later in the sequence)
- * Based on Spotify's "Fewer Repeats" algorithm
- */
-function calculateFreshnessScore(songs: Song[], recentlyPlayedIds: string[]): number {
-  let score = 0;
-  for (let i = 0; i < songs.length; i++) {
-    const recencyIndex = recentlyPlayedIds.indexOf(songs[i].id);
-    if (recencyIndex !== -1) {
-      // Penalize recently played songs appearing early in queue
-      // Higher penalty for more recently played songs appearing earlier
-      const recencyWeight = 1 - (recencyIndex / recentlyPlayedIds.length); // 1.0 for most recent, 0.0 for oldest
-      const positionWeight = 1 - (i / songs.length); // 1.0 for first position, 0.0 for last
-      score += recencyWeight * positionWeight * 10;
-    }
-  }
-  return score;
-}
-
-/**
- * Shuffle with artist separation - spaces out songs from the same artist
- * This addresses the "random doesn't feel random" problem where back-to-back
- * songs from the same artist make users think shuffle is broken
- *
- * Algorithm:
- * 1. Group songs by artist
- * 2. Shuffle each artist's songs independently
- * 3. Interleave songs to maximize artist separation
- * 4. Apply light Fisher-Yates passes to maintain some randomness
- * 5. Use freshness scoring to push recently played songs later (Spotify's "Fewer Repeats")
- */
-function shuffleWithArtistSeparation(songs: Song[], recentlyPlayedIds: string[] = []): Song[] {
-  if (songs.length <= 2) return fisherYatesShuffle(songs);
-
-  // Group songs by artist
-  const artistGroups = new Map<string, Song[]>();
-  for (const song of songs) {
-    const artist = song.artist?.toLowerCase() || 'unknown';
-    if (!artistGroups.has(artist)) {
-      artistGroups.set(artist, []);
-    }
-    artistGroups.get(artist)!.push(song);
-  }
-
-  // If all songs are from one artist, just do Fisher-Yates
-  if (artistGroups.size === 1) {
-    return fisherYatesShuffle(songs);
-  }
-
-  // Shuffle each artist's songs
-  for (const [artist, artistSongs] of artistGroups) {
-    artistGroups.set(artist, fisherYatesShuffle(artistSongs));
-  }
-
-  // Sort artists by song count (descending) for better interleaving
-  const sortedArtists = Array.from(artistGroups.entries())
-    .sort((a, b) => b[1].length - a[1].length);
-
-  // Interleave songs: place each artist's songs at regular intervals
-  const result: Song[] = new Array(songs.length);
-  const filled: boolean[] = new Array(songs.length).fill(false);
-
-  for (const [, artistSongs] of sortedArtists) {
-    const interval = songs.length / artistSongs.length;
-    let offset = Math.random() * interval; // Random starting offset
-
-    for (const song of artistSongs) {
-      // Find the nearest unfilled slot
-      let targetIndex = Math.floor(offset) % songs.length;
-      let attempts = 0;
-      while (filled[targetIndex] && attempts < songs.length) {
-        targetIndex = (targetIndex + 1) % songs.length;
-        attempts++;
-      }
-
-      if (!filled[targetIndex]) {
-        result[targetIndex] = song;
-        filled[targetIndex] = true;
-      }
-      offset += interval;
-    }
-  }
-
-  // Fill any remaining gaps (shouldn't happen, but safety check)
-  const remainingSongs = songs.filter((_, i) => !filled[i]);
-  let remainingIndex = 0;
-  for (let i = 0; i < result.length; i++) {
-    if (!filled[i] && remainingIndex < remainingSongs.length) {
-      result[i] = remainingSongs[remainingIndex++];
-    }
-  }
-
-  // Light shuffle pass to add some randomness while mostly preserving separation
-  // Swap adjacent pairs with 20% probability
-  for (let i = 0; i < result.length - 1; i++) {
-    if (Math.random() < 0.2) {
-      // Only swap if it doesn't create same-artist adjacency
-      const current = result[i];
-      const next = result[i + 1];
-      const prev = i > 0 ? result[i - 1] : null;
-      const afterNext = i + 2 < result.length ? result[i + 2] : null;
-
-      const currentArtist = current?.artist?.toLowerCase();
-      const nextArtist = next?.artist?.toLowerCase();
-      const prevArtist = prev?.artist?.toLowerCase();
-      const afterNextArtist = afterNext?.artist?.toLowerCase();
-
-      // Check if swap would create adjacency
-      const swapCreatesAdjacency =
-        (prevArtist && prevArtist === nextArtist) ||
-        (afterNextArtist && afterNextArtist === currentArtist);
-
-      if (!swapCreatesAdjacency) {
-        [result[i], result[i + 1]] = [result[i + 1], result[i]];
-      }
-    }
-  }
-
-  // "Fewer Repeats" mode: Generate multiple candidates and pick the one with best freshness
-  // This pushes recently played songs further down in the queue
-  if (recentlyPlayedIds.length > 0) {
-    const NUM_CANDIDATES = 5;
-    let bestResult = result;
-    let bestScore = calculateFreshnessScore(result, recentlyPlayedIds);
-
-    for (let i = 0; i < NUM_CANDIDATES - 1; i++) {
-      // Generate another candidate by doing additional swaps
-      const candidate = [...result];
-      // Do 3-5 random swaps that don't break artist separation
-      const numSwaps = 3 + Math.floor(Math.random() * 3);
-      for (let s = 0; s < numSwaps; s++) {
-        const idx1 = Math.floor(Math.random() * candidate.length);
-        const idx2 = Math.floor(Math.random() * candidate.length);
-        if (idx1 !== idx2) {
-          // Check if swap would create same-artist adjacency
-          const wouldCreateAdjacency = (idx: number, song: Song) => {
-            const prevSong = idx > 0 ? candidate[idx - 1] : null;
-            const nextSong = idx < candidate.length - 1 ? candidate[idx + 1] : null;
-            const artist = song?.artist?.toLowerCase();
-            return (prevSong?.artist?.toLowerCase() === artist) ||
-                   (nextSong?.artist?.toLowerCase() === artist);
-          };
-          if (!wouldCreateAdjacency(idx1, candidate[idx2]) &&
-              !wouldCreateAdjacency(idx2, candidate[idx1])) {
-            [candidate[idx1], candidate[idx2]] = [candidate[idx2], candidate[idx1]];
-          }
-        }
-      }
-
-      const score = calculateFreshnessScore(candidate, recentlyPlayedIds);
-      if (score < bestScore) {
-        bestScore = score;
-        bestResult = candidate;
-      }
-    }
-
-    return bestResult;
-  }
-
-  return result;
 }
 
 interface AudioState {
@@ -234,6 +59,12 @@ interface AudioState {
   queuePanelOpen: boolean;
   // Recently played songs for "fewer repeats" shuffle mode (Spotify-style)
   recentlyPlayedIds: string[];
+  // Skip counts for shuffle deprioritization (songId → count, persisted)
+  skipCounts: Record<string, number>;
+  // AI DJ adaptive state (transient — NOT persisted, reset on rehydrate)
+  aiDJConsecutiveSkips: number;
+  aiDJSessionGenreCounts: Record<string, number>;
+  aiDJRecommendationReasons: Record<string, string>;
   // Autoplay queueing state
   autoplayEnabled: boolean;
   autoplayBlendMode: 'crossfade' | 'silence' | 'reverb_tail';
@@ -252,6 +83,11 @@ interface AudioState {
   playStateUpdatedAt: string;
   // Remote device indicator (set when another device is active)
   remoteDevice: { deviceId: string | null; deviceName: string | null; isPlaying: boolean } | null;
+  // Last known playback position/duration — updated by setCurrentTime/setDuration,
+  // read by nextSong for skip detection. Avoids reading stale state.currentTime
+  // which may already be reset to 0 by loadSong on rapid skips.
+  lastKnownPosition: number;
+  lastKnownDuration: number;
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
@@ -331,6 +167,10 @@ export const useAudioStore = create<AudioState>()(
     lastClearedQueue: null,
     queuePanelOpen: false,
     recentlyPlayedIds: [],
+    skipCounts: {},
+    aiDJConsecutiveSkips: 0,
+    aiDJSessionGenreCounts: {},
+    aiDJRecommendationReasons: {},
     // Autoplay queueing initial state
     autoplayEnabled: false,
     autoplayBlendMode: 'crossfade',
@@ -348,6 +188,8 @@ export const useAudioStore = create<AudioState>()(
     positionUpdatedAt: new Date().toISOString(),
     playStateUpdatedAt: new Date().toISOString(),
     remoteDevice: null,
+    lastKnownPosition: 0,
+    lastKnownDuration: 0,
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -451,9 +293,9 @@ export const useAudioStore = create<AudioState>()(
 
     setIsPlaying: (playing: boolean) => set({ isPlaying: playing }),
 
-    setCurrentTime: (time: number) => set({ currentTime: time }),
+    setCurrentTime: (time: number) => set({ currentTime: time, lastKnownPosition: time }),
 
-    setDuration: (dur: number) => set({ duration: dur }),
+    setDuration: (dur: number) => set({ duration: dur, lastKnownDuration: dur }),
 
     setVolume: (vol: number) => set({ volume: vol }),
 
@@ -463,28 +305,112 @@ export const useAudioStore = create<AudioState>()(
 
       // Track the current song as recently played (for "fewer repeats" shuffle)
       const currentSong = state.playlist[state.currentSongIndex];
+      const updates: Partial<AudioState> = {};
+
       if (currentSong) {
-        const MAX_RECENT = 50; // Keep track of last 50 songs
-        const newRecentlyPlayed = [
+        const MAX_RECENT = 200;
+        updates.recentlyPlayedIds = [
           currentSong.id,
           ...state.recentlyPlayedIds.filter(id => id !== currentSong.id)
         ].slice(0, MAX_RECENT);
-        set({ recentlyPlayedIds: newRecentlyPlayed });
+
+        // --- Skip detection ---
+        // Use lastKnownPosition/Duration instead of state.currentTime/duration
+        // because loadSong may have already reset currentTime to 0 on rapid skips.
+        const pos = state.lastKnownPosition;
+        const dur = state.lastKnownDuration;
+        // A skip = user listened >5s but <30% of song duration
+        const isSkip = pos > 5 && dur > 0 && pos / dur < 0.3;
+        // A listen-through = user heard ≥80% of the song
+        const isListenThrough = dur > 0 && pos / dur >= 0.8;
+
+        if (isSkip) {
+          // Increment global skip count (persisted)
+          const newSkipCounts = { ...state.skipCounts };
+          newSkipCounts[currentSong.id] = (newSkipCounts[currentSong.id] || 0) + 1;
+          updates.skipCounts = newSkipCounts;
+
+          // AI DJ adaptive feedback: track consecutive skips of AI recs
+          if (state.aiQueuedSongIds.has(currentSong.id)) {
+            updates.aiDJConsecutiveSkips = state.aiDJConsecutiveSkips + 1;
+            // Fire-and-forget negative feedback
+            fetch('/api/recommendations/feedback', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                songId: currentSong.id,
+                songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
+                feedbackType: 'thumbs_down',
+                source: 'ai_dj_skip',
+              }),
+            }).catch(() => {});
+          }
+        }
+
+        if (isListenThrough && state.aiQueuedSongIds.has(currentSong.id)) {
+          // Reset consecutive skip counter — user liked this rec
+          updates.aiDJConsecutiveSkips = 0;
+          // Fire-and-forget positive feedback
+          fetch('/api/recommendations/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              songId: currentSong.id,
+              songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
+              feedbackType: 'thumbs_up',
+              source: 'ai_dj_listen_through',
+            }),
+          }).catch(() => {});
+
+          // Track genre for session genre counts
+          if (currentSong.genre) {
+            const genre = currentSong.genre.toLowerCase();
+            const newGenreCounts = { ...state.aiDJSessionGenreCounts };
+            newGenreCounts[genre] = (newGenreCounts[genre] || 0) + 1;
+            updates.aiDJSessionGenreCounts = newGenreCounts;
+          }
+        }
       }
 
-      const newIndex = (state.currentSongIndex + 1) % state.playlist.length;
+      const nextIndex = state.currentSongIndex + 1;
 
       // Drip-feed model: increment songs played counter when AI DJ is enabled
-      const newSongsPlayed = state.aiDJEnabled ? state.songsPlayedSinceLastRec + 1 : state.songsPlayedSinceLastRec;
+      updates.songsPlayedSinceLastRec = state.aiDJEnabled ? state.songsPlayedSinceLastRec + 1 : state.songsPlayedSinceLastRec;
 
-      set({
-        currentSongIndex: newIndex,
-        songsPlayedSinceLastRec: newSongsPlayed,
-      });
+      // Reset last-known position/duration so the next song starts fresh
+      updates.lastKnownPosition = 0;
+      updates.lastKnownDuration = 0;
+
+      // End of queue: auto-reshuffle if shuffle is enabled, otherwise wrap around
+      if (nextIndex >= state.playlist.length) {
+        if (state.isShuffled) {
+          const allSongs = [...state.playlist];
+          const reshuffled = selectBestShuffle(allSongs, {
+            recentlyPlayedIds: updates.recentlyPlayedIds || state.recentlyPlayedIds,
+            skipCounts: updates.skipCounts || state.skipCounts,
+          });
+          set({
+            ...updates,
+            playlist: reshuffled,
+            currentSongIndex: 0,
+          });
+        } else {
+          set({
+            ...updates,
+            currentSongIndex: 0,
+          });
+        }
+      } else {
+        set({
+          ...updates,
+          currentSongIndex: nextIndex,
+        });
+      }
 
       // Trigger AI DJ monitoring when song changes (but not on initial load or manual skips)
       if (state.aiDJEnabled && state.currentSongIndex > 0) {
-        // Use setTimeout to avoid blocking the song change
         setTimeout(() => {
           get().monitorQueueForAIDJ().catch(error => {
             console.error('AI DJ monitoring error after nextSong:', error);
@@ -617,6 +543,14 @@ export const useAudioStore = create<AudioState>()(
       const state = get();
       if (index < 0 || index >= state.playlist.length) return;
 
+      // Clean up recommendation reasons for the removed song
+      const removedSong = state.playlist[index];
+      let newReasons = state.aiDJRecommendationReasons;
+      if (removedSong && removedSong.id in state.aiDJRecommendationReasons) {
+        newReasons = { ...state.aiDJRecommendationReasons };
+        delete newReasons[removedSong.id];
+      }
+
       const newPlaylist = state.playlist.filter((_, i) => i !== index);
       let newIndex = state.currentSongIndex;
 
@@ -632,6 +566,7 @@ export const useAudioStore = create<AudioState>()(
         playlist: newPlaylist,
         currentSongIndex: newPlaylist.length === 0 ? -1 : newIndex,
         isPlaying: newPlaylist.length === 0 ? false : state.isPlaying,
+        aiDJRecommendationReasons: newReasons,
       });
     },
 
@@ -748,8 +683,11 @@ export const useAudioStore = create<AudioState>()(
         ? state.originalPlaylist
         : [...upcomingSongs];
 
-      // Fisher-Yates shuffle with artist separation and fewer repeats
-      const shuffledUpcoming = shuffleWithArtistSeparation([...upcomingSongs], state.recentlyPlayedIds);
+      // Multi-candidate shuffle with scoring
+      const shuffledUpcoming = selectBestShuffle([...upcomingSongs], {
+        recentlyPlayedIds: state.recentlyPlayedIds,
+        skipCounts: state.skipCounts,
+      });
 
       // New playlist: just current song + shuffled upcoming (discard played songs)
       const newPlaylist = currentSong ? [currentSong, ...shuffledUpcoming] : shuffledUpcoming;
@@ -849,8 +787,21 @@ export const useAudioStore = create<AudioState>()(
       }
 
       // Drip-feed model: add 1 recommendation every N songs played
-      // Get interval from preferences (fallback to 3 if not set)
-      const dripInterval = recommendationSettings.aiDJDripInterval ?? 3;
+      // Dynamic interval based on consecutive AI rec skips
+      const baseDripInterval = recommendationSettings.aiDJDripInterval ?? 3;
+      let dripInterval = baseDripInterval;
+      const consecutiveSkips = state.aiDJConsecutiveSkips;
+      if (consecutiveSkips >= 5) {
+        dripInterval = baseDripInterval * 3;
+        // Only toast once when reaching this threshold
+        if (consecutiveSkips === 5) {
+          toast.info('AI DJ is backing off', {
+            description: 'Try adjusting your preferences in Settings',
+          });
+        }
+      } else if (consecutiveSkips >= 3) {
+        dripInterval = baseDripInterval * 2;
+      }
 
       // Check if we've played enough songs to add a recommendation
       // Also check if queue is nearly empty (fallback to old threshold behavior)
@@ -995,6 +946,8 @@ export const useAudioStore = create<AudioState>()(
             djMatchingMinScore: recommendationSettings.djMatchingMinScore ?? 0.5,
             // Use profile-based recommendations for drip-feed
             useProfileBased: isDripTrigger,
+            // Session genre counts for adaptive recommendations
+            sessionGenreCounts: state.aiDJSessionGenreCounts,
           }),
         });
 
@@ -1010,7 +963,7 @@ export const useAudioStore = create<AudioState>()(
           }
         }
 
-        const { recommendations, skipAutoRefresh, artistFatigueCooldowns } = await response.json();
+        const { recommendations, skipAutoRefresh, artistFatigueCooldowns, source: recSource } = await response.json();
 
         if (recommendations.length === 0) {
           console.warn('🎵 AI DJ: No recommendations generated');
@@ -1056,13 +1009,30 @@ export const useAudioStore = create<AudioState>()(
         // Phase 1.2: Update artist batch counts to prevent exhaustion
         const newArtistBatchCounts = new Map(freshState.aiDJArtistBatchCounts);
 
-        recommendations.forEach((song: Song) => {
+        // Store recommendation reasons per song
+        const newReasons = { ...freshState.aiDJRecommendationReasons };
+        const currentSongForReason = state.playlist[state.currentSongIndex];
+
+        recommendations.forEach((song: Song & { reason?: string }) => {
           newQueuedIds.add(song.id);
           newRecentlyRecommended.push({
             songId: song.id,
             timestamp: now,
             artist: song.artist // Track artist for diversity enforcement
           });
+
+          // Store reason for "Why this song?" tooltip
+          if (song.reason) {
+            newReasons[song.id] = song.reason;
+          } else if (recSource === 'lastfm' && currentSongForReason?.artist) {
+            newReasons[song.id] = `Similar to ${currentSongForReason.artist}`;
+          } else if (recSource === 'profile-based') {
+            newReasons[song.id] = 'Based on your music profile';
+          } else {
+            const topGenre = Object.entries(state.aiDJSessionGenreCounts)
+              .sort((a, b) => b[1] - a[1])[0]?.[0];
+            newReasons[song.id] = topGenre ? `Matches your ${topGenre} taste` : 'AI DJ recommendation';
+          }
 
           // Phase 1.2: Track how many songs queued per artist
           if (song.artist) {
@@ -1127,6 +1097,7 @@ export const useAudioStore = create<AudioState>()(
           aiDJRecentlyRecommended: cleanedRecentlyRecommended,
           aiDJArtistBatchCounts: newArtistBatchCounts, // Phase 1.2: Track artist diversity
           aiDJArtistFatigueCooldowns: newFatigueCooldowns, // Phase 4.1: Track artist fatigue
+          aiDJRecommendationReasons: newReasons,
           aiDJIsLoading: false,
           aiDJError: null,
           songsPlayedSinceLastRec: 0, // Reset drip-feed counter after adding recommendations
@@ -1806,6 +1777,10 @@ export const useAudioStore = create<AudioState>()(
       autoplaySmartTransitions: state.autoplaySmartTransitions,
       // WiFi reconnect recovery
       wasPlayingBeforeUnload: state.wasPlayingBeforeUnload,
+      // Shuffle "fewer repeats" tracking
+      recentlyPlayedIds: state.recentlyPlayedIds,
+      // Skip counts for shuffle deprioritization
+      skipCounts: state.skipCounts,
       // Cross-device sync timestamps
       queueUpdatedAt: state.queueUpdatedAt,
       positionUpdatedAt: state.positionUpdatedAt,
@@ -1840,10 +1815,25 @@ export const useAudioStore = create<AudioState>()(
           );
           console.log(`🎵 Restored ${state.aiDJRecentlyRecommended.length} recent AI DJ recommendations`);
         }
+        // Reset transient playback position tracking
+        state.lastKnownPosition = 0;
+        state.lastKnownDuration = 0;
         // Reset autoplay transient state
         state.autoplayIsLoading = false;
         state.autoplayTransitionActive = false;
         state.autoplayQueuedSongIds = new Set<string>();
+        // Reset AI DJ transient adaptive state
+        state.aiDJConsecutiveSkips = 0;
+        state.aiDJSessionGenreCounts = {};
+        state.aiDJRecommendationReasons = {};
+        // LRU eviction for skipCounts: keep top 500 by count
+        if (state.skipCounts && Object.keys(state.skipCounts).length > 500) {
+          const sorted = Object.entries(state.skipCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 500);
+          state.skipCounts = Object.fromEntries(sorted);
+          console.log('🎵 Evicted low-count skip entries, kept top 500');
+        }
         console.log('🎵 Audio state restored from storage');
       }
     },

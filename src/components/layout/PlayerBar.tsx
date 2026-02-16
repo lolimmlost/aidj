@@ -80,6 +80,11 @@ export function PlayerBar() {
   const scrobbleThresholdReachedRef = useRef<boolean>(false);
   const currentSongIdRef = useRef<string | null>(null);
 
+  // Snapshot of playback position — updated continuously via timeupdate,
+  // read by handleNextSong so it gets the real position even when the deck
+  // has already been reassigned to the next song on a rapid skip.
+  const playbackSnapshotRef = useRef<{ currentTime: number; duration: number; songId: string | null }>({ currentTime: 0, duration: 0, songId: null });
+
   // UI state
   const [isLoading, setIsLoading] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
@@ -111,6 +116,58 @@ export function PlayerBar() {
   const currentSong = useMemo(() => playlist[currentSongIndex] || null, [playlist, currentSongIndex]) as Song | null;
   const queryClient = useQueryClient();
 
+  // Record a song play in listening history.
+  // Called on: natural end, crossfade complete, manual skip/next.
+  const recordListeningHistory = useCallback((
+    song: Song | null,
+    songId: string | null,
+    playDuration?: number,
+    songDuration?: number,
+    userInitiatedSkip?: boolean,
+  ) => {
+    if (!songId || !song) return;
+    fetch('/api/listening-history/record', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        songId,
+        artist: song.artist || 'Unknown',
+        title: song.name || song.title || 'Unknown',
+        album: song.album,
+        genre: song.genre,
+        duration: songDuration,
+        playDuration,
+        userInitiatedSkip,
+      }),
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['listening-history'] });
+    }).catch(err => console.warn('Failed to record listening history:', err));
+  }, [queryClient]);
+
+  // Wrap nextSong to record the outgoing song (for manual skip/next button)
+  const handleNextSong = useCallback(() => {
+    const outgoingSong = currentSong;
+    const outgoingSongId = currentSongIdRef.current;
+    const activeDeck = getActiveDeck();
+    // Use the snapshot for playback position — activeDeck may already be
+    // reassigned to the new song on rapid skips, giving stale 0 values.
+    const snapshot = playbackSnapshotRef.current;
+    const outgoingPlayDuration = snapshot.songId === outgoingSongId ? snapshot.currentTime : activeDeck?.currentTime;
+    const outgoingSongDuration = snapshot.songId === outgoingSongId ? snapshot.duration : activeDeck?.duration;
+    if (outgoingSong && outgoingSongId && !hasScrobbledRef.current) {
+      recordListeningHistory(
+        outgoingSong,
+        outgoingSongId,
+        outgoingPlayDuration,
+        outgoingSongDuration,
+        true, // userInitiatedSkip — user pressed Next
+      );
+    }
+    hasScrobbledRef.current = false;
+    scrobbleThresholdReachedRef.current = false;
+    nextSong();
+  }, [currentSong, getActiveDeck, nextSong, recordListeningHistory]);
+
   // Shared crossfade state ref - created here so it can be passed to both hooks
   const crossfadeInProgressRef = useRef<boolean>(false);
 
@@ -127,6 +184,30 @@ export function PlayerBar() {
     activeDeckRef,
     crossfadeInProgressRef, // Pass the shared ref
     onCrossfadeComplete: (song) => {
+      // Record the outgoing (just-finished) song before advancing
+      const outgoingSong = currentSong;
+      const outgoingSongId = currentSongIdRef.current;
+      const activeDeck = getActiveDeck();
+      // Use the snapshot for playback position — the deck may already be
+      // loaded with the next song's audio during crossfade.
+      const snapshot = playbackSnapshotRef.current;
+      const outgoingPlayDuration = snapshot.songId === outgoingSongId ? snapshot.currentTime : activeDeck?.currentTime;
+      const outgoingSongDuration = snapshot.songId === outgoingSongId ? snapshot.duration : activeDeck?.duration;
+      if (outgoingSong && outgoingSongId) {
+        scrobbleSong(outgoingSongId, true)
+          .then(() => {
+            queryClient.invalidateQueries({ queryKey: ['most-played-songs'] });
+            queryClient.invalidateQueries({ queryKey: ['top-artists'] });
+          })
+          .catch(console.error);
+        recordListeningHistory(
+          outgoingSong,
+          outgoingSongId,
+          outgoingPlayDuration,
+          outgoingSongDuration,
+          // Not user-initiated — this is a natural crossfade transition
+        );
+      }
       currentSongIdRef.current = song.id;
       hasScrobbledRef.current = false;
       scrobbleThresholdReachedRef.current = false;
@@ -238,6 +319,8 @@ export function PlayerBar() {
       hasScrobbledRef.current = false;
       scrobbleThresholdReachedRef.current = false;
       currentSongIdRef.current = song.id;
+      // Reset snapshot for the new song so stale data isn't carried over
+      playbackSnapshotRef.current = { currentTime: 0, duration: 0, songId: song.id };
       resetCrossfadeState();
       console.log(`[XFADE] loadSong called on deck ${activeDeckRef.current}`);
     }
@@ -308,6 +391,10 @@ export function PlayerBar() {
       }
 
       setCurrentTime(deck.currentTime);
+
+      // Keep the playback snapshot up-to-date so handleNextSong can read the
+      // real position even after the deck has been reassigned on a rapid skip.
+      playbackSnapshotRef.current = { currentTime: deck.currentTime, duration: deck.duration || 0, songId: currentSongIdRef.current };
 
       // CRITICAL: Always update lastProgressValueRef for recovery purposes
       // This ensures we have the correct position even if watchdog isn't running
@@ -403,21 +490,7 @@ export function PlayerBar() {
           .catch(console.error);
 
         // Record in listening history
-        fetch('/api/listening-history/record', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            songId: currentSongIdRef.current,
-            artist: currentSong.artist || 'Unknown',
-            title: currentSong.name || currentSong.title || 'Unknown',
-            album: currentSong.album,
-            genre: currentSong.genre,
-            duration: deck.duration,
-            playDuration: deck.currentTime,
-          }),
-        }).then(() => {
-          queryClient.invalidateQueries({ queryKey: ['listening-history', 'recent'] });
-        }).catch(err => console.warn('Failed to record listening history:', err));
+        recordListeningHistory(currentSong, currentSongIdRef.current, deck.currentTime, deck.duration);
       }
 
       // MOBILE FIX: Load and play next song directly
@@ -664,7 +737,7 @@ export function PlayerBar() {
     crossfadeInProgressRef,
     isPrimingRef,
     onPreviousTrack: previousSong,
-    onNextTrack: nextSong,
+    onNextTrack: handleNextSong,
   });
 
   usePlayerKeyboardShortcuts({
@@ -868,7 +941,7 @@ export function PlayerBar() {
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0"
-              onClick={nextSong}
+              onClick={handleNextSong}
             >
               <SkipForward className="h-4 w-4" />
             </Button>
@@ -976,7 +1049,7 @@ export function PlayerBar() {
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0"
-              onClick={nextSong}
+              onClick={handleNextSong}
             >
               <SkipForward className="h-4 w-4" />
             </Button>
