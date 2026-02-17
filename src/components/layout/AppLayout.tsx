@@ -16,6 +16,7 @@ import {
   Sparkles,
   BarChart3,
   Clock,
+  TrendingUp,
   RefreshCw,
   ListPlus,
   Play,
@@ -489,6 +490,13 @@ function LeftSidebar() {
                 icon={<User className="h-4 w-4" />}
                 label="Music Identity"
                 active={currentPath.startsWith('/music-identity')}
+                collapsed={isCollapsed}
+              />
+              <NavItem
+                to="/dashboard/library-growth"
+                icon={<TrendingUp className="h-4 w-4" />}
+                label="Library Growth"
+                active={currentPath.includes('/library-growth')}
                 collapsed={isCollapsed}
               />
             </nav>

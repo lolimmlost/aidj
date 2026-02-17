@@ -316,12 +316,15 @@ export function PlayerBar() {
       audio.src = song.url;
       audio.load();
       setCurrentTime(0);
-      setDuration(0);
+      // Use the song's metadata duration immediately so the UI doesn't flash
+      // the old song's duration. The durationchange event will correct it
+      // once the audio element has loaded the new file's actual duration.
+      setDuration(song.duration || 0);
       hasScrobbledRef.current = false;
       scrobbleThresholdReachedRef.current = false;
       currentSongIdRef.current = song.id;
       // Reset snapshot for the new song so stale data isn't carried over
-      playbackSnapshotRef.current = { currentTime: 0, duration: 0, songId: song.id };
+      playbackSnapshotRef.current = { currentTime: 0, duration: song.duration || 0, songId: song.id };
       resetCrossfadeState();
       console.log(`[XFADE] loadSong called on deck ${activeDeckRef.current}`);
     }
@@ -534,6 +537,7 @@ export function PlayerBar() {
     // Register listeners on both decks
     deckA.addEventListener('timeupdate', updateTimeA);
     deckA.addEventListener('loadedmetadata', updateDurationA);
+    deckA.addEventListener('durationchange', updateDurationA);
     deckA.addEventListener('canplay', onCanPlayA);
     deckA.addEventListener('waiting', onWaitingA);
     deckA.addEventListener('stalled', onStalledA);
@@ -541,6 +545,7 @@ export function PlayerBar() {
 
     deckB.addEventListener('timeupdate', updateTimeB);
     deckB.addEventListener('loadedmetadata', updateDurationB);
+    deckB.addEventListener('durationchange', updateDurationB);
     deckB.addEventListener('canplay', onCanPlayB);
     deckB.addEventListener('waiting', onWaitingB);
     deckB.addEventListener('stalled', onStalledB);
@@ -555,6 +560,7 @@ export function PlayerBar() {
     return () => {
       deckA.removeEventListener('timeupdate', updateTimeA);
       deckA.removeEventListener('loadedmetadata', updateDurationA);
+      deckA.removeEventListener('durationchange', updateDurationA);
       deckA.removeEventListener('canplay', onCanPlayA);
       deckA.removeEventListener('waiting', onWaitingA);
       deckA.removeEventListener('stalled', onStalledA);
@@ -562,6 +568,7 @@ export function PlayerBar() {
 
       deckB.removeEventListener('timeupdate', updateTimeB);
       deckB.removeEventListener('loadedmetadata', updateDurationB);
+      deckB.removeEventListener('durationchange', updateDurationB);
       deckB.removeEventListener('canplay', onCanPlayB);
       deckB.removeEventListener('waiting', onWaitingB);
       deckB.removeEventListener('stalled', onStalledB);
