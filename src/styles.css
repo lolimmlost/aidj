@@ -379,10 +379,21 @@
 
   /* ===== AIDJ Dashboard Design System ===== */
 
-  /* Prevent horizontal scrolling in page-level scroll areas.
-     Radix ScrollArea wraps content in display:table which expands
-     to fit content width, breaking layout with wide horizontal
-     scroll children. Override to block so width is constrained. */
+  /* Radix ScrollArea `display: table` fix (CSS fallback)
+
+     Radix UI's ScrollArea.Viewport injects a child <div> with `display: table`
+     to measure content width for horizontal scrollbar calculations. This breaks
+     flex-based layouts: elements using flex-shrink, min-w-0, truncate, etc.
+     cannot shrink below their content size because `display: table` expands to
+     fit ALL content, ignoring the viewport width constraint.
+
+     Symptom: flex columns (e.g. Artist/Album in playlist song rows) overflow
+     the right edge of the screen instead of truncating with ellipsis, even
+     when overflow-hidden, shrink, and min-w-0 are applied to the flex items.
+
+     Primary fix is in src/components/ui/scroll-area.tsx via [&>div]:!block on
+     the Viewport className. These CSS rules serve as a fallback in case the
+     component fix doesn't apply (e.g. direct Radix usage without the wrapper). */
   main [data-radix-scroll-area-viewport] {
     overflow-x: hidden !important;
   }
@@ -736,6 +747,18 @@
       transform: translateX(calc(-100% + 80px));
     }
     85%, 100% {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes marquee-scroll {
+    0%, 10% {
+      transform: translateX(0);
+    }
+    45%, 55% {
+      transform: translateX(var(--marquee-distance, -100px));
+    }
+    90%, 100% {
       transform: translateX(0);
     }
   }

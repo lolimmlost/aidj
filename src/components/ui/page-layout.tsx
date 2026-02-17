@@ -42,12 +42,15 @@ export function PageLayout({
     )}>
       <div className={cn(
         'mx-auto',
-        !fullWidth && 'max-w-7xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6'
+        !fullWidth && 'max-w-7xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6',
+        fullWidth && 'py-4 sm:py-6'
       )}>
         {/* Page Header */}
         <header className={cn(
           'mb-6 sm:mb-8',
-          compact && 'mb-4 sm:mb-6'
+          compact && 'mb-4 sm:mb-6',
+          compact && !title && 'mb-2 sm:mb-3',
+          fullWidth && 'px-3 sm:px-4 lg:px-6'
         )}>
           {/* Back Navigation */}
           {backLink && (
@@ -61,35 +64,37 @@ export function PageLayout({
           )}
 
           {/* Title Row */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              {icon ? (
-                <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 text-primary">
-                  {icon}
+          {title ? (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-3">
+                {icon ? (
+                  <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 text-primary">
+                    {icon}
+                  </div>
+                ) : null}
+                <div>
+                  <h1 className={cn(
+                    'font-bold tracking-tight text-foreground',
+                    compact ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl'
+                  )}>
+                    {title}
+                  </h1>
+                  {description && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {description}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              {actions ? (
+                <div className="flex items-center gap-3 flex-wrap">
+                  {actions}
                 </div>
               ) : null}
-              <div>
-                <h1 className={cn(
-                  'font-bold tracking-tight text-foreground',
-                  compact ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl'
-                )}>
-                  {title}
-                </h1>
-                {description && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {description}
-                  </p>
-                )}
-              </div>
             </div>
-
-            {/* Actions */}
-            {actions ? (
-              <div className="flex items-center gap-3 flex-wrap">
-                {actions}
-              </div>
-            ) : null}
-          </div>
+          ) : null}
         </header>
 
         {/* Page Content */}

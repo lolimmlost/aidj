@@ -15,13 +15,14 @@ import {
   Disc3,
   Sparkles,
   BarChart3,
+  Clock,
   RefreshCw,
   ListPlus,
   Play,
   User,
-  TrendingUp,
-  ListTodo,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import authClient from '@/lib/auth/auth-client';
 import { MusicTasteDebugPanel } from '@/components/debug/MusicTasteDebugPanel';
@@ -190,18 +191,21 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Mobile Navigation - Only visible below md breakpoint */}
       <MobileNav />
 
-      {/* Main content area with sidebars */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Main content area with sidebars.
+           Bottom padding reserves space so the fixed PlayerBar doesn't
+           overlap sidebar bottom sections or the last playlist rows.
+           Mobile player is taller (~96px) than desktop (h-20 = 80px). */}
+      <div className={cn(
+        "flex-1 flex overflow-hidden",
+        hasActiveSong && "pb-24 md:pb-20"
+      )}>
         {/* Left Sidebar - Navigation & Playlists */}
         <LeftSidebar />
 
         {/* Center - Main Content */}
         <main className="flex-1 overflow-hidden">
           <ScrollArea className="h-full">
-            <div className={cn(
-              "min-h-full",
-              hasActiveSong ? "pb-24" : "pb-6"
-            )}>
+            <div className="min-h-full pb-6">
               {children}
             </div>
           </ScrollArea>
@@ -242,6 +246,29 @@ function LeftSidebar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isSyncingLiked, setIsSyncingLiked] = useState(false);
+
+  // Sidebar collapsed state with localStorage persistence
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('aidj-sidebar-collapsed') === 'true';
+    }
+    return false;
+  });
+  useEffect(() => {
+    localStorage.setItem('aidj-sidebar-collapsed', isCollapsed.toString());
+  }, [isCollapsed]);
+
+  // Keyboard shortcut: Ctrl+B to toggle sidebar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === 'b') {
+        e.preventDefault();
+        setIsCollapsed((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Fetch user playlists
   const { data: playlistsData } = useQuery({
@@ -286,15 +313,34 @@ function LeftSidebar() {
   }, [queryClient, navigate]);
 
   return (
-    <aside className="hidden md:flex flex-col w-56 border-r bg-card/30 flex-shrink-0">
-      {/* Logo */}
-      <div className="h-16 flex items-center px-5 border-b">
-        <Link to="/dashboard" className="flex items-center gap-2 group">
-          <div className="p-1.5 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-            <Disc3 className="h-5 w-5 text-primary" />
-          </div>
-          <span className="font-bold text-lg tracking-tight">AIDJ</span>
-        </Link>
+    <aside className={cn(
+      "hidden md:flex flex-col border-r bg-card/30 flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out",
+      isCollapsed ? "w-14" : "w-56"
+    )}>
+      {/* Logo + Collapse Toggle */}
+      <div className={cn(
+        "h-16 flex items-center border-b",
+        isCollapsed ? "justify-center px-2" : "justify-between px-5"
+      )}>
+        {!isCollapsed && (
+          <Link to="/dashboard" className="flex items-center gap-2 group">
+            <div className="p-1.5 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+              <Disc3 className="h-5 w-5 text-primary" />
+            </div>
+            <span className="font-bold text-lg tracking-tight">AIDJ</span>
+          </Link>
+        )}
+        <button
+          onClick={() => setIsCollapsed((prev) => !prev)}
+          className="p-1.5 rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+          title={isCollapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)'}
+        >
+          {isCollapsed ? (
+            <PanelLeftOpen className="h-4 w-4" />
+          ) : (
+            <PanelLeftClose className="h-4 w-4" />
+          )}
+        </button>
       </div>
 
       <ScrollArea className="flex-1">
@@ -306,135 +352,166 @@ function LeftSidebar() {
               icon={<Home className="h-4 w-4" />}
               label="Home"
               active={currentPath === '/dashboard' || currentPath === '/dashboard/'}
+              collapsed={isCollapsed}
             />
             <NavItem
               to="/dashboard/discover"
               icon={<Sparkles className="h-4 w-4" />}
               label="Discover"
               active={currentPath.includes('/dashboard/discover')}
+              collapsed={isCollapsed}
             />
             <NavItem
               to="/library/search"
               icon={<Search className="h-4 w-4" />}
               label="Search"
               active={currentPath.includes('/library/search')}
+              collapsed={isCollapsed}
             />
             <NavItem
               to="/library/artists"
               icon={<Music className="h-4 w-4" />}
               label="Browse"
               active={currentPath.includes('/library/artists')}
+              collapsed={isCollapsed}
             />
             <NavItem
               to="/dj"
               icon={<Radio className="h-4 w-4" />}
               label="DJ Mode"
               active={currentPath.startsWith('/dj')}
+              collapsed={isCollapsed}
             />
           </nav>
 
-          {/* Your Music Section */}
+          {/* Library Section */}
           <div>
-            <h3 className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Your Music
-            </h3>
+            {!isCollapsed && (
+              <h3 className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Library
+              </h3>
+            )}
             <nav className="space-y-1">
               <NavItem
                 to="/playlists"
                 icon={<ListMusic className="h-4 w-4" />}
                 label="Playlists"
                 active={currentPath === '/playlists'}
+                collapsed={isCollapsed}
               />
               {/* Liked Songs - navigates to playlist or syncs if not exists */}
               {likedSongsPlaylist ? (
                 <Link
                   to={`/playlists/${likedSongsPlaylist.id}`}
+                  title={isCollapsed ? 'Liked Songs' : undefined}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors",
+                    isCollapsed && "justify-center px-0",
                     currentPath === `/playlists/${likedSongsPlaylist.id}`
                       ? "bg-primary/10 text-primary font-medium"
                       : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                   )}
                 >
                   <Heart className="h-4 w-4 fill-current text-red-500" />
-                  <span>Liked Songs</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 w-5 p-0 ml-auto hover:bg-primary/10"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleSyncLikedSongs();
-                    }}
-                    disabled={isSyncingLiked}
-                  >
-                    <RefreshCw className={cn("h-3 w-3", isSyncingLiked && "animate-spin")} />
-                  </Button>
+                  {!isCollapsed && (
+                    <>
+                      <span>Liked Songs</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0 ml-auto hover:bg-primary/10"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleSyncLikedSongs();
+                        }}
+                        disabled={isSyncingLiked}
+                      >
+                        <RefreshCw className={cn("h-3 w-3", isSyncingLiked && "animate-spin")} />
+                      </Button>
+                    </>
+                  )}
                 </Link>
               ) : (
                 <button
                   onClick={handleSyncLikedSongs}
                   disabled={isSyncingLiked}
+                  title={isCollapsed ? 'Sync Liked Songs' : undefined}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors w-full",
+                    isCollapsed && "justify-center px-0",
                     "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                   )}
                 >
                   <Heart className="h-4 w-4" />
-                  <span>{isSyncingLiked ? 'Syncing...' : 'Sync Liked Songs'}</span>
-                  {isSyncingLiked && <RefreshCw className="h-3 w-3 ml-auto animate-spin" />}
+                  {!isCollapsed && (
+                    <>
+                      <span>{isSyncingLiked ? 'Syncing...' : 'Sync Liked Songs'}</span>
+                      {isSyncingLiked && <RefreshCw className="h-3 w-3 ml-auto animate-spin" />}
+                    </>
+                  )}
                 </button>
               )}
+              <NavItem
+                to="/downloads"
+                icon={<Download className="h-4 w-4" />}
+                label="Downloads"
+                active={currentPath.startsWith('/downloads')}
+                collapsed={isCollapsed}
+              />
+            </nav>
+          </div>
+
+          {/* Insights Section */}
+          <div>
+            {!isCollapsed && (
+              <h3 className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Insights
+              </h3>
+            )}
+            <nav className="space-y-1">
               <NavItem
                 to="/dashboard/analytics"
                 icon={<BarChart3 className="h-4 w-4" />}
                 label="Analytics"
                 active={currentPath.includes('/analytics')}
+                collapsed={isCollapsed}
+              />
+              <NavItem
+                to="/dashboard/history"
+                icon={<Clock className="h-4 w-4" />}
+                label="History"
+                active={currentPath.includes('/dashboard/history')}
+                collapsed={isCollapsed}
               />
               <NavItem
                 to="/music-identity"
                 icon={<User className="h-4 w-4" />}
                 label="Music Identity"
                 active={currentPath.startsWith('/music-identity')}
-              />
-              <NavItem
-                to="/downloads"
-                icon={<Download className="h-4 w-4" />}
-                label="Downloads"
-                active={currentPath.startsWith('/downloads')}
-              />
-              <NavItem
-                to="/tasks"
-                icon={<ListTodo className="h-4 w-4" />}
-                label="Tasks"
-                active={currentPath.startsWith('/tasks')}
-              />
-              <NavItem
-                to="/dashboard/library-growth"
-                icon={<TrendingUp className="h-4 w-4" />}
-                label="Library Growth"
-                active={currentPath.includes('/library-growth')}
+                collapsed={isCollapsed}
               />
             </nav>
           </div>
 
-          {/* Recently Played Section */}
-          <RecentlyPlayedSection />
-
           {/* Playlists Section */}
           <div>
-            <div className="flex items-center justify-between px-3 mb-2">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Playlists
-              </h3>
+            <div className={cn(
+              "flex items-center mb-2",
+              isCollapsed ? "justify-center px-0" : "justify-between px-3"
+            )}>
+              {!isCollapsed && (
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Playlists
+                </h3>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-6 w-6 p-0 hover:bg-primary/10"
                 asChild
               >
-                <Link to="/playlists">
+                <Link to="/playlists" title={isCollapsed ? 'Playlists' : undefined}>
                   <Plus className="h-3.5 w-3.5" />
                 </Link>
               </Button>
@@ -442,14 +519,16 @@ function LeftSidebar() {
             <nav className="space-y-0.5">
               {playlists
                 ?.filter((p: { name: string }) => p.name !== '❤️ Liked Songs')
-                .slice(0, 8)
+                .slice(0, isCollapsed ? 5 : 8)
                 .map((playlist: { id: string; name: string; songCount?: number }) => (
                 <Link
                   key={playlist.id}
                   to={`/playlists/${playlist.id}`}
+                  title={isCollapsed ? playlist.name : undefined}
                   className={cn(
                     "flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors group/playlist",
                     "hover:bg-accent/50 text-muted-foreground hover:text-foreground",
+                    isCollapsed && "justify-center px-0",
                     currentPath === `/playlists/${playlist.id}` && "bg-accent text-foreground"
                   )}
                 >
@@ -460,17 +539,23 @@ function LeftSidebar() {
                       <ListMusic className="h-3.5 w-3.5 text-primary/70" />
                     )}
                   </div>
-                  <div className="min-w-0 flex-1 scroll-text-container">
-                    <span className="scroll-text">{playlist.name}</span>
-                  </div>
+                  {!isCollapsed && (
+                    <div className="min-w-0 flex-1 scroll-text-container">
+                      <span className="scroll-text">{playlist.name}</span>
+                    </div>
+                  )}
                 </Link>
               ))}
-              {playlists?.filter((p: { name: string }) => p.name !== '❤️ Liked Songs').length > 8 && (
+              {playlists?.filter((p: { name: string }) => p.name !== '❤️ Liked Songs').length > (isCollapsed ? 5 : 8) && (
                 <Link
                   to="/playlists"
-                  className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  title={isCollapsed ? 'See all playlists' : undefined}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors",
+                    isCollapsed && "justify-center px-0"
+                  )}
                 >
-                  <span>See all playlists</span>
+                  {!isCollapsed && <span>See all playlists</span>}
                   <ChevronRight className="h-3 w-3" />
                 </Link>
               )}
@@ -480,13 +565,17 @@ function LeftSidebar() {
       </ScrollArea>
 
       {/* Bottom Settings & Sign Out */}
-      <div className="p-3 border-t space-y-1">
-        <div className="flex items-center gap-2">
+      <div className={cn("p-3 border-t space-y-1", isCollapsed && "flex flex-col items-center")}>
+        <div className={cn(
+          "flex items-center gap-2",
+          isCollapsed && "flex-col"
+        )}>
           <NavItem
             to="/settings"
             icon={<Settings className="h-4 w-4" />}
             label="Settings"
             active={currentPath.startsWith('/settings')}
+            collapsed={isCollapsed}
           />
           <ThemeToggle />
         </div>
@@ -495,10 +584,14 @@ function LeftSidebar() {
             await authClient.signOut();
             navigate({ to: '/login' });
           }}
-          className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors w-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          title={isCollapsed ? 'Sign Out' : undefined}
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors w-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive",
+            isCollapsed && "justify-center px-0 w-auto"
+          )}
         >
           <LogOut className="h-4 w-4" />
-          <span>Sign Out</span>
+          {!isCollapsed && <span>Sign Out</span>}
         </button>
       </div>
     </aside>
@@ -890,73 +983,6 @@ const RecommendationsSection = memo(function RecommendationsSection({ recommenda
 });
 
 /**
- * Recently Played Section for Left Sidebar - memoized to prevent unnecessary re-renders
- * Fetches from DB for cross-device history with full metadata
- */
-const RecentlyPlayedSection = memo(function RecentlyPlayedSection() {
-  const { playlist, currentSongIndex, isPlaying } = useAudioStore();
-  const currentSong = playlist[currentSongIndex];
-
-  // Fetch recently played from DB (cross-device, deduplicated)
-  const { data } = useQuery({
-    queryKey: ['listening-history', 'recent'],
-    queryFn: async () => {
-      const res = await fetch('/api/listening-history/recent?limit=10');
-      if (!res.ok) return { history: [] };
-      return res.json() as Promise<{ history: Array<{
-        id: string;
-        songId: string;
-        artist: string;
-        title: string;
-        album: string | null;
-        playedAt: string;
-      }> }>;
-    },
-    staleTime: 30_000,
-    refetchOnWindowFocus: true,
-  });
-
-  const recentSongs = data?.history ?? [];
-
-  if (recentSongs.length === 0) return null;
-
-  return (
-    <div>
-      <h3 className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        Recently Played
-      </h3>
-      <div className="space-y-1">
-        {recentSongs.slice(0, 5).map((entry) => {
-          const isCurrentlyPlaying = currentSong?.id === entry.songId;
-          return (
-            <div
-              key={entry.id}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors cursor-pointer",
-                "hover:bg-accent/50",
-                isCurrentlyPlaying && "bg-accent/30"
-              )}
-            >
-              <div className="w-9 h-9 rounded overflow-hidden flex-shrink-0">
-                <SidebarAlbumArt
-                  songId={entry.songId}
-                  artist={entry.artist}
-                  isPlaying={isCurrentlyPlaying && isPlaying}
-                />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate">{entry.title}</p>
-                <p className="text-xs text-muted-foreground truncate">{entry.artist}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-});
-
-/**
  * Navigation Item Component - memoized to prevent unnecessary re-renders
  */
 interface NavItemProps {
@@ -964,21 +990,24 @@ interface NavItemProps {
   icon: React.ReactNode;
   label: string;
   active?: boolean;
+  collapsed?: boolean;
 }
 
-const NavItem = memo(function NavItem({ to, icon, label, active }: NavItemProps) {
+const NavItem = memo(function NavItem({ to, icon, label, active, collapsed }: NavItemProps) {
   return (
     <Link
       to={to}
+      title={collapsed ? label : undefined}
       className={cn(
         "flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors",
+        collapsed && "justify-center px-0",
         active
           ? "bg-primary/10 text-primary font-medium"
           : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
       )}
     >
       {icon}
-      <span>{label}</span>
+      {!collapsed && <span>{label}</span>}
     </Link>
   );
 });

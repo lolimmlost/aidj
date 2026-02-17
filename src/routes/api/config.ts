@@ -22,50 +22,107 @@ const POST = withErrorHandling(
   async ({ request }: { request: Request }) => {
     const body = await request.json();
 
-    // In-band test
-    if (body?.test === true) {
+    // In-band test — supports `test: true` (all) or `test: "serviceName"` (single)
+    if (body?.test) {
       const cfg = getConfig();
       const statuses: Record<string, string> = {};
+      const target = typeof body.test === 'string' ? body.test : null; // null = test all
 
-      const test = async (label: string, url?: string) => {
-        if (!url) {
-          statuses[label] = "not configured";
-          return;
-        }
+      const timedFetch = async (url: string, init?: RequestInit): Promise<Response> => {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3500);
         try {
-          const res = await fetch(url, { method: "GET", signal: controller.signal });
+          const res = await fetch(url, { ...init, signal: controller.signal });
           clearTimeout(timeout);
-          statuses[label] = res.ok ? "connected" : `http ${res.status}`;
-        } catch {
-          statuses[label] = "unreachable";
+          return res;
+        } catch (err) {
+          clearTimeout(timeout);
+          throw err;
         }
       };
 
-      // Test LLM Provider
+      // Test Navidrome using Subsonic ping API with auth
+      const testNavidrome = async () => {
+        if (!cfg.navidromeUrl) { statuses.navidromeUrl = "not configured"; return; }
+        try {
+          const u = cfg.navidromeUsername || '';
+          const p = cfg.navidromePassword || '';
+          const pingUrl = `${cfg.navidromeUrl}/rest/ping?v=1.16.1&c=aidj&f=json&u=${encodeURIComponent(u)}&p=${encodeURIComponent(p)}`;
+          const res = await timedFetch(pingUrl);
+          if (res.ok) {
+            const json = await res.json().catch(() => null);
+            const status = json?.['subsonic-response']?.status;
+            statuses.navidromeUrl = status === 'ok' ? 'connected' : `http ${res.status}`;
+          } else {
+            statuses.navidromeUrl = res.status === 401 || res.status === 403 ? 'bad credentials' : `http ${res.status}`;
+          }
+        } catch { statuses.navidromeUrl = "unreachable"; }
+      };
+
+      // Test Lidarr with API key header
+      const testLidarr = async () => {
+        if (!cfg.lidarrUrl) { statuses.lidarrUrl = "not configured"; return; }
+        try {
+          const res = await timedFetch(`${cfg.lidarrUrl}/api/v1/system/status`, {
+            headers: cfg.lidarrApiKey ? { 'X-Api-Key': cfg.lidarrApiKey } : {},
+          });
+          if (res.ok) {
+            statuses.lidarrUrl = 'connected';
+          } else {
+            statuses.lidarrUrl = res.status === 401 || res.status === 403 ? 'bad API key' : `http ${res.status}`;
+          }
+        } catch { statuses.lidarrUrl = "unreachable"; }
+      };
+
+      // Test MeTube (no auth needed)
+      const testMeTube = async () => {
+        if (!cfg.metubeUrl) { statuses.metubeUrl = "not configured"; return; }
+        try {
+          const res = await timedFetch(cfg.metubeUrl);
+          statuses.metubeUrl = res.ok ? "connected" : `http ${res.status}`;
+        } catch { statuses.metubeUrl = "unreachable"; }
+      };
+
+      // Test LLM Provider — actually probe the endpoint
       const testLLMProvider = async () => {
         const provider = cfg.llmProvider || 'ollama';
-        if (provider === 'ollama') {
-          statuses.llmProvider = cfg.ollamaUrl ? "configured (Ollama)" : "not configured";
-        } else if (provider === 'openrouter') {
-          statuses.llmProvider = cfg.openrouterApiKey ? "configured (OpenRouter)" : "not configured";
-        } else if (provider === 'glm') {
-          statuses.llmProvider = cfg.glmApiKey ? "configured (GLM)" : "not configured";
-        } else if (provider === 'anthropic') {
-          statuses.llmProvider = cfg.anthropicApiKey ? "configured (Anthropic)" : "not configured";
-        } else {
-          statuses.llmProvider = "not configured";
-        }
+        try {
+          if (provider === 'ollama') {
+            if (!cfg.ollamaUrl) { statuses.llmProvider = "not configured"; return; }
+            const res = await timedFetch(`${cfg.ollamaUrl}/api/tags`);
+            statuses.llmProvider = res.ok ? "connected" : `http ${res.status}`;
+          } else if (provider === 'openrouter') {
+            if (!cfg.openrouterApiKey) { statuses.llmProvider = "not configured"; return; }
+            const res = await timedFetch('https://openrouter.ai/api/v1/models', {
+              headers: { 'Authorization': `Bearer ${cfg.openrouterApiKey}` },
+            });
+            statuses.llmProvider = res.ok ? "connected" : res.status === 401 || res.status === 403 ? "bad API key" : `http ${res.status}`;
+          } else if (provider === 'anthropic') {
+            if (!cfg.anthropicApiKey) { statuses.llmProvider = "not configured"; return; }
+            const baseUrl = cfg.anthropicBaseUrl || 'https://api.anthropic.com/v1';
+            const res = await timedFetch(`${baseUrl}/models`, {
+              headers: { 'x-api-key': cfg.anthropicApiKey, 'anthropic-version': '2023-06-01' },
+            });
+            statuses.llmProvider = res.ok ? "connected" : res.status === 401 || res.status === 403 ? "bad API key" : `http ${res.status}`;
+          } else if (provider === 'glm') {
+            if (!cfg.glmApiKey) { statuses.llmProvider = "not configured"; return; }
+            const res = await timedFetch('https://open.bigmodel.cn/api/paas/v4/models', {
+              headers: { 'Authorization': `Bearer ${cfg.glmApiKey}` },
+            });
+            statuses.llmProvider = res.ok ? "connected" : res.status === 401 || res.status === 403 ? "bad API key" : `http ${res.status}`;
+          } else {
+            statuses.llmProvider = "not configured";
+          }
+        } catch { statuses.llmProvider = "unreachable"; }
       };
 
-      await Promise.all([
-        testLLMProvider(),
-        test("ollamaUrl", cfg.ollamaUrl),
-        test("navidromeUrl", cfg.navidromeUrl),
-        test("lidarrUrl", cfg.lidarrUrl),
-        test("metubeUrl", cfg.metubeUrl),
-      ]);
+      // Run targeted or all tests
+      const tests: Promise<void>[] = [];
+      if (!target || target === 'llmProvider') tests.push(testLLMProvider());
+      if (!target || target === 'navidromeUrl') tests.push(testNavidrome());
+      if (!target || target === 'lidarrUrl') tests.push(testLidarr());
+      if (!target || target === 'metubeUrl') tests.push(testMeTube());
+      await Promise.all(tests);
 
       return jsonResponse({ ok: true, statuses });
     }
@@ -88,6 +145,7 @@ const POST = withErrorHandling(
     // Music services
     if (typeof body.navidromeUrl === "string") allowed.navidromeUrl = body.navidromeUrl;
     if (typeof body.lidarrUrl === "string") allowed.lidarrUrl = body.lidarrUrl;
+    if (typeof body.lidarrApiKey === "string") allowed.lidarrApiKey = body.lidarrApiKey;
     if (typeof body.metubeUrl === "string") allowed.metubeUrl = body.metubeUrl;
     if (typeof body.navidromeUsername === "string") allowed.navidromeUsername = body.navidromeUsername;
     if (typeof body.navidromePassword === "string") allowed.navidromePassword = body.navidromePassword;

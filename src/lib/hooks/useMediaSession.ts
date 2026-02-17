@@ -44,7 +44,7 @@ export function useMediaSession({
   const mediaSessionPendingActionRef = useRef<'play' | 'pause' | null>(null);
   const mediaSessionLastExecutedRef = useRef<{ action: 'play' | 'pause'; time: number } | null>(null);
 
-  const { setIsPlaying } = useAudioStore();
+  const { setIsPlaying, markUserPause } = useAudioStore();
 
   // Debounce mechanism for Bluetooth disconnect/reconnect rapid events
   const DEBOUNCE_MS = 300;
@@ -82,6 +82,7 @@ export function useMediaSession({
         console.log(`🎛️ Media Session: ignoring pause - within glitch window`);
         return;
       }
+
       console.log(`🎛️ Media Session: accepting pause - user-initiated`);
     }
 
@@ -94,11 +95,12 @@ export function useMediaSession({
     } else {
       console.log('🎛️ Media Session: executing pause');
       activeDeck.pause();
+      markUserPause();
       setIsPlaying(false);
     }
 
     mediaSessionLastExecutedRef.current = { action, time: Date.now() };
-  }, [getActiveDeck, setIsPlaying]);
+  }, [getActiveDeck, setIsPlaying, markUserPause]);
 
   const debouncedMediaAction = useCallback((action: 'play' | 'pause') => {
     if (mediaSessionPendingActionRef.current === action) {
@@ -129,6 +131,20 @@ export function useMediaSession({
     const deckB = deckBRef.current;
     if (!deckA || !deckB || !currentSong) return;
 
+    // Helper: get a usable duration value. iOS streaming via range requests
+    // often reports audio.duration as Infinity. Fall back to the store's
+    // duration (set from the song metadata or a previous valid read).
+    const getUsableDuration = (deck: HTMLAudioElement): number => {
+      if (deck.duration && isFinite(deck.duration) && deck.duration > 0) {
+        return deck.duration;
+      }
+      const storeDuration = useAudioStore.getState().duration;
+      if (storeDuration && isFinite(storeDuration) && storeDuration > 0) {
+        return storeDuration;
+      }
+      return 0;
+    };
+
     const setupMediaSession = () => {
       // Build artwork array for lock screen display
       const artwork: MediaImage[] = [];
@@ -149,15 +165,18 @@ export function useMediaSession({
 
       // Update position state from active deck
       const activeDeck = getActiveDeck();
-      if (activeDeck && activeDeck.duration && isFinite(activeDeck.duration)) {
-        try {
-          navigator.mediaSession.setPositionState({
-            duration: activeDeck.duration,
-            playbackRate: activeDeck.playbackRate,
-            position: activeDeck.currentTime,
-          });
-        } catch {
-          // Position state not supported
+      if (activeDeck) {
+        const duration = getUsableDuration(activeDeck);
+        if (duration > 0 && isFinite(activeDeck.currentTime)) {
+          try {
+            navigator.mediaSession.setPositionState({
+              duration,
+              playbackRate: activeDeck.playbackRate,
+              position: Math.min(activeDeck.currentTime, duration),
+            });
+          } catch {
+            // Position state not supported
+          }
         }
       }
     };
@@ -247,17 +266,31 @@ export function useMediaSession({
       const pausedDeck = event.target as HTMLAudioElement;
       const currentActive = getActiveDeck();
       if (pausedDeck !== currentActive) return;
-      navigator.mediaSession.playbackState = 'paused';
+      // iOS fires a spurious pause event on visibility change even though
+      // audio keeps playing. Delay slightly and re-check before telling
+      // the lock screen we're paused, otherwise the controls show "paused"
+      // and the duration/scrubber disappears.
+      setTimeout(() => {
+        const deck = getActiveDeck();
+        if (deck && !deck.paused) {
+          // Audio is actually still playing — don't mark as paused
+          navigator.mediaSession.playbackState = 'playing';
+          return;
+        }
+        navigator.mediaSession.playbackState = 'paused';
+      }, 100);
     };
 
     const handleTimeUpdate = () => {
       const activeDeck = getActiveDeck();
-      if (activeDeck && activeDeck.duration && isFinite(activeDeck.duration) && isFinite(activeDeck.currentTime)) {
+      if (!activeDeck || !isFinite(activeDeck.currentTime)) return;
+      const duration = getUsableDuration(activeDeck);
+      if (duration > 0) {
         try {
           navigator.mediaSession.setPositionState({
-            duration: activeDeck.duration,
+            duration,
             playbackRate: activeDeck.playbackRate,
-            position: activeDeck.currentTime,
+            position: Math.min(activeDeck.currentTime, duration),
           });
         } catch {
           // Ignore
@@ -272,6 +305,34 @@ export function useMediaSession({
       setupMediaSession();
     };
 
+    // Re-push position state and playback status on visibility return.
+    // iOS stops firing timeupdate while backgrounded, so the lock screen
+    // scrubber/duration goes stale. On return, force an update.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      const deck = getActiveDeck();
+      if (!deck) return;
+
+      // Re-push position state so lock screen scrubber catches up
+      const duration = getUsableDuration(deck);
+      if (duration > 0 && isFinite(deck.currentTime)) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration,
+            playbackRate: deck.playbackRate,
+            position: Math.min(deck.currentTime, duration),
+          });
+        } catch {
+          // Ignore
+        }
+      }
+
+      // Correct playback state in case iOS set it to paused spuriously
+      if (!deck.paused) {
+        navigator.mediaSession.playbackState = 'playing';
+      }
+    };
+
     // Register handlers on BOTH decks
     [deckA, deckB].forEach(deck => {
       deck.addEventListener('playing', handlePlaying);
@@ -279,6 +340,8 @@ export function useMediaSession({
       deck.addEventListener('loadedmetadata', handleLoadedMetadata);
       deck.addEventListener('timeupdate', handleTimeUpdate);
     });
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Initial setup if active deck is already playing
     const activeDeck = getActiveDeck();
@@ -294,6 +357,8 @@ export function useMediaSession({
         mediaSessionDebounceRef.current = null;
       }
       mediaSessionPendingActionRef.current = null;
+
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
 
       [deckA, deckB].forEach(deck => {
         deck.removeEventListener('playing', handlePlaying);

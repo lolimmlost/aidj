@@ -19,6 +19,7 @@ import { Sparkles } from 'lucide-react';
 export const Route = createFileRoute("/dashboard/generate")({
   validateSearch: (search: Record<string, unknown>) => ({
     preset: (search.preset as string) || undefined,
+    section: (search.section as 'recommendations' | 'playlist') || undefined,
   }),
   beforeLoad: async ({ context }) => {
     if (!context.user) {
@@ -33,7 +34,7 @@ type CachedSong = Song & {
 };
 
 function GeneratePage() {
-  const { preset: presetParam } = Route.useSearch();
+  const { preset: presetParam, section: sectionParam } = Route.useSearch();
   const [type, setType] = useState<'similar' | 'mood'>('similar');
   const { data: session } = authClient.useSession();
   const queryClient = useQueryClient();
@@ -53,8 +54,8 @@ function GeneratePage() {
   const [sourceMode, setSourceMode] = useState<SourceMode>(preferences.recommendationSettings.sourceMode || 'library');
   const [mixRatio, setMixRatio] = useState(preferences.recommendationSettings.mixRatio || 70);
   const [activePreset, setActivePreset] = useState<string | null>(null);
-  const [recommendationsCollapsed, setRecommendationsCollapsed] = useState(false);
-  const [playlistCollapsed, setPlaylistCollapsed] = useState(false);
+  const [recommendationsCollapsed, setRecommendationsCollapsed] = useState(sectionParam === 'playlist');
+  const [playlistCollapsed, setPlaylistCollapsed] = useState(sectionParam === 'recommendations');
 
   const songCache = useRef<Map<string, CachedSong[]>>(new Map());
 

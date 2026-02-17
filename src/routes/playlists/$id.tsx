@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import {
   ListMusic, Play, Trash2, X, Plus, Shuffle,
   Heart, Sparkles, MoreHorizontal, Music2, Pause, GripVertical,
@@ -81,7 +81,7 @@ interface PlaylistDetail {
   updatedAt: Date;
 }
 
-interface SortableSongRowProps {
+interface SongRowProps {
   song: PlaylistSong;
   index: number;
   isCurrentSong: boolean;
@@ -93,7 +93,58 @@ interface SortableSongRowProps {
   isRemovePending: boolean;
 }
 
-function SortableSongRow({
+// Format duration as mm:ss
+function formatDuration(seconds?: number | null) {
+  if (!seconds) return null;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Text that scrolls horizontally when content overflows its container.
+ * Pauses at each end so the user can read. No-ops when text fits.
+ */
+function MarqueeText({ children }: { children: ReactNode }) {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLSpanElement>(null);
+  const [overflow, setOverflow] = useState(0);
+
+  const measure = useCallback(() => {
+    const outer = outerRef.current;
+    const inner = innerRef.current;
+    if (!outer || !inner) return;
+    const diff = inner.scrollWidth - outer.clientWidth;
+    setOverflow(diff > 1 ? diff : 0);
+  }, []);
+
+  useEffect(() => {
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (outerRef.current) ro.observe(outerRef.current);
+    return () => ro.disconnect();
+  }, [measure, children]);
+
+  return (
+    <div ref={outerRef} className="overflow-hidden whitespace-nowrap">
+      <span
+        ref={innerRef}
+        className="inline-block"
+        style={overflow > 0 ? {
+          animation: `marquee-scroll ${3 + overflow * 0.04}s linear infinite`,
+          ['--marquee-distance' as string]: `-${overflow}px`,
+        } : undefined}
+      >
+        {children}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Shared song row content — used by both plain and sortable variants
+ */
+function SongRowContent({
   song,
   index,
   isCurrentSong,
@@ -103,51 +154,16 @@ function SortableSongRow({
   onRemoveSong,
   onToggleStar,
   isRemovePending,
-}: SortableSongRowProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: song.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
+  dragHandle,
+}: SongRowProps & { dragHandle?: JSX.Element }) {
   const [artist, title] = song.songArtistTitle.includes(' - ')
     ? song.songArtistTitle.split(' - ')
     : ['Unknown Artist', song.songArtistTitle];
 
-  // Format duration as mm:ss
-  const formatDuration = (seconds?: number | null) => {
-    if (!seconds) return null;
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "group flex items-center gap-3 px-3 py-2 hover:bg-accent/50 rounded-md transition-colors",
-        isCurrentSong && "bg-accent/30",
-        isDragging && "opacity-50 bg-accent shadow-lg"
-      )}
-    >
-      {/* Drag Handle - visible on mobile, hover on desktop */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing touch-none shrink-0 w-6 flex items-center justify-center sm:opacity-0 sm:group-hover:opacity-100"
-      >
-        <GripVertical className="h-4 w-4 text-muted-foreground/50" />
-      </div>
+    <>
+      {/* Drag Handle — only rendered on desktop */}
+      {dragHandle}
 
       {/* Track Number */}
       <span className={cn(
@@ -179,37 +195,38 @@ function SortableSongRow({
       <button
         type="button"
         onClick={() => onPlayFromSong(index)}
-        className="min-w-0 flex-1 text-left py-1 min-h-[40px] flex flex-col justify-center"
+        className="min-w-0 flex-1 text-left py-0.5 min-h-[36px] sm:min-h-[32px] flex flex-col justify-center overflow-hidden"
       >
-        {/* Mobile: single line */}
-        <p className={cn(
-          "text-sm truncate sm:hidden",
-          isCurrentSong && "text-primary"
-        )}>
-          <span className="font-medium">{title}</span>
-          <span className="text-muted-foreground"> — {artist}</span>
-        </p>
-        {/* Desktop: single line with artist */}
-        <p className={cn(
-          "hidden sm:block text-sm font-medium truncate",
-          isCurrentSong && "text-primary"
-        )}>
-          {title} <span className="font-normal text-muted-foreground">— {artist}</span>
-        </p>
+        {/* Mobile: single line with title + artist */}
+        <div className={cn("text-sm sm:hidden", isCurrentSong && "text-primary")}>
+          <MarqueeText>
+            <span className="font-medium">{title}</span>
+            <span className="text-muted-foreground"> — {artist}</span>
+          </MarqueeText>
+        </div>
+        {/* Desktop: title only (artist is a separate column) */}
+        <div className={cn("hidden sm:block text-sm font-medium truncate", isCurrentSong && "text-primary")}>
+          {title}
+        </div>
       </button>
 
-      {/* Album - large screens only */}
-      <span className="hidden lg:block text-sm text-muted-foreground truncate shrink-0 w-40 xl:w-48">
+      {/* Artist - desktop only (separate column) */}
+      <span className="hidden sm:block text-sm text-muted-foreground truncate w-24 md:w-32 lg:w-40 shrink min-w-0">
+        {artist}
+      </span>
+
+      {/* Album */}
+      <span className="hidden sm:block text-sm text-muted-foreground truncate w-24 md:w-32 lg:w-40 shrink min-w-0">
         {song.album || '—'}
       </span>
 
       {/* Duration */}
-      <span className="hidden sm:block text-sm text-muted-foreground tabular-nums shrink-0 w-14 text-right">
+      <span className="hidden sm:block text-sm text-muted-foreground tabular-nums shrink-0 w-12 text-right">
         {formatDuration(song.duration) || '—'}
       </span>
 
-      {/* Date added - extra large screens only */}
-      <span className="hidden xl:block text-sm text-muted-foreground shrink-0 w-28 text-right">
+      {/* Date added - large screens only */}
+      <span className="hidden lg:block text-sm text-muted-foreground shrink-0 w-28 text-right">
         {new Date(song.addedAt).toLocaleDateString(undefined, {
           month: 'short',
           day: 'numeric',
@@ -217,12 +234,12 @@ function SortableSongRow({
         })}
       </span>
 
-      {/* Star toggle - visible on hover */}
+      {/* Star toggle - desktop hover only (accessible via menu on mobile) */}
       <Button
         variant="ghost"
         size="sm"
         className={cn(
-          "h-8 w-8 p-0 shrink-0 transition-opacity",
+          "h-8 w-8 p-0 shrink-0 transition-opacity hidden sm:inline-flex",
           song.starred ? "opacity-100 text-rose-500 hover:text-rose-600" : "opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-rose-500"
         )}
         onClick={(e) => { e.stopPropagation(); onToggleStar(song.songId, !!song.starred); }}
@@ -230,24 +247,24 @@ function SortableSongRow({
         <Heart className={cn("h-4 w-4", song.starred && "fill-current")} />
       </Button>
 
-      {/* Play Next - visible on hover */}
+      {/* Play Next - desktop hover only (accessible via menu on mobile) */}
       <Button
         variant="ghost"
         size="sm"
-        className="h-8 w-8 p-0 shrink-0 opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+        className="h-8 w-8 p-0 shrink-0 opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hidden sm:inline-flex"
         onClick={(e) => { e.stopPropagation(); onAddSongToQueue(song, 'next'); }}
         title="Play Next"
       >
         <SkipForward className="h-4 w-4" />
       </Button>
 
-      {/* Actions menu - Always visible on mobile, hover on desktop */}
+      {/* Actions menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 w-9 p-0 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+            className="h-9 w-9 p-0 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontal className="h-4 w-4" />
@@ -285,6 +302,66 @@ function SortableSongRow({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+    </>
+  );
+}
+
+/**
+ * Plain song row for mobile — no DnD overhead
+ */
+function PlainSongRow(props: SongRowProps) {
+  return (
+    <div
+      className={cn(
+        "group flex items-center gap-3 px-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors min-w-0",
+        props.isCurrentSong && "bg-accent/30"
+      )}
+    >
+      <SongRowContent {...props} />
+    </div>
+  );
+}
+
+/**
+ * Sortable song row for desktop — wraps content with DnD
+ */
+function SortableSongRow(props: SongRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.song.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "group flex items-center gap-3 px-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors min-w-0",
+        props.isCurrentSong && "bg-accent/30",
+        isDragging && "opacity-50 bg-accent shadow-lg"
+      )}
+    >
+      <SongRowContent
+        {...props}
+        dragHandle={
+          <div
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing touch-none shrink-0 w-6 flex items-center justify-center opacity-0 group-hover:opacity-100"
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground/50" />
+          </div>
+        }
+      />
     </div>
   );
 }
@@ -314,50 +391,78 @@ function PlaylistSongsList({
   onToggleStar,
   isRemovePending,
 }: VirtualizedPlaylistSongsProps) {
+  // Disable DnD on mobile — TouchSensor intercepts taps and wastes space
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 640 : true
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 640px)');
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  const sharedRowProps = {
+    isPlaying,
+    onPlayFromSong,
+    onAddSongToQueue,
+    onRemoveSong,
+    onToggleStar,
+    isRemovePending,
+  };
+
   return (
-    <div>
+    <div className="overflow-hidden">
       {/* Column Headers - desktop only */}
-      <div className="hidden sm:flex items-center gap-3 px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b border-border/50">
-        <span className="w-6" /> {/* Drag handle space */}
-        <span className="w-8 text-right">#</span>
-        <span className="w-8" /> {/* Art space */}
-        <span className="flex-1">Title</span>
-        <span className="hidden lg:block w-40 xl:w-48">Album</span>
-        <span className="w-14 text-right">Time</span>
-        <span className="hidden xl:block w-28 text-right">Added</span>
-        <span className="w-8" /> {/* Star */}
-        <span className="w-8" /> {/* Play next */}
-        <span className="w-10" /> {/* Actions space */}
+      <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b border-border/50">
+        <span className="w-6 shrink-0" /> {/* Drag handle space */}
+        <span className="w-8 text-right shrink-0">#</span>
+        <span className="w-8 shrink-0" /> {/* Art space */}
+        <span className="flex-1 min-w-0">Title</span>
+        <span className="w-24 md:w-32 lg:w-40 shrink min-w-0">Artist</span>
+        <span className="w-24 md:w-32 lg:w-40 shrink min-w-0">Album</span>
+        <span className="w-12 text-right shrink-0">Time</span>
+        <span className="hidden lg:block w-28 text-right shrink-0">Added</span>
+        <span className="w-[6.5rem] shrink-0" /> {/* Star + Play next + Actions space */}
       </div>
 
-      {/* Song list with drag and drop - no virtualization for reliability */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={onDragEnd}
-      >
-        <SortableContext
-          items={songs.map((s) => s.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="max-h-[calc(100vh-200px)] sm:max-h-[calc(100vh-250px)] overflow-y-auto">
-            {songs.map((song, index) => (
-              <SortableSongRow
-                key={song.id}
-                song={song}
-                index={index}
-                isCurrentSong={song.songId === currentSongId}
-                isPlaying={isPlaying}
-                onPlayFromSong={onPlayFromSong}
-                onAddSongToQueue={onAddSongToQueue}
-                onRemoveSong={onRemoveSong}
-                onToggleStar={onToggleStar}
-                isRemovePending={isRemovePending}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
+      <div>
+        {isDesktop ? (
+          /* Desktop: DnD-enabled sortable rows */
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={onDragEnd}
+          >
+            <SortableContext
+              items={songs.map((s) => s.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {songs.map((song, index) => (
+                <SortableSongRow
+                  key={song.id}
+                  song={song}
+                  index={index}
+                  isCurrentSong={song.songId === currentSongId}
+                  {...sharedRowProps}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
+        ) : (
+          /* Mobile: plain rows — no DnD overhead, no touch interception */
+          songs.map((song, index) => (
+            <PlainSongRow
+              key={song.id}
+              song={song}
+              index={index}
+              isCurrentSong={song.songId === currentSongId}
+              {...sharedRowProps}
+            />
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -709,13 +814,6 @@ function PlaylistDetailPage() {
   // Determine playlist icon based on type
   const playlistIconType = isLikedSongsPlaylist ? 'heart' : isSmartPlaylist ? 'sparkles' : 'list';
 
-  // Helper to get playlist gradient colors
-  const getPlaylistGradient = () => {
-    if (isLikedSongsPlaylist) return 'from-rose-500/20 via-pink-500/10 to-transparent';
-    if (isSmartPlaylist) return 'from-violet-500/20 via-purple-500/10 to-transparent';
-    return 'from-primary/20 via-primary/10 to-transparent';
-  };
-
   if (error) {
     return (
       <PageLayout title="Playlist" backLink="/playlists" backLabel="Playlists" compact>
@@ -763,163 +861,160 @@ function PlaylistDetailPage() {
 
   return (
     <PageLayout
-      title={playlist.name}
-      description={`${playlist.songs.length} songs`}
+      title=""
       backLink="/playlists"
       backLabel="Playlists"
       compact
       fullWidth
       className="px-3 sm:px-4 lg:px-6"
     >
-      {/* Hero Actions with Gradient */}
-      <div className={cn(
-        "relative bg-gradient-to-b pb-3 sm:pb-4",
-        getPlaylistGradient()
-      )}>
-        <div className="px-3 sm:px-4 lg:px-6">
-          {/* Playlist Cover + Action Buttons */}
-          <div className="flex items-center gap-3 sm:gap-4">
-            {/* Playlist Cover/Icon */}
-            <div className={cn(
-              "w-12 h-12 sm:w-14 sm:h-14 rounded-lg shadow-lg flex items-center justify-center shrink-0",
+      {/* Compact Header — icon + title + count + action buttons in one row */}
+      <div className="flex items-center gap-3 px-3 sm:px-4 lg:px-6 pb-3 border-b border-border/50">
+        {/* Playlist Icon */}
+        <div className={cn(
+          "w-10 h-10 sm:w-11 sm:h-11 rounded-lg shadow-md flex items-center justify-center shrink-0",
+          isLikedSongsPlaylist
+            ? "bg-gradient-to-br from-rose-500 to-pink-600"
+            : isSmartPlaylist
+              ? "bg-gradient-to-br from-violet-500 to-purple-600"
+              : "bg-gradient-to-br from-primary/80 to-primary"
+        )}>
+          {playlistIconType === 'heart' && <Heart className="h-5 w-5 text-white" />}
+          {playlistIconType === 'sparkles' && <Sparkles className="h-5 w-5 text-white" />}
+          {playlistIconType === 'list' && <ListMusic className="h-5 w-5 text-white" />}
+        </div>
+
+        {/* Title + Song Count */}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg sm:text-xl font-bold truncate">{playlist.name}</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground leading-tight">{playlist.songs.length} songs</p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* Main Play Button */}
+          <Button
+            onClick={handlePlayAll}
+            disabled={playlist.songs.length === 0}
+            size="sm"
+            className={cn(
+              "rounded-full h-9 w-9 sm:h-10 sm:w-10 p-0 shadow-md",
               isLikedSongsPlaylist
-                ? "bg-gradient-to-br from-rose-500 to-pink-600"
+                ? "bg-rose-500 hover:bg-rose-600"
                 : isSmartPlaylist
-                  ? "bg-gradient-to-br from-violet-500 to-purple-600"
-                  : "bg-gradient-to-br from-primary/80 to-primary"
-            )}>
-              {playlistIconType === 'heart' && <Heart className="h-6 w-6 sm:h-7 sm:w-7 text-white" />}
-              {playlistIconType === 'sparkles' && <Sparkles className="h-6 w-6 sm:h-7 sm:w-7 text-white" />}
-              {playlistIconType === 'list' && <ListMusic className="h-6 w-6 sm:h-7 sm:w-7 text-white" />}
-            </div>
+                  ? "bg-violet-500 hover:bg-violet-600"
+                  : "bg-primary hover:bg-primary/90"
+            )}
+          >
+            {isCurrentlyPlayingFromPlaylist && isPlaying ? (
+              <Pause className="h-4 w-4 sm:h-5 sm:w-5" />
+            ) : (
+              <Play className="h-4 w-4 sm:h-5 sm:w-5 ml-0.5" />
+            )}
+          </Button>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2 flex-1">
-              {/* Main Play Button */}
-              <Button
-                onClick={handlePlayAll}
-                disabled={playlist.songs.length === 0}
-                size="sm"
-                className={cn(
-                  "rounded-full h-10 w-10 sm:h-11 sm:w-11 lg:h-12 lg:w-12 p-0 shadow-lg",
-                  isLikedSongsPlaylist
-                    ? "bg-rose-500 hover:bg-rose-600"
-                    : isSmartPlaylist
-                      ? "bg-violet-500 hover:bg-violet-600"
-                      : "bg-primary hover:bg-primary/90"
-                )}
-              >
-                {isCurrentlyPlayingFromPlaylist && isPlaying ? (
-                  <Pause className="h-5 w-5" />
-                ) : (
-                  <Play className="h-5 w-5 ml-0.5" />
-                )}
-              </Button>
+          {/* Shuffle button */}
+          <Button
+            onClick={handleShufflePlay}
+            disabled={playlist.songs.length === 0}
+            variant="ghost"
+            size="sm"
+            className="rounded-full h-8 w-8 sm:h-9 sm:w-9 p-0"
+          >
+            <Shuffle className="h-4 w-4" />
+          </Button>
 
-              {/* Shuffle button */}
+          {/* More Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button
-                onClick={handleShufflePlay}
-                disabled={playlist.songs.length === 0}
                 variant="ghost"
                 size="sm"
-                className="rounded-full h-9 w-9 sm:h-10 sm:w-10 p-0"
+                className="rounded-full h-8 w-8 sm:h-9 sm:w-9 p-0"
               >
-                <Shuffle className="h-4 w-4 sm:h-5 sm:w-5" />
+                <MoreHorizontal className="h-4 w-4" />
               </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onClick={handleShufflePlay}
+                disabled={playlist.songs.length === 0}
+                className="min-h-[44px]"
+              >
+                <Shuffle className="mr-2 h-4 w-4" />
+                Shuffle Play
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleAddToQueue('next')}
+                disabled={playlist.songs.length === 0}
+                className="min-h-[44px]"
+              >
+                <Play className="mr-2 h-4 w-4" />
+                Play Next
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleAddToQueue('end')}
+                disabled={playlist.songs.length === 0}
+                className="min-h-[44px]"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add to Queue
+              </DropdownMenuItem>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <DropdownMenuItem
+                    onSelect={(e) => e.preventDefault()}
+                    className="min-h-[44px] text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Playlist
+                  </DropdownMenuItem>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete "{playlist.name}" and all its songs. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeletePlaylist}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-              {/* More Menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="rounded-full h-9 w-9 sm:h-10 sm:w-10 p-0"
-                  >
-                    <MoreHorizontal className="h-4 w-4 sm:h-5 sm:w-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem
-                    onClick={handleShufflePlay}
-                    disabled={playlist.songs.length === 0}
-                    className="min-h-[44px]"
-                  >
-                    <Shuffle className="mr-2 h-4 w-4" />
-                    Shuffle Play
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleAddToQueue('next')}
-                    disabled={playlist.songs.length === 0}
-                    className="min-h-[44px]"
-                  >
-                    <Play className="mr-2 h-4 w-4" />
-                    Play Next
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleAddToQueue('end')}
-                    disabled={playlist.songs.length === 0}
-                    className="min-h-[44px]"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add to Queue
-                  </DropdownMenuItem>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <DropdownMenuItem
-                        onSelect={(e) => e.preventDefault()}
-                        className="min-h-[44px] text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete Playlist
-                      </DropdownMenuItem>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete "{playlist.name}" and all its songs. This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={handleDeletePlaylist}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Collaborate button - visible on all screens */}
-              {!isLikedSongsPlaylist && !isSmartPlaylist && (
-                <Button
-                  onClick={() => setIsCollaborationPanelOpen(!isCollaborationPanelOpen)}
-                  variant={isCollaborationPanelOpen ? "secondary" : "outline"}
-                  size="sm"
-                  className={cn(
-                    "rounded-full h-9 w-9 p-0 sm:h-10 sm:w-auto sm:gap-2 sm:px-4",
-                    isCollaborationPanelOpen && "bg-primary/10 border-primary/30"
-                  )}
-                >
-                  <Users className="h-4 w-4 sm:shrink-0" />
-                  <span className="hidden sm:inline text-sm">Collaborate</span>
-                </Button>
+          {/* Collaborate button */}
+          {!isLikedSongsPlaylist && !isSmartPlaylist && (
+            <Button
+              onClick={() => setIsCollaborationPanelOpen(!isCollaborationPanelOpen)}
+              variant={isCollaborationPanelOpen ? "secondary" : "outline"}
+              size="sm"
+              className={cn(
+                "rounded-full h-8 w-8 p-0 sm:h-9 sm:w-auto sm:gap-2 sm:px-3",
+                isCollaborationPanelOpen && "bg-primary/10 border-primary/30"
               )}
-            </div>
-          </div>
+            >
+              <Users className="h-4 w-4 sm:shrink-0" />
+              <span className="hidden sm:inline text-sm">Collaborate</span>
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Main Content Area with optional Collaboration Panel */}
-      <div className="flex flex-1">
+      <div className="flex flex-1 min-w-0">
         {/* Song List */}
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className={cn(
-            "transition-all duration-300 px-3 sm:px-4 lg:px-6 py-2 sm:py-3",
+            "transition-all duration-300 px-3 sm:px-4 lg:px-6 py-1.5 sm:py-2",
             isCollaborationPanelOpen ? "lg:mr-[400px]" : ""
           )}>
             {playlist.songs.length === 0 ? (

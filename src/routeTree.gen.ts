@@ -29,6 +29,7 @@ import { Route as DjSettingsRouteImport } from './routes/dj/settings'
 import { Route as DjSetBuilderRouteImport } from './routes/dj/set-builder'
 import { Route as DashboardMoodTimelineRouteImport } from './routes/dashboard/mood-timeline'
 import { Route as DashboardLibraryGrowthRouteImport } from './routes/dashboard/library-growth'
+import { Route as DashboardHistoryRouteImport } from './routes/dashboard/history'
 import { Route as DashboardGenerateRouteImport } from './routes/dashboard/generate'
 import { Route as DashboardDiscoveryAnalyticsRouteImport } from './routes/dashboard/discovery-analytics'
 import { Route as DashboardDiscoverRouteImport } from './routes/dashboard/discover'
@@ -81,6 +82,7 @@ import { Route as ApiListeningHistorySessionsRouteImport } from './routes/api/li
 import { Route as ApiListeningHistoryRecordRouteImport } from './routes/api/listening-history/record'
 import { Route as ApiListeningHistoryRecentRouteImport } from './routes/api/listening-history/recent'
 import { Route as ApiListeningHistoryInterestOverTimeRouteImport } from './routes/api/listening-history/interest-over-time'
+import { Route as ApiListeningHistoryFullRouteImport } from './routes/api/listening-history/full'
 import { Route as ApiListeningHistoryCompoundScoresRouteImport } from './routes/api/listening-history/compound-scores'
 import { Route as ApiListeningHistoryByHourRouteImport } from './routes/api/listening-history/by-hour'
 import { Route as ApiListeningHistoryAlbumAgesRouteImport } from './routes/api/listening-history/album-ages'
@@ -245,6 +247,11 @@ const DashboardMoodTimelineRoute = DashboardMoodTimelineRouteImport.update({
 const DashboardLibraryGrowthRoute = DashboardLibraryGrowthRouteImport.update({
   id: '/library-growth',
   path: '/library-growth',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const DashboardHistoryRoute = DashboardHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
 const DashboardGenerateRoute = DashboardGenerateRouteImport.update({
@@ -521,6 +528,11 @@ const ApiListeningHistoryInterestOverTimeRoute =
     path: '/api/listening-history/interest-over-time',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiListeningHistoryFullRoute = ApiListeningHistoryFullRouteImport.update({
+  id: '/api/listening-history/full',
+  path: '/api/listening-history/full',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiListeningHistoryCompoundScoresRoute =
   ApiListeningHistoryCompoundScoresRouteImport.update({
     id: '/api/listening-history/compound-scores',
@@ -892,6 +904,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/discover': typeof DashboardDiscoverRoute
   '/dashboard/discovery-analytics': typeof DashboardDiscoveryAnalyticsRoute
   '/dashboard/generate': typeof DashboardGenerateRoute
+  '/dashboard/history': typeof DashboardHistoryRoute
   '/dashboard/library-growth': typeof DashboardLibraryGrowthRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
@@ -942,6 +955,7 @@ export interface FileRoutesByFullPath {
   '/api/listening-history/album-ages': typeof ApiListeningHistoryAlbumAgesRoute
   '/api/listening-history/by-hour': typeof ApiListeningHistoryByHourRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
+  '/api/listening-history/full': typeof ApiListeningHistoryFullRoute
   '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
   '/api/listening-history/recent': typeof ApiListeningHistoryRecentRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
@@ -1030,6 +1044,7 @@ export interface FileRoutesByTo {
   '/dashboard/discover': typeof DashboardDiscoverRoute
   '/dashboard/discovery-analytics': typeof DashboardDiscoveryAnalyticsRoute
   '/dashboard/generate': typeof DashboardGenerateRoute
+  '/dashboard/history': typeof DashboardHistoryRoute
   '/dashboard/library-growth': typeof DashboardLibraryGrowthRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
@@ -1079,6 +1094,7 @@ export interface FileRoutesByTo {
   '/api/listening-history/album-ages': typeof ApiListeningHistoryAlbumAgesRoute
   '/api/listening-history/by-hour': typeof ApiListeningHistoryByHourRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
+  '/api/listening-history/full': typeof ApiListeningHistoryFullRoute
   '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
   '/api/listening-history/recent': typeof ApiListeningHistoryRecentRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
@@ -1170,6 +1186,7 @@ export interface FileRoutesById {
   '/dashboard/discover': typeof DashboardDiscoverRoute
   '/dashboard/discovery-analytics': typeof DashboardDiscoveryAnalyticsRoute
   '/dashboard/generate': typeof DashboardGenerateRoute
+  '/dashboard/history': typeof DashboardHistoryRoute
   '/dashboard/library-growth': typeof DashboardLibraryGrowthRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
@@ -1220,6 +1237,7 @@ export interface FileRoutesById {
   '/api/listening-history/album-ages': typeof ApiListeningHistoryAlbumAgesRoute
   '/api/listening-history/by-hour': typeof ApiListeningHistoryByHourRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
+  '/api/listening-history/full': typeof ApiListeningHistoryFullRoute
   '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
   '/api/listening-history/recent': typeof ApiListeningHistoryRecentRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
@@ -1311,6 +1329,7 @@ export interface FileRouteTypes {
     | '/dashboard/discover'
     | '/dashboard/discovery-analytics'
     | '/dashboard/generate'
+    | '/dashboard/history'
     | '/dashboard/library-growth'
     | '/dashboard/mood-timeline'
     | '/dj/set-builder'
@@ -1361,6 +1380,7 @@ export interface FileRouteTypes {
     | '/api/listening-history/album-ages'
     | '/api/listening-history/by-hour'
     | '/api/listening-history/compound-scores'
+    | '/api/listening-history/full'
     | '/api/listening-history/interest-over-time'
     | '/api/listening-history/recent'
     | '/api/listening-history/record'
@@ -1449,6 +1469,7 @@ export interface FileRouteTypes {
     | '/dashboard/discover'
     | '/dashboard/discovery-analytics'
     | '/dashboard/generate'
+    | '/dashboard/history'
     | '/dashboard/library-growth'
     | '/dashboard/mood-timeline'
     | '/dj/set-builder'
@@ -1498,6 +1519,7 @@ export interface FileRouteTypes {
     | '/api/listening-history/album-ages'
     | '/api/listening-history/by-hour'
     | '/api/listening-history/compound-scores'
+    | '/api/listening-history/full'
     | '/api/listening-history/interest-over-time'
     | '/api/listening-history/recent'
     | '/api/listening-history/record'
@@ -1588,6 +1610,7 @@ export interface FileRouteTypes {
     | '/dashboard/discover'
     | '/dashboard/discovery-analytics'
     | '/dashboard/generate'
+    | '/dashboard/history'
     | '/dashboard/library-growth'
     | '/dashboard/mood-timeline'
     | '/dj/set-builder'
@@ -1638,6 +1661,7 @@ export interface FileRouteTypes {
     | '/api/listening-history/album-ages'
     | '/api/listening-history/by-hour'
     | '/api/listening-history/compound-scores'
+    | '/api/listening-history/full'
     | '/api/listening-history/interest-over-time'
     | '/api/listening-history/recent'
     | '/api/listening-history/record'
@@ -1770,6 +1794,7 @@ export interface RootRouteChildren {
   ApiListeningHistoryAlbumAgesRoute: typeof ApiListeningHistoryAlbumAgesRoute
   ApiListeningHistoryByHourRoute: typeof ApiListeningHistoryByHourRoute
   ApiListeningHistoryCompoundScoresRoute: typeof ApiListeningHistoryCompoundScoresRoute
+  ApiListeningHistoryFullRoute: typeof ApiListeningHistoryFullRoute
   ApiListeningHistoryInterestOverTimeRoute: typeof ApiListeningHistoryInterestOverTimeRoute
   ApiListeningHistoryRecentRoute: typeof ApiListeningHistoryRecentRoute
   ApiListeningHistoryRecordRoute: typeof ApiListeningHistoryRecordRoute
@@ -1960,6 +1985,13 @@ declare module '@tanstack/react-router' {
       path: '/library-growth'
       fullPath: '/dashboard/library-growth'
       preLoaderRoute: typeof DashboardLibraryGrowthRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/dashboard/history': {
+      id: '/dashboard/history'
+      path: '/history'
+      fullPath: '/dashboard/history'
+      preLoaderRoute: typeof DashboardHistoryRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
     '/dashboard/generate': {
@@ -2324,6 +2356,13 @@ declare module '@tanstack/react-router' {
       path: '/api/listening-history/interest-over-time'
       fullPath: '/api/listening-history/interest-over-time'
       preLoaderRoute: typeof ApiListeningHistoryInterestOverTimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/listening-history/full': {
+      id: '/api/listening-history/full'
+      path: '/api/listening-history/full'
+      fullPath: '/api/listening-history/full'
+      preLoaderRoute: typeof ApiListeningHistoryFullRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/listening-history/compound-scores': {
@@ -2810,6 +2849,7 @@ interface DashboardRouteRouteChildren {
   DashboardDiscoverRoute: typeof DashboardDiscoverRoute
   DashboardDiscoveryAnalyticsRoute: typeof DashboardDiscoveryAnalyticsRoute
   DashboardGenerateRoute: typeof DashboardGenerateRoute
+  DashboardHistoryRoute: typeof DashboardHistoryRoute
   DashboardLibraryGrowthRoute: typeof DashboardLibraryGrowthRoute
   DashboardMoodTimelineRoute: typeof DashboardMoodTimelineRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
@@ -2821,6 +2861,7 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardDiscoverRoute: DashboardDiscoverRoute,
   DashboardDiscoveryAnalyticsRoute: DashboardDiscoveryAnalyticsRoute,
   DashboardGenerateRoute: DashboardGenerateRoute,
+  DashboardHistoryRoute: DashboardHistoryRoute,
   DashboardLibraryGrowthRoute: DashboardLibraryGrowthRoute,
   DashboardMoodTimelineRoute: DashboardMoodTimelineRoute,
   DashboardIndexRoute: DashboardIndexRoute,
@@ -3012,6 +3053,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiListeningHistoryByHourRoute: ApiListeningHistoryByHourRoute,
   ApiListeningHistoryCompoundScoresRoute:
     ApiListeningHistoryCompoundScoresRoute,
+  ApiListeningHistoryFullRoute: ApiListeningHistoryFullRoute,
   ApiListeningHistoryInterestOverTimeRoute:
     ApiListeningHistoryInterestOverTimeRoute,
   ApiListeningHistoryRecentRoute: ApiListeningHistoryRecentRoute,

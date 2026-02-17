@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
-import { Menu, X, Home, Music, Search, Settings, Download, LayoutDashboard, BarChart3, ListMusic, Sparkles, User, TrendingUp, LogOut } from 'lucide-react';
+import { Menu, X, Music, Search, Settings, Download, LayoutDashboard, BarChart3, Clock, ListMusic, Sparkles, User, LogOut } from 'lucide-react';
 import { Button } from './button';
 import { cn } from '@/lib/utils';
 import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
+
+function NavSectionLabel({ label }: { label: string }) {
+  return (
+    <p className="px-4 pt-4 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      {label}
+    </p>
+  );
+}
 
 export function MobileNav() {
   const [isOpen, setIsOpen] = useState(false);
@@ -57,7 +65,8 @@ export function MobileNav() {
         aria-label="Mobile navigation"
       >
         <div className={`flex flex-col h-full pt-20 px-4 overflow-y-auto ${hasActiveSong ? 'pb-28' : 'pb-6'}`}>
-          <div className="space-y-2">
+          <div className="space-y-1">
+            <NavSectionLabel label="Main" />
             <NavLink
               to="/dashboard"
               icon={<LayoutDashboard className="h-5 w-5" />}
@@ -73,18 +82,11 @@ export function MobileNav() {
               active={currentPath.includes('/dashboard/discover')}
             />
             <NavLink
-              to="/dashboard/analytics"
-              icon={<BarChart3 className="h-5 w-5" />}
-              label="Analytics"
+              to="/library/search"
+              icon={<Search className="h-5 w-5" />}
+              label="Search Library"
               onClick={closeMenu}
-              active={currentPath.includes('/analytics')}
-            />
-            <NavLink
-              to="/music-identity"
-              icon={<User className="h-5 w-5" />}
-              label="Music Identity"
-              onClick={closeMenu}
-              active={currentPath.startsWith('/music-identity')}
+              active={currentPath.includes('/library/search')}
             />
             <NavLink
               to="/library/artists"
@@ -93,13 +95,8 @@ export function MobileNav() {
               onClick={closeMenu}
               active={currentPath.includes('/library/artists')}
             />
-            <NavLink
-              to="/library/search"
-              icon={<Search className="h-5 w-5" />}
-              label="Search Library"
-              onClick={closeMenu}
-              active={currentPath.includes('/library/search')}
-            />
+
+            <NavSectionLabel label="Library" />
             <NavLink
               to="/playlists"
               icon={<ListMusic className="h-5 w-5" />}
@@ -114,13 +111,31 @@ export function MobileNav() {
               onClick={closeMenu}
               active={currentPath.startsWith('/downloads')}
             />
+
+            <NavSectionLabel label="Insights" />
             <NavLink
-              to="/dashboard/library-growth"
-              icon={<TrendingUp className="h-5 w-5" />}
-              label="Library Growth"
+              to="/dashboard/analytics"
+              icon={<BarChart3 className="h-5 w-5" />}
+              label="Analytics"
               onClick={closeMenu}
-              active={currentPath.includes('/library-growth')}
+              active={currentPath.includes('/analytics')}
             />
+            <NavLink
+              to="/dashboard/history"
+              icon={<Clock className="h-5 w-5" />}
+              label="History"
+              onClick={closeMenu}
+              active={currentPath.includes('/dashboard/history')}
+            />
+            <NavLink
+              to="/music-identity"
+              icon={<User className="h-5 w-5" />}
+              label="Music Identity"
+              onClick={closeMenu}
+              active={currentPath.startsWith('/music-identity')}
+            />
+
+            <NavSectionLabel label="System" />
             <NavLink
               to="/settings"
               icon={<Settings className="h-5 w-5" />}
@@ -130,14 +145,6 @@ export function MobileNav() {
             />
 
             <div className="border-t border-border my-4" />
-
-            <NavLink
-              to="/"
-              icon={<Home className="h-5 w-5" />}
-              label="Home"
-              onClick={closeMenu}
-              active={currentPath === '/'}
-            />
 
             <button
               onClick={handleSignOut}

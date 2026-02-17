@@ -116,16 +116,20 @@ export function DashboardHero({
                 />
               </>
             )}
-            <StatPill
-              label="Recommendations"
-              value={availableRecommendations}
-              color="violet"
-            />
-            <StatPill
-              label="Ready to play"
-              value={playlistSongsReady}
-              color="emerald"
-            />
+            {availableRecommendations > 0 && (
+              <StatPill
+                label="Recommendations"
+                value={availableRecommendations}
+                color="violet"
+              />
+            )}
+            {playlistSongsReady > 0 && (
+              <StatPill
+                label="Ready to play"
+                value={playlistSongsReady}
+                color="emerald"
+              />
+            )}
             {aiDJEnabled && (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -158,8 +162,12 @@ export function DashboardHero({
             compact
           />
         )}
-        <StatPill label="Recs" value={availableRecommendations} color="violet" compact />
-        <StatPill label="Ready" value={playlistSongsReady} color="emerald" compact />
+        {availableRecommendations > 0 && (
+          <StatPill label="Recs" value={availableRecommendations} color="violet" compact />
+        )}
+        {playlistSongsReady > 0 && (
+          <StatPill label="Ready" value={playlistSongsReady} color="emerald" compact />
+        )}
         {aiDJEnabled && (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />

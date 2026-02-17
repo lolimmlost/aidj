@@ -141,6 +141,8 @@ export async function POST({ request }: { request: Request }) {
         djMatchingMinScore,
         // Profile-based recommendations flag
         useProfileBased,
+        // Session genre counts for adaptive recommendations
+        sessionGenreCounts,
       } = body as {
         currentSong: Song;
         recentQueue?: Song[];
@@ -158,6 +160,8 @@ export async function POST({ request }: { request: Request }) {
         djMatchingMinScore?: number;
         // Profile-based recommendations (drip-feed model)
         useProfileBased?: boolean;
+        // Session genre counts for adaptive recommendations
+        sessionGenreCounts?: Record<string, number>;
       };
 
       if (!currentSong) {
@@ -184,6 +188,23 @@ export async function POST({ request }: { request: Request }) {
       // Phase 4.2: Add genre exploration level to queue context
       if (genreExploration !== undefined) {
         queueContext.genreExploration = genreExploration;
+      }
+
+      // Boost session genres in queue context (session genres get 2× weight)
+      if (sessionGenreCounts && Object.keys(sessionGenreCounts).length > 0) {
+        const boostedGenres = new Map<string, number>();
+        // Start with existing queue genres
+        for (const genre of queueContext.genres) {
+          boostedGenres.set(genre, (boostedGenres.get(genre) || 0) + 1);
+        }
+        // Add session genres with 2× weight
+        for (const [genre, count] of Object.entries(sessionGenreCounts)) {
+          boostedGenres.set(genre, (boostedGenres.get(genre) || 0) + count * 2);
+        }
+        // Re-sort genres by boosted weight
+        queueContext.genres = Array.from(boostedGenres.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([genre]) => genre);
       }
 
       if (queueContext.genres.length > 0) {
@@ -313,9 +334,23 @@ export async function POST({ request }: { request: Request }) {
         }
       }
 
+      // Assign reason strings to each recommendation
+      const topGenre = queueContext.genres[0];
+      const recommendationsWithReasons = result.songs.map((song: Song) => {
+        let reason: string;
+        if (result.source === 'lastfm') {
+          reason = `Similar to ${currentSong.artist || 'your music'}`;
+        } else if (result.source === 'profile-based') {
+          reason = 'Based on your music profile';
+        } else {
+          reason = topGenre ? `Matches your ${topGenre} taste` : 'AI DJ recommendation';
+        }
+        return { ...song, reason };
+      });
+
       return new Response(
         JSON.stringify({
-          recommendations: result.songs,
+          recommendations: recommendationsWithReasons,
           skipAutoRefresh: skipAutoRefresh || false,
           source: result.source,
           artistFatigueCooldowns, // Phase 4.1: Send artist fatigue info to client

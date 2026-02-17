@@ -1,21 +1,15 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { toast } from 'sonner';
-import { useEffect, useCallback, Suspense, lazy } from 'react';
+import { useEffect, useCallback } from 'react';
 import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
 import { usePreferencesStore } from '@/lib/stores/preferences';
-import { Skeleton } from '@/components/ui/skeleton';
 import { hasLegacyFeedback, migrateLegacyFeedback, isMigrationCompleted } from '@/lib/utils/feedback-migration';
 // Critical components - loaded immediately
 import { DashboardHero } from '@/components/dashboard/DashboardHero';
 import { QuickActions } from '@/components/dashboard/quick-actions';
 import { DiscoveryQueueSection } from '@/components/dashboard/DiscoveryQueueSection';
-// Lazy loading utilities for deferred content
-import { useDeferredRender } from '@/lib/utils/lazy-components';
 import { Sparkles, Music, ArrowRight } from 'lucide-react';
-
-// Lazy-loaded components for non-critical sections
-const MoreFeatures = lazy(() => import('@/components/dashboard/MoreFeatures').then(m => ({ default: m.MoreFeatures })));
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context }) => {
@@ -124,6 +118,7 @@ function DashboardIndex() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link
             to="/dashboard/generate"
+            search={{ section: 'recommendations' }}
             className="group rounded-xl border bg-card p-5 hover:border-primary/30 hover:bg-accent/50 transition-all"
           >
             <div className="flex items-start gap-4">
@@ -144,6 +139,7 @@ function DashboardIndex() {
 
           <Link
             to="/dashboard/generate"
+            search={{ section: 'playlist' }}
             className="group rounded-xl border bg-card p-5 hover:border-primary/30 hover:bg-accent/50 transition-all"
           >
             <div className="flex items-start gap-4">
@@ -164,48 +160,7 @@ function DashboardIndex() {
         </div>
 
         <DiscoveryQueueSection />
-
-        {/* Additional Features - Deferred loading */}
-        <DeferredMoreFeatures />
       </div>
     </div>
-  );
-}
-
-/**
- * Deferred MoreFeatures - loads after initial render
- * Bottom of page content, lowest priority
- */
-function DeferredMoreFeatures() {
-  const shouldRender = useDeferredRender(2000);
-
-  if (!shouldRender) {
-    return (
-      <section className="space-y-4">
-        <Skeleton className="h-5 w-32 mx-auto" />
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  return (
-    <Suspense
-      fallback={
-        <section className="space-y-4">
-          <Skeleton className="h-5 w-32 mx-auto" />
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-24 rounded-xl" />
-            ))}
-          </div>
-        </section>
-      }
-    >
-      <MoreFeatures />
-    </Suspense>
   );
 }

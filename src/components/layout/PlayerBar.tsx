@@ -111,6 +111,7 @@ export function PlayerBar() {
     previousSong,
     toggleShuffle,
     setAIUserActionInProgress,
+    markUserPause,
   } = useAudioStore();
 
   const currentSong = useMemo(() => playlist[currentSongIndex] || null, [playlist, currentSongIndex]) as Song | null;
@@ -332,6 +333,7 @@ export function PlayerBar() {
     if (audio) {
       if (isPlaying) {
         audio.pause();
+        markUserPause();
       } else {
         setIsLoading(true);
 
@@ -671,6 +673,78 @@ export function PlayerBar() {
           audio.removeEventListener('error', errorHandlerRef.current);
         }
 
+        // REHYDRATION RECOVERY: On full page reload, _rehydratedCurrentTime holds
+        // the persisted position before any effect overwrites it. If > 0, this is
+        // a reload (not a user song change) — skip loadSong (which would setCurrentTime(0))
+        // and instead set up the audio element directly with a canplay seek.
+        const rehydratedTime = useAudioStore.getState()._rehydratedCurrentTime;
+        if (rehydratedTime > 0) {
+          // Clear immediately so this only fires once (not on subsequent song changes)
+          useAudioStore.setState({ _rehydratedCurrentTime: 0 });
+
+          const shouldResume = useAudioStore.getState().pendingPlaybackResume;
+          console.log(`🔄 [REHYDRATION] Recovery path: seeking to ${rehydratedTime.toFixed(1)}s, resume=${shouldResume}`);
+
+          const rehydrationCanPlay = () => {
+            audio.removeEventListener('canplay', rehydrationCanPlay);
+            setIsLoading(false);
+
+            // Seek to the rehydrated position, clamped to actual duration
+            if (rehydratedTime > 0 && isFinite(rehydratedTime)) {
+              const seekTo = isFinite(audio.duration) && audio.duration > 0
+                ? Math.min(rehydratedTime, audio.duration - 0.5)
+                : rehydratedTime;
+              audio.currentTime = seekTo;
+              setCurrentTime(seekTo);
+            }
+
+            // Auto-resume if playback was active before unload
+            if (shouldResume) {
+              audio.play()
+                .then(() => {
+                  setIsPlaying(true);
+                  useAudioStore.setState({ pendingPlaybackResume: false });
+                  console.log(`🔄 [REHYDRATION] Resumed playback at ${rehydratedTime.toFixed(1)}s`);
+                })
+                .catch(() => {
+                  setIsPlaying(false);
+                  useAudioStore.setState({ pendingPlaybackResume: false });
+                });
+            } else {
+              useAudioStore.setState({ pendingPlaybackResume: false });
+            }
+          };
+
+          const rehydrationError = (e: Event) => {
+            const errorDeck = e.target as HTMLAudioElement;
+            console.error('🔄 [REHYDRATION] Audio load error:', errorDeck?.error);
+            audio.removeEventListener('canplay', rehydrationCanPlay);
+            setIsLoading(false);
+            useAudioStore.setState({ pendingPlaybackResume: false });
+          };
+
+          canPlayHandlerRef.current = rehydrationCanPlay;
+          errorHandlerRef.current = rehydrationError;
+          // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
+          audio.addEventListener('canplay', rehydrationCanPlay);
+          // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
+          audio.addEventListener('error', rehydrationError);
+
+          // Initialize refs with the recovered position
+          currentSongIdRef.current = song.id;
+          playbackSnapshotRef.current = { currentTime: rehydratedTime, duration: 0, songId: song.id };
+          lastProgressValueRef.current = rehydratedTime;
+          hasScrobbledRef.current = false;
+          scrobbleThresholdReachedRef.current = false;
+
+          // Load audio directly (skip loadSong which would setCurrentTime(0))
+          setIsLoading(true);
+          clearCrossfade();
+          audio.src = song.url;
+          audio.load();
+          return;
+        }
+
         const handleCanPlay = () => {
           setIsLoading(false);
           if (useAudioStore.getState().isPlaying) {
@@ -705,7 +779,7 @@ export function PlayerBar() {
         };
       }
     }
-  }, [currentSongIndex, playlist, loadSong, getActiveDeck, setIsPlaying, crossfadeInProgressRef, crossfadeJustCompletedRef, deckARef, deckBRef, activeDeckRef, lastProgressTimeRef, lastProgressValueRef]);
+  }, [currentSongIndex, playlist, loadSong, getActiveDeck, setIsPlaying, setCurrentTime, clearCrossfade, crossfadeInProgressRef, crossfadeJustCompletedRef, deckARef, deckBRef, activeDeckRef, lastProgressTimeRef, lastProgressValueRef]);
   /* eslint-enable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect */
 
   // Cleanup listeners on unmount

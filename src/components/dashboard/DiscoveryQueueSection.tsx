@@ -9,7 +9,10 @@ const DiscoveryQueuePanel = lazy(() =>
 );
 
 export function DiscoveryQueueSection() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') return window.innerWidth < 768;
+    return false;
+  });
   const shouldRender = useDeferredRender(500);
 
   if (!shouldRender) return null;

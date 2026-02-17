@@ -5,20 +5,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { PageLayout } from '@/components/ui/page-layout';
 import { usePreferencesStore } from '@/lib/stores/preferences';
-import { ProfileSettings } from './profile';
+import { GeneralSettings } from './general';
 import { RecommendationSettings } from './recommendations';
 import { PlaybackSettings } from './playback';
-import { NotificationSettings } from './notifications';
-import { LayoutSettings } from './layout';
 import { ServicesSettings } from './services';
 
-const VALID_TABS = ['profile', 'services', 'recommendations', 'playback', 'notifications', 'layout'] as const;
+const NEW_TABS = ['general', 'services', 'playback', 'ai-dj'] as const;
+type NewTab = (typeof NEW_TABS)[number];
+
+// Map old tab param values to new tab names
+const TAB_MIGRATION: Record<string, NewTab> = {
+  profile: 'general',
+  notifications: 'general',
+  layout: 'general',
+  services: 'services',
+  playback: 'playback',
+  recommendations: 'ai-dj',
+  // New values pass through
+  general: 'general',
+  'ai-dj': 'ai-dj',
+};
+
+function resolveTab(raw: unknown): NewTab | undefined {
+  if (typeof raw !== 'string') return undefined;
+  return TAB_MIGRATION[raw];
+}
 
 export const Route = createFileRoute('/settings/')({
   validateSearch: (search: Record<string, unknown>) => ({
-    tab: VALID_TABS.includes(search.tab as (typeof VALID_TABS)[number])
-      ? (search.tab as (typeof VALID_TABS)[number])
-      : undefined,
+    tab: resolveTab(search.tab),
   }),
   beforeLoad: async ({ context }) => {
     if (!context.user) {
@@ -60,44 +75,28 @@ function SettingsPage() {
 
       {/* Settings Tabs */}
       {!isLoading && (
-        <Tabs defaultValue={tab || 'profile'} className="w-full">
-          <TabsList className="w-full grid grid-cols-2 gap-1 h-auto p-1 mb-8 sm:grid-cols-3 lg:grid-cols-6">
-            <TabsTrigger value="profile" className="text-xs sm:text-sm py-2">Profile</TabsTrigger>
+        <Tabs defaultValue={tab || 'general'} className="w-full">
+          <TabsList className="w-full grid grid-cols-2 gap-1 h-auto p-1 mb-8 sm:grid-cols-4">
+            <TabsTrigger value="general" className="text-xs sm:text-sm py-2">General</TabsTrigger>
             <TabsTrigger value="services" className="text-xs sm:text-sm py-2">Services</TabsTrigger>
-            <TabsTrigger value="recommendations" className="text-xs sm:text-sm py-2">
-              <span className="sm:hidden">Recs</span>
-              <span className="hidden sm:inline">Recommendations</span>
-            </TabsTrigger>
             <TabsTrigger value="playback" className="text-xs sm:text-sm py-2">Playback</TabsTrigger>
-            <TabsTrigger value="notifications" className="text-xs sm:text-sm py-2">
-              <span className="sm:hidden">Notifs</span>
-              <span className="hidden sm:inline">Notifications</span>
-            </TabsTrigger>
-            <TabsTrigger value="layout" className="text-xs sm:text-sm py-2">Layout</TabsTrigger>
+            <TabsTrigger value="ai-dj" className="text-xs sm:text-sm py-2">AI DJ</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="profile">
-            <ProfileSettings />
+          <TabsContent value="general">
+            <GeneralSettings />
           </TabsContent>
 
           <TabsContent value="services">
             <ServicesSettings />
           </TabsContent>
 
-          <TabsContent value="recommendations">
-            <RecommendationSettings />
-          </TabsContent>
-
           <TabsContent value="playback">
             <PlaybackSettings />
           </TabsContent>
 
-          <TabsContent value="notifications">
-            <NotificationSettings />
-          </TabsContent>
-
-          <TabsContent value="layout">
-            <LayoutSettings />
+          <TabsContent value="ai-dj">
+            <RecommendationSettings />
           </TabsContent>
         </Tabs>
       )}

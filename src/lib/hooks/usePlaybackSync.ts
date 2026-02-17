@@ -167,6 +167,7 @@ function handleIncomingMessage(
           store.setIsPlaying(true);
           break;
         case 'pause':
+          store.markUserPause();
           store.setIsPlaying(false);
           break;
         case 'next':
@@ -199,6 +200,7 @@ function handleIncomingMessage(
         fetchAndReconcileState();
       } else if (store.isPlaying) {
         // Transfer AWAY from this device — pause and show indicator
+        store.markUserPause();
         store.setIsPlaying(false);
         if (store.setRemoteDevice) {
           store.setRemoteDevice({

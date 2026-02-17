@@ -69,11 +69,59 @@ export function usePlaybackStateSync({
 
     // Only handle pause immediately; play is handled by canplay listener or when ready
     if (!isPlaying) {
-      // DEFENSIVE: Don't pause audio that's actually playing - store might be stale
+      // DEFENSIVE: Store says pause but audio element is still playing
       if (!audio.paused) {
-        console.log('🎮 [STORE] Store says pause but audio is playing - syncing store to match reality');
-        setIsPlaying(true);
+        const userPauseAt = useAudioStore.getState()._userPauseAt;
+        const isRecentUserPause = userPauseAt > 0 && (Date.now() - userPauseAt) < 3000;
+        if (isRecentUserPause) {
+          console.log('🎮 [STORE] Intentional pause detected — pausing audio element');
+          audio.pause();
+        } else {
+          console.log('🎮 [STORE] Store says pause but audio is playing - syncing store to match reality');
+          setIsPlaying(true);
+        }
         return;
+      }
+      // DEFENSIVE: If audio was recently making progress but got paused by a network stall,
+      // don't accept the pause — re-enable playback so the watchdog can recover.
+      // BUT: if the user intentionally paused within the last 3 seconds, respect it.
+      if (audio.paused && audio.networkState === HTMLMediaElement.NETWORK_LOADING
+          && audio.currentTime > 0 && hasRealSong(audio)
+          && lastProgressTimeRef.current > 0
+          && (Date.now() - lastProgressTimeRef.current) < 10000) {
+        const userPauseAt = useAudioStore.getState()._userPauseAt;
+        const isRecentUserPause = userPauseAt > 0 && (Date.now() - userPauseAt) < 3000;
+        if (!isRecentUserPause) {
+          console.log('🎮 [STORE] Store says pause but network is loading — likely stall-triggered, resuming');
+          setIsPlaying(true);
+          audio.play().catch(() => { /* watchdog will handle */ });
+          return;
+        }
+        console.log('🎮 [STORE] Network loading but user recently paused — respecting pause');
+      }
+      // iOS screen lock destroys the audio element: readyState=0, currentTime=0, paused=true.
+      // If wasPlayingBeforeUnload is still true, don't accept the pause — register a one-shot
+      // canplay listener so playback auto-resumes once the element finishes reloading.
+      const storeState = useAudioStore.getState();
+      if (audio.paused && audio.readyState === 0 && audio.currentTime === 0
+          && hasRealSong(audio) && storeState.wasPlayingBeforeUnload) {
+        console.log('🎮 [STORE] Audio destroyed (iOS screen lock) — registering canplay resume');
+        const savedTime = storeState.currentTime;
+        const resumeOnReload = () => {
+          audio.removeEventListener('canplay', resumeOnReload);
+          if (savedTime > 0 && isFinite(savedTime)) {
+            audio.currentTime = savedTime;
+          }
+          audio.play()
+            .then(() => {
+              setIsPlaying(true);
+              useAudioStore.setState({ pendingPlaybackResume: false, wasPlayingBeforeUnload: false });
+              console.log('🎮 [STORE] Resumed after iOS screen lock destroy');
+            })
+            .catch(() => { setIsPlaying(false); });
+        };
+        audio.addEventListener('canplay', resumeOnReload, { once: true });
+        return; // Don't call audio.pause()
       }
       audio.pause();
     } else if (audio.readyState >= 2) {
@@ -84,7 +132,7 @@ export function usePlaybackStateSync({
         }
       });
     }
-  }, [isPlaying, setIsPlaying, deckARef, deckBRef, activeDeckRef]);
+  }, [isPlaying, setIsPlaying, deckARef, deckBRef, activeDeckRef, lastProgressTimeRef]);
 
   // Visibility change recovery
   useEffect(() => {
@@ -156,6 +204,30 @@ export function usePlaybackStateSync({
           return;
         }
 
+        // iOS screen lock recovery: audio was destroyed and reloaded, store already says paused,
+        // but wasPlayingBeforeUnload tells us the user WAS playing before lock.
+        const wasPlaying = useAudioStore.getState().wasPlayingBeforeUnload;
+        if (!storeIsPlaying && !audioIsActuallyPlaying && wasPlaying && activeDeck.readyState >= 2) {
+          console.log('👁️ [VISIBILITY] iOS recovery: wasPlayingBeforeUnload=true, resuming');
+          const savedTime = useAudioStore.getState().currentTime;
+          if (savedTime > 0 && isFinite(savedTime) && activeDeck.duration > savedTime) {
+            activeDeck.currentTime = savedTime;
+          }
+          checkAndResumeAudioContext().then(() => {
+            activeDeck.play()
+              .then(() => {
+                setIsPlaying(true);
+                useAudioStore.setState({ wasPlayingBeforeUnload: false });
+                lastProgressTimeRef.current = Date.now();
+                lastProgressValueRef.current = activeDeck.currentTime;
+              })
+              .catch((err) => {
+                console.log('👁️ [VISIBILITY] iOS resume failed:', err.message);
+              });
+          });
+          return;
+        }
+
         // If there's a mismatch, sync store to match audio reality
         if (storeIsPlaying !== audioIsActuallyPlaying) {
           console.log(`👁️ [VISIBILITY] State mismatch - syncing store to ${audioIsActuallyPlaying ? 'playing' : 'paused'}`);
@@ -173,43 +245,76 @@ export function usePlaybackStateSync({
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [setIsPlaying, attemptStallRecovery, checkAndResumeAudioContext, deckARef, deckBRef, activeDeckRef, lastProgressTimeRef, lastProgressValueRef]);
 
-  // Playback state preservation (beforeunload, visibility hidden)
+  // Playback state preservation (beforeunload, pagehide, visibility hidden)
+  // Uses a flag to prevent triple-save on iOS (visibilitychange + pagehide + beforeunload
+  // can all fire in quick succession; the 2nd/3rd call may read a destroyed audio element).
   useEffect(() => {
+    let savedThisUnload = false;
+
     const savePlaybackState = () => {
+      if (savedThisUnload) return;
+      savedThisUnload = true;
+
       const audio = getActiveDeck();
       const storeState = useAudioStore.getState();
 
-      if (audio && audio.currentTime > 0) {
-        storeState.setCurrentTime(audio.currentTime);
+      // Use audio.currentTime if available and non-zero; otherwise fall back to
+      // lastProgressValueRef (iOS may destroy the audio element before this fires,
+      // leaving audio.currentTime at 0).
+      const audioTime = audio && audio.currentTime > 0
+        ? audio.currentTime
+        : lastProgressValueRef.current;
+
+      if (audioTime > 0) {
+        storeState.setCurrentTime(audioTime);
       }
 
-      storeState.setWasPlayingBeforeUnload(storeState.isPlaying);
+      // Use both store state and audio element as signals for playing intent
+      const wasPlaying = storeState.isPlaying || (audio != null && !audio.paused);
+      storeState.setWasPlayingBeforeUnload(wasPlaying);
 
-      console.log(`💾 [SAVE] Playback state saved: isPlaying=${storeState.isPlaying}, time=${audio?.currentTime?.toFixed(1) || 0}s`);
+      console.log(`💾 [SAVE] Playback state saved: wasPlaying=${wasPlaying}, time=${audioTime?.toFixed(1) || 0}s`);
     };
 
     const handleBeforeUnload = () => {
       savePlaybackState();
     };
 
-    const handleVisibilityHidden = () => {
+    const handlePageHide = () => {
+      savePlaybackState();
+    };
+
+    const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         savePlaybackState();
+      } else {
+        // Re-arm the flag when the user returns so the next hide can save
+        savedThisUnload = false;
       }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityHidden);
+    window.addEventListener('pagehide', handlePageHide);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityHidden);
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [getActiveDeck]);
+  }, [getActiveDeck, lastProgressValueRef]);
 
   // Playback recovery on mount
   useEffect(() => {
     const state = useAudioStore.getState();
+    // Skip if rehydration recovery path is active (Change 4 in PlayerBar handles
+    // seeking + resume atomically via canplay listener — early play here would
+    // call audio.play() on an element that hasn't loaded yet).
+    if (state._rehydratedCurrentTime > 0) {
+      console.log(`🔄 [RECOVERY] Deferring to rehydration recovery path (_rehydratedCurrentTime=${state._rehydratedCurrentTime.toFixed(1)}s)`);
+      useAudioStore.setState({ pendingPlaybackResume: false });
+      return;
+    }
     if (state.pendingPlaybackResume && state.currentTime > 0) {
       console.log(`🔄 [RECOVERY] Pending playback resume detected at ${state.currentTime.toFixed(1)}s`);
       setIsPlaying(true);

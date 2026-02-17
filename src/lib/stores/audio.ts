@@ -88,10 +88,15 @@ interface AudioState {
   // which may already be reset to 0 by loadSong on rapid skips.
   lastKnownPosition: number;
   lastKnownDuration: number;
+  // Transient: timestamp of most recent user-initiated pause (self-expiring guard for stall recovery)
+  _userPauseAt: number;
+  // Transient: snapshots persisted currentTime during rehydration before effects can overwrite it
+  _rehydratedCurrentTime: number;
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
   playNow: (songId: string, song: Song) => void;
+  markUserPause: () => void;
   setIsPlaying: (playing: boolean) => void;
   setCurrentTime: (time: number) => void;
   setDuration: (dur: number) => void;
@@ -190,6 +195,8 @@ export const useAudioStore = create<AudioState>()(
     remoteDevice: null,
     lastKnownPosition: 0,
     lastKnownDuration: 0,
+    _userPauseAt: 0,
+    _rehydratedCurrentTime: 0,
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -291,7 +298,9 @@ export const useAudioStore = create<AudioState>()(
       }, 2000);
     },
 
-    setIsPlaying: (playing: boolean) => set({ isPlaying: playing }),
+    markUserPause: () => set({ _userPauseAt: Date.now() }),
+
+    setIsPlaying: (playing: boolean) => set({ isPlaying: playing, wasPlayingBeforeUnload: playing }),
 
     setCurrentTime: (time: number) => set({ currentTime: time, lastKnownPosition: time }),
 
@@ -963,7 +972,7 @@ export const useAudioStore = create<AudioState>()(
           }
         }
 
-        const { recommendations, skipAutoRefresh, artistFatigueCooldowns, source: recSource } = await response.json();
+        const { recommendations, skipAutoRefresh, artistFatigueCooldowns } = await response.json();
 
         if (recommendations.length === 0) {
           console.warn('🎵 AI DJ: No recommendations generated');
@@ -1011,7 +1020,6 @@ export const useAudioStore = create<AudioState>()(
 
         // Store recommendation reasons per song
         const newReasons = { ...freshState.aiDJRecommendationReasons };
-        const currentSongForReason = state.playlist[state.currentSongIndex];
 
         recommendations.forEach((song: Song & { reason?: string }) => {
           newQueuedIds.add(song.id);
@@ -1021,17 +1029,11 @@ export const useAudioStore = create<AudioState>()(
             artist: song.artist // Track artist for diversity enforcement
           });
 
-          // Store reason for "Why this song?" tooltip
+          // Store reason for "Why this song?" tooltip (server provides reason strings)
           if (song.reason) {
             newReasons[song.id] = song.reason;
-          } else if (recSource === 'lastfm' && currentSongForReason?.artist) {
-            newReasons[song.id] = `Similar to ${currentSongForReason.artist}`;
-          } else if (recSource === 'profile-based') {
-            newReasons[song.id] = 'Based on your music profile';
           } else {
-            const topGenre = Object.entries(state.aiDJSessionGenreCounts)
-              .sort((a, b) => b[1] - a[1])[0]?.[0];
-            newReasons[song.id] = topGenre ? `Matches your ${topGenre} taste` : 'AI DJ recommendation';
+            newReasons[song.id] = 'AI DJ recommendation';
           }
 
           // Phase 1.2: Track how many songs queued per artist
@@ -1789,6 +1791,9 @@ export const useAudioStore = create<AudioState>()(
     // Don't restore isPlaying - let user manually resume
     onRehydrateStorage: () => (state) => {
       if (state) {
+        // Snapshot persisted currentTime BEFORE any effect can overwrite it
+        state._rehydratedCurrentTime = state.currentTime;
+
         // WiFi reconnect recovery: Check if playback should resume
         // wasPlayingBeforeUnload is saved before page unload/visibility hidden
         // If it was true and we have a valid position, signal for recovery
@@ -1804,6 +1809,7 @@ export const useAudioStore = create<AudioState>()(
         state.aiDJIsLoading = false;
         state.aiDJError = null;
         state.aiDJUserActionInProgress = false;
+        state._userPauseAt = 0;
         state.songsPlayedSinceLastRec = 0; // Reset drip-feed counter
         // Reinitialize Set (can't be serialized in JSON)
         state.aiQueuedSongIds = new Set<string>();

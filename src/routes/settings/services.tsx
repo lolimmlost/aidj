@@ -16,6 +16,28 @@ import { queryKeys } from '@/lib/query/keys';
 
 type LLMProviderType = 'ollama' | 'openrouter' | 'glm' | 'anthropic';
 
+type TestStatus = 'connected' | 'not configured' | 'unreachable' | 'bad API key' | 'bad credentials' | string;
+
+function StatusBadge({ status }: { status?: TestStatus }) {
+  if (!status) return null;
+  const isOk = status === 'connected';
+  const isWarn = status === 'not configured';
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+        isOk
+          ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+          : isWarn
+          ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400'
+          : 'bg-destructive/10 text-destructive'
+      }`}
+    >
+      <span className={`inline-block w-1.5 h-1.5 rounded-full ${isOk ? 'bg-green-500' : isWarn ? 'bg-yellow-500' : 'bg-destructive'}`} />
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </span>
+  );
+}
+
 export function ServicesSettings() {
   const [config, setConfig] = useState<{
     llmProvider?: LLMProviderType;
@@ -30,6 +52,7 @@ export function ServicesSettings() {
     anthropicBaseUrl?: string;
     navidromeUrl?: string;
     lidarrUrl?: string;
+    lidarrApiKey?: string;
     metubeUrl?: string;
     lastfmApiKey?: string;
   }>({});
@@ -37,16 +60,9 @@ export function ServicesSettings() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
-  // Connectivity test state
-  const [testStatuses, setTestStatuses] = useState<{
-    llmProvider?: string;
-    ollamaUrl?: string;
-    navidromeUrl?: string;
-    lidarrUrl?: string;
-    metubeUrl?: string;
-    lastfmApiKey?: string;
-  } | null>(null);
-  const [testing, setTesting] = useState(false);
+  // Per-service test statuses & loading flags
+  const [testStatuses, setTestStatuses] = useState<Record<string, TestStatus>>({});
+  const [testingService, setTestingService] = useState<string | null>(null);
   const [lastfmTesting, setLastfmTesting] = useState(false);
 
   // Last.fm backfill state
@@ -86,24 +102,17 @@ export function ServicesSettings() {
             anthropicBaseUrl: data.config.anthropicBaseUrl,
             navidromeUrl: data.config.navidromeUrl,
             lidarrUrl: data.config.lidarrUrl,
+            lidarrApiKey: data.config.lidarrApiKey,
             metubeUrl: data.config.metubeUrl,
             lastfmApiKey: data.config.lastfmApiKey,
           });
         }
       })
-      .catch(() => {
-        // Ignore load errors for now
-      });
+      .catch(() => {});
   }, []);
 
-  const update = (
-    key: keyof typeof config,
-    value: string
-  ) => {
-    setConfig((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+  const update = (key: keyof typeof config, value: string) => {
+    setConfig((prev) => ({ ...prev, [key]: value }));
   };
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -125,6 +134,7 @@ export function ServicesSettings() {
       anthropicBaseUrl: config.anthropicBaseUrl,
       navidromeUrl: config.navidromeUrl,
       lidarrUrl: config.lidarrUrl,
+      lidarrApiKey: config.lidarrApiKey,
       metubeUrl: config.metubeUrl,
       lastfmApiKey: config.lastfmApiKey,
     };
@@ -148,53 +158,36 @@ export function ServicesSettings() {
     }
   };
 
-  const runTestConnections = async () => {
-    setTesting(true);
-    setTestStatuses(null);
+  // Test a single service via targeted API
+  const testService = async (serviceKey: string) => {
+    setTestingService(serviceKey);
     try {
       const res = await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ test: true }),
+        body: JSON.stringify({ test: serviceKey }),
       });
       const json = await res.json();
       if (res.ok && json?.statuses) {
-        setTestStatuses(json.statuses);
+        setTestStatuses(prev => ({ ...prev, ...json.statuses }));
       } else {
-        setTestStatuses({
-          llmProvider: 'unreachable',
-          ollamaUrl: 'unreachable',
-          navidromeUrl: 'unreachable',
-          lidarrUrl: 'unreachable',
-          metubeUrl: 'unreachable',
-          lastfmApiKey: 'unreachable',
-        });
+        setTestStatuses(prev => ({ ...prev, [serviceKey]: 'unreachable' }));
       }
     } catch {
-      setTestStatuses({
-        llmProvider: 'unreachable',
-        ollamaUrl: 'unreachable',
-        navidromeUrl: 'unreachable',
-        lidarrUrl: 'unreachable',
-        metubeUrl: 'unreachable',
-        lastfmApiKey: 'unreachable',
-      });
+      setTestStatuses(prev => ({ ...prev, [serviceKey]: 'unreachable' }));
     } finally {
-      setTesting(false);
+      setTestingService(null);
     }
   };
 
-  // Test Last.fm connection specifically
+  // Test Last.fm connection via dedicated endpoint
   const testLastFmConnection = async () => {
     setLastfmTesting(true);
     try {
       const res = await fetch('/api/lastfm/test', { method: 'POST' });
       const json = await res.json();
       if (json.success) {
-        setTestStatuses(prev => ({
-          ...prev,
-          lastfmApiKey: 'connected',
-        }));
+        setTestStatuses(prev => ({ ...prev, lastfmApiKey: 'connected' }));
       } else {
         setTestStatuses(prev => ({
           ...prev,
@@ -202,10 +195,7 @@ export function ServicesSettings() {
         }));
       }
     } catch {
-      setTestStatuses(prev => ({
-        ...prev,
-        lastfmApiKey: 'unreachable',
-      }));
+      setTestStatuses(prev => ({ ...prev, lastfmApiKey: 'unreachable' }));
     } finally {
       setLastfmTesting(false);
     }
@@ -236,10 +226,8 @@ export function ServicesSettings() {
       try {
         const res = await fetch(`/api/lastfm/backfill?jobId=${jobId}`);
         if (!res.ok) {
-          // 404 = job finished and was cleaned up, stop polling
           if (res.status === 404) {
             stopPolling();
-            // If we're still in running state, the job completed between polls
             setBackfillRunning(running => {
               if (running) {
                 setBackfillProgress(null);
@@ -338,7 +326,6 @@ export function ServicesSettings() {
       if (res.status === 202 && json.jobId) {
         startPolling(json.jobId);
       } else if (res.status === 409 && json.jobId) {
-        // Already running, reconnect to existing job's polling
         startPolling(json.jobId);
       } else {
         setBackfillRunning(false);
@@ -406,7 +393,21 @@ export function ServicesSettings() {
         <form onSubmit={onSubmit} className="space-y-6">
           {/* LLM Provider Section */}
           <div className="p-4 border rounded-lg space-y-4 bg-muted/50">
-            <h3 className="text-lg font-semibold">AI Provider Configuration</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">AI Provider Configuration</h3>
+              <div className="flex items-center gap-2">
+                <StatusBadge status={testStatuses.llmProvider} />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => testService('llmProvider')}
+                  disabled={testingService === 'llmProvider'}
+                >
+                  {testingService === 'llmProvider' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Test'}
+                </Button>
+              </div>
+            </div>
 
             {/* Provider Selection */}
             <div>
@@ -631,9 +632,23 @@ export function ServicesSettings() {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Music Services</h3>
 
-            {/* Navidrome URL */}
-            <div>
-              <Label htmlFor="navidromeUrl">Navidrome URL</Label>
+            {/* Navidrome */}
+            <div className="p-4 border rounded-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium">Navidrome</Label>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={testStatuses.navidromeUrl} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => testService('navidromeUrl')}
+                    disabled={testingService === 'navidromeUrl'}
+                  >
+                    {testingService === 'navidromeUrl' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Test'}
+                  </Button>
+                </div>
+              </div>
               <Input
                 id="navidromeUrl"
                 name="navidromeUrl"
@@ -641,16 +656,29 @@ export function ServicesSettings() {
                 placeholder="http://localhost:4533"
                 value={config.navidromeUrl ?? ''}
                 onChange={(e) => update('navidromeUrl', e.target.value)}
-                className="mt-2"
               />
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-sm text-muted-foreground">
                 Music server for streaming and library management
               </p>
             </div>
 
-            {/* Lidarr URL */}
-            <div>
-              <Label htmlFor="lidarrUrl">Lidarr URL</Label>
+            {/* Lidarr */}
+            <div className="p-4 border rounded-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium">Lidarr</Label>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={testStatuses.lidarrUrl} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => testService('lidarrUrl')}
+                    disabled={testingService === 'lidarrUrl'}
+                  >
+                    {testingService === 'lidarrUrl' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Test'}
+                  </Button>
+                </div>
+              </div>
               <Input
                 id="lidarrUrl"
                 name="lidarrUrl"
@@ -658,16 +686,41 @@ export function ServicesSettings() {
                 placeholder="http://localhost:8686"
                 value={config.lidarrUrl ?? ''}
                 onChange={(e) => update('lidarrUrl', e.target.value)}
-                className="mt-2"
               />
-              <p className="text-sm text-muted-foreground mt-1">
+              <div>
+                <Label htmlFor="lidarrApiKey">API Key</Label>
+                <Input
+                  id="lidarrApiKey"
+                  name="lidarrApiKey"
+                  type="password"
+                  placeholder="Lidarr API key"
+                  value={config.lidarrApiKey ?? ''}
+                  onChange={(e) => update('lidarrApiKey', e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <p className="text-sm text-muted-foreground">
                 Automatic music collection management
               </p>
             </div>
 
-            {/* MeTube URL */}
-            <div>
-              <Label htmlFor="metubeUrl">MeTube URL</Label>
+            {/* MeTube */}
+            <div className="p-4 border rounded-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium">MeTube</Label>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={testStatuses.metubeUrl} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => testService('metubeUrl')}
+                    disabled={testingService === 'metubeUrl'}
+                  >
+                    {testingService === 'metubeUrl' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Test'}
+                  </Button>
+                </div>
+              </div>
               <Input
                 id="metubeUrl"
                 name="metubeUrl"
@@ -675,9 +728,8 @@ export function ServicesSettings() {
                 placeholder="http://localhost:8081"
                 value={config.metubeUrl ?? ''}
                 onChange={(e) => update('metubeUrl', e.target.value)}
-                className="mt-2"
               />
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-sm text-muted-foreground">
                 YouTube/SoundCloud downloader via{' '}
                 <a
                   href="https://github.com/alexta69/metube"
@@ -691,7 +743,7 @@ export function ServicesSettings() {
             </div>
           </div>
 
-          {/* Discovery Services Section - Story 7.2 */}
+          {/* Discovery Services Section */}
           <div className="p-4 border rounded-lg space-y-4 bg-purple-50 dark:bg-purple-900/10">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -738,21 +790,9 @@ export function ServicesSettings() {
                 </a>
                 {' '}- Used for Discovery mode recommendations
               </p>
-              {testStatuses?.lastfmApiKey && (
-                <div
-                  className={`mt-2 text-sm px-2 py-1 rounded inline-block ${
-                    testStatuses.lastfmApiKey === 'connected'
-                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                      : testStatuses.lastfmApiKey === 'not configured'
-                      ? 'bg-muted text-muted-foreground'
-                      : 'bg-destructive/10 text-destructive'
-                  }`}
-                >
-                  {testStatuses.lastfmApiKey === 'connected'
-                    ? 'Connected successfully'
-                    : testStatuses.lastfmApiKey === 'not configured'
-                    ? 'Not configured'
-                    : 'Connection failed - check API key'}
+              {testStatuses.lastfmApiKey && (
+                <div className="mt-2">
+                  <StatusBadge status={testStatuses.lastfmApiKey} />
                 </div>
               )}
             </div>
@@ -851,96 +891,6 @@ export function ServicesSettings() {
             {status}
           </div>
         )}
-
-        {/* Test Connections */}
-        <div className="space-y-3 pt-4 border-t">
-          <Button
-            type="button"
-            className="w-full"
-            variant="outline"
-            onClick={runTestConnections}
-            disabled={testing}
-          >
-            {testing ? 'Testing Connections...' : 'Test Service Connections'}
-          </Button>
-
-          {testStatuses && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 p-4 bg-muted/50 rounded-lg">
-              <div className="text-center">
-                <div className="font-medium mb-1">AI Provider</div>
-                <div
-                  className={`text-sm px-2 py-1 rounded ${
-                    testStatuses.llmProvider === 'connected'
-                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                      : testStatuses.llmProvider === 'not configured'
-                      ? 'bg-muted text-muted-foreground'
-                      : 'bg-destructive/10 text-destructive'
-                  }`}
-                >
-                  {testStatuses.llmProvider || 'Not configured'}
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="font-medium mb-1">Navidrome</div>
-                <div
-                  className={`text-sm px-2 py-1 rounded ${
-                    testStatuses.navidromeUrl === 'connected'
-                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                      : testStatuses.navidromeUrl === 'not configured'
-                      ? 'bg-muted text-muted-foreground'
-                      : 'bg-destructive/10 text-destructive'
-                  }`}
-                >
-                  {testStatuses.navidromeUrl || 'Not configured'}
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="font-medium mb-1">Lidarr</div>
-                <div
-                  className={`text-sm px-2 py-1 rounded ${
-                    testStatuses.lidarrUrl === 'connected'
-                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                      : testStatuses.lidarrUrl === 'not configured'
-                      ? 'bg-muted text-muted-foreground'
-                      : 'bg-destructive/10 text-destructive'
-                  }`}
-                >
-                  {testStatuses.lidarrUrl || 'Not configured'}
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="font-medium mb-1">MeTube</div>
-                <div
-                  className={`text-sm px-2 py-1 rounded ${
-                    testStatuses.metubeUrl === 'connected'
-                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                      : testStatuses.metubeUrl === 'not configured'
-                      ? 'bg-muted text-muted-foreground'
-                      : 'bg-destructive/10 text-destructive'
-                  }`}
-                >
-                  {testStatuses.metubeUrl || 'Not configured'}
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="font-medium mb-1">
-                  {config.llmProvider === 'ollama' ? 'Ollama' : config.llmProvider === 'openrouter' ? 'OpenRouter' : config.llmProvider === 'anthropic' ? 'Anthropic' : 'GLM'}
-                </div>
-                <div
-                  className={`text-sm px-2 py-1 rounded ${
-                    testStatuses.ollamaUrl === 'connected'
-                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                      : testStatuses.ollamaUrl === 'not configured'
-                      ? 'bg-muted text-muted-foreground'
-                      : 'bg-destructive/10 text-destructive'
-                  }`}
-                >
-                  {testStatuses.ollamaUrl || 'Not configured'}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </Card>
   );

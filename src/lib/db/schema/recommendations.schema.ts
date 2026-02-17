@@ -25,7 +25,7 @@ export const recommendationFeedback = pgTable("recommendation_feedback", {
   feedbackType: text("feedback_type", { enum: ['thumbs_up', 'thumbs_down'] }).notNull(),
 
   // Where the feedback came from
-  source: text("source", { enum: ['recommendation', 'playlist', 'playlist_generator', 'search', 'library', 'nudge', 'ai_dj'] }).default('recommendation').notNull(),
+  source: text("source", { enum: ['recommendation', 'playlist', 'playlist_generator', 'search', 'library', 'nudge', 'ai_dj', 'autoplay', 'ai_dj_skip', 'ai_dj_listen_through'] }).default('recommendation').notNull(),
 
   timestamp: timestamp("timestamp")
     .$defaultFn(() => new Date())

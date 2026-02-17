@@ -39,9 +39,11 @@ interface SortableQueueItemProps {
   onSkipAutoplay?: (songId: string) => void;
   /** Unique sortable ID for drag-and-drop (handles duplicate songs) */
   sortableId?: string;
+  /** Reason string for AI DJ recommendations (shown in tooltip) */
+  aiDJReason?: string;
 }
 
-const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued, isAutoplayQueued, currentFeedback, onFeedback, onSkipAutoplay, sortableId }: SortableQueueItemProps) {
+const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualIndex, onRemove, onPlay, isAIQueued, isAutoplayQueued, currentFeedback, onFeedback, onSkipAutoplay, sortableId, aiDJReason }: SortableQueueItemProps) {
   const {
     attributes,
     listeners,
@@ -122,7 +124,9 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
             <span className="text-[10px] sm:text-xs text-indigo-600 dark:text-indigo-300 flex-shrink-0" title="Added by Autoplay">🎶</span>
           )}
           {isAIQueued && !isAutoplayQueued && (
-            <span className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-300 flex-shrink-0" title="Added by AI DJ">✨</span>
+            <span className="flex-shrink-0" title={aiDJReason || 'AI DJ recommendation'}>
+              <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 text-purple-500" />
+            </span>
           )}
         </div>
         <p className="text-[10px] sm:text-xs text-muted-foreground/80 truncate mt-0.5">{songArtist}</p>
@@ -331,6 +335,7 @@ export function QueuePanel() {
     autoplayLastQueueTime,
     skipAutoplayedSong,
     nudgeMoreLikeThis,
+    aiDJRecommendationReasons,
   } = useAudioStore();
   const [isOpen, setIsOpen] = useState(false);
   const [timeSinceLastQueue, setTimeSinceLastQueue] = useState(0);
@@ -756,6 +761,7 @@ export function QueuePanel() {
                           currentFeedback={isAutoQueued ? getFeedbackForSong(song.id) : null}
                           onFeedback={handleAutoQueueFeedback}
                           onSkipAutoplay={skipAutoplayedSong}
+                          aiDJReason={isAIQueued ? aiDJRecommendationReasons[song.id] : undefined}
                         />
                       );
                     })}
