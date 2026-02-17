@@ -82,7 +82,16 @@ interface AudioState {
   positionUpdatedAt: string;
   playStateUpdatedAt: string;
   // Remote device indicator (set when another device is active)
-  remoteDevice: { deviceId: string | null; deviceName: string | null; isPlaying: boolean } | null;
+  remoteDevice: {
+    deviceId: string | null;
+    deviceName: string | null;
+    isPlaying: boolean;
+    songName?: string | null;
+    artist?: string | null;
+    currentPositionMs?: number;
+    durationMs?: number;
+    updatedAt?: number;
+  } | null;
   // Last known playback position/duration — updated by setCurrentTime/setDuration,
   // read by nextSong for skip detection. Avoids reading stale state.currentTime
   // which may already be reset to 0 by loadSong on rapid skips.
@@ -140,7 +149,7 @@ interface AudioState {
   setWasPlayingBeforeUnload: (value: boolean) => void;
   // Cross-device sync actions
   applyServerState: (server: PlaybackStateResponse) => void;
-  setRemoteDevice: (device: { deviceId: string | null; deviceName: string | null; isPlaying: boolean } | null) => void;
+  setRemoteDevice: (device: AudioState['remoteDevice']) => void;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -1722,8 +1731,10 @@ export const useAudioStore = create<AudioState>()(
         changed = true;
       }
 
-      // Position: only apply if server is newer
-      if (server.positionUpdatedAt > (local.positionUpdatedAt ?? '')) {
+      // Position: only apply if server is newer AND this device is NOT actively playing.
+      // When this device is playing, it is the authoritative source for position —
+      // accepting a stale server position would restart the song.
+      if (!local.isPlaying && server.positionUpdatedAt > (local.positionUpdatedAt ?? '')) {
         merged.currentTime = server.currentPositionMs / 1000;
         merged.positionUpdatedAt = server.positionUpdatedAt;
         changed = true;

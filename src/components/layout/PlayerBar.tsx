@@ -433,6 +433,9 @@ export function PlayerBar() {
 
     const createUpdateDuration = (deck: HTMLAudioElement, deckName: 'A' | 'B') => () => {
       if (activeDeckRef.current !== deckName) return;
+      // Guard against Infinity duration from streaming audio where content-length
+      // is unknown. Keep the metadata duration from loadSong instead.
+      if (!isFinite(deck.duration) || deck.duration <= 0) return;
       setDuration(deck.duration);
     };
 

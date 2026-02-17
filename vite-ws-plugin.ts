@@ -4,23 +4,35 @@
  * Adds WebSocket support to the Vite dev server.
  * In production, WebSocket is handled by the Node.js server entry.
  *
- * NOTE: This plugin uses a simplified dev-only auth approach because
- * the full auth module uses path aliases (~/) that can't be resolved
- * in the Vite plugin context. Production uses proper auth via server.ts.
+ * Uses a direct DB query to resolve the session token to a real user ID,
+ * so that multiple devices with different session tokens for the same user
+ * are grouped correctly for cross-device sync.
  */
 
 import type { Plugin, ViteDevServer } from 'vite';
 import { WebSocketServer } from 'ws';
 import { setupPlaybackWebSocket } from './src/lib/services/playback-websocket';
+import postgres from 'postgres';
+
+// Lazy-init DB connection for session lookups
+let sql: ReturnType<typeof postgres> | null = null;
+
+function getDb() {
+  if (!sql) {
+    const url = process.env.DATABASE_URL;
+    if (!url) {
+      console.error('[WS Dev] DATABASE_URL not set, cannot validate sessions');
+      return null;
+    }
+    sql = postgres(url);
+  }
+  return sql;
+}
 
 /**
- * Extract session/user ID from request (Development Only)
+ * Extract real user ID from request by looking up the session token in the DB.
  *
- * For development, we use a simplified auth check:
- * 1. Query param ?userId=xxx for testing
- * 2. Session cookie presence for authenticated users
- *
- * Production uses proper session validation in server.ts
+ * Falls back to query param ?userId=xxx for manual testing.
  */
 async function getUserIdFromRequest(request: import('http').IncomingMessage): Promise<string | null> {
   const url = new URL(request.url || '', `http://${request.headers.host}`);
@@ -39,24 +51,39 @@ async function getUserIdFromRequest(request: import('http').IncomingMessage): Pr
     return null;
   }
 
-  // In development, allow connection if there's a session cookie
-  // The actual session validation happens on API calls
-  if (cookieHeader.includes('better-auth.session_token')) {
-    // Extract a stable identifier from the session token for dev purposes
-    // This isn't cryptographically secure but works for dev sync testing
-    const match = cookieHeader.match(/better-auth\.session_token=([^;]+)/);
-    if (match) {
-      // Use first 8 chars of token as pseudo-user-id for dev
-      const tokenPrefix = match[1].substring(0, 8);
-      console.log('[WS Dev] Session cookie found, dev user:', tokenPrefix);
-      return `dev-${tokenPrefix}`;
-    }
-    console.log('[WS Dev] Session cookie found, allowing dev connection');
-    return 'dev-authenticated-user';
+  const match = cookieHeader.match(/better-auth\.session_token=([^;]+)/);
+  if (!match) {
+    console.log('[WS Dev] No valid session cookie found');
+    return null;
   }
 
-  console.log('[WS Dev] No valid session cookie found');
-  return null;
+  const decoded = decodeURIComponent(match[1]);
+  // better-auth cookie format: "{token}.{signature}" — extract just the token part
+  const token = decoded.includes('.') ? decoded.split('.')[0] : decoded;
+  const db = getDb();
+  if (!db) {
+    return null;
+  }
+
+  try {
+    const rows = await db`
+      SELECT user_id FROM session
+      WHERE token = ${token} AND expires_at > NOW()
+      LIMIT 1
+    `;
+
+    if (rows.length === 0) {
+      console.log('[WS Dev] Session token not found or expired');
+      return null;
+    }
+
+    const userId = rows[0].user_id as string;
+    console.log('[WS Dev] Resolved session to user:', userId);
+    return userId;
+  } catch (err) {
+    console.error('[WS Dev] Session lookup error:', err);
+    return null;
+  }
 }
 
 export function viteWebSocketPlugin(): Plugin {
@@ -95,6 +122,11 @@ export function viteWebSocketPlugin(): Plugin {
       if (wss) {
         wss.close();
         wss = null;
+      }
+      // Close DB connection
+      if (sql) {
+        sql.end();
+        sql = null;
       }
     },
   };

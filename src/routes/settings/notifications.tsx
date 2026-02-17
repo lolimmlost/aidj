@@ -59,7 +59,7 @@ export function NotificationSettings() {
     }
   };
 
-  const isNotificationSupported = 'Notification' in window;
+  const isNotificationSupported = typeof window !== 'undefined' && 'Notification' in window;
 
   return (
     <Card className="p-6">

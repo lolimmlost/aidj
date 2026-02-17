@@ -50,11 +50,17 @@ function createDebounced(fn: () => void, delay: number): { trigger: () => void; 
 }
 
 /**
- * Push current audio store state to server via REST
+ * Push current audio store state to server via REST.
+ * Always stamps positionUpdatedAt with the current time so the server
+ * has an accurate timestamp for conflict resolution.
  */
 async function pushStateToServer(): Promise<void> {
   const state = useAudioStore.getState();
   const deviceInfo = getDeviceInfo();
+  const now = new Date().toISOString();
+
+  // Stamp positionUpdatedAt so the server has a fresh timestamp
+  useAudioStore.setState({ positionUpdatedAt: now });
 
   try {
     await fetch('/api/playback/state', {
@@ -72,9 +78,9 @@ async function pushStateToServer(): Promise<void> {
         deviceId: deviceInfo.deviceId,
         deviceName: deviceInfo.deviceName,
         deviceType: deviceInfo.deviceType,
-        queueUpdatedAt: state.queueUpdatedAt ?? new Date().toISOString(),
-        positionUpdatedAt: state.positionUpdatedAt ?? new Date().toISOString(),
-        playStateUpdatedAt: state.playStateUpdatedAt ?? new Date().toISOString(),
+        queueUpdatedAt: state.queueUpdatedAt ?? now,
+        positionUpdatedAt: now,
+        playStateUpdatedAt: state.playStateUpdatedAt ?? now,
       }),
     });
   } catch (err) {
@@ -142,13 +148,23 @@ function handleIncomingMessage(
   switch (msg.type) {
     case 'state': {
       // Another device pushed state — update remote device indicator
-      // Don't auto-apply to local player (would interrupt playback)
+      // with song info so we can display what's playing remotely
       const payload = msg.payload as Record<string, unknown> | undefined;
       if (payload && store.setRemoteDevice) {
+        // Extract current song info from the queue
+        const queue = payload.queue as Array<{ name?: string; title?: string; artist?: string; duration?: number }> | undefined;
+        const currentIndex = payload.currentIndex as number | undefined;
+        const currentSong = queue && typeof currentIndex === 'number' ? queue[currentIndex] : null;
+
         store.setRemoteDevice({
           deviceId: (payload.deviceId as string) ?? null,
           deviceName: (payload.deviceName as string) ?? null,
           isPlaying: (payload.isPlaying as boolean) ?? false,
+          songName: currentSong?.title || currentSong?.name || null,
+          artist: currentSong?.artist || null,
+          currentPositionMs: (payload.currentPositionMs as number) ?? undefined,
+          durationMs: currentSong?.duration ? currentSong.duration * 1000 : undefined,
+          updatedAt: Date.now(),
         });
       }
       break;
