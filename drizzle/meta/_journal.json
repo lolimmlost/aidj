@@ -127,6 +127,20 @@
       "when": 1770165576163,
       "tag": "0017_cold_eddie_brock",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1771356725735,
+      "tag": "0018_workable_wild_child",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1771379531341,
+      "tag": "0019_complete_invisible_woman",
+      "breakpoints": true
     }
   ]
 }

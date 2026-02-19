@@ -16,6 +16,16 @@ export const Route = createFileRoute("/api/auth/register")({
         name
       });
 
+      // Create a per-user Navidrome account (non-blocking)
+      try {
+        const { createNavidromeUser } = await import('@/lib/services/navidrome-users');
+        await createNavidromeUser(result.user.id, name, email);
+        console.log(`🎵 Created Navidrome account for user ${name}`);
+      } catch (navidromeError) {
+        // Non-blocking: user will be provisioned lazily on first star/playlist action
+        console.error('Failed to create Navidrome account (non-blocking):', navidromeError);
+      }
+
       return new Response(JSON.stringify({ ok: true, result }), {
         status: 200,
         headers: { "Content-Type": "application/json" }

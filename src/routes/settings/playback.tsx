@@ -151,6 +151,24 @@ export function PlaybackSettings() {
           </p>
         </div>
 
+        {/* Safe Mode / Content Filter */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="safe-mode">Safe Mode (PG)</Label>
+            <p className="text-sm text-muted-foreground">
+              Filter explicit songs from AI DJ recommendations and autoplay.
+              Uses Deezer metadata to detect explicit content.
+            </p>
+          </div>
+          <Switch
+            id="safe-mode"
+            checked={localSettings.safeMode ?? false}
+            onCheckedChange={(checked) =>
+              setLocalSettings({ ...localSettings, safeMode: checked })
+            }
+          />
+        </div>
+
         {/* Save Button */}
         <div className="pt-4">
           <Button

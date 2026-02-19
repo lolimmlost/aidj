@@ -20,6 +20,7 @@ import {
 } from '../db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { getStarredSongs } from './navidrome';
+import { getNavidromeUserCreds } from './navidrome-users';
 
 // ============================================================================
 // Types
@@ -87,8 +88,9 @@ export async function syncLikedSongsToFeedback(userId: string): Promise<SyncResu
   };
 
   try {
-    // Step 1: Fetch starred songs from Navidrome
-    const starredSongs = await getStarredSongs();
+    // Step 1: Fetch starred songs from Navidrome using per-user creds if available
+    const userCreds = await getNavidromeUserCreds(userId);
+    const starredSongs = await getStarredSongs(userCreds ?? undefined);
     console.log(`💜 [LikedSongsSync] Found ${starredSongs.length} starred songs in Navidrome`);
 
     if (starredSongs.length === 0) {

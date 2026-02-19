@@ -2,10 +2,13 @@
  * Star/Unstar API proxy for Navidrome
  * POST /api/navidrome/star?id={songId} — star a song
  * DELETE /api/navidrome/star?id={songId} — unstar a song
+ *
+ * Uses per-user Navidrome credentials so stars are scoped to the user.
  */
 
 import { createFileRoute } from '@tanstack/react-router';
 import { starSong, unstarSong } from '../../../lib/services/navidrome';
+import { ensureNavidromeUser } from '../../../lib/services/navidrome-users';
 import {
   withAuthAndErrorHandling,
   successResponse,
@@ -13,7 +16,7 @@ import {
 } from '../../../lib/utils/api-response';
 
 const POST = withAuthAndErrorHandling(
-  async ({ request }) => {
+  async ({ request, session }) => {
     const url = new URL(request.url);
     const songId = url.searchParams.get('id');
 
@@ -21,7 +24,8 @@ const POST = withAuthAndErrorHandling(
       return errorResponse('MISSING_REQUIRED_FIELD', 'Song ID required', { status: 400 });
     }
 
-    await starSong(songId);
+    const creds = await ensureNavidromeUser(session.user.id, session.user.name, session.user.email);
+    await starSong(songId, creds);
     return successResponse({ starred: true, songId });
   },
   {
@@ -33,7 +37,7 @@ const POST = withAuthAndErrorHandling(
 );
 
 const DELETE = withAuthAndErrorHandling(
-  async ({ request }) => {
+  async ({ request, session }) => {
     const url = new URL(request.url);
     const songId = url.searchParams.get('id');
 
@@ -41,7 +45,8 @@ const DELETE = withAuthAndErrorHandling(
       return errorResponse('MISSING_REQUIRED_FIELD', 'Song ID required', { status: 400 });
     }
 
-    await unstarSong(songId);
+    const creds = await ensureNavidromeUser(session.user.id, session.user.name, session.user.email);
+    await unstarSong(songId, creds);
     return successResponse({ starred: false, songId });
   },
   {

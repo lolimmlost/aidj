@@ -146,10 +146,17 @@ export function useMediaSession({
     };
 
     const setupMediaSession = () => {
+      // Read current song from store to avoid stale closure during rapid skips.
+      // The effect re-runs on currentSong change, but rapid next presses can
+      // fire 'playing' events before the effect re-runs with the new song.
+      const storeState = useAudioStore.getState();
+      const liveSong = storeState.playlist[storeState.currentSongIndex] || currentSong;
+      const song = liveSong as Song & { albumId?: string; album?: string };
+
       // Build artwork array for lock screen display
       const artwork: MediaImage[] = [];
-      if (currentSong.albumId) {
-        const coverUrl = `/api/navidrome/rest/getCoverArt?id=${currentSong.albumId}&size=512`;
+      if (song.albumId) {
+        const coverUrl = `/api/navidrome/rest/getCoverArt?id=${song.albumId}&size=512`;
         artwork.push(
           { src: coverUrl, sizes: '512x512', type: 'image/jpeg' },
           { src: coverUrl.replace('size=512', 'size=256'), sizes: '256x256', type: 'image/jpeg' },
@@ -157,9 +164,9 @@ export function useMediaSession({
       }
 
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: currentSong.name || currentSong.title || 'Unknown Song',
-        artist: currentSong.artist || 'Unknown Artist',
-        album: currentSong.album || '',
+        title: song.name || song.title || 'Unknown Song',
+        artist: song.artist || 'Unknown Artist',
+        album: song.album || '',
         artwork: artwork.length > 0 ? artwork : undefined,
       });
 

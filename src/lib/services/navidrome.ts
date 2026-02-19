@@ -1,9 +1,10 @@
 import { getConfig } from '@/lib/config/config';
 import { mobileOptimization } from '@/lib/performance/mobile-optimization';
 import { ServiceError } from '../utils';
+import type { SubsonicCreds } from './navidrome-users';
 
 // Pure JS MD5 implementation for Subsonic API auth (cross-platform compatible)
-function md5Pure(string: string): string {
+export function md5Pure(string: string): string {
   function md5cycle(x: number[], k: number[]) {
     let a = x[0], b = x[1], c = x[2], d = x[3];
 
@@ -378,6 +379,22 @@ export function resetAuthState() {
   subsonicToken = null;
   subsonicSalt = null;
   tokenExpiry = 0;
+}
+
+/**
+ * Build a URL for direct Subsonic API calls with optional per-user creds.
+ * If creds are provided, uses those instead of the admin credentials.
+ */
+function buildSubsonicUrl(endpoint: string, creds?: SubsonicCreds): URL {
+  const config = getConfig();
+  const url = new URL(`${config.navidromeUrl}/rest/${endpoint}`);
+  url.searchParams.set('u', creds?.username || config.navidromeUsername || '');
+  url.searchParams.set('t', creds?.token || subsonicToken || '');
+  url.searchParams.set('s', creds?.salt || subsonicSalt || '');
+  url.searchParams.set('v', '1.16.1');
+  url.searchParams.set('c', 'aidj');
+  url.searchParams.set('f', 'json');
+  return url;
 }
 
 /**
@@ -1031,25 +1048,18 @@ export async function resolveSongByArtistTitle(artistTitle: string): Promise<Son
  * Star a song in Navidrome (mark as "loved")
  * Uses Subsonic API star endpoint
  */
-export async function starSong(songId: string): Promise<void> {
+export async function starSong(songId: string, creds?: SubsonicCreds): Promise<void> {
   const config = getConfig();
   if (!config.navidromeUrl) {
     throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
   }
 
-  if (!subsonicToken || !subsonicSalt) {
-    // Ensure we have Subsonic auth tokens
+  if (!creds && (!subsonicToken || !subsonicSalt)) {
     await getAuthToken();
   }
 
   try {
-    const url = new URL(`${config.navidromeUrl}/rest/star`);
-    url.searchParams.append('u', config.navidromeUsername || '');
-    url.searchParams.append('t', subsonicToken || '');
-    url.searchParams.append('s', subsonicSalt || '');
-    url.searchParams.append('v', '1.16.1');
-    url.searchParams.append('c', 'aidj');
-    url.searchParams.append('f', 'json');
+    const url = buildSubsonicUrl('star', creds);
     url.searchParams.append('id', songId);
 
     const response = await fetch(url.toString(), {
@@ -1076,25 +1086,18 @@ export async function starSong(songId: string): Promise<void> {
  * Unstar a song in Navidrome (remove "loved" flag)
  * Uses Subsonic API unstar endpoint
  */
-export async function unstarSong(songId: string): Promise<void> {
+export async function unstarSong(songId: string, creds?: SubsonicCreds): Promise<void> {
   const config = getConfig();
   if (!config.navidromeUrl) {
     throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
   }
 
-  if (!subsonicToken || !subsonicSalt) {
-    // Ensure we have Subsonic auth tokens
+  if (!creds && (!subsonicToken || !subsonicSalt)) {
     await getAuthToken();
   }
 
   try {
-    const url = new URL(`${config.navidromeUrl}/rest/unstar`);
-    url.searchParams.append('u', config.navidromeUsername || '');
-    url.searchParams.append('t', subsonicToken || '');
-    url.searchParams.append('s', subsonicSalt || '');
-    url.searchParams.append('v', '1.16.1');
-    url.searchParams.append('c', 'aidj');
-    url.searchParams.append('f', 'json');
+    const url = buildSubsonicUrl('unstar', creds);
     url.searchParams.append('id', songId);
 
     const response = await fetch(url.toString(), {
@@ -1121,25 +1124,18 @@ export async function unstarSong(songId: string): Promise<void> {
  * Get starred (favorited/loved) songs from Navidrome
  * Uses Subsonic API getStarred2 endpoint
  */
-export async function getStarredSongs(): Promise<SubsonicSong[]> {
+export async function getStarredSongs(creds?: SubsonicCreds): Promise<SubsonicSong[]> {
   const config = getConfig();
   if (!config.navidromeUrl) {
     throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
   }
 
-  if (!subsonicToken || !subsonicSalt) {
-    // Ensure we have Subsonic auth tokens
+  if (!creds && (!subsonicToken || !subsonicSalt)) {
     await getAuthToken();
   }
 
   try {
-    const url = new URL(`${config.navidromeUrl}/rest/getStarred2`);
-    url.searchParams.append('u', config.navidromeUsername || '');
-    url.searchParams.append('t', subsonicToken || '');
-    url.searchParams.append('s', subsonicSalt || '');
-    url.searchParams.append('v', '1.16.1');
-    url.searchParams.append('c', 'aidj');
-    url.searchParams.append('f', 'json');
+    const url = buildSubsonicUrl('getStarred2', creds);
 
     const response = await fetch(url.toString(), {
       method: 'GET',
@@ -1181,7 +1177,7 @@ export async function getStarredSongs(): Promise<SubsonicSong[]> {
  * @param submission - If true, registers a play. If false, updates "now playing" status
  * @param time - Optional timestamp (defaults to now)
  */
-export async function scrobbleSong(songId: string, submission: boolean = true, time?: Date): Promise<void> {
+export async function scrobbleSong(songId: string, submission: boolean = true, time?: Date, creds?: SubsonicCreds): Promise<void> {
   // Check if we're on the client side - if so, use the API proxy
   const isClient = typeof window !== 'undefined';
 
@@ -1234,19 +1230,12 @@ export async function scrobbleSong(songId: string, submission: boolean = true, t
     throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
   }
 
-  if (!subsonicToken || !subsonicSalt) {
-    // Ensure we have Subsonic auth tokens
+  if (!creds && (!subsonicToken || !subsonicSalt)) {
     await getAuthToken();
   }
 
   try {
-    const url = new URL(`${config.navidromeUrl}/rest/scrobble`);
-    url.searchParams.append('u', config.navidromeUsername || '');
-    url.searchParams.append('t', subsonicToken || '');
-    url.searchParams.append('s', subsonicSalt || '');
-    url.searchParams.append('v', '1.16.1');
-    url.searchParams.append('c', 'aidj');
-    url.searchParams.append('f', 'json');
+    const url = buildSubsonicUrl('scrobble', creds);
     url.searchParams.append('id', songId);
     url.searchParams.append('submission', submission.toString());
 
@@ -1311,8 +1300,26 @@ export async function checkNavidromeConnectivity(): Promise<boolean> {
  * Get all playlists for the authenticated user
  * Uses Subsonic API getPlaylists endpoint
  */
-export async function getPlaylists(): Promise<NavidromePlaylist[]> {
+export async function getPlaylists(creds?: SubsonicCreds): Promise<NavidromePlaylist[]> {
   try {
+    if (creds) {
+      // Use per-user creds for direct fetch
+      const config = getConfig();
+      if (!config.navidromeUrl) {
+        throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
+      }
+      const url = buildSubsonicUrl('getPlaylists', creds);
+      const response = await fetch(url.toString(), { method: 'GET' });
+      if (!response.ok) {
+        throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch playlists: ${response.statusText}`);
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = await response.json() as any;
+      const playlists = data['subsonic-response']?.playlists?.playlist || data.playlists?.playlist || [];
+      console.log(`📋 Fetched ${playlists.length} playlists from Navidrome (per-user)`);
+      return playlists as NavidromePlaylist[];
+    }
+
     const endpoint = `/rest/getPlaylists`;
     const data = await apiFetch(endpoint) as SubsonicApiResponse;
 
@@ -1329,8 +1336,29 @@ export async function getPlaylists(): Promise<NavidromePlaylist[]> {
  * Get a single playlist with all its songs
  * Uses Subsonic API getPlaylist endpoint
  */
-export async function getPlaylist(id: string): Promise<NavidromePlaylistWithSongs> {
+export async function getPlaylist(id: string, creds?: SubsonicCreds): Promise<NavidromePlaylistWithSongs> {
   try {
+    if (creds) {
+      const config = getConfig();
+      if (!config.navidromeUrl) {
+        throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
+      }
+      const url = buildSubsonicUrl('getPlaylist', creds);
+      url.searchParams.set('id', id);
+      const response = await fetch(url.toString(), { method: 'GET' });
+      if (!response.ok) {
+        throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch playlist: ${response.statusText}`);
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = await response.json() as any;
+      const playlist = data['subsonic-response']?.playlist || data.playlist;
+      if (!playlist) {
+        throw new ServiceError('NAVIDROME_API_ERROR', `Playlist not found: ${id}`);
+      }
+      console.log(`📋 Fetched playlist "${playlist.name}" with ${playlist.songCount} songs (per-user)`);
+      return playlist as NavidromePlaylistWithSongs;
+    }
+
     const endpoint = `/rest/getPlaylist?id=${encodeURIComponent(id)}`;
     const data = await apiFetch(endpoint) as SubsonicApiResponse;
 
@@ -1351,8 +1379,32 @@ export async function getPlaylist(id: string): Promise<NavidromePlaylistWithSong
  * Create a new playlist in Navidrome
  * Uses Subsonic API createPlaylist endpoint
  */
-export async function createPlaylist(name: string, songIds?: string[]): Promise<NavidromePlaylist> {
+export async function createPlaylist(name: string, songIds?: string[], creds?: SubsonicCreds): Promise<NavidromePlaylist> {
   try {
+    if (creds) {
+      const config = getConfig();
+      if (!config.navidromeUrl) {
+        throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
+      }
+      const url = buildSubsonicUrl('createPlaylist', creds);
+      url.searchParams.set('name', name);
+      if (songIds && songIds.length > 0) {
+        songIds.forEach(id => url.searchParams.append('songId', id));
+      }
+      const response = await fetch(url.toString(), { method: 'POST' });
+      if (!response.ok) {
+        throw new ServiceError('NAVIDROME_API_ERROR', `Failed to create playlist: ${response.statusText}`);
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = await response.json() as any;
+      const playlist = data['subsonic-response']?.playlist || data.playlist;
+      if (!playlist) {
+        throw new ServiceError('NAVIDROME_API_ERROR', 'Failed to create playlist: no response data');
+      }
+      console.log(`✅ Created playlist "${name}" with ${songIds?.length || 0} songs (per-user)`);
+      return playlist as NavidromePlaylist;
+    }
+
     let endpoint = `/rest/createPlaylist?name=${encodeURIComponent(name)}`;
 
     // Add song IDs if provided
@@ -1381,8 +1433,31 @@ export async function createPlaylist(name: string, songIds?: string[]): Promise<
  * Update an existing playlist (name and/or songs)
  * Uses Subsonic API updatePlaylist endpoint
  */
-export async function updatePlaylist(id: string, name?: string, songIds?: string[]): Promise<void> {
+export async function updatePlaylist(id: string, name?: string, songIds?: string[], creds?: SubsonicCreds): Promise<void> {
   try {
+    if (creds) {
+      const config = getConfig();
+      if (!config.navidromeUrl) {
+        throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
+      }
+      const url = buildSubsonicUrl('updatePlaylist', creds);
+      url.searchParams.set('playlistId', id);
+      if (name) url.searchParams.set('name', name);
+      if (songIds && songIds.length > 0) {
+        songIds.forEach(songId => url.searchParams.append('songIdToAdd', songId));
+      }
+      const response = await fetch(url.toString(), { method: 'POST' });
+      if (!response.ok) {
+        throw new ServiceError('NAVIDROME_API_ERROR', `Failed to update playlist: ${response.statusText}`);
+      }
+      const data = await response.json() as SubsonicApiResponse;
+      if (data['subsonic-response']?.status !== 'ok') {
+        throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+      }
+      console.log(`✅ Updated playlist ${id} (per-user)`);
+      return;
+    }
+
     let endpoint = `/rest/updatePlaylist?playlistId=${encodeURIComponent(id)}`;
 
     if (name) {
@@ -1413,8 +1488,27 @@ export async function updatePlaylist(id: string, name?: string, songIds?: string
  * Delete a playlist from Navidrome
  * Uses Subsonic API deletePlaylist endpoint
  */
-export async function deletePlaylist(id: string): Promise<void> {
+export async function deletePlaylist(id: string, creds?: SubsonicCreds): Promise<void> {
   try {
+    if (creds) {
+      const config = getConfig();
+      if (!config.navidromeUrl) {
+        throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
+      }
+      const url = buildSubsonicUrl('deletePlaylist', creds);
+      url.searchParams.set('id', id);
+      const response = await fetch(url.toString(), { method: 'POST' });
+      if (!response.ok) {
+        throw new ServiceError('NAVIDROME_API_ERROR', `Failed to delete playlist: ${response.statusText}`);
+      }
+      const data = await response.json() as SubsonicApiResponse;
+      if (data['subsonic-response']?.status !== 'ok') {
+        throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+      }
+      console.log(`🗑️ Deleted playlist ${id} (per-user)`);
+      return;
+    }
+
     const endpoint = `/rest/deletePlaylist?id=${encodeURIComponent(id)}`;
     const data = await apiFetch(endpoint, { method: 'POST' }) as SubsonicApiResponse;
 
@@ -1657,8 +1751,28 @@ export async function searchSongsByCriteria(criteria: {
  * Add songs to an existing playlist
  * Uses Subsonic API updatePlaylist endpoint with songIdToAdd parameter
  */
-export async function addSongsToPlaylist(playlistId: string, songIds: string[]): Promise<void> {
+export async function addSongsToPlaylist(playlistId: string, songIds: string[], creds?: SubsonicCreds): Promise<void> {
   try {
+    if (creds) {
+      const config = getConfig();
+      if (!config.navidromeUrl) {
+        throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
+      }
+      const url = buildSubsonicUrl('updatePlaylist', creds);
+      url.searchParams.set('playlistId', playlistId);
+      songIds.forEach(songId => url.searchParams.append('songIdToAdd', songId));
+      const response = await fetch(url.toString(), { method: 'POST' });
+      if (!response.ok) {
+        throw new ServiceError('NAVIDROME_API_ERROR', `Failed to add songs to playlist: ${response.statusText}`);
+      }
+      const data = await response.json() as SubsonicApiResponse;
+      if (data['subsonic-response']?.status !== 'ok') {
+        throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+      }
+      console.log(`➕ Added ${songIds.length} songs to playlist ${playlistId} (per-user)`);
+      return;
+    }
+
     let endpoint = `/rest/updatePlaylist?playlistId=${encodeURIComponent(playlistId)}`;
 
     songIds.forEach(songId => {

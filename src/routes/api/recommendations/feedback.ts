@@ -4,6 +4,7 @@ import { recommendationFeedback, recommendationsCache, userPreferences } from '.
 import { eq, and, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { starSong, unstarSong, getStarredSongs } from '../../../lib/services/navidrome';
+import { ensureNavidromeUser } from '../../../lib/services/navidrome-users';
 import { clearPreferenceCache } from '../../../lib/services/preferences';
 import { clearAnalyticsCache } from '../../../lib/services/recommendation-analytics';
 import { extractTemporalMetadata } from '../../../lib/utils/temporal';
@@ -173,18 +174,20 @@ export const POST = withAuthAndErrorHandling(
         const syncEnabled = prefs?.recommendationSettings?.syncFeedbackToNavidrome !== false;
 
         if (syncEnabled) {
+          const creds = await ensureNavidromeUser(session.user.id, session.user.name, session.user.email);
+
           if (validatedData.feedbackType === 'thumbs_up') {
-            await starSong(validatedData.songId);
+            await starSong(validatedData.songId, creds);
             console.log(`✅ Starred song ${validatedData.songId} in Navidrome`);
           } else if (validatedData.feedbackType === 'thumbs_down') {
-            await unstarSong(validatedData.songId);
+            await unstarSong(validatedData.songId, creds);
             console.log(`❌ Unstarred song ${validatedData.songId} in Navidrome`);
           }
 
           // Auto-sync Liked Songs playlist after starring/unstarring
           try {
             const LIKED_SONGS_NAME = '❤️ Liked Songs';
-            const starredSongs = await getStarredSongs();
+            const starredSongs = await getStarredSongs(creds);
 
             // Find or create Liked Songs playlist
             let likedPlaylist = await db

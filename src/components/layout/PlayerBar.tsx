@@ -171,6 +171,8 @@ export function PlayerBar() {
 
   // Shared crossfade state ref - created here so it can be passed to both hooks
   const crossfadeInProgressRef = useRef<boolean>(false);
+  // Cooldown after crossfade abort — prevents immediate re-trigger from timeupdate
+  const crossfadeAbortedAtRef = useRef<number>(0);
 
   // Crossfade hook (initialized first since stall recovery needs crossfadeInProgressRef)
   const {
@@ -216,17 +218,17 @@ export function PlayerBar() {
     },
     onCrossfadeAbort: (song) => {
       if (song) {
-        const activeDeck = getActiveDeck();
-        if (activeDeck) {
-          hasScrobbledRef.current = false;
-          scrobbleThresholdReachedRef.current = false;
-          currentSongIdRef.current = song.id;
-          activeDeck.src = song.url;
-          activeDeck.play().catch(err => {
-            console.error('⚠️ [XFADE] Fallback transition play failed:', err);
-          });
-          nextSong();
-        }
+        console.log(`[XFADE] Crossfade aborted — falling back to standard transition for: ${song.name || song.title}`);
+        hasScrobbledRef.current = false;
+        scrobbleThresholdReachedRef.current = false;
+        // Set cooldown to prevent timeupdate from re-triggering crossfade
+        // on the still-ending current song before nextSong() takes effect
+        crossfadeAbortedAtRef.current = Date.now();
+        // Just advance the queue — the useEffect watching currentSongIndex
+        // will handle loading and playing the next song on the active deck.
+        // Do NOT manually set activeDeck.src here: that races with the effect
+        // and causes "The operation was aborted" errors + song skips.
+        nextSong();
       }
     },
     canPlayHandlerRef,
@@ -420,7 +422,11 @@ export function PlayerBar() {
 
         if (!isFinite(deck.duration)) return;
 
-        if (xfadeDuration > 0 && timeRemaining <= xfadeDuration && timeRemaining > 0.5 && !crossfadeInProgressRef.current) {
+        // Cooldown: don't re-trigger crossfade within 10s of an abort
+        // (the abort already called nextSong — the old deck is finishing its last moments)
+        const crossfadeCooldownActive = Date.now() - crossfadeAbortedAtRef.current < 10000;
+
+        if (xfadeDuration > 0 && timeRemaining <= xfadeDuration && timeRemaining > 0.5 && !crossfadeInProgressRef.current && !crossfadeCooldownActive) {
           const nextIndex = (currentSongIndex + 1) % playlist.length;
           const nextSongData = playlist[nextIndex] as Song;
 
@@ -488,6 +494,13 @@ export function PlayerBar() {
         return;
       }
 
+      // If a crossfade abort just handled the transition, skip
+      // (the abort already called nextSong — this ended event is for the old deck)
+      if (Date.now() - crossfadeAbortedAtRef.current < 3000) {
+        console.log(`[XFADE] onEnded fired but crossfade abort recently handled transition, skipping`);
+        return;
+      }
+
       if (currentSongIdRef.current && !hasScrobbledRef.current && currentSong) {
         hasScrobbledRef.current = true;
         scrobbleSong(currentSongIdRef.current, true)
@@ -501,26 +514,10 @@ export function PlayerBar() {
         recordListeningHistory(currentSong, currentSongIdRef.current, deck.currentTime, deck.duration);
       }
 
-      // MOBILE FIX: Load and play next song directly
-      const nextIndex = (currentSongIndex + 1) % playlist.length;
-      const nextSongData = playlist[nextIndex] as Song;
-
-      if (nextSongData && playlist.length > 0) {
-        console.log(`[MOBILE] Direct transition to next song: ${nextSongData.name || nextSongData.title}`);
-
-        hasScrobbledRef.current = false;
-        scrobbleThresholdReachedRef.current = false;
-        currentSongIdRef.current = nextSongData.id;
-
-        deck.src = nextSongData.url;
-        deck.play().catch(err => {
-          console.error('[MOBILE] Direct play failed:', err);
-        });
-
-        nextSong();
-      } else {
-        nextSong();
-      }
+      // Let the useEffect watching currentSongIndex handle loading the next song.
+      // Don't manually set deck.src here — it races with the effect and causes
+      // "The operation was aborted" errors.
+      nextSong();
     };
 
     // Create handlers for each deck

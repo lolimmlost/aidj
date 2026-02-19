@@ -10,6 +10,9 @@ import { getProfileBasedRecommendations, hasProfileData } from '@/lib/services/p
 import { getSongsByIds } from '@/lib/services/navidrome';
 import type { Song } from '@/lib/types/song';
 import { auth } from '@/lib/auth/auth';
+import { db } from '@/lib/db';
+import { userPreferences } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 // Types for queue context
 export interface QueueContext {
@@ -331,6 +334,31 @@ export async function POST({ request }: { request: Request }) {
         } catch (error) {
           console.warn('Artist fatigue calculation failed:', error);
           // Non-blocking - continue without fatigue data
+        }
+      }
+
+      // Safe Mode: filter explicit songs if user has safeMode enabled
+      if (userId && result.songs.length > 0) {
+        try {
+          const prefs = await db.select()
+            .from(userPreferences)
+            .where(eq(userPreferences.userId, userId))
+            .limit(1);
+
+          const safeMode = prefs[0]?.playbackSettings?.safeMode ?? false;
+
+          if (safeMode) {
+            const { filterExplicitSongs } = await import('@/lib/services/explicit-content');
+            const filtered = await filterExplicitSongs(result.songs);
+            const removedCount = result.songs.length - filtered.length;
+            if (removedCount > 0) {
+              console.log(`🔒 Safe Mode: Filtered ${removedCount} explicit song(s)`);
+            }
+            result.songs = filtered;
+          }
+        } catch (error) {
+          console.warn('Safe Mode filtering failed:', error);
+          // Non-blocking — continue with unfiltered results
         }
       }
 

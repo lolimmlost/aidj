@@ -16,3 +16,5 @@ export * from "./profile.schema";
 export * from "./saved-cover-art.schema";
 export * from "./playback-session.schema";
 export * from "./devices.schema";
+export * from "./explicit-content.schema";
+export * from "./navidrome-users.schema";

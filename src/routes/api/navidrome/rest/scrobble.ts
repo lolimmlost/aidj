@@ -2,11 +2,15 @@
  * Scrobble endpoint - proxies to Navidrome's Subsonic API
  * Records song plays/now playing status
  *
+ * Uses per-user Navidrome credentials so scrobbles are attributed to the correct user.
+ *
  * GET /api/navidrome/rest/scrobble
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '../../../../lib/config/config';
 import { getAuthToken, subsonicToken, subsonicSalt } from '../../../../lib/services/navidrome';
+import { auth } from '../../../../lib/auth/auth';
+import { ensureNavidromeUser } from '../../../../lib/services/navidrome-users';
 
 export const Route = createFileRoute("/api/navidrome/rest/scrobble")({
   server: {
@@ -21,16 +25,6 @@ export const Route = createFileRoute("/api/navidrome/rest/scrobble")({
         });
       }
 
-      // Ensure we have auth tokens
-      await getAuthToken();
-
-      if (!subsonicToken || !subsonicSalt) {
-        return new Response(JSON.stringify({ error: 'Not authenticated with Navidrome' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-
       // Build the scrobble URL
       const requestUrl = new URL(request.url);
       const url = new URL(`${config.navidromeUrl}/rest/scrobble`);
@@ -40,10 +34,45 @@ export const Route = createFileRoute("/api/navidrome/rest/scrobble")({
         url.searchParams.set(key, value);
       });
 
-      // Add subsonic auth params
-      url.searchParams.set('u', config.navidromeUsername || '');
-      url.searchParams.set('t', subsonicToken);
-      url.searchParams.set('s', subsonicSalt);
+      // Try to get per-user credentials for the authenticated user
+      const session = await auth.api.getSession({
+        headers: request.headers,
+        query: { disableCookieCache: true },
+      });
+
+      if (session) {
+        try {
+          const creds = await ensureNavidromeUser(session.user.id, session.user.name, session.user.email);
+          url.searchParams.set('u', creds.username);
+          url.searchParams.set('t', creds.token);
+          url.searchParams.set('s', creds.salt);
+        } catch (credsError) {
+          console.warn('Failed to get per-user creds for scrobble, falling back to admin:', credsError);
+          // Fall back to admin creds
+          await getAuthToken();
+          if (!subsonicToken || !subsonicSalt) {
+            return new Response(JSON.stringify({ error: 'Not authenticated with Navidrome' }), {
+              status: 401,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+          url.searchParams.set('u', config.navidromeUsername || '');
+          url.searchParams.set('t', subsonicToken);
+          url.searchParams.set('s', subsonicSalt);
+        }
+      } else {
+        // No session — fall back to admin creds
+        await getAuthToken();
+        if (!subsonicToken || !subsonicSalt) {
+          return new Response(JSON.stringify({ error: 'Not authenticated with Navidrome' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        url.searchParams.set('u', config.navidromeUsername || '');
+        url.searchParams.set('t', subsonicToken);
+        url.searchParams.set('s', subsonicSalt);
+      }
 
       console.log(`🎵 Proxying scrobble to: ${url.toString().replace(/t=[^&]+/, 't=***')}`);
 

@@ -58,6 +58,7 @@ export const userPreferences = pgTable("user_preferences", {
     autoplayNext: boolean;
     crossfadeDuration: number; // 0-10 seconds
     defaultQuality: 'low' | 'medium' | 'high';
+    safeMode?: boolean; // PG/SFW mode — filter explicit content from recommendations
   }>().default({
     volume: 0.5,
     autoplayNext: true,

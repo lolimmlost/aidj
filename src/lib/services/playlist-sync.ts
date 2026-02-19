@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { userPlaylists, playlistSongs } from '@/lib/db/schema/playlists.schema';
 import { getPlaylists, getPlaylist, type NavidromePlaylist, type NavidromePlaylistWithSongs } from './navidrome';
+import { getNavidromeUserCreds } from './navidrome-users';
 import { ServiceError } from '../utils';
 
 /**
@@ -28,8 +29,9 @@ export async function syncNavidromePlaylists(userId: string): Promise<SyncResult
   };
 
   try {
-    // 1. Fetch all playlists from Navidrome
-    const navidromePlaylists = await getPlaylists();
+    // 1. Fetch all playlists from Navidrome using per-user creds if available
+    const userCreds = await getNavidromeUserCreds(userId);
+    const navidromePlaylists = await getPlaylists(userCreds ?? undefined);
     console.log(`🔄 Fetched ${navidromePlaylists.length} playlists from Navidrome for user ${userId}`);
 
     // 2. Fetch all local playlists that have a navidromeId (synced playlists)
@@ -68,7 +70,7 @@ export async function syncNavidromePlaylists(userId: string): Promise<SyncResult
               .where(eq(userPlaylists.id, localPlaylist.id));
 
             // Fetch full playlist with songs to update playlistSongs table
-            await syncPlaylistSongs(localPlaylist.id, navidromePlaylist.id);
+            await syncPlaylistSongs(localPlaylist.id, navidromePlaylist.id, userCreds ?? undefined);
 
             result.updated++;
             console.log(`✅ Updated playlist "${navidromePlaylist.name}"`);
@@ -85,7 +87,7 @@ export async function syncNavidromePlaylists(userId: string): Promise<SyncResult
           // New playlist - add to local database
           const newPlaylistId = await addNavidromePlaylist(userId, navidromePlaylist);
           if (newPlaylistId) {
-            await syncPlaylistSongs(newPlaylistId, navidromePlaylist.id);
+            await syncPlaylistSongs(newPlaylistId, navidromePlaylist.id, userCreds ?? undefined);
             result.added++;
             console.log(`➕ Added new playlist "${navidromePlaylist.name}"`);
           }
@@ -159,10 +161,10 @@ async function addNavidromePlaylist(userId: string, navidromePlaylist: Navidrome
 /**
  * Sync playlist songs from Navidrome to local database
  */
-async function syncPlaylistSongs(localPlaylistId: string, navidromePlaylistId: string): Promise<void> {
+async function syncPlaylistSongs(localPlaylistId: string, navidromePlaylistId: string, creds?: import('./navidrome-users').SubsonicCreds): Promise<void> {
   try {
     // Fetch full playlist with songs from Navidrome
-    const navidromePlaylist: NavidromePlaylistWithSongs = await getPlaylist(navidromePlaylistId);
+    const navidromePlaylist: NavidromePlaylistWithSongs = await getPlaylist(navidromePlaylistId, creds);
 
     // Delete existing songs for this playlist
     await db.delete(playlistSongs).where(eq(playlistSongs.playlistId, localPlaylistId));
@@ -200,8 +202,9 @@ export async function needsSync(localPlaylistId: string): Promise<boolean> {
       return false; // Not a synced playlist
     }
 
-    // Fetch current state from Navidrome
-    const navidromePlaylists = await getPlaylists();
+    // Fetch current state from Navidrome using per-user creds if available
+    const ownerCreds = await getNavidromeUserCreds(playlist[0].userId);
+    const navidromePlaylists = await getPlaylists(ownerCreds ?? undefined);
     const navidromePlaylist = navidromePlaylists.find(p => p.id === playlist[0].navidromeId);
 
     if (!navidromePlaylist) {

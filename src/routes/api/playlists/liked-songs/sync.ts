@@ -4,6 +4,7 @@ import { db } from '../../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../../lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { getStarredSongs } from '../../../../lib/services/navidrome';
+import { ensureNavidromeUser } from '../../../../lib/services/navidrome-users';
 
 export const Route = createFileRoute("/api/playlists/liked-songs/sync")({
   server: {
@@ -32,8 +33,9 @@ export const Route = createFileRoute("/api/playlists/liked-songs/sync")({
 
       console.log(`🔄 Syncing Liked Songs playlist for user ${userId}`);
 
-      // Fetch starred songs from Navidrome
-      const starredSongs = await getStarredSongs();
+      // Fetch starred songs from Navidrome using per-user credentials
+      const creds = await ensureNavidromeUser(session.user.id, session.user.name, session.user.email);
+      const starredSongs = await getStarredSongs(creds);
       console.log(`⭐ Found ${starredSongs.length} starred songs in Navidrome`);
 
       // Find or create the Liked Songs playlist

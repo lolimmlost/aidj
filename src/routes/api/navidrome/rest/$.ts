@@ -2,11 +2,32 @@
  * Catch-all for Subsonic API endpoints - proxies to Navidrome's Subsonic API
  * Handles: getCoverArt, search3, getPlaylists, etc.
  *
+ * For user-scoped endpoints (star, unstar, getStarred2, playlists, scrobble),
+ * uses per-user Navidrome credentials when the user is authenticated.
+ * For shared endpoints (getCoverArt, stream, search, etc.), uses admin credentials.
+ *
  * GET /api/navidrome/rest/*
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 import { getAuthToken, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
+
+/** Subsonic endpoints that are user-scoped and need per-user credentials */
+const USER_SCOPED_ENDPOINTS = [
+  'star', 'star.view',
+  'unstar', 'unstar.view',
+  'getStarred2', 'getStarred2.view',
+  'getPlaylists', 'getPlaylists.view',
+  'getPlaylist', 'getPlaylist.view',
+  'createPlaylist', 'createPlaylist.view',
+  'updatePlaylist', 'updatePlaylist.view',
+  'deletePlaylist', 'deletePlaylist.view',
+  'scrobble', 'scrobble.view',
+];
+
+function isUserScopedEndpoint(endpoint: string): boolean {
+  return USER_SCOPED_ENDPOINTS.some(e => endpoint === e || endpoint.startsWith(e + '?'));
+}
 
 export const Route = createFileRoute("/api/navidrome/rest/$")({
   server: {
@@ -32,13 +53,49 @@ export const Route = createFileRoute("/api/navidrome/rest/$")({
             url.searchParams.set(key, value);
           });
 
-          // Add subsonic auth params
-          if (subsonicToken && subsonicSalt) {
-            url.searchParams.set('u', config.navidromeUsername || '');
-            url.searchParams.set('t', subsonicToken);
-            url.searchParams.set('s', subsonicSalt);
-            url.searchParams.set('v', '1.16.1');
-            url.searchParams.set('c', 'aidj');
+          // For user-scoped endpoints, try per-user creds
+          if (isUserScopedEndpoint(endpoint)) {
+            let usedPerUserCreds = false;
+            try {
+              const { auth } = await import('@/lib/auth/auth');
+              const session = await auth.api.getSession({
+                headers: request.headers,
+                query: { disableCookieCache: true },
+              });
+
+              if (session) {
+                const { ensureNavidromeUser } = await import('@/lib/services/navidrome-users');
+                const creds = await ensureNavidromeUser(session.user.id, session.user.name, session.user.email);
+                url.searchParams.set('u', creds.username);
+                url.searchParams.set('t', creds.token);
+                url.searchParams.set('s', creds.salt);
+                url.searchParams.set('v', '1.16.1');
+                url.searchParams.set('c', 'aidj');
+                usedPerUserCreds = true;
+              }
+            } catch (credsError) {
+              console.warn(`[REST Proxy] Failed to get per-user creds for ${endpoint}, falling back to admin:`, credsError);
+            }
+
+            if (!usedPerUserCreds) {
+              // Fall back to admin creds
+              if (subsonicToken && subsonicSalt) {
+                url.searchParams.set('u', config.navidromeUsername || '');
+                url.searchParams.set('t', subsonicToken);
+                url.searchParams.set('s', subsonicSalt);
+                url.searchParams.set('v', '1.16.1');
+                url.searchParams.set('c', 'aidj');
+              }
+            }
+          } else {
+            // Shared endpoints: use admin creds
+            if (subsonicToken && subsonicSalt) {
+              url.searchParams.set('u', config.navidromeUsername || '');
+              url.searchParams.set('t', subsonicToken);
+              url.searchParams.set('s', subsonicSalt);
+              url.searchParams.set('v', '1.16.1');
+              url.searchParams.set('c', 'aidj');
+            }
           }
 
           // Auto-add f=json for non-binary endpoints to get JSON instead of XML

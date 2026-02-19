@@ -8,9 +8,12 @@ import {
   successResponse,
   errorResponse,
 } from '../../lib/utils/api-response';
+import { db } from '../../lib/db';
+import { userPreferences } from '../../lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 const POST = withAuthAndErrorHandling(
-  async ({ request }) => {
+  async ({ request, session }) => {
     const { prompt, limit = 20, currentSongId } = await request.json() as {
       prompt: string;
       limit?: number;
@@ -37,6 +40,30 @@ const POST = withAuthAndErrorHandling(
     });
 
     console.log(`✅ Got ${result.songs.length} recommendations from ${result.source}`);
+
+    // Safe Mode: filter explicit songs if user has safeMode enabled
+    if (session?.user?.id && result.songs.length > 0) {
+      try {
+        const prefs = await db.select()
+          .from(userPreferences)
+          .where(eq(userPreferences.userId, session.user.id))
+          .limit(1);
+
+        const safeMode = prefs[0]?.playbackSettings?.safeMode ?? false;
+
+        if (safeMode) {
+          const { filterExplicitSongs } = await import('../../lib/services/explicit-content');
+          const filtered = await filterExplicitSongs(result.songs);
+          const removedCount = result.songs.length - filtered.length;
+          if (removedCount > 0) {
+            console.log(`🔒 Safe Mode: Filtered ${removedCount} explicit song(s) from mood recommendations`);
+          }
+          result.songs = filtered;
+        }
+      } catch (error) {
+        console.warn('Safe Mode filtering failed:', error);
+      }
+    }
 
     // Transform to legacy format for backward compatibility
     const recommendations = result.songs.map(song => ({

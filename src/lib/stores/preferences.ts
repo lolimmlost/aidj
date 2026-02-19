@@ -52,6 +52,7 @@ export interface PlaybackSettings {
   autoplayNext: boolean;
   crossfadeDuration: number;
   defaultQuality: 'low' | 'medium' | 'high';
+  safeMode?: boolean; // PG/SFW mode — filter explicit content from recommendations
 }
 
 export interface NotificationSettings {
