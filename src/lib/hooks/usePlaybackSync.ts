@@ -129,11 +129,14 @@ function broadcastStateViaWS(ws: WebSocket | null): void {
     deviceId: deviceInfo.deviceId,
     payload: {
       queue: state.playlist.map(toSyncSong),
+      originalQueue: (state.originalPlaylist ?? []).map(toSyncSong),
       currentIndex: state.currentSongIndex,
       currentPositionMs: Math.floor((state.currentTime ?? 0) * 1000),
       isPlaying: state.isPlaying,
       volume: state.volume,
       isShuffled: state.isShuffled,
+      deviceId: deviceInfo.deviceId,
+      deviceName: deviceInfo.deviceName,
       queueUpdatedAt: state.queueUpdatedAt,
       positionUpdatedAt: state.positionUpdatedAt,
       playStateUpdatedAt: state.playStateUpdatedAt,
@@ -161,13 +164,35 @@ function handleIncomingMessage(
       const queue = payload.queue as Array<{ name?: string; title?: string; artist?: string; duration?: number }> | undefined;
       const currentIndex = payload.currentIndex as number | undefined;
       const currentSong = queue && typeof currentIndex === 'number' ? queue[currentIndex] : null;
+      const remoteIsPlaying = (payload.isPlaying as boolean) ?? false;
+
+      // TAKEOVER: If remote device started playing and local is also playing,
+      // the device with the newer playStateUpdatedAt wins. Pause the loser.
+      if (remoteIsPlaying && store.isPlaying) {
+        const remotePlayTs = (payload.playStateUpdatedAt as string) ?? '';
+        const localPlayTs = store.playStateUpdatedAt ?? '';
+        if (remotePlayTs > localPlayTs) {
+          // Remote device started playing more recently — pause local playback
+          console.log('[PlaybackSync] Remote device took over playback, pausing local');
+          applyingRemoteState = true;
+          store.markUserPause();
+          store.setIsPlaying(false);
+          // Pause the actual audio element
+          if (typeof document !== 'undefined') {
+            document.querySelectorAll('audio').forEach(a => {
+              if (!a.paused) a.pause();
+            });
+          }
+          applyingRemoteState = false;
+        }
+      }
 
       // Update the remote device indicator (green bubble)
       if (store.setRemoteDevice) {
         store.setRemoteDevice({
           deviceId: (payload.deviceId as string) ?? null,
           deviceName: (payload.deviceName as string) ?? null,
-          isPlaying: (payload.isPlaying as boolean) ?? false,
+          isPlaying: remoteIsPlaying,
           songName: currentSong?.title || currentSong?.name || null,
           artist: currentSong?.artist || null,
           currentPositionMs: (payload.currentPositionMs as number) ?? undefined,
@@ -185,7 +210,7 @@ function handleIncomingMessage(
           originalQueue: (payload.originalQueue ?? payload.queue) as PlaybackStateResponse['originalQueue'],
           currentIndex: (payload.currentIndex as number) ?? 0,
           currentPositionMs: (payload.currentPositionMs as number) ?? 0,
-          isPlaying: (payload.isPlaying as boolean) ?? false,
+          isPlaying: remoteIsPlaying,
           volume: (payload.volume as number) ?? store.volume,
           isShuffled: (payload.isShuffled as boolean) ?? false,
           activeDevice: {
@@ -384,7 +409,12 @@ export function usePlaybackSync(): void {
         useAudioStore.setState(tsUpdate);
       }
 
-      if (queueChanged || playStateChanged || volumeChanged) {
+      if (playStateChanged) {
+        // Play state changes broadcast immediately (no debounce) so the
+        // remote device pauses/resumes without a perceptible delay.
+        broadcastStateViaWS(wsRef.current);
+        pushStateToServer();
+      } else if (queueChanged || volumeChanged) {
         debouncedSync.trigger();
       }
     });
