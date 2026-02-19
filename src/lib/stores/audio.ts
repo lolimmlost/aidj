@@ -1721,8 +1721,8 @@ export const useAudioStore = create<AudioState>()(
       const merged: Partial<AudioState> = {};
       let changed = false;
 
-      // Queue fields: only apply if server is newer
-      if (server.queueUpdatedAt > (local.queueUpdatedAt ?? '')) {
+      // Queue fields: only apply if server is newer or equal (equal = same state on refresh)
+      if (server.queueUpdatedAt >= (local.queueUpdatedAt ?? '')) {
         merged.playlist = server.queue.map(fromSyncSong);
         merged.originalPlaylist = server.originalQueue.map(fromSyncSong);
         merged.currentSongIndex = server.currentIndex;
@@ -1731,10 +1731,10 @@ export const useAudioStore = create<AudioState>()(
         changed = true;
       }
 
-      // Position: only apply if server is newer AND this device is NOT actively playing.
+      // Position: only apply if server is newer/equal AND this device is NOT actively playing.
       // When this device is playing, it is the authoritative source for position —
       // accepting a stale server position would restart the song.
-      if (!local.isPlaying && server.positionUpdatedAt > (local.positionUpdatedAt ?? '')) {
+      if (!local.isPlaying && server.positionUpdatedAt >= (local.positionUpdatedAt ?? '')) {
         merged.currentTime = server.currentPositionMs / 1000;
         merged.positionUpdatedAt = server.positionUpdatedAt;
         changed = true;
@@ -1747,14 +1747,21 @@ export const useAudioStore = create<AudioState>()(
       }
 
       // Never auto-set isPlaying to true (browser autoplay policy)
-      // Just track the remote device state
-      if (server.activeDevice?.id && server.isPlaying) {
+      // Track the remote device state — show indicator if another device
+      // is (or was recently) the active player
+      if (server.activeDevice?.id) {
         const localDevice = typeof window !== 'undefined' ? getDeviceInfo() : null;
         if (localDevice && server.activeDevice.id !== localDevice.deviceId) {
+          const currentSong = server.queue?.[server.currentIndex];
           merged.remoteDevice = {
             deviceId: server.activeDevice.id,
             deviceName: server.activeDevice.name,
             isPlaying: server.isPlaying,
+            songName: currentSong?.title || currentSong?.name || null,
+            artist: currentSong?.artist || null,
+            currentPositionMs: server.currentPositionMs ?? undefined,
+            durationMs: currentSong?.duration ? currentSong.duration * 1000 : undefined,
+            updatedAt: Date.now(),
           };
           changed = true;
         }
@@ -1772,86 +1779,51 @@ export const useAudioStore = create<AudioState>()(
     storage: createJSONStorage(() => localStorage),
     // Only persist essential playback state, not transient state
     partialize: (state) => ({
-      playlist: state.playlist,
-      currentSongIndex: state.currentSongIndex,
-      currentTime: state.currentTime,
+      // Per-device user preferences only — server owns queue/position/timestamps
       volume: state.volume,
-      isShuffled: state.isShuffled,
-      originalPlaylist: state.originalPlaylist,
       aiDJEnabled: state.aiDJEnabled,
-      // AI DJ diversity tracking (survives page refresh)
       aiDJRecentlyRecommended: state.aiDJRecentlyRecommended,
       crossfadeEnabled: state.crossfadeEnabled,
       crossfadeDuration: state.crossfadeDuration,
-      // Autoplay settings
       autoplayEnabled: state.autoplayEnabled,
       autoplayBlendMode: state.autoplayBlendMode,
       autoplayTransitionDuration: state.autoplayTransitionDuration,
       autoplaySmartTransitions: state.autoplaySmartTransitions,
-      // WiFi reconnect recovery
-      wasPlayingBeforeUnload: state.wasPlayingBeforeUnload,
-      // Shuffle "fewer repeats" tracking
       recentlyPlayedIds: state.recentlyPlayedIds,
-      // Skip counts for shuffle deprioritization
       skipCounts: state.skipCounts,
-      // Cross-device sync timestamps
-      queueUpdatedAt: state.queueUpdatedAt,
-      positionUpdatedAt: state.positionUpdatedAt,
-      playStateUpdatedAt: state.playStateUpdatedAt,
     }),
-    // Don't restore isPlaying - let user manually resume
+    // Only preferences are persisted — queue/position come from server on mount
     onRehydrateStorage: () => (state) => {
       if (state) {
-        // Snapshot persisted currentTime BEFORE any effect can overwrite it
-        state._rehydratedCurrentTime = state.currentTime;
-
-        // WiFi reconnect recovery: Check if playback should resume
-        // wasPlayingBeforeUnload is saved before page unload/visibility hidden
-        // If it was true and we have a valid position, signal for recovery
-        const shouldAttemptResume = state.wasPlayingBeforeUnload && state.currentTime > 0;
-        if (shouldAttemptResume) {
-          console.log(`🎵 [RECOVERY] Playback was active before unload at ${state.currentTime.toFixed(1)}s - will attempt resume`);
-        }
-
-        // Reset transient state on rehydration
-        state.isPlaying = false; // Still start paused (browser won't autoplay anyway)
-        state.pendingPlaybackResume = shouldAttemptResume; // Signal for PlayerBar to resume
-        state.wasPlayingBeforeUnload = false; // Reset after reading
+        // Reset transient state
         state.aiDJIsLoading = false;
         state.aiDJError = null;
         state.aiDJUserActionInProgress = false;
         state._userPauseAt = 0;
-        state.songsPlayedSinceLastRec = 0; // Reset drip-feed counter
-        // Reinitialize Set (can't be serialized in JSON)
+        state.songsPlayedSinceLastRec = 0;
         state.aiQueuedSongIds = new Set<string>();
-        // Clean up expired entries from persisted recently recommended list
-        const now = Date.now();
-        if (state.aiDJRecentlyRecommended?.length) {
-          state.aiDJRecentlyRecommended = state.aiDJRecentlyRecommended.filter(
-            rec => now - rec.timestamp < 28800000 // Keep entries within 8-hour window
-          );
-          console.log(`🎵 Restored ${state.aiDJRecentlyRecommended.length} recent AI DJ recommendations`);
-        }
-        // Reset transient playback position tracking
-        state.lastKnownPosition = 0;
-        state.lastKnownDuration = 0;
-        // Reset autoplay transient state
         state.autoplayIsLoading = false;
         state.autoplayTransitionActive = false;
         state.autoplayQueuedSongIds = new Set<string>();
-        // Reset AI DJ transient adaptive state
         state.aiDJConsecutiveSkips = 0;
         state.aiDJSessionGenreCounts = {};
         state.aiDJRecommendationReasons = {};
-        // LRU eviction for skipCounts: keep top 500 by count
+        state.lastKnownPosition = 0;
+        state.lastKnownDuration = 0;
+        // Clean up expired AI DJ recommendations
+        const now = Date.now();
+        if (state.aiDJRecentlyRecommended?.length) {
+          state.aiDJRecentlyRecommended = state.aiDJRecentlyRecommended.filter(
+            rec => now - rec.timestamp < 28800000
+          );
+        }
+        // LRU eviction for skipCounts: keep top 500
         if (state.skipCounts && Object.keys(state.skipCounts).length > 500) {
           const sorted = Object.entries(state.skipCounts)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 500);
           state.skipCounts = Object.fromEntries(sorted);
-          console.log('🎵 Evicted low-count skip entries, kept top 500');
         }
-        console.log('🎵 Audio state restored from storage');
       }
     },
   }

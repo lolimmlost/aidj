@@ -19,6 +19,9 @@ import type { PlaybackStateResponse } from '../types/sync';
 const SYNC_DEBOUNCE_MS = 2000;
 // Heartbeat interval (ms)
 const HEARTBEAT_INTERVAL_MS = 30000;
+// Guard flag: prevents the store subscription from re-broadcasting state
+// that was just received from a remote device (avoids ping-pong loops)
+let applyingRemoteState = false;
 
 /**
  * Debounce a function call. Returns a cancel function.
@@ -103,7 +106,9 @@ async function fetchAndReconcileState(): Promise<void> {
 
     // Apply server state where it's newer
     if (store.applyServerState) {
+      applyingRemoteState = true;
       store.applyServerState(server);
+      applyingRemoteState = false;
     }
   } catch (err) {
     console.warn('[PlaybackSync] Failed to fetch state:', err);
@@ -148,14 +153,17 @@ function handleIncomingMessage(
   switch (msg.type) {
     case 'state': {
       // Another device pushed state — update remote device indicator
-      // with song info so we can display what's playing remotely
+      // with song info AND apply queue/position to the main PlayerBar
       const payload = msg.payload as Record<string, unknown> | undefined;
-      if (payload && store.setRemoteDevice) {
-        // Extract current song info from the queue
-        const queue = payload.queue as Array<{ name?: string; title?: string; artist?: string; duration?: number }> | undefined;
-        const currentIndex = payload.currentIndex as number | undefined;
-        const currentSong = queue && typeof currentIndex === 'number' ? queue[currentIndex] : null;
+      if (!payload) break;
 
+      // Extract current song info from the queue
+      const queue = payload.queue as Array<{ name?: string; title?: string; artist?: string; duration?: number }> | undefined;
+      const currentIndex = payload.currentIndex as number | undefined;
+      const currentSong = queue && typeof currentIndex === 'number' ? queue[currentIndex] : null;
+
+      // Update the remote device indicator (green bubble)
+      if (store.setRemoteDevice) {
         store.setRemoteDevice({
           deviceId: (payload.deviceId as string) ?? null,
           deviceName: (payload.deviceName as string) ?? null,
@@ -166,6 +174,31 @@ function handleIncomingMessage(
           durationMs: currentSong?.duration ? currentSong.duration * 1000 : undefined,
           updatedAt: Date.now(),
         });
+      }
+
+      // Also apply the full state to the main PlayerBar (queue, position, etc.)
+      // so the desktop shows the same song the mobile is playing
+      if (store.applyServerState && payload.queue) {
+        applyingRemoteState = true;
+        store.applyServerState({
+          queue: payload.queue as PlaybackStateResponse['queue'],
+          originalQueue: (payload.originalQueue ?? payload.queue) as PlaybackStateResponse['originalQueue'],
+          currentIndex: (payload.currentIndex as number) ?? 0,
+          currentPositionMs: (payload.currentPositionMs as number) ?? 0,
+          isPlaying: (payload.isPlaying as boolean) ?? false,
+          volume: (payload.volume as number) ?? store.volume,
+          isShuffled: (payload.isShuffled as boolean) ?? false,
+          activeDevice: {
+            id: (payload.deviceId as string) ?? null,
+            name: (payload.deviceName as string) ?? null,
+            type: null,
+          },
+          queueUpdatedAt: (payload.queueUpdatedAt as string) ?? '',
+          positionUpdatedAt: (payload.positionUpdatedAt as string) ?? '',
+          playStateUpdatedAt: (payload.playStateUpdatedAt as string) ?? '',
+          updatedAt: new Date().toISOString(),
+        });
+        applyingRemoteState = false;
       }
       break;
     }
@@ -310,14 +343,29 @@ export function usePlaybackSync(): void {
     fetchAndReconcileState();
 
     // 4. Subscribe to audio store changes — only sync when meaningful state changes
+    // Initialize prevState so the first subscription fire (from Zustand rehydration)
+    // doesn't look like a change and stamp a fresh timestamp that blocks server state
+    const initialState = useAudioStore.getState();
+    prevStateRef.current = {
+      playlistLength: initialState.playlist.length,
+      currentSongIndex: initialState.currentSongIndex,
+      isPlaying: initialState.isPlaying,
+      volume: initialState.volume,
+      isShuffled: initialState.isShuffled,
+    };
+
     const unsub = useAudioStore.subscribe((state) => {
+      // Skip if we're applying state received from a remote device
+      // to avoid ping-pong re-broadcasting
+      if (applyingRemoteState) return;
+
       const prev = prevStateRef.current;
-      const queueChanged = !prev
-        || prev.playlistLength !== state.playlist.length
+      if (!prev) return; // Not yet initialized
+      const queueChanged = prev.playlistLength !== state.playlist.length
         || prev.currentSongIndex !== state.currentSongIndex
         || prev.isShuffled !== state.isShuffled;
-      const playStateChanged = !prev || prev.isPlaying !== state.isPlaying;
-      const volumeChanged = !prev || prev.volume !== state.volume;
+      const playStateChanged = prev.isPlaying !== state.isPlaying;
+      const volumeChanged = prev.volume !== state.volume;
 
       prevStateRef.current = {
         playlistLength: state.playlist.length,

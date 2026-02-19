@@ -13,6 +13,7 @@ import {
   Maximize2,
   MicVocal,
   AudioWaveform,
+  Smartphone,
 } from 'lucide-react';
 import { LyricsModal } from '@/components/lyrics';
 import { VisualizerModal } from '@/components/visualizer';
@@ -28,7 +29,6 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/query';
 import { usePlaybackSync } from '@/lib/hooks/usePlaybackSync';
-import { DeviceIndicator } from './DeviceIndicator';
 import { ResumePlaybackPrompt } from './ResumePlaybackPrompt';
 
 // Import extracted hooks
@@ -116,6 +116,32 @@ export function PlayerBar() {
 
   const currentSong = useMemo(() => playlist[currentSongIndex] || null, [playlist, currentSongIndex]) as Song | null;
   const queryClient = useQueryClient();
+
+  // Remote device state for cross-device sync indicator
+  const remoteDevice = useAudioStore((s) => s.remoteDevice);
+  const isRemotePlaying = !!remoteDevice?.isPlaying;
+  const [remoteEstimatedPositionMs, setRemoteEstimatedPositionMs] = useState(0);
+
+  // Interpolate remote playback position every second
+  useEffect(() => {
+    if (!isRemotePlaying || !remoteDevice?.updatedAt || remoteDevice.currentPositionMs == null) {
+      setRemoteEstimatedPositionMs(remoteDevice?.currentPositionMs ?? 0);
+      return;
+    }
+    setRemoteEstimatedPositionMs(remoteDevice.currentPositionMs);
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - (remoteDevice.updatedAt ?? Date.now());
+      const pos = (remoteDevice.currentPositionMs ?? 0) + elapsed;
+      const clamped = remoteDevice.durationMs ? Math.min(pos, remoteDevice.durationMs) : pos;
+      setRemoteEstimatedPositionMs(clamped);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isRemotePlaying, remoteDevice?.currentPositionMs, remoteDevice?.updatedAt, remoteDevice?.durationMs]);
+
+  // Derived values for display: use remote time when remote is playing and local isn't
+  const showRemoteTime = isRemotePlaying && !isPlaying;
+  const displayCurrentTime = showRemoteTime ? remoteEstimatedPositionMs / 1000 : currentTime;
+  const displayDuration = showRemoteTime && remoteDevice?.durationMs ? remoteDevice.durationMs / 1000 : duration;
 
   // Record a song play in listening history.
   // Called on: natural end, crossfade complete, manual skip/next.
@@ -971,7 +997,7 @@ export function PlayerBar() {
 
   if (!currentSong) return null;
 
-  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const progressPercent = displayDuration > 0 ? (displayCurrentTime / displayDuration) * 100 : 0;
 
   return (
     <>
@@ -979,36 +1005,48 @@ export function PlayerBar() {
       <div className="md:hidden px-3 py-2 space-y-2">
         {/* Progress bar at top */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono text-muted-foreground w-8 text-right">
-            {formatTime(currentTime)}
+          <span className={cn("text-[10px] font-mono w-8 text-right", showRemoteTime ? "text-green-500" : "text-muted-foreground")}>
+            {formatTime(displayCurrentTime)}
           </span>
           <Slider
-            value={[isFinite(currentTime) ? currentTime : 0]}
-            max={isFinite(duration) && duration > 0 ? duration : 100}
+            value={[isFinite(displayCurrentTime) ? displayCurrentTime : 0]}
+            max={isFinite(displayDuration) && displayDuration > 0 ? displayDuration : 100}
             step={0.1}
             onValueChange={([newValue]) => seek(newValue)}
-            className="flex-1 h-1"
+            className={cn("flex-1 h-1", showRemoteTime && "[&_[data-slot=slider-range]]:bg-green-500 [&_[data-slot=slider-thumb]]:border-green-500")}
+            disabled={showRemoteTime}
           />
-          <span className="text-[10px] font-mono text-muted-foreground w-8">
-            -{formatTime(Math.max(0, duration - currentTime))}
+          <span className={cn("text-[10px] font-mono w-8", showRemoteTime ? "text-green-500" : "text-muted-foreground")}>
+            -{formatTime(Math.max(0, displayDuration - displayCurrentTime))}
           </span>
         </div>
 
         {/* Main row: Album art, song info, controls */}
         <div className="flex items-center gap-3">
           {/* Small Album Artwork */}
-          <AlbumArt
-            albumId={currentSong.albumId}
-            songId={currentSong.id}
-            artist={currentSong.artist}
-            size="sm"
-            isPlaying={isPlaying}
-          />
+          <div className={cn(
+            "flex items-center gap-3 min-w-0 flex-1 rounded-lg transition-all",
+            showRemoteTime && "ring-1 ring-green-500/60 bg-green-500/5 px-2 py-1"
+          )}>
+            <AlbumArt
+              albumId={currentSong.albumId}
+              songId={currentSong.id}
+              artist={currentSong.artist}
+              size="sm"
+              isPlaying={isPlaying || isRemotePlaying}
+            />
 
-          {/* Song Info */}
-          <div className="min-w-0 flex-1">
-            <p className="font-medium text-sm truncate">{currentSong.name || currentSong.title}</p>
-            <p className="text-xs text-muted-foreground truncate">{currentSong.artist || 'Unknown'}</p>
+            {/* Song Info */}
+            <div className="min-w-0 flex-1">
+              <p className={cn("font-medium text-sm truncate", showRemoteTime && "text-green-500")}>{currentSong.name || currentSong.title}</p>
+              <p className={cn("text-xs truncate", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
+              {showRemoteTime && (
+                <p className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5">
+                  <Smartphone className="h-2.5 w-2.5" />
+                  <span className="truncate">{remoteDevice?.deviceName || 'Another device'}</span>
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Compact Controls */}
@@ -1087,25 +1125,34 @@ export function PlayerBar() {
         {/* Progress bar - thin line at top */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-muted">
           <div
-            className="h-full bg-primary transition-all duration-100"
+            className={cn("h-full transition-all duration-100", showRemoteTime ? "bg-green-500" : "bg-primary")}
             style={{ width: `${progressPercent}%` }}
           />
         </div>
 
         {/* Left: Song Info */}
-        <div className="flex items-center gap-3 w-72 min-w-0">
+        <div className={cn(
+          "flex items-center gap-3 w-72 min-w-0 rounded-lg transition-all",
+          showRemoteTime && "ring-1 ring-green-500/60 bg-green-500/5 px-2 py-1 -ml-2"
+        )}>
           {/* Mini Album Art */}
           <AlbumArt
             albumId={currentSong.albumId}
             songId={currentSong.id}
             artist={currentSong.artist}
             size="md"
-            isPlaying={isPlaying}
+            isPlaying={isPlaying || isRemotePlaying}
             className="rounded-md"
           />
           <div className="min-w-0">
-            <p className="font-medium truncate text-sm">{currentSong.name || currentSong.title}</p>
-            <p className="text-xs text-muted-foreground truncate">{currentSong.artist || 'Unknown'}</p>
+            <p className={cn("font-medium truncate text-sm", showRemoteTime && "text-green-500")}>{currentSong.name || currentSong.title}</p>
+            <p className={cn("text-xs truncate", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
+            {showRemoteTime && (
+              <p className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5">
+                <Smartphone className="h-2.5 w-2.5" />
+                <span className="truncate">{remoteDevice?.deviceName || 'Another device'}</span>
+              </p>
+            )}
           </div>
           <Button
             variant="ghost"
@@ -1175,25 +1222,25 @@ export function PlayerBar() {
 
           {/* Progress Bar */}
           <div className="flex items-center gap-2 w-full">
-            <span className="text-xs text-muted-foreground w-10 text-right font-mono">
-              {formatTime(currentTime)}
+            <span className={cn("text-xs w-10 text-right font-mono", showRemoteTime ? "text-green-500" : "text-muted-foreground")}>
+              {formatTime(displayCurrentTime)}
             </span>
             <Slider
-              value={[isFinite(currentTime) ? currentTime : 0]}
-              max={isFinite(duration) && duration > 0 ? duration : 100}
+              value={[isFinite(displayCurrentTime) ? displayCurrentTime : 0]}
+              max={isFinite(displayDuration) && displayDuration > 0 ? displayDuration : 100}
               step={0.1}
               onValueChange={([newValue]) => seek(newValue)}
-              className="flex-1"
+              className={cn("flex-1", showRemoteTime && "[&_[data-slot=slider-range]]:bg-green-500 [&_[data-slot=slider-thumb]]:border-green-500")}
+              disabled={showRemoteTime}
             />
-            <span className="text-xs text-muted-foreground w-10 font-mono">
-              -{formatTime(Math.max(0, duration - currentTime))}
+            <span className={cn("text-xs w-10 font-mono", showRemoteTime ? "text-green-500" : "text-muted-foreground")}>
+              -{formatTime(Math.max(0, displayDuration - displayCurrentTime))}
             </span>
           </div>
         </div>
 
-        {/* Right: Volume + Queue + AI DJ + Device */}
+        {/* Right: Volume + Queue + AI DJ */}
         <div className="flex items-center gap-2 w-72 justify-end">
-          <DeviceIndicator />
           <AIDJToggle compact />
 
           <Button
