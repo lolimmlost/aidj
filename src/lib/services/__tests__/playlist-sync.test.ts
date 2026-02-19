@@ -10,6 +10,11 @@ vi.mock('../navidrome', () => ({
   getPlaylist: vi.fn(),
 }));
 
+// Mock the navidrome-users service (per-user creds)
+vi.mock('../navidrome-users', () => ({
+  getNavidromeUserCreds: vi.fn().mockResolvedValue(null),
+}));
+
 // Mock the database
 vi.mock('@/lib/db', () => ({
   db: {
