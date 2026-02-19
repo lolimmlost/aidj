@@ -803,6 +803,7 @@ export function PlayerBar() {
           // Load audio directly (skip loadSong which would setCurrentTime(0))
           setIsLoading(true);
           clearCrossfade();
+          // eslint-disable-next-line -- audio.src is a DOM property assignment, not hook state mutation
           audio.src = song.url;
           audio.load();
           return;
