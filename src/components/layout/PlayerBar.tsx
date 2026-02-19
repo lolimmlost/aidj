@@ -257,7 +257,7 @@ export function PlayerBar() {
     return feedbackData?.feedback?.[currentSong.id] === 'thumbs_up';
   }, [feedbackData?.feedback, currentSong?.id]);
 
-  // Like/unlike mutation
+  // Like/unlike mutation with optimistic cache update
   const { mutate: likeMutate, isPending: isLikePending } = useMutation({
     mutationFn: async (liked: boolean) => {
       if (!currentSong) {
@@ -286,11 +286,26 @@ export function PlayerBar() {
 
       return liked;
     },
+    onMutate: async (liked) => {
+      if (!currentSong) return;
+      // Optimistically update the feedback cache so the heart icon fills immediately
+      const feedbackQueryKey = queryKeys.feedback.songs([currentSong.id]);
+      await queryClient.cancelQueries({ queryKey: feedbackQueryKey });
+      const previous = queryClient.getQueryData(feedbackQueryKey);
+      queryClient.setQueryData(feedbackQueryKey, {
+        feedback: { [currentSong.id]: liked ? 'thumbs_up' : 'thumbs_down' },
+      });
+      return { previous, feedbackQueryKey };
+    },
     onSuccess: (liked) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
       toast.success(liked ? '❤️ Liked' : '💔 Unliked', { duration: 1500 });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _liked, context) => {
+      // Revert optimistic update on error
+      if (context?.feedbackQueryKey) {
+        queryClient.setQueryData(context.feedbackQueryKey, context.previous);
+      }
       console.error('Like/unlike error:', error);
       toast.error('Failed', { description: error.message });
     },
@@ -410,17 +425,23 @@ export function PlayerBar() {
         lastProgressValueRef.current = deck.currentTime;
       }
 
-      if (deck.duration > 0 && currentSong) {
-        const playedPercentage = (deck.currentTime / deck.duration) * 100;
+      // Use the audio element's duration when finite, otherwise fall back
+      // to the store's metadata duration (set from song metadata at load time).
+      // Transcoded/chunked streams report Infinity because there's no Content-Length.
+      const storeDuration = useAudioStore.getState().duration;
+      const effectiveDuration = (isFinite(deck.duration) && deck.duration > 0)
+        ? deck.duration
+        : (storeDuration > 0 ? storeDuration : 0);
+
+      if (effectiveDuration > 0 && currentSong) {
+        const playedPercentage = (deck.currentTime / effectiveDuration) * 100;
         if (playedPercentage >= 50 && !scrobbleThresholdReachedRef.current) {
           scrobbleThresholdReachedRef.current = true;
         }
 
         // CROSSFADE: Check if we should start crossfade
-        const timeRemaining = deck.duration - deck.currentTime;
+        const timeRemaining = effectiveDuration - deck.currentTime;
         const xfadeDuration = useAudioStore.getState().crossfadeDuration;
-
-        if (!isFinite(deck.duration)) return;
 
         // Cooldown: don't re-trigger crossfade within 10s of an abort
         // (the abort already called nextSong — the old deck is finishing its last moments)
@@ -433,6 +454,15 @@ export function PlayerBar() {
           if (nextSongData && playlist.length > 1) {
             startCrossfade(nextSongData, xfadeDuration);
           }
+        }
+
+        // SAFETY NET: When audio duration is Infinity (chunked/transcoded stream)
+        // but we have metadata duration, detect end-of-song and advance manually.
+        // The browser won't fire 'ended' when duration is Infinity.
+        if (!isFinite(deck.duration) && timeRemaining <= 0.5 && !crossfadeInProgressRef.current) {
+          console.log(`⏭️ [INFINITY] Song reached metadata duration (${effectiveDuration.toFixed(1)}s) with Infinity audio duration — triggering end-of-song`);
+          deck.pause();
+          nextSong();
         }
       }
     };

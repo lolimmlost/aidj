@@ -1,446 +1,275 @@
-<!-- Generated: 2026-02-15 -->
+<!-- Generated: 2026-02-18 -->
 
-# External Integrations Reference
+# External Integrations
 
-All external service integrations used by AIDJ, derived from codebase inspection.
+## Overview
 
----
+| Service | Protocol | Auth | Config Key | Purpose |
+|---------|----------|------|------------|---------|
+| Navidrome | Subsonic REST + Native REST | Subsonic token (md5) + Bearer JWT | `navidromeUrl`, `navidromeUsername`, `navidromePassword` | Music library, streaming, stars, playlists |
+| Last.fm | REST | API key | `lastfmApiKey` | Similar artists/tracks, scrobbling metadata |
+| LLM (Ollama/OpenRouter/GLM/Anthropic) | REST | API key per provider | `llmProvider`, `ollamaUrl`, `openrouterApiKey`, etc. | Mood translation, playlist generation |
+| Lidarr | REST | API key | `lidarrUrl`, `lidarrApiKey` | Music download management |
+| MeTube | REST | None | `metubeUrl` | YouTube audio downloads |
+| Spotify | REST | Client credentials | `spotifyClientId`, `spotifyClientSecret` | Metadata lookup (no streaming) |
+| YouTube Music | Scraping/API | None | — | Metadata lookup |
+| Deezer | REST | None (public API) | — | Metadata, explicit content, cover art |
+| LRCLIB | REST | None | — | Lyrics lookup |
+| better-auth | Library | Session cookies | `BETTER_AUTH_SECRET` | Authentication |
 
-## Integration Overview
+## Navidrome (`navidrome.ts` — 2,069 lines)
 
-| Service | Required | Protocol | Auth Method | Primary File | Lines |
-|---------|----------|----------|-------------|--------------|-------|
-| Navidrome | Yes | Subsonic REST API | Salt+token MD5 hash | `src/lib/services/navidrome.ts` | 1,955 |
-| Last.fm | No | Last.fm REST API | API key (read-only) | `src/lib/services/lastfm/client.ts` | 682 |
-| LLM (multi-provider) | Yes | Provider-specific | Provider-specific | `src/lib/services/llm/factory.ts` | 172 |
-| Lidarr | No | Lidarr REST API v3 | API key header | `src/lib/services/lidarr.ts` | 1,075 |
-| MeTube | No | MeTube REST API | None | `src/lib/services/metube.ts` | 338 |
-| Spotify | No | Spotify Web API | Client credentials OAuth | `src/lib/services/spotify.ts` | 496 |
-| YouTube Music | No | YouTube Data API | API key + OAuth | `src/lib/services/youtube-music.ts` | 646 |
-| Deezer | No | Deezer public API | None | `src/lib/services/deezer.ts` | 96 |
-| better-auth | Yes | Internal | Email/password, OAuth | `src/lib/auth/auth.ts` | 69 |
+### Subsonic API (shared operations)
 
----
+Used for library browsing, search, and streaming. These use the admin account credentials.
 
-## Navidrome (Required)
+**Auth**: `token = md5(password + salt)`, params: `u`, `t`, `s`, `v=1.16.1`, `c=aidj`, `f=json`
 
-All music data (songs, albums, artists, playlists, streaming) flows through Navidrome. If Navidrome is unavailable, the application is non-functional. Song IDs throughout the app are Navidrome IDs.
+| Function | Subsonic Endpoint | Purpose |
+|----------|------------------|---------|
+| `search(query)` | `/rest/search3` | Full-text search |
+| `getRandomSongs()` | `/rest/getRandomSongs` | Random song selection |
+| `getSimilarSongs(id)` | `/rest/getSimilarSongs2` | Similar song lookup |
+| `getArtists()` | `/rest/getArtists` | Artist index |
+| `getArtist(id)` | `/rest/getArtist` | Artist details |
+| `getAlbum(id)` | `/rest/getAlbum` | Album details |
+| `getAlbumList2()` | `/rest/getAlbumList2` | Album listing |
+| `getCoverArt(id)` | `/rest/getCoverArt` | Cover art image |
+| `stream(id)` | `/rest/stream` | Audio stream URL |
 
-### Configuration
+### Subsonic API (per-user operations)
 
-| Variable | Source | Required |
-|----------|--------|----------|
-| `NAVIDROME_URL` | Env / `db/config.json` | Yes |
-| `NAVIDROME_USERNAME` | Env / `db/config.json` | Yes |
-| `NAVIDROME_PASSWORD` | Env / `db/config.json` | Yes |
+These accept optional `SubsonicCreds` for per-user Navidrome accounts. Falls back to admin if no creds provided.
 
-### Authentication
+| Function | Subsonic Endpoint | Purpose |
+|----------|------------------|---------|
+| `starSong(id, creds?)` | `/rest/star` | Star a song |
+| `unstarSong(id, creds?)` | `/rest/unstar` | Unstar a song |
+| `getStarredSongs(creds?)` | `/rest/getStarred2` | Get starred songs |
+| `getPlaylists(creds?)` | `/rest/getPlaylists` | List playlists |
+| `getPlaylist(id, creds?)` | `/rest/getPlaylist` | Playlist details |
+| `createPlaylist(name, ids?, creds?)` | `/rest/createPlaylist` | Create playlist |
+| `updatePlaylist(id, ..., creds?)` | `/rest/updatePlaylist` | Update playlist |
+| `deletePlaylist(id, creds?)` | `/rest/deletePlaylist` | Delete playlist |
 
-Subsonic API auth pattern: random salt, `token = md5(password + salt)`, passes `u`, `t`, `s`, `v`, `c`, `f` query params per request. Uses pure-JS MD5 (no Node crypto dependency).
+### Native Navidrome API
 
-### Key Exported Functions
+Used for user management (admin-only operations).
 
-| Function | Purpose |
-|----------|---------|
-| `search(query)` | Search songs by query |
-| `getSongsGlobal(start, limit)` | All songs paginated |
-| `getRandomSongs(count)` | Random songs |
-| `getArtists()` / `getArtistDetail(id)` | List/get artists |
-| `getAlbumDetail(id)` | Album metadata |
-| `getSongs(albumId)` / `getSongsByArtist(artistId)` | Songs by album/artist |
-| `getSongsByIds(songIds)` | Batch song lookup |
-| `starSong(songId)` / `unstarSong(songId)` | Star/unstar |
-| `getStarredSongs()` | Starred songs list |
-| `scrobbleSong(songId)` | Scrobble a play |
-| `getPlaylists()` / `createPlaylist()` / `updatePlaylist()` / `deletePlaylist()` | Playlist CRUD |
-| `getSimilarSongs(songId, count)` | Subsonic similar songs |
-| `searchSongsByCriteria(criteria)` | Multi-field search |
-| `getTopArtists(limit)` / `getMostPlayedSongs(limit)` | Play count rankings |
-| `getRecentlyPlayedSongs(limit)` | Recently played |
-| `getSongWithExtendedMetadata(songId)` | Extended metadata |
-| `checkNavidromeConnectivity()` | Health check |
-| `resolveSongByArtistTitle(artistTitle)` | Fuzzy song lookup |
+| Function | Endpoint | Purpose |
+|----------|----------|---------|
+| `getAuthToken()` | `POST /auth/login` | Get admin JWT token |
+| `createNavidromeUser()` | `POST /api/user` | Create user account |
 
-### API Proxy Routes
-
-Streaming and API calls are proxied through the app server to handle auth transparently.
-
-| Route | Purpose |
-|-------|---------|
-| `api/navidrome/stream/$id` | Stream audio (proxied with auth) |
-| `api/navidrome/api/song` | Song list |
-| `api/navidrome/api/album` / `api/navidrome/api/album/$id` | Album list/detail |
-| `api/navidrome/api/artist` / `api/navidrome/api/artist/$id` | Artist list/detail |
-| `api/navidrome/rest/$` | Catch-all for Subsonic REST (scrobble, etc.) |
-| `api/navidrome/star` | Star/unstar songs |
-| `api/navidrome/search` | Search proxy |
-| `api/navidrome/auth/login` | Auth token exchange |
-| `api/navidrome/[...path]` | Catch-all fallback |
+**Auth**: `x-nd-authorization: Bearer {jwt}` header
 
 ### Gotchas
 
-- All song IDs are Navidrome/Subsonic IDs -- they propagate into recommendations, history, and queue.
-- Streaming proxies full audio through the app server.
-- Auth tokens (salt+md5) are generated per-request; no session caching with Navidrome.
-
----
-
-## Last.fm (Optional)
-
-Provides similar-track/artist discovery and metadata enrichment. Recommendations still work without it (compound scoring + genre matching), but quality degrades.
-
-### Configuration
-
-| Variable | Source |
-|----------|--------|
-| `lastfmApiKey` | `db/config.json` |
-| `LASTFM_API_KEY` | Env |
-
-API key only (read-only). Base URL: `https://ws.audioscrobbler.com/2.0/`
-
-### Key Class Methods (`LastFmClient`)
-
-| Method | Purpose |
-|--------|---------|
-| `getSimilarTracks(artist, track, limit)` | Similar tracks enriched with Navidrome library status |
-| `getSimilarArtists(artist, limit)` | Similar artists enriched with library status |
-| `getTopTracks(artist, limit)` | Top tracks by artist |
-| `getTopTracksByTag(tag, limit)` | Top tracks by genre tag |
-| `searchTracks(query, limit)` | Search Last.fm tracks |
-| `getTrackInfo(artist, track)` | Detailed track info (tags, play count) |
-| `getRecentTracks(user, limit)` | Recent listening history |
-| `testConnection()` | Validate API key |
-
-Helpers: `getLastFmClient(apiKey?)` (singleton), `isLastFmConfigured()`.
-
-### API Routes
-
-| Route | Purpose |
-|-------|---------|
-| `api/lastfm/similar-tracks` | Similar tracks |
-| `api/lastfm/similar-artists` | Similar artists |
-| `api/lastfm/top-tracks` | Top tracks |
-| `api/lastfm/search` | Search |
-| `api/lastfm/test` | Connection test |
-| `api/lastfm/backfill` | Backfill listening history |
-
-### Gotchas
-
-- Rate limited: token bucket at 5 req/s. Results cached 5 min.
-- Used by recommendation scorer at ~25% weight in blended scoring.
-
----
-
-## LLM Providers (Factory Pattern)
-
-AI features (mood translation, playlist generation, discovery) use an abstracted LLM provider system.
-
-### Configuration
-
-| Config Key | Env Override | Default |
-|------------|-------------|---------|
-| `llmProvider` | `LLM_PROVIDER` | `ollama` |
-| `ollamaUrl` | `OLLAMA_URL` | `http://10.0.0.30:30068` |
-| `ollamaModel` | `OLLAMA_MODEL` | `llama2` |
-| `openrouterApiKey` | `OPENROUTER_API_KEY` | (empty) |
-| `openrouterModel` | `OPENROUTER_MODEL` | `anthropic/claude-3.5-sonnet` |
-| `glmApiKey` | `GLM_API_KEY` | (empty) |
-| `glmModel` | `GLM_MODEL` | `glm-4-plus` |
-| `anthropicApiKey` | `ANTHROPIC_API_KEY` | (empty) |
-| `anthropicModel` | `ANTHROPIC_MODEL` | `claude-sonnet-4-5-20250514` |
-| `anthropicBaseUrl` | `ANTHROPIC_BASE_URL` | `https://api.anthropic.com/v1` |
-
-### Supported Providers
-
-| Provider | Type | Auth | File |
-|----------|------|------|------|
-| Ollama | Local | None (URL only) | `src/lib/services/llm/providers/ollama.ts` |
-| OpenRouter | Cloud | API key | `src/lib/services/llm/providers/openrouter.ts` |
-| GLM | Cloud | API key | `src/lib/services/llm/providers/glm.ts` |
-| Anthropic | Cloud | API key | `src/lib/services/llm/providers/anthropic.ts` |
-
-### Provider Interface (`LLMProvider`)
-
-| Method | Purpose |
-|--------|---------|
-| `generate(request, timeoutMs?)` | Generate text completion |
-| `checkModelAvailability(model)` | Verify model is available |
-| `getMetadata()` | Provider capabilities |
-| `isConfigured()` | Configuration validation |
-
-Factory: `getLLMProvider()` (singleton, recreated on config change), `createLLMProvider(type)`, `resetLLMProvider()`, `getProviderInfo()`.
-
-API route: `api/ai-dj/recommendations` (AI-powered song recommendations).
-
-### Gotchas
-
-- Singleton cached; only recreated when `llmProvider` changes.
-- Anthropic supports z.ai proxy via `anthropicBaseUrl`.
-- Ollama is default; requires a running instance on the network.
-
----
-
-## Lidarr (Optional)
-
-Music acquisition -- search for and request new music to be added to Navidrome.
-
-### Configuration
-
-| Variable | Source | Note |
-|----------|--------|------|
-| `LIDARR_URL` | Env / `db/config.json` | Validated as required in `src/env/server.ts` |
-| `LIDARR_API_KEY` | Env / `db/config.json` | Validated as required in `src/env/server.ts` |
-| `lidarrQualityProfileId` | Config | Optional |
-| `lidarrRootFolderPath` | Config | Optional |
-
-Auth: API key as `X-Api-Key` header.
-
-### Key Exported Functions
-
-| Function | Purpose |
-|----------|---------|
-| `search(query)` | Combined artist + album search |
-| `searchArtists(query)` / `searchAlbums(query)` | Type-specific search |
-| `addArtist(artist, options?)` | Add artist to library |
-| `ensureArtistMonitored(id)` / `monitorAlbum(id)` | Monitoring control |
-| `getDownloadQueue()` / `getDownloadHistory()` | Download tracking |
-| `cancelDownload(id)` / `retryDownload(id)` | Download management |
-| `getWantedMissing()` | Missing wanted albums |
-| `getDownloadStats()` | Statistics |
-
-### API Routes
-
-| Route | Purpose |
-|-------|---------|
-| `api/lidarr/search` / `search-album` | Search |
-| `api/lidarr/add` | Add artist |
-| `api/lidarr/cancel` / `unmonitor` | Cancel/unmonitor |
-| `api/lidarr/availability` / `status` / `history` | Status & history |
-
-### Gotchas
-
-- Retry with exponential backoff: max 3 retries, base 1s, max 10s. Retryable codes: 408, 429, 500, 502, 503, 504.
-
----
-
-## MeTube (Optional)
-
-YouTube video/audio downloading via MeTube instance.
-
-### Configuration
-
-`metubeUrl` in `db/config.json`. No auth required.
-
-### Key Exported Functions
-
-| Function | Purpose |
-|----------|---------|
-| `addDownload(request)` | Queue a download |
-| `getQueue()` / `getHistory()` | Queue and history |
-| `deleteDownloads(ids)` / `startDownloads(ids)` | Manage downloads |
-| `checkConnection()` / `getVersion()` | Health check |
-| `downloadMusic()` / `downloadVideo()` / `downloadPlaylist()` | Convenience wrappers |
-
-Quality: `best`, `worst`, `1080`, `720`, `480`, `360`. Formats: `mp4`, `mp3`, `any`.
-
-API routes: `api/metube/add`, `api/metube/delete`, `api/metube/status`.
-
----
-
-## Spotify (Metadata Only -- Not for Playback)
-
-Metadata enrichment and playlist import/export.
-
-### Configuration
-
-| Config Key | Default |
-|------------|---------|
-| `spotifyClientId` | (empty) |
-| `spotifyClientSecret` | (empty) |
-| `spotifyRedirectUri` | `http://localhost:3000/api/auth/spotify/callback` |
-
-Auth: Client credentials for search; user OAuth for playlists. Per-user token storage with refresh.
-
-### Key Exported Functions
-
-| Function | Purpose |
-|----------|---------|
-| `isSpotifyConfigured()` | Check credentials |
-| `getAuthorizationUrl()` / `exchangeCodeForTokens()` / `refreshAccessToken()` | OAuth flow |
-| `searchTracks(query)` / `searchByIsrc(userId, isrc)` | Catalog search |
-| `getUserPlaylists()` / `getPlaylist()` / `createPlaylist()` / `addTracksToPlaylist()` | Playlist ops |
-| `createSpotifySearcher(userId)` | `PlatformSearcher` adapter |
-
-No dedicated API routes; used internally by playlist export service.
-
----
-
-## YouTube Music (Metadata Only -- Not for Playback)
-
-Metadata enrichment and playlist import/export.
-
-### Configuration
-
-| Config Key | Default |
-|------------|---------|
-| `youtubeApiKey` | (empty) |
-| `youtubeClientId` | (empty) |
-| `youtubeClientSecret` | (empty) |
-| `youtubeRedirectUri` | `http://localhost:3000/api/auth/youtube/callback` |
-
-Auth: API key for search; user OAuth for playlists. Per-user token storage with refresh.
-
-### Key Exported Functions
-
-| Function | Purpose |
-|----------|---------|
-| `isYouTubeMusicConfigured()` | Check credentials |
-| `getAuthorizationUrl()` / `exchangeCodeForTokens()` / `refreshAccessToken()` | OAuth flow |
-| `searchVideos(query)` | Music search |
-| `getUserPlaylists()` / `getPlaylist()` / `createPlaylist()` / `addVideosToPlaylist()` | Playlist ops |
-| `createYouTubeMusicSearcher(userId)` | `PlatformSearcher` adapter |
-
-No dedicated API routes; used internally by playlist export service.
-
----
-
-## Deezer (Metadata Only)
-
-Free, no-auth image fallback for artist/album artwork when Navidrome/Last.fm images are missing. Base URL: `https://api.deezer.com`. No API key required.
-
-| Function | Purpose |
-|----------|---------|
-| `getDeezerArtistImage(artistName)` | Artist image (largest available) |
-| `getDeezerAlbumImage(artist, album)` | Album cover image |
-
-Cached 7 days via `getCacheService()`. No API routes; called server-side only. Returns `null` on error (silent failure).
-
----
-
-## Auth System (better-auth)
-
-### Configuration
-
-| Variable | Required | Note |
-|----------|----------|------|
-| `BETTER_AUTH_SECRET` | Yes | Min 32 chars |
-| `VITE_BASE_URL` | Yes | Base URL for auth |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | No | Enables GitHub OAuth |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | No | Enables Google OAuth (requires GitHub also set) |
-
-### Auth Methods
-
-| Method | Condition |
-|--------|-----------|
-| Email/password | Always enabled |
-| GitHub OAuth | `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` set |
-| Google OAuth | Above + `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` set |
-
-### Cookie Config
-
-`sameSite: none`, `secure: true`, `httpOnly: true`, `path: /`
-
-### Files
-
-- `src/lib/auth/auth.ts` -- server config (better-auth + Drizzle adapter, `pg` provider)
-- `src/lib/auth/auth-client.ts` -- client helpers (better-auth/react)
-- Plugin: `tanstackStartCookies()` for SSR cookie handling
-
-### Session Pattern in API Routes
-
-```typescript
-const session = await auth.api.getSession({ headers: request.headers });
-if (!session) return new Response('Unauthorized', { status: 401 });
-const userId = session.user.id;
+- The Subsonic `createUser` endpoint is NOT implemented in Navidrome. Use the native REST API instead.
+- `apiFetch()` (line ~510) is the core function that adds auth to all Navidrome requests
+- Module-level `token`, `subsonicToken`, `subsonicSalt` variables store admin credentials
+- Smart playlist evaluation: `evaluateRule()` is called by Navidrome to filter songs based on criteria
+
+## Per-User Navidrome Accounts (`navidrome-users.ts` — 227 lines)
+
+Each AIDJ user gets their own Navidrome account for user-scoped operations.
+
+### SubsonicCreds Type
+
+```ts
+interface SubsonicCreds {
+  username: string;
+  token: string;  // md5(password + salt)
+  salt: string;
+}
 ```
 
-### API Routes
+### Key Functions
 
-`api/auth/$` (catch-all), `api/auth/login`, `api/auth/register`, `api/auth/storage`
+| Function | Purpose |
+|----------|---------|
+| `createNavidromeUser(userId, name, email)` | Create Navidrome account via native API |
+| `getNavidromeUserCreds(userId)` | Get cached creds from DB |
+| `ensureNavidromeUser(userId, name, email)` | Idempotent: create if not exists, return creds |
+| `buildSubsonicParams(creds)` | Build URL params from creds |
 
-Trusted origins: `VITE_BASE_URL` + `localhost:3003` / `127.0.0.1:3003` in development.
+### Caching
 
----
+In-memory `Map<userId, { creds, expiresAt }>` with 1-hour TTL.
 
-## Config System
+## Last.fm (`lastfm/client.ts` — 402 lines)
 
-Files: `src/lib/config/config.ts` (192 lines), `src/lib/config/defaults.json` (18 lines).
+**Auth**: API key passed as `api_key` query parameter. No OAuth needed (read-only operations).
 
-### Load Order
+| Method | Last.fm Endpoint | Purpose |
+|--------|-----------------|---------|
+| `getSimilarTracks(artist, track)` | `track.getSimilar` | Find similar tracks |
+| `getSimilarArtists(artist)` | `artist.getSimilar` | Find similar artists |
+| `getArtistTopTracks(artist)` | `artist.getTopTracks` | Top tracks by artist |
+| `getTrackInfo(artist, track)` | `track.getInfo` | Track metadata |
+| `getArtistInfo(artist)` | `artist.getInfo` | Artist metadata |
 
-**Server**: `defaults.json` -> `db/config.json` -> env vars (highest priority).
-**Client**: `defaults.json` -> `localStorage` key `serviceConfig`.
+**Gotcha**: Rate limited. The blended scorer uses 100ms throttle between searches. Last.fm API sometimes returns empty results for less popular tracks.
+
+## LLM Providers (`llm/factory.ts`)
+
+**Supported providers**: `ollama` (default), `openrouter`, `glm`, `anthropic`
+
+### Factory Pattern
+
+```ts
+function createLLMProvider(): LLMProvider {
+  switch (getConfig().llmProvider) {
+    case 'ollama': return new OllamaProvider(config.ollamaUrl);
+    case 'openrouter': return new OpenRouterProvider(config);
+    case 'glm': return new GlmProvider(config);
+    case 'anthropic': return new AnthropicProvider(config);
+  }
+}
+```
+
+Each provider implements the `LLMProvider` interface with `generate(prompt, options)` method.
+
+### Usage
+
+- **Mood translation**: Translates natural language mood → Navidrome smart playlist criteria (temperature 0.3, max 256 tokens, 5s timeout)
+- **Playlist generation**: Generates playlists from descriptions
+- **Music identity insights**: AI-generated insights for Wrapped-style summaries
+
+## Lidarr (`lidarr.ts` — 429 lines)
+
+**Protocol**: REST API with `X-Api-Key` header
+
+| Function | Purpose |
+|----------|---------|
+| `searchArtists(term)` | Search for artists |
+| `getArtist(id)` | Artist details |
+| `getAlbums(artistId)` | Albums by artist |
+| `addArtist(...)` | Add artist to monitored list |
+| `searchAndAdd(artist, album)` | Search + add for download |
+
+**Config**: `LIDARR_URL`, `LIDARR_API_KEY` (required env vars)
+
+## MeTube (`metube.ts`)
+
+**Protocol**: REST API, no authentication
+
+| Function | Purpose |
+|----------|---------|
+| `addDownload(url, quality)` | Queue YouTube download |
+| `getHistory()` | Download history |
+
+**Config**: `metubeUrl` in config
+
+## Metadata Services
+
+### Spotify (`spotify.ts`)
+
+- Client credentials OAuth flow (`client_id` + `client_secret`)
+- Used only for metadata (track info, artist info, album art)
+- No streaming or user library access
+
+### YouTube Music (`youtube-music.ts`)
+
+- Metadata search for song matching
+- Used in playlist import for matching songs
+
+### Deezer (`deezer.ts`)
+
+- Public API (no auth needed)
+- Used for:
+  - Explicit content detection (`/search?q=artist:X track:Y`)
+  - Cover art resolution
+  - Track metadata
+
+**Gotcha**: Deezer results are matched by artist + title string comparison. Fuzzy matching handles slight differences.
+
+## Auth System (`auth.ts`)
+
+### Setup
+
+- Library: `better-auth` with Drizzle adapter
+- Providers: email/password + GitHub OAuth + Google OAuth (optional)
+- Cookie config: `sameSite: "none"`, `secure: true`, `httpOnly: true`
+- Plugin: `tanstackStartCookies()` for SSR compatibility
+
+### Session Check Pattern
+
+```ts
+const session = await auth.api.getSession({
+  headers: request.headers,
+  query: { disableCookieCache: true },
+});
+if (!session) return unauthorizedResponse();
+```
+
+### `withAuthAndErrorHandling` Wrapper
+
+The standard pattern for authenticated API routes:
+
+```ts
+const POST = withAuthAndErrorHandling(
+  async ({ request, session }) => {
+    // session.user.id is available
+    return successResponse(data);
+  },
+  {
+    service: 'my-service',
+    operation: 'my-operation',
+    defaultCode: 'MY_ERROR_CODE',
+    defaultMessage: 'Failed to do something',
+  }
+);
+```
+
+Handles: session validation, Zod validation errors, ServiceError, generic errors.
+
+### Social Providers
+
+Only included if env vars are set:
+- `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET`
+- `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`
+
+## Config System (`config.ts`)
+
+### Loading Order
+
+1. `db/config.json` — file-based defaults (server-side)
+2. Environment variables — override file values
+3. `localStorage` — client-side overrides (for dev/testing)
+
+### Key Config Values
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `navidromeUrl` | env `NAVIDROME_URL` | Navidrome server URL |
+| `navidromeUsername` | env `NAVIDROME_USERNAME` | Admin username |
+| `navidromePassword` | env `NAVIDROME_PASSWORD` | Admin password |
+| `ollamaUrl` | env `OLLAMA_URL` | Ollama LLM server |
+| `llmProvider` | `'ollama'` | Active LLM provider |
+| `lidarrUrl` | env `LIDARR_URL` | Lidarr server |
+| `lidarrApiKey` | env `LIDARR_API_KEY` | Lidarr API key |
+| `lastfmApiKey` | env `LASTFM_API_KEY` | Last.fm API key |
+| `metubeUrl` | env `METUBE_URL` | MeTube server |
 
 ### Functions
 
-| Function | Purpose |
-|----------|---------|
-| `getConfig()` | Synchronous access |
-| `getConfigAsync()` | Async (ensures server config loaded) |
-| `setConfig(partial)` | Partial update (persists to localStorage on client) |
-| `resetConfig()` | Reset to defaults |
+- `getConfig()` — synchronous, returns cached config
+- `getConfigAsync()` — async, ensures file is loaded first
+- `setConfig(updates)` — update and persist to `db/config.json`
 
-API route: `api/config` (GET/PUT for runtime config changes).
+## Feature Flags (`features.ts`)
 
----
+| Flag | Default | Env Override | Description |
+|------|---------|-------------|-------------|
+| `hlsStreaming.enabled` | `false` | `FEATURE_HLS_STREAMING=true` | HLS streaming for network resilience |
+| `hlsStreaming.fallbackOnError` | `true` | — | Fall back to direct stream on HLS errors |
+| `serverPlaybackState.enabled` | `false` | `FEATURE_SERVER_PLAYBACK=true` | Server-side playback state |
+| `serverPlaybackState.syncInterval` | `5000` | — | Sync interval in ms |
+| `jukeboxMode.enabled` | `false` | `FEATURE_JUKEBOX=true` | Device management / jukebox mode |
+| `jukeboxMode.allowMultipleDevices` | `true` | — | Allow multiple devices |
+| `jukeboxMode.showDeviceSelector` | `false` | — | Show device selector UI |
 
-## Feature Flags
-
-File: `src/lib/config/features.ts` (146 lines).
-
-### Flag Definitions
-
-| Flag | Sub-key | Type | Default | Description |
-|------|---------|------|---------|-------------|
-| `hlsStreaming` | `enabled` | `boolean` | `false` | HLS streaming for network resilience |
-| `hlsStreaming` | `fallbackOnError` | `boolean` | `true` | Fall back to direct stream on HLS errors |
-| `serverPlaybackState` | `enabled` | `boolean` | `false` | Server-side playback state sync |
-| `serverPlaybackState` | `syncInterval` | `number` | `5000` | ms between sync pushes |
-| `jukeboxMode` | `enabled` | `boolean` | `false` | Multi-device jukebox mode |
-| `jukeboxMode` | `allowMultipleDevices` | `boolean` | `true` | Allow multiple simultaneous devices |
-| `jukeboxMode` | `showDeviceSelector` | `boolean` | `false` | Show device selector in UI |
-
-### Env Overrides (Server-Side)
-
-| Env Var | Enables |
-|---------|---------|
-| `FEATURE_HLS_STREAMING=true` | `hlsStreaming.enabled` |
-| `FEATURE_SERVER_PLAYBACK=true` | `serverPlaybackState.enabled` |
-| `FEATURE_JUKEBOX=true` | `jukeboxMode.enabled` + `showDeviceSelector` |
-
-Client override: `localStorage` key `featureFlags` (JSON, deep-merged over defaults).
-
-Functions: `getFeatureFlags()`, `isFeatureEnabled(feature)`, `setFeatureFlags(updates)` (client-only), `resetFeatureFlags()`.
-
----
-
-## Environment Variables Summary
-
-Validated at startup via `src/env/server.ts` (`@t3-oss/env-core` + Zod).
-
-### Required
-
-| Variable | Validation | Used By |
-|----------|-----------|---------|
-| `DATABASE_URL` | `z.string().url()` | Drizzle ORM / PostgreSQL |
-| `BETTER_AUTH_SECRET` | `z.string().min(32)` | better-auth session signing |
-| `VITE_BASE_URL` | `z.string().url()` | Auth, trusted origins |
-| `NAVIDROME_URL` | `z.string().url()` | Navidrome |
-| `NAVIDROME_USERNAME` | `z.string().min(1)` | Navidrome auth |
-| `NAVIDROME_PASSWORD` | `z.string().min(1)` | Navidrome auth |
-| `OLLAMA_URL` | `z.string().url()` | LLM (Ollama) |
-| `LIDARR_URL` | `z.string().url()` | Lidarr |
-| `LIDARR_API_KEY` | `z.string().min(1)` | Lidarr auth |
-
-### Optional
-
-| Variable | Used By |
-|----------|---------|
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth |
-| `LLM_PROVIDER` | LLM provider selection |
-| `OLLAMA_MODEL` / `OPENROUTER_API_KEY` / `OPENROUTER_MODEL` | LLM config |
-| `GLM_API_KEY` / `GLM_MODEL` | GLM config |
-| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` / `ANTHROPIC_BASE_URL` | Anthropic config |
-| `LASTFM_API_KEY` | Last.fm |
-| `FEATURE_HLS_STREAMING` / `FEATURE_SERVER_PLAYBACK` / `FEATURE_JUKEBOX` | Feature flags |
+**Client-side**: stored in `localStorage` as `featureFlags` JSON
+**Server-side**: read from env vars
+**API**: `isFeatureEnabled('hlsStreaming')`, `setFeatureFlags(updates)`, `resetFeatureFlags()`

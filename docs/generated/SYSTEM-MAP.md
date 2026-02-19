@@ -1,314 +1,262 @@
-<!-- Generated: 2026-02-15 -->
+<!-- Generated: 2026-02-18 -->
 
-# System Map
+# System Map — "Where Is Everything?"
 
-Structural inventory of the aidj codebase.
+## Zustand Stores (`src/lib/stores/`)
 
----
+| Store | File | Lines | Persistence | Purpose |
+|-------|------|------:|:-----------:|---------|
+| `useAudioStore` | `audio.ts` | 1,859 | localStorage | ALL playback state, queue, AI DJ, crossfade, autoplay, cross-device sync |
+| `useDiscoveryFeedStore` | `discovery-feed.ts` | 588 | localStorage | Time-based discovery feed items and patterns |
+| `useDiscoverySuggestionsStore` | `discovery-suggestions.ts` | 581 | localStorage | Background discovery suggestion management |
+| `useLibrarySyncStore` | `library-sync.ts` | 365 | localStorage | Library indexing progress, sync state |
+| `useDiscoveryQueueStore` | `discovery-queue.ts` | 283 | localStorage | Discovery queue state and management |
+| `usePreferencesStore` | `preferences.ts` | 228 | API-backed | User preferences (fetched from server, cached) |
+| `useSetBuilderStore` | `set-builder.ts` | 209 | localStorage | DJ set builder state |
 
-## Stores
-
-| Store | File | Lines | Purpose | Persisted |
-|-------|------|------:|---------|-----------|
-| Audio | `src/lib/stores/audio.ts` | 1,824 | Playback state, queue, AI DJ, crossfade, autoplay, cross-device sync | Yes (localStorage) |
-| Discovery Feed | `src/lib/stores/discovery-feed.ts` | 588 | Personalized discovery feed state | Yes |
-| Discovery Queue | `src/lib/stores/discovery-queue.ts` | 283 | Discovery queue management | Yes |
-| Discovery Suggestions | `src/lib/stores/discovery-suggestions.ts` | 581 | Background discovery suggestions | Yes |
-| Library Sync | `src/lib/stores/library-sync.ts` | 365 | Navidrome library sync progress | Yes |
-| Preferences | `src/lib/stores/preferences.ts` | 227 | User preferences (theme, UI settings) | Yes |
-| Set Builder | `src/lib/stores/set-builder.ts` | 209 | DJ set builder state | Yes |
-
-**Total: 4,077 lines across 7 stores. All persisted.**
-
----
-
-## Schemas (Database Tables)
-
-| Schema File | Lines | Tables |
-|-------------|------:|--------|
-| `auth.schema.ts` | 75 | user, session, account, verification |
-| `background-discovery.schema.ts` | 182 | discovery_suggestions, discovery_settings |
-| `collaborative-playlists.schema.ts` | 171 | playlist_collaborators, playlist_activity, playlist_suggestions |
-| `devices.schema.ts` | 25 | devices |
-| `discovery-feed.schema.ts` | 416 | discovery_feed_items, discovery_feed_interactions, discovery_feed_settings, notification_preferences |
-| `library-profiles.schema.ts` | 43 | library_profiles |
-| `library-sync.schema.ts` | 164 | library_sync_state, sync_tasks |
-| `listening-history.schema.ts` | 185 | listening_history, track_similarities, compound_scores |
-| `lyrics-cache.schema.ts` | 33 | lyrics_cache |
-| `mood-history.schema.ts` | 258 | taste_snapshots, mood_snapshots, recommendation_history |
-| `music-identity.schema.ts` | 231 | music_identity_snapshots, music_identity_share_tokens |
-| `playback-session.schema.ts` | 51 | playback_sessions |
-| `playlist-export.schema.ts` | 275 | playlist_exports, playlist_download_queue |
-| `playlists.schema.ts` | 58 | playlists, playlist_songs |
-| `preferences.schema.ts` | 99 | user_preferences, recommendations_cache |
-| `profile.schema.ts` | 181 | user_profiles, user_profile_stats |
-| `recommendations.schema.ts` | 65 | recommendation_feedback |
-| `saved-cover-art.schema.ts` | 32 | saved_cover_art |
-
-**Total: 2,544 lines across 18 schema files.**
-
----
-
-## API Routes
-
-### Auth & Config
-
-| Route | Path |
-|-------|------|
-| login, register, `$.ts` (catch-all), storage | `api/auth/` |
-| cache management | `api/cache.ts` |
-| runtime config | `api/config.ts` |
-
-### Discovery & Recommendations
-
-| Route | Path |
-|-------|------|
-| status, settings, trigger, suggestions, suggestions.$id | `api/background-discovery/` |
-| index, analytics, interactions, notifications/preferences | `api/discovery-feed/` |
-| index, analytics, export, clear, seasonal-insights, mood-timeline, feedback | `api/recommendations/` |
-
-### Library & Listening
-
-| Route | Path |
-|-------|------|
-| most-played, top-artists, sync/* (start, status, pause, resume, abort, settings) | `api/library/` |
-| analyze | `api/library-profile/` |
-| record, stats, sessions, by-hour, compound-scores, interest-over-time, album-ages, full | `api/listening-history/` |
-
-### External Services
-
-| Route | Path |
-|-------|------|
-| similar-artists, similar-tracks, search, top-tracks, test, backfill | `api/lastfm/` |
-| search, search-album, add, cancel, unmonitor, availability, status, history | `api/lidarr/` |
-| auth/login, api/* (song, album, artist, etc.), rest/* (scrobble), stream/$id, star, search, [...path] | `api/navidrome/` |
-| add, delete, status | `api/metube/` |
-
-### Playlists & Media
-
-| Route | Path |
-|-------|------|
-| index, $id, sync, join, download, smart/*, $id/songs/*, $id/reorder, $id/collaboration/*, $id/collaborators/*, $id/suggestions/*, $id/activity, $id/events, liked-songs/sync | `api/playlists/` |
-| queue | `api/downloads/` |
-| save | `api/cover-art/` |
-| index | `api/lyrics/` |
-
-### Identity, Profile & Misc
-
-| Route | Path |
-|-------|------|
-| index, $id, share.$token | `api/music-identity/` |
-| update | `api/profile/` |
-| global search | `api/search.ts` |
-| integrated search | `api/integrated/` |
-| task aggregator | `api/tasks/` |
-| logs, debug-library | `api/debug/` |
-
----
-
-## Services
-
-### Core Services
-
-| Domain | Key Files | Lines |
-|--------|-----------|------:|
-| Navidrome | `navidrome.ts` | 1,955 |
-| Music Identity | `music-identity.ts` | 1,126 |
-| Listening History | `listening-history.ts` | 713 |
-| Playback | `playback-websocket.ts` | 196 |
-
-### Recommendations & Scoring
-
-| File | Lines |
-|------|------:|
-| `recommendations.ts` | 1,350 |
-| `blended-recommendation-scorer.ts` | 800+ |
-| `profile-recommendations.ts` | 551 |
-| `compound-scoring.ts` | 340 |
-| `skip-scoring.ts` | 261 |
-
-### Audio Processing
-
-| File | Lines |
-|------|------:|
-| `transition-effects.ts` | 995 |
-| `media-flow-manager.ts` | 732 |
-| `web-audio-processor.ts` | 699 |
-
-### Mood & Discovery
-
-| File | Lines |
-|------|------:|
-| `mood-translator.ts` | 1,100 |
-| `mood-timeline-analytics.ts` | 1,003 |
-| `time-based-discovery.ts` | 790 |
-| `seasonal-patterns.ts` | 247 |
-| `mood-criteria-fallback.ts` | 183 |
-
-### Background Discovery
-
-| File | Lines |
-|------|------:|
-| `discovery-generator.ts` | 684 |
-| `discovery-manager.ts` | 488 |
-
-### DJ
-
-| File | Lines |
-|------|------:|
-| `dj-match-scorer.ts` | 400+ |
-| `dj-set-planner.ts` | 400+ |
-| `harmonic-mixer.ts` | 300+ |
-| `ai-dj/core.ts` | 191 |
-
-### Playlists
-
-| File | Lines |
-|------|------:|
-| `playlist-export.ts` | 899 |
-| `playlist-download.ts` | 507 |
-| `liked-songs-sync.ts` | 314 |
-| `smart-playlist-evaluator.ts` | 272 |
-| `playlist-sync.ts` | 217 |
-
-### External APIs
-
-| File | Lines |
-|------|------:|
-| `youtube-music.ts` | 646 |
-| `spotify.ts` | 496 |
-| `lastfm/client.ts` | 500+ |
-| `metube.ts` | 338 |
-| `deezer.ts` | 300+ |
-| `lidarr.ts` | 250+ |
-
-### LLM & Offline
-
-| File | Purpose |
-|------|---------|
-| `llm/factory.ts` | Factory pattern for ollama/openrouter/glm/anthropic |
-| `offline/indexed-db.ts` | IndexedDB storage |
-| `offline-adapters.ts` | Offline data adapters |
-| `sync-queue.ts` | Offline sync queue |
-
-### Other Services
-
-| File | Purpose |
-|------|---------|
-| `song-matcher.ts` | Song matching across sources |
-| `genre-hierarchy.ts` | Genre taxonomy |
-| `genre-matcher.ts` | Genre matching logic |
-| `genre-audio-analyzer.ts` | Genre from audio features |
-| `energy-estimator.ts` | Track energy estimation |
-| `notification-scheduler.ts` | Scheduled notifications (470 lines) |
-| `discovery-analytics.ts` | Discovery analytics |
-| `recommendation-analytics.ts` | Recommendation analytics |
-| `advanced-discovery-analytics.ts` | Advanced discovery analytics |
-| `audio-analysis.ts` | Audio feature analysis |
-| `audio-buffer-analyzer.ts` | Audio buffer analysis |
-| `lyrics.ts` | Lyrics fetching |
-| `image-resolver.ts` | Cover art resolution |
-| `preferences.ts` | Preferences service |
-| `task-aggregator.ts` | Background task aggregation |
-| `artist-affinity.ts` | Artist preference scoring |
-| `artist-fatigue.ts` | Artist overplay detection |
-| `artist-blocklist.ts` | Artist blocklist management |
-| `lastfm-backfill.ts` | Last.fm history backfill |
-
----
-
-## Hooks
+## Custom Hooks (`src/lib/hooks/`)
 
 | Hook | File | Lines | Purpose |
 |------|------|------:|---------|
-| useCrossfade | `useCrossfade.ts` | 271 | Equal-power crossfade between dual decks |
-| useDualDeckAudio | `useDualDeckAudio.ts` | 137 | Manages 2 HTMLAudioElement instances for gapless playback |
-| useEruda | `useEruda.ts` | 244 | Mobile debug console |
-| useMediaSession | `useMediaSession.ts` | 389 | Media Session API (lock screen controls, metadata) |
-| useOfflineStatus | `useOfflineStatus.ts` | 212 | Online/offline detection, PWA connectivity |
-| usePlaybackStateSync | `usePlaybackStateSync.ts` | 278 | Store-to-audio state sync, iOS recovery, visibility changes |
-| usePlaybackSync | `usePlaybackSync.ts` | 348 | Cross-device WebSocket sync (Spotify Connect-style) |
-| usePlayerKeyboardShortcuts | `usePlayerKeyboardShortcuts.ts` | 74 | Keyboard shortcuts for player controls |
-| useServiceWorker | `useServiceWorker.ts` | 138 | Service worker registration and update management |
-| useSongFeedback | `useSongFeedback.ts` | 34 | Thumbs up/down feedback API calls |
-| useStallRecovery | `useStallRecovery.ts` | 300 | Audio stall detection + escalating recovery strategies |
+| `useMediaSession` | `useMediaSession.ts` | 388 | Media Session API integration (lock screen controls) |
+| `usePlaybackSync` | `usePlaybackSync.ts` | 366 | WebSocket cross-device sync (send/receive state) |
+| `usePlaybackStateSync` | `usePlaybackStateSync.ts` | 324 | Visibility/stall recovery, iOS screen lock |
+| `useStallRecovery` | `useStallRecovery.ts` | 300 | Audio stall detection and recovery strategies |
+| `useCrossfade` | `useCrossfade.ts` | 271 | Dual-deck crossfade pipeline, equal power curves |
+| `useEruda` | `useEruda.ts` | 244 | Mobile debug console (dev only) |
+| `useOfflineStatus` | `useOfflineStatus.ts` | 212 | Online/offline detection, PWA support |
+| `useServiceWorker` | `useServiceWorker.ts` | 138 | Service worker registration and updates |
+| `useDualDeckAudio` | `useDualDeckAudio.ts` | 137 | Two HTMLAudioElement deck management |
+| `usePlayerKeyboardShortcuts` | `usePlayerKeyboardShortcuts.ts` | 74 | Space, arrows, M for playback control |
+| `useSongFeedback` | `useSongFeedback.ts` | 34 | Thumbs up/down feedback submission |
 
----
+## DB Schemas (`src/lib/db/schema/`)
 
-## Component Directories
+| Schema File | Table(s) | Lines | Key Columns |
+|-------------|----------|------:|-------------|
+| `auth.schema.ts` | `user`, `session`, `account`, `verification`, `recommendationsCache` | 75 | user.id, session.token, account.providerId |
+| `discovery-feed.schema.ts` | `listeningPatterns`, `discoveryFeedItems`, `feedNotifications` | 416 | timeSlot, context, genreDistribution |
+| `playlist-export.schema.ts` | `playlistExportJobs`, `exportSongMatches` | 275 | format, platform, matchConfidence |
+| `mood-history.schema.ts` | `moodSnapshots`, `moodTransitions` | 258 | periodType, moodDistribution, topGenres |
+| `music-identity.schema.ts` | `musicIdentitySummaries` | 231 | periodType, topArtists, topGenres, aiInsight |
+| `listening-history.schema.ts` | `listeningHistory`, `trackSimilarities`, `compoundScores` | 185 | songId, playedAt, skipRate, matchScore |
+| `background-discovery.schema.ts` | `discoverySuggestions`, `discoveryRejections`, `discoveryJobState` | 182 | source, status, seed info |
+| `profile.schema.ts` | `artistAffinities`, `temporalPreferences` | 181 | affinityScore, playCount, timeSlot |
+| `collaborative-playlists.schema.ts` | `playlistCollaborationSettings`, `playlistCollaborators`, `songSuggestions`, `suggestionVotes` | 171 | privacy, role, shareCode |
+| `library-sync.schema.ts` | `librarySyncState`, `librarySyncItems`, `librarySyncErrors` | 164 | status, phase, processedItems |
+| `preferences.schema.ts` | `userPreferences` | 100 | recommendationSettings, playbackSettings, notificationSettings |
+| `recommendations.schema.ts` | `recommendationFeedback` | 65 | feedbackType, songId, source, temporal fields |
+| `playlists.schema.ts` | `userPlaylists`, `playlistSongs` | 58 | navidromeId, songCount, smartPlaylistCriteria |
+| `playback-session.schema.ts` | `playbackSessions` | 51 | queue (JSONB), activeDeviceId, per-field timestamps |
+| `library-profiles.schema.ts` | `libraryProfiles` | 43 | genreDistribution, topKeywords, totalSongs |
+| `lyrics-cache.schema.ts` | `lyricsCache` | 33 | artist, title, lyrics, syncedLyrics, source |
+| `saved-cover-art.schema.ts` | `savedCoverArt` | 32 | entityId, entityType, imageUrl, source |
+| `navidrome-users.schema.ts` | `navidromeUsers` | 26 | userId, navidromeUsername, navidromeToken, navidromeSalt |
+| `devices.schema.ts` | `devices` | 25 | deviceName, deviceType, lastSeenAt |
+| `explicit-content.schema.ts` | `explicitContentCache` | 21 | artist, title, isExplicit, source |
 
-| Directory | Purpose |
-|-----------|---------|
-| `dashboard/` | Dashboard page components (analytics, DJ features, recommendations) |
-| `debug/` | Debug tools |
-| `discovery/` | Discovery queue panel |
-| `discovery-feed/` | Discovery feed UI |
-| `dj/` | DJ mode components (mix compatibility badges, set builder) |
-| `downloads/` | Download manager UI |
-| `landing/` | Landing page |
-| `layout/` | App layout (PlayerBar, AppLayout, sidebar, mobile nav) |
-| `library/` | Library browser (artist/album/song lists) |
-| `lyrics/` | Lyrics display |
-| `music-identity/` | Music Wrapped/Identity feature |
-| `playlist/` | Single playlist view components |
-| `playlists/` | Playlist list/management |
-| `recommendations/` | Recommendation display, preference insights |
-| `ui/` | shadcn/ui primitives (button, dialog, slider, etc.) |
-| `visualizer/` | Audio visualizer |
+## API Routes (`src/routes/api/`)
 
----
+### Auth
 
-## Page Routes
+| Route | Methods | Purpose |
+|-------|---------|---------|
+| `auth/login.ts` | POST | Email/password login |
+| `auth/register.ts` | POST | Registration + Navidrome account creation |
+| `auth/$.ts` | * | better-auth catch-all (OAuth callbacks, session) |
 
-| Route | Page |
-|-------|------|
-| `/` | Landing page |
-| `/login` | Login |
-| `/signup` | Sign up |
-| `/dashboard` | Main dashboard |
-| `/dashboard/analytics` | Listening analytics |
-| `/dashboard/discover` | Discovery page |
+### Recommendations
+
+| Route | Methods | Purpose |
+|-------|---------|---------|
+| `recommendations.ts` | POST | Mood-based recommendations |
+| `recommendations/feedback.ts` | GET, POST | Fetch/submit thumbs up/down feedback |
+| `ai-dj/recommendations.ts` | POST | AI DJ queue recommendations |
+
+### Playlists
+
+| Route | Methods | Purpose |
+|-------|---------|---------|
+| `playlists/index.ts` | GET | List user playlists |
+| `playlists/$id.ts` | GET, DELETE | Playlist details, delete |
+| `playlists/sync.ts` | POST | Sync playlists from Navidrome |
+| `playlists/generate.ts` | POST | AI playlist generation |
+| `playlists/import/` | POST (match, create, download) | Import playlists from Spotify/YouTube |
+| `playlists/liked-songs/sync.ts` | POST | Sync starred songs to Liked Songs playlist |
+| `playlists/collaboration/` | POST, GET, DELETE | Collaborative playlist management |
+| `playlists/export.ts` | POST | Export playlists (M3U, XSPF, JSON, CSV) |
+
+### Navidrome Proxy
+
+| Route | Methods | Purpose |
+|-------|---------|---------|
+| `navidrome/rest/$.ts` | * | Subsonic API proxy (browsing, search, stream) |
+| `navidrome/rest/scrobble.ts` | POST | Scrobble with per-user creds |
+| `navidrome/star.ts` | POST | Star/unstar with per-user creds |
+
+### Settings & Preferences
+
+| Route | Methods | Purpose |
+|-------|---------|---------|
+| `preferences.ts` | GET, POST | User preference CRUD |
+
+### Playback & Sync
+
+| Route | Methods | Purpose |
+|-------|---------|---------|
+| `playback/state.ts` | GET, POST | Server-side playback state (cross-device sync) |
+| `devices/index.ts` | GET, POST | Device registration and listing |
+| `devices/$deviceId.ts` | DELETE | Remove device |
+
+### Library & Discovery
+
+| Route | Methods | Purpose |
+|-------|---------|---------|
+| `library/sync.ts` | POST, GET | Library sync trigger and status |
+| `library/search.ts` | GET | Search with library profile boosting |
+| `library/profile.ts` | GET, POST | Library genre/keyword profile |
+| `discovery/feed.ts` | GET | Personalized discovery feed |
+| `discovery/analytics.ts` | GET | Discovery analytics dashboard data |
+
+### Downloads
+
+| Route | Methods | Purpose |
+|-------|---------|---------|
+| `downloads/lidarr.ts` | POST | Trigger Lidarr download |
+| `downloads/youtube.ts` | POST, GET | MeTube YouTube downloads |
+| `downloads/status.ts` | GET | Download progress |
+
+### Other
+
+| Route | Methods | Purpose |
+|-------|---------|---------|
+| `music-identity/` | GET, POST | Music identity summaries |
+| `lyrics.ts` | GET | Lyrics fetch (LRCLIB + Navidrome) |
+| `tasks/index.ts` | GET | Background task status |
+| `analytics/` | GET | Recommendation analytics |
+| `cover-art/` | GET, POST | Album art resolution and saving |
+| `config.ts` | GET, POST | Server config management |
+
+## Services (`src/lib/services/`)
+
+| Service | Lines | Domain |
+|---------|------:|--------|
+| `navidrome.ts` | 2,069 | Navidrome/Subsonic API (library, search, stream, stars, playlists) |
+| `recommendations.ts` | 603 | Recommendation pipeline entry (mood, ai_dj, similar, random) |
+| `library-sync/sync-service.ts` | 567 | Incremental library indexing |
+| `blended-recommendation-scorer.ts` | 535 | Multi-signal scoring orchestrator |
+| `playback-websocket.ts` | 196 | Cross-device WebSocket server |
+| `music-identity.ts` | 525 | Yearly/monthly music summaries |
+| `preferences.ts` | 512 | Preference management + caching |
+| `playlist-sync.ts` | 510 | Bidirectional Navidrome playlist sync |
+| `listening-history.ts` | 433 | Play/skip tracking, skip rates |
+| `library-sync/background-sync.ts` | 420 | Background sync scheduler |
+| `lidarr.ts` | 429 | Lidarr music download integration |
+| `lastfm/client.ts` | 402 | Last.fm API (similar artists, track info) |
+| `web-audio-processor.ts` | 387 | Web Audio API analysis |
+| `recommendation-analytics.ts` | 375 | Recommendation performance analytics |
+| `profile-recommendations.ts` | 371 | Profile-based zero-API recommendations |
+| `audio-buffer-analyzer.ts` | 367 | Audio buffer BPM/energy analysis |
+| `audio-analysis.ts` | 356 | Server-side audio analysis |
+| `discovery-manager.ts` | 343 | Background discovery scheduler |
+| `energy-flow-analyzer.ts` | 341 | Energy flow analysis for DJ transitions |
+| `discovery-analytics.ts` | 341 | Discovery analytics |
+| `discovery-generator.ts` | 328 | Background discovery feed generation |
+| `dj-set-planner.ts` | 310 | DJ set ordering and planning |
+| `time-based-discovery.ts` | 305 | Temporal pattern recommendations |
+| `cache-service.ts` | 304 | Generic caching service |
+| `mood-timeline-analytics.ts` | 302 | Mood timeline visualization data |
+| `dj-match-scorer.ts` | 298 | BPM/Energy/Key scoring |
+| `seasonal-patterns.ts` | 296 | Seasonal pattern detection |
+| `compound-scoring.ts` | ~300 | Compound recommendation scoring |
+| `collaborative-playlists.ts` | 287 | Collaborative playlist features |
+| `lidarr-navidrome.ts` | 283 | Lidarr ↔ Navidrome integration |
+| `task-aggregator.ts` | 277 | Background task management |
+| `advanced-discovery-analytics.ts` | 277 | Advanced discovery metrics |
+| `liked-songs-sync.ts` | 274 | Liked Songs playlist sync |
+| `playlist-export.ts` | 272 | Playlist export (M3U, XSPF, etc.) |
+| `harmonic-mixer.ts` | 267 | Camelot wheel key matching |
+| `lyrics.ts` | 243 | Lyrics fetching (LRCLIB) |
+| `image-resolver.ts` | 242 | Album/artist image resolution |
+| `notification-scheduler.ts` | 235 | Push notification scheduling |
+| `lastfm-backfill.ts` | 233 | Last.fm history backfill |
+| `playlist-download.ts` | 232 | Playlist song downloading |
+| `navidrome-users.ts` | 227 | Per-user Navidrome account management |
+| `cache-store.ts` | 215 | Cache store adapter |
+| `explicit-content.ts` | 201 | Deezer explicit content detection |
+| `transition-effects.ts` | 198 | Audio transition effects |
+| `energy-estimator.ts` | 167 | Song energy estimation |
+| `mood-criteria-fallback.ts` | 159 | Hardcoded mood → criteria mappings |
+| `mood-translator.ts` | ~160 | AI mood → playlist query translation |
+
+## Page Routes (`src/routes/`)
+
+| Path | Page |
+|------|------|
+| `/` | Home/landing |
+| `/dashboard/` | Dashboard home |
+| `/dashboard/recommendations/$id` | Recommendation details |
+| `/dashboard/generate` | Generate recommendations |
+| `/dashboard/discover` | Discovery feed |
+| `/dashboard/analytics` | Analytics dashboard |
 | `/dashboard/discovery-analytics` | Discovery analytics |
-| `/dashboard/generate` | Playlist generator |
-| `/dashboard/history` | Listening history |
-| `/dashboard/library-growth` | Library growth charts |
 | `/dashboard/mood-timeline` | Mood timeline |
-| `/dashboard/recommendations/$id` | Recommendation detail |
-| `/dj` | DJ mode |
+| `/dashboard/history` | Listening history |
+| `/dashboard/library-growth` | Library growth |
+| `/dj/` | AI DJ page |
 | `/dj/set-builder` | DJ set builder |
 | `/dj/settings` | DJ settings |
-| `/downloads` | Download manager |
-| `/library/artists` | Artist browser |
 | `/library/search` | Library search |
-| `/music-identity` | Music Wrapped |
-| `/playlists` | Playlist list |
-| `/playlists/$id` | Playlist detail |
-| `/settings/*` | Settings pages (services, playback, profile, recommendations, notifications) |
-| `/tasks` | Background tasks |
+| `/library/artists/` | Artist list |
+| `/library/artists/$id` | Artist details |
+| `/library/artists/$id/albums/$albumId` | Album details |
+| `/playlists/` | Playlist list |
+| `/playlists/$id` | Playlist details |
+| `/playlists/join/$shareCode` | Join collaborative playlist |
+| `/downloads/` | Downloads |
+| `/downloads/history` | Download history |
+| `/downloads/youtube` | YouTube downloads |
+| `/downloads/status` | Download status |
+| `/music-identity/` | Music identity |
+| `/music-identity/share.$token` | Shared identity card |
+| `/settings/` | Settings home |
+| `/settings/general` | General settings |
+| `/settings/playback` | Playback settings |
+| `/settings/recommendations` | Recommendation settings |
+| `/settings/services` | Service connections |
+| `/settings/notifications` | Notification settings |
+| `/settings/album-art` | Album art manager |
+| `/settings/profile` | Profile settings |
+| `/tasks/` | Background tasks |
 
----
+## Component Directories (`src/components/`)
 
-## Background Processing
+| Directory | Files | Contents |
+|-----------|------:|---------|
+| `ui/` | 34 | shadcn/ui primitives (Button, Card, Dialog, ScrollArea, etc.) |
+| `playlists/` | 9 | Playlist grid, cards, player integration |
+| `playlists/import/` | 5 | Spotify/YouTube playlist import wizard |
+| `playlists/collaboration/` | 4 | Collaborative playlist UI |
+| `landing/` | 6 | Landing page sections |
+| `recommendations/` | 6 | Recommendation cards, mood input |
+| `dashboard/` | 5 | Dashboard widgets |
+| `music-identity/` | 3 | Identity cards, share UI |
+| `ai-dj/` | 2 | AI DJ controls, status |
+| `discovery/` | 2 | Discovery feed UI |
+| `library/` | 2 | Library browse UI |
+| `layout/` | ~5 | PlayerBar, Sidebar, AppLayout |
+| `debug/` | 1 | Debug panel |
 
-| System | Mechanism | Location |
-|--------|-----------|----------|
-| Discovery feed generation | Background generator, periodic | `background-discovery/discovery-generator.ts` (684 lines) |
-| Discovery manager | Coordinates discovery runs | `background-discovery/discovery-manager.ts` (488 lines) |
-| AI DJ drip-feed | Inject 1 rec every N songs played | `src/lib/stores/audio.ts` (in-store logic) |
-| Notification scheduler | Scheduled notifications | `notification-scheduler.ts` (470 lines) |
-| Library sync | Progress tracking, pausable | `library-sync.ts` store + `api/library/sync/*` routes |
-| WebSocket heartbeat | 60s timeout, 30s check interval | `playback-websocket.ts` |
-| Similarity cache refresh | Compound scoring recalculation | `compound-scoring.ts` |
+## Scripts (`scripts/`)
 
----
+| Script | Purpose |
+|--------|---------|
+| `run-migration.ts` | Run Drizzle database migrations |
+| `backfill-temporal-data.ts` | Backfill temporal metadata for listening history |
+| `check-tables.ts` | Verify database table integrity |
+| `capture-readme-screenshots.ts` | Capture app screenshots for README |
+| `update-readme-with-screenshots.ts` | Update README with captured screenshots |
 
-## Scripts
+## Migrations (`drizzle/`)
 
-| Script | Lines | Purpose | Run |
-|--------|------:|---------|-----|
-| `backfill-temporal-data.ts` | 51 | Backfill temporal metadata on recommendation feedback | `npx tsx scripts/backfill-temporal-data.ts` |
-| `run-migration.ts` | 157 | Create missing tables (taste_snapshots, mood_snapshots, recommendation_history) | `npx tsx scripts/run-migration.ts` |
-| `check-tables.ts` | 16 | Verify database tables exist | `npx tsx scripts/check-tables.ts` |
-| `capture-readme-screenshots.ts` | 365 | Playwright-based screenshot capture for README | `npm run readme:screenshots` |
-| `update-readme-with-screenshots.ts` | 374 | Update README with captured screenshots | `npm run readme:update` |
-| `test-coverage-report.js` | 322 | Generate test coverage report | `node scripts/test-coverage-report.js` |
+25 SQL migration files (`0000` through `0019`, some with manual names like `0007_listening-history.sql`, `0015_lyrics_cache.sql`, `0016_profile-tables.sql`, `0018_playback_sessions_devices.sql`).

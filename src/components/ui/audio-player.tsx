@@ -170,7 +170,7 @@ export function AudioPlayer() {
     return feedbackData?.feedback?.[currentSong.id] === 'thumbs_up';
   }, [feedbackData?.feedback, currentSong?.id]);
 
-  // Like/unlike mutation - simplified without complex optimistic updates
+  // Like/unlike mutation with optimistic cache update
   const { mutate: likeMutate, isPending: isLikePending } = useMutation({
     mutationFn: async (liked: boolean) => {
       if (!currentSong) {
@@ -187,8 +187,6 @@ export function AudioPlayer() {
         source: 'library',
       };
 
-      console.log('Sending feedback:', payload);
-
       const response = await fetch('/api/recommendations/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -197,18 +195,30 @@ export function AudioPlayer() {
 
       if (!response.ok && response.status !== 409) {
         const errorData = await response.json();
-        console.error('Feedback API error:', response.status, errorData);
         throw new Error(errorData.message || 'Failed to update feedback');
       }
 
       return liked;
+    },
+    onMutate: async (liked) => {
+      if (!currentSong) return;
+      const feedbackQueryKey = queryKeys.feedback.songs([currentSong.id]);
+      await queryClient.cancelQueries({ queryKey: feedbackQueryKey });
+      const previous = queryClient.getQueryData(feedbackQueryKey);
+      queryClient.setQueryData(feedbackQueryKey, {
+        feedback: { [currentSong.id]: liked ? 'thumbs_up' : 'thumbs_down' },
+      });
+      return { previous, feedbackQueryKey };
     },
     onSuccess: (liked) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
       queryClient.invalidateQueries({ queryKey: ['playlists'] });
       toast.success(liked ? '❤️ Added to Liked Songs' : '💔 Removed from Liked Songs');
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _liked, context) => {
+      if (context?.feedbackQueryKey) {
+        queryClient.setQueryData(context.feedbackQueryKey, context.previous);
+      }
       console.error('Like/unlike error:', error);
       toast.error('Failed to update', { description: error.message });
     },

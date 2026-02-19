@@ -32,10 +32,15 @@ export const Route = createFileRoute("/api/navidrome/stream/$id")({
     }
 
     // Build Subsonic stream URL
+    // Do NOT force format=mp3 or maxBitRate — transcoding produces chunked
+    // transfer with no Content-Length, so the browser reports duration=Infinity
+    // and the 'ended' event never fires (causing the song to loop).
+    // Serving the original file preserves Content-Length and correct duration.
+    // TODO: Reimplement quality selection and transcoding. Needs a solution that
+    // preserves Content-Length (e.g. pre-transcode, or parse duration from the
+    // stream headers/metadata so the player can handle chunked transfers).
     const streamUrl = new URL(`${config.navidromeUrl}/rest/stream`);
     streamUrl.searchParams.set('id', songId);
-    streamUrl.searchParams.set('format', 'mp3');
-    streamUrl.searchParams.set('maxBitRate', '320');
     streamUrl.searchParams.set('client', 'MusicApp');
     streamUrl.searchParams.set('version', '1.16.0');
     streamUrl.searchParams.set('c', 'MusicApp');

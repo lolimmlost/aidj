@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-15 -->
+<!-- Generated: 2026-02-18 -->
 
 # AIDJ Music Interface — AI Agent Context
 
@@ -25,6 +25,7 @@
 - State management via Zustand stores in `src/lib/stores/`
 - DB: PostgreSQL via Drizzle ORM, schemas in `src/lib/db/schema/`
 - Navidrome is the music server (Subsonic-compatible API). ALL music data comes from Navidrome
+- Per-user Navidrome accounts: each AIDJ user gets their own Navidrome account for stars/playlists/scrobbles; admin account used for shared ops (library browse, search, stream)
 - Audio playback: dual-deck crossfade system in browser (2 HTMLAudioElement instances)
 - Cross-device sync: WebSocket-based (Spotify Connect-style), server in `vite-ws-plugin.ts` + `src/lib/services/playback-websocket.ts`
 - Recommendation engine: multi-signal scoring (Last.fm, compound, DJ match, feedback, skip, temporal, diversity)
@@ -35,12 +36,13 @@
 
 | System | Key Files | Risk |
 |--------|-----------|------|
-| Audio store | `src/lib/stores/audio.ts` (1,824 lines) | Manages ALL playback state, queue, AI DJ, crossfade, autoplay, cross-device sync timestamps |
+| Audio store | `src/lib/stores/audio.ts` (1,859 lines) | Manages ALL playback state, queue, AI DJ, crossfade, autoplay, cross-device sync timestamps |
 | Dual-deck audio | `src/lib/hooks/useDualDeckAudio.ts`, `useCrossfade.ts` | Two HTMLAudioElement instances for gapless crossfade. Break = no playback |
 | Playback state sync | `usePlaybackStateSync.ts` | iOS screen lock recovery, visibility change handling, stall recovery |
 | Cross-device sync | `playback-websocket.ts`, `usePlaybackSync.ts` | WebSocket per-field timestamp conflict resolution |
 | Recommendation engine | `blended-recommendation-scorer.ts` (orchestrator), `compound-scoring.ts`, `skip-scoring.ts`, `dj-match-scorer.ts` | Multi-signal scoring, artist fatigue, blocklists |
-| Navidrome proxy | `src/lib/services/navidrome.ts` (1,955 lines) | ALL library data, search, streaming. Break = app is useless |
+| Navidrome service | `src/lib/services/navidrome.ts` (2,069 lines) | ALL library data, search, streaming. Break = app is useless |
+| Per-user Navidrome | `src/lib/services/navidrome-users.ts` | Per-user account creation via native REST API, credential caching |
 
 ## Auth & Session Handling
 
@@ -84,9 +86,9 @@
 
 ## Conventions
 
-- Import aliases: `~/` maps to `src/`, `@/` maps to `src/lib/`
+- Import aliases: `~/` maps to `src/`, `@/` maps to `src/` (both equivalent; convention is `@/lib/` for lib, `~/` for everything else)
 - DB: snake_case columns (drizzle `casing: "snake_case"`), schemas in separate `*.schema.ts` files, re-exported from `index.ts`
-- API routes: TanStack Start `createAPIFileRoute`, always check session first, return `Response` objects
+- API routes: TanStack Start `createAPIFileRoute` or `createFileRoute`, always check session first, return `Response` objects
 - Stores: Zustand with `persist` middleware, custom serialization for Set/Map types
 - Components: Radix primitives wrapped in shadcn/ui style, Tailwind for styling
 - Testing: vitest for unit tests, playwright for e2e
@@ -115,3 +117,4 @@ Radix UI's `ScrollArea.Viewport` injects a child `<div style="display: table">` 
 - Do NOT add new schema files without re-exporting from `src/lib/db/schema/index.ts`
 - Do NOT use `require()` in client code (ESM-only, `"type": "module"`)
 - Do NOT modify the WebSocket vite plugin without testing cross-device sync on multiple browsers
+- Do NOT use Subsonic `createUser` endpoint — Navidrome does not implement it. Use native REST API (`POST /api/user`) via `navidrome-users.ts`

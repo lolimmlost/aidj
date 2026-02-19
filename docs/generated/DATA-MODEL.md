@@ -1,469 +1,335 @@
-<!-- Generated: 2026-02-15 -->
-# Data Model Reference
+<!-- Generated: 2026-02-18 -->
 
-PostgreSQL via Drizzle ORM. Schema: `src/lib/db/schema/` (re-exported from `index.ts`). Casing: `snake_case`. Migrations: `./drizzle/` (23 files, 0000-0018).
+# Data Model
 
-## Authentication & Users (`auth.schema.ts`)
+All schemas in `src/lib/db/schema/`. Drizzle ORM with `casing: "snake_case"`. PostgreSQL.
+
+## Auth (`auth.schema.ts` — 75 lines)
 
 ### `user`
+
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | text | PK |
-| name | text | |
-| email | text | UNIQUE |
-| emailVerified | boolean | |
-| image | text | |
-| createdAt | timestamp | |
-| updatedAt | timestamp | |
+| `id` | text | PK |
+| `name` | text | NOT NULL |
+| `email` | text | NOT NULL, UNIQUE |
+| `email_verified` | boolean | NOT NULL, default false |
+| `image` | text | |
+| `created_at` | timestamp | NOT NULL |
+| `updated_at` | timestamp | NOT NULL |
 
 ### `session`
+
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | text | PK |
-| expiresAt | timestamp | |
-| token | text | UNIQUE |
-| createdAt, updatedAt | timestamp | |
-| ipAddress, userAgent | text | |
-| userId | text | FK -> user.id |
+| `id` | text | PK |
+| `expires_at` | timestamp | NOT NULL |
+| `token` | text | NOT NULL, UNIQUE |
+| `ip_address` | text | |
+| `user_agent` | text | |
+| `user_id` | text | NOT NULL, FK → user.id CASCADE |
 
 ### `account`
+
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | text | PK |
-| accountId, providerId | text | |
-| userId | text | FK -> user.id |
-| accessToken, refreshToken, idToken | text | |
-| accessTokenExpiresAt, refreshTokenExpiresAt | timestamp | |
-| scope, password | text | |
-| createdAt, updatedAt | timestamp | |
+| `id` | text | PK |
+| `account_id` | text | NOT NULL |
+| `provider_id` | text | NOT NULL |
+| `access_token` | text | |
+| `refresh_token` | text | |
+| `user_id` | text | NOT NULL, FK → user.id CASCADE |
 
 ### `verification`
+
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | text | PK |
-| identifier, value | text | |
-| expiresAt, createdAt, updatedAt | timestamp | |
+| `id` | text | PK |
+| `identifier` | text | NOT NULL |
+| `value` | text | NOT NULL |
+| `expires_at` | timestamp | NOT NULL |
 
 ### `recommendations_cache`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | integer | PK, autoincrement |
-| userId | text | FK -> user.id |
-| mode, prompt | text | |
-| response | jsonb | |
-| createdAt, expiresAt | timestamp | |
 
-## User Preferences (`preferences.schema.ts`)
+Stores cached AI recommendation batches with quality metrics.
+
+## Preferences (`preferences.schema.ts` — 100 lines)
 
 ### `user_preferences`
-| Column | Type | Default |
-|--------|------|---------|
-| id | text | PK |
-| userId | text | FK -> user.id, UNIQUE |
-| crossfadeEnabled | integer | 0 |
-| crossfadeDuration | integer | 5 |
-| autoplayEnabled | integer | 0 |
-| playbackQuality | text | 'high' |
-| theme | text | 'system' |
-| showLyrics | integer | 1 |
-| showVisualizer | integer | 0 |
-| lastfmScrobbling | integer | 0 |
-| lastfmApiKey | text | |
-| lidarrEnabled | integer | 0 |
-| metubeEnabled | integer | 0 |
-| createdAt, updatedAt | timestamp | |
 
-## Recommendations & Feedback (`recommendations.schema.ts`)
-
-### `recommendation_feedback`
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| recommendationCacheId | integer | FK -> recommendations_cache.id (ON DELETE SET NULL) |
-| songArtistTitle, songId | text | |
-| feedbackType | text | enum: `thumbs_up` / `thumbs_down` |
-| source | text | enum: `recommendation` / `playlist` / `playlist_generator` / `search` / `library` / `nudge` / `ai_dj` / `autoplay` / `ai_dj_skip` / `ai_dj_listen_through` |
-| timestamp | timestamp | |
-| month | integer | 1-12 |
-| season | text | enum (seasonal) |
-| dayOfWeek | integer | 1-7 |
-| hourOfDay | integer | 0-23 |
+| `id` | text | PK |
+| `user_id` | text | NOT NULL, UNIQUE, FK → user.id CASCADE |
+| `recommendation_settings` | jsonb | AI DJ, source mode, harmonic mixing, DJ matching, queue seeding |
+| `playback_settings` | jsonb | volume, autoplayNext, crossfadeDuration, defaultQuality, safeMode |
+| `notification_settings` | jsonb | browser, download, recommendation notifications |
+| `dashboard_layout` | jsonb | widget visibility and order |
+| `created_at` | timestamp | NOT NULL |
+| `updated_at` | timestamp | NOT NULL |
 
-**Indexes:** userId, timestamp, cacheId, user+feedbackType+timestamp, month, season, user+season, user+month, songId, user+songId
+## Playlists (`playlists.schema.ts` — 58 lines)
 
-## Playlists (`playlists.schema.ts`)
+### `user_playlists`
 
-### `playlists`
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| name, description | text | |
-| isPublic | integer | default 0 |
-| shareCode | text | UNIQUE |
-| createdAt, updatedAt | timestamp | |
+| `id` | text | PK |
+| `user_id` | text | NOT NULL, FK → user.id CASCADE |
+| `name` | text | NOT NULL |
+| `description` | text | |
+| `navidrome_id` | text | Nullable — only for synced playlists |
+| `last_synced` | timestamp | |
+| `song_count` | integer | Cached count |
+| `total_duration` | integer | Seconds |
+| `smart_playlist_criteria` | jsonb | Genre, year, artist filter rules |
+| `created_at` | timestamp | NOT NULL |
+| `updated_at` | timestamp | NOT NULL |
 
 ### `playlist_songs`
+
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | text | PK |
-| playlistId | text | FK -> playlists.id |
-| songId | text | |
-| position | integer | |
-| addedAt | timestamp | |
+| `id` | text | PK |
+| `playlist_id` | text | NOT NULL, FK → user_playlists.id CASCADE |
+| `song_id` | text | NOT NULL (Navidrome ID) |
+| `song_artist_title` | text | Display string |
+| `position` | integer | Sort order |
+| `added_at` | timestamp | NOT NULL |
 
-## Collaborative Playlists (`collaborative-playlists.schema.ts`)
+## Feedback (`recommendations.schema.ts` — 65 lines)
 
-### `playlist_collaborators`
+### `recommendation_feedback`
+
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | text | PK |
-| playlistId | text | FK -> playlists.id |
-| userId | text | FK -> user.id |
-| role | text | enum: `owner` / `editor` / `viewer` |
-| addedBy | text | FK -> user.id |
-| joinedAt, lastActiveAt | timestamp | |
+| `id` | text | PK |
+| `user_id` | text | NOT NULL, FK → user.id CASCADE |
+| `recommendation_cache_id` | integer | FK → recommendations_cache.id SET NULL |
+| `song_artist_title` | text | NOT NULL |
+| `song_id` | text | Navidrome song ID |
+| `feedback_type` | text | `thumbs_up` or `thumbs_down` |
+| `source` | text | recommendation, playlist, ai_dj, autoplay, etc. |
+| `timestamp` | timestamp | |
+| `month` | integer | Temporal metadata |
+| `season` | text | spring/summer/fall/winter |
+| `day_of_week` | integer | 0-6 |
+| `hour_of_day` | integer | 0-23 |
 
-### `playlist_activity`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| playlistId | text | FK -> playlists.id |
-| userId | text | FK -> user.id |
-| action | text | enum (action types) |
-| songId | text | |
-| metadata | jsonb | |
-| createdAt | timestamp | |
-
-### `playlist_suggestions`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| playlistId | text | FK -> playlists.id |
-| suggestedBy | text | FK -> user.id |
-| songId, songTitle, songArtist | text | |
-| note | text | |
-| status | text | enum: `pending` / `approved` / `rejected` |
-| reviewedBy | text | FK -> user.id |
-| reviewedAt, createdAt | timestamp | |
-
-## Playlist Export (`playlist-export.schema.ts`)
-
-### `playlist_exports`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| playlistId | text | FK -> playlists.id |
-| format, status, fileUrl | text | |
-| metadata | jsonb | |
-| createdAt, completedAt | timestamp | |
-
-### `playlist_download_queue`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| songId, status | text | |
-| metadata | jsonb | |
-| createdAt, completedAt | timestamp | |
-
-## Listening History & Scoring (`listening-history.schema.ts`)
+## Listening History (`listening-history.schema.ts` — 185 lines)
 
 ### `listening_history`
+
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| songId, artist, title, album, genre | text | |
-| duration | integer | |
-| playedAt | timestamp | |
-| completionPercentage | real | |
-| source | text | |
-| skipped | integer | default 0 |
+| `id` | text | PK |
+| `user_id` | text | NOT NULL, FK → user.id CASCADE |
+| `song_id` | text | NOT NULL |
+| `artist` | text | NOT NULL |
+| `title` | text | NOT NULL |
+| `genre` | text | |
+| `played_at` | timestamp | NOT NULL |
+| `duration_ms` | integer | |
+| `listened_ms` | integer | |
+| `skipped` | boolean | |
+| `skip_position_ms` | integer | Where in the song they skipped |
+
+**Indexes**: user_id + played_at, user_id + song_id
 
 ### `track_similarities`
+
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | integer | PK |
-| songId, similarSongId | text | UNIQUE together |
-| matchScore | real | |
-| source | text | |
-| updatedAt | timestamp | |
+| `id` | text | PK |
+| `source_song_id` | text | NOT NULL |
+| `similar_song_id` | text | NOT NULL |
+| `match_score` | real | 0.0-1.0 |
+| `source` | text | lastfm, navidrome |
+| `fetched_at` | timestamp | |
 
-Self-referential song similarity. No FK to external table (songs live in Navidrome).
+**Unique**: source_song_id + similar_song_id
 
 ### `compound_scores`
+
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | integer | PK |
-| userId | text | FK -> user.id |
-| songId, artist, title | text | |
-| compoundScore | real | |
-| sourceCount | integer | |
-| recencyWeightedScore | real | |
-| calculatedAt | timestamp | |
+| `id` | text | PK |
+| `user_id` | text | NOT NULL, FK → user.id CASCADE |
+| `song_id` | text | NOT NULL |
+| `artist` | text | |
+| `title` | text | |
+| `score` | real | Compound score value |
+| `contributing_songs` | integer | How many played songs suggest this |
+| `last_updated` | timestamp | |
 
-## Library (`library-profiles.schema.ts`, `library-sync.schema.ts`)
+## Navidrome Users (`navidrome-users.schema.ts` — 26 lines)
+
+### `navidrome_users`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | text | PK |
+| `user_id` | text | NOT NULL, UNIQUE, FK → user.id CASCADE |
+| `navidrome_username` | text | NOT NULL, UNIQUE |
+| `navidrome_password` | text | NOT NULL |
+| `navidrome_salt` | text | NOT NULL |
+| `navidrome_token` | text | NOT NULL (md5(password + salt)) |
+| `created_at` | timestamp | NOT NULL |
+
+## Devices (`devices.schema.ts` — 25 lines)
+
+### `devices`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | text | PK (client-generated) |
+| `user_id` | text | NOT NULL, FK → user.id CASCADE |
+| `device_name` | text | NOT NULL |
+| `device_type` | text | NOT NULL |
+| `user_agent` | text | |
+| `last_seen_at` | timestamp | NOT NULL |
+| `created_at` | timestamp | NOT NULL |
+
+**Index**: user_id
+
+## Playback Sessions (`playback-session.schema.ts` — 51 lines)
+
+### `playback_sessions`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | text | PK |
+| `user_id` | text | NOT NULL, UNIQUE, FK → user.id CASCADE |
+| `active_device_id` | text | |
+| `active_device_name` | text | |
+| `active_device_type` | text | |
+| `queue` | jsonb | SyncSong[] |
+| `original_queue` | jsonb | SyncSong[] |
+| `current_index` | integer | |
+| `is_playing` | boolean | |
+| `is_shuffled` | boolean | |
+| `current_position_ms` | integer | |
+| `queue_updated_at` | text | ISO timestamp |
+| `position_updated_at` | text | ISO timestamp |
+| `play_state_updated_at` | text | ISO timestamp |
+| `updated_at` | timestamp | |
+
+## Library Profiles (`library-profiles.schema.ts` — 43 lines)
 
 ### `library_profiles`
+
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| profileData | jsonb | |
-| analyzedAt | timestamp | |
-| songCount, artistCount, albumCount | integer | |
+| `id` | text | PK |
+| `user_id` | text | NOT NULL, UNIQUE, FK → user.id CASCADE |
+| `genre_distribution` | jsonb | `{ "Rock": 0.40, ... }` |
+| `top_keywords` | jsonb | `string[]` (top 20) |
+| `total_songs` | integer | NOT NULL |
+| `last_analyzed` | timestamp | NOT NULL |
+| `refresh_needed` | boolean | default false |
 
-### `library_sync_state`
+## Profile (`profile.schema.ts` — 181 lines)
+
+### `artist_affinities`
+
+Pre-computed per-artist affinity scores.
+
+| Column | Type | Key Fields |
+|--------|------|------------|
+| `user_id` | text | FK → user.id |
+| `artist` | text | Artist name |
+| `affinity_score` | real | Computed score |
+| `play_count` | integer | Total plays |
+| `liked_count` | integer | Starred songs |
+| `skip_count` | integer | Skipped songs |
+
+### `temporal_preferences`
+
+Genre preferences by time slot.
+
+| Column | Type | Key Fields |
+|--------|------|------------|
+| `user_id` | text | FK → user.id |
+| `time_slot` | text | morning/afternoon/evening/night |
+| `genre` | text | Genre name |
+| `weight` | real | Preference weight |
+
+## Explicit Content (`explicit-content.schema.ts` — 21 lines)
+
+### `explicit_content_cache`
+
 | Column | Type | Constraints |
 |--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| totalSongs, syncedSongs | integer | |
-| status | text | |
-| startedAt, completedAt | timestamp | |
-| lastSyncedSongId, error | text | |
+| `id` | text | PK |
+| `artist` | text | NOT NULL |
+| `title` | text | NOT NULL |
+| `is_explicit` | boolean | NOT NULL |
+| `source` | text | NOT NULL, default 'deezer' |
+| `confidence` | real | default 1.0 |
+| `checked_at` | timestamp | NOT NULL |
 
-### `sync_tasks`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| syncStateId | text | FK -> library_sync_state.id |
-| taskType, status | text | |
-| metadata | jsonb | |
-| createdAt, completedAt | timestamp | |
+**Unique index**: artist + title
 
-## Mood & Taste Analytics (`mood-history.schema.ts`)
+## Other Tables (summary)
 
-### `taste_snapshots`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| name, description | text | |
-| capturedAt, periodStart, periodEnd | timestamp | |
-| profileData, exportFormats | jsonb | |
-| isAutoGenerated | integer | |
-
-### `mood_snapshots`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| periodStart, periodEnd | timestamp | |
-| periodType | text | |
-| moodDistribution, topGenres, topArtists, topTracks | jsonb | |
-| totalListens, totalFeedback, thumbsUpCount, thumbsDownCount | integer | |
-| acceptanceRate, diversityScore | real | |
-| season | text | |
-| month | integer | |
-| createdAt | timestamp | |
-
-### `recommendation_history`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| generatedAt | timestamp | |
-| recommendedSongs, reasoningFactors, tasteProfileSnapshot | jsonb | |
-| source, moodContext | text | |
-
-## Discovery Feed (`discovery-feed.schema.ts`)
-
-### `discovery_feed_items`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| songId, artist, title, album, genre | text | |
-| coverArt, discoverySource, personalNote, status | text | |
-| matchScore | real | |
-| matchReasons, relatedArtists, audioFeatures | jsonb | |
-| createdAt, expiresAt | timestamp | |
-
-### `discovery_feed_interactions`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| feedItemId | text | FK -> discovery_feed_items.id |
-| userId | text | FK -> user.id |
-| interactionType | text | |
-| metadata | jsonb | |
-| createdAt | timestamp | |
-
-### `discovery_feed_settings`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id, UNIQUE |
-| feedEnabled | integer | |
-| feedFrequency | text | |
-| maxItemsPerBatch | integer | |
-| discoveryPreferences | jsonb | |
-| createdAt, updatedAt | timestamp | |
-
-### `notification_preferences`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id, UNIQUE |
-| enabled | integer | |
-| frequency | text | |
-| channels, quietHours | jsonb | |
-| createdAt, updatedAt | timestamp | |
-
-## Background Discovery (`background-discovery.schema.ts`)
-
-### `discovery_suggestions`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| songId, artist, title, album, genre | text | |
-| matchScore | real | |
-| source, status | text | |
-| reasons | jsonb | |
-| createdAt, reviewedAt | timestamp | |
-
-### `discovery_settings`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id, UNIQUE |
-| enabled | integer | |
-| frequency | text | |
-| maxSuggestions | integer | |
-| preferences | jsonb | |
-| createdAt, updatedAt | timestamp | |
-
-## Music Identity (`music-identity.schema.ts`)
-
-### `music_identity_snapshots`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| name | text | |
-| periodStart, periodEnd | timestamp | |
-| snapshotData | jsonb | |
-| createdAt | timestamp | |
-
-### `music_identity_share_tokens`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| snapshotId | text | FK -> music_identity_snapshots.id |
-| token | text | UNIQUE |
-| expiresAt | timestamp | |
-| viewCount | integer | |
-| createdAt | timestamp | |
-
-## User Profile (`profile.schema.ts`)
-
-### `user_profiles`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id, UNIQUE |
-| displayName, bio | text | |
-| avatarUrl, bannerUrl | text | |
-| createdAt, updatedAt | timestamp | |
-
-### `user_profile_stats`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id, UNIQUE |
-| totalListens, uniqueArtists, uniqueGenres | integer | |
-| totalMinutes | real | |
-| topGenre | text | |
-| listenStreak | integer | |
-| lastListenedAt, updatedAt | timestamp | |
-
-## Playback & Devices
-
-### `playback_sessions` (`playback-session.schema.ts`)
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| deviceId, deviceName | text | |
-| startedAt, lastActiveAt | timestamp | |
-| isActive | integer | |
-| metadata | jsonb | |
-
-### `devices` (`devices.schema.ts`)
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| userId | text | FK -> user.id |
-| deviceName, deviceType | text | |
-| lastSeenAt, createdAt | timestamp | |
-
-## Media Cache
-
-### `lyrics_cache` (`lyrics-cache.schema.ts`)
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| songId | text | UNIQUE |
-| lyrics, source | text | |
-| createdAt | timestamp | |
-
-### `saved_cover_art` (`saved-cover-art.schema.ts`)
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | text | PK |
-| songId | text | |
-| imageUrl, source | text | |
-| createdAt | timestamp | |
-
----
+| Table | Schema File | Purpose |
+|-------|-------------|---------|
+| `mood_snapshots` | mood-history | Aggregated mood/preference snapshots per period |
+| `mood_transitions` | mood-history | Mood shift tracking between periods |
+| `music_identity_summaries` | music-identity | Yearly/monthly Wrapped-style summaries |
+| `discovery_suggestions` | background-discovery | Background discovery pending approval |
+| `discovery_rejections` | background-discovery | Rejection history (re-suggest after 30 days) |
+| `discovery_job_state` | background-discovery | Scheduler state and failure tracking |
+| `listening_patterns` | discovery-feed | Time-slot listening pattern aggregates |
+| `discovery_feed_items` | discovery-feed | Personalized feed items |
+| `feed_notifications` | discovery-feed | Smart notification scheduling |
+| `library_sync_state` | library-sync | Sync progress and checkpoints |
+| `library_sync_items` | library-sync | Individual synced items |
+| `library_sync_errors` | library-sync | Sync error logs |
+| `lyrics_cache` | lyrics-cache | Cached lyrics (30-day expiry) |
+| `saved_cover_art` | saved-cover-art | User-approved album/artist artwork |
+| `playlist_export_jobs` | playlist-export | Export/import job tracking |
+| `export_song_matches` | playlist-export | Song matching for import |
+| `playlist_collaboration_settings` | collaborative-playlists | Privacy, suggestion limits |
+| `playlist_collaborators` | collaborative-playlists | Collaborator roles |
+| `song_suggestions` | collaborative-playlists | Suggested songs for playlists |
+| `suggestion_votes` | collaborative-playlists | Votes on suggestions |
 
 ## Entity Relationships
 
-All user-scoped tables FK to `user.id` with `ON DELETE CASCADE` unless noted otherwise.
+```
+user (1) ──→ (many) session
+user (1) ──→ (many) account
+user (1) ──→ (1) user_preferences
+user (1) ──→ (1) navidrome_users
+user (1) ──→ (1) library_profiles
+user (1) ──→ (1) playback_sessions
+user (1) ──→ (many) devices
+user (1) ──→ (many) user_playlists ──→ (many) playlist_songs
+user (1) ──→ (many) recommendation_feedback
+user (1) ──→ (many) listening_history
+user (1) ──→ (many) compound_scores
+user (1) ──→ (many) artist_affinities
+user (1) ──→ (many) temporal_preferences
+user (1) ──→ (many) mood_snapshots
+user (1) ──→ (many) music_identity_summaries
+user (1) ──→ (many) discovery_suggestions
+recommendations_cache (1) ──→ (many) recommendation_feedback
+user_playlists (1) ──→ (1) playlist_collaboration_settings
+user_playlists (1) ──→ (many) playlist_collaborators
+user_playlists (1) ──→ (many) song_suggestions
+```
 
-| Parent | Child | FK Column | On Delete |
-|--------|-------|-----------|-----------|
-| user | session, account, recommendations_cache | userId | CASCADE |
-| user | user_preferences, recommendation_feedback | userId | CASCADE |
-| user | playlists, playlist_collaborators | userId | CASCADE |
-| user | listening_history, compound_scores | userId | CASCADE |
-| user | library_profiles, library_sync_state | userId | CASCADE |
-| user | taste_snapshots, mood_snapshots, recommendation_history | userId | CASCADE |
-| user | discovery_feed_items, discovery_feed_interactions | userId | CASCADE |
-| user | discovery_feed_settings, notification_preferences | userId | CASCADE |
-| user | discovery_suggestions, discovery_settings | userId | CASCADE |
-| user | music_identity_snapshots | userId | CASCADE |
-| user | user_profiles, user_profile_stats | userId | CASCADE |
-| user | playback_sessions, devices | userId | CASCADE |
-| user | playlist_exports, playlist_download_queue | userId | CASCADE |
-| recommendations_cache | recommendation_feedback | recommendationCacheId | SET NULL |
-| playlists | playlist_songs, playlist_collaborators | playlistId | -- |
-| playlists | playlist_activity, playlist_suggestions | playlistId | -- |
-| playlists | playlist_exports | playlistId | -- |
-| library_sync_state | sync_tasks | syncStateId | -- |
-| music_identity_snapshots | music_identity_share_tokens | snapshotId | -- |
-| discovery_feed_items | discovery_feed_interactions | feedItemId | -- |
+## Migrations
 
----
+25 migration files in `drizzle/` directory. Run with `npm run db` (drizzle-kit generate) and `scripts/run-migration.ts`.
 
-## Maintenance Scripts
+## How to Add a New Table
 
-| Script | Command | Purpose |
-|--------|---------|---------|
-| `scripts/run-migration.ts` | `npx tsx scripts/run-migration.ts` | Creates missing tables (taste_snapshots, mood_snapshots, recommendation_history) |
-| `scripts/backfill-temporal-data.ts` | `npx tsx scripts/backfill-temporal-data.ts` | Backfills month/season/dayOfWeek/hourOfDay on recommendation_feedback |
-| `scripts/check-tables.ts` | `npx tsx scripts/check-tables.ts` | Verifies database tables exist |
-
-## Adding a New Table
-
-1. Create `src/lib/db/schema/your-table.schema.ts`
-2. Define table with `pgTable()`, add columns and indexes
-3. Export inferred types: `export type YourTable = typeof yourTable.$inferSelect;`
-4. Re-export from `src/lib/db/schema/index.ts`
-5. Generate migration: `npx drizzle-kit generate`
-6. Apply migration: `npx drizzle-kit push`
+1. Create `src/lib/db/schema/your-feature.schema.ts`
+2. Define table with `pgTable()`, use `text("id").primaryKey().$defaultFn(() => crypto.randomUUID())` for IDs
+3. Add FK references: `.references(() => user.id, { onDelete: "cascade" })`
+4. Export types: `export type YourTable = typeof yourTable.$inferSelect;`
+5. Re-export from `src/lib/db/schema/index.ts`
+6. Run `npm run db` to generate migration SQL
+7. Run migration: `npx tsx scripts/run-migration.ts`
