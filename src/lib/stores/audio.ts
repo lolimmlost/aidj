@@ -1721,8 +1721,13 @@ export const useAudioStore = create<AudioState>()(
       const merged: Partial<AudioState> = {};
       let changed = false;
 
-      // Queue fields: only apply if server is newer or equal (equal = same state on refresh)
-      if (server.queueUpdatedAt >= (local.queueUpdatedAt ?? '')) {
+      // When this device is actively playing, it is the authoritative source —
+      // don't overwrite queue or position, only update remote device indicator.
+      // This prevents losing playback when another device syncs state.
+      const localIsPlaying = local.isPlaying;
+
+      // Queue fields: only apply if server is newer/equal AND local is NOT actively playing.
+      if (!localIsPlaying && server.queueUpdatedAt >= (local.queueUpdatedAt ?? '')) {
         merged.playlist = server.queue.map(fromSyncSong);
         merged.originalPlaylist = server.originalQueue.map(fromSyncSong);
         merged.currentSongIndex = server.currentIndex;
@@ -1731,10 +1736,8 @@ export const useAudioStore = create<AudioState>()(
         changed = true;
       }
 
-      // Position: only apply if server is newer/equal AND this device is NOT actively playing.
-      // When this device is playing, it is the authoritative source for position —
-      // accepting a stale server position would restart the song.
-      if (!local.isPlaying && server.positionUpdatedAt >= (local.positionUpdatedAt ?? '')) {
+      // Position: only apply if server is newer/equal AND local is NOT actively playing.
+      if (!localIsPlaying && server.positionUpdatedAt >= (local.positionUpdatedAt ?? '')) {
         merged.currentTime = server.currentPositionMs / 1000;
         merged.positionUpdatedAt = server.positionUpdatedAt;
         changed = true;
