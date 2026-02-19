@@ -171,8 +171,9 @@ export const Route = createFileRoute("/api/playback/state")({
             update.volume = body.volume;
           }
 
-          // Device info: always update to reflect the last device that synced
-          if (body.deviceId) {
+          // Device info: only update when the device is actively playing.
+          // A paused device should not overwrite the active player.
+          if (body.deviceId && body.isPlaying) {
             update.activeDeviceId = body.deviceId;
             update.activeDeviceName = body.deviceName ?? null;
             update.activeDeviceType = body.deviceType ?? null;

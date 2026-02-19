@@ -28,7 +28,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/query';
-import { usePlaybackSync } from '@/lib/hooks/usePlaybackSync';
+import { usePlaybackSync, sendPlaybackMessage } from '@/lib/hooks/usePlaybackSync';
 import { ResumePlaybackPrompt } from './ResumePlaybackPrompt';
 
 // Import extracted hooks
@@ -326,6 +326,11 @@ export function PlayerBar() {
     onSuccess: (liked) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
       toast.success(liked ? '❤️ Liked' : '💔 Unliked', { duration: 1500 });
+      // Notify other devices so their like state updates
+      sendPlaybackMessage('feedback_update', {
+        songId: currentSong?.id,
+        feedbackType: liked ? 'thumbs_up' : 'thumbs_down',
+      });
     },
     onError: (error: Error, _liked, context) => {
       // Revert optimistic update on error
@@ -344,6 +349,15 @@ export function PlayerBar() {
     if (!currentSong || isLikePending) return;
     likeMutate(!isLiked);
   }, [currentSong, isLikePending, isLiked, likeMutate]);
+
+  // Listen for cross-device feedback updates (likes from other devices)
+  useEffect(() => {
+    const handler = () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
+    };
+    window.addEventListener('playback-feedback-update', handler);
+    return () => window.removeEventListener('playback-feedback-update', handler);
+  }, [queryClient]);
 
   // Reset recovery attempts when song changes
   useEffect(() => {

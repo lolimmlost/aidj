@@ -22,6 +22,18 @@ const HEARTBEAT_INTERVAL_MS = 30000;
 // Guard flag: prevents the store subscription from re-broadcasting state
 // that was just received from a remote device (avoids ping-pong loops)
 let applyingRemoteState = false;
+// Module-level WS reference for sending messages from outside the hook
+let _wsRef: WebSocket | null = null;
+
+/**
+ * Send a custom message to other devices via the playback WebSocket.
+ * Used for cross-device cache invalidation (e.g., feedback/like updates).
+ */
+export function sendPlaybackMessage(type: string, payload?: Record<string, unknown>): void {
+  if (!_wsRef || _wsRef.readyState !== WebSocket.OPEN) return;
+  const deviceInfo = getDeviceInfo();
+  _wsRef.send(JSON.stringify({ type, deviceId: deviceInfo.deviceId, payload }));
+}
 
 /**
  * Debounce a function call. Returns a cancel function.
@@ -156,73 +168,76 @@ function handleIncomingMessage(
   switch (msg.type) {
     case 'state': {
       // Another device pushed state — update remote device indicator
-      // with song info AND apply queue/position to the main PlayerBar
+      // with song info AND apply queue/position to the main PlayerBar.
+      // Wrap the ENTIRE handler in applyingRemoteState to prevent the store
+      // subscription from detecting intermediate state changes and re-broadcasting.
       const payload = msg.payload as Record<string, unknown> | undefined;
       if (!payload) break;
 
-      // Extract current song info from the queue
-      const queue = payload.queue as Array<{ name?: string; title?: string; artist?: string; duration?: number }> | undefined;
-      const currentIndex = payload.currentIndex as number | undefined;
-      const currentSong = queue && typeof currentIndex === 'number' ? queue[currentIndex] : null;
-      const remoteIsPlaying = (payload.isPlaying as boolean) ?? false;
+      applyingRemoteState = true;
+      try {
+        // Extract current song info from the queue
+        const queue = payload.queue as Array<{ name?: string; title?: string; artist?: string; duration?: number }> | undefined;
+        const currentIndex = payload.currentIndex as number | undefined;
+        const currentSong = queue && typeof currentIndex === 'number' ? queue[currentIndex] : null;
+        const remoteIsPlaying = (payload.isPlaying as boolean) ?? false;
 
-      // TAKEOVER: If remote device started playing and local is also playing,
-      // the device with the newer playStateUpdatedAt wins. Pause the loser.
-      if (remoteIsPlaying && store.isPlaying) {
-        const remotePlayTs = (payload.playStateUpdatedAt as string) ?? '';
-        const localPlayTs = store.playStateUpdatedAt ?? '';
-        if (remotePlayTs > localPlayTs) {
-          // Remote device started playing more recently — pause local playback
-          console.log('[PlaybackSync] Remote device took over playback, pausing local');
-          applyingRemoteState = true;
-          store.markUserPause();
-          store.setIsPlaying(false);
-          // Pause the actual audio element
-          if (typeof document !== 'undefined') {
-            document.querySelectorAll('audio').forEach(a => {
-              if (!a.paused) a.pause();
-            });
+        // TAKEOVER: If remote device started playing and local is also playing,
+        // the device with the newer playStateUpdatedAt wins. Pause the loser.
+        if (remoteIsPlaying && store.isPlaying) {
+          const remotePlayTs = (payload.playStateUpdatedAt as string) ?? '';
+          const localPlayTs = store.playStateUpdatedAt ?? '';
+          if (remotePlayTs > localPlayTs) {
+            // Remote device started playing more recently — pause local playback
+            console.log('[PlaybackSync] Remote device took over playback, pausing local');
+            store.markUserPause();
+            store.setIsPlaying(false);
+            // Pause the actual audio element
+            if (typeof document !== 'undefined') {
+              document.querySelectorAll('audio').forEach(a => {
+                if (!a.paused) a.pause();
+              });
+            }
           }
-          applyingRemoteState = false;
         }
-      }
 
-      // Update the remote device indicator (green bubble)
-      if (store.setRemoteDevice) {
-        store.setRemoteDevice({
-          deviceId: (payload.deviceId as string) ?? null,
-          deviceName: (payload.deviceName as string) ?? null,
-          isPlaying: remoteIsPlaying,
-          songName: currentSong?.title || currentSong?.name || null,
-          artist: currentSong?.artist || null,
-          currentPositionMs: (payload.currentPositionMs as number) ?? undefined,
-          durationMs: currentSong?.duration ? currentSong.duration * 1000 : undefined,
-          updatedAt: Date.now(),
-        });
-      }
+        // Update the remote device indicator (green bubble)
+        if (store.setRemoteDevice) {
+          store.setRemoteDevice({
+            deviceId: (payload.deviceId as string) ?? null,
+            deviceName: (payload.deviceName as string) ?? null,
+            isPlaying: remoteIsPlaying,
+            songName: currentSong?.title || currentSong?.name || null,
+            artist: currentSong?.artist || null,
+            currentPositionMs: (payload.currentPositionMs as number) ?? undefined,
+            durationMs: currentSong?.duration ? currentSong.duration * 1000 : undefined,
+            updatedAt: Date.now(),
+          });
+        }
 
-      // Also apply the full state to the main PlayerBar (queue, position, etc.)
-      // so the desktop shows the same song the mobile is playing
-      if (store.applyServerState && payload.queue) {
-        applyingRemoteState = true;
-        store.applyServerState({
-          queue: payload.queue as PlaybackStateResponse['queue'],
-          originalQueue: (payload.originalQueue ?? payload.queue) as PlaybackStateResponse['originalQueue'],
-          currentIndex: (payload.currentIndex as number) ?? 0,
-          currentPositionMs: (payload.currentPositionMs as number) ?? 0,
-          isPlaying: remoteIsPlaying,
-          volume: (payload.volume as number) ?? store.volume,
-          isShuffled: (payload.isShuffled as boolean) ?? false,
-          activeDevice: {
-            id: (payload.deviceId as string) ?? null,
-            name: (payload.deviceName as string) ?? null,
-            type: null,
-          },
-          queueUpdatedAt: (payload.queueUpdatedAt as string) ?? '',
-          positionUpdatedAt: (payload.positionUpdatedAt as string) ?? '',
-          playStateUpdatedAt: (payload.playStateUpdatedAt as string) ?? '',
-          updatedAt: new Date().toISOString(),
-        });
+        // Also apply the full state to the main PlayerBar (queue, position, etc.)
+        // so the desktop shows the same song the mobile is playing
+        if (store.applyServerState && payload.queue) {
+          store.applyServerState({
+            queue: payload.queue as PlaybackStateResponse['queue'],
+            originalQueue: (payload.originalQueue ?? payload.queue) as PlaybackStateResponse['originalQueue'],
+            currentIndex: (payload.currentIndex as number) ?? 0,
+            currentPositionMs: (payload.currentPositionMs as number) ?? 0,
+            isPlaying: remoteIsPlaying,
+            volume: (payload.volume as number) ?? store.volume,
+            isShuffled: (payload.isShuffled as boolean) ?? false,
+            activeDevice: {
+              id: (payload.deviceId as string) ?? null,
+              name: (payload.deviceName as string) ?? null,
+              type: null,
+            },
+            queueUpdatedAt: (payload.queueUpdatedAt as string) ?? '',
+            positionUpdatedAt: (payload.positionUpdatedAt as string) ?? '',
+            playStateUpdatedAt: (payload.playStateUpdatedAt as string) ?? '',
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      } finally {
         applyingRemoteState = false;
       }
       break;
@@ -296,6 +311,17 @@ function handleIncomingMessage(
       }
       break;
     }
+
+    case 'feedback_update': {
+      // Another device liked/unliked a song — dispatch a custom event
+      // so React Query caches can be invalidated
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('playback-feedback-update', {
+          detail: msg.payload,
+        }));
+      }
+      break;
+    }
   }
 }
 
@@ -324,9 +350,12 @@ export function usePlaybackSync(): void {
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        // Going to background — flush any pending sync immediately
-        debouncedSync.flush();
-        pushStateToServer();
+        // Going to background — only sync if this device is actively playing.
+        // A paused device shouldn't overwrite the active player's state on the server.
+        if (useAudioStore.getState().isPlaying) {
+          debouncedSync.flush();
+          pushStateToServer();
+        }
       } else {
         // Coming back — check for updates from other devices
         fetchAndReconcileState();
@@ -363,6 +392,7 @@ export function usePlaybackSync(): void {
       },
     });
     wsRef.current = ws;
+    _wsRef = ws;
 
     // 3. Fetch server state on mount
     fetchAndReconcileState();
@@ -381,8 +411,18 @@ export function usePlaybackSync(): void {
 
     const unsub = useAudioStore.subscribe((state) => {
       // Skip if we're applying state received from a remote device
-      // to avoid ping-pong re-broadcasting
-      if (applyingRemoteState) return;
+      // to avoid ping-pong re-broadcasting. Still update prevState
+      // so we don't detect a phantom change on the next real update.
+      if (applyingRemoteState) {
+        prevStateRef.current = {
+          playlistLength: state.playlist.length,
+          currentSongIndex: state.currentSongIndex,
+          isPlaying: state.isPlaying,
+          volume: state.volume,
+          isShuffled: state.isShuffled,
+        };
+        return;
+      }
 
       const prev = prevStateRef.current;
       if (!prev) return; // Not yet initialized
@@ -439,6 +479,7 @@ export function usePlaybackSync(): void {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       ws.close();
       wsRef.current = null;
+      _wsRef = null;
     };
   }, [deviceInfo]);
 }

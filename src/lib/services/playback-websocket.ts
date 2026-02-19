@@ -15,7 +15,7 @@ const lastHeartbeat = new WeakMap<WebSocket, number>();
 
 // Message types
 interface PlaybackMessage {
-  type: 'state_update' | 'transfer' | 'command' | 'sync_request' | 'heartbeat';
+  type: 'state_update' | 'transfer' | 'command' | 'sync_request' | 'heartbeat' | 'feedback_update';
   payload?: Record<string, unknown>;
   deviceId: string;
 }
@@ -109,6 +109,14 @@ export function setupPlaybackWebSocket(
             broadcastToUser(userId, ws, {
               type: 'sync_request',
               requestingDevice: message.deviceId,
+            });
+            break;
+
+          case 'feedback_update':
+            // Broadcast feedback changes (like/unlike) to other devices
+            broadcastToUser(userId, ws, {
+              type: 'feedback_update',
+              payload: message.payload,
             });
             break;
 
