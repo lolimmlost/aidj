@@ -11,8 +11,8 @@ import { PlaybackSettings } from './playback';
 import { ServicesSettings } from './services';
 import { AlbumArtSettings } from './album-art';
 
-const NEW_TABS = ['general', 'services', 'playback', 'ai-dj', 'album-art'] as const;
-type NewTab = (typeof NEW_TABS)[number];
+const _NEW_TABS = ['general', 'services', 'playback', 'ai-dj', 'album-art'] as const;
+type NewTab = (typeof _NEW_TABS)[number];
 
 // Map old tab param values to new tab names
 const TAB_MIGRATION: Record<string, NewTab> = {

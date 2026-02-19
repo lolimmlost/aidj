@@ -84,6 +84,7 @@ function HistoryPage() {
 
   // First page query (includes summary + songPlayCounts)
   const { data, isLoading } = useQuery<FirstPageResponse>({
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps -- nextCursorRef is a ref, not reactive state
     queryKey: ['listening-history', 'full', period],
     queryFn: async () => {
       const res = await fetch(
