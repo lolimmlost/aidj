@@ -104,6 +104,38 @@ async function pushStateToServer(): Promise<void> {
 }
 
 /**
+ * Push state via navigator.sendBeacon — used during page unload where
+ * fetch() is unreliable.  Fire-and-forget; cookies are included automatically.
+ */
+function pushStateViaBeacon(): void {
+  if (typeof navigator === 'undefined' || !navigator.sendBeacon) return;
+
+  const state = useAudioStore.getState();
+  if (state.playlist.length === 0) return;
+
+  const deviceInfo = getDeviceInfo();
+  const now = new Date().toISOString();
+
+  const body = JSON.stringify({
+    queue: state.playlist.map(toSyncSong),
+    originalQueue: (state.originalPlaylist ?? []).map(toSyncSong),
+    currentIndex: state.currentSongIndex,
+    currentPositionMs: Math.floor((state.currentTime ?? 0) * 1000),
+    isPlaying: state.isPlaying,
+    volume: state.volume,
+    isShuffled: state.isShuffled,
+    deviceId: deviceInfo.deviceId,
+    deviceName: deviceInfo.deviceName,
+    deviceType: deviceInfo.deviceType,
+    queueUpdatedAt: state.queueUpdatedAt ?? now,
+    positionUpdatedAt: now,
+    playStateUpdatedAt: state.playStateUpdatedAt ?? now,
+  });
+
+  navigator.sendBeacon('/api/playback/state', new Blob([body], { type: 'application/json' }));
+}
+
+/**
  * Fetch server state and reconcile with local state
  */
 async function fetchAndReconcileState(): Promise<void> {
@@ -303,10 +335,10 @@ function handleIncomingMessage(
     }
 
     case 'sync_request': {
-      // Another device wants our state — respond if we're playing
-      if (store.isPlaying) {
-        // The WS server already broadcasts our response
-        // We just need to push our current state
+      // Another device wants our state — respond if we have a queue
+      // (not just when playing, so paused devices with a valid queue also reply)
+      if (store.playlist.length > 0) {
+        broadcastStateViaWS(_wsRef);
         pushStateToServer();
       }
       break;
@@ -350,10 +382,11 @@ export function usePlaybackSync(): void {
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        // Going to background — only sync if this device is actively playing.
-        // A paused device shouldn't overwrite the active player's state on the server.
+        // Going to background — always flush pending debounced writes so queue
+        // changes from a paused device are not lost.  Only push a fresh position
+        // when actively playing (a paused device doesn't need to overwrite position).
+        debouncedSync.flush();
         if (useAudioStore.getState().isPlaying) {
-          debouncedSync.flush();
           pushStateToServer();
         }
       } else {
@@ -375,11 +408,13 @@ export function usePlaybackSync(): void {
     const ws = createReconnectingWebSocket(wsUrl, {
       onOpen: () => {
         console.log('[PlaybackSync] WebSocket connected');
-        // Request state from other devices
+        // Request state from other devices via WS
         ws.send(JSON.stringify({
           type: 'sync_request',
           deviceId: deviceInfo.deviceId,
         }));
+        // Also fetch from DB in case no other device is online to respond
+        fetchAndReconcileState();
       },
       onMessage: (event: MessageEvent) => {
         try {
@@ -462,7 +497,15 @@ export function usePlaybackSync(): void {
     // 5. Visibility change handler
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // 6. Heartbeat
+    // 6. Save state on tab/window close via sendBeacon (reliable during unload)
+    const handleUnload = () => {
+      debouncedSync.cancel();
+      pushStateViaBeacon();
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
+
+    // 7. Heartbeat
     const heartbeat = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
@@ -477,6 +520,8 @@ export function usePlaybackSync(): void {
       debouncedSync.cancel();
       clearInterval(heartbeat);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
       ws.close();
       wsRef.current = null;
       _wsRef = null;

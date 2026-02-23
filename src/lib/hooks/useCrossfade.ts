@@ -150,9 +150,10 @@ export function useCrossfade({
             const elapsed = (Date.now() - fadeStartTime) / 1000;
             const fadeProgress = Math.min(elapsed / xfadeDuration, 1);
 
-            // Equal power crossfade curves
-            const fadeOutVolume = Math.cos(fadeProgress * Math.PI / 2) * targetVolumeRef.current;
-            const fadeInVolume = Math.sin(fadeProgress * Math.PI / 2) * targetVolumeRef.current;
+            // Perceptual crossfade curves (sin²/cos²) — gentler fade-in that
+            // prevents loud intros from punching through at low progress values
+            const fadeOutVolume = Math.pow(Math.cos(fadeProgress * Math.PI / 2), 2) * targetVolumeRef.current;
+            const fadeInVolume = Math.pow(Math.sin(fadeProgress * Math.PI / 2), 2) * targetVolumeRef.current;
 
             activeDeck.volume = Math.max(0, fadeOutVolume);
             inactiveDeck.volume = Math.min(targetVolumeRef.current, fadeInVolume);

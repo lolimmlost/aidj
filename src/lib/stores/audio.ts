@@ -197,10 +197,11 @@ export const useAudioStore = create<AudioState>()(
     // WiFi reconnect recovery initial state
     wasPlayingBeforeUnload: false,
     pendingPlaybackResume: false,
-    // Cross-device sync initial state
-    queueUpdatedAt: new Date().toISOString(),
-    positionUpdatedAt: new Date().toISOString(),
-    playStateUpdatedAt: new Date().toISOString(),
+    // Cross-device sync initial state — empty strings so server state always
+    // wins on fresh load (these are not persisted to localStorage)
+    queueUpdatedAt: '',
+    positionUpdatedAt: '',
+    playStateUpdatedAt: '',
     remoteDevice: null,
     lastKnownPosition: 0,
     lastKnownDuration: 0,
