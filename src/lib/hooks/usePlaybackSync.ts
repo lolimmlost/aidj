@@ -84,7 +84,7 @@ async function pushStateToServer(): Promise<void> {
       credentials: 'include',
       body: JSON.stringify({
         queue: state.playlist.map(toSyncSong),
-        originalQueue: (state.originalPlaylist ?? []).map(toSyncSong),
+        originalQueue: [],
         currentIndex: state.currentSongIndex,
         currentPositionMs: Math.floor((state.currentTime ?? 0) * 1000),
         isPlaying: state.isPlaying,
@@ -118,7 +118,7 @@ function pushStateViaBeacon(): void {
 
   const body = JSON.stringify({
     queue: state.playlist.map(toSyncSong),
-    originalQueue: (state.originalPlaylist ?? []).map(toSyncSong),
+    originalQueue: [],
     currentIndex: state.currentSongIndex,
     currentPositionMs: Math.floor((state.currentTime ?? 0) * 1000),
     isPlaying: state.isPlaying,
@@ -173,7 +173,7 @@ function broadcastStateViaWS(ws: WebSocket | null): void {
     deviceId: deviceInfo.deviceId,
     payload: {
       queue: state.playlist.map(toSyncSong),
-      originalQueue: (state.originalPlaylist ?? []).map(toSyncSong),
+      originalQueue: [],
       currentIndex: state.currentSongIndex,
       currentPositionMs: Math.floor((state.currentTime ?? 0) * 1000),
       isPlaying: state.isPlaying,
