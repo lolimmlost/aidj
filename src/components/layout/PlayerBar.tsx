@@ -38,6 +38,7 @@ import { useStallRecovery } from '@/lib/hooks/useStallRecovery';
 import { useMediaSession } from '@/lib/hooks/useMediaSession';
 import { usePlayerKeyboardShortcuts } from '@/lib/hooks/usePlayerKeyboardShortcuts';
 import { usePlaybackStateSync } from '@/lib/hooks/usePlaybackStateSync';
+import { useWebAudioGraph } from '@/lib/hooks/useWebAudioGraph';
 
 // Helper function for time formatting
 const formatTime = (time: number) => {
@@ -68,12 +69,33 @@ export function PlayerBar() {
     deckARef,
     deckBRef,
     activeDeckRef,
-    decksPrimedRef,
-    isPrimingRef,
     getActiveDeck,
     getInactiveDeck,
-    primeBothDecks,
   } = useDualDeckAudio();
+
+  // Web Audio API graph for crossfade via GainNodes
+  const {
+    analyserRef: webAudioAnalyserRef,
+    isInitialized: webAudioInitialized,
+    initializeGraph,
+    scheduleGainRamp,
+    cancelGainRamp,
+    setGainImmediate,
+    getGainValue,
+    setMasterVolume,
+    resumeContext,
+  } = useWebAudioGraph();
+
+  // Stable helper: ensures Web Audio graph is initialized before play().
+  // Uses a ref so it can be called from effects without adding deps that cause re-runs.
+  const ensureGraphInitializedRef = useRef<() => void>(() => {});
+  ensureGraphInitializedRef.current = () => {
+    if (!webAudioInitialized && deckARef.current && deckBRef.current) {
+      initializeGraph(deckARef.current, deckBRef.current);
+      setMasterVolume(volume);
+    }
+    resumeContext();
+  };
 
   // Scrobble tracking refs
   const hasScrobbledRef = useRef<boolean>(false);
@@ -203,7 +225,6 @@ export function PlayerBar() {
   // Crossfade hook (initialized first since stall recovery needs crossfadeInProgressRef)
   const {
     crossfadeJustCompletedRef,
-    targetVolumeRef,
     startCrossfade,
     clearCrossfade,
     resetCrossfadeState,
@@ -212,6 +233,10 @@ export function PlayerBar() {
     getInactiveDeck,
     activeDeckRef,
     crossfadeInProgressRef, // Pass the shared ref
+    scheduleGainRamp,
+    cancelGainRamp,
+    setGainImmediate,
+    getGainValue,
     onCrossfadeComplete: (song) => {
       // Record the outgoing (just-finished) song before advancing
       const outgoingSong = currentSong;
@@ -265,13 +290,13 @@ export function PlayerBar() {
   const {
     lastProgressTimeRef,
     lastProgressValueRef,
-    checkAndResumeAudioContext,
     attemptStallRecovery,
     resetRecoveryState,
   } = useStallRecovery({
     getActiveDeck,
     crossfadeInProgressRef, // Now properly shared
     onMaxAttemptsReached: nextSong,
+    resumeContext,
   });
 
   // Fetch feedback for current song
@@ -397,10 +422,13 @@ export function PlayerBar() {
       } else {
         setIsLoading(true);
 
-        // MOBILE FIX: Prime both decks on first user interaction
-        if (!decksPrimedRef.current) {
-          primeBothDecks();
+        // Initialize Web Audio graph on first user gesture
+        if (!webAudioInitialized && deckARef.current && deckBRef.current) {
+          initializeGraph(deckARef.current, deckBRef.current);
+          // Set master volume to match current store volume
+          setMasterVolume(volume);
         }
+        resumeContext();
 
         audio.play().catch((e) => {
           setIsLoading(false);
@@ -409,7 +437,7 @@ export function PlayerBar() {
       }
       setIsPlaying(!isPlaying);
     }
-  }, [isPlaying, setIsPlaying, getActiveDeck, decksPrimedRef, primeBothDecks]);
+  }, [isPlaying, setIsPlaying, getActiveDeck, webAudioInitialized, deckARef, deckBRef, initializeGraph, setMasterVolume, volume, resumeContext]);
 
   const seek = useCallback((time: number) => {
     const audio = getActiveDeck();
@@ -422,12 +450,16 @@ export function PlayerBar() {
   const changeVolume = useCallback((newVolume: number) => {
     const clampedVolume = Math.max(0, Math.min(1, newVolume));
     setVolume(clampedVolume);
-    const activeDeck = getActiveDeck();
-    if (activeDeck && !crossfadeInProgressRef.current) {
-      activeDeck.volume = clampedVolume;
+    // Use Web Audio masterGain when available, fall back to element.volume
+    if (webAudioInitialized) {
+      setMasterVolume(clampedVolume);
+    } else {
+      const activeDeck = getActiveDeck();
+      if (activeDeck) {
+        activeDeck.volume = clampedVolume;
+      }
     }
-    targetVolumeRef.current = clampedVolume;
-  }, [setVolume, getActiveDeck, crossfadeInProgressRef, targetVolumeRef]);
+  }, [setVolume, getActiveDeck, webAudioInitialized, setMasterVolume]);
 
   // Audio event listeners for BOTH decks
   useEffect(() => {
@@ -621,10 +653,14 @@ export function PlayerBar() {
     deckB.addEventListener('stalled', onStalledB);
     deckB.addEventListener('ended', onEndedB);
 
-    // Set initial volume on active deck if not crossfading
-    const activeDeck = getActiveDeck();
-    if (activeDeck && !crossfadeInProgressRef.current) {
-      activeDeck.volume = volume;
+    // Set initial volume — use masterGain when Web Audio is initialized, else element.volume
+    if (webAudioInitialized) {
+      setMasterVolume(volume);
+    } else {
+      const activeDeck = getActiveDeck();
+      if (activeDeck && !crossfadeInProgressRef.current) {
+        activeDeck.volume = volume;
+      }
     }
 
     return () => {
@@ -644,7 +680,7 @@ export function PlayerBar() {
       deckB.removeEventListener('stalled', onStalledB);
       deckB.removeEventListener('ended', onEndedB);
     };
-  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong, queryClient, startCrossfade, getActiveDeck, playlist, attemptStallRecovery, deckARef, deckBRef, activeDeckRef, crossfadeInProgressRef, lastProgressTimeRef, lastProgressValueRef]);
+  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong, queryClient, startCrossfade, getActiveDeck, playlist, attemptStallRecovery, deckARef, deckBRef, activeDeckRef, crossfadeInProgressRef, lastProgressTimeRef, lastProgressValueRef, webAudioInitialized, setMasterVolume, setGainImmediate]);
 
   // Load song when it changes
   /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- loading state is set during async song load/recovery */
@@ -704,6 +740,7 @@ export function PlayerBar() {
               lastProgressTimeRef.current = Date.now();
             }
             if (wasPlaying) {
+              ensureGraphInitializedRef.current();
               audio.play()
                 .then(() => {
                   console.log(`[NETWORK] Recovery successful - resumed at ${savedProgress.toFixed(1)}s`);
@@ -777,6 +814,7 @@ export function PlayerBar() {
 
             // Auto-resume if playback was active before unload
             if (shouldResume) {
+              ensureGraphInitializedRef.current();
               audio.play()
                 .then(() => {
                   setIsPlaying(true);
@@ -826,6 +864,7 @@ export function PlayerBar() {
         const handleCanPlay = () => {
           setIsLoading(false);
           if (useAudioStore.getState().isPlaying) {
+            ensureGraphInitializedRef.current();
             audio.play().catch(console.error);
           }
         };
@@ -887,7 +926,8 @@ export function PlayerBar() {
     deckBRef,
     activeDeckRef,
     crossfadeInProgressRef,
-    isPrimingRef,
+    setGainImmediate,
+    resumeContext,
     onPreviousTrack: previousSong,
     onNextTrack: handleNextSong,
   });
@@ -909,7 +949,7 @@ export function PlayerBar() {
     activeDeckRef,
     isPlaying,
     getActiveDeck,
-    checkAndResumeAudioContext,
+    checkAndResumeAudioContext: resumeContext,
     attemptStallRecovery,
     lastProgressTimeRef,
     lastProgressValueRef,
@@ -961,6 +1001,7 @@ export function PlayerBar() {
       if (isPlaying && active.paused) {
         if (active.readyState >= 2) {
           console.log('🌐 [NETWORK] Resuming playback after reconnect');
+          ensureGraphInitializedRef.current();
           active.play().catch(console.error);
         } else if (active.src && !active.src.startsWith('data:')) {
           const savedTime = active.currentTime;
@@ -994,7 +1035,7 @@ export function PlayerBar() {
         console.warn(`⚠️ [SAFETY] Deck ${inactiveDeckLabel} playing unexpectedly - stopping it`);
         inactive.pause();
         inactive.currentTime = 0;
-        inactive.volume = 0;
+        setGainImmediate(inactiveDeckLabel, 0);
         inactive.src = SILENT_AUDIO_DATA_URL;
       }
     }, 10000);
@@ -1320,7 +1361,7 @@ export function PlayerBar() {
       <VisualizerModal
         isOpen={showVisualizer}
         onClose={() => setShowVisualizer(false)}
-        audioElement={getActiveDeck()}
+        analyserNode={webAudioAnalyserRef.current}
       />
     </>
   );

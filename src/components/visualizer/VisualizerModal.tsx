@@ -51,10 +51,10 @@ function useThrottledValue<T>(value: T, ms: number): T {
 interface VisualizerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  audioElement: HTMLAudioElement | null;
+  analyserNode: AnalyserNode | null;
 }
 
-export function VisualizerModal({ isOpen, onClose, audioElement }: VisualizerModalProps) {
+export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
@@ -69,7 +69,7 @@ export function VisualizerModal({ isOpen, onClose, audioElement }: VisualizerMod
   );
 
   // Audio analyzer hook
-  const { audioData, connect, disconnect, isActive: _isActive } = useAudioAnalyzer({
+  const { audioData, connectAnalyser, disconnect, isActive: _isActive } = useAudioAnalyzer({
     sensitivity: settings.sensitivity,
     smoothingTimeConstant: settings.smoothing,
   });
@@ -145,10 +145,12 @@ export function VisualizerModal({ isOpen, onClose, audioElement }: VisualizerMod
   // Auto-rotate timer
   const autoRotateRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Connect to audio element when modal opens or song changes
+  // Connect to shared AnalyserNode when modal opens
+  // The AnalyserNode is permanent (shared from useWebAudioGraph) and sees
+  // both decks, so no reconnect needed on song change.
   useEffect(() => {
-    if (isOpen && audioElement) {
-      connect(audioElement);
+    if (isOpen && analyserNode) {
+      connectAnalyser(analyserNode);
       startTimeRef.current = performance.now();
     } else {
       disconnect();
@@ -157,19 +159,7 @@ export function VisualizerModal({ isOpen, onClose, audioElement }: VisualizerMod
     return () => {
       disconnect();
     };
-  }, [isOpen, audioElement, connect, disconnect]);
-
-  // Reconnect when song changes (audio src changes)
-  useEffect(() => {
-    if (isOpen && audioElement && currentSong?.id) {
-      // Small delay to let audio element update its source
-      const timer = setTimeout(() => {
-        disconnect();
-        connect(audioElement);
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [currentSong?.id, isOpen, audioElement, connect, disconnect]);
+  }, [isOpen, analyserNode, connectAnalyser, disconnect]);
 
   // Initialize visualizer
   useEffect(() => {

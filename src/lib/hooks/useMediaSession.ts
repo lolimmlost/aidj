@@ -9,7 +9,8 @@ export interface UseMediaSessionOptions {
   deckBRef: React.RefObject<HTMLAudioElement | null>;
   activeDeckRef: React.MutableRefObject<'A' | 'B'>;
   crossfadeInProgressRef: React.MutableRefObject<boolean>;
-  isPrimingRef: React.MutableRefObject<boolean>;
+  setGainImmediate?: (deck: 'A' | 'B', value: number) => void;
+  resumeContext?: () => Promise<boolean>;
   onPreviousTrack: () => void;
   onNextTrack: () => void;
 }
@@ -35,7 +36,8 @@ export function useMediaSession({
   deckBRef,
   activeDeckRef,
   crossfadeInProgressRef,
-  isPrimingRef,
+  setGainImmediate,
+  resumeContext,
   onPreviousTrack,
   onNextTrack,
 }: UseMediaSessionOptions): void {
@@ -196,17 +198,14 @@ export function useMediaSession({
       const isActiveDeck = playingDeck === (activeDeckRef.current === 'A' ? deckA : deckB);
 
       // Only set up Media Session for the ACTIVE deck
-      if (!isActiveDeck && !crossfadeInProgressRef.current && !isPrimingRef.current) {
-        console.log(`🎛️ Media Session: Ignoring playing event from inactive deck - muting it`);
-        playingDeck.volume = 0;
+      if (!isActiveDeck && !crossfadeInProgressRef.current) {
+        console.log(`🎛️ Media Session: Ignoring playing event from inactive deck - muting via GainNode`);
+        // Mute via GainNode instead of element.volume (which is locked at 1.0)
+        const inactiveDeckLabel = activeDeckRef.current === 'A' ? 'B' : 'A';
+        setGainImmediate?.(inactiveDeckLabel, 0);
         if (navigator.mediaSession) {
           navigator.mediaSession.playbackState = 'playing';
         }
-        return;
-      }
-
-      if (!isActiveDeck && isPrimingRef.current) {
-        console.log(`🎛️ Media Session: Inactive deck playing during priming`);
         return;
       }
 
@@ -228,6 +227,9 @@ export function useMediaSession({
       try {
         navigator.mediaSession.setActionHandler('play', () => {
           console.log('🎛️ Media Session: play requested');
+          // Resume AudioContext — this handler runs with user gesture context
+          // from the lock screen, so iOS will allow ctx.resume() here.
+          resumeContext?.();
           debouncedMediaAction('play');
         });
 
@@ -238,6 +240,7 @@ export function useMediaSession({
 
         navigator.mediaSession.setActionHandler('previoustrack', () => {
           console.log('🎛️ Media Session: previoustrack');
+          resumeContext?.();
           onPreviousTrack();
           setTimeout(() => {
             const activeDeck = getActiveDeck();
@@ -247,6 +250,7 @@ export function useMediaSession({
 
         navigator.mediaSession.setActionHandler('nexttrack', () => {
           console.log('🎛️ Media Session: nexttrack');
+          resumeContext?.();
           onNextTrack();
           setTimeout(() => {
             const activeDeck = getActiveDeck();
@@ -384,5 +388,5 @@ export function useMediaSession({
         // Ignore cleanup errors
       }
     };
-  }, [currentSong, setIsPlaying, onPreviousTrack, onNextTrack, getActiveDeck, debouncedMediaAction, deckARef, deckBRef, activeDeckRef, crossfadeInProgressRef, isPrimingRef]);
+  }, [currentSong, setIsPlaying, onPreviousTrack, onNextTrack, getActiveDeck, debouncedMediaAction, deckARef, deckBRef, activeDeckRef, crossfadeInProgressRef, setGainImmediate, resumeContext]);
 }

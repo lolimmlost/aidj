@@ -1,12 +1,16 @@
 import { useRef, useCallback } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
-import { SILENT_AUDIO_DATA_URL, Song } from './useDualDeckAudio';
+import { Song } from './useDualDeckAudio';
 
 export interface UseCrossfadeOptions {
   getActiveDeck: () => HTMLAudioElement | null;
   getInactiveDeck: () => HTMLAudioElement | null;
   activeDeckRef: React.MutableRefObject<'A' | 'B'>;
   crossfadeInProgressRef: React.MutableRefObject<boolean>; // Shared ref from parent
+  scheduleGainRamp: (deck: 'A' | 'B', target: number, durationSec: number, curve?: 'linear' | 'equalpower') => void;
+  cancelGainRamp: (deck: 'A' | 'B') => void;
+  setGainImmediate: (deck: 'A' | 'B', value: number) => void;
+  getGainValue: (deck: 'A' | 'B') => number;
   onCrossfadeComplete: (nextSong: Song) => void;
   onCrossfadeAbort: (nextSong: Song | null) => void;
   canPlayHandlerRef?: React.MutableRefObject<(() => void) | null>;
@@ -15,44 +19,53 @@ export interface UseCrossfadeOptions {
 
 export interface UseCrossfadeReturn {
   crossfadeJustCompletedRef: React.MutableRefObject<boolean>;
-  targetVolumeRef: React.MutableRefObject<number>;
   startCrossfade: (nextSongData: Song, xfadeDuration: number) => void;
   clearCrossfade: () => void;
   resetCrossfadeState: () => void;
 }
 
 /**
- * Manages the dual-deck crossfade system with equal power curves.
+ * Manages the dual-deck crossfade system using Web Audio API GainNodes.
  *
  * Key features:
  * - Preloads next song on inactive deck
- * - Fades between decks using equal power curves (cosine/sine)
+ * - Fades between decks using GainNode scheduling (runs on audio thread, immune to JS throttling)
+ * - Uses equal power curves (sin²/cos²) for perceptual crossfade
  * - Handles abort scenarios (user pause, playback failure)
  * - Swaps active deck when crossfade completes
- * - Safety timeouts for iOS throttled intervals
+ * - Safety timeouts for edge cases
  */
 export function useCrossfade({
   getActiveDeck,
   getInactiveDeck,
   activeDeckRef,
   crossfadeInProgressRef, // Shared ref from parent
+  scheduleGainRamp,
+  cancelGainRamp,
+  setGainImmediate,
+  getGainValue,
   onCrossfadeComplete,
   onCrossfadeAbort,
   canPlayHandlerRef,
   errorHandlerRef,
 }: UseCrossfadeOptions): UseCrossfadeReturn {
-  // Crossfade state refs (crossfadeInProgressRef is provided by parent for sharing with other hooks)
-  const crossfadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Crossfade state refs
   const crossfadeCanPlayFiredRef = useRef<boolean>(false);
   const crossfadeJustCompletedRef = useRef<boolean>(false);
   const nextSongPreloadedRef = useRef<boolean>(false);
-  const targetVolumeRef = useRef<number>(1);
+  const crossfadeCompletionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Store unsubscribe for pause detection during crossfade
+  const pauseUnsubscribeRef = useRef<(() => void) | null>(null);
 
-  // Clear the crossfade interval if running
+  // Clear the crossfade completion timeout if running
   const clearCrossfade = useCallback(() => {
-    if (crossfadeIntervalRef.current) {
-      clearInterval(crossfadeIntervalRef.current);
-      crossfadeIntervalRef.current = null;
+    if (crossfadeCompletionTimeoutRef.current) {
+      clearTimeout(crossfadeCompletionTimeoutRef.current);
+      crossfadeCompletionTimeoutRef.current = null;
+    }
+    if (pauseUnsubscribeRef.current) {
+      pauseUnsubscribeRef.current();
+      pauseUnsubscribeRef.current = null;
     }
   }, []);
 
@@ -72,18 +85,21 @@ export function useCrossfade({
     const inactiveDeck = getInactiveDeck();
     if (!activeDeck || !inactiveDeck) return;
 
-    // Clear any existing interval (safety check)
+    const activeDeckLabel = activeDeckRef.current;
+    const inactiveDeckLabel = activeDeckLabel === 'A' ? 'B' : 'A';
+
+    // Clear any existing timeout (safety check)
     clearCrossfade();
 
-    console.log(`🔀 [XFADE] Starting TRUE crossfade, duration=${xfadeDuration}s, from deck ${activeDeckRef.current}`);
+    console.log(`🔀 [XFADE] Starting crossfade, duration=${xfadeDuration}s, from deck ${activeDeckLabel}`);
     crossfadeInProgressRef.current = true;
     crossfadeCanPlayFiredRef.current = false;
-    targetVolumeRef.current = activeDeck.volume > 0 ? activeDeck.volume : 1;
 
     // Preload and start the next song on inactive deck
     inactiveDeck.src = nextSongData.url;
     inactiveDeck.load();
-    inactiveDeck.volume = 0;
+    // Ensure inactive deck gain is at 0 before crossfade starts
+    setGainImmediate(inactiveDeckLabel, 0);
 
     // Helper to abort crossfade and reset state
     const abortCrossfade = (reason: string) => {
@@ -93,16 +109,19 @@ export function useCrossfade({
       crossfadeInProgressRef.current = false;
       crossfadeCanPlayFiredRef.current = false;
 
-      // Restore active deck volume
-      activeDeck.volume = targetVolumeRef.current;
+      // Cancel any gain ramps and restore gains
+      cancelGainRamp(activeDeckLabel);
+      cancelGainRamp(inactiveDeckLabel);
+      setGainImmediate(activeDeckLabel, 1.0);
+      setGainImmediate(inactiveDeckLabel, 0);
 
       // Reset inactive deck to clean state
       inactiveDeck.pause();
       inactiveDeck.currentTime = 0;
-      inactiveDeck.volume = 0;
-      inactiveDeck.src = SILENT_AUDIO_DATA_URL;
+      inactiveDeck.removeAttribute('src');
+      inactiveDeck.load();
 
-      console.log(`⚠️ [XFADE] Abort cleanup complete - active deck remains ${activeDeckRef.current}`);
+      console.log(`⚠️ [XFADE] Abort cleanup complete - active deck remains ${activeDeckLabel}`);
 
       // Notify callback for fallback transition if needed
       const songHasEnded = activeDeck.duration > 0 &&
@@ -127,46 +146,34 @@ export function useCrossfade({
       // Start playing the next song - CRITICAL: handle failure on mobile
       inactiveDeck.play()
         .then(() => {
-          console.log(`[XFADE] Inactive deck play() succeeded, starting crossfade interval`);
+          console.log(`[XFADE] Inactive deck play() succeeded, scheduling GainNode ramps`);
 
-          const fadeStartTime = Date.now();
-          crossfadeIntervalRef.current = setInterval(() => {
-            // Check if user paused - abort crossfade and pause both decks
-            const storeState = useAudioStore.getState();
-            if (!storeState.isPlaying && crossfadeInProgressRef.current) {
+          // Schedule gain ramps on the audio thread (immune to JS throttling)
+          scheduleGainRamp(activeDeckLabel, 0, xfadeDuration, 'equalpower');
+          scheduleGainRamp(inactiveDeckLabel, 1.0, xfadeDuration, 'equalpower');
+
+          // Subscribe to store for pause detection during crossfade
+          pauseUnsubscribeRef.current = useAudioStore.subscribe((state, prevState) => {
+            if (prevState.isPlaying && !state.isPlaying && crossfadeInProgressRef.current) {
               console.log('[XFADE] User paused during crossfade - aborting');
               activeDeck.pause();
               inactiveDeck.pause();
               abortCrossfade('user paused');
-              return;
             }
+          });
 
-            // Safety check: if inactive deck stopped playing mid-crossfade, abort
-            if (inactiveDeck.paused && crossfadeInProgressRef.current) {
-              abortCrossfade('inactive deck stopped playing');
-              return;
+          // Completion via setTimeout matching ramp duration (+150ms buffer)
+          crossfadeCompletionTimeoutRef.current = setTimeout(() => {
+            // Verify inactive deck is still playing before completing
+            if (!crossfadeInProgressRef.current) return;
+
+            if (!inactiveDeck.paused && inactiveDeck.currentTime > 0) {
+              completeCrossfade(activeDeck, inactiveDeck, activeDeckLabel, inactiveDeckLabel, nextSongData);
+            } else {
+              console.warn(`⚠️ [XFADE] Completion timeout: inactive deck not playing - aborting`);
+              abortCrossfade('inactive deck stopped during ramp');
             }
-
-            const elapsed = (Date.now() - fadeStartTime) / 1000;
-            const fadeProgress = Math.min(elapsed / xfadeDuration, 1);
-
-            // Perceptual crossfade curves (sin²/cos²) — gentler fade-in that
-            // prevents loud intros from punching through at low progress values
-            const fadeOutVolume = Math.pow(Math.cos(fadeProgress * Math.PI / 2), 2) * targetVolumeRef.current;
-            const fadeInVolume = Math.pow(Math.sin(fadeProgress * Math.PI / 2), 2) * targetVolumeRef.current;
-
-            activeDeck.volume = Math.max(0, fadeOutVolume);
-            inactiveDeck.volume = Math.min(targetVolumeRef.current, fadeInVolume);
-
-            // Debug log every second
-            if (Math.floor(elapsed) > Math.floor(elapsed - 0.06)) {
-              console.log(`[XFADE] Progress: ${Math.round(fadeProgress * 100)}%, active vol=${activeDeck.volume.toFixed(3)}, incoming vol=${inactiveDeck.volume.toFixed(3)}`);
-            }
-
-            if (fadeProgress >= 1) {
-              completeCrossfade(activeDeck, inactiveDeck, nextSongData);
-            }
-          }, 50);
+          }, xfadeDuration * 1000 + 150);
         })
         .catch((err) => {
           console.error(`❌ [XFADE] Inactive deck play() FAILED: ${err.name} - ${err.message}`);
@@ -175,18 +182,29 @@ export function useCrossfade({
     };
 
     // Helper to complete crossfade
-    const completeCrossfade = (oldDeck: HTMLAudioElement, newDeck: HTMLAudioElement, song: Song) => {
+    const completeCrossfade = (
+      oldDeck: HTMLAudioElement,
+      newDeck: HTMLAudioElement,
+      oldDeckLabel: 'A' | 'B',
+      newDeckLabel: 'A' | 'B',
+      song: Song,
+    ) => {
       clearCrossfade();
+
+      // Cancel any remaining ramp automation and set final gain values
+      cancelGainRamp(oldDeckLabel);
+      cancelGainRamp(newDeckLabel);
+      setGainImmediate(newDeckLabel, 1.0);
+      setGainImmediate(oldDeckLabel, 0);
 
       // Stop the old deck completely
       oldDeck.pause();
       oldDeck.currentTime = 0;
 
       // Swap active deck
-      activeDeckRef.current = activeDeckRef.current === 'A' ? 'B' : 'A';
-      newDeck.volume = targetVolumeRef.current;
+      activeDeckRef.current = newDeckLabel;
 
-      console.log(`[XFADE] Crossfade complete, active deck is now ${activeDeckRef.current}`);
+      console.log(`[XFADE] Crossfade complete, active deck is now ${newDeckLabel}`);
 
       // Sync Media Session
       if ('mediaSession' in navigator) {
@@ -202,8 +220,11 @@ export function useCrossfade({
       }
 
       // Clear the old deck's source IMMEDIATELY
-      oldDeck.src = SILENT_AUDIO_DATA_URL;
-      oldDeck.pause();
+      // Don't use SILENT_AUDIO_DATA_URL — loading any audio through
+      // createMediaElementSource can cause a brief pop/click in the graph.
+      // Instead, just remove the src and reset the element.
+      oldDeck.removeAttribute('src');
+      oldDeck.load(); // resets the element to HAVE_NOTHING state
       console.log(`[XFADE] Cleared old deck source to prevent accidental playback`);
 
       // Mark crossfade as just completed
@@ -254,17 +275,16 @@ export function useCrossfade({
       // Check if incoming deck is playing and has progressed
       if (!inactiveDeck.paused && inactiveDeck.currentTime > 1) {
         console.log(`[XFADE] Safety timeout: incoming deck playing at ${inactiveDeck.currentTime.toFixed(1)}s - completing crossfade`);
-        completeCrossfade(activeDeck, inactiveDeck, nextSongData);
+        completeCrossfade(activeDeck, inactiveDeck, activeDeckLabel, inactiveDeckLabel, nextSongData);
       } else {
         console.warn(`⚠️ [XFADE] Safety timeout: incoming deck not playing - aborting`);
         abortCrossfade('safety timeout exceeded');
       }
     }, (xfadeDuration + 5) * 1000);
-  }, [getActiveDeck, getInactiveDeck, activeDeckRef, crossfadeInProgressRef, onCrossfadeComplete, onCrossfadeAbort, clearCrossfade, canPlayHandlerRef, errorHandlerRef]);
+  }, [getActiveDeck, getInactiveDeck, activeDeckRef, crossfadeInProgressRef, onCrossfadeComplete, onCrossfadeAbort, clearCrossfade, canPlayHandlerRef, errorHandlerRef, scheduleGainRamp, cancelGainRamp, setGainImmediate]);
 
   return {
     crossfadeJustCompletedRef,
-    targetVolumeRef,
     startCrossfade,
     clearCrossfade,
     resetCrossfadeState,
