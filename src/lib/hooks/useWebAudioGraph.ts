@@ -61,8 +61,11 @@ export function useWebAudioGraph(): WebAudioGraph {
   // wasPlaying captures playback intent before usePlaybackStateSync corrupts
   // the store's isPlaying to false (iOS force-pauses the element).
   // interruptedAt distinguishes quick state bounces (<500ms) from real suspensions.
+  // clearWasPlayingTimerRef delays clearing wasPlaying so rapid interrupt cycles
+  // don't lose the "was playing" signal.
   const wasPlayingBeforeInterruptRef = useRef<boolean>(false);
   const interruptedAtRef = useRef<number>(0);
+  const clearWasPlayingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getGainNode = useCallback((deck: 'A' | 'B'): GainNode | null => {
     return deck === 'A' ? gainARef.current : gainBRef.current;
@@ -292,6 +295,12 @@ export function useWebAudioGraph(): WebAudioGraph {
       const state = ctx.state as string; // iOS adds 'interrupted'
 
       if (state === 'interrupted' || state === 'suspended') {
+        // Cancel any pending wasPlaying clear — we're back in interrupt
+        if (clearWasPlayingTimerRef.current) {
+          clearTimeout(clearWasPlayingTimerRef.current);
+          clearWasPlayingTimerRef.current = null;
+        }
+
         // Capture playback intent before store is corrupted
         const storeState = useAudioStore.getState();
         const deckA = deckAElementRef.current;
@@ -304,6 +313,10 @@ export function useWebAudioGraph(): WebAudioGraph {
         if (interruptedAtRef.current === 0) {
           interruptedAtRef.current = Date.now();
         }
+
+        // Publish interrupt timestamp so usePlaybackStateSync doesn't
+        // cement a false pause during rapid AudioContext state bounces.
+        useAudioStore.setState({ _lastAudioContextInterrupt: Date.now() });
 
         // Disconnect masterGain from destination. The pitch/speed artifact
         // happens in the audio rendering pipeline during interrupted→running,
@@ -341,7 +354,14 @@ export function useWebAudioGraph(): WebAudioGraph {
         }
 
         if (shouldResume) {
-          wasPlayingBeforeInterruptRef.current = false;
+          // Delay clearing wasPlaying so rapid interrupt cycles don't lose the signal.
+          // If another interrupted fires within 3s, the timer is cancelled above.
+          if (clearWasPlayingTimerRef.current) clearTimeout(clearWasPlayingTimerRef.current);
+          clearWasPlayingTimerRef.current = setTimeout(() => {
+            wasPlayingBeforeInterruptRef.current = false;
+            clearWasPlayingTimerRef.current = null;
+          }, 3000);
+
           if (!useAudioStore.getState().isPlaying) {
             useAudioStore.getState().setIsPlaying(true);
           }

@@ -98,6 +98,8 @@ interface AudioState {
   lastKnownDuration: number;
   // Transient: timestamp of most recent user-initiated pause (self-expiring guard for stall recovery)
   _userPauseAt: number;
+  // Transient: timestamp of most recent AudioContext interrupt (iOS state bounce guard)
+  _lastAudioContextInterrupt: number;
   // Transient: snapshots persisted currentTime during rehydration before effects can overwrite it
   _rehydratedCurrentTime: number;
 
@@ -203,6 +205,7 @@ export const useAudioStore = create<AudioState>()(
     lastKnownPosition: 0,
     lastKnownDuration: 0,
     _userPauseAt: 0,
+    _lastAudioContextInterrupt: 0,
     _rehydratedCurrentTime: 0,
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),

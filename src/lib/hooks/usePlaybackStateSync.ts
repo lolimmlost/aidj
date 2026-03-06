@@ -123,6 +123,20 @@ export function usePlaybackStateSync({
         audio.addEventListener('canplay', resumeOnReload, { once: true });
         return; // Don't call audio.pause()
       }
+      // iOS AudioContext state bounces (interrupted→running→interrupted) can cause
+      // isPlaying to flip false transiently. If there was a recent AudioContext interrupt
+      // and no user-initiated pause, don't cement the pause — the statechange handler
+      // will set isPlaying=true when the context stabilizes.
+      {
+        const lastInterrupt = storeState._lastAudioContextInterrupt;
+        const isRecentInterrupt = lastInterrupt > 0 && (Date.now() - lastInterrupt) < 5000;
+        const userPauseAt = storeState._userPauseAt;
+        const isRecentUserPause = userPauseAt > 0 && (Date.now() - userPauseAt) < 3000;
+        if (isRecentInterrupt && !isRecentUserPause && audio.currentTime > 0 && hasRealSong(audio)) {
+          console.log('🎮 [STORE] Ignoring pause during AudioContext interrupt recovery');
+          return;
+        }
+      }
       audio.pause();
     } else if (audio.readyState >= 2) {
       // Only try to play if audio is ready (has enough data)
