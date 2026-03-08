@@ -1,5 +1,6 @@
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query';
 import { toast } from 'sonner';
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import {
@@ -729,6 +730,10 @@ function PlaylistDetailPage() {
         };
       });
       return { previousPlaylist };
+    },
+    onSuccess: () => {
+      // Invalidate feedback cache so PlayerBar heart icon updates
+      queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
     },
     onError: (_error, _vars, context) => {
       if (context?.previousPlaylist) {
