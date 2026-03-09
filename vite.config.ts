@@ -2,9 +2,55 @@ import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import { viteWebSocketPlugin } from "./vite-ws-plugin";
+
+/**
+ * Suppress Vite's unconditional full-page reload when the HMR WebSocket
+ * reconnects after a network disruption.  Without this, switching networks
+ * (WiFi → cellular, VPN toggle, etc.) kills the running audio session.
+ *
+ * Vite fires `vite:beforeFullReload` with `{ path: '*' }` on reconnect.
+ * Real file changes carry the actual file path.  We cancel the wildcard
+ * reload and let Vite continue with its normal HMR channel instead.
+ *
+ * @see https://github.com/vitejs/vite/issues/5675
+ */
+function hmrNoReloadOnReconnect(): Plugin {
+  return {
+    name: 'hmr-no-reload-on-reconnect',
+    enforce: 'post',
+    transformIndexHtml(html) {
+      // Only inject in development
+      if (process.env.NODE_ENV === 'production') return html;
+
+      return html.replace(
+        '</body>',
+        `<script>
+  if (import.meta.hot) {
+    // Track whether the HMR WS just reconnected (vs first connect)
+    let wasDisconnected = false;
+    window.addEventListener('vite:ws:disconnect', () => { wasDisconnected = true; });
+    window.addEventListener('vite:ws:connect', () => {
+      if (wasDisconnected) {
+        // Mark a short window where we suppress the reconnect reload
+        window.__viteReconnecting = true;
+        setTimeout(() => { window.__viteReconnecting = false; }, 2000);
+      }
+    });
+    window.addEventListener('vite:beforeFullReload', (e) => {
+      if (window.__viteReconnecting) {
+        console.log('[HMR] Suppressed full reload on network reconnect');
+        e.preventDefault();
+      }
+    });
+  }
+</script></body>`
+      );
+    },
+  };
+}
 
 export default defineConfig({
   optimizeDeps: {
@@ -85,6 +131,8 @@ export default defineConfig({
     tsConfigPaths({
       projects: ["./tsconfig.json"],
     }),
+    // Prevent Vite from doing a full page reload when HMR WS reconnects after network change
+    hmrNoReloadOnReconnect(),
     // WebSocket support for playback sync (Spotify Connect-style)
     viteWebSocketPlugin(),
     tanstackStart({
