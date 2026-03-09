@@ -56,6 +56,13 @@ export default defineConfig({
   optimizeDeps: {
     include: ['use-sync-external-store'],
   },
+  resolve: {
+    alias: {
+      // better-auth ships ESM that does `import { ms } from "ms"` but the ms
+      // package only has a default export.  This shim re-exports it as named.
+      ms: new URL('ms-shim.mjs', import.meta.url).pathname,
+    },
+  },
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
@@ -68,63 +75,55 @@ export default defineConfig({
       credentials: true,
     },
   },
-  // Build optimization for code splitting
+  // Build settings shared by client + server
   build: {
-    // Enable code splitting for route bundles
-    rollupOptions: {
-      output: {
-        // Manual chunks for optimal bundle splitting
-        // Uses a function to identify modules by their resolved path
-        manualChunks(id: string) {
-          // Core React dependencies - rarely change, highly cacheable
-          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
-            return 'vendor-react';
-          }
-          // TanStack core libraries
-          if (id.includes('node_modules/@tanstack/react-query') || id.includes('node_modules/@tanstack/react-router')) {
-            return 'vendor-tanstack';
-          }
-          // Zustand state management
-          if (id.includes('node_modules/zustand')) {
-            return 'vendor-zustand';
-          }
-          // Radix UI components (shared UI primitives)
-          if (id.includes('node_modules/@radix-ui')) {
-            return 'vendor-radix';
-          }
-          // Lucide icons
-          if (id.includes('node_modules/lucide-react')) {
-            return 'vendor-icons';
-          }
-          // Dashboard-specific lazy-loaded components
-          if (id.includes('/components/dashboard/DJFeatures') || id.includes('/components/dashboard/MoreFeatures')) {
-            return 'dashboard-features';
-          }
-          // DJ-specific lazy-loaded components
-          if (id.includes('/components/dj/mix-compatibility-badges')) {
-            return 'dj-components';
-          }
-          // Recommendation/Analytics lazy-loaded components
-          if (id.includes('/components/recommendations/PreferenceInsights')) {
-            return 'analytics-components';
-          }
-          // Discovery components (lazy-loaded)
-          if (id.includes('/components/discovery/DiscoveryQueuePanel')) {
-            return 'discovery-components';
-          }
+    chunkSizeWarningLimit: 500,
+    sourcemap: process.env.NODE_ENV !== 'production',
+    minify: 'esbuild',
+  },
+  // Client-only build optimization (manualChunks must NOT apply to the server
+  // build or it splits the server entry into chunks and breaks `vite preview`)
+  environments: {
+    client: {
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks(id: string) {
+              if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
+                return 'vendor-react';
+              }
+              if (id.includes('node_modules/@tanstack/react-query') || id.includes('node_modules/@tanstack/react-router')) {
+                return 'vendor-tanstack';
+              }
+              if (id.includes('node_modules/zustand')) {
+                return 'vendor-zustand';
+              }
+              if (id.includes('node_modules/@radix-ui')) {
+                return 'vendor-radix';
+              }
+              if (id.includes('node_modules/lucide-react')) {
+                return 'vendor-icons';
+              }
+              if (id.includes('/components/dashboard/DJFeatures') || id.includes('/components/dashboard/MoreFeatures')) {
+                return 'dashboard-features';
+              }
+              if (id.includes('/components/dj/mix-compatibility-badges')) {
+                return 'dj-components';
+              }
+              if (id.includes('/components/recommendations/PreferenceInsights')) {
+                return 'analytics-components';
+              }
+              if (id.includes('/components/discovery/DiscoveryQueuePanel')) {
+                return 'discovery-components';
+              }
+            },
+            chunkFileNames: 'assets/[name]-[hash].js',
+            entryFileNames: 'assets/[name]-[hash].js',
+            assetFileNames: 'assets/[name]-[hash].[ext]',
+          },
         },
-        // Use content hash for long-term caching
-        chunkFileNames: 'assets/[name]-[hash].js',
-        entryFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash].[ext]',
       },
     },
-    // Chunk size warnings
-    chunkSizeWarningLimit: 500,
-    // Enable source maps for debugging in production
-    sourcemap: process.env.NODE_ENV !== 'production',
-    // Minification settings - use esbuild (default) for faster builds
-    minify: 'esbuild',
   },
   plugins: [
     devtools(),
