@@ -12,7 +12,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { starSong, unstarSong, getSongsByIds } from '../../../lib/services/navidrome';
 import { ensureNavidromeUser } from '../../../lib/services/navidrome-users';
 import { db } from '../../../lib/db';
-import { recommendationFeedback, likedSongsSync } from '../../../lib/db/schema';
+import { recommendationFeedback, likedSongsSync, userPlaylists, playlistSongs } from '../../../lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { extractTemporalMetadata } from '../../../lib/utils/temporal';
 import {
@@ -101,17 +101,16 @@ const DELETE = withAuthAndErrorHandling(
     const creds = await ensureNavidromeUser(session.user.id, session.user.name, session.user.email);
     await unstarSong(songId, creds);
 
-    // Sync unstar to feedback + liked_songs_sync tables (non-blocking)
+    // Sync unstar to feedback + liked_songs_sync + playlist_songs (non-blocking)
     try {
-      // Remove thumbs_up feedback for this song
+      // Remove thumbs_up feedback for this song (regardless of source)
       await db
         .delete(recommendationFeedback)
         .where(
           and(
             eq(recommendationFeedback.userId, session.user.id),
             eq(recommendationFeedback.songId, songId),
-            eq(recommendationFeedback.feedbackType, 'thumbs_up'),
-            eq(recommendationFeedback.source, 'library')
+            eq(recommendationFeedback.feedbackType, 'thumbs_up')
           )
         );
 
@@ -125,6 +124,42 @@ const DELETE = withAuthAndErrorHandling(
             eq(likedSongsSync.songId, songId)
           )
         );
+
+      // Remove from the Liked Songs playlist so it disappears on refresh
+      const LIKED_SONGS_NAME = '❤️ Liked Songs';
+      const likedPlaylist = await db
+        .select({ id: userPlaylists.id })
+        .from(userPlaylists)
+        .where(
+          and(
+            eq(userPlaylists.userId, session.user.id),
+            eq(userPlaylists.name, LIKED_SONGS_NAME)
+          )
+        )
+        .limit(1)
+        .then(rows => rows[0]);
+
+      if (likedPlaylist) {
+        await db
+          .delete(playlistSongs)
+          .where(
+            and(
+              eq(playlistSongs.playlistId, likedPlaylist.id),
+              eq(playlistSongs.songId, songId)
+            )
+          );
+
+        // Update the playlist song count
+        const remaining = await db
+          .select({ songId: playlistSongs.songId })
+          .from(playlistSongs)
+          .where(eq(playlistSongs.playlistId, likedPlaylist.id));
+
+        await db
+          .update(userPlaylists)
+          .set({ songCount: remaining.length, updatedAt: new Date() })
+          .where(eq(userPlaylists.id, likedPlaylist.id));
+      }
     } catch (syncError) {
       console.error('Failed to sync unstar to feedback tables (non-blocking):', syncError);
     }

@@ -731,9 +731,15 @@ function PlaylistDetailPage() {
       });
       return { previousPlaylist };
     },
-    onSuccess: () => {
+    onSuccess: (_data, { star }) => {
       // Invalidate feedback cache so PlayerBar heart icon updates
       queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
+      // When unstarring, the server removes the song from the liked songs playlist.
+      // Refetch so the song disappears from the list without a full page refresh.
+      if (!star) {
+        queryClient.invalidateQueries({ queryKey: ['playlist', id] });
+        queryClient.invalidateQueries({ queryKey: ['playlists'] });
+      }
     },
     onError: (_error, _vars, context) => {
       if (context?.previousPlaylist) {
