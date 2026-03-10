@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../lib/auth/auth';
 import { db } from '../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../lib/db/schema/playlists.schema';
-import { eq, and, asc } from 'drizzle-orm';
+import { likedSongsSync } from '../../../lib/db/schema';
+import { eq, and, asc, inArray } from 'drizzle-orm';
 import { getSongsByIds } from '../../../lib/services/navidrome';
 
 export const Route = createFileRoute("/api/playlists/$id")({
@@ -68,9 +69,22 @@ export const Route = createFileRoute("/api/playlists/$id")({
         const songIds = songs.map(s => s.songId);
 
         if (songIds.length > 0) {
-          // Fetch song details from Navidrome
+          // Fetch song details from Navidrome (admin account — for duration/album metadata)
           const songDetails = await getSongsByIds(songIds);
           const songMap = new Map(songDetails.map(s => [s.id, s]));
+
+          // Check which songs the current user has starred (per-user, not admin)
+          const likedRecords = await db
+            .select({ songId: likedSongsSync.songId })
+            .from(likedSongsSync)
+            .where(
+              and(
+                eq(likedSongsSync.userId, session.user.id),
+                eq(likedSongsSync.isActive, 1),
+                inArray(likedSongsSync.songId, songIds)
+              )
+            );
+          const likedSet = new Set(likedRecords.map(r => r.songId));
 
           enrichedSongs = songs.map(s => {
             const details = songMap.get(s.songId);
@@ -79,7 +93,7 @@ export const Route = createFileRoute("/api/playlists/$id")({
               duration: details?.duration ?? null,
               album: details?.album ?? null,
               albumId: details?.albumId ?? null,
-              starred: (details as Record<string, unknown>)?.starred ?? false,
+              starred: likedSet.has(s.songId),
             };
           });
         }

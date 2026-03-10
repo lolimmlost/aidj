@@ -171,7 +171,10 @@ export async function syncLikedSongsToFeedback(userId: string): Promise<SyncResu
             dayOfWeek: temporal.dayOfWeek,
             hourOfDay: temporal.hourOfDay,
           })
-          .onConflictDoNothing();
+          .onConflictDoUpdate({
+            target: [recommendationFeedback.userId, recommendationFeedback.songId],
+            set: { feedbackType: 'thumbs_up', timestamp: new Date() },
+          });
 
         result.synced++;
       } catch (error) {

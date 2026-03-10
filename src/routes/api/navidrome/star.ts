@@ -42,41 +42,25 @@ const POST = withAuthAndErrorHandling(
         : `Unknown - ${songId}`;
       const temporal = extractTemporalMetadata(new Date());
 
-      // Check for existing feedback before inserting (no unique constraint on userId+songId)
-      const existing = await db
-        .select({ id: recommendationFeedback.id })
-        .from(recommendationFeedback)
-        .where(
-          and(
-            eq(recommendationFeedback.userId, session.user.id),
-            eq(recommendationFeedback.songId, songId)
-          )
-        )
-        .limit(1);
-
-      if (existing.length === 0) {
-        await db
-          .insert(recommendationFeedback)
-          .values({
-            id: crypto.randomUUID(),
-            userId: session.user.id,
-            songId,
-            songArtistTitle: artistTitle,
-            feedbackType: 'thumbs_up',
-            source: 'library',
-            timestamp: new Date(),
-            month: temporal.month,
-            season: temporal.season,
-            dayOfWeek: temporal.dayOfWeek,
-            hourOfDay: temporal.hourOfDay,
-          });
-      } else if (existing.length > 0) {
-        // Update existing to thumbs_up if it was thumbs_down
-        await db
-          .update(recommendationFeedback)
-          .set({ feedbackType: 'thumbs_up', timestamp: new Date() })
-          .where(eq(recommendationFeedback.id, existing[0].id));
-      }
+      await db
+        .insert(recommendationFeedback)
+        .values({
+          id: crypto.randomUUID(),
+          userId: session.user.id,
+          songId,
+          songArtistTitle: artistTitle,
+          feedbackType: 'thumbs_up',
+          source: 'library',
+          timestamp: new Date(),
+          month: temporal.month,
+          season: temporal.season,
+          dayOfWeek: temporal.dayOfWeek,
+          hourOfDay: temporal.hourOfDay,
+        })
+        .onConflictDoUpdate({
+          target: [recommendationFeedback.userId, recommendationFeedback.songId],
+          set: { feedbackType: 'thumbs_up', timestamp: new Date() },
+        });
 
       await db
         .insert(likedSongsSync)
