@@ -1,6 +1,22 @@
 import { pgTable, text, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { user } from "./auth.schema";
 
+/**
+ * Onboarding status shape stored in JSONB column.
+ * Tracks wizard progress and completion state for new users.
+ */
+export interface OnboardingStatusData {
+  completed: boolean;
+  completedAt?: string;        // ISO date
+  skipped?: boolean;
+  skippedAt?: string;
+  selectedArtistIds?: string[]; // Navidrome artist IDs from step 1
+  likedSongsSynced?: boolean;   // Step 2 completed
+  lastfmImported?: boolean;     // Step 3 completed
+  lastfmUsername?: string;      // For re-import / display
+  currentStep?: number;         // Resume support (1-3)
+}
+
 export const userPreferences = pgTable("user_preferences", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   userId: text("user_id")
@@ -87,6 +103,9 @@ export const userPreferences = pgTable("user_preferences", {
     showRecentlyPlayed: true,
     widgetOrder: ['recommendations', 'recentlyPlayed'],
   }).notNull(),
+
+  // Onboarding status — tracks wizard progress for new users
+  onboardingStatus: jsonb("onboarding_status").$type<OnboardingStatusData>(),
 
   createdAt: timestamp("created_at")
     .$defaultFn(() => new Date())

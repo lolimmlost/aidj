@@ -378,6 +378,7 @@ export function createDefaultPreferences(
     playbackSettings: merged.playbackSettings,
     notificationSettings: merged.notificationSettings,
     dashboardLayout: merged.dashboardLayout,
+    onboardingStatus: null,
     createdAt: now,
     updatedAt: now,
   };
