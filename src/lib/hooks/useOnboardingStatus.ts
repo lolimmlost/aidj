@@ -26,6 +26,7 @@ export function useOnboardingStatus() {
   return {
     isNewUser,
     onboardingCompleted: data?.onboardingCompleted ?? false,
+    onboardingSkipped: data?.onboardingSkipped ?? false,
     dataMaturity: data?.dataMaturity ?? null,
     currentStep: data?.currentStep ?? 1,
     isLoading,

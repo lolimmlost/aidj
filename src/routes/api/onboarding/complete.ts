@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import {
   withAuthAndErrorHandling,
   successResponse,
+  errorResponse,
 } from '@/lib/utils/api-response';
 import { calculateFullUserProfile } from '@/lib/services/compound-scoring';
 import { getBackgroundDiscoveryManager } from '@/lib/services/background-discovery';
@@ -13,14 +14,29 @@ const POST = withAuthAndErrorHandling(
   async ({ session }) => {
     const userId = session.user.id;
 
-    // Mark onboarding as completed
+    // Read existing onboarding status to merge (avoid overwriting wizard step data)
+    const existing = await db
+      .select({ onboardingStatus: userPreferences.onboardingStatus })
+      .from(userPreferences)
+      .where(eq(userPreferences.userId, userId))
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    if (!existing) {
+      return errorResponse('NO_PREFERENCES', 'User preferences not found', { status: 404 });
+    }
+
+    // Merge with existing status to preserve selectedArtistIds, likedSongsSynced, etc.
+    const merged = {
+      ...(existing.onboardingStatus ?? {}),
+      completed: true,
+      completedAt: new Date().toISOString(),
+    };
+
     await db
       .update(userPreferences)
       .set({
-        onboardingStatus: {
-          completed: true,
-          completedAt: new Date().toISOString(),
-        },
+        onboardingStatus: merged,
         updatedAt: new Date(),
       })
       .where(eq(userPreferences.userId, userId));
