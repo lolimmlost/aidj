@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { db } from '@/lib/db';
 import { userPreferences } from '@/lib/db/schema/preferences.schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import {
   withAuthAndErrorHandling,
   successResponse,
@@ -14,7 +14,7 @@ const POST = withAuthAndErrorHandling(
   async ({ session }) => {
     const userId = session.user.id;
 
-    // Read existing onboarding status to merge (avoid overwriting wizard step data)
+    // P-10: Check if already completed to avoid re-triggering expensive operations
     const existing = await db
       .select({ onboardingStatus: userPreferences.onboardingStatus })
       .from(userPreferences)
@@ -26,17 +26,15 @@ const POST = withAuthAndErrorHandling(
       return errorResponse('NO_PREFERENCES', 'User preferences not found', { status: 404 });
     }
 
-    // Merge with existing status to preserve selectedArtistIds, likedSongsSynced, etc.
-    const merged = {
-      ...(existing.onboardingStatus ?? {}),
-      completed: true,
-      completedAt: new Date().toISOString(),
-    };
+    if (existing.onboardingStatus?.completed) {
+      return successResponse({ success: true, alreadyCompleted: true });
+    }
 
+    // P-1: Atomic JSONB merge to avoid read-modify-write race
     await db
       .update(userPreferences)
       .set({
-        onboardingStatus: merged,
+        onboardingStatus: sql`COALESCE(${userPreferences.onboardingStatus}, '{}'::jsonb) || ${JSON.stringify({ completed: true, completedAt: new Date().toISOString() })}::jsonb`,
         updatedAt: new Date(),
       })
       .where(eq(userPreferences.userId, userId));
@@ -47,6 +45,8 @@ const POST = withAuthAndErrorHandling(
     );
 
     // Fire-and-forget: trigger background discovery
+    // P-9: Note — discovery manager is a singleton; concurrent completions for different users
+    // could race on initialize(). This is acceptable for a single-user-at-a-time app.
     const manager = getBackgroundDiscoveryManager();
     manager
       .initialize(userId)

@@ -18,13 +18,14 @@ interface ArtistPickerProps {
 }
 
 const MIN_ARTISTS = 3;
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 100;
 
 export function ArtistPicker({ onComplete }: ArtistPickerProps) {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // 300ms debounce for search
   useEffect(() => {
@@ -32,12 +33,17 @@ export function ArtistPicker({ onComplete }: ArtistPickerProps) {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Reset visible count when search changes
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [debouncedSearch]);
+
   const { data, isLoading } = useQuery<{ artists: ArtistItem[]; total: number }>({
-    queryKey: ['onboarding-artists', debouncedSearch],
+    queryKey: ['onboarding-artists', debouncedSearch, visibleCount],
     queryFn: async () => {
       const params = new URLSearchParams({
         start: '0',
-        limit: String(PAGE_SIZE),
+        limit: String(visibleCount),
       });
       if (debouncedSearch) params.set('search', debouncedSearch);
       const res = await fetch(`/api/onboarding/artists?${params}`, {
@@ -51,6 +57,7 @@ export function ArtistPicker({ onComplete }: ArtistPickerProps) {
   });
 
   const artists = data?.artists ?? [];
+  const hasMore = data ? data.total > visibleCount : false;
 
   const toggleArtist = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -156,6 +163,18 @@ export function ArtistPicker({ onComplete }: ArtistPickerProps) {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* P-14: Load more when there are more artists available */}
+      {!isLoading && hasMore && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+          >
+            Load more artists
+          </Button>
         </div>
       )}
 

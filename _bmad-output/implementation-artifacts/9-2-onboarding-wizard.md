@@ -265,3 +265,10 @@ Claude Opus 4.6
 
 ### Change Log
 - 2026-03-17: Implemented Story 9.2 — Onboarding Wizard with Artist Picker, Liked Songs Sync, Last.fm Import, and Wizard Completion (7 tasks, 17 tests)
+- 2026-03-18: Post-review hardening (15 patches from 3-layer adversarial code review):
+  - **Data integrity**: Atomic JSONB merges (`||` operator) replace read-modify-write in all 4 onboarding update routes (select, update-step, complete, skip)
+  - **DoS prevention**: Max 50 artists cap on select endpoint; runtime type validation on all artistIds elements
+  - **Perf**: Network calls (getArtistDetail, getTopSongs) moved outside DB transaction in artists/select; artists.ts now uses basic getArtists() + detail-fetch only the paginated slice instead of N+1 getArtistsWithDetails(500)
+  - **Validation**: update-step now type-validates each field (currentStep: int 1-3, booleans, string length); artists.ts clamps NaN/negative start/limit params
+  - **Robustness**: artists/select returns 502 if zero artists fetched from Navidrome; complete endpoint returns early if already completed (idempotency); LastfmImport has 5-min max poll timeout; clean stop on skip during active import
+  - **UX**: ArtistPicker page size increased to 100 with "Load more" button; dead fetchLimit variable removed

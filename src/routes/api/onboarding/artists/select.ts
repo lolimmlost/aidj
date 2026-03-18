@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 import { userPreferences } from '@/lib/db/schema/preferences.schema';
 import { artistAffinities } from '@/lib/db/schema/profile.schema';
 import { recommendationFeedback } from '@/lib/db/schema/recommendations.schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { OnboardingStatusData } from '@/lib/db/schema/preferences.schema';
 import {
   getArtistDetail,
@@ -14,6 +14,8 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/utils/api-response';
+
+const MAX_ARTISTS = 50;
 
 function getTemporalMetadata() {
   const now = new Date();
@@ -35,28 +37,50 @@ const POST = withAuthAndErrorHandling(
     const userId = session.user.id;
     const body = await request.json();
 
-    const artistIds: string[] = body?.artistIds;
+    // P-6: Runtime type validation for artistIds
+    const artistIds = body?.artistIds;
     if (!Array.isArray(artistIds) || artistIds.length < 3) {
       return errorResponse('VALIDATION_ERROR', 'At least 3 artists must be selected', { status: 400 });
     }
+    // P-3: Upper bound on array length
+    if (artistIds.length > MAX_ARTISTS) {
+      return errorResponse('VALIDATION_ERROR', `Maximum ${MAX_ARTISTS} artists allowed`, { status: 400 });
+    }
+    // P-6: Ensure all elements are non-empty strings
+    if (!artistIds.every((id: unknown) => typeof id === 'string' && id.length > 0)) {
+      return errorResponse('VALIDATION_ERROR', 'All artist IDs must be non-empty strings', { status: 400 });
+    }
+    const validatedIds = artistIds as string[];
 
     const temporal = getTemporalMetadata();
+
+    // P-2: Fetch all artist details BEFORE the transaction to avoid holding DB connection open during network calls
+    const artistDetails = new Map<string, { name: string; topSongs: Array<{ id: string; artist?: string; title?: string; name?: string }> }>();
+    for (const artistId of validatedIds) {
+      try {
+        const detail = await getArtistDetail(artistId);
+        let topSongs: Array<{ id: string; artist?: string; title?: string; name?: string }> = [];
+        try {
+          topSongs = await getTopSongs(artistId, 5);
+        } catch (err) {
+          console.warn(`[onboarding/artists/select] Could not fetch top songs for artist ${artistId}:`, err);
+        }
+        artistDetails.set(artistId, { name: detail.name.toLowerCase(), topSongs });
+      } catch {
+        console.warn(`[onboarding/artists/select] Could not fetch artist ${artistId}, skipping`);
+      }
+    }
+
+    // P-4: Fail if zero artists were successfully fetched
+    if (artistDetails.size === 0) {
+      return errorResponse('NAVIDROME_ERROR', 'Could not fetch any artist details from music server', { status: 502 });
+    }
+
     let feedbackCount = 0;
+    let artistCount = 0;
 
     await db.transaction(async (tx) => {
-      // For each selected artist, create affinity + feedback rows
-      for (const artistId of artistIds) {
-        // Fetch artist details to get name
-        let artistName: string;
-        try {
-          const detail = await getArtistDetail(artistId);
-          artistName = detail.name.toLowerCase();
-        } catch {
-          console.warn(`[onboarding/artists/select] Could not fetch artist ${artistId}, skipping`);
-          continue;
-        }
-
-        // Insert artist affinity with onConflictDoUpdate for re-selections
+      for (const [artistId, { name: artistName, topSongs }] of artistDetails) {
         await tx
           .insert(artistAffinities)
           .values({
@@ -77,55 +101,37 @@ const POST = withAuthAndErrorHandling(
               calculatedAt: new Date(),
             },
           });
+        artistCount++;
 
-        // Fetch top tracks for this artist and create feedback
-        try {
-          const topSongs = await getTopSongs(artistId, 5);
-          for (const song of topSongs) {
-            const songArtistTitle = `${song.artist || artistName} - ${song.title || song.name}`;
-            await tx
-              .insert(recommendationFeedback)
-              .values({
-                userId,
-                songId: song.id,
-                songArtistTitle,
-                feedbackType: 'thumbs_up',
-                source: 'library',
-                timestamp: new Date(),
-                month: temporal.month,
-                season: temporal.season,
-                dayOfWeek: temporal.dayOfWeek,
-                hourOfDay: temporal.hourOfDay,
-              })
-              .onConflictDoUpdate({
-                target: [recommendationFeedback.userId, recommendationFeedback.songId],
-                set: { feedbackType: 'thumbs_up', timestamp: new Date() },
-              });
-            feedbackCount++;
-          }
-        } catch (err) {
-          console.warn(`[onboarding/artists/select] Could not fetch top songs for artist ${artistId}:`, err);
+        for (const song of topSongs) {
+          const songArtistTitle = `${song.artist || artistName} - ${song.title || song.name}`;
+          await tx
+            .insert(recommendationFeedback)
+            .values({
+              userId,
+              songId: song.id,
+              songArtistTitle,
+              feedbackType: 'thumbs_up',
+              source: 'library',
+              timestamp: new Date(),
+              month: temporal.month,
+              season: temporal.season,
+              dayOfWeek: temporal.dayOfWeek,
+              hourOfDay: temporal.hourOfDay,
+            })
+            .onConflictDoUpdate({
+              target: [recommendationFeedback.userId, recommendationFeedback.songId],
+              set: { feedbackType: 'thumbs_up', timestamp: new Date() },
+            });
+          feedbackCount++;
         }
       }
 
-      // Update onboarding status with selected artists and advance step
-      const prefs = await tx
-        .select({ onboardingStatus: userPreferences.onboardingStatus })
-        .from(userPreferences)
-        .where(eq(userPreferences.userId, userId))
-        .limit(1)
-        .then((rows) => rows[0]);
-
-      const currentStatus = prefs?.onboardingStatus ?? { completed: false };
-      const merged: OnboardingStatusData = {
-        ...currentStatus,
-        selectedArtistIds: artistIds,
-        currentStep: 2,
-      };
+      // P-1: Atomic JSONB merge using SQL to avoid read-modify-write race
       await tx
         .update(userPreferences)
         .set({
-          onboardingStatus: merged,
+          onboardingStatus: sql`COALESCE(${userPreferences.onboardingStatus}, '{"completed": false}'::jsonb) || ${JSON.stringify({ selectedArtistIds: validatedIds, currentStep: 2 })}::jsonb`,
           updatedAt: new Date(),
         })
         .where(eq(userPreferences.userId, userId));
@@ -133,7 +139,7 @@ const POST = withAuthAndErrorHandling(
 
     return successResponse({
       success: true,
-      artistCount: artistIds.length,
+      artistCount,
       feedbackCount,
     });
   },

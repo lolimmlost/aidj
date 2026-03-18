@@ -13,6 +13,9 @@ const GET = withAuthAndErrorHandling(
       session.user.name,
       session.user.email
     );
+    // P-8: getStarredSongs fetches full song objects. Navidrome's Subsonic API
+    // (getStarred2) doesn't support count-only queries, so this is the best we can do.
+    // The response is cached client-side (staleTime: 30s) so it's called at most once per wizard load.
     const starred = await getStarredSongs(creds);
     return successResponse({ count: starred.length });
   },

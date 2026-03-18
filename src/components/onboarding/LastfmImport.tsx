@@ -56,6 +56,9 @@ function getProgressPercent(event: BackfillEvent | null): number {
   }
 }
 
+// P-11: Max polling duration (5 minutes)
+const MAX_POLL_DURATION_MS = 5 * 60 * 1000;
+
 export function LastfmImport({ onComplete }: LastfmImportProps) {
   const [username, setUsername] = useState('');
   const [isImporting, setIsImporting] = useState(false);
@@ -63,6 +66,7 @@ export function LastfmImport({ onComplete }: LastfmImportProps) {
   const [importResult, setImportResult] = useState<{ imported: number; artists: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollStartRef = useRef<number>(0);
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -71,10 +75,27 @@ export function LastfmImport({ onComplete }: LastfmImportProps) {
     };
   }, []);
 
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
   const startPolling = useCallback((jobId: string) => {
+    pollStartRef.current = Date.now();
+    const params = new URLSearchParams({ jobId });
     pollRef.current = setInterval(async () => {
+      // P-11: Timeout after MAX_POLL_DURATION_MS
+      if (Date.now() - pollStartRef.current > MAX_POLL_DURATION_MS) {
+        stopPolling();
+        setIsImporting(false);
+        setError('Import is taking longer than expected. It will continue in the background.');
+        return;
+      }
+
       try {
-        const res = await fetch(`/api/lastfm/backfill?jobId=${jobId}`, {
+        const res = await fetch(`/api/lastfm/backfill?${params}`, {
           credentials: 'include',
         });
         if (!res.ok) return;
@@ -83,16 +104,14 @@ export function LastfmImport({ onComplete }: LastfmImportProps) {
         setLatestEvent(event);
 
         if (event.phase === 'done') {
-          if (pollRef.current) clearInterval(pollRef.current);
+          stopPolling();
           setIsImporting(false);
 
-          // Calculate result summary
           setImportResult({
             imported: event.imported ?? 0,
             artists: event.processed ?? 0,
           });
 
-          // Update onboarding status
           await fetch('/api/onboarding/update-step', {
             method: 'POST',
             credentials: 'include',
@@ -103,7 +122,7 @@ export function LastfmImport({ onComplete }: LastfmImportProps) {
             }),
           });
         } else if (event.phase === 'error') {
-          if (pollRef.current) clearInterval(pollRef.current);
+          stopPolling();
           setIsImporting(false);
           setError(event.error || 'Import failed');
         }
@@ -111,7 +130,7 @@ export function LastfmImport({ onComplete }: LastfmImportProps) {
         // Polling errors are non-fatal, will retry next interval
       }
     }, 1500);
-  }, [username]);
+  }, [username, stopPolling]);
 
   const handleImport = useCallback(async () => {
     if (!username.trim()) return;
@@ -150,9 +169,12 @@ export function LastfmImport({ onComplete }: LastfmImportProps) {
   }, [username, startPolling]);
 
   const handleSkip = useCallback(async () => {
-    if (pollRef.current) clearInterval(pollRef.current);
+    // P-12: If import is in progress, stop polling but note the server-side job
+    // continues. The import data will still be available when it finishes.
+    stopPolling();
+    setIsImporting(false);
     onComplete();
-  }, [onComplete]);
+  }, [onComplete, stopPolling]);
 
   const handleFinish = useCallback(() => {
     onComplete();

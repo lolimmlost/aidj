@@ -1,41 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { db } from '@/lib/db';
 import { userPreferences } from '@/lib/db/schema/preferences.schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import {
   withAuthAndErrorHandling,
   successResponse,
-  errorResponse,
 } from '@/lib/utils/api-response';
 
 const POST = withAuthAndErrorHandling(
   async ({ session }) => {
     const userId = session.user.id;
 
-    // Read existing onboarding status to merge (avoid overwriting wizard step data)
-    const existing = await db
-      .select({ onboardingStatus: userPreferences.onboardingStatus })
-      .from(userPreferences)
-      .where(eq(userPreferences.userId, userId))
-      .limit(1)
-      .then((rows) => rows[0]);
-
-    if (!existing) {
-      return errorResponse('NO_PREFERENCES', 'User preferences not found', { status: 404 });
-    }
-
-    // Merge with existing status to preserve selectedArtistIds, etc.
-    const merged = {
-      ...(existing.onboardingStatus ?? {}),
-      completed: false,
-      skipped: true,
-      skippedAt: new Date().toISOString(),
-    };
-
+    // P-1: Atomic JSONB merge to avoid read-modify-write race
     await db
       .update(userPreferences)
       .set({
-        onboardingStatus: merged,
+        onboardingStatus: sql`COALESCE(${userPreferences.onboardingStatus}, '{}'::jsonb) || ${JSON.stringify({ completed: false, skipped: true, skippedAt: new Date().toISOString() })}::jsonb`,
         updatedAt: new Date(),
       })
       .where(eq(userPreferences.userId, userId));
