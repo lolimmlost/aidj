@@ -102,6 +102,8 @@ interface AudioState {
   _lastAudioContextInterrupt: number;
   // Transient: snapshots persisted currentTime during rehydration before effects can overwrite it
   _rehydratedCurrentTime: number;
+  // Transient: radio session play counter for profile refresh trigger (Story 9.3)
+  radioSessionPlayCount: number;
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
@@ -150,6 +152,8 @@ interface AudioState {
   // Cross-device sync actions
   applyServerState: (server: PlaybackStateResponse) => void;
   setRemoteDevice: (device: AudioState['remoteDevice']) => void;
+  // Radio session actions (Story 9.3)
+  incrementRadioPlayCount: () => void;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -207,6 +211,7 @@ export const useAudioStore = create<AudioState>()(
     _userPauseAt: 0,
     _lastAudioContextInterrupt: 0,
     _rehydratedCurrentTime: 0,
+    radioSessionPlayCount: 0,
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -1676,6 +1681,10 @@ export const useAudioStore = create<AudioState>()(
     },
 
     setRemoteDevice: (device) => set({ remoteDevice: device }),
+
+    incrementRadioPlayCount: () => set((state) => ({
+      radioSessionPlayCount: state.radioSessionPlayCount + 1,
+    })),
   }),
   {
     name: 'audio-player-storage',
@@ -1704,6 +1713,7 @@ export const useAudioStore = create<AudioState>()(
         state.aiDJUserActionInProgress = false;
         state._userPauseAt = 0;
         state.songsPlayedSinceLastRec = 0;
+        state.radioSessionPlayCount = 0;
         state.aiQueuedSongIds = new Set<string>();
         state.autoplayIsLoading = false;
         state.autoplayTransitionActive = false;

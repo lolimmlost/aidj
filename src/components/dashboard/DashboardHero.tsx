@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Play, Pause, Disc3, TrendingUp, TrendingDown, Shuffle, Library, RefreshCw, Loader2 } from 'lucide-react';
+import { Play, Pause, Disc3, TrendingUp, TrendingDown, Shuffle, Library, RefreshCw, Loader2, Radio } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAudioStore } from '@/lib/stores/audio';
 import { cn } from '@/lib/utils';
@@ -12,6 +12,9 @@ interface DashboardHeroProps {
   userName?: string;
   availableRecommendations: number;
   playlistSongsReady: number;
+  showRadioButton?: boolean;
+  onStartRadio?: () => void;
+  radioLoading?: boolean;
 }
 
 interface ListeningStatsResponse {
@@ -44,6 +47,9 @@ export function DashboardHero({
   userName,
   availableRecommendations,
   playlistSongsReady,
+  showRadioButton,
+  onStartRadio,
+  radioLoading,
 }: DashboardHeroProps) {
   const currentSong = useAudioStore((s) => s.playlist[s.currentSongIndex]);
   const isPlaying = useAudioStore((s) => s.isPlaying);
@@ -148,6 +154,8 @@ export function DashboardHero({
             isPlaying={isPlaying}
             onTogglePlay={() => setIsPlaying(!isPlaying)}
           />
+        ) : showRadioButton && onStartRadio ? (
+          <RadioCTA onStartRadio={onStartRadio} isLoading={radioLoading} />
         ) : (
           <StartListeningCTA />
         )}
@@ -431,6 +439,47 @@ function StartListeningCTA() {
           </div>
         </button>
       )}
+
+      <div className="border-t border-border/50 pt-3">
+        <Link
+          to="/library"
+          className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+        >
+          <Library className="w-4 h-4" />
+          <span>Browse Library</span>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function RadioCTA({ onStartRadio, isLoading }: { onStartRadio: () => void; isLoading?: boolean }) {
+  return (
+    <div className="glass-card-premium p-5 sm:p-6 w-full lg:w-auto lg:min-w-[320px] animate-fade-up space-y-3">
+      <button
+        onClick={onStartRadio}
+        disabled={isLoading}
+        className="flex items-center gap-4 w-full group text-left"
+      >
+        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center group-hover:scale-105 transition-transform">
+          {isLoading ? (
+            <Loader2 className="w-7 h-7 sm:w-8 sm:h-8 text-primary animate-spin" />
+          ) : (
+            <Radio className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-base sm:text-lg">
+            {isLoading ? 'Loading...' : 'Start Radio'}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Play a shuffled mix based on your taste
+          </p>
+        </div>
+        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+          <Play className="w-4 h-4 text-primary ml-0.5" />
+        </div>
+      </button>
 
       <div className="border-t border-border/50 pt-3">
         <Link
