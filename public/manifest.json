@@ -1,8 +1,10 @@
 {
   "name": "AIDJ",
   "short_name": "AIDJ",
+  "id": "/",
   "description": "AI-powered music discovery and smart playlists",
   "start_url": "/dashboard",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0c0a14",
   "theme_color": "#8b5cf6",

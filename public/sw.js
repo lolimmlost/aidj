@@ -261,9 +261,16 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If app is already open, focus it
+      // If app is already open, focus it — prefer standalone PWA windows
+      const standalone = clientList.find(
+        (c) => c.url.startsWith(self.location.origin) && c.visibilityState === 'visible'
+      );
+      if (standalone && 'focus' in standalone) {
+        return standalone.focus();
+      }
+      // Fall back to any matching client
       for (const client of clientList) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
+        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
           return client.focus();
         }
       }
