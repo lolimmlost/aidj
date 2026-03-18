@@ -57,12 +57,14 @@ export const Route = createFileRoute("/api/playlists/$id")({
         .orderBy(asc(playlistSongs.position));
 
       // Try to enrich songs with Navidrome metadata (duration, album, albumId, starred, etc.)
+      const isLikedSongsPlaylist = playlist.name === '❤️ Liked Songs';
+
       let enrichedSongs = songs.map(s => ({
         ...s,
         duration: null as number | null,
         album: null as string | null,
         albumId: null as string | null,
-        starred: false,
+        starred: isLikedSongsPlaylist, // All songs in Liked Songs playlist are starred by definition
       }));
 
       try {
@@ -73,18 +75,24 @@ export const Route = createFileRoute("/api/playlists/$id")({
           const songDetails = await getSongsByIds(songIds);
           const songMap = new Map(songDetails.map(s => [s.id, s]));
 
-          // Check which songs the current user has starred (per-user, not admin)
-          const likedRecords = await db
-            .select({ songId: likedSongsSync.songId })
-            .from(likedSongsSync)
-            .where(
-              and(
-                eq(likedSongsSync.userId, session.user.id),
-                eq(likedSongsSync.isActive, 1),
-                inArray(likedSongsSync.songId, songIds)
-              )
-            );
-          const likedSet = new Set(likedRecords.map(r => r.songId));
+          // For non-liked playlists, check which songs the current user has starred
+          let likedSet: Set<string>;
+          if (isLikedSongsPlaylist) {
+            // All songs in this playlist are starred by definition
+            likedSet = new Set(songIds);
+          } else {
+            const likedRecords = await db
+              .select({ songId: likedSongsSync.songId })
+              .from(likedSongsSync)
+              .where(
+                and(
+                  eq(likedSongsSync.userId, session.user.id),
+                  eq(likedSongsSync.isActive, 1),
+                  inArray(likedSongsSync.songId, songIds)
+                )
+              );
+            likedSet = new Set(likedRecords.map(r => r.songId));
+          }
 
           enrichedSongs = songs.map(s => {
             const details = songMap.get(s.songId);
