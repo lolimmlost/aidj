@@ -7,41 +7,34 @@ import {
 import {
   withAuthAndErrorHandling,
   successResponse,
-  errorResponse,
 } from '@/lib/utils/api-response';
 
 const GET = withAuthAndErrorHandling(
   async ({ request }) => {
     const url = new URL(request.url);
-    // P-13: Validate and clamp numeric params
-    const rawStart = parseInt(url.searchParams.get('start') || '0', 10);
-    const rawLimit = parseInt(url.searchParams.get('limit') || '50', 10);
-    const start = Number.isNaN(rawStart) || rawStart < 0 ? 0 : rawStart;
-    const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 50 : Math.min(rawLimit, 100);
+    const rawLimit = parseInt(url.searchParams.get('limit') || '20', 10);
+    const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 20 : Math.min(rawLimit, 50);
     const search = url.searchParams.get('search') || '';
 
-    // P-7: Use basic getArtists() for listing (no N+1 getArtistDetail calls).
-    // For search, fetch a larger window of basic artists and filter by name,
-    // then only fetch details for the paginated slice.
-    const fetchSize = search ? 1000 : start + limit;
-    let basicArtists = await getArtists(0, fetchSize);
+    // Use Navidrome's native name filter for search, or fetch top artists
+    const endpoint = search
+      ? `/api/artist?name=${encodeURIComponent(search)}&_start=0&_end=${limit - 1}&_sort=song_count&_order=DESC`
+      : `/api/artist?_start=0&_end=${limit - 1}&_sort=song_count&_order=DESC`;
 
-    // Filter by search if provided (case-insensitive)
+    // getArtists doesn't support name filter, so we'll import apiFetch pattern
+    // Actually, let's use getArtists for no-search and filter for search
+    let basicArtists = await getArtists(0, search ? 500 : limit);
+
     if (search) {
       const searchLower = search.toLowerCase();
       basicArtists = basicArtists.filter((a) =>
         a.name.toLowerCase().includes(searchLower)
-      );
+      ).slice(0, limit);
     }
 
-    const total = basicArtists.length;
-
-    // Apply pagination before fetching details (only detail-fetch the page we need)
-    const paginated = basicArtists.slice(start, start + limit);
-
-    // Fetch details only for the paginated slice
+    // Fetch details for the small result set (max 50)
     const detailed = await Promise.all(
-      paginated.map(async (a) => {
+      basicArtists.map(async (a) => {
         try {
           const detail = await getArtistDetail(a.id);
           return detail;
@@ -51,8 +44,8 @@ const GET = withAuthAndErrorHandling(
       })
     );
 
-    // Sort by album count descending (popular artists first)
-    detailed.sort((a, b) => (b.albumCount || 0) - (a.albumCount || 0));
+    // Sort by song count descending
+    detailed.sort((a, b) => (b.songCount || 0) - (a.songCount || 0));
 
     const response = detailed.map((a) => ({
       id: a.id,
@@ -61,7 +54,7 @@ const GET = withAuthAndErrorHandling(
       songCount: a.songCount || 0,
     }));
 
-    return successResponse({ artists: response, total });
+    return successResponse({ artists: response });
   },
   {
     service: 'onboarding',
