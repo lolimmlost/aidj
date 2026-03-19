@@ -219,6 +219,7 @@ export function PlaylistImportDialog({
   const [spotifyPlaylistId, setSpotifyPlaylistId] = useState<string | null>(null);
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
   const spotifyPlaylistIdRef = useRef<string | null>(null);
+  const importModeRef = useRef<'file' | 'url' | 'spotify_oauth'>('file');
   const globalFileInputRef = useRef<HTMLInputElement>(null);
 
   // Check if Spotify is configured via server endpoint
@@ -299,7 +300,8 @@ export function PlaylistImportDialog({
       let payload: Record<string, unknown>;
 
       const currentSpotifyPlaylistId = spotifyPlaylistIdRef.current || spotifyPlaylistId;
-      if (importMode === 'spotify_oauth' && currentSpotifyPlaylistId) {
+      const currentImportMode = importModeRef.current || importMode;
+      if (currentImportMode === 'spotify_oauth' && currentSpotifyPlaylistId) {
         payload = {
           spotifyPlaylistId: currentSpotifyPlaylistId,
           playlistName: playlistName || undefined,
@@ -307,7 +309,7 @@ export function PlaylistImportDialog({
           autoMatch: true,
           createPlaylist: true,
         };
-      } else if (importMode === 'url') {
+      } else if (currentImportMode === 'url') {
         payload = {
           sourceUrl,
           playlistName: playlistName || undefined,
@@ -459,6 +461,7 @@ export function PlaylistImportDialog({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleFileUpload = (content: string, name: string, detectedFormat?: ExportFormat) => {
+    importModeRef.current = 'file';
     setImportMode('file');
     setFileContent(content);
     setFileName(name);
@@ -470,6 +473,7 @@ export function PlaylistImportDialog({
   };
 
   const handleUrlSubmit = (url: string) => {
+    importModeRef.current = 'url';
     setImportMode('url');
     setSourceUrl(url);
     setIsLoadingUrl(true);
@@ -528,13 +532,13 @@ export function PlaylistImportDialog({
 
   // Spotify OAuth: playlist selected from picker
   const handleSpotifyPlaylistSelect = (playlist: SpotifyPlaylistSummary) => {
+    // Set refs BEFORE mutate — setState is async and won't be ready
+    importModeRef.current = 'spotify_oauth';
+    spotifyPlaylistIdRef.current = playlist.id;
     setImportMode('spotify_oauth');
     setSpotifyPlaylistId(playlist.id);
     setPlaylistName(playlist.name);
-    // Skip validation step — go straight to matching
     setCurrentStep('matching');
-    // Pass playlist ID directly since setState is async
-    spotifyPlaylistIdRef.current = playlist.id;
     importMutation.mutate();
   };
 
@@ -574,6 +578,7 @@ export function PlaylistImportDialog({
     setSourceUrl('');
     setSpotifyPlaylistId(null);
     spotifyPlaylistIdRef.current = null;
+    importModeRef.current = 'file';
     setIsLoadingUrl(false);
     importMutation.reset();
     onOpenChange(false);
