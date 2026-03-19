@@ -33,8 +33,8 @@ export function MobileNav() {
 
   return (
     <>
-      {/* Hamburger Button - Fixed Top Left on Mobile */}
-      <div className="md:hidden fixed top-4 left-4 z-50">
+      {/* Hamburger Button - Fixed Top Left on Mobile, below iOS safe area */}
+      <div className="md:hidden fixed top-[calc(env(safe-area-inset-top)+0.75rem)] left-4 z-50">
         <Button
           variant="outline"
           size="sm"
@@ -64,7 +64,7 @@ export function MobileNav() {
         `}
         aria-label="Mobile navigation"
       >
-        <div className={`flex flex-col h-full pt-20 px-4 overflow-y-auto ${hasActiveSong ? 'pb-28' : 'pb-6'}`}>
+        <div className={`flex flex-col h-full pt-[calc(env(safe-area-inset-top)+4rem)] px-4 overflow-y-auto ${hasActiveSong ? 'pb-28' : 'pb-6'}`}>
           <div className="space-y-1">
             <NavSectionLabel label="Main" />
             <NavLink
