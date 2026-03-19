@@ -24,6 +24,7 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  Shield,
 } from 'lucide-react';
 import authClient from '@/lib/auth/auth-client';
 import { MusicTasteDebugPanel } from '@/components/debug/MusicTasteDebugPanel';
@@ -247,6 +248,8 @@ function LeftSidebar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isSyncingLiked, setIsSyncingLiked] = useState(false);
+  const { data: session } = authClient.useSession();
+  const isAdmin = session?.user?.role === 'admin';
 
   // Sidebar collapsed state with localStorage persistence
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -578,6 +581,15 @@ function LeftSidebar() {
           "flex items-center gap-2",
           isCollapsed && "flex-col"
         )}>
+          {isAdmin && (
+            <NavItem
+              to="/admin"
+              icon={<Shield className="h-4 w-4" />}
+              label="Admin"
+              active={currentPath.startsWith('/admin')}
+              collapsed={isCollapsed}
+            />
+          )}
           <NavItem
             to="/settings"
             icon={<Settings className="h-4 w-4" />}

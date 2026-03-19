@@ -20,6 +20,7 @@ import { Route as MusicIdentityIndexRouteImport } from './routes/music-identity/
 import { Route as DownloadsIndexRouteImport } from './routes/downloads/index'
 import { Route as DjIndexRouteImport } from './routes/dj/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as PlaylistsIdRouteImport } from './routes/playlists/$id'
 import { Route as LibrarySearchRouteImport } from './routes/library/search'
 import { Route as LibraryArtistsRouteImport } from './routes/library/artists'
@@ -128,6 +129,7 @@ import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiAiDjRecommendationsRouteImport } from './routes/api/ai-dj/recommendations'
+import { Route as ApiAdminStatsRouteImport } from './routes/api/admin/stats'
 import { Route as ApiPlaylistsSmartIndexRouteImport } from './routes/api/playlists/smart/index'
 import { Route as ApiPlaylistsSmartPreviewRouteImport } from './routes/api/playlists/smart/preview'
 import { Route as ApiPlaylistsLikedSongsSyncRouteImport } from './routes/api/playlists/liked-songs/sync'
@@ -216,6 +218,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardRouteRoute,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const PlaylistsIdRoute = PlaylistsIdRouteImport.update({
   id: '/playlists/$id',
@@ -782,6 +789,11 @@ const ApiAiDjRecommendationsRoute = ApiAiDjRecommendationsRouteImport.update({
   path: '/api/ai-dj/recommendations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminStatsRoute = ApiAdminStatsRouteImport.update({
+  id: '/api/admin/stats',
+  path: '/api/admin/stats',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPlaylistsSmartIndexRoute = ApiPlaylistsSmartIndexRouteImport.update({
   id: '/api/playlists/smart/',
   path: '/api/playlists/smart/',
@@ -999,6 +1011,7 @@ export interface FileRoutesByFullPath {
   '/library/artists': typeof LibraryArtistsRouteWithChildren
   '/library/search': typeof LibrarySearchRoute
   '/playlists/$id': typeof PlaylistsIdRoute
+  '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dj/': typeof DjIndexRoute
   '/downloads/': typeof DownloadsIndexRoute
@@ -1006,6 +1019,7 @@ export interface FileRoutesByFullPath {
   '/playlists/': typeof PlaylistsIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/tasks/': typeof TasksIndexRoute
+  '/api/admin/stats': typeof ApiAdminStatsRoute
   '/api/ai-dj/recommendations': typeof ApiAiDjRecommendationsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -1151,6 +1165,7 @@ export interface FileRoutesByTo {
   '/downloads/youtube': typeof DownloadsYoutubeRoute
   '/library/search': typeof LibrarySearchRoute
   '/playlists/$id': typeof PlaylistsIdRoute
+  '/admin': typeof AdminIndexRoute
   '/dashboard': typeof DashboardIndexRoute
   '/dj': typeof DjIndexRoute
   '/downloads': typeof DownloadsIndexRoute
@@ -1158,6 +1173,7 @@ export interface FileRoutesByTo {
   '/playlists': typeof PlaylistsIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/tasks': typeof TasksIndexRoute
+  '/api/admin/stats': typeof ApiAdminStatsRoute
   '/api/ai-dj/recommendations': typeof ApiAiDjRecommendationsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -1307,6 +1323,7 @@ export interface FileRoutesById {
   '/library/artists': typeof LibraryArtistsRouteWithChildren
   '/library/search': typeof LibrarySearchRoute
   '/playlists/$id': typeof PlaylistsIdRoute
+  '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dj/': typeof DjIndexRoute
   '/downloads/': typeof DownloadsIndexRoute
@@ -1314,6 +1331,7 @@ export interface FileRoutesById {
   '/playlists/': typeof PlaylistsIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/tasks/': typeof TasksIndexRoute
+  '/api/admin/stats': typeof ApiAdminStatsRoute
   '/api/ai-dj/recommendations': typeof ApiAiDjRecommendationsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -1463,6 +1481,7 @@ export interface FileRouteTypes {
     | '/library/artists'
     | '/library/search'
     | '/playlists/$id'
+    | '/admin/'
     | '/dashboard/'
     | '/dj/'
     | '/downloads/'
@@ -1470,6 +1489,7 @@ export interface FileRouteTypes {
     | '/playlists/'
     | '/settings/'
     | '/tasks/'
+    | '/api/admin/stats'
     | '/api/ai-dj/recommendations'
     | '/api/auth/$'
     | '/api/auth/login'
@@ -1615,6 +1635,7 @@ export interface FileRouteTypes {
     | '/downloads/youtube'
     | '/library/search'
     | '/playlists/$id'
+    | '/admin'
     | '/dashboard'
     | '/dj'
     | '/downloads'
@@ -1622,6 +1643,7 @@ export interface FileRouteTypes {
     | '/playlists'
     | '/settings'
     | '/tasks'
+    | '/api/admin/stats'
     | '/api/ai-dj/recommendations'
     | '/api/auth/$'
     | '/api/auth/login'
@@ -1770,6 +1792,7 @@ export interface FileRouteTypes {
     | '/library/artists'
     | '/library/search'
     | '/playlists/$id'
+    | '/admin/'
     | '/dashboard/'
     | '/dj/'
     | '/downloads/'
@@ -1777,6 +1800,7 @@ export interface FileRouteTypes {
     | '/playlists/'
     | '/settings/'
     | '/tasks/'
+    | '/api/admin/stats'
     | '/api/ai-dj/recommendations'
     | '/api/auth/$'
     | '/api/auth/login'
@@ -1915,12 +1939,14 @@ export interface RootRouteChildren {
   LibraryArtistsRoute: typeof LibraryArtistsRouteWithChildren
   LibrarySearchRoute: typeof LibrarySearchRoute
   PlaylistsIdRoute: typeof PlaylistsIdRoute
+  AdminIndexRoute: typeof AdminIndexRoute
   DjIndexRoute: typeof DjIndexRoute
   DownloadsIndexRoute: typeof DownloadsIndexRoute
   MusicIdentityIndexRoute: typeof MusicIdentityIndexRoute
   PlaylistsIndexRoute: typeof PlaylistsIndexRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
   TasksIndexRoute: typeof TasksIndexRoute
+  ApiAdminStatsRoute: typeof ApiAdminStatsRoute
   ApiAiDjRecommendationsRoute: typeof ApiAiDjRecommendationsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
@@ -2092,6 +2118,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/'
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRouteRoute
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/playlists/$id': {
       id: '/playlists/$id'
@@ -2849,6 +2882,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAiDjRecommendationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/stats': {
+      id: '/api/admin/stats'
+      path: '/api/admin/stats'
+      fullPath: '/api/admin/stats'
+      preLoaderRoute: typeof ApiAdminStatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/playlists/smart/': {
       id: '/api/playlists/smart/'
       path: '/api/playlists/smart'
@@ -3288,12 +3328,14 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryArtistsRoute: LibraryArtistsRouteWithChildren,
   LibrarySearchRoute: LibrarySearchRoute,
   PlaylistsIdRoute: PlaylistsIdRoute,
+  AdminIndexRoute: AdminIndexRoute,
   DjIndexRoute: DjIndexRoute,
   DownloadsIndexRoute: DownloadsIndexRoute,
   MusicIdentityIndexRoute: MusicIdentityIndexRoute,
   PlaylistsIndexRoute: PlaylistsIndexRoute,
   SettingsIndexRoute: SettingsIndexRoute,
   TasksIndexRoute: TasksIndexRoute,
+  ApiAdminStatsRoute: ApiAdminStatsRoute,
   ApiAiDjRecommendationsRoute: ApiAiDjRecommendationsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
