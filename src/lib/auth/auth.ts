@@ -6,6 +6,10 @@ import { admin } from "better-auth/plugins";
 
 import { env } from "~/env/server";
 import { db } from "~/lib/db";
+import {
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from "~/lib/email/auth-emails";
 
 const getAuthConfig = createServerOnlyFn(() =>
   betterAuth({
@@ -66,6 +70,25 @@ const getAuthConfig = createServerOnlyFn(() =>
     // https://www.better-auth.com/docs/authentication/email-password
     emailAndPassword: {
       enabled: true,
+      sendResetPassword: async ({ user, url }) => {
+        await sendPasswordResetEmail({
+          email: user.email,
+          name: user.name,
+          resetUrl: url,
+        });
+      },
+    },
+
+    // https://www.better-auth.com/docs/concepts/email-verification
+    emailVerification: {
+      sendVerificationEmail: async ({ user, url }) => {
+        await sendVerificationEmail({
+          email: user.email,
+          name: user.name,
+          verificationUrl: url,
+        });
+      },
+      sendOnSignUp: true,
     },
   }),
 );
