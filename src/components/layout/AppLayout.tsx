@@ -372,7 +372,7 @@ function LeftSidebar() {
             <NavItem
               to="/library/artists"
               icon={<Music className="h-4 w-4" />}
-              label="Browse"
+              label="Artists"
               active={currentPath.includes('/library/artists')}
               collapsed={isCollapsed}
             />
