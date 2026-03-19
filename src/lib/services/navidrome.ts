@@ -209,22 +209,33 @@ interface SubsonicApiResponse extends Record<string, SubsonicApiValue> {
 type SubsonicApiValue = string | number | boolean | null | undefined | SubsonicApiObject | SubsonicApiValue[];
 interface SubsonicApiObject { [key: string]: SubsonicApiValue }
 
+interface SubsonicArtistResult {
+  id: string;
+  name: string;
+  albumCount?: number;
+  coverArt?: string;
+}
+
 interface SubsonicSearchResponse {
   // Subsonic API wraps everything in 'subsonic-response'
   'subsonic-response'?: {
     searchResult3?: {
       song?: SubsonicSong[];
+      artist?: SubsonicArtistResult[];
     };
     searchResult?: {
       song?: SubsonicSong[];
+      artist?: SubsonicArtistResult[];
     };
   };
   // Direct response (without wrapper, for compatibility)
   searchResult3?: {
     song?: SubsonicSong[];
+    artist?: SubsonicArtistResult[];
   };
   searchResult?: {
     song?: SubsonicSong[];
+    artist?: SubsonicArtistResult[];
   };
 }
 
@@ -687,6 +698,34 @@ export async function getArtists(start: number = 0, limit: number = 1000): Promi
     return data || [];
   } catch (error) {
     console.error('Error fetching artists:', error);
+    return [];
+  }
+}
+
+/**
+ * Search artists by name using Subsonic search3 API (full-text server-side search).
+ * Falls back to native API name filter if search3 returns no results.
+ */
+export async function searchArtistsByName(query: string, limit: number = 20): Promise<Artist[]> {
+  try {
+    await getAuthToken();
+
+    // Use Subsonic search3 with artistCount to get proper full-text search
+    const endpoint = `/rest/search3.view?query=${encodeURIComponent(query)}&artistCount=${limit}&songCount=0&albumCount=0`;
+    const response = await apiFetch(endpoint) as SubsonicSearchResponse;
+    const subsonicData = response['subsonic-response'] || response;
+    const artists = subsonicData.searchResult3?.artist || subsonicData.searchResult?.artist;
+
+    if (artists && artists.length > 0) {
+      return artists.map((a) => ({ id: a.id, name: a.name }));
+    }
+
+    // Fallback: native API with name filter
+    const nativeEndpoint = `/api/artist?name=${encodeURIComponent(query)}&_start=0&_end=${limit - 1}`;
+    const nativeResults = await apiFetch(nativeEndpoint) as Artist[];
+    return nativeResults || [];
+  } catch (error) {
+    console.error('Error searching artists:', error);
     return [];
   }
 }

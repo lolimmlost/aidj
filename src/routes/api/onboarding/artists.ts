@@ -16,23 +16,19 @@ const GET = withAuthAndErrorHandling(
     const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 20 : Math.min(rawLimit, 50);
     const search = url.searchParams.get('search') || '';
 
-    // Use Navidrome's native name filter for search, or fetch top artists
-    const endpoint = search
-      ? `/api/artist?name=${encodeURIComponent(search)}&_start=0&_end=${limit - 1}&_sort=song_count&_order=DESC`
-      : `/api/artist?_start=0&_end=${limit - 1}&_sort=song_count&_order=DESC`;
-
-    // getArtists doesn't support name filter, so we'll import apiFetch pattern
-    // Actually, let's use getArtists for no-search and filter for search
-    let basicArtists = await getArtists(0, search ? 500 : limit);
+    let basicArtists: Array<{ id: string; name: string }>;
 
     if (search) {
-      const searchLower = search.toLowerCase();
-      basicArtists = basicArtists.filter((a) =>
-        a.name.toLowerCase().includes(searchLower)
-      ).slice(0, limit);
+      // Use Navidrome native API with name filter for server-side search
+      // This is much faster and more accurate than fetching all and filtering
+      const { searchArtistsByName } = await import('@/lib/services/navidrome');
+      basicArtists = await searchArtistsByName(search, limit);
+    } else {
+      // No search — return top artists by name (alphabetical browse)
+      basicArtists = await getArtists(0, limit);
     }
 
-    // Fetch details for the small result set (max 50)
+    // Fetch details for the result set (max 50)
     const detailed = await Promise.all(
       basicArtists.map(async (a) => {
         try {
