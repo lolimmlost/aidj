@@ -220,7 +220,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* CRITICAL: Always render PlayerBar to preserve audio elements across state changes.
          Unmounting destroys <audio> elements and kills playback. Hide visually instead. */}
       <div className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]",
+        "fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl",
         !hasActiveSong && "hidden"
       )}>
         <PlayerBar />
