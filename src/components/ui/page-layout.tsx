@@ -41,7 +41,7 @@ export function PageLayout({
       className
     )}>
       <div className={cn(
-        'mx-auto',
+        'mx-auto pt-[env(safe-area-inset-top)]',
         !fullWidth && 'max-w-7xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6',
         fullWidth && 'py-4 sm:py-6'
       )}>
