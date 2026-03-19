@@ -186,10 +186,14 @@ function getSpotifyConfig(): SpotifyConfig {
   const config = getConfig();
 
   // These would be stored in the config system
+  // Build default redirect URI from VITE_BASE_URL
+  const baseUrl = (typeof process !== 'undefined' && process.env?.VITE_BASE_URL) || 'http://localhost:3003';
+  const defaultRedirectUri = `${baseUrl.replace(/\/$/, '')}/api/playlists/spotify-callback`;
+
   const spotifyConfig = {
     clientId: (config as Record<string, string>).spotifyClientId || '',
     clientSecret: (config as Record<string, string>).spotifyClientSecret || '',
-    redirectUri: (config as Record<string, string>).spotifyRedirectUri || 'http://localhost:3000/api/auth/spotify/callback',
+    redirectUri: (config as Record<string, string>).spotifyRedirectUri || defaultRedirectUri,
   };
 
   return spotifyConfig;
