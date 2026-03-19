@@ -68,6 +68,7 @@ import { Route as ApiRecommendationsAnalyticsRouteImport } from './routes/api/re
 import { Route as ApiRadioShuffleRouteImport } from './routes/api/radio/shuffle'
 import { Route as ApiProfileUpdateRouteImport } from './routes/api/profile/update'
 import { Route as ApiPlaylistsSyncRouteImport } from './routes/api/playlists/sync'
+import { Route as ApiPlaylistsSpotifyStatusRouteImport } from './routes/api/playlists/spotify-status'
 import { Route as ApiPlaylistsJoinRouteImport } from './routes/api/playlists/join'
 import { Route as ApiPlaylistsImportRouteImport } from './routes/api/playlists/import'
 import { Route as ApiPlaylistsExportRouteImport } from './routes/api/playlists/export'
@@ -468,6 +469,12 @@ const ApiPlaylistsSyncRoute = ApiPlaylistsSyncRouteImport.update({
   path: '/api/playlists/sync',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPlaylistsSpotifyStatusRoute =
+  ApiPlaylistsSpotifyStatusRouteImport.update({
+    id: '/api/playlists/spotify-status',
+    path: '/api/playlists/spotify-status',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPlaylistsJoinRoute = ApiPlaylistsJoinRouteImport.update({
   id: '/api/playlists/join',
   path: '/api/playlists/join',
@@ -1080,6 +1087,7 @@ export interface FileRoutesByFullPath {
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
   '/api/playlists/join': typeof ApiPlaylistsJoinRoute
+  '/api/playlists/spotify-status': typeof ApiPlaylistsSpotifyStatusRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/profile/update': typeof ApiProfileUpdateRoute
   '/api/radio/shuffle': typeof ApiRadioShuffleRoute
@@ -1234,6 +1242,7 @@ export interface FileRoutesByTo {
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
   '/api/playlists/join': typeof ApiPlaylistsJoinRoute
+  '/api/playlists/spotify-status': typeof ApiPlaylistsSpotifyStatusRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/profile/update': typeof ApiProfileUpdateRoute
   '/api/radio/shuffle': typeof ApiRadioShuffleRoute
@@ -1392,6 +1401,7 @@ export interface FileRoutesById {
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
   '/api/playlists/join': typeof ApiPlaylistsJoinRoute
+  '/api/playlists/spotify-status': typeof ApiPlaylistsSpotifyStatusRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/profile/update': typeof ApiProfileUpdateRoute
   '/api/radio/shuffle': typeof ApiRadioShuffleRoute
@@ -1550,6 +1560,7 @@ export interface FileRouteTypes {
     | '/api/playlists/export'
     | '/api/playlists/import'
     | '/api/playlists/join'
+    | '/api/playlists/spotify-status'
     | '/api/playlists/sync'
     | '/api/profile/update'
     | '/api/radio/shuffle'
@@ -1704,6 +1715,7 @@ export interface FileRouteTypes {
     | '/api/playlists/export'
     | '/api/playlists/import'
     | '/api/playlists/join'
+    | '/api/playlists/spotify-status'
     | '/api/playlists/sync'
     | '/api/profile/update'
     | '/api/radio/shuffle'
@@ -1861,6 +1873,7 @@ export interface FileRouteTypes {
     | '/api/playlists/export'
     | '/api/playlists/import'
     | '/api/playlists/join'
+    | '/api/playlists/spotify-status'
     | '/api/playlists/sync'
     | '/api/profile/update'
     | '/api/radio/shuffle'
@@ -2007,6 +2020,7 @@ export interface RootRouteChildren {
   ApiPlaylistsExportRoute: typeof ApiPlaylistsExportRoute
   ApiPlaylistsImportRoute: typeof ApiPlaylistsImportRoute
   ApiPlaylistsJoinRoute: typeof ApiPlaylistsJoinRoute
+  ApiPlaylistsSpotifyStatusRoute: typeof ApiPlaylistsSpotifyStatusRoute
   ApiPlaylistsSyncRoute: typeof ApiPlaylistsSyncRoute
   ApiProfileUpdateRoute: typeof ApiProfileUpdateRoute
   ApiRadioShuffleRoute: typeof ApiRadioShuffleRoute
@@ -2452,6 +2466,13 @@ declare module '@tanstack/react-router' {
       path: '/api/playlists/sync'
       fullPath: '/api/playlists/sync'
       preLoaderRoute: typeof ApiPlaylistsSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/playlists/spotify-status': {
+      id: '/api/playlists/spotify-status'
+      path: '/api/playlists/spotify-status'
+      fullPath: '/api/playlists/spotify-status'
+      preLoaderRoute: typeof ApiPlaylistsSpotifyStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/playlists/join': {
@@ -3399,6 +3420,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPlaylistsExportRoute: ApiPlaylistsExportRoute,
   ApiPlaylistsImportRoute: ApiPlaylistsImportRoute,
   ApiPlaylistsJoinRoute: ApiPlaylistsJoinRoute,
+  ApiPlaylistsSpotifyStatusRoute: ApiPlaylistsSpotifyStatusRoute,
   ApiPlaylistsSyncRoute: ApiPlaylistsSyncRoute,
   ApiProfileUpdateRoute: ApiProfileUpdateRoute,
   ApiRadioShuffleRoute: ApiRadioShuffleRoute,

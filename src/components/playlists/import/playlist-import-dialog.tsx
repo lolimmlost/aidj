@@ -18,7 +18,6 @@ import { MatchingStep } from './steps/matching-step';
 import { ConfirmationStep } from './steps/confirmation-step';
 import { SongMatchReviewer } from './song-match-reviewer';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { getConfig } from '@/lib/config/config';
 
 type ImportStep = 'upload' | 'validation' | 'matching' | 'confirmation';
 type ExportFormat = 'm3u' | 'xspf' | 'json' | 'csv';
@@ -219,15 +218,18 @@ export function PlaylistImportDialog({
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
   const globalFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Check if Spotify is configured
-  const spotifyEnabled = (() => {
-    try {
-      const config = getConfig();
-      return !!config.spotifyClientId;
-    } catch {
-      return false;
-    }
-  })();
+  // Check if Spotify is configured via server endpoint
+  const { data: spotifyStatus } = useQuery({
+    queryKey: ['spotify-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/playlists/spotify-status');
+      if (!res.ok) return { configured: false };
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: open,
+  });
+  const spotifyEnabled = spotifyStatus?.configured ?? false;
 
   // Handle file selection from the global input
   const handleGlobalFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
