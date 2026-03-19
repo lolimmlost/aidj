@@ -58,11 +58,11 @@ let currentConfig: ServiceConfig = {
   lastfmApiKey: '',
   spotifyClientId: '',
   spotifyClientSecret: '',
-  spotifyRedirectUri: 'http://localhost:3003/api/playlists/spotify-callback',
+  spotifyRedirectUri: '',
   youtubeApiKey: '',
   youtubeClientId: '',
   youtubeClientSecret: '',
-  youtubeRedirectUri: 'http://localhost:3000/api/auth/youtube/callback',
+  youtubeRedirectUri: '',
 };
 
 if (typeof window !== 'undefined') {
@@ -113,7 +113,7 @@ if (typeof window !== 'undefined') {
     lastfmApiKey: process.env.LASTFM_API_KEY || fileConfig.lastfmApiKey || '',
     spotifyClientId: process.env.SPOTIFY_CLIENT_ID || fileConfig.spotifyClientId || '',
     spotifyClientSecret: process.env.SPOTIFY_CLIENT_SECRET || fileConfig.spotifyClientSecret || '',
-    spotifyRedirectUri: process.env.SPOTIFY_REDIRECT_URI || fileConfig.spotifyRedirectUri || 'http://localhost:3003/api/playlists/spotify-callback',
+    spotifyRedirectUri: process.env.SPOTIFY_REDIRECT_URI || fileConfig.spotifyRedirectUri || '',
   };
 }
 
@@ -154,7 +154,7 @@ async function loadServerConfigAsync(): Promise<void> {
         lastfmApiKey: process.env.LASTFM_API_KEY || fileConfig.lastfmApiKey || '',
         spotifyClientId: process.env.SPOTIFY_CLIENT_ID || fileConfig.spotifyClientId || '',
         spotifyClientSecret: process.env.SPOTIFY_CLIENT_SECRET || fileConfig.spotifyClientSecret || '',
-        spotifyRedirectUri: process.env.SPOTIFY_REDIRECT_URI || fileConfig.spotifyRedirectUri || 'http://localhost:3003/api/playlists/spotify-callback',
+        spotifyRedirectUri: process.env.SPOTIFY_REDIRECT_URI || fileConfig.spotifyRedirectUri || '',
       };
       serverConfigLoaded = true;
     }
