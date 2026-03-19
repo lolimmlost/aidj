@@ -104,6 +104,7 @@ interface AudioState {
   _rehydratedCurrentTime: number;
   // Transient: radio session play counter for profile refresh trigger (Story 9.3)
   radioSessionPlayCount: number;
+  isRadioSession: boolean;
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
@@ -154,6 +155,7 @@ interface AudioState {
   setRemoteDevice: (device: AudioState['remoteDevice']) => void;
   // Radio session actions (Story 9.3)
   incrementRadioPlayCount: () => void;
+  setIsRadioSession: (isRadio: boolean) => void;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -212,6 +214,7 @@ export const useAudioStore = create<AudioState>()(
     _lastAudioContextInterrupt: 0,
     _rehydratedCurrentTime: 0,
     radioSessionPlayCount: 0,
+    isRadioSession: false,
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -378,6 +381,11 @@ export const useAudioStore = create<AudioState>()(
 
       // Drip-feed model: increment songs played counter when AI DJ is enabled
       updates.songsPlayedSinceLastRec = state.aiDJEnabled ? state.songsPlayedSinceLastRec + 1 : state.songsPlayedSinceLastRec;
+
+      // Radio session: increment play counter for profile refresh trigger (Story 9.3)
+      if (state.isRadioSession) {
+        updates.radioSessionPlayCount = state.radioSessionPlayCount + 1;
+      }
 
       // Reset last-known position/duration so the next song starts fresh
       updates.lastKnownPosition = 0;
@@ -1685,6 +1693,8 @@ export const useAudioStore = create<AudioState>()(
     incrementRadioPlayCount: () => set((state) => ({
       radioSessionPlayCount: state.radioSessionPlayCount + 1,
     })),
+
+    setIsRadioSession: (isRadio: boolean) => set({ isRadioSession: isRadio }),
   }),
   {
     name: 'audio-player-storage',
@@ -1714,6 +1724,7 @@ export const useAudioStore = create<AudioState>()(
         state._userPauseAt = 0;
         state.songsPlayedSinceLastRec = 0;
         state.radioSessionPlayCount = 0;
+        state.isRadioSession = false;
         state.aiQueuedSongIds = new Set<string>();
         state.autoplayIsLoading = false;
         state.autoplayTransitionActive = false;

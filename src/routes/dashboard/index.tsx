@@ -6,6 +6,7 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { usePreferencesStore } from '@/lib/stores/preferences';
 import { useOnboardingStatus } from '@/lib/hooks/useOnboardingStatus';
 import { DATA_MATURITY } from '@/lib/constants/onboarding';
+import { useQueryClient } from '@tanstack/react-query';
 import { hasLegacyFeedback, migrateLegacyFeedback, isMigrationCompleted } from '@/lib/utils/feedback-migration';
 // Critical components - loaded immediately
 import { DashboardHero } from '@/components/dashboard/DashboardHero';
@@ -27,6 +28,7 @@ export const Route = createFileRoute("/dashboard/")({
 
 function DashboardIndex() {
   const { data: session } = authClient.useSession();
+  const queryClient = useQueryClient();
   const { preferences, loadPreferences } = usePreferencesStore();
   const { onboardingCompleted, onboardingSkipped, dataMaturity, isLoading: onboardingLoading } = useOnboardingStatus();
   const [radioLoading, setRadioLoading] = useState(false);
@@ -101,19 +103,19 @@ function DashboardIndex() {
   const radioPlayCount = useAudioStore((s) => s.radioSessionPlayCount);
   const lastRefreshTrigger = useRef(0);
   useEffect(() => {
-    if (radioPlayCount > 0 && radioPlayCount >= 10 && radioPlayCount !== lastRefreshTrigger.current) {
-      // Every 10 plays, trigger a profile refresh
-      if (radioPlayCount % 10 === 0) {
-        lastRefreshTrigger.current = radioPlayCount;
-        fetch('/api/listening-history/compound-scores', {
-          method: 'POST',
-          credentials: 'include',
-        }).catch(() => {
-          // Non-blocking, ignore errors
-        });
-      }
+    if (radioPlayCount >= 10 && Math.floor(radioPlayCount / 10) > Math.floor(lastRefreshTrigger.current / 10)) {
+      lastRefreshTrigger.current = radioPlayCount;
+      fetch('/api/listening-history/compound-scores', {
+        method: 'POST',
+        credentials: 'include',
+      }).then(() => {
+        // Refresh onboarding status to trigger tier transition (IG-3)
+        queryClient.invalidateQueries({ queryKey: ['onboarding-status'] });
+      }).catch(() => {
+        // Non-blocking, ignore errors
+      });
     }
-  }, [radioPlayCount]);
+  }, [radioPlayCount, queryClient]);
 
   // AI DJ state for hero display
   const playlist = useAudioStore((state) => state.playlist);
@@ -146,6 +148,7 @@ function DashboardIndex() {
       }
 
       const audioStore = useAudioStore.getState();
+      audioStore.setIsRadioSession(true);
       audioStore.setPlaylist(songs);
       audioStore.playSong(songs[0].id, songs);
       audioStore.setIsPlaying(true);
