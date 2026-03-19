@@ -147,6 +147,7 @@ function RootComponent() {
                        currentPath.startsWith('/downloads') ||
                        currentPath.startsWith('/settings') ||
                        currentPath.startsWith('/music-identity') ||
+                       currentPath.startsWith('/admin') ||
                        currentPath.startsWith('/tasks');
 
   // Routes that should NOT have the new layout (landing, auth pages)
