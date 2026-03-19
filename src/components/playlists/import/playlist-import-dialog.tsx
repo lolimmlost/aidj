@@ -218,6 +218,7 @@ export function PlaylistImportDialog({
   const [sourceUrl, setSourceUrl] = useState('');
   const [spotifyPlaylistId, setSpotifyPlaylistId] = useState<string | null>(null);
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
+  const spotifyPlaylistIdRef = useRef<string | null>(null);
   const globalFileInputRef = useRef<HTMLInputElement>(null);
 
   // Check if Spotify is configured via server endpoint
@@ -297,9 +298,10 @@ export function PlaylistImportDialog({
     mutationFn: async () => {
       let payload: Record<string, unknown>;
 
-      if (importMode === 'spotify_oauth' && spotifyPlaylistId) {
+      const currentSpotifyPlaylistId = spotifyPlaylistIdRef.current || spotifyPlaylistId;
+      if (importMode === 'spotify_oauth' && currentSpotifyPlaylistId) {
         payload = {
-          spotifyPlaylistId,
+          spotifyPlaylistId: currentSpotifyPlaylistId,
           playlistName: playlistName || undefined,
           targetPlatform: 'navidrome',
           autoMatch: true,
@@ -531,9 +533,9 @@ export function PlaylistImportDialog({
     setPlaylistName(playlist.name);
     // Skip validation step — go straight to matching
     setCurrentStep('matching');
-    importMutation.mutate(undefined, {
-      onSettled: () => {},
-    });
+    // Pass playlist ID directly since setState is async
+    spotifyPlaylistIdRef.current = playlist.id;
+    importMutation.mutate();
   };
 
   const handleNext = () => {
@@ -571,6 +573,7 @@ export function PlaylistImportDialog({
     setImportMode('file');
     setSourceUrl('');
     setSpotifyPlaylistId(null);
+    spotifyPlaylistIdRef.current = null;
     setIsLoadingUrl(false);
     importMutation.reset();
     onOpenChange(false);
