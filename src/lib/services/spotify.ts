@@ -1,5 +1,8 @@
 import { getConfig } from '@/lib/config/config';
 import { ServiceError } from '../utils';
+import { db } from '../db';
+import { platformCredentials } from '../db/schema/playlist-export.schema';
+import { eq, and } from 'drizzle-orm';
 import type { PlaylistPlatform } from '../db/schema/playlist-export.schema';
 import type { ExportablePlaylist, ExportableSong } from './playlist-export';
 import type { PlatformSearcher, PlatformSearchResult } from './song-matcher';
@@ -70,11 +73,111 @@ interface SpotifyPlaylistsResponse {
   next: string | null;
 }
 
-// Token storage (in-memory for simplicity, should use DB in production)
+/**
+ * Spotify playlist summary for picker UI
+ */
+export interface SpotifyPlaylistSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  owner: string;
+  trackCount: number;
+  imageUrl: string | null;
+}
+
+// Token storage — in-memory hot cache, backed by DB
 const tokenCache = new Map<string, SpotifyTokens>();
 
 // Client credentials token (app-level, no user auth needed)
 let clientCredentialsToken: { accessToken: string; expiresAt: number } | null = null;
+
+/**
+ * Load tokens from DB into memory cache
+ */
+async function loadTokensFromDb(userId: string): Promise<SpotifyTokens | null> {
+  const row = await db
+    .select()
+    .from(platformCredentials)
+    .where(
+      and(
+        eq(platformCredentials.userId, userId),
+        eq(platformCredentials.platform, 'spotify')
+      )
+    )
+    .limit(1)
+    .then(rows => rows[0]);
+
+  if (!row?.accessToken || !row?.refreshToken) return null;
+
+  const tokens: SpotifyTokens = {
+    accessToken: row.accessToken,
+    refreshToken: row.refreshToken,
+    expiresAt: row.tokenExpiry ? row.tokenExpiry.getTime() : 0,
+  };
+
+  tokenCache.set(userId, tokens);
+  return tokens;
+}
+
+/**
+ * Save tokens to DB (upsert)
+ */
+async function saveTokensToDb(
+  userId: string,
+  tokens: SpotifyTokens,
+  platformUserId?: string,
+  platformUsername?: string
+): Promise<void> {
+  const existing = await db
+    .select({ id: platformCredentials.id })
+    .from(platformCredentials)
+    .where(
+      and(
+        eq(platformCredentials.userId, userId),
+        eq(platformCredentials.platform, 'spotify')
+      )
+    )
+    .limit(1)
+    .then(rows => rows[0]);
+
+  const data = {
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    tokenExpiry: new Date(tokens.expiresAt),
+    updatedAt: new Date(),
+    ...(platformUserId && { platformUserId }),
+    ...(platformUsername && { platformUsername }),
+  };
+
+  if (existing) {
+    await db
+      .update(platformCredentials)
+      .set(data)
+      .where(eq(platformCredentials.id, existing.id));
+  } else {
+    await db.insert(platformCredentials).values({
+      userId,
+      platform: 'spotify',
+      scopes: ['playlist-read-private', 'playlist-read-collaborative', 'user-library-read'],
+      ...data,
+    });
+  }
+}
+
+/**
+ * Delete tokens from DB and memory cache
+ */
+export async function disconnectSpotify(userId: string): Promise<void> {
+  tokenCache.delete(userId);
+  await db
+    .delete(platformCredentials)
+    .where(
+      and(
+        eq(platformCredentials.userId, userId),
+        eq(platformCredentials.platform, 'spotify')
+      )
+    );
+}
 
 /**
  * Get Spotify configuration from app config
@@ -113,8 +216,6 @@ export function getAuthorizationUrl(userId: string, state?: string): string {
   const scopes = [
     'playlist-read-private',
     'playlist-read-collaborative',
-    'playlist-modify-public',
-    'playlist-modify-private',
     'user-library-read',
   ].join(' ');
 
@@ -168,6 +269,7 @@ export async function exchangeCodeForTokens(
   };
 
   tokenCache.set(userId, tokens);
+  await saveTokensToDb(userId, tokens);
   return tokens;
 }
 
@@ -176,7 +278,12 @@ export async function exchangeCodeForTokens(
  */
 export async function refreshAccessToken(userId: string): Promise<SpotifyTokens> {
   const config = getSpotifyConfig();
-  const tokens = tokenCache.get(userId);
+  let tokens = tokenCache.get(userId);
+
+  if (!tokens?.refreshToken) {
+    // Try loading from DB
+    tokens = (await loadTokensFromDb(userId)) ?? undefined;
+  }
 
   if (!tokens?.refreshToken) {
     throw new ServiceError('SPOTIFY_NOT_AUTHENTICATED', 'User not authenticated with Spotify');
@@ -207,6 +314,7 @@ export async function refreshAccessToken(userId: string): Promise<SpotifyTokens>
   };
 
   tokenCache.set(userId, newTokens);
+  await saveTokensToDb(userId, newTokens);
   return newTokens;
 }
 
@@ -215,6 +323,10 @@ export async function refreshAccessToken(userId: string): Promise<SpotifyTokens>
  */
 async function getAccessToken(userId: string): Promise<string> {
   let tokens = tokenCache.get(userId);
+
+  if (!tokens) {
+    tokens = (await loadTokensFromDb(userId)) ?? undefined;
+  }
 
   if (!tokens) {
     throw new ServiceError('SPOTIFY_NOT_AUTHENTICATED', 'User not authenticated with Spotify');
@@ -234,7 +346,8 @@ async function getAccessToken(userId: string): Promise<string> {
 async function spotifyFetch<T>(
   userId: string,
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retries = 3
 ): Promise<T> {
   const accessToken = await getAccessToken(userId);
 
@@ -247,14 +360,17 @@ async function spotifyFetch<T>(
     },
   });
 
-  if (response.status === 429) {
-    // Rate limited
-    const retryAfter = parseInt(response.headers.get('Retry-After') || '1', 10);
-    throw new ServiceError(
-      'SPOTIFY_RATE_LIMIT',
-      `Rate limited. Retry after ${retryAfter} seconds`,
-      { retryAfter }
-    );
+  if (response.status === 429 && retries > 0) {
+    const retryAfter = parseInt(response.headers.get('Retry-After') || '2', 10);
+    console.warn(`[Spotify] Rate limited, retrying in ${retryAfter}s (${retries} retries left)`);
+    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+    return spotifyFetch<T>(userId, endpoint, options, retries - 1);
+  }
+
+  if (response.status === 401 && retries > 0) {
+    // Token expired mid-request, refresh and retry
+    await refreshAccessToken(userId);
+    return spotifyFetch<T>(userId, endpoint, options, retries - 1);
   }
 
   if (!response.ok) {
@@ -293,6 +409,34 @@ export async function getUserPlaylists(userId: string): Promise<ExportablePlayli
   }
 
   return playlists;
+}
+
+/**
+ * Get user's playlist summaries for the picker UI (no track data)
+ */
+export async function getUserPlaylistSummaries(userId: string): Promise<SpotifyPlaylistSummary[]> {
+  const summaries: SpotifyPlaylistSummary[] = [];
+  let next: string | null = '/me/playlists?limit=50';
+
+  while (next) {
+    const endpoint = next.startsWith('/') ? next : next.replace('https://api.spotify.com/v1', '');
+    const response = await spotifyFetch<SpotifyPlaylistsResponse>(userId, endpoint);
+
+    for (const playlist of response.items) {
+      summaries.push({
+        id: playlist.id,
+        name: playlist.name,
+        description: playlist.description,
+        owner: playlist.owner.display_name,
+        trackCount: playlist.tracks.total,
+        imageUrl: playlist.images?.[0]?.url ?? null,
+      });
+    }
+
+    next = response.next;
+  }
+
+  return summaries;
 }
 
 /**
@@ -470,11 +614,51 @@ export function createSpotifySearcher(userId: string): PlatformSearcher {
 }
 
 /**
- * Check if user is authenticated
+ * Check if user is authenticated (checks memory cache then DB)
  */
-export function isAuthenticated(userId: string): boolean {
-  const tokens = tokenCache.get(userId);
-  return !!tokens?.accessToken;
+export async function isAuthenticated(userId: string): Promise<boolean> {
+  const cached = tokenCache.get(userId);
+  if (cached?.accessToken) return true;
+
+  const fromDb = await loadTokensFromDb(userId);
+  return !!fromDb?.accessToken;
+}
+
+/**
+ * Get the Spotify profile info stored for a user
+ */
+export async function getStoredSpotifyProfile(userId: string): Promise<{ platformUserId: string; platformUsername: string } | null> {
+  const row = await db
+    .select({
+      platformUserId: platformCredentials.platformUserId,
+      platformUsername: platformCredentials.platformUsername,
+    })
+    .from(platformCredentials)
+    .where(
+      and(
+        eq(platformCredentials.userId, userId),
+        eq(platformCredentials.platform, 'spotify')
+      )
+    )
+    .limit(1)
+    .then(rows => rows[0]);
+
+  if (!row?.platformUserId || !row?.platformUsername) return null;
+  return { platformUserId: row.platformUserId, platformUsername: row.platformUsername };
+}
+
+/**
+ * Fetch Spotify user profile and save to DB
+ */
+export async function fetchAndSaveSpotifyProfile(userId: string): Promise<{ id: string; display_name: string }> {
+  const profile = await spotifyFetch<{ id: string; display_name: string }>(userId, '/me');
+  await saveTokensToDb(
+    userId,
+    tokenCache.get(userId)!,
+    profile.id,
+    profile.display_name
+  );
+  return profile;
 }
 
 /**

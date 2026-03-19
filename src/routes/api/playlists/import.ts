@@ -24,9 +24,11 @@ import {
   parseSpotifyUrl,
   getPublicPlaylist,
   getPublicAlbum,
+  getPlaylist,
   isSpotifyConfigured,
+  isAuthenticated as isSpotifyAuthenticated,
 } from '../../../lib/services/spotify';
-import type { SongMatchResult, PlaylistPlatform } from '../../../lib/db/schema/playlist-export.schema';
+import type { SongMatchResult, PlaylistPlatform, PlaylistExportFormat } from '../../../lib/db/schema/playlist-export.schema';
 
 // Validation schemas
 const ImportValidateSchema = z.object({
@@ -37,16 +39,17 @@ const ImportValidateSchema = z.object({
 const ImportRequestSchema = z.object({
   content: z.string().min(1).optional(),
   sourceUrl: z.string().url().optional(),
-  format: z.enum(['m3u', 'xspf', 'json', 'csv', 'spotify_url']).optional(),
+  spotifyPlaylistId: z.string().optional(),
+  format: z.enum(['m3u', 'xspf', 'json', 'csv', 'spotify_url', 'spotify_oauth']).optional(),
   playlistName: z.string().min(1).max(100).optional(),
   targetPlatform: z.enum(['navidrome', 'spotify', 'youtube_music']).default('navidrome'),
   autoMatch: z.boolean().default(true),
   createPlaylist: z.boolean().default(true),
 }).superRefine((data, ctx) => {
-  if (!data.content && !data.sourceUrl) {
+  if (!data.content && !data.sourceUrl && !data.spotifyPlaylistId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'Either content or sourceUrl must be provided',
+      message: 'Either content, sourceUrl, or spotifyPlaylistId must be provided',
     });
   }
 });
@@ -306,11 +309,32 @@ const POST = withAuthAndErrorHandling(
     let playlistName: string;
     let playlistDescription: string | undefined;
     let songs: ExportableSong[];
-    let format: string;
+    let format: PlaylistExportFormat;
     let parseWarnings: string[] = [];
 
-    // Branch: Spotify URL import vs content-based import
-    if (validatedData.sourceUrl) {
+    // Branch: Spotify OAuth import vs URL import vs content-based import
+    if (validatedData.spotifyPlaylistId) {
+      // Spotify OAuth import — uses user's connected account
+      const connected = await isSpotifyAuthenticated(session.user.id);
+      if (!connected) {
+        return errorResponse('SPOTIFY_NOT_CONNECTED', 'Spotify account not connected. Please connect first.', { status: 401 });
+      }
+
+      console.log(`[Import] Fetching Spotify playlist ${validatedData.spotifyPlaylistId} via user OAuth...`);
+
+      const spotifyPlaylist = await getPlaylist(session.user.id, validatedData.spotifyPlaylistId);
+
+      if (spotifyPlaylist.songs.length === 0) {
+        return errorResponse('EMPTY_PLAYLIST', 'The Spotify playlist has no tracks.', { status: 400 });
+      }
+
+      playlistName = validatedData.playlistName || spotifyPlaylist.name || 'Spotify Import';
+      playlistDescription = spotifyPlaylist.description;
+      songs = spotifyPlaylist.songs;
+      format = 'spotify_oauth';
+
+      console.log(`[Import] Fetched "${playlistName}" with ${songs.length} tracks via OAuth`);
+    } else if (validatedData.sourceUrl) {
       // Spotify URL import
       if (!isSpotifyConfigured()) {
         return errorResponse('SPOTIFY_NOT_CONFIGURED', 'Spotify integration is not configured. Contact your admin.', { status: 503 });

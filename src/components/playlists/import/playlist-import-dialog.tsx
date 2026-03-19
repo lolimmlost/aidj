@@ -18,6 +18,7 @@ import { MatchingStep } from './steps/matching-step';
 import { ConfirmationStep } from './steps/confirmation-step';
 import { SongMatchReviewer } from './song-match-reviewer';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import type { SpotifyPlaylistSummary } from '@/lib/services/spotify';
 
 type ImportStep = 'upload' | 'validation' | 'matching' | 'confirmation';
 type ExportFormat = 'm3u' | 'xspf' | 'json' | 'csv';
@@ -213,18 +214,20 @@ export function PlaylistImportDialog({
   const [isValidating, setIsValidating] = useState(false);
   const [showReviewer, setShowReviewer] = useState(false);
   const [reviewStats, setReviewStats] = useState<{ reviewed: number; skipped: number } | null>(null);
-  const [importMode, setImportMode] = useState<'file' | 'url'>('file');
+  const [importMode, setImportMode] = useState<'file' | 'url' | 'spotify_oauth'>('file');
   const [sourceUrl, setSourceUrl] = useState('');
+  const [spotifyPlaylistId, setSpotifyPlaylistId] = useState<string | null>(null);
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
   const globalFileInputRef = useRef<HTMLInputElement>(null);
 
   // Check if Spotify is configured via server endpoint
-  const { data: spotifyStatus } = useQuery({
+  const { data: spotifyStatus, refetch: refetchSpotifyStatus } = useQuery({
     queryKey: ['spotify-status'],
     queryFn: async () => {
-      const res = await fetch('/api/playlists/spotify-status');
-      if (!res.ok) return { configured: false };
-      return res.json();
+      const res = await fetch('/api/playlists/spotify-status', { credentials: 'include' });
+      if (!res.ok) return { configured: false, connected: false };
+      const json = await res.json();
+      return json.data ?? json;
     },
     staleTime: 5 * 60 * 1000,
     enabled: open,
@@ -292,22 +295,34 @@ export function PlaylistImportDialog({
   // Import mutation - now returns immediately with 202, processing happens in background
   const importMutation = useMutation({
     mutationFn: async () => {
-      const payload = importMode === 'url'
-        ? {
-            sourceUrl,
-            playlistName: playlistName || undefined,
-            targetPlatform: 'navidrome',
-            autoMatch: true,
-            createPlaylist: true,
-          }
-        : {
-            content: fileContent,
-            format,
-            playlistName,
-            targetPlatform: 'navidrome',
-            autoMatch: true,
-            createPlaylist: true,
-          };
+      let payload: Record<string, unknown>;
+
+      if (importMode === 'spotify_oauth' && spotifyPlaylistId) {
+        payload = {
+          spotifyPlaylistId,
+          playlistName: playlistName || undefined,
+          targetPlatform: 'navidrome',
+          autoMatch: true,
+          createPlaylist: true,
+        };
+      } else if (importMode === 'url') {
+        payload = {
+          sourceUrl,
+          playlistName: playlistName || undefined,
+          targetPlatform: 'navidrome',
+          autoMatch: true,
+          createPlaylist: true,
+        };
+      } else {
+        payload = {
+          content: fileContent,
+          format,
+          playlistName,
+          targetPlatform: 'navidrome',
+          autoMatch: true,
+          createPlaylist: true,
+        };
+      }
 
       const response = await fetch('/api/playlists/import', {
         method: 'POST',
@@ -463,6 +478,64 @@ export function PlaylistImportDialog({
     });
   };
 
+  // Spotify OAuth: open popup for authorization
+  const handleSpotifyConnect = () => {
+    // Must be in direct click handler for popup blockers
+    fetch('/api/playlists/spotify-auth', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        const url = data.data?.url;
+        if (!url) {
+          toast.error('Failed to get Spotify auth URL');
+          return;
+        }
+        const popup = window.open(url, 'spotify-auth', 'width=500,height=700');
+
+        const onMessage = (event: MessageEvent) => {
+          if (event.data?.type === 'spotify-oauth-complete') {
+            window.removeEventListener('message', onMessage);
+            if (event.data.success) {
+              refetchSpotifyStatus();
+              toast.success('Spotify connected!');
+            } else {
+              toast.error('Spotify connection failed', {
+                description: event.data.error || 'Authorization was denied',
+              });
+            }
+          }
+        };
+        window.addEventListener('message', onMessage);
+
+        // Cleanup if popup is closed without completing
+        const checkClosed = setInterval(() => {
+          if (popup?.closed) {
+            clearInterval(checkClosed);
+            window.removeEventListener('message', onMessage);
+          }
+        }, 1000);
+      })
+      .catch(() => toast.error('Failed to connect Spotify'));
+  };
+
+  // Spotify OAuth: disconnect
+  const handleSpotifyDisconnect = async () => {
+    await fetch('/api/playlists/spotify-auth', { method: 'DELETE', credentials: 'include' });
+    refetchSpotifyStatus();
+    toast.info('Spotify disconnected');
+  };
+
+  // Spotify OAuth: playlist selected from picker
+  const handleSpotifyPlaylistSelect = (playlist: SpotifyPlaylistSummary) => {
+    setImportMode('spotify_oauth');
+    setSpotifyPlaylistId(playlist.id);
+    setPlaylistName(playlist.name);
+    // Skip validation step — go straight to matching
+    setCurrentStep('matching');
+    importMutation.mutate(undefined, {
+      onSettled: () => {},
+    });
+  };
+
   const handleNext = () => {
     if (currentStep === 'upload' && fileContent) {
       setCurrentStep('validation');
@@ -497,6 +570,7 @@ export function PlaylistImportDialog({
     setReviewStats(null);
     setImportMode('file');
     setSourceUrl('');
+    setSpotifyPlaylistId(null);
     setIsLoadingUrl(false);
     importMutation.reset();
     onOpenChange(false);
@@ -585,6 +659,10 @@ export function PlaylistImportDialog({
                 onUrlSubmit={handleUrlSubmit}
                 onTriggerFileSelect={triggerFileSelect}
                 spotifyEnabled={spotifyEnabled}
+                spotifyStatus={spotifyStatus}
+                onSpotifyConnect={handleSpotifyConnect}
+                onSpotifyDisconnect={handleSpotifyDisconnect}
+                onSpotifyPlaylistSelect={handleSpotifyPlaylistSelect}
                 isLoadingUrl={isLoadingUrl}
               />
             )}
@@ -631,7 +709,7 @@ export function PlaylistImportDialog({
           <Button
             variant="outline"
             size="sm"
-            onClick={currentStep === 'matching' && importMode === 'url' ? () => setCurrentStep('upload') : handleBack}
+            onClick={currentStep === 'matching' && (importMode === 'url' || importMode === 'spotify_oauth') ? () => setCurrentStep('upload') : handleBack}
             disabled={currentStep === 'upload' || isValidating || importMutation.isPending}
             className="h-8 md:h-9 text-xs md:text-sm"
           >
