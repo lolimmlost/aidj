@@ -4,6 +4,7 @@ import {
   withErrorHandling,
   jsonResponse,
 } from '../../lib/utils/api-response';
+import { auth } from '~/lib/auth/auth';
 
 const GET = withErrorHandling(
   async () => {
@@ -20,6 +21,15 @@ const GET = withErrorHandling(
 
 const POST = withErrorHandling(
   async ({ request }: { request: Request }) => {
+    // Admin-only: check session and role
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+    if (session.user.role !== 'admin') {
+      return new Response('Forbidden: admin access required', { status: 403 });
+    }
+
     const body = await request.json();
 
     // In-band test — supports `test: true` (all) or `test: "serviceName"` (single)
