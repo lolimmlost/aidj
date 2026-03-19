@@ -191,10 +191,12 @@ function getSpotifyConfig(): SpotifyConfig {
   const defaultRedirectUri = `${baseUrl.replace(/\/$/, '')}/api/playlists/spotify-callback`;
 
   const spotifyConfig = {
-    clientId: (config as Record<string, string>).spotifyClientId || '',
-    clientSecret: (config as Record<string, string>).spotifyClientSecret || '',
-    redirectUri: (config as Record<string, string>).spotifyRedirectUri || defaultRedirectUri,
+    clientId: config.spotifyClientId || '',
+    clientSecret: config.spotifyClientSecret || '',
+    redirectUri: config.spotifyRedirectUri || defaultRedirectUri,
   };
+
+  console.log('[Spotify] Config: redirectUri =', spotifyConfig.redirectUri, '| clientId present:', !!spotifyConfig.clientId);
 
   return spotifyConfig;
 }
@@ -306,8 +308,10 @@ export async function refreshAccessToken(userId: string): Promise<SpotifyTokens>
   });
 
   if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    console.error(`[Spotify] Token refresh failed (${response.status}):`, errorBody);
     tokenCache.delete(userId);
-    throw new ServiceError('SPOTIFY_AUTH_ERROR', 'Failed to refresh token');
+    throw new ServiceError('SPOTIFY_AUTH_ERROR', `Failed to refresh token: ${errorBody.error_description || errorBody.error || response.status}`);
   }
 
   const data = await response.json();
@@ -379,9 +383,10 @@ async function spotifyFetch<T>(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+    console.error(`[Spotify] API error ${response.status} on ${endpoint}:`, JSON.stringify(error));
     throw new ServiceError(
       'SPOTIFY_API_ERROR',
-      `Spotify API error: ${error.error?.message || response.statusText}`
+      `Spotify API error (${response.status}): ${error.error?.message || response.statusText}`
     );
   }
 
