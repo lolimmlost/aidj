@@ -73,6 +73,9 @@ interface SpotifyPlaylistsResponse {
 // Token storage (in-memory for simplicity, should use DB in production)
 const tokenCache = new Map<string, SpotifyTokens>();
 
+// Client credentials token (app-level, no user auth needed)
+let clientCredentialsToken: { accessToken: string; expiresAt: number } | null = null;
+
 /**
  * Get Spotify configuration from app config
  */
@@ -493,4 +496,209 @@ export function setTokens(userId: string, tokens: SpotifyTokens): void {
  */
 export function getTokens(userId: string): SpotifyTokens | undefined {
   return tokenCache.get(userId);
+}
+
+// ============================================================================
+// Client Credentials Flow (public playlists, no user login)
+// ============================================================================
+
+/**
+ * Get a client credentials access token (app-level auth)
+ * Used for accessing public Spotify data without user login
+ */
+async function getClientCredentialsToken(): Promise<string> {
+  // Return cached token if still valid (with 60s buffer)
+  if (clientCredentialsToken && clientCredentialsToken.expiresAt > Date.now() + 60_000) {
+    return clientCredentialsToken.accessToken;
+  }
+
+  const config = getSpotifyConfig();
+  if (!config.clientId || !config.clientSecret) {
+    throw new ServiceError('SPOTIFY_NOT_CONFIGURED', 'Spotify client ID and secret are required');
+  }
+
+  const response = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64')}`,
+    },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'unknown' }));
+    throw new ServiceError(
+      'SPOTIFY_AUTH_ERROR',
+      `Failed to get client credentials token: ${error.error_description || error.error}`
+    );
+  }
+
+  const data = await response.json();
+  clientCredentialsToken = {
+    accessToken: data.access_token,
+    expiresAt: Date.now() + data.expires_in * 1000,
+  };
+
+  return clientCredentialsToken.accessToken;
+}
+
+/**
+ * Make a public Spotify API request using client credentials
+ * Includes retry with backoff for rate limiting
+ */
+async function spotifyFetchPublic<T>(endpoint: string, retries = 3): Promise<T> {
+  const accessToken = await getClientCredentialsToken();
+
+  const response = await fetch(`https://api.spotify.com/v1${endpoint}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (response.status === 429 && retries > 0) {
+    const retryAfter = parseInt(response.headers.get('Retry-After') || '2', 10);
+    console.warn(`[Spotify] Rate limited, retrying in ${retryAfter}s (${retries} retries left)`);
+    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+    return spotifyFetchPublic<T>(endpoint, retries - 1);
+  }
+
+  if (response.status === 401 && retries > 0) {
+    // Token expired mid-request, clear and retry
+    clientCredentialsToken = null;
+    return spotifyFetchPublic<T>(endpoint, retries - 1);
+  }
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new ServiceError('SPOTIFY_NOT_FOUND', 'Playlist not found. It may be private or deleted.');
+    }
+    if (response.status === 403) {
+      throw new ServiceError('SPOTIFY_FORBIDDEN', 'Cannot access this playlist. It may be private.');
+    }
+    const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+    throw new ServiceError(
+      'SPOTIFY_API_ERROR',
+      `Spotify API error: ${error.error?.message || response.statusText}`
+    );
+  }
+
+  return response.json();
+}
+
+/**
+ * Parse a Spotify URL and extract the resource type and ID
+ * Supports:
+ *   https://open.spotify.com/playlist/XXXXX
+ *   https://open.spotify.com/playlist/XXXXX?si=...
+ *   https://open.spotify.com/album/XXXXX
+ *   spotify:playlist:XXXXX
+ *   spotify:album:XXXXX
+ */
+export function parseSpotifyUrl(url: string): { type: 'playlist' | 'album'; id: string } | null {
+  const trimmed = url.trim();
+
+  // Spotify URI format: spotify:playlist:ID or spotify:album:ID
+  const uriMatch = trimmed.match(/^spotify:(playlist|album):([a-zA-Z0-9]{22})$/);
+  if (uriMatch) {
+    return { type: uriMatch[1] as 'playlist' | 'album', id: uriMatch[2] };
+  }
+
+  // Web URL format: https://open.spotify.com/playlist/ID or /album/ID
+  const urlMatch = trimmed.match(/open\.spotify\.com\/(playlist|album)\/([a-zA-Z0-9]{22})/);
+  if (urlMatch) {
+    return { type: urlMatch[1] as 'playlist' | 'album', id: urlMatch[2] };
+  }
+
+  return null;
+}
+
+/**
+ * Fetch a public Spotify playlist with all tracks using client credentials
+ * No user login required — works for any public playlist
+ */
+export async function getPublicPlaylist(playlistId: string): Promise<ExportablePlaylist> {
+  // Validate ID format
+  if (!/^[a-zA-Z0-9]{22}$/.test(playlistId)) {
+    throw new ServiceError('INVALID_SPOTIFY_ID', 'Invalid Spotify playlist ID format');
+  }
+
+  const playlist = await spotifyFetchPublic<SpotifyPlaylist>(`/playlists/${playlistId}`);
+
+  const songs: ExportableSong[] = [];
+  let next: string | null = `/playlists/${playlistId}/tracks?limit=100`;
+
+  while (next) {
+    const endpoint = next.startsWith('/') ? next : next.replace('https://api.spotify.com/v1', '');
+    const response = await spotifyFetchPublic<{
+      items: Array<{ track: SpotifyTrack | null }>;
+      next: string | null;
+    }>(endpoint);
+
+    for (const item of response.items) {
+      // Skip null tracks (removed/region-restricted songs)
+      if (item.track) {
+        songs.push(convertSpotifyTrack(item.track));
+      }
+    }
+
+    next = response.next;
+  }
+
+  return {
+    name: playlist.name,
+    description: playlist.description || undefined,
+    creator: playlist.owner.display_name,
+    platform: 'spotify',
+    songs,
+  };
+}
+
+/**
+ * Fetch a public Spotify album with all tracks using client credentials
+ */
+export async function getPublicAlbum(albumId: string): Promise<ExportablePlaylist> {
+  if (!/^[a-zA-Z0-9]{22}$/.test(albumId)) {
+    throw new ServiceError('INVALID_SPOTIFY_ID', 'Invalid Spotify album ID format');
+  }
+
+  const album = await spotifyFetchPublic<{
+    id: string;
+    name: string;
+    artists: Array<{ name: string }>;
+    tracks: {
+      items: Array<{
+        id: string;
+        name: string;
+        artists: Array<{ id: string; name: string }>;
+        duration_ms: number;
+        external_ids?: { isrc?: string };
+        uri: string;
+        external_urls: { spotify: string };
+      }>;
+      next: string | null;
+    };
+  }>(`/albums/${albumId}`);
+
+  const albumArtist = album.artists.map(a => a.name).join(', ');
+  const songs: ExportableSong[] = album.tracks.items.map(track => ({
+    id: track.id,
+    title: track.name,
+    artist: track.artists.map(a => a.name).join(', '),
+    album: album.name,
+    duration: Math.floor(track.duration_ms / 1000),
+    isrc: track.external_ids?.isrc,
+    platform: 'spotify' as const,
+    platformId: track.id,
+    url: track.external_urls.spotify,
+  }));
+
+  return {
+    name: `${albumArtist} - ${album.name}`,
+    description: `Album by ${albumArtist}`,
+    creator: albumArtist,
+    platform: 'spotify',
+    songs,
+  };
 }

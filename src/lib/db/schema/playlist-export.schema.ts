@@ -5,7 +5,7 @@ import { userPlaylists } from "./playlists.schema";
 /**
  * Playlist Export Format Types
  */
-export type PlaylistExportFormat = 'm3u' | 'xspf' | 'json' | 'csv';
+export type PlaylistExportFormat = 'm3u' | 'xspf' | 'json' | 'csv' | 'spotify_url';
 
 /**
  * Platform Types for Import/Export

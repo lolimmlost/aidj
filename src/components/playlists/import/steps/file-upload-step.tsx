@@ -1,21 +1,38 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { Link2, Loader2 } from 'lucide-react';
 
 type ExportFormat = 'm3u' | 'xspf' | 'json' | 'csv';
 
 interface FileUploadStepProps {
   onFileUpload: (content: string, fileName: string, format?: ExportFormat) => void;
+  onUrlSubmit?: (url: string) => void;
   onTriggerFileSelect?: () => void;
+  spotifyEnabled?: boolean;
+  isLoadingUrl?: boolean;
 }
 
-export function FileUploadStep({ onFileUpload, onTriggerFileSelect: _onTriggerFileSelect }: FileUploadStepProps) {
+// Regex for Spotify playlist/album URLs
+const SPOTIFY_URL_REGEX = /^(https?:\/\/open\.spotify\.com\/(playlist|album)\/[a-zA-Z0-9]{22}|spotify:(playlist|album):[a-zA-Z0-9]{22})/;
+
+export function FileUploadStep({
+  onFileUpload,
+  onUrlSubmit,
+  onTriggerFileSelect: _onTriggerFileSelect,
+  spotifyEnabled = false,
+  isLoadingUrl = false,
+}: FileUploadStepProps) {
   const [pastedContent, setPastedContent] = useState('');
+  const [spotifyUrl, setSpotifyUrl] = useState('');
   const [_dragActive, setDragActive] = useState(false);
   const [_uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [_isLoading, setIsLoading] = useState(false);
+
+  const isValidSpotifyUrl = SPOTIFY_URL_REGEX.test(spotifyUrl.trim());
 
   const detectFormat = (content: string, filename?: string): ExportFormat | undefined => {
     const trimmed = content.trim();
@@ -107,103 +124,77 @@ export function FileUploadStep({ onFileUpload, onTriggerFileSelect: _onTriggerFi
     }
   };
 
+  const handleSpotifySubmit = () => {
+    if (isValidSpotifyUrl && onUrlSubmit) {
+      onUrlSubmit(spotifyUrl.trim());
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {/* File Upload Area - Temporarily disabled due to environment compatibility issues */}
-      {/* TODO: Re-enable when file input issues are resolved
-      <div>
-        <Label className="text-sm font-medium mb-2 block">Upload File</Label>
-        <div
-          className={`relative border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
-            dragActive
-              ? 'border-primary bg-primary/5'
-              : uploadedFileName
-              ? 'border-green-500/50 bg-green-500/5'
-              : 'border-muted-foreground/25 hover:border-muted-foreground/50'
-          }`}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-        >
+      {/* Spotify URL Import */}
+      {spotifyEnabled && onUrlSubmit && (
+        <div>
+          <Label className="text-sm md:text-base font-medium mb-2 block">
+            Import from Spotify
+          </Label>
           <div className="space-y-2">
-            <div className={`mx-auto w-10 h-10 rounded-full flex items-center justify-center ${
-              uploadedFileName ? 'bg-green-500/20' : 'bg-muted'
-            }`}>
-              {isLoading ? (
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              ) : uploadedFileName ? (
-                <CheckCircle2 className="h-5 w-5 text-green-500" />
-              ) : (
-                <Upload className="h-5 w-5 text-muted-foreground" />
-              )}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="https://open.spotify.com/playlist/..."
+                  value={spotifyUrl}
+                  onChange={(e) => setSpotifyUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && isValidSpotifyUrl) {
+                      handleSpotifySubmit();
+                    }
+                  }}
+                  className="pl-9 font-mono text-sm"
+                  disabled={isLoadingUrl}
+                />
+              </div>
+              <Button
+                onClick={handleSpotifySubmit}
+                disabled={!isValidSpotifyUrl || isLoadingUrl}
+                size="sm"
+                className="shrink-0"
+              >
+                {isLoadingUrl ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    Fetching...
+                  </>
+                ) : (
+                  'Import'
+                )}
+              </Button>
             </div>
-            <div>
-              {uploadedFileName ? (
-                <>
-                  <p className="text-sm font-medium text-green-600">
-                    File loaded: {uploadedFileName}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Click Next to continue or select a different file
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm font-medium">
-                    Drag and drop your playlist file here
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    or click to browse
-                  </p>
-                </>
-              )}
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                if (onTriggerFileSelect) {
-                  onTriggerFileSelect();
-                } else {
-                  fileInputRef.current?.click();
-                }
-              }}
-              disabled={isLoading}
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              {uploadedFileName ? 'Select Different File' : 'Select File'}
-            </Button>
-            {!onTriggerFileSelect && (
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".m3u,.m3u8,.xspf,.json"
-                onChange={handleChange}
-                className="hidden"
-              />
-            )}
             <p className="text-xs text-muted-foreground">
-              Supports M3U, XSPF, and JSON formats
+              Paste a Spotify playlist or album link. Works with public playlists.
             </p>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t" />
+      {/* Divider */}
+      {spotifyEnabled && onUrlSubmit && (
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">Or paste content</span>
+          </div>
         </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">Or</span>
-        </div>
-      </div>
-      */}
+      )}
 
       {/* Paste Content */}
       <div>
-        <Label className="text-sm md:text-base font-medium mb-2 block">Paste Content</Label>
+        {(!spotifyEnabled || !onUrlSubmit) && (
+          <Label className="text-sm md:text-base font-medium mb-2 block">Paste Content</Label>
+        )}
         <div className="space-y-3">
           <Textarea
             placeholder="Paste your playlist content here (M3U, XSPF, JSON, or CSV)"

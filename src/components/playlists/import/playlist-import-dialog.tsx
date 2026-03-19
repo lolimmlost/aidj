@@ -18,6 +18,7 @@ import { MatchingStep } from './steps/matching-step';
 import { ConfirmationStep } from './steps/confirmation-step';
 import { SongMatchReviewer } from './song-match-reviewer';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { getConfig } from '@/lib/config/config';
 
 type ImportStep = 'upload' | 'validation' | 'matching' | 'confirmation';
 type ExportFormat = 'm3u' | 'xspf' | 'json' | 'csv';
@@ -57,6 +58,7 @@ interface ImportResult {
   };
   unmatchedSongs: Array<{ title: string; artist: string; album?: string }>;
   parseWarnings: string[];
+  matchResults?: SongMatchResult[];
 }
 
 // Detect if content looks like CSV (Spotify Exportify format)
@@ -212,7 +214,20 @@ export function PlaylistImportDialog({
   const [isValidating, setIsValidating] = useState(false);
   const [showReviewer, setShowReviewer] = useState(false);
   const [reviewStats, setReviewStats] = useState<{ reviewed: number; skipped: number } | null>(null);
+  const [importMode, setImportMode] = useState<'file' | 'url'>('file');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [isLoadingUrl, setIsLoadingUrl] = useState(false);
   const globalFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Check if Spotify is configured
+  const spotifyEnabled = (() => {
+    try {
+      const config = getConfig();
+      return !!config.spotifyClientId;
+    } catch {
+      return false;
+    }
+  })();
 
   // Handle file selection from the global input
   const handleGlobalFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -275,17 +290,27 @@ export function PlaylistImportDialog({
   // Import mutation - now returns immediately with 202, processing happens in background
   const importMutation = useMutation({
     mutationFn: async () => {
+      const payload = importMode === 'url'
+        ? {
+            sourceUrl,
+            playlistName: playlistName || undefined,
+            targetPlatform: 'navidrome',
+            autoMatch: true,
+            createPlaylist: true,
+          }
+        : {
+            content: fileContent,
+            format,
+            playlistName,
+            targetPlatform: 'navidrome',
+            autoMatch: true,
+            createPlaylist: true,
+          };
+
       const response = await fetch('/api/playlists/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: fileContent,
-          format,
-          playlistName,
-          targetPlatform: 'navidrome',
-          autoMatch: true,
-          createPlaylist: true,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -308,6 +333,10 @@ export function PlaylistImportDialog({
     },
     onSuccess: (data) => {
       setImportJobId(data.data.importJobId);
+      // Update playlist name from server response (especially for URL imports)
+      if (data.data.playlistName) {
+        setPlaylistName(data.data.playlistName);
+      }
 
       // Check if processing is happening in background (202 response)
       if (data.data.status === 'processing') {
@@ -376,7 +405,6 @@ export function PlaylistImportDialog({
             matched,
             noMatch,
             pendingReview,
-            skipped: 0,
           },
           byConfidence: { exact: 0, high: 0, low: 0, none: 0 },
           unmatchedCount: noMatch,
@@ -390,6 +418,7 @@ export function PlaylistImportDialog({
             album: r.originalSong.album,
           })),
         matchResults,
+        parseWarnings: [],
       });
 
       if (pendingReview > 0) {
@@ -411,6 +440,7 @@ export function PlaylistImportDialog({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleFileUpload = (content: string, name: string, detectedFormat?: ExportFormat) => {
+    setImportMode('file');
     setFileContent(content);
     setFileName(name);
     if (detectedFormat) {
@@ -418,6 +448,17 @@ export function PlaylistImportDialog({
     }
     setCurrentStep('validation');
     runValidation(content, detectedFormat);
+  };
+
+  const handleUrlSubmit = (url: string) => {
+    setImportMode('url');
+    setSourceUrl(url);
+    setIsLoadingUrl(true);
+    // Skip validation step — go straight to matching
+    setCurrentStep('matching');
+    importMutation.mutate(undefined, {
+      onSettled: () => setIsLoadingUrl(false),
+    });
   };
 
   const handleNext = () => {
@@ -452,6 +493,9 @@ export function PlaylistImportDialog({
     setIsValidating(false);
     setShowReviewer(false);
     setReviewStats(null);
+    setImportMode('file');
+    setSourceUrl('');
+    setIsLoadingUrl(false);
     importMutation.reset();
     onOpenChange(false);
   };
@@ -534,7 +578,13 @@ export function PlaylistImportDialog({
           {/* Step Content */}
           <div className="py-2 md:py-4">
             {currentStep === 'upload' && (
-              <FileUploadStep onFileUpload={handleFileUpload} onTriggerFileSelect={triggerFileSelect} />
+              <FileUploadStep
+                onFileUpload={handleFileUpload}
+                onUrlSubmit={handleUrlSubmit}
+                onTriggerFileSelect={triggerFileSelect}
+                spotifyEnabled={spotifyEnabled}
+                isLoadingUrl={isLoadingUrl}
+              />
             )}
 
           {currentStep === 'validation' && (
@@ -579,7 +629,7 @@ export function PlaylistImportDialog({
           <Button
             variant="outline"
             size="sm"
-            onClick={handleBack}
+            onClick={currentStep === 'matching' && importMode === 'url' ? () => setCurrentStep('upload') : handleBack}
             disabled={currentStep === 'upload' || isValidating || importMutation.isPending}
             className="h-8 md:h-9 text-xs md:text-sm"
           >
