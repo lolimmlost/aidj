@@ -41,7 +41,10 @@ export function PageLayout({
       className
     )}>
       <div className={cn(
-        'mx-auto pt-[env(safe-area-inset-top)]',
+        'mx-auto',
+        // On mobile: push content below hamburger button (safe-area + button height + gap)
+        // On desktop: just safe-area is enough (no hamburger)
+        'pt-[calc(env(safe-area-inset-top)+4rem)] md:pt-[env(safe-area-inset-top)]',
         !fullWidth && 'max-w-7xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6',
         fullWidth && 'py-4 sm:py-6'
       )}>

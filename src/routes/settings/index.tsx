@@ -10,8 +10,9 @@ import { RecommendationSettings } from './recommendations';
 import { PlaybackSettings } from './playback';
 import { ServicesSettings } from './services';
 import { AlbumArtSettings } from './album-art';
+import { SecuritySettings } from './security';
 
-const _NEW_TABS = ['general', 'services', 'playback', 'ai-dj', 'album-art'] as const;
+const _NEW_TABS = ['general', 'security', 'services', 'playback', 'ai-dj', 'album-art'] as const;
 type NewTab = (typeof _NEW_TABS)[number];
 
 // Map old tab param values to new tab names
@@ -22,6 +23,7 @@ const TAB_MIGRATION: Record<string, NewTab> = {
   services: 'services',
   playback: 'playback',
   recommendations: 'ai-dj',
+  security: 'security',
   // New values pass through
   general: 'general',
   'ai-dj': 'ai-dj',
@@ -81,8 +83,9 @@ function SettingsPage() {
       {/* Settings Tabs */}
       {!isLoading && (
         <Tabs defaultValue={(!isAdmin && tab === 'services') ? 'general' : (tab || 'general')} className="w-full">
-          <TabsList className={`w-full grid grid-cols-2 gap-1 h-auto p-1 mb-8 ${isAdmin ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
+          <TabsList className={`w-full grid grid-cols-2 gap-1 h-auto p-1 mb-8 ${isAdmin ? 'sm:grid-cols-6' : 'sm:grid-cols-5'}`}>
             <TabsTrigger value="general" className="text-xs sm:text-sm py-2">General</TabsTrigger>
+            <TabsTrigger value="security" className="text-xs sm:text-sm py-2">Security</TabsTrigger>
             {isAdmin && <TabsTrigger value="services" className="text-xs sm:text-sm py-2">Services</TabsTrigger>}
             <TabsTrigger value="playback" className="text-xs sm:text-sm py-2">Playback</TabsTrigger>
             <TabsTrigger value="ai-dj" className="text-xs sm:text-sm py-2">AI DJ</TabsTrigger>
@@ -91,6 +94,10 @@ function SettingsPage() {
 
           <TabsContent value="general">
             <GeneralSettings />
+          </TabsContent>
+
+          <TabsContent value="security">
+            <SecuritySettings />
           </TabsContent>
 
           {isAdmin && (

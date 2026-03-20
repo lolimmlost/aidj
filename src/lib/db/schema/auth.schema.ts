@@ -19,6 +19,8 @@ export const user = pgTable("user", {
   banned: boolean("banned").default(false),
   banReason: text("ban_reason"),
   banExpires: timestamp("ban_expires"),
+  // better-auth twoFactor plugin columns
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
 });
 
 export const session = pgTable("session", {
@@ -61,6 +63,15 @@ export const verification = pgTable("verification", {
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").$defaultFn(() => /* @__PURE__ */ new Date()),
   updatedAt: timestamp("updated_at").$defaultFn(() => /* @__PURE__ */ new Date()),
+});
+
+export const twoFactor = pgTable("two_factor", {
+  id: text("id").primaryKey(),
+  secret: text("secret").notNull(),
+  backupCodes: text("backup_codes").notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
 });
 
 import { serial, jsonb, real, integer } from "drizzle-orm/pg-core";

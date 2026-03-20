@@ -155,6 +155,13 @@
       "when": 1773797921841,
       "tag": "0021_ancient_hercules",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1773961228079,
+      "tag": "0022_clammy_electro",
+      "breakpoints": true
     }
   ]
 }

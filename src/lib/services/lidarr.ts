@@ -413,10 +413,23 @@ export async function addArtist(artist: LidarrArtist, options?: { monitorAll?: b
       },
     };
 
-    await apiFetch('/artist', {
+    const addedArtist = await apiFetch('/artist', {
       method: 'POST',
       body: JSON.stringify(artistPayload),
-    });
+    }) as LidarrArtist & { id: number; monitored: boolean };
+
+    // Lidarr can override monitored=true when addOptions.monitor='none'
+    // Explicitly ensure artist is monitored after adding
+    if (addedArtist?.id && !addedArtist.monitored) {
+      console.log(`[Lidarr] Artist "${artist.artistName}" added unmonitored, explicitly enabling monitoring...`);
+      await apiFetch(`/artist/${addedArtist.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...addedArtist,
+          monitored: true,
+        }),
+      });
+    }
   } catch (error) {
     console.error('Error adding artist:', error);
     throw new ServiceError('LIDARR_API_ERROR', `Failed to add artist: ${error instanceof Error ? error.message : 'Unknown error'}`);
