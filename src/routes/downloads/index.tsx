@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Youtube, Music, Download, Clock } from 'lucide-react'
 import { PageLayout } from '@/components/ui/page-layout'
 
@@ -132,7 +132,6 @@ function DownloadsPage() {
       } else {
         toast.error(`❌ ${data.message || 'Failed to add to Lidarr'}`, {
           id: toastId,
-          duration: 4000,
         })
       }
     } catch (error) {

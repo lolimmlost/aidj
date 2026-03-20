@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { Link2, Loader2, Unplug, Upload, ExternalLink, FileDown, ArrowRight } from 'lucide-react';
 import { SpotifyPlaylistPicker } from '../spotify-playlist-picker';
 import type { SpotifyPlaylistSummary } from '@/lib/services/spotify';

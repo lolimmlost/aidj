@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useCallback, useState } from "react";
-import { toast } from "sonner";
+import { toast } from '@/lib/toast';
 import type {
   CollaborativePlaylistData,
   Suggestion,

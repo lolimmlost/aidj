@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { PageLayout } from '@/components/ui/page-layout'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { History } from 'lucide-react'
 import { exportDownloadHistory, clearDownloadHistory } from '@/lib/services/lidarr'
 import {

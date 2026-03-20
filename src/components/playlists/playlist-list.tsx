@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, memo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { Link } from '@tanstack/react-router';
 import { PlaylistExportDialog } from './export/playlist-export-dialog';
 import { PlaylistImportDialog } from './import/playlist-import-dialog';

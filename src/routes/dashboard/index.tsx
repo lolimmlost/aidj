@@ -1,5 +1,5 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
@@ -106,7 +106,6 @@ export function SongFeedbackButtons({
       // Show error toast for other failures
       toast.error('Failed to save feedback', {
         description: 'Please try again',
-        duration: 3000,
       });
     },
   });

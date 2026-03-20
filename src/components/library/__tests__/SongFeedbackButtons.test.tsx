@@ -4,8 +4,8 @@ import { userEvent } from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SongFeedbackButtons } from '../SongFeedbackButtons';
 
-// Mock sonner toast
-vi.mock('sonner', () => ({
+// Mock toast wrapper
+vi.mock('@/lib/toast', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
@@ -194,7 +194,7 @@ describe('SongFeedbackButtons', () => {
   describe('Error Handling', () => {
     it('reverts optimistic update on API error', async () => {
       const user = userEvent.setup();
-      const { toast } = await import('sonner');
+      const { toast } = await import('@/lib/toast');
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: false,
@@ -210,7 +210,6 @@ describe('SongFeedbackButtons', () => {
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith('Failed to save feedback', {
           description: 'Please try again',
-          duration: 3000,
         });
       });
 
@@ -220,7 +219,7 @@ describe('SongFeedbackButtons', () => {
 
     it('handles duplicate feedback gracefully without showing toast', async () => {
       const user = userEvent.setup();
-      const { toast } = await import('sonner');
+      const { toast } = await import('@/lib/toast');
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: false,
@@ -282,7 +281,7 @@ describe('SongFeedbackButtons', () => {
   describe('Toast Notifications', () => {
     it('shows success toast when like is successful', async () => {
       const user = userEvent.setup();
-      const { toast } = await import('sonner');
+      const { toast } = await import('@/lib/toast');
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
@@ -304,7 +303,7 @@ describe('SongFeedbackButtons', () => {
 
     it('shows success toast when dislike is successful', async () => {
       const user = userEvent.setup();
-      const { toast } = await import('sonner');
+      const { toast } = await import('@/lib/toast');
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,

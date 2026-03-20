@@ -25,7 +25,7 @@ import {
   Music2,
   AlertCircle,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { useDiscoveryFeedStore, type FeedItem, type TimeSlot } from '@/lib/stores/discovery-feed';
 import { DiscoveryFeedCard } from './DiscoveryFeedCard';
 

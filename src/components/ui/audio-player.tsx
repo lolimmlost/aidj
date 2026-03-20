@@ -24,7 +24,7 @@ import { AutoplayToggle } from '../autoplay-settings';
 import { scrobbleSong } from '@/lib/services/navidrome';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/query';
 

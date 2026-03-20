@@ -37,7 +37,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlayerBar } from './PlayerBar';
 import { QueuePanel } from '@/components/ui/queue-panel';
 import { MobileNav } from '@/components/ui/mobile-nav';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { useDeferredRender } from '@/lib/utils/lazy-components';
 
 // Helper to get cover art URL from Navidrome

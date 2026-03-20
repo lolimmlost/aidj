@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import authClient from '@/lib/auth/auth-client';
 import { useAudioStore } from '@/lib/stores/audio';
 import { useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { Play, Plus, ListPlus } from 'lucide-react';
 import {
   DropdownMenu,
@@ -117,7 +117,6 @@ function RecommendationDetail() {
       } else {
         toast.error('Failed to save feedback', {
           description: error instanceof Error ? error.message : 'Please try again',
-          duration: 3000,
         });
       }
     },

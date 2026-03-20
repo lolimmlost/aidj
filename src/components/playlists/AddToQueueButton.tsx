@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAudioStore } from '@/lib/stores/audio';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 interface AddToQueueButtonProps {
   songId: string;

@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { usePreferencesStore } from '@/lib/stores/preferences';
 import { useAudioStore } from '@/lib/stores/audio';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 export function AIDJSettings() {
   const { preferences, setRecommendationSettings } = usePreferencesStore();

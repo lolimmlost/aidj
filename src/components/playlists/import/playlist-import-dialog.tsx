@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import type { SongMatchResult } from '@/lib/db/schema/playlist-export.schema';
 import {
   Dialog,

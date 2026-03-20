@@ -18,7 +18,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { useDiscoveryQueueStore } from '@/lib/stores/discovery-queue';
 import { useAudioStore } from '@/lib/stores/audio';
 import {
