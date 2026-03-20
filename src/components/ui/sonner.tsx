@@ -66,7 +66,6 @@ const Toaster = ({ ...props }: ToasterProps) => {
               : "oklch(0.6 0.16 80 / 0.2)",
         } as React.CSSProperties
       }
-      closeButton
       visibleToasts={4}
       {...props}
     />

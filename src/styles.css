@@ -882,15 +882,15 @@
   }
 
   /* ── Toast Notifications (Sonner) ──
-     Styled to match AIDJ's glass-card aesthetic with
-     OKLCH brand colors and backdrop blur. */
+     Glass-card aesthetic with OKLCH brand colors, backdrop blur,
+     and a countdown progress bar that matches the toast duration. */
 
   [data-sonner-toaster] {
     font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
   }
 
   [data-sonner-toast] {
-    @apply rounded-xl shadow-lg;
+    @apply rounded-xl shadow-lg overflow-hidden;
     backdrop-filter: blur(16px) saturate(180%);
     -webkit-backdrop-filter: blur(16px) saturate(180%);
     border-width: 1px;
@@ -907,18 +907,60 @@
     @apply text-muted-foreground;
   }
 
-  /* Type-specific left accent bar */
-  [data-sonner-toast][data-type="success"],
-  [data-sonner-toast][data-type="error"],
-  [data-sonner-toast][data-type="info"],
-  [data-sonner-toast][data-type="warning"] {
-    border-left-width: 3px;
+  /* ── Countdown progress bar ──
+     A thin bar at the bottom that shrinks from 100% to 0%
+     over the toast's lifetime. Color matches the toast type. */
+  @keyframes toast-countdown {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
   }
 
-  /* Close button styling */
-  [data-sonner-toast] [data-close-button] {
-    @apply border-border/50 bg-card/80 text-muted-foreground
-           hover:bg-accent hover:text-foreground transition-colors;
+  [data-sonner-toast][data-type="success"]::after,
+  [data-sonner-toast][data-type="error"]::after,
+  [data-sonner-toast][data-type="info"]::after,
+  [data-sonner-toast][data-type="warning"]::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    transform-origin: left;
+    animation: toast-countdown linear forwards;
+    pointer-events: none;
+  }
+
+  /* Pause countdown on hover so users can read */
+  [data-sonner-toast]:hover::after {
+    animation-play-state: paused;
+  }
+
+  /* Per-type colors & durations (match src/lib/toast.ts defaults) */
+  [data-sonner-toast][data-type="success"]::after {
+    background: var(--success-border, oklch(0.5 0.15 160 / 0.5));
+    animation-duration: 3s;
+  }
+
+  [data-sonner-toast][data-type="error"]::after {
+    background: var(--error-border, oklch(0.55 0.2 25 / 0.5));
+    animation-duration: 6s;
+  }
+
+  [data-sonner-toast][data-type="info"]::after {
+    background: var(--info-border, oklch(0.55 0.15 260 / 0.5));
+    animation-duration: 4s;
+  }
+
+  [data-sonner-toast][data-type="warning"]::after {
+    background: var(--warning-border, oklch(0.6 0.16 80 / 0.5));
+    animation-duration: 5s;
+  }
+
+  /* Respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    [data-sonner-toast]::after {
+      animation: none !important;
+    }
   }
 
   /* Login page queue carousel animations */
