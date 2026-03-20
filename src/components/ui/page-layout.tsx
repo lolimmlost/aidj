@@ -55,11 +55,11 @@ export function PageLayout({
           compact && !title && 'mb-2 sm:mb-3',
           fullWidth && 'px-3 sm:px-4 lg:px-6'
         )}>
-          {/* Back Navigation */}
+          {/* Back Navigation - hidden on mobile where hamburger menu provides navigation */}
           {backLink && (
             <Link
               to={backLink}
-              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 group"
+              className="hidden md:inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 group"
             >
               <ChevronLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
               <span>{backLabel}</span>
