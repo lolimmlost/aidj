@@ -880,4 +880,38 @@
   .animate-pulse-glow {
     animation: pulse-glow 3s ease-in-out infinite;
   }
+
+  /* Login page queue carousel animations */
+  @keyframes scroll-up {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-50%); }
+  }
+
+  @keyframes scroll-down {
+    0% { transform: translateY(-50%); }
+    100% { transform: translateY(0); }
+  }
+
+  @keyframes scroll-left {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  .animate-scroll-up {
+    animation: scroll-up linear infinite;
+  }
+  .animate-scroll-down {
+    animation: scroll-down linear infinite;
+  }
+  .animate-scroll-left {
+    animation: scroll-left linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-scroll-up,
+    .animate-scroll-down,
+    .animate-scroll-left {
+      animation: none !important;
+    }
+  }
 }

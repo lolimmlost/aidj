@@ -52,7 +52,7 @@ function ForgotPasswordForm() {
 
   if (success) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-6 max-w-sm mx-auto">
         <div className="flex flex-col items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-md">
             <GalleryVerticalEnd className="size-6" />
@@ -74,7 +74,7 @@ function ForgotPasswordForm() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 max-w-sm mx-auto">
       <form onSubmit={handleSubmit}>
         <div className="flex flex-col gap-6">
           <div className="flex flex-col items-center gap-2">
