@@ -45,8 +45,8 @@ export function PageLayout({
         // On mobile: push content below hamburger button (safe-area + button height + gap)
         // On desktop: just safe-area is enough (no hamburger)
         'pt-[calc(env(safe-area-inset-top)+4rem)] md:pt-[env(safe-area-inset-top)]',
-        !fullWidth && 'max-w-7xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6',
-        fullWidth && 'py-4 sm:py-6'
+        !fullWidth && 'max-w-7xl px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6',
+        fullWidth && 'pb-4 sm:pb-6'
       )}>
         {/* Page Header */}
         <header className={cn(
