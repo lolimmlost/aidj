@@ -12,7 +12,7 @@ import { ServicesSettings } from './services';
 import { AlbumArtSettings } from './album-art';
 import { SecuritySettings } from './security';
 
-const _NEW_TABS = ['general', 'security', 'services', 'playback', 'ai-dj', 'album-art'] as const;
+const _NEW_TABS = ['general', 'security', 'services', 'playback', 'ai-dj', 'cover-art'] as const;
 type NewTab = (typeof _NEW_TABS)[number];
 
 // Map old tab param values to new tab names
@@ -27,7 +27,8 @@ const TAB_MIGRATION: Record<string, NewTab> = {
   // New values pass through
   general: 'general',
   'ai-dj': 'ai-dj',
-  'album-art': 'album-art',
+  'cover-art': 'cover-art',
+  'album-art': 'cover-art',
 };
 
 function resolveTab(raw: unknown): NewTab | undefined {
@@ -89,7 +90,7 @@ function SettingsPage() {
             {isAdmin && <TabsTrigger value="services" className="text-xs sm:text-sm py-2">Services</TabsTrigger>}
             <TabsTrigger value="playback" className="text-xs sm:text-sm py-2">Playback</TabsTrigger>
             <TabsTrigger value="ai-dj" className="text-xs sm:text-sm py-2">AI DJ</TabsTrigger>
-            <TabsTrigger value="album-art" className="text-xs sm:text-sm py-2">Album Art</TabsTrigger>
+            <TabsTrigger value="cover-art" className="text-xs sm:text-sm py-2">Cover Art</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general">
@@ -114,7 +115,7 @@ function SettingsPage() {
             <RecommendationSettings />
           </TabsContent>
 
-          <TabsContent value="album-art">
+          <TabsContent value="cover-art">
             <AlbumArtSettings />
           </TabsContent>
         </Tabs>

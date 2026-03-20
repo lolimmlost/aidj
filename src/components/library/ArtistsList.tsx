@@ -10,9 +10,10 @@ import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 60;
 
-function LazyArtistAvatar({ artistId, name }: { artistId: string; name: string }) {
+function LazyArtistAvatar({ artistId, name, savedImageUrl }: { artistId: string; name: string; savedImageUrl?: string }) {
   const [isVisible, setIsVisible] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [savedError, setSavedError] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,7 +41,26 @@ function LazyArtistAvatar({ artistId, name }: { artistId: string; name: string }
     </div>
   );
 
-  if (!isVisible || imgError) {
+  if (!isVisible) {
+    return <div ref={ref}>{fallback}</div>;
+  }
+
+  // Navidrome failed but we have a saved Deezer image
+  if (imgError && savedImageUrl && !savedError) {
+    return (
+      <div ref={ref}>
+        <img
+          src={savedImageUrl}
+          alt={name}
+          className="w-12 h-12 rounded-full object-cover flex-shrink-0 bg-muted"
+          onError={() => setSavedError(true)}
+        />
+      </div>
+    );
+  }
+
+  // Both failed — show letter initial
+  if (imgError) {
     return <div ref={ref}>{fallback}</div>;
   }
 
@@ -63,6 +83,18 @@ export function ArtistsList() {
   const { data: artists = [], isLoading, error } = useQuery({
     queryKey: ['artists'],
     queryFn: () => getArtists(0, 5000),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch saved Deezer artist images for fallback
+  const { data: savedImages = {} } = useQuery({
+    queryKey: ['saved-artist-images'],
+    queryFn: async () => {
+      const res = await fetch('/api/cover-art/artist-images');
+      if (!res.ok) return {};
+      const json = await res.json();
+      return (json.data?.images || {}) as Record<string, string>;
+    },
     staleTime: 5 * 60 * 1000,
   });
 
@@ -145,7 +177,7 @@ export function ArtistsList() {
                     'bg-card border-border hover:border-primary/30',
                     'hover:shadow-md hover:-translate-y-0.5'
                   )}>
-                    <LazyArtistAvatar artistId={artist.id} name={artist.name} />
+                    <LazyArtistAvatar artistId={artist.id} name={artist.name} savedImageUrl={savedImages[artist.name.toLowerCase()]} />
 
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-foreground truncate group-hover:text-primary transition-colors">

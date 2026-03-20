@@ -1,10 +1,10 @@
 /**
- * Missing Cover Art API
- * GET /api/cover-art/missing — list albums from listening history that may need art
+ * Missing Artist Art API
+ * GET /api/cover-art/missing-artists — list artists from listening history that may need images
  */
 
 import { createFileRoute } from '@tanstack/react-router';
-import { eq, and, sql, desc, isNotNull, isNull, ne } from 'drizzle-orm';
+import { eq, and, sql, desc, isNull } from 'drizzle-orm';
 import { db } from '../../../lib/db';
 import { listeningHistory } from '../../../lib/db/schema/listening-history.schema';
 import { savedCoverArt } from '../../../lib/db/schema/saved-cover-art.schema';
@@ -19,12 +19,10 @@ const GET = withAuthAndErrorHandling(
     const url = new URL(request.url);
     const includeSaved = url.searchParams.get('includeSaved') === 'true';
 
-    // Query distinct albums from listening history with play counts
-    const albums = await db
+    // Query distinct artists from listening history with play counts
+    const artists = await db
       .select({
         artist: listeningHistory.artist,
-        album: listeningHistory.album,
-        songId: sql<string>`min(${listeningHistory.songId})`,
         playCount: sql<number>`count(*)::int`,
         savedImageUrl: savedCoverArt.imageUrl,
         savedSource: savedCoverArt.source,
@@ -33,49 +31,43 @@ const GET = withAuthAndErrorHandling(
       .leftJoin(
         savedCoverArt,
         and(
-          eq(savedCoverArt.entityId, sql`concat('album:', lower(${listeningHistory.artist}), ':', lower(${listeningHistory.album}))`),
-          eq(savedCoverArt.entityType, 'album')
+          eq(savedCoverArt.entityId, sql`concat('artist:', lower(${listeningHistory.artist}))`),
+          eq(savedCoverArt.entityType, 'artist')
         )
       )
       .where(
         and(
           eq(listeningHistory.userId, userId),
-          isNotNull(listeningHistory.album),
-          ne(listeningHistory.album, ''),
-          // When not including saved, filter them out in SQL so limit works correctly
           ...(includeSaved ? [] : [isNull(savedCoverArt.imageUrl)])
         )
       )
       .groupBy(
         listeningHistory.artist,
-        listeningHistory.album,
         savedCoverArt.imageUrl,
         savedCoverArt.source
       )
       .orderBy(desc(sql`count(*)`))
       .limit(200);
 
-    const result = albums.map((row) => ({
+    const result = artists.map((row) => ({
       artist: row.artist,
-      album: row.album as string,
-      songId: row.songId,
       playCount: row.playCount,
       savedArt: row.savedImageUrl
         ? { imageUrl: row.savedImageUrl, source: row.savedSource as string }
         : null,
     }));
 
-    return successResponse({ albums: result });
+    return successResponse({ artists: result });
   },
   {
     service: 'cover-art',
-    operation: 'missing',
-    defaultCode: 'MISSING_ART_ERROR',
-    defaultMessage: 'Failed to fetch albums missing art',
+    operation: 'missing-artists',
+    defaultCode: 'MISSING_ARTIST_ART_ERROR',
+    defaultMessage: 'Failed to fetch artists missing art',
   }
 );
 
-export const Route = createFileRoute('/api/cover-art/missing')({
+export const Route = createFileRoute('/api/cover-art/missing-artists')({
   server: {
     handlers: {
       GET,

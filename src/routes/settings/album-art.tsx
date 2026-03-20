@@ -1,11 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, Search, X, ImageIcon, Loader2 } from 'lucide-react';
+import { Check, Search, X, ImageIcon, Loader2, Music, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/lib/toast';
+
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 interface AlbumEntry {
   artist: string;
@@ -15,12 +17,124 @@ interface AlbumEntry {
   savedArt: { imageUrl: string; source: string } | null;
 }
 
+interface ArtistEntry {
+  artist: string;
+  playCount: number;
+  savedArt: { imageUrl: string; source: string } | null;
+}
+
 interface DeezerResult {
   imageUrl: string | null;
   source: string | null;
 }
 
+type Tab = 'albums' | 'artists';
+
+// ─── Navidrome art probe hook ───────────────────────────────────────────────
+
+/**
+ * Probes Navidrome cover art URLs to check which albums actually have art.
+ * Albums with valid Navidrome art are hidden from the "missing" list.
+ */
+function useNavidromeArtProbe(albums: AlbumEntry[]) {
+  const [hasArt, setHasArt] = useState<Record<string, boolean>>({});
+  const [probesDone, setProbesDone] = useState(0);
+
+  useEffect(() => {
+    if (albums.length === 0) return;
+
+    setHasArt({});
+    setProbesDone(0);
+
+    // Probe in batches to avoid hammering the server
+    const BATCH_SIZE = 10;
+    let cancelled = false;
+
+    async function probeBatch(batch: AlbumEntry[]) {
+      await Promise.all(
+        batch.map(
+          (album) =>
+            new Promise<void>((resolve) => {
+              const key = `${album.artist}::${album.album}`;
+              const img = new Image();
+              img.onload = () => {
+                if (!cancelled) {
+                  // Check if it's a real image (not a tiny placeholder)
+                  if (img.naturalWidth > 1 && img.naturalHeight > 1) {
+                    setHasArt((prev) => ({ ...prev, [key]: true }));
+                  }
+                  setProbesDone((prev) => prev + 1);
+                }
+                resolve();
+              };
+              img.onerror = () => {
+                if (!cancelled) {
+                  setProbesDone((prev) => prev + 1);
+                }
+                resolve();
+              };
+              img.src = `/api/navidrome/rest/getCoverArt?id=${album.songId}&size=80`;
+            })
+        )
+      );
+    }
+
+    (async () => {
+      for (let i = 0; i < albums.length; i += BATCH_SIZE) {
+        if (cancelled) break;
+        await probeBatch(albums.slice(i, i + BATCH_SIZE));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [albums]);
+
+  return { hasArt, probing: probesDone < albums.length && albums.length > 0 };
+}
+
+// ─── Main Component ─────────────────────────────────────────────────────────
+
 export function AlbumArtSettings() {
+  const [tab, setTab] = useState<Tab>('albums');
+
+  return (
+    <div className="space-y-6">
+      {/* Tab toggle */}
+      <div className="flex gap-1 p-1 rounded-lg bg-muted w-fit">
+        <button
+          onClick={() => setTab('albums')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            tab === 'albums'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Music className="h-3.5 w-3.5" />
+          Albums
+        </button>
+        <button
+          onClick={() => setTab('artists')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            tab === 'artists'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <User className="h-3.5 w-3.5" />
+          Artists
+        </button>
+      </div>
+
+      {tab === 'albums' ? <AlbumsTab /> : <ArtistsTab />}
+    </div>
+  );
+}
+
+// ─── Albums Tab ─────────────────────────────────────────────────────────────
+
+function AlbumsTab() {
   const [searchFilter, setSearchFilter] = useState('');
   const [searchingAlbum, setSearchingAlbum] = useState<string | null>(null);
   const [deezerResults, setDeezerResults] = useState<Record<string, DeezerResult>>({});
@@ -37,22 +151,31 @@ export function AlbumArtSettings() {
     staleTime: 0,
   });
 
-  const albums = data || [];
+  const albums = useMemo(() => data || [], [data]);
+
+  // Probe Navidrome for which albums already have art
+  const { hasArt, probing } = useNavidromeArtProbe(albums);
+
+  // Filter out albums that already have Navidrome art
+  const missingAlbums = useMemo(() => {
+    return albums.filter((a) => {
+      const key = `${a.artist}::${a.album}`;
+      return !hasArt[key];
+    });
+  }, [albums, hasArt]);
 
   const filtered = useMemo(() => {
-    if (!searchFilter) return albums;
+    if (!searchFilter) return missingAlbums;
     const q = searchFilter.toLowerCase();
-    return albums.filter(
+    return missingAlbums.filter(
       (a) => a.artist.toLowerCase().includes(q) || a.album.toLowerCase().includes(q)
     );
-  }, [albums, searchFilter]);
+  }, [missingAlbums, searchFilter]);
 
-  const totalCount = albums.length;
-  const savedCount = albums.filter((a) => a.savedArt).length;
-  const missingCount = totalCount - savedCount;
+  const navidromeArtCount = Object.values(hasArt).filter(Boolean).length;
 
   // Search Deezer for a specific album
-  const handleFindArt = async (artist: string, album: string) => {
+  const handleFindArt = useCallback(async (artist: string, album: string) => {
     const key = `${artist}::${album}`;
     setSearchingAlbum(key);
     try {
@@ -70,7 +193,7 @@ export function AlbumArtSettings() {
     } finally {
       setSearchingAlbum(null);
     }
-  };
+  }, []);
 
   // Save cover art
   const saveMutation = useMutation({
@@ -92,16 +215,7 @@ export function AlbumArtSettings() {
       return params;
     },
     onSuccess: (params) => {
-      // Optimistic update
-      queryClient.setQueryData(['cover-art-missing'], (old: AlbumEntry[] | undefined) => {
-        if (!old) return old;
-        return old.map((a) =>
-          a.artist === params.artist && a.album === params.album
-            ? { ...a, savedArt: { imageUrl: params.imageUrl, source: params.source } }
-            : a
-        );
-      });
-      // Clear the deezer result for this album
+      queryClient.invalidateQueries({ queryKey: ['cover-art-missing'] });
       const key = `${params.artist}::${params.album}`;
       setDeezerResults((prev) => {
         const next = { ...prev };
@@ -115,14 +229,14 @@ export function AlbumArtSettings() {
     },
   });
 
-  const handleSkip = (artist: string, album: string) => {
+  const handleSkip = useCallback((artist: string, album: string) => {
     const key = `${artist}::${album}`;
     setDeezerResults((prev) => {
       const next = { ...prev };
       delete next[key];
       return next;
     });
-  };
+  }, []);
 
   if (isLoading) {
     return (
@@ -136,11 +250,20 @@ export function AlbumArtSettings() {
     <div className="space-y-6">
       {/* Header stats */}
       <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-        <span>{totalCount} albums</span>
+        <span>{albums.length} albums in history</span>
         <span>&middot;</span>
-        <span>{missingCount} missing art</span>
+        <span className="text-green-500">{navidromeArtCount} have Navidrome art</span>
         <span>&middot;</span>
-        <span className="text-green-500">{savedCount} saved</span>
+        <span>{missingAlbums.length} missing</span>
+        {probing && (
+          <>
+            <span>&middot;</span>
+            <span className="flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Checking...
+            </span>
+          </>
+        )}
       </div>
 
       {/* Search filter */}
@@ -158,7 +281,11 @@ export function AlbumArtSettings() {
       <div className="space-y-2">
         {filtered.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-8">
-            {searchFilter ? 'No albums match your filter' : 'No albums found in listening history'}
+            {searchFilter
+              ? 'No albums match your filter'
+              : probing
+                ? 'Checking for missing art...'
+                : 'All albums have artwork!'}
           </p>
         )}
         {filtered.map((album) => {
@@ -194,12 +321,7 @@ export function AlbumArtSettings() {
 
                 {/* Action area */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {album.savedArt ? (
-                    <div className="flex items-center gap-1.5 text-green-500">
-                      <Check className="h-4 w-4" />
-                      <span className="text-xs">{album.savedArt.source}</span>
-                    </div>
-                  ) : deezerResult ? (
+                  {deezerResult ? (
                     deezerResult.imageUrl ? (
                       <div className="flex items-center gap-2">
                         <img
@@ -249,6 +371,214 @@ export function AlbumArtSettings() {
                         <ImageIcon className="h-3 w-3" />
                       )}
                       Find Art
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Artists Tab ─────────────────────────────────────────────────────────────
+
+function ArtistsTab() {
+  const [searchFilter, setSearchFilter] = useState('');
+  const [searchingArtist, setSearchingArtist] = useState<string | null>(null);
+  const [deezerResults, setDeezerResults] = useState<Record<string, DeezerResult>>({});
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['cover-art-missing-artists'],
+    queryFn: async () => {
+      const res = await fetch('/api/cover-art/missing-artists');
+      if (!res.ok) throw new Error('Failed to fetch');
+      const json = await res.json();
+      return json.data?.artists as ArtistEntry[] || [];
+    },
+    staleTime: 0,
+  });
+
+  const artists = useMemo(() => data || [], [data]);
+
+  const filtered = useMemo(() => {
+    if (!searchFilter) return artists;
+    const q = searchFilter.toLowerCase();
+    return artists.filter((a) => a.artist.toLowerCase().includes(q));
+  }, [artists, searchFilter]);
+
+  // Search Deezer for artist image
+  const handleFindArt = useCallback(async (artist: string) => {
+    setSearchingArtist(artist);
+    try {
+      const res = await fetch(
+        `/api/cover-art/search-artist?artist=${encodeURIComponent(artist)}`
+      );
+      if (!res.ok) throw new Error('Search failed');
+      const json = await res.json();
+      setDeezerResults((prev) => ({
+        ...prev,
+        [artist]: json.data as DeezerResult,
+      }));
+    } catch {
+      toast.error(`Failed to search image for ${artist}`);
+    } finally {
+      setSearchingArtist(null);
+    }
+  }, []);
+
+  // Save artist image
+  const saveMutation = useMutation({
+    mutationFn: async (params: { artist: string; imageUrl: string; source: string }) => {
+      const entityId = `artist:${params.artist.toLowerCase()}`;
+      const res = await fetch('/api/cover-art/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entityId,
+          entityType: 'artist',
+          artist: params.artist,
+          imageUrl: params.imageUrl,
+          source: params.source,
+        }),
+      });
+      if (!res.ok) throw new Error('Save failed');
+      return params;
+    },
+    onSuccess: (params) => {
+      queryClient.invalidateQueries({ queryKey: ['cover-art-missing-artists'] });
+      queryClient.invalidateQueries({ queryKey: ['saved-artist-images'] });
+      setDeezerResults((prev) => {
+        const next = { ...prev };
+        delete next[params.artist];
+        return next;
+      });
+      toast.success(`Saved image for ${params.artist}`);
+    },
+    onError: (_err, params) => {
+      toast.error(`Failed to save image for ${params.artist}`);
+    },
+  });
+
+  const handleSkip = useCallback((artist: string) => {
+    setDeezerResults((prev) => {
+      const next = { ...prev };
+      delete next[artist];
+      return next;
+    });
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header stats */}
+      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+        <span>{artists.length} artists missing images</span>
+      </div>
+
+      {/* Search filter */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Filter by artist..."
+          value={searchFilter}
+          onChange={(e) => setSearchFilter(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {/* Artist list */}
+      <div className="space-y-2">
+        {filtered.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-8">
+            {searchFilter ? 'No artists match your filter' : 'All artists have images!'}
+          </p>
+        )}
+        {filtered.map((entry) => {
+          const deezerResult = deezerResults[entry.artist];
+          const isSearching = searchingArtist === entry.artist;
+
+          return (
+            <Card key={entry.artist} className="p-3">
+              <div className="flex items-center gap-3">
+                {/* Artist initial */}
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center flex-shrink-0">
+                  <span className="text-lg font-semibold text-primary">
+                    {entry.artist.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{entry.artist}</p>
+                </div>
+
+                {/* Play count badge */}
+                <Badge variant="secondary" className="flex-shrink-0 text-xs">
+                  {entry.playCount} plays
+                </Badge>
+
+                {/* Action area */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {deezerResult ? (
+                    deezerResult.imageUrl ? (
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={deezerResult.imageUrl}
+                          alt="Deezer artist"
+                          className="w-12 h-12 rounded-full object-cover border"
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-green-500 hover:text-green-600 hover:bg-green-500/10"
+                          onClick={() =>
+                            saveMutation.mutate({
+                              artist: entry.artist,
+                              imageUrl: deezerResult.imageUrl!,
+                              source: deezerResult.source || 'deezer',
+                            })
+                          }
+                          disabled={saveMutation.isPending}
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleSkip(entry.artist)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No image found</span>
+                    )
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs gap-1.5"
+                      onClick={() => handleFindArt(entry.artist)}
+                      disabled={isSearching}
+                    >
+                      {isSearching ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <ImageIcon className="h-3 w-3" />
+                      )}
+                      Find Image
                     </Button>
                   )}
                 </div>
