@@ -86,6 +86,9 @@ export function PlayerBar() {
     resumeContext,
   } = useWebAudioGraph();
 
+  // Track consecutive stream failures to prevent infinite skip loops
+  const consecutiveFailuresRef = useRef(0);
+
   // Stable helper: ensures Web Audio graph is initialized before play().
   // Uses a ref so it can be called from effects without adding deps that cause re-runs.
   const ensureGraphInitializedRef = useRef<() => void>(() => {});
@@ -863,6 +866,7 @@ export function PlayerBar() {
 
         const handleCanPlay = () => {
           setIsLoading(false);
+          consecutiveFailuresRef.current = 0;
           if (useAudioStore.getState().isPlaying) {
             ensureGraphInitializedRef.current();
             audio.play().catch(console.error);
@@ -875,11 +879,25 @@ export function PlayerBar() {
           if (errorDeck !== activeDeck) return;
           console.error('Audio load error:', errorDeck?.error);
           setIsLoading(false);
-          // Auto-skip to next song on stream failure (bad file, 502, etc.)
+
+          consecutiveFailuresRef.current++;
           const state = useAudioStore.getState();
+          const failedSong = state.playlist[state.currentSongIndex];
+          const songName = failedSong?.title || failedSong?.name || 'Unknown';
+          const artistName = failedSong?.artist || '';
+
+          if (consecutiveFailuresRef.current > 5) {
+            toast.error('Multiple songs unavailable — stopping playback');
+            console.error('[PLAYER] Too many consecutive failures, stopping');
+            setIsPlaying(false);
+            consecutiveFailuresRef.current = 0;
+            return;
+          }
+
+          toast.warning(`Skipped "${songName}"${artistName ? ` by ${artistName}` : ''} — unavailable`);
           if (state.playlist.length > 1) {
-            console.warn('[PLAYER] Stream failed, auto-skipping to next song in 1s');
-            setTimeout(() => useAudioStore.getState().nextSong(), 1000);
+            console.warn(`[PLAYER] Stream failed for "${songName}", removing from queue`);
+            state.removeFromQueue(state.currentSongIndex);
           }
         };
 
