@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { toast } from '@/lib/toast';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -30,23 +31,57 @@ interface DeezerResult {
 
 type Tab = 'albums' | 'artists';
 
-interface AutoFetchResult {
+interface AutoFetchJob {
+  id: string;
   type: string;
+  status: 'processing' | 'completed' | 'failed';
+  total: number;
   processed: number;
   found: number;
   notFound: number;
   errors: number;
 }
 
-// ─── Auto-fetch hook ────────────────────────────────────────────────────────
+// ─── Auto-fetch hook (job-based with polling) ───────────────────────────────
 
 function useAutoFetch(type: 'albums' | 'artists', queryClient: ReturnType<typeof useQueryClient>) {
-  const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<AutoFetchResult | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [polling, setPolling] = useState(false);
+  const [lastResult, setLastResult] = useState<AutoFetchJob | null>(null);
+
+  // Poll job status every 2 seconds while running
+  const { data: jobData } = useQuery({
+    queryKey: ['cover-art-auto-fetch', jobId],
+    queryFn: async () => {
+      const res = await fetch(`/api/cover-art/auto-fetch?jobId=${jobId}`);
+      if (!res.ok) throw new Error('Failed to fetch job status');
+      const json = await res.json();
+      return json.data?.job as AutoFetchJob;
+    },
+    enabled: !!jobId && polling,
+    refetchInterval: 2000,
+  });
+
+  // Watch for job completion
+  useEffect(() => {
+    if (!jobData) return;
+
+    if (jobData.status === 'completed') {
+      setPolling(false);
+      setLastResult(jobData);
+      toast.success(`Found art for ${jobData.found} ${type}, ${jobData.notFound} not on Deezer`);
+      queryClient.invalidateQueries({ queryKey: ['cover-art-missing'] });
+      queryClient.invalidateQueries({ queryKey: ['cover-art-missing-artists'] });
+      queryClient.invalidateQueries({ queryKey: ['saved-artist-images'] });
+    } else if (jobData.status === 'failed') {
+      setPolling(false);
+      setLastResult(jobData);
+      toast.error(`Auto-fetch ${type} failed`);
+    }
+  }, [jobData, type, queryClient]);
 
   const run = useCallback(async () => {
-    setRunning(true);
-    setResult(null);
+    setLastResult(null);
     try {
       const res = await fetch('/api/cover-art/auto-fetch', {
         method: 'POST',
@@ -55,21 +90,55 @@ function useAutoFetch(type: 'albums' | 'artists', queryClient: ReturnType<typeof
       });
       if (!res.ok) throw new Error('Auto-fetch failed');
       const json = await res.json();
-      const data = json.data as AutoFetchResult;
-      setResult(data);
-      toast.success(`Found art for ${data.found} ${type}, ${data.notFound} not found`);
-      // Refresh the lists
-      queryClient.invalidateQueries({ queryKey: ['cover-art-missing'] });
-      queryClient.invalidateQueries({ queryKey: ['cover-art-missing-artists'] });
-      queryClient.invalidateQueries({ queryKey: ['saved-artist-images'] });
+      const id = json.data?.jobId as string;
+      setJobId(id);
+      setPolling(true);
     } catch {
-      toast.error(`Auto-fetch ${type} failed`);
-    } finally {
-      setRunning(false);
+      toast.error(`Failed to start auto-fetch for ${type}`);
     }
-  }, [type, queryClient]);
+  }, [type]);
 
-  return { run, running, result };
+  const job = polling ? jobData : lastResult;
+  const running = polling;
+  const progress = job && job.total > 0 ? Math.round((job.processed / job.total) * 100) : 0;
+
+  return { run, running, job, progress };
+}
+
+// ─── Auto-fetch progress display ────────────────────────────────────────────
+
+function AutoFetchProgress({ job, progress }: { job: AutoFetchJob; progress: number }) {
+  const isRunning = job.status === 'processing';
+  const isDone = job.status === 'completed';
+  const isFailed = job.status === 'failed';
+
+  return (
+    <div className="rounded-lg border bg-card p-3 space-y-2">
+      <div className="flex items-center justify-between text-xs">
+        <span className="flex items-center gap-1.5 font-medium">
+          {isRunning && <Loader2 className="h-3 w-3 animate-spin" />}
+          {isDone && <Check className="h-3 w-3 text-green-500" />}
+          {isFailed && <X className="h-3 w-3 text-destructive" />}
+          {isRunning ? 'Searching Deezer...' : isDone ? 'Complete' : 'Failed'}
+        </span>
+        {job.total > 0 && (
+          <span className="text-muted-foreground">
+            {job.processed} / {job.total}
+          </span>
+        )}
+      </div>
+      {job.total > 0 && (
+        <Progress value={progress} className="h-1.5" />
+      )}
+      {(isDone || isFailed) && (
+        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+          <span className="text-green-500">{job.found} found</span>
+          <span>{job.notFound} not on Deezer</span>
+          {job.errors > 0 && <span className="text-destructive">{job.errors} errors</span>}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Navidrome art probe hook ───────────────────────────────────────────────
@@ -326,11 +395,7 @@ function AlbumsTab() {
           </Button>
         )}
       </div>
-      {autoFetch.result && (
-        <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-          Done: {autoFetch.result.found} found, {autoFetch.result.notFound} not on Deezer{autoFetch.result.errors > 0 && `, ${autoFetch.result.errors} errors`}
-        </div>
-      )}
+      {autoFetch.job && <AutoFetchProgress job={autoFetch.job} progress={autoFetch.progress} />}
 
       {/* Search filter */}
       <div className="relative">
@@ -570,11 +635,7 @@ function ArtistsTab() {
           </Button>
         )}
       </div>
-      {autoFetch.result && (
-        <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-          Done: {autoFetch.result.found} found, {autoFetch.result.notFound} not on Deezer{autoFetch.result.errors > 0 && `, ${autoFetch.result.errors} errors`}
-        </div>
-      )}
+      {autoFetch.job && <AutoFetchProgress job={autoFetch.job} progress={autoFetch.progress} />}
 
       {/* Search filter */}
       <div className="relative">

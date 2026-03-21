@@ -14,6 +14,7 @@ export * from "./lyrics-cache.schema";
 export * from "./background-discovery.schema";
 export * from "./profile.schema";
 export * from "./saved-cover-art.schema";
+export * from "./cover-art-jobs.schema";
 export * from "./playback-session.schema";
 export * from "./devices.schema";
 export * from "./explicit-content.schema";

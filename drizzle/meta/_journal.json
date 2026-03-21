@@ -162,6 +162,13 @@
       "when": 1773961228079,
       "tag": "0022_clammy_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1774060850503,
+      "tag": "0023_thankful_pepper_potts",
+      "breakpoints": true
     }
   ]
 }
