@@ -345,11 +345,20 @@ export function useWebAudioGraph(): WebAudioGraph {
 
         console.log(`[WEB AUDIO] Context running — shouldResume=${shouldResume}, interruptMs=${interruptDuration}, needsResync=${needsResync}`);
 
+        // Mute audio elements at the element level BEFORE reconnecting the graph.
+        // This is a safety net: even if the audio thread renders a few samples
+        // before the GainNode value takes effect, element.volume=0 prevents
+        // any pitch/speed artifacts from reaching speakers.
+        const deckA = deckAElementRef.current;
+        const deckB = deckBElementRef.current;
+        if (deckA) deckA.volume = 0;
+        if (deckB) deckB.volume = 0;
+
         // Reconnect masterGain → destination, starting at gain=0
         const master = masterGainRef.current;
         if (master) {
           try { master.gain.cancelScheduledValues(0); } catch {}
-          master.gain.value = 0;
+          master.gain.setValueAtTime(0, ctx.currentTime);
           try { master.connect(ctx.destination); } catch {}
         }
 
@@ -373,17 +382,29 @@ export function useWebAudioGraph(): WebAudioGraph {
           }
 
           if (active && needsResync) {
-            // Long interruption — force pipeline resync via seek
+            // Long interruption (app switch, call) — force pipeline resync via seek,
+            // then wait for the pipeline to stabilize before unmuting.
             active.deck.currentTime = active.deck.currentTime;
             console.log(`[WEB AUDIO] Resynced deck ${active.label} at ${active.deck.currentTime.toFixed(1)}s`);
-            fadeInMaster(150);
+            // Restore element volume after settle, then fade in via GainNode
+            setTimeout(() => {
+              if (deckA) deckA.volume = 1;
+              if (deckB) deckB.volume = 1;
+            }, 250);
+            fadeInMaster(300);
           } else {
-            // Quick bounce — brief settle then fade in
-            fadeInMaster(30);
+            // Quick bounce (lock screen, home button) — shorter settle
+            setTimeout(() => {
+              if (deckA) deckA.volume = 1;
+              if (deckB) deckB.volume = 1;
+            }, 40);
+            fadeInMaster(50);
           }
         } else {
           wasPlayingBeforeInterruptRef.current = false;
-          // Not playing — just restore master gain without fade
+          // Not playing — restore element volume and master gain immediately
+          if (deckA) deckA.volume = 1;
+          if (deckB) deckB.volume = 1;
           const userVolume = useAudioStore.getState().volume ?? 1.0;
           if (master) {
             master.gain.setValueAtTime(userVolume, ctx.currentTime);
