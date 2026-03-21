@@ -269,7 +269,7 @@ export function useWebAudioGraph(): WebAudioGraph {
       const master = masterGainRef.current;
       if (!master) return;
       const userVolume = useAudioStore.getState().volume ?? 1.0;
-      const FADE_MS = 200;
+      const FADE_MS = 350;
 
       const doFade = () => {
         if (!master) return;
@@ -396,8 +396,8 @@ export function useWebAudioGraph(): WebAudioGraph {
             console.log(`[WEB AUDIO] Resynced deck ${active.label} at ${active.deck.currentTime.toFixed(1)}s`);
             fadeInMaster(350);
           } else {
-            // Quick bounce (lock screen, home button) — shorter settle
-            fadeInMaster(80);
+            // Quick bounce (lock screen, home button)
+            fadeInMaster(150);
           }
         } else {
           wasPlayingBeforeInterruptRef.current = false;
