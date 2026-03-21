@@ -321,19 +321,24 @@ export function useWebAudioGraph(): WebAudioGraph {
         // cement a false pause during rapid AudioContext state bounces.
         useAudioStore.setState({ _lastAudioContextInterrupt: Date.now() });
 
-        // Slam masterGain to 0 immediately. No disconnect — topology changes
-        // (disconnect/connect) cause audible clicks. Gain=0 on the audio thread
-        // masks any pitch/speed artifacts during the interrupted→running transition
-        // because it's already scheduled before the transition happens.
+        // Two-layer muting BEFORE the interrupted→running transition:
+        // 1. element.volume=0 — works at the element level, independent of
+        //    AudioContext state. Prevents pitch-shifted audio from being audible.
+        // 2. masterGain.disconnect() — no graph path to speakers.
+        // Both set NOW (on interrupted), so they're in effect when the context
+        // transitions back to running. The pitch artifact happens during
+        // that transition, before any JS callback fires.
+        const deckA = deckAElementRef.current;
+        const deckB = deckBElementRef.current;
+        if (deckA) deckA.volume = 0;
+        if (deckB) deckB.volume = 0;
+
         const master = masterGainRef.current;
         if (master) {
-          try {
-            master.gain.cancelScheduledValues(0);
-            master.gain.setValueAtTime(0, ctx.currentTime);
-          } catch {}
+          try { master.disconnect(); } catch {}
         }
 
-        console.log(`[WEB AUDIO] Context ${state} — wasPlaying=${wasPlayingBeforeInterruptRef.current}, gain=0`);
+        console.log(`[WEB AUDIO] Context ${state} — wasPlaying=${wasPlayingBeforeInterruptRef.current}, muted+disconnected`);
 
         // Aggressively attempt resume (iOS may allow it via MediaSession)
         nudgeResume();
@@ -349,6 +354,22 @@ export function useWebAudioGraph(): WebAudioGraph {
         const needsResync = interruptDuration > 500;
 
         console.log(`[WEB AUDIO] Context running — shouldResume=${shouldResume}, interruptMs=${interruptDuration}, needsResync=${needsResync}`);
+
+        // Recovery sequence (order matters):
+        // 1. Reconnect masterGain at gain=0 — any click from topology change
+        //    is masked by element.volume=0 (still muted from interrupted handler)
+        const master = masterGainRef.current;
+        if (master) {
+          try { master.gain.cancelScheduledValues(0); } catch {}
+          master.gain.setValueAtTime(0, ctx.currentTime);
+          try { master.connect(ctx.destination); } catch {}
+        }
+
+        // 2. Restore element volumes — inaudible because masterGain=0
+        const deckA = deckAElementRef.current;
+        const deckB = deckBElementRef.current;
+        if (deckA) deckA.volume = 1;
+        if (deckB) deckB.volume = 1;
 
         if (shouldResume) {
           // Delay clearing wasPlaying so rapid interrupt cycles don't lose the signal.
@@ -368,19 +389,19 @@ export function useWebAudioGraph(): WebAudioGraph {
               console.warn(`[WEB AUDIO] Resume deck ${active.label} failed:`, err.message));
           }
 
+          // 3. Fade in masterGain — the only audible transition
           if (active && needsResync) {
-            // Long interruption (app switch, call) — force pipeline resync via seek
+            // Long interruption (app switch) — resync pipeline then fade
             active.deck.currentTime = active.deck.currentTime;
             console.log(`[WEB AUDIO] Resynced deck ${active.label} at ${active.deck.currentTime.toFixed(1)}s`);
             fadeInMaster(200);
           } else {
-            // Quick bounce (lock screen, home button) — fade in immediately
+            // Quick bounce (lock screen) — immediate fade
             fadeInMaster(0);
           }
         } else {
           wasPlayingBeforeInterruptRef.current = false;
-          // Not playing — restore master gain immediately
-          const master = masterGainRef.current;
+          // Not playing — just restore master gain
           const userVolume = useAudioStore.getState().volume ?? 1.0;
           if (master) {
             master.gain.setValueAtTime(userVolume, ctx.currentTime);
