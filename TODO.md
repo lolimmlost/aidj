@@ -12,6 +12,8 @@
   - Pressing play on a passive session should seek to the last known position from the active session, not restart from 0 or a stale sync point
   - Tab visibility changes on desktop may trigger unnecessary song reloads that reset position
 
+- [ ] Stale session resume has no volume: when a session sits inactive for a while and user presses play, audio plays but with no volume. Forcing a visibility change (switching tabs and back) fixes it and playback resumes with sound — and interestingly with no click at all. Likely the AudioContext or masterGain is in a bad state after long idle and only the visibility change recovery path properly reconnects it.
+
 ## Performance
 
 - [ ] Media Session handlers re-registering excessively — `PlayerBar.tsx` sets up Media Session handlers ~50+ times per page load due to an effect re-running too often. Needs dep array audit or guard to only register once per song change.
