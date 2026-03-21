@@ -386,18 +386,36 @@ export function useWebAudioGraph(): WebAudioGraph {
           }
 
           const active = findActiveDeck();
-          if (active?.paused) {
-            active.deck.play().catch((err) =>
-              console.warn(`[WEB AUDIO] Resume deck ${active.label} failed:`, err.message));
-          }
 
           // 3. Fade in masterGain — the only audible transition
           if (active && needsResync) {
-            // Long interruption (app switch) — resync pipeline then fade
-            active.deck.currentTime = active.deck.currentTime;
-            console.log(`[WEB AUDIO] Resynced deck ${active.label} at ${active.deck.currentTime.toFixed(1)}s`);
-            fadeInMaster(200);
+            // Long interruption (app switch) — the audio pipeline stays pitch-shifted
+            // for seconds after a simple seek. Force a full source reload to reset it:
+            // save position → reload src → seek → play → fade in.
+            const savedTime = active.deck.currentTime;
+            const src = active.deck.src;
+            console.log(`[WEB AUDIO] Hard resync deck ${active.label} at ${savedTime.toFixed(1)}s`);
+            active.deck.pause();
+            active.deck.src = src;
+            active.deck.currentTime = savedTime;
+            active.deck.play().catch((err) =>
+              console.warn(`[WEB AUDIO] Resume deck ${active.label} failed:`, err.message));
+            // Keep element muted until pipeline stabilizes from reload
+            const dA = deckAElementRef.current;
+            const dB = deckBElementRef.current;
+            if (dA) dA.volume = 0;
+            if (dB) dB.volume = 0;
+            // Wait for pipeline to settle, then unmute and fade
+            setTimeout(() => {
+              if (dA) dA.volume = 1;
+              if (dB) dB.volume = 1;
+              fadeInMaster(0);
+            }, 300);
           } else {
+            if (active?.paused) {
+              active.deck.play().catch((err) =>
+                console.warn(`[WEB AUDIO] Resume deck ${active.label} failed:`, err.message));
+            }
             // Quick bounce (lock screen) — immediate fade
             fadeInMaster(0);
           }
