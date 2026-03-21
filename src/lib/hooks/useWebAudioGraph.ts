@@ -328,14 +328,16 @@ export function useWebAudioGraph(): WebAudioGraph {
         // Both set NOW (on interrupted), so they're in effect when the context
         // transitions back to running. The pitch artifact happens during
         // that transition, before any JS callback fires.
-        const deckA = deckAElementRef.current;
-        const deckB = deckBElementRef.current;
-        if (deckA) deckA.volume = 0;
-        if (deckB) deckB.volume = 0;
+        {
+          const dA = deckAElementRef.current;
+          const dB = deckBElementRef.current;
+          if (dA) dA.volume = 0;
+          if (dB) dB.volume = 0;
 
-        const master = masterGainRef.current;
-        if (master) {
-          try { master.disconnect(); } catch {}
+          const m = masterGainRef.current;
+          if (m) {
+            try { m.disconnect(); } catch {}
+          }
         }
 
         console.log(`[WEB AUDIO] Context ${state} — wasPlaying=${wasPlayingBeforeInterruptRef.current}, muted+disconnected`);
