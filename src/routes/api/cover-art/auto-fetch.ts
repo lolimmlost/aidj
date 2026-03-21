@@ -272,6 +272,8 @@ const GET = withAuthAndErrorHandling(
       return errorResponse('NOT_FOUND', 'Job not found', { status: 404 });
     }
 
+    console.log('[auto-fetch] Job status:', JSON.stringify({ id: job.id, status: job.status, found: job.found, notFound: job.notFound, total: job.total, processed: job.processed }));
+
     return successResponse({
       job: {
         id: job.id,

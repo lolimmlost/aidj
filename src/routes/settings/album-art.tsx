@@ -56,7 +56,10 @@ function useAutoFetch(type: 'albums' | 'artists', queryClient: ReturnType<typeof
       const res = await fetch(`/api/cover-art/auto-fetch?jobId=${jobId}`);
       if (!res.ok) throw new Error('Failed to fetch job status');
       const json = await res.json();
-      return json.data?.job as AutoFetchJob;
+      // Handle both { data: { job: ... } } and { job: ... } shapes
+      const job = json.data?.job ?? json.job ?? json.data;
+      console.log('[auto-fetch] Poll result:', JSON.stringify(job));
+      return job as AutoFetchJob;
     },
     enabled: !!jobId && polling,
     refetchInterval: 2000,
@@ -64,12 +67,12 @@ function useAutoFetch(type: 'albums' | 'artists', queryClient: ReturnType<typeof
 
   // Watch for job completion
   useEffect(() => {
-    if (!jobData) return;
+    if (!jobData || !jobData.status) return;
 
     if (jobData.status === 'completed') {
       setPolling(false);
       setLastResult(jobData);
-      toast.success(`Found art for ${jobData.found} ${type}, ${jobData.notFound} not on Deezer`);
+      toast.success(`Found art for ${jobData.found ?? 0} ${type}, ${jobData.notFound ?? 0} not on Deezer`);
       queryClient.invalidateQueries({ queryKey: ['cover-art-missing'] });
       queryClient.invalidateQueries({ queryKey: ['cover-art-missing-artists'] });
       queryClient.invalidateQueries({ queryKey: ['saved-artist-images'] });
@@ -90,7 +93,9 @@ function useAutoFetch(type: 'albums' | 'artists', queryClient: ReturnType<typeof
       });
       if (!res.ok) throw new Error('Auto-fetch failed');
       const json = await res.json();
-      const id = json.data?.jobId as string;
+      const id = (json.data?.jobId ?? json.jobId) as string;
+      console.log('[auto-fetch] Started job:', id, JSON.stringify(json));
+      if (!id) throw new Error('No jobId in response');
       setJobId(id);
       setPolling(true);
     } catch {
