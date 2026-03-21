@@ -7,6 +7,11 @@
 - [ ] Fix cross-device skip: rapid skips from iPhone leave desktop with `isPlaying=false` and WS disconnect
 - [ ] Cross-device playback handoff: when user is playing music on phone and also has desktop session open, when song ends on phone the desktop session should pick up playback (Spotify Connect-style transfer)
 
+## Performance
+
+- [ ] Media Session handlers re-registering excessively — `PlayerBar.tsx` sets up Media Session handlers ~50+ times per page load due to an effect re-running too often. Needs dep array audit or guard to only register once per song change.
+- [ ] React hydration error #418 on every page load — SSR/client HTML mismatch. Likely a component rendering differently on server vs client (e.g. reading localStorage, window, or timestamps during SSR).
+
 ## UI / UX
 
 - [ ] Add fullscreen song view — tap album art or expand button to show immersive full-screen now-playing with large artwork, controls, lyrics, and swipe-to-dismiss
