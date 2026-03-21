@@ -321,17 +321,19 @@ export function useWebAudioGraph(): WebAudioGraph {
         // cement a false pause during rapid AudioContext state bounces.
         useAudioStore.setState({ _lastAudioContextInterrupt: Date.now() });
 
-        // Disconnect masterGain from destination. The pitch/speed artifact
-        // happens in the audio rendering pipeline during interrupted→running,
-        // BEFORE any JS callback fires. Gain manipulation can't prevent it.
-        // disconnect() modifies graph topology synchronously — no path to
-        // speakers means no audible artifact.
+        // Slam masterGain to 0 immediately. No disconnect — topology changes
+        // (disconnect/connect) cause audible clicks. Gain=0 on the audio thread
+        // masks any pitch/speed artifacts during the interrupted→running transition
+        // because it's already scheduled before the transition happens.
         const master = masterGainRef.current;
         if (master) {
-          try { master.disconnect(); } catch {}
+          try {
+            master.gain.cancelScheduledValues(0);
+            master.gain.setValueAtTime(0, ctx.currentTime);
+          } catch {}
         }
 
-        console.log(`[WEB AUDIO] Context ${state} — wasPlaying=${wasPlayingBeforeInterruptRef.current}, disconnected`);
+        console.log(`[WEB AUDIO] Context ${state} — wasPlaying=${wasPlayingBeforeInterruptRef.current}, gain=0`);
 
         // Aggressively attempt resume (iOS may allow it via MediaSession)
         nudgeResume();
@@ -348,34 +350,8 @@ export function useWebAudioGraph(): WebAudioGraph {
 
         console.log(`[WEB AUDIO] Context running — shouldResume=${shouldResume}, interruptMs=${interruptDuration}, needsResync=${needsResync}`);
 
-        // Mute audio elements at the element level BEFORE reconnecting the graph.
-        // This is a safety net: even if the audio thread renders a few samples
-        // before the GainNode value takes effect, element.volume=0 prevents
-        // any pitch/speed artifacts from reaching speakers.
-        const deckA = deckAElementRef.current;
-        const deckB = deckBElementRef.current;
-        if (deckA) deckA.volume = 0;
-        if (deckB) deckB.volume = 0;
-
-        // Reconnect masterGain → destination at gain=0.
-        // While masterGain=0, restore element volumes to 1 — this is inaudible
-        // because the GainNode blocks all output. Then let the GainNode fade
-        // handle the entire smooth transition. This avoids any element volume
-        // ramp issues (rAF doesn't fire when backgrounded on iOS).
-        const master = masterGainRef.current;
-        if (master) {
-          try { master.gain.cancelScheduledValues(0); } catch {}
-          master.gain.setValueAtTime(0, ctx.currentTime);
-          try { master.connect(ctx.destination); } catch {}
-        }
-
-        // Snap element volumes back to 1 while masterGain=0 masks all output
-        if (deckA) deckA.volume = 1;
-        if (deckB) deckB.volume = 1;
-
         if (shouldResume) {
           // Delay clearing wasPlaying so rapid interrupt cycles don't lose the signal.
-          // If another interrupted fires within 3s, the timer is cancelled above.
           if (clearWasPlayingTimerRef.current) clearTimeout(clearWasPlayingTimerRef.current);
           clearWasPlayingTimerRef.current = setTimeout(() => {
             wasPlayingBeforeInterruptRef.current = false;
@@ -393,18 +369,18 @@ export function useWebAudioGraph(): WebAudioGraph {
           }
 
           if (active && needsResync) {
-            // Long interruption (app switch, call) — force pipeline resync via seek,
-            // then wait for the pipeline to fully stabilize before fading in.
+            // Long interruption (app switch, call) — force pipeline resync via seek
             active.deck.currentTime = active.deck.currentTime;
             console.log(`[WEB AUDIO] Resynced deck ${active.label} at ${active.deck.currentTime.toFixed(1)}s`);
-            fadeInMaster(350);
+            fadeInMaster(200);
           } else {
-            // Quick bounce (lock screen, home button)
-            fadeInMaster(50);
+            // Quick bounce (lock screen, home button) — fade in immediately
+            fadeInMaster(0);
           }
         } else {
           wasPlayingBeforeInterruptRef.current = false;
-          // Not playing — just restore master gain immediately
+          // Not playing — restore master gain immediately
+          const master = masterGainRef.current;
           const userVolume = useAudioStore.getState().volume ?? 1.0;
           if (master) {
             master.gain.setValueAtTime(userVolume, ctx.currentTime);
