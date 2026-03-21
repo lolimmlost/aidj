@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, Search, X, ImageIcon, Loader2, Music, User } from 'lucide-react';
+import { Check, Search, X, ImageIcon, Loader2, Music, User, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -29,6 +29,48 @@ interface DeezerResult {
 }
 
 type Tab = 'albums' | 'artists';
+
+interface AutoFetchResult {
+  type: string;
+  processed: number;
+  found: number;
+  notFound: number;
+  errors: number;
+}
+
+// ─── Auto-fetch hook ────────────────────────────────────────────────────────
+
+function useAutoFetch(type: 'albums' | 'artists', queryClient: ReturnType<typeof useQueryClient>) {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<AutoFetchResult | null>(null);
+
+  const run = useCallback(async () => {
+    setRunning(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/cover-art/auto-fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type }),
+      });
+      if (!res.ok) throw new Error('Auto-fetch failed');
+      const json = await res.json();
+      const data = json.data as AutoFetchResult;
+      setResult(data);
+      toast.success(`Found art for ${data.found} ${type}, ${data.notFound} not found`);
+      // Refresh the lists
+      queryClient.invalidateQueries({ queryKey: ['cover-art-missing'] });
+      queryClient.invalidateQueries({ queryKey: ['cover-art-missing-artists'] });
+      queryClient.invalidateQueries({ queryKey: ['saved-artist-images'] });
+    } catch {
+      toast.error(`Auto-fetch ${type} failed`);
+    } finally {
+      setRunning(false);
+    }
+  }, [type, queryClient]);
+
+  return { run, running, result };
+}
 
 // ─── Navidrome art probe hook ───────────────────────────────────────────────
 
@@ -139,6 +181,7 @@ function AlbumsTab() {
   const [searchingAlbum, setSearchingAlbum] = useState<string | null>(null);
   const [deezerResults, setDeezerResults] = useState<Record<string, DeezerResult>>({});
   const queryClient = useQueryClient();
+  const autoFetch = useAutoFetch('albums', queryClient);
 
   const { data, isLoading } = useQuery({
     queryKey: ['cover-art-missing'],
@@ -248,23 +291,46 @@ function AlbumsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Header stats */}
-      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-        <span>{albums.length} albums in history</span>
-        <span>&middot;</span>
-        <span className="text-green-500">{navidromeArtCount} have Navidrome art</span>
-        <span>&middot;</span>
-        <span>{missingAlbums.length} missing</span>
-        {probing && (
-          <>
-            <span>&middot;</span>
-            <span className="flex items-center gap-1">
+      {/* Header stats + auto-fetch */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+          <span>{albums.length} albums in history</span>
+          <span>&middot;</span>
+          <span className="text-green-500">{navidromeArtCount} have Navidrome art</span>
+          <span>&middot;</span>
+          <span>{missingAlbums.length} missing</span>
+          {probing && (
+            <>
+              <span>&middot;</span>
+              <span className="flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Checking...
+              </span>
+            </>
+          )}
+        </div>
+        {missingAlbums.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-xs"
+            onClick={autoFetch.run}
+            disabled={autoFetch.running || probing}
+          >
+            {autoFetch.running ? (
               <Loader2 className="h-3 w-3 animate-spin" />
-              Checking...
-            </span>
-          </>
+            ) : (
+              <Zap className="h-3 w-3" />
+            )}
+            {autoFetch.running ? 'Fetching...' : 'Auto-fetch All'}
+          </Button>
         )}
       </div>
+      {autoFetch.result && (
+        <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+          Done: {autoFetch.result.found} found, {autoFetch.result.notFound} not on Deezer{autoFetch.result.errors > 0 && `, ${autoFetch.result.errors} errors`}
+        </div>
+      )}
 
       {/* Search filter */}
       <div className="relative">
@@ -390,6 +456,7 @@ function ArtistsTab() {
   const [searchingArtist, setSearchingArtist] = useState<string | null>(null);
   const [deezerResults, setDeezerResults] = useState<Record<string, DeezerResult>>({});
   const queryClient = useQueryClient();
+  const autoFetch = useAutoFetch('artists', queryClient);
 
   const { data, isLoading } = useQuery({
     queryKey: ['cover-art-missing-artists'],
@@ -481,10 +548,33 @@ function ArtistsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Header stats */}
-      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-        <span>{artists.length} artists missing images</span>
+      {/* Header stats + auto-fetch */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+          <span>{artists.length} artists missing images</span>
+        </div>
+        {artists.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-xs"
+            onClick={autoFetch.run}
+            disabled={autoFetch.running}
+          >
+            {autoFetch.running ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Zap className="h-3 w-3" />
+            )}
+            {autoFetch.running ? 'Fetching...' : 'Auto-fetch All'}
+          </Button>
+        )}
       </div>
+      {autoFetch.result && (
+        <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+          Done: {autoFetch.result.found} found, {autoFetch.result.notFound} not on Deezer{autoFetch.result.errors > 0 && `, ${autoFetch.result.errors} errors`}
+        </div>
+      )}
 
       {/* Search filter */}
       <div className="relative">
