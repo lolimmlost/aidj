@@ -91,22 +91,24 @@ export const Route = createFileRoute("/api/navidrome/stream/$id")({
       console.log('Content-Type:', response.headers.get('content-type'));
       console.log('Content-Length:', response.headers.get('content-length') || 'unknown');
 
-      if (!response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+
+      if (!response.ok || contentType.includes('xml') || contentType.includes('html')) {
         let errorText = '(no body)';
         try {
           errorText = await response.text();
         } catch {
           // Ignore text extraction error for binary responses
         }
-        console.error('Navidrome stream failed:', response.status, errorText);
+        console.error('Navidrome stream failed:', response.status, contentType, errorText);
         return new Response(`Stream failed: ${response.status} - ${errorText}`, {
-          status: response.status,
+          status: response.ok ? 502 : response.status,
           headers: { 'Content-Type': 'text/plain' }
         });
       }
 
       const clonedHeaders = new Headers(response.headers);
-      
+
       // Essential CORS headers for browser audio playback
       clonedHeaders.set('Access-Control-Allow-Origin', '*');
       clonedHeaders.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -118,11 +120,10 @@ export const Route = createFileRoute("/api/navidrome/stream/$id")({
       clonedHeaders.set('Accept-Ranges', 'bytes');
 
       // Ensure proper content type for audio
-      const contentType = response.headers.get('content-type') || 'audio/mpeg';
-      clonedHeaders.set('Content-Type', contentType);
+      clonedHeaders.set('Content-Type', contentType || 'audio/mpeg');
 
       console.log('Proxying audio stream, content-type:', contentType);
-      
+
       return new Response(response.body, {
         status: response.status,
         headers: clonedHeaders,
