@@ -58,7 +58,6 @@ function useAutoFetch(type: 'albums' | 'artists', queryClient: ReturnType<typeof
       const json = await res.json();
       // Handle both { data: { job: ... } } and { job: ... } shapes
       const job = json.data?.job ?? json.job ?? json.data;
-      console.log('[auto-fetch] Poll result:', JSON.stringify(job));
       return job as AutoFetchJob;
     },
     enabled: !!jobId && polling,
@@ -94,7 +93,6 @@ function useAutoFetch(type: 'albums' | 'artists', queryClient: ReturnType<typeof
       if (!res.ok) throw new Error('Auto-fetch failed');
       const json = await res.json();
       const id = (json.data?.jobId ?? json.jobId) as string;
-      console.log('[auto-fetch] Started job:', id, JSON.stringify(json));
       if (!id) throw new Error('No jobId in response');
       setJobId(id);
       setPolling(true);
