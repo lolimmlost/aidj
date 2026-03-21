@@ -875,6 +875,12 @@ export function PlayerBar() {
           if (errorDeck !== activeDeck) return;
           console.error('Audio load error:', errorDeck?.error);
           setIsLoading(false);
+          // Auto-skip to next song on stream failure (bad file, 502, etc.)
+          const state = useAudioStore.getState();
+          if (state.playlist.length > 1) {
+            console.warn('[PLAYER] Stream failed, auto-skipping to next song in 1s');
+            setTimeout(() => useAudioStore.getState().nextSong(), 1000);
+          }
         };
 
         canPlayHandlerRef.current = handleCanPlay;
