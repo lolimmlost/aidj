@@ -19,6 +19,10 @@
 - [ ] Logout page invalidation — invalidate router/query cache on sign-out for instant redirect to login instead of stale page flash
 - [x] Redesign login page — improve visual design, branding, and UX
 
+## DevOps
+
+- [ ] Switch Coolify deployment back to `main` branch and merge `feat/web-audio-crossfade` into `main`
+
 ## Lidarr / Downloads
 
 - [ ] Add option to monitor a specific album or song in Lidarr instead of pulling full artist discography — check how the CSV playlist import handles this (it likely uses `POST /api/v1/album` or search+add per album rather than artist-level monitoring)
