@@ -6,7 +6,11 @@
 
 - [ ] Fix cross-device skip: rapid skips from iPhone leave desktop with `isPlaying=false` and WS disconnect
 - [ ] Cross-device playback handoff: when user is playing music on phone and also has desktop session open, when song ends on phone the desktop session should pick up playback (Spotify Connect-style transfer)
-- [ ] Cross-device position sync: when phone is playing and desktop opens, pressing play on desktop resumes from the initial sync position instead of the phone's current position. WebSocket should continuously broadcast current playback position so other sessions stay up to date.
+- [ ] Cross-device position sync (multiple related bugs):
+  - WS should continuously broadcast playback position (every ~5s) so other sessions stay current
+  - `loadSong` resets `currentTime` to 0 on reconnect, then `savePlaybackState` fires and overwrites the real saved position with `0.0s` — need to guard against saving 0 when a valid position was previously known
+  - Pressing play on a passive session should seek to the last known position from the active session, not restart from 0 or a stale sync point
+  - Tab visibility changes on desktop may trigger unnecessary song reloads that reset position
 
 ## Performance
 
