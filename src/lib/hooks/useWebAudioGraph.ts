@@ -269,13 +269,16 @@ export function useWebAudioGraph(): WebAudioGraph {
       const master = masterGainRef.current;
       if (!master) return;
       const userVolume = useAudioStore.getState().volume ?? 1.0;
-      const FADE_MS = 350;
+      const FADE_MS = 250;
 
       const doFade = () => {
         if (!master) return;
-        master.gain.setValueAtTime(0, ctx.currentTime);
-        master.gain.linearRampToValueAtTime(
-          userVolume, ctx.currentTime + FADE_MS / 1000,
+        const now = ctx.currentTime;
+        // Start from a tiny non-zero value to avoid the hard 0→signal discontinuity
+        // that causes clicks. Use exponential ramp for a natural fade curve.
+        master.gain.setValueAtTime(0.001, now);
+        master.gain.exponentialRampToValueAtTime(
+          Math.max(userVolume, 0.001), now + FADE_MS / 1000,
         );
         console.log(`[WEB AUDIO] Fading in masterGain to ${userVolume} over ${FADE_MS}ms`);
       };
@@ -397,7 +400,7 @@ export function useWebAudioGraph(): WebAudioGraph {
             fadeInMaster(350);
           } else {
             // Quick bounce (lock screen, home button)
-            fadeInMaster(150);
+            fadeInMaster(50);
           }
         } else {
           wasPlayingBeforeInterruptRef.current = false;
