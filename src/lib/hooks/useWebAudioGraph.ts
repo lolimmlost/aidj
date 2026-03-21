@@ -23,6 +23,19 @@ function hasRealSource(el: HTMLAudioElement | null): boolean {
   return el?.src != null && !el.src.startsWith('data:');
 }
 
+/** Ramp an HTMLAudioElement's volume from current to target over durationMs. */
+function rampElementVolume(el: HTMLAudioElement, target: number, durationMs: number) {
+  const start = el.volume;
+  const startTime = performance.now();
+  const step = () => {
+    const elapsed = performance.now() - startTime;
+    const t = Math.min(elapsed / durationMs, 1);
+    el.volume = start + (target - start) * t;
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
 /** Compute an equal-power (sin²/cos²) curve value at position t ∈ [0,1]. */
 function equalPowerValue(start: number, end: number, t: number): number {
   if (end > start) {
@@ -386,25 +399,25 @@ export function useWebAudioGraph(): WebAudioGraph {
             // then wait for the pipeline to stabilize before unmuting.
             active.deck.currentTime = active.deck.currentTime;
             console.log(`[WEB AUDIO] Resynced deck ${active.label} at ${active.deck.currentTime.toFixed(1)}s`);
-            // Restore element volume after settle, then fade in via GainNode
+            // Ramp element volume back up smoothly after settle, then fade in via GainNode
             setTimeout(() => {
-              if (deckA) deckA.volume = 1;
-              if (deckB) deckB.volume = 1;
-            }, 250);
+              if (deckA) rampElementVolume(deckA, 1, 100);
+              if (deckB) rampElementVolume(deckB, 1, 100);
+            }, 200);
             fadeInMaster(300);
           } else {
             // Quick bounce (lock screen, home button) — shorter settle
             setTimeout(() => {
-              if (deckA) deckA.volume = 1;
-              if (deckB) deckB.volume = 1;
-            }, 40);
+              if (deckA) rampElementVolume(deckA, 1, 80);
+              if (deckB) rampElementVolume(deckB, 1, 80);
+            }, 30);
             fadeInMaster(50);
           }
         } else {
           wasPlayingBeforeInterruptRef.current = false;
-          // Not playing — restore element volume and master gain immediately
-          if (deckA) deckA.volume = 1;
-          if (deckB) deckB.volume = 1;
+          // Not playing — restore element volume smoothly and master gain immediately
+          if (deckA) rampElementVolume(deckA, 1, 50);
+          if (deckB) rampElementVolume(deckB, 1, 50);
           const userVolume = useAudioStore.getState().volume ?? 1.0;
           if (master) {
             master.gain.setValueAtTime(userVolume, ctx.currentTime);
