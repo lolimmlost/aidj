@@ -66,6 +66,7 @@ export function useWebAudioGraph(): WebAudioGraph {
   const wasPlayingBeforeInterruptRef = useRef<boolean>(false);
   const interruptedAtRef = useRef<number>(0);
   const clearWasPlayingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resumeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const getGainNode = useCallback((deck: 'A' | 'B'): GainNode | null => {
     return deck === 'A' ? gainARef.current : gainBRef.current;
@@ -342,13 +343,32 @@ export function useWebAudioGraph(): WebAudioGraph {
 
         console.log(`[WEB AUDIO] Context ${state} — wasPlaying=${wasPlayingBeforeInterruptRef.current}, muted+disconnected`);
 
-        // Aggressively attempt resume (iOS may allow it via MediaSession)
-        nudgeResume();
-        setTimeout(nudgeResume, 200);
-        setTimeout(nudgeResume, 1000);
-        setTimeout(nudgeResume, 3000);
+        // Persistent resume retry — iOS may not allow resume immediately after
+        // interrupt. Instead of a fixed set of timeouts that can all expire while
+        // the system hasn't settled, use a setInterval that keeps trying until
+        // the context reaches 'running' (at which point the statechange handler
+        // fires and runs the recovery path).
+        if (resumeIntervalRef.current) clearInterval(resumeIntervalRef.current);
+        nudgeResume(); // immediate first attempt
+        resumeIntervalRef.current = setInterval(() => {
+          if ((ctx.state as string) === 'running') {
+            if (resumeIntervalRef.current) {
+              clearInterval(resumeIntervalRef.current);
+              resumeIntervalRef.current = null;
+            }
+            return;
+          }
+          console.log(`[WEB AUDIO] Retry resume — context still ${ctx.state}`);
+          nudgeResume();
+        }, 2000);
 
       } else if (state === 'running') {
+        // Clear the persistent resume interval — context is running now
+        if (resumeIntervalRef.current) {
+          clearInterval(resumeIntervalRef.current);
+          resumeIntervalRef.current = null;
+        }
+
         const shouldResume = wasPlayingBeforeInterruptRef.current || useAudioStore.getState().isPlaying;
         const interruptDuration = interruptedAtRef.current > 0
           ? Date.now() - interruptedAtRef.current : 0;
@@ -445,6 +465,10 @@ export function useWebAudioGraph(): WebAudioGraph {
     return () => {
       ctx.removeEventListener('statechange', handleStateChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (resumeIntervalRef.current) {
+        clearInterval(resumeIntervalRef.current);
+        resumeIntervalRef.current = null;
+      }
     };
   }, [isInitialized]);
 
