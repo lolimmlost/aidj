@@ -249,10 +249,10 @@ export function ArtistMetadataHero({ metadata, artistImageUrl }: ArtistMetadataH
                     params={{ id: libraryId }}
                   >
                     <Badge
-                      variant="secondary"
-                      className="text-xs cursor-pointer bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                      variant="outline"
+                      className="text-xs cursor-pointer border-primary/40 text-primary hover:bg-primary/10 transition-colors"
                     >
-                      <Library className="h-3 w-3 mr-1" />
+                      <Library className="h-3 w-3 mr-1 flex-shrink-0" />
                       {similar.name}
                     </Badge>
                   </Link>
