@@ -404,7 +404,7 @@
 
   /* Mood Card Base */
   .mood-card {
-    @apply relative overflow-hidden rounded-2xl p-5 cursor-pointer
+    @apply relative overflow-hidden rounded-xl p-3 cursor-pointer
            transition-all duration-300 ease-out
            hover:scale-[1.02] hover:shadow-lg
            active:scale-[0.98];

@@ -184,19 +184,19 @@ function MoodCard({ preset, isActive, isLoading, onClick, compact = false }: Moo
       )}
     >
       {/* Icon */}
-      <div className="mb-3 opacity-90">
+      <div className="mb-1.5 opacity-90 [&_svg]:h-5 [&_svg]:w-5">
         {isLoading ? (
-          <Loader2 className="h-6 w-6 animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin" />
         ) : (
           preset.icon
         )}
       </div>
 
       {/* Label */}
-      <h3 className="font-bold text-base sm:text-lg leading-tight">{preset.label}</h3>
+      <h3 className="font-bold text-sm leading-tight">{preset.label}</h3>
 
       {/* Description */}
-      <p className="text-xs sm:text-sm opacity-80 mt-1">{preset.description}</p>
+      <p className="text-[11px] opacity-80 mt-0.5">{preset.description}</p>
 
       {/* Active Indicator */}
       {isActive && !isLoading && (
