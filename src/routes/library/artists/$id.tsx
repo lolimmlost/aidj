@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams, useNavigate, redirect, Outlet, useMatch } from '@tanstack/react-router';
+import { createFileRoute, Link, useParams, useNavigate, redirect, Outlet, useLocation } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { getAlbums, getArtistDetail, getSongsByArtist } from '@/lib/services/navidrome';
@@ -73,14 +73,8 @@ function ArtistDetail() {
   const [activeTab, setActiveTab] = useState<'all' | 'albums' | 'songs'>('all');
 
   // Check if a child route (album detail) is active
-  const isChildRoute = (() => {
-    try {
-      useMatch({ from: '/library/artists/$id/albums/$albumId' });
-      return true;
-    } catch {
-      return false;
-    }
-  })();
+  const location = useLocation();
+  const isChildRoute = location.pathname.includes('/albums/');
 
   // If a child route is active, just render the Outlet
   if (isChildRoute) {
