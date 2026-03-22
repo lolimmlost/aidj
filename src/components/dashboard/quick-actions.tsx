@@ -183,20 +183,17 @@ function MoodCard({ preset, isActive, isLoading, onClick, compact = false }: Moo
         isLoading && 'animate-pulse'
       )}
     >
-      {/* Icon */}
-      <div className="mb-1.5 opacity-90 [&_svg]:h-5 [&_svg]:w-5">
-        {isLoading ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
-        ) : (
-          preset.icon
-        )}
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <div className="opacity-90 [&_svg]:h-4 [&_svg]:w-4">
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            preset.icon
+          )}
+        </div>
+        <h3 className="font-bold text-sm leading-tight">{preset.label}</h3>
       </div>
-
-      {/* Label */}
-      <h3 className="font-bold text-sm leading-tight">{preset.label}</h3>
-
-      {/* Description */}
-      <p className="text-[11px] opacity-80 mt-0.5">{preset.description}</p>
+      <p className="text-[10px] opacity-75 leading-tight">{preset.description}</p>
 
       {/* Active Indicator */}
       {isActive && !isLoading && (
