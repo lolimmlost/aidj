@@ -59,7 +59,7 @@ export function PageLayout({
           {backLink && (
             <Link
               to={backLink}
-              className="hidden md:inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 group"
+              className="hidden md:inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mt-2 mb-4 group"
             >
               <ChevronLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
               <span>{backLabel}</span>
