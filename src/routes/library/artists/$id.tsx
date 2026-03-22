@@ -145,8 +145,8 @@ function ArtistDetail() {
     return (
       <PageLayout
         title="Error"
-        backLink="/library"
-        backLabel="Library"
+        backLink="/library/artists"
+        backLabel="Artists"
         compact
       >
         <Card className="p-6 bg-destructive/10 border-destructive">
@@ -299,8 +299,8 @@ function ArtistDetail() {
     <PageLayout
       title={artistName}
       description={`${albums.length} ${albums.length === 1 ? 'album' : 'albums'} \u2022 ${songs.length} ${songs.length === 1 ? 'song' : 'songs'}`}
-      backLink="/library"
-      backLabel="Library"
+      backLink="/library/artists"
+      backLabel="Artists"
       compact
     >
       {/* Enriched Artist Metadata */}
