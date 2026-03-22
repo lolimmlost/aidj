@@ -20,6 +20,27 @@ import { PageLayout } from '@/components/ui/page-layout';
 import { useArtistMetadata } from '@/lib/hooks/useArtistMetadata';
 import { ArtistMetadataHero } from '@/components/library/ArtistMetadataHero';
 
+/** Album cover with Navidrome getCoverArt proxy fallback */
+function AlbumCoverArt({ albumId, artwork, name }: { albumId: string; artwork?: string; name: string }) {
+  const [error, setError] = useState(false);
+  const proxyUrl = `/api/navidrome/rest/getCoverArt?id=${albumId}&size=300`;
+  const src = error || !artwork ? proxyUrl : artwork;
+
+  return error && !artwork ? (
+    <Disc className="h-12 w-12 text-muted-foreground" />
+  ) : (
+    <img
+      src={src}
+      alt={`Album cover for ${name}`}
+      className="w-full h-full object-cover"
+      loading="lazy"
+      onError={() => {
+        if (!error) setError(true);
+      }}
+    />
+  );
+}
+
 export const Route = createFileRoute('/library/artists/$id')({
   beforeLoad: async ({ context }) => {
     if (!context.user) {
@@ -176,16 +197,7 @@ function ArtistDetail() {
           }}
         >
           <div className="aspect-square w-full rounded-lg mb-2 sm:mb-3 overflow-hidden bg-muted flex items-center justify-center">
-            {album.artwork ? (
-              <img
-                src={album.artwork}
-                alt={`Album cover for ${album.name}`}
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-            ) : (
-              <Disc className="h-12 w-12 text-muted-foreground" />
-            )}
+            <AlbumCoverArt albumId={album.id} artwork={album.artwork} name={album.name} />
           </div>
           <div className="space-y-1">
             <div className="font-semibold line-clamp-2 text-xs sm:text-sm text-foreground">

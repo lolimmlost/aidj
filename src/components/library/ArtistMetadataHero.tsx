@@ -221,7 +221,7 @@ export function ArtistMetadataHero({ metadata, artistImageUrl }: ArtistMetadataH
                 {similar.name}
                 {similar.score > 0 && (
                   <span className="ml-1 text-muted-foreground">
-                    {Math.round(similar.score * 100)}%
+                    {Math.round(similar.score)}%
                   </span>
                 )}
               </Badge>
