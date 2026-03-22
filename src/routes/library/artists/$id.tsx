@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams, useNavigate, redirect } from '@tanstack/react-router';
+import { createFileRoute, Link, useParams, useNavigate, redirect, Outlet, useMatch } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { getAlbums, getArtistDetail, getSongsByArtist } from '@/lib/services/navidrome';
@@ -71,6 +71,21 @@ function ArtistDetail() {
   const { id } = useParams({ from: '/library/artists/$id' }) as { id: string };
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'all' | 'albums' | 'songs'>('all');
+
+  // Check if a child route (album detail) is active
+  const isChildRoute = (() => {
+    try {
+      useMatch({ from: '/library/artists/$id/albums/$albumId' });
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  // If a child route is active, just render the Outlet
+  if (isChildRoute) {
+    return <Outlet />;
+  }
   const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress } = useAudioStore();
 
   // Fetch artist details for the header
