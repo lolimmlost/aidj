@@ -322,26 +322,23 @@ export function useWebAudioGraph(): WebAudioGraph {
         // cement a false pause during rapid AudioContext state bounces.
         useAudioStore.setState({ _lastAudioContextInterrupt: Date.now() });
 
-        // Two-layer muting BEFORE the interrupted→running transition:
-        // 1. element.volume=0 — works at the element level, independent of
-        //    AudioContext state. Prevents pitch-shifted audio from being audible.
-        // 2. masterGain.disconnect() — no graph path to speakers.
-        // Both set NOW (on interrupted), so they're in effect when the context
-        // transitions back to running. The pitch artifact happens during
-        // that transition, before any JS callback fires.
+        // Disconnect masterGain from destination to prevent pitch-shifted audio
+        // when the context transitions back to running through the Web Audio graph.
+        //
+        // CRITICAL: Do NOT set element.volume=0 here. When AudioContext is
+        // interrupted, iOS releases createMediaElementSource and routes audio
+        // directly through the HTMLAudioElement. Setting volume=0 kills that
+        // direct path, which stops background audio AND removes media controls
+        // from the lock screen. The element must stay at volume=1 so iOS can
+        // continue playing audio in the background.
         {
-          const dA = deckAElementRef.current;
-          const dB = deckBElementRef.current;
-          if (dA) dA.volume = 0;
-          if (dB) dB.volume = 0;
-
           const m = masterGainRef.current;
           if (m) {
             try { m.disconnect(); } catch {}
           }
         }
 
-        console.log(`[WEB AUDIO] Context ${state} — wasPlaying=${wasPlayingBeforeInterruptRef.current}, muted+disconnected`);
+        console.log(`[WEB AUDIO] Context ${state} — wasPlaying=${wasPlayingBeforeInterruptRef.current}, masterGain disconnected (elements untouched)`);
 
         // Persistent resume retry — iOS may not allow resume immediately after
         // interrupt. Instead of a fixed set of timeouts that can all expire while
@@ -378,8 +375,15 @@ export function useWebAudioGraph(): WebAudioGraph {
         console.log(`[WEB AUDIO] Context running — shouldResume=${shouldResume}, interruptMs=${interruptDuration}, needsResync=${needsResync}`);
 
         // Recovery sequence (order matters):
-        // 1. Reconnect masterGain at gain=0 — any click from topology change
-        //    is masked by element.volume=0 (still muted from interrupted handler)
+        // 1. Briefly mute elements — prevents pitch artifact during graph reconnect.
+        //    Elements were left at volume=1 during interrupted state (for background
+        //    audio), so we mute them now just for the reconnection transition.
+        const deckA = deckAElementRef.current;
+        const deckB = deckBElementRef.current;
+        if (deckA) deckA.volume = 0;
+        if (deckB) deckB.volume = 0;
+
+        // 2. Reconnect masterGain at gain=0
         const master = masterGainRef.current;
         if (master) {
           try { master.gain.cancelScheduledValues(0); } catch {}
@@ -387,11 +391,12 @@ export function useWebAudioGraph(): WebAudioGraph {
           try { master.connect(ctx.destination); } catch {}
         }
 
-        // 2. Restore element volumes — inaudible because masterGain=0
-        const deckA = deckAElementRef.current;
-        const deckB = deckBElementRef.current;
-        if (deckA) deckA.volume = 1;
-        if (deckB) deckB.volume = 1;
+        // 3. Restore element volumes after brief settle (graph is now connected,
+        //    masterGain=0 masks any transient)
+        setTimeout(() => {
+          if (deckA) deckA.volume = 1;
+          if (deckB) deckB.volume = 1;
+        }, 50);
 
         if (shouldResume) {
           // Delay clearing wasPlaying so rapid interrupt cycles don't lose the signal.
