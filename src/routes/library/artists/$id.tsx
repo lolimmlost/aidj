@@ -93,7 +93,7 @@ function ArtistDetail() {
   });
 
   // Fetch enriched metadata from Aurral (server-cached)
-  const { data: artistMetadata } = useArtistMetadata(artist?.name, {
+  const { data: artistMetadata, isLoading: loadingMetadata } = useArtistMetadata(artist?.name, {
     navidromeId: id,
     enabled: !!artist?.name,
   });
@@ -304,6 +304,31 @@ function ArtistDetail() {
       compact
     >
       {/* Enriched Artist Metadata */}
+      {loadingMetadata && (
+        <div className="rounded-xl border bg-card overflow-hidden animate-pulse">
+          <div className="p-4 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-6">
+            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-lg bg-muted flex-shrink-0" />
+            <div className="flex-1 space-y-3">
+              <div className="flex gap-2">
+                <div className="h-4 w-16 rounded bg-muted" />
+                <div className="h-4 w-20 rounded bg-muted" />
+                <div className="h-4 w-14 rounded bg-muted" />
+              </div>
+              <div className="flex gap-1.5">
+                <div className="h-5 w-12 rounded-full bg-muted" />
+                <div className="h-5 w-16 rounded-full bg-muted" />
+                <div className="h-5 w-10 rounded-full bg-muted" />
+                <div className="h-5 w-14 rounded-full bg-muted" />
+              </div>
+              <div className="space-y-2">
+                <div className="h-3 w-full rounded bg-muted" />
+                <div className="h-3 w-4/5 rounded bg-muted" />
+                <div className="h-3 w-3/5 rounded bg-muted" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {artistMetadata && (
         <ArtistMetadataHero
           metadata={artistMetadata}
