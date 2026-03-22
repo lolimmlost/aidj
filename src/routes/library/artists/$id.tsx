@@ -243,8 +243,12 @@ function ArtistDetail() {
   const renderSongRow = (song: typeof songs[0]) => (
     <div
       key={song.id}
-      className="flex items-center p-3 sm:p-4 border rounded hover:bg-accent transition-colors min-h-[44px]"
+      className="flex items-center p-3 sm:p-4 border rounded hover:bg-accent transition-colors min-h-[44px] gap-3"
     >
+      {/* Album art — desktop only */}
+      <div className="hidden md:block flex-shrink-0 w-10 h-10 rounded overflow-hidden bg-muted">
+        <AlbumCoverArt albumId={song.albumId} artwork={undefined} name={song.album || 'Unknown'} />
+      </div>
       <div
         className="flex-1 min-w-0 cursor-pointer hover:text-accent-foreground"
         onClick={() => handleSongClick(song.id)}
