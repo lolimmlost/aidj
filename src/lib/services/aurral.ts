@@ -280,6 +280,26 @@ export async function getArtistCover(mbid: string, artistName?: string): Promise
   return aurralFetch(path);
 }
 
+/** Fetch core artist info directly from MusicBrainz (type, country, life-span) */
+async function fetchMusicBrainzCoreInfo(mbid: string): Promise<{
+  type?: string;
+  country?: string;
+  'life-span'?: { begin: string | null; end: string | null; ended: boolean };
+} | null> {
+  try {
+    const res = await fetch(
+      `https://musicbrainz.org/ws/2/artist/${encodeURIComponent(mbid)}?fmt=json`,
+      {
+        headers: { 'User-Agent': 'AIDJ/1.0 (https://aidj.appahouse.com)' },
+      }
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 /** Add artist to Lidarr via Aurral */
 export async function addArtistToLibrary(mbid: string, artistName: string): Promise<{ queued: boolean; foreignArtistId: string; artistName: string }> {
   return aurralFetch('/api/library/artists', {
@@ -385,14 +405,30 @@ export async function getEnrichedArtist(
       ?? coverData?.images?.[0]?.image
       ?? null;
 
+    // Aurral may not return type/country/life-span — fill from MusicBrainz directly
+    let artistType = artistData.type ?? null;
+    let country = artistData.country ?? null;
+    let formedYear = artistData['life-span']?.begin ?? null;
+    let ended = artistData['life-span']?.ended ?? false;
+
+    if (!artistType && !country && !formedYear && mbid) {
+      const mbData = await fetchMusicBrainzCoreInfo(mbid);
+      if (mbData) {
+        artistType = mbData.type ?? artistType;
+        country = mbData.country ?? country;
+        formedYear = mbData['life-span']?.begin ?? formedYear;
+        ended = mbData['life-span']?.ended ?? ended;
+      }
+    }
+
     const enriched: EnrichedArtistMetadata = {
       artistName: artistData.name,
       mbid: artistData.id,
       disambiguation: artistData.disambiguation ?? null,
-      artistType: artistData.type ?? null,
-      country: artistData.country ?? null,
-      formedYear: artistData['life-span']?.begin ?? null,
-      ended: artistData['life-span']?.ended ?? false,
+      artistType,
+      country,
+      formedYear,
+      ended,
       tags: artistData.tags ?? [],
       genres: artistData.genres ?? [],
       bio: artistData.bio ?? null,
