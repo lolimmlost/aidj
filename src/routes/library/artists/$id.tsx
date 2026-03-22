@@ -20,22 +20,39 @@ import { PageLayout } from '@/components/ui/page-layout';
 import { useArtistMetadata } from '@/lib/hooks/useArtistMetadata';
 import { ArtistMetadataHero } from '@/components/library/ArtistMetadataHero';
 
-/** Album cover with Navidrome getCoverArt proxy fallback */
+/** Album cover with Navidrome getCoverArt proxy fallback, then placeholder */
 function AlbumCoverArt({ albumId, artwork, name }: { albumId: string; artwork?: string; name: string }) {
   const [error, setError] = useState(false);
+  const [proxyError, setProxyError] = useState(false);
   const proxyUrl = `/api/navidrome/rest/getCoverArt?id=${albumId}&size=300`;
+
+  // Both sources failed — show placeholder
+  if ((error && !artwork && proxyError) || (error && artwork && proxyError)) {
+    return (
+      <div className="w-full h-full bg-gradient-to-br from-muted to-muted/50 flex flex-col items-center justify-center gap-1.5">
+        <Disc className="h-8 w-8 text-muted-foreground/60" />
+        <span className="text-[10px] text-muted-foreground/50 font-medium px-2 text-center line-clamp-2">
+          {name}
+        </span>
+      </div>
+    );
+  }
+
+  // Try artwork first, then proxy
   const src = error || !artwork ? proxyUrl : artwork;
 
-  return error && !artwork ? (
-    <Disc className="h-12 w-12 text-muted-foreground" />
-  ) : (
+  return (
     <img
       src={src}
       alt={`Album cover for ${name}`}
       className="w-full h-full object-cover"
       loading="lazy"
       onError={() => {
-        if (!error) setError(true);
+        if (!error && artwork) {
+          setError(true);
+        } else {
+          setProxyError(true);
+        }
       }}
     />
   );
