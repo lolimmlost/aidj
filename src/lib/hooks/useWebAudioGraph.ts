@@ -453,11 +453,66 @@ export function useWebAudioGraph(): WebAudioGraph {
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
       const state = ctx.state as string;
+      console.log(`[WEB AUDIO] Visibility returned, context ${state}`);
+
       if (state === 'suspended' || state === 'interrupted') {
-        console.log(`[WEB AUDIO] Visibility returned, context ${state} — resuming`);
+        console.log(`[WEB AUDIO] Context ${state} — attempting resume`);
         ctx.resume().catch((err) =>
           console.warn('[WEB AUDIO] Resume on visibility failed:', err));
       }
+
+      // CRITICAL: The interrupted handler disconnects masterGain and sets
+      // element.volume=0 to prevent pitch artifacts. If the context is already
+      // 'running' when visibility returns (e.g. lock/unlock recovered it), the
+      // statechange handler may have already fired before this event, leaving
+      // audio silently connected but volumes at 0. Do a full reconnection check.
+      // Also handles the case where ctx.resume() above succeeds synchronously.
+      setTimeout(() => {
+        const currentState = ctx.state as string;
+        if (currentState !== 'running') return;
+
+        const master = masterGainRef.current;
+        const deckA = deckAElementRef.current;
+        const deckB = deckBElementRef.current;
+        const shouldBeAudible = wasPlayingBeforeInterruptRef.current || useAudioStore.getState().isPlaying;
+
+        // Check if masterGain is disconnected (gain=0 is our signal from interrupted handler)
+        const needsReconnect = master && master.gain.value === 0;
+
+        if (needsReconnect && shouldBeAudible) {
+          console.log('[WEB AUDIO] Visibility recovery: reconnecting audio graph');
+          // Reconnect masterGain
+          try { master.gain.cancelScheduledValues(0); } catch {}
+          master.gain.setValueAtTime(0, ctx.currentTime);
+          try { master.connect(ctx.destination); } catch {}
+
+          // Restore element volumes
+          if (deckA) deckA.volume = 1;
+          if (deckB) deckB.volume = 1;
+
+          // Ensure store says playing
+          if (!useAudioStore.getState().isPlaying) {
+            useAudioStore.getState().setIsPlaying(true);
+          }
+
+          // Resume any paused deck
+          const active = findActiveDeck();
+          if (active?.paused) {
+            active.deck.play().catch((err) =>
+              console.warn(`[WEB AUDIO] Visibility resume deck ${active.label} failed:`, err.message));
+          }
+
+          // Fade in
+          fadeInMaster(50);
+
+          // Clear wasPlaying after recovery
+          if (clearWasPlayingTimerRef.current) clearTimeout(clearWasPlayingTimerRef.current);
+          clearWasPlayingTimerRef.current = setTimeout(() => {
+            wasPlayingBeforeInterruptRef.current = false;
+            clearWasPlayingTimerRef.current = null;
+          }, 3000);
+        }
+      }, 300); // Brief delay to let ctx.resume() settle
     };
 
     ctx.addEventListener('statechange', handleStateChange);
