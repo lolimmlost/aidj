@@ -16,6 +16,7 @@ import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 import { FeatureTeaser } from '@/components/dashboard/FeatureTeaser';
 import { ProfileNudge } from '@/components/onboarding/ProfileNudge';
 import { Sparkles, Music, ArrowRight } from 'lucide-react';
+import { AurralDiscoverySection } from '@/components/dashboard/AurralDiscoverySection';
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context }) => {
@@ -260,6 +261,11 @@ function DashboardIndex() {
               </div>
             </Link>
           </div>
+        )}
+
+        {/* Aurral: Artist Discovery & Recently Added */}
+        {(tier >= 2 || onboardingCompleted) && (
+          <AurralDiscoverySection />
         )}
 
         {/* Discovery Queue — Tier 3 only */}

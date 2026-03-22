@@ -17,6 +17,8 @@ import { toast } from '@/lib/toast';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { PageLayout } from '@/components/ui/page-layout';
+import { useArtistMetadata } from '@/lib/hooks/useArtistMetadata';
+import { ArtistMetadataHero } from '@/components/library/ArtistMetadataHero';
 
 export const Route = createFileRoute('/library/artists/$id')({
   beforeLoad: async ({ context }) => {
@@ -67,6 +69,12 @@ function ArtistDetail() {
     queryFn: () => getSongsByArtist(id, 0, 100),
     retry: 1,
     refetchOnWindowFocus: false,
+  });
+
+  // Fetch enriched metadata from Aurral (server-cached)
+  const { data: artistMetadata } = useArtistMetadata(artist?.name, {
+    navidromeId: id,
+    enabled: !!artist?.name,
   });
 
   // Fetch feedback for all songs
@@ -283,6 +291,14 @@ function ArtistDetail() {
       backLabel="Library"
       compact
     >
+      {/* Enriched Artist Metadata */}
+      {artistMetadata && (
+        <ArtistMetadataHero
+          metadata={artistMetadata}
+          artistImageUrl={`/api/navidrome/rest/getCoverArt?id=${id}&size=300`}
+        />
+      )}
+
       {/* Tabs for Albums/Songs */}
       {isLoading ? (
         <div className="flex justify-center py-12">
