@@ -127,246 +127,204 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
   };
 
   return (
-    <Card
+    <div
       ref={setNodeRef}
       style={style}
-      className={`group hover:shadow-lg transition-all duration-200 overflow-hidden ${
+      className={`group flex items-center gap-2 p-2.5 sm:p-3 rounded-lg border bg-card hover:bg-accent/50 transition-all duration-200 ${
         isLikedSongs ? 'ring-1 ring-red-500/20' : ''
       } ${isDragging ? 'shadow-2xl ring-2 ring-primary' : ''}`}
     >
-      <CardContent className="p-0">
-        {/* Card Header */}
-        <div className="p-3 pb-2.5">
-          <div className="flex items-start justify-between gap-2 mb-2">
-            {/* Drag Handle - Always visible on mobile, hover on desktop */}
-            <button
-              {...attributes}
-              {...listeners}
-              className="cursor-grab active:cursor-grabbing p-2 -ml-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-accent rounded opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-none shrink-0"
-              aria-label="Drag to reorder"
+      {/* Drag Handle */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-1 flex items-center justify-center hover:bg-accent rounded opacity-60 sm:opacity-0 sm:group-hover:opacity-60 transition-opacity touch-none shrink-0"
+        aria-label="Drag to reorder"
+      >
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      </button>
+
+      {/* Icon */}
+      <div className="shrink-0">{getPlaylistIcon()}</div>
+
+      {/* Name + Meta */}
+      <Link
+        to="/playlists/$id"
+        params={{ id: playlist.id }}
+        className="flex-1 min-w-0"
+      >
+        <div className="font-medium text-sm truncate">{playlist.name}</div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>{displaySongCount} {displaySongCount === 1 ? 'song' : 'songs'}</span>
+          {!!playlist.totalDuration && (
+            <>
+              <span>·</span>
+              <span>{formatDuration(playlist.totalDuration)}</span>
+            </>
+          )}
+          {playlist.description && !isLikedSongs && !isSmartPlaylist && (
+            <>
+              <span className="hidden sm:inline">·</span>
+              <span className="hidden sm:inline truncate max-w-[200px]">{playlist.description}</span>
+            </>
+          )}
+        </div>
+      </Link>
+
+      {/* Smart Playlist Badges */}
+      {isSmartPlaylist && playlist.smartPlaylistCriteria?.genre && playlist.smartPlaylistCriteria.genre.length > 0 && (
+        <div className="hidden lg:flex gap-1 shrink-0">
+          {playlist.smartPlaylistCriteria.genre.slice(0, 2).map((g) => (
+            <Badge key={g} variant="secondary" className="text-[10px] px-1.5 py-0">
+              {g}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {/* Sync Status */}
+      {syncStatus && playlist.lastSynced && (
+        <syncStatus.icon className={`h-3 w-3 shrink-0 hidden sm:block ${syncStatus.color}`} />
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          onClick={() => onPlayPlaylist(playlist)}
+          className="p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+          aria-label="Play playlist"
+        >
+          <Play className="h-4 w-4" />
+        </button>
+        <button
+          onClick={onToggleExpand}
+          className="hidden sm:flex p-2 min-h-[36px] min-w-[36px] items-center justify-center rounded-md hover:bg-accent transition-colors"
+          aria-label={isExpanded ? 'Hide songs' : 'Show songs'}
+        >
+          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0"
             >
-              <GripVertical className="h-5 w-5 text-muted-foreground" />
-            </button>
-
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              {getPlaylistIcon()}
-              <h3 className="font-semibold truncate">{playlist.name}</h3>
-            </div>
-
-            {/* Actions Menu - Always visible on mobile, hover on desktop */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-10 w-10 min-h-[44px] min-w-[44px] opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0"
-                >
-                  <MoreHorizontal className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem asChild className="min-h-[44px]">
-                  <Link to="/playlists/$id" params={{ id: playlist.id }}>
-                    View Details
-                  </Link>
-                </DropdownMenuItem>
-                {expandedPlaylistData?.songs && expandedPlaylistData.songs.length > 0 && isExpanded && (
-                  <>
-                    <DropdownMenuItem
-                      onClick={() => onAddToQueue(playlist, expandedPlaylistData.songs, 'next')}
-                      className="min-h-[44px]"
-                    >
-                      <Play className="mr-2 h-4 w-4" />
-                      Play Next
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => onAddToQueue(playlist, expandedPlaylistData.songs, 'end')}
-                      className="min-h-[44px]"
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add to Queue
-                    </DropdownMenuItem>
-                  </>
-                )}
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem asChild className="min-h-[44px]">
+              <Link to="/playlists/$id" params={{ id: playlist.id }}>
+                View Details
+              </Link>
+            </DropdownMenuItem>
+            {expandedPlaylistData?.songs && expandedPlaylistData.songs.length > 0 && isExpanded && (
+              <>
                 <DropdownMenuItem
-                  onClick={() => onExport(playlist)}
+                  onClick={() => onAddToQueue(playlist, expandedPlaylistData.songs, 'next')}
                   className="min-h-[44px]"
                 >
-                  <Download className="mr-2 h-4 w-4" />
-                  Export Playlist
+                  <Play className="mr-2 h-4 w-4" />
+                  Play Next
                 </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          {/* Playlist Type Label */}
-          {getPlaylistType() && (
-            <p className="text-xs text-muted-foreground mb-3">
-              {getPlaylistType()}
-            </p>
-          )}
-
-          {/* Description for regular playlists */}
-          {playlist.description && !isLikedSongs && !isSmartPlaylist && (
-            <p className="text-sm text-muted-foreground line-clamp-1 mb-3">
-              {playlist.description}
-            </p>
-          )}
-
-          {/* Stats Row */}
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <Music className="h-3.5 w-3.5" />
-              <span>{displaySongCount} {displaySongCount === 1 ? 'song' : 'songs'}</span>
-            </div>
-            {!!playlist.totalDuration && (
-              <>
-                <span className="text-muted-foreground/50">·</span>
-                <span>{formatDuration(playlist.totalDuration)}</span>
+                <DropdownMenuItem
+                  onClick={() => onAddToQueue(playlist, expandedPlaylistData.songs, 'end')}
+                  className="min-h-[44px]"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add to Queue
+                </DropdownMenuItem>
               </>
             )}
-          </div>
+            <DropdownMenuItem
+              onClick={() => onExport(playlist)}
+              className="min-h-[44px]"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export Playlist
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
-          {/* Smart Playlist Filters */}
-          {isSmartPlaylist && playlist.smartPlaylistCriteria?.genre && playlist.smartPlaylistCriteria.genre.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {playlist.smartPlaylistCriteria.genre.slice(0, 3).map((g) => (
-                <Badge key={g} variant="secondary" className="text-xs">
-                  {g}
-                </Badge>
-              ))}
-              {playlist.smartPlaylistCriteria.genre.length > 3 && (
-                <Badge variant="outline" className="text-xs">
-                  +{playlist.smartPlaylistCriteria.genre.length - 3}
-                </Badge>
-              )}
+      {/* Expanded Song List - Desktop only */}
+      {isExpanded && (
+        <div className="hidden sm:block col-span-full border rounded-lg bg-muted/30 -mt-1 ml-8">
+          {isLoadingSongs ? (
+            <div className="p-3 space-y-2">
+              <Skeleton className="h-7 w-full" />
+              <Skeleton className="h-7 w-full" />
+              <Skeleton className="h-7 w-3/4" />
             </div>
-          )}
-
-          {/* Sync Status */}
-          {syncStatus && playlist.lastSynced && (
-            <div className="flex items-center gap-1 mt-3 text-xs text-muted-foreground">
-              <syncStatus.icon className={`h-3 w-3 ${syncStatus.color}`} />
-              <span>Last synced: {formatLastSynced(playlist.lastSynced)}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Action Bar - Desktop: Show Songs | Play, Mobile: View | Play */}
-        <div className="flex border-t border-border/50">
-          {/* On mobile: direct link to detail page. On desktop: expand songs */}
-          <Link
-            to="/playlists/$id"
-            params={{ id: playlist.id }}
-            className="flex-1 flex items-center justify-center gap-2 min-h-[48px] py-3 text-sm font-medium hover:bg-accent active:bg-accent/80 transition-colors sm:hidden"
-          >
-            <ListMusic className="h-4 w-4" />
-            <span>View</span>
-          </Link>
-          <button
-            onClick={onToggleExpand}
-            className="hidden sm:flex flex-1 items-center justify-center gap-2 min-h-[48px] py-3 text-sm font-medium hover:bg-accent transition-colors"
-          >
-            {isExpanded ? (
-              <>
-                <ChevronUp className="h-4 w-4" />
-                <span>Hide Songs</span>
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-4 w-4" />
-                <span>Show Songs</span>
-              </>
-            )}
-          </button>
-          <div className="w-px bg-border/50" />
-          <button
-            onClick={() => onPlayPlaylist(playlist)}
-            className="flex-1 flex items-center justify-center gap-2 min-h-[48px] py-3 text-sm font-medium hover:bg-accent active:bg-accent/80 transition-colors"
-          >
-            <Play className="h-4 w-4" />
-            <span>Play</span>
-          </button>
-        </div>
-
-        {/* Expanded Song List - Desktop only */}
-        {isExpanded && (
-          <div className="hidden sm:block border-t border-border/50 bg-muted/30">
-            {isLoadingSongs ? (
-              <div className="p-4 space-y-2">
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-3/4" />
-              </div>
-            ) : expandedPlaylistData?.songs && expandedPlaylistData.songs.length > 0 ? (
-              <>
-                <div className="max-h-56 overflow-y-auto">
-                  {expandedPlaylistData.songs.slice(0, 10).map((song, index) => (
-                    <div
-                      key={song.id}
-                      className="group/song flex items-center gap-3 px-4 py-2.5 hover:bg-accent/50 cursor-pointer transition-colors"
-                      onClick={() => onPlayFromSong(playlist, expandedPlaylistData.songs, index)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          onPlayFromSong(playlist, expandedPlaylistData.songs, index);
-                        }
-                      }}
-                    >
-                      <span className="text-xs text-muted-foreground w-5 text-right">
-                        {index + 1}
-                      </span>
-                      <span className="text-sm truncate flex-1">{song.songArtistTitle}</span>
-                      <Play className="h-3.5 w-3.5 opacity-0 group-hover/song:opacity-100 transition-opacity text-primary flex-shrink-0" />
-                    </div>
-                  ))}
-                  {expandedPlaylistData.songs.length > 10 && (
-                    <Link
-                      to="/playlists/$id"
-                      params={{ id: playlist.id }}
-                      className="block px-4 py-3 text-sm text-center text-primary hover:bg-accent/50 transition-colors font-medium"
-                    >
-                      View all {expandedPlaylistData.songs.length} songs
-                    </Link>
-                  )}
-                </div>
-
-                {/* Quick Add to Queue */}
-                <div className="p-3 pt-0">
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => onAddToQueue(playlist, expandedPlaylistData.songs, 'next')}
-                    >
-                      <Play className="mr-1.5 h-3.5 w-3.5" />
-                      Play Next
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => onAddToQueue(playlist, expandedPlaylistData.songs, 'end')}
-                    >
-                      <ListPlus className="mr-1.5 h-3.5 w-3.5" />
-                      Add to Queue
-                    </Button>
+          ) : expandedPlaylistData?.songs && expandedPlaylistData.songs.length > 0 ? (
+            <>
+              <div className="max-h-48 overflow-y-auto">
+                {expandedPlaylistData.songs.slice(0, 10).map((song, index) => (
+                  <div
+                    key={song.id}
+                    className="group/song flex items-center gap-3 px-3 py-2 hover:bg-accent/50 cursor-pointer transition-colors text-sm"
+                    onClick={() => onPlayFromSong(playlist, expandedPlaylistData.songs, index)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onPlayFromSong(playlist, expandedPlaylistData.songs, index);
+                      }
+                    }}
+                  >
+                    <span className="text-xs text-muted-foreground w-5 text-right">
+                      {index + 1}
+                    </span>
+                    <span className="truncate flex-1">{song.songArtistTitle}</span>
+                    <Play className="h-3.5 w-3.5 opacity-0 group-hover/song:opacity-100 transition-opacity text-primary flex-shrink-0" />
                   </div>
-                </div>
-              </>
-            ) : (
-              <div className="py-8 text-center text-muted-foreground">
-                <Music className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No songs in this playlist</p>
+                ))}
+                {expandedPlaylistData.songs.length > 10 && (
+                  <Link
+                    to="/playlists/$id"
+                    params={{ id: playlist.id }}
+                    className="block px-3 py-2 text-sm text-center text-primary hover:bg-accent/50 transition-colors font-medium"
+                  >
+                    View all {expandedPlaylistData.songs.length} songs
+                  </Link>
+                )}
               </div>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+
+              {/* Quick Add to Queue */}
+              <div className="p-2 border-t border-border/30">
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="flex-1 h-8 text-xs"
+                    onClick={() => onAddToQueue(playlist, expandedPlaylistData.songs, 'next')}
+                  >
+                    <Play className="mr-1 h-3 w-3" />
+                    Play Next
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-8 text-xs"
+                    onClick={() => onAddToQueue(playlist, expandedPlaylistData.songs, 'end')}
+                  >
+                    <ListPlus className="mr-1 h-3 w-3" />
+                    Add to Queue
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="py-6 text-center text-muted-foreground">
+              <Music className="h-6 w-6 mx-auto mb-1 opacity-50" />
+              <p className="text-sm">No songs in this playlist</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 });
 
@@ -821,7 +779,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
           items={playlists.map((p) => p.id)}
           strategy={rectSortingStrategy}
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="space-y-1.5">
             {playlists.map((playlist) => (
               <SortablePlaylistCard
                 key={playlist.id}
