@@ -31,6 +31,8 @@ import { calculateDJScore, enrichSongsWithDJMetadata, type SongWithDJMetadata } 
 import { getCurrentTimeContext, type TimeContext } from './time-based-discovery';
 import { getCurrentSeasonalPattern, type SeasonalPattern } from './seasonal-patterns';
 import { normalizeGenre, getGenreSimilarity } from './genre-hierarchy';
+import { getCachedSimilarArtistNames, getCachedArtistGenresAndTags } from './aurral';
+import { getFeatureFlags } from '@/lib/config/features';
 
 // ============================================================================
 // Constants
@@ -60,6 +62,7 @@ const CANDIDATE_LIMITS = {
   lastfm: 20,
   sameArtist: 2,  // Reduced to prevent artist domination
   similarArtists: 10,
+  aurralSimilar: 8, // Aurral MusicBrainz similar artists (cache-only, no API calls)
   genre: 10,
   compound: 10,
   liked: 5,
@@ -74,7 +77,7 @@ const MIN_UNIQUE_ARTISTS = 2;   // Try to have at least this many different arti
 // Types
 // ============================================================================
 
-export type CandidateSourceType = 'lastfm' | 'same_artist' | 'similar_artist' | 'genre' | 'compound' | 'liked' | 'temporal';
+export type CandidateSourceType = 'lastfm' | 'same_artist' | 'similar_artist' | 'aurral_similar' | 'genre' | 'compound' | 'liked' | 'temporal';
 
 export interface CandidateSource {
   source: CandidateSourceType;
@@ -187,13 +190,44 @@ export async function gatherCandidates(
     await gatherSimilarArtistsSongs(lastFm, seedSong, addCandidate, excludeArtistsLower).catch(() => {});
   }
 
+  // 3.5. Aurral similar artists (cache-only, no API calls — complements Last.fm)
+  const aurralFlags = getFeatureFlags().aurralRecommendations;
+  if (aurralFlags.enabled) {
+    await gatherAurralSimilarArtistsSongs(seedSong, addCandidate, excludeArtistsLower, aurralFlags.similarArtistWeight).catch(() => {});
+  }
+
   // 4. Genre-based songs (single call to getRandomSongs)
   const targetGenres = buildTargetGenres(seedSong.genre, queueContext?.genres);
+  // Enrich target genres with Aurral cached genres
+  if (aurralFlags.enabled) {
+    const aurralGenres = await getCachedArtistGenresAndTags(seedSong.artist).catch(() => ({ genres: [], tags: [] }));
+    for (const g of aurralGenres.genres) {
+      const normalized = normalizeGenre(g);
+      if (normalized && !targetGenres.includes(normalized)) {
+        targetGenres.push(normalized);
+      }
+    }
+    // Also add high-count tags as genre signals
+    for (const tag of aurralGenres.tags.filter(t => t.count >= 50)) {
+      const normalized = normalizeGenre(tag.name);
+      if (normalized && !targetGenres.includes(normalized)) {
+        targetGenres.push(normalized);
+      }
+    }
+  }
   if (targetGenres.length > 0) {
     await gatherGenreBasedSongs(targetGenres, addCandidate, excludeArtistsLower).catch(() => {});
   }
 
-  console.log(`🎯 [BlendedScorer] Gathered ${candidates.size} unique candidates from multiple sources`);
+  // Count candidates by source
+  const sourceCounts = new Map<string, number>();
+  for (const { sources } of candidates.values()) {
+    for (const s of sources) {
+      sourceCounts.set(s.source, (sourceCounts.get(s.source) ?? 0) + 1);
+    }
+  }
+  const sourceBreakdown = [...sourceCounts.entries()].map(([k, v]) => `${k}:${v}`).join(', ');
+  console.log(`🎯 [BlendedScorer] Gathered ${candidates.size} unique candidates [${sourceBreakdown}]`);
 
   return candidates;
 }
@@ -357,6 +391,59 @@ async function gatherSimilarArtistsSongs(
     console.log(`🎭 [BlendedScorer] Similar artists: ${totalCount} songs from ${candidateArtists.length} artists`);
   } catch (error) {
     console.warn('⚠️ [BlendedScorer] Similar artists search failed:', error);
+  }
+}
+
+/**
+ * Gather songs from Aurral's MusicBrainz similar artists (cache-only, zero API calls).
+ * Complements Last.fm similar artists with a different similarity signal.
+ */
+async function gatherAurralSimilarArtistsSongs(
+  seedSong: { artist: string },
+  addCandidate: (song: Song, source: CandidateSource) => void,
+  excludeArtists: Set<string>,
+  weight: number
+): Promise<void> {
+  try {
+    const similarArtists = await getCachedSimilarArtistNames(seedSong.artist);
+    if (similarArtists.length === 0) return;
+
+    // Filter out excluded artists, take top candidates
+    const candidateArtists = similarArtists
+      .filter(a => !excludeArtists.has(a.name.toLowerCase()))
+      .slice(0, 4); // Search top 4 to stay within rate limits
+
+    let totalCount = 0;
+    for (const artist of candidateArtists) {
+      if (totalCount >= CANDIDATE_LIMITS.aurralSimilar) break;
+
+      try {
+        const artistSongs = await throttledSearch(artist.name, 0, 3);
+        for (const song of artistSongs) {
+          if (totalCount >= CANDIDATE_LIMITS.aurralSimilar) break;
+
+          const songArtistLower = (song.artist || '').toLowerCase();
+          const artistNameLower = artist.name.toLowerCase();
+          if (songArtistLower === artistNameLower || songArtistLower.startsWith(artistNameLower)) {
+            const songWithUrl: Song = {
+              ...song,
+              url: song.url || `/api/navidrome/stream/${song.id}`,
+            };
+            addCandidate(songWithUrl, {
+              source: 'aurral_similar',
+              weight,
+              matchScore: artist.score,
+            });
+            totalCount++;
+          }
+        }
+      } catch {
+        // Continue with next artist
+      }
+    }
+    console.log(`🔮 [BlendedScorer] Aurral similar artists: ${totalCount} songs from ${candidateArtists.length} artists`);
+  } catch (error) {
+    console.warn('⚠️ [BlendedScorer] Aurral similar artists lookup failed:', error);
   }
 }
 
@@ -559,9 +646,17 @@ function scoreCandidate(
     queuedArtists,
   } = context;
 
-  // 1. Last.fm score - from sources
+  // 1. Last.fm score - from sources (Aurral similar boosts if both agree)
   const lastFmSource = sources.find(s => s.source === 'lastfm');
-  const lastFmScore = lastFmSource?.matchScore ?? 0.5;
+  const aurralSource = sources.find(s => s.source === 'aurral_similar');
+  let lastFmScore = lastFmSource?.matchScore ?? 0.5;
+  // If Aurral also identified this as a similar-artist song, boost the similarity signal
+  if (aurralSource && !lastFmSource) {
+    lastFmScore = Math.max(lastFmScore, (aurralSource.matchScore ?? 0.5) * aurralSource.weight);
+  } else if (aurralSource && lastFmSource) {
+    // Both signals agree — slight boost (capped at 1.0)
+    lastFmScore = Math.min(1.0, lastFmScore + 0.1);
+  }
 
   // 2. Compound score - from pre-fetched data
   const compoundScore = compoundBoosts.get(song.id) ?? 0;

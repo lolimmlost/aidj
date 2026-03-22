@@ -510,6 +510,131 @@ export async function getEnrichedArtist(
   }
 }
 
+// ─── Cache-Only Lookups (for recommendation engine — zero API calls) ────────
+
+/**
+ * Get cached artist metadata by name. Returns null if not cached or expired.
+ * Used by recommendation engine to avoid API calls in the hot path.
+ */
+export async function getCachedArtistMetadata(
+  artistName: string,
+  navidromeId?: string,
+): Promise<EnrichedArtistMetadata | null> {
+  const normalized = artistName.toLowerCase().trim();
+  const now = new Date();
+
+  try {
+    const conditions = navidromeId
+      ? or(
+          eq(artistMetadataCache.artistNameNormalized, normalized),
+          eq(artistMetadataCache.navidromeId, navidromeId),
+        )
+      : eq(artistMetadataCache.artistNameNormalized, normalized);
+
+    const cached = await db.select()
+      .from(artistMetadataCache)
+      .where(and(conditions, gt(artistMetadataCache.expiresAt, now)))
+      .limit(1)
+      .then(rows => rows[0]);
+
+    if (cached) {
+      return dbRowToEnriched(cached);
+    }
+  } catch (err) {
+    console.warn('[AURRAL] Cache-only lookup failed:', err);
+  }
+
+  return null;
+}
+
+/**
+ * Get cached similar artist names for a given artist.
+ * Returns empty array if not cached. No API calls.
+ */
+export async function getCachedSimilarArtistNames(
+  artistName: string,
+): Promise<{ name: string; score: number }[]> {
+  const metadata = await getCachedArtistMetadata(artistName);
+  if (!metadata?.similarArtists?.length) return [];
+
+  return metadata.similarArtists
+    .map(a => ({ name: a.name, score: a.score }))
+    .sort((a, b) => b.score - a.score);
+}
+
+/**
+ * Get cached genres and tags for an artist.
+ * Returns empty arrays if not cached. No API calls.
+ */
+export async function getCachedArtistGenresAndTags(
+  artistName: string,
+): Promise<{ genres: string[]; tags: { name: string; count: number }[] }> {
+  const metadata = await getCachedArtistMetadata(artistName);
+  return {
+    genres: metadata?.genres ?? [],
+    tags: metadata?.tags ?? [],
+  };
+}
+
+// ─── Cache Warming ──────────────────────────────────────────────────────────
+
+/**
+ * Warm the Aurral metadata cache for a list of artists.
+ * Skips artists already cached (unexpired). Rate-limited to avoid hammering Aurral.
+ * Designed to be called from background jobs, not in the request path.
+ *
+ * @returns Number of artists newly cached
+ */
+export async function warmArtistCache(
+  artists: { name: string; navidromeId?: string }[],
+  options?: { concurrency?: number; delayMs?: number; onProgress?: (done: number, total: number, artist: string) => void }
+): Promise<{ cached: number; skipped: number; failed: number }> {
+  if (!(await isAurralConfigured())) {
+    return { cached: 0, skipped: artists.length, failed: 0 };
+  }
+
+  const { concurrency = 1, delayMs = 1500, onProgress } = options ?? {};
+  let cached = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  // Process in batches to respect rate limits
+  for (let i = 0; i < artists.length; i += concurrency) {
+    const batch = artists.slice(i, i + concurrency);
+
+    await Promise.all(batch.map(async (artist) => {
+      try {
+        // Check if already cached
+        const existing = await getCachedArtistMetadata(artist.name, artist.navidromeId);
+        if (existing) {
+          skipped++;
+          return;
+        }
+
+        // Fetch and cache via the full enrichment pipeline
+        const result = await getEnrichedArtist(artist.name, artist.navidromeId);
+        if (result) {
+          cached++;
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }));
+
+    onProgress?.(i + batch.length, artists.length, batch[0]?.name ?? '');
+
+    // Rate limit delay between batches
+    if (i + concurrency < artists.length) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+
+  console.log(`[AURRAL] Cache warming complete: ${cached} cached, ${skipped} skipped (already cached), ${failed} failed out of ${artists.length}`);
+  return { cached, skipped, failed };
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function dbRowToEnriched(row: typeof artistMetadataCache.$inferSelect): EnrichedArtistMetadata {
