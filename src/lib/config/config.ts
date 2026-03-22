@@ -46,6 +46,11 @@ interface ServiceConfig {
   youtubeClientId: string;
   youtubeClientSecret: string;
   youtubeRedirectUri: string;
+
+  // Aurral Integration (artist discovery + metadata enrichment)
+  aurralUrl: string;
+  aurralUsername: string;
+  aurralPassword: string;
 }
 
 let currentConfig: ServiceConfig = {
@@ -63,6 +68,9 @@ let currentConfig: ServiceConfig = {
   youtubeClientId: '',
   youtubeClientSecret: '',
   youtubeRedirectUri: '',
+  aurralUrl: '',
+  aurralUsername: '',
+  aurralPassword: '',
 };
 
 if (typeof window !== 'undefined') {
@@ -114,6 +122,9 @@ if (typeof window !== 'undefined') {
     spotifyClientId: process.env.SPOTIFY_CLIENT_ID || fileConfig.spotifyClientId || '',
     spotifyClientSecret: process.env.SPOTIFY_CLIENT_SECRET || fileConfig.spotifyClientSecret || '',
     spotifyRedirectUri: process.env.SPOTIFY_REDIRECT_URI || fileConfig.spotifyRedirectUri || '',
+    aurralUrl: process.env.AURRAL_URL || fileConfig.aurralUrl || '',
+    aurralUsername: process.env.AURRAL_USERNAME || fileConfig.aurralUsername || '',
+    aurralPassword: process.env.AURRAL_PASSWORD || fileConfig.aurralPassword || '',
   };
 }
 
@@ -155,6 +166,9 @@ async function loadServerConfigAsync(): Promise<void> {
         spotifyClientId: process.env.SPOTIFY_CLIENT_ID || fileConfig.spotifyClientId || '',
         spotifyClientSecret: process.env.SPOTIFY_CLIENT_SECRET || fileConfig.spotifyClientSecret || '',
         spotifyRedirectUri: process.env.SPOTIFY_REDIRECT_URI || fileConfig.spotifyRedirectUri || '',
+        aurralUrl: process.env.AURRAL_URL || fileConfig.aurralUrl || '',
+        aurralUsername: process.env.AURRAL_USERNAME || fileConfig.aurralUsername || '',
+        aurralPassword: process.env.AURRAL_PASSWORD || fileConfig.aurralPassword || '',
       };
       serverConfigLoaded = true;
     }
@@ -189,7 +203,7 @@ export function setConfig(cfg: Partial<ServiceConfig>): void {
 }
 
 export function resetConfig(): void {
-  currentConfig = { ...defaults, lidarrApiKey: '', openrouterApiKey: '', glmApiKey: '', anthropicApiKey: '', anthropicBaseUrl: 'https://api.anthropic.com/v1', lastfmApiKey: '' };
+  currentConfig = { ...defaults, lidarrApiKey: '', openrouterApiKey: '', glmApiKey: '', anthropicApiKey: '', anthropicBaseUrl: 'https://api.anthropic.com/v1', lastfmApiKey: '', aurralUrl: '', aurralUsername: '', aurralPassword: '' };
   if (typeof window !== 'undefined') {
     localStorage.removeItem('serviceConfig');
   }

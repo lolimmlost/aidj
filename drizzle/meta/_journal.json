@@ -169,6 +169,13 @@
       "when": 1774060850503,
       "tag": "0023_thankful_pepper_potts",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1774138503717,
+      "tag": "0024_glamorous_weapon_omega",
+      "breakpoints": true
     }
   ]
 }
