@@ -165,7 +165,7 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
           {playlist.description && !isLikedSongs && !isSmartPlaylist && (
             <>
               <span className="hidden sm:inline">·</span>
-              <span className="hidden sm:inline truncate max-w-[200px]">{playlist.description}</span>
+              <span className="hidden sm:inline truncate">{playlist.description}</span>
             </>
           )}
         </div>
