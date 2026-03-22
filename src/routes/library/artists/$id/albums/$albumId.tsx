@@ -214,13 +214,13 @@ function AlbumSongs() {
         </Card>
       ) : (
         <div className="space-y-2">
-          {sortedSongs.map((song) => (
+          {sortedSongs.map((song, index) => (
             <div
               key={song.id}
               className="flex items-center p-3 sm:p-4 border rounded hover:bg-accent transition-colors min-h-[44px] gap-3"
             >
               <div className="w-6 text-right text-sm text-muted-foreground flex-shrink-0">
-                {song.track}
+                {song.track || index + 1}
               </div>
               <div
                 className="flex-1 min-w-0 cursor-pointer hover:text-accent-foreground"
