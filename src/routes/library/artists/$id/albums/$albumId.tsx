@@ -169,7 +169,7 @@ function AlbumSongs() {
   const sortedSongs = [...songs].sort((a, b) => a.track - b.track);
 
   const durationText = totalDuration > 0
-    ? ` \u2022 ${totalHours > 0 ? `${totalHours} hr ${remainingMinutes} min` : `${totalMinutes} min`}`
+    ? ` • ${totalHours > 0 ? `${totalHours} hr ${remainingMinutes} min` : `${totalMinutes} min`}`
     : '';
 
   return (
@@ -190,7 +190,7 @@ function AlbumSongs() {
               <p className="text-sm text-muted-foreground mb-1">Album</p>
               <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-1">{albumName}</h2>
               <p className="text-sm text-muted-foreground">
-                {artistName}{album?.year ? ` \u2022 ${album.year}` : ''} \u2022 {songs.length} {songs.length === 1 ? 'song' : 'songs'}{durationText}
+                {artistName}{album?.year ? ` • ${album.year}` : ''} • {songs.length} {songs.length === 1 ? 'song' : 'songs'}{durationText}
               </p>
               {album?.genre && (
                 <p className="text-xs text-muted-foreground mt-1">{album.genre}</p>
