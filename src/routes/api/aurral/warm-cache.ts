@@ -9,8 +9,7 @@ import {
  * POST /api/aurral/warm-cache
  *
  * Triggers background cache warming for all library artists.
- * Fetches artist list from Navidrome, then enriches each via Aurral.
- * Skips artists already in cache (unexpired).
+ * Returns immediately — warming runs in the background.
  *
  * Query params:
  *   limit - max artists to process (default: 200)
@@ -34,15 +33,19 @@ const POST = withAuthAndErrorHandling(
       navidromeId: a.id,
     }));
 
-    // Run cache warming (this takes a while — 1.5s per artist)
-    const result = await warmArtistCache(artistList, {
+    // Fire and forget — run warming in background, don't await
+    warmArtistCache(artistList, {
       concurrency: 1,
       delayMs: 1500,
+    }).then(result => {
+      console.log(`[AURRAL] Background cache warming finished:`, result);
+    }).catch(err => {
+      console.error(`[AURRAL] Background cache warming failed:`, err);
     });
 
     return successResponse({
+      message: `Cache warming started for ${artistList.length} artists in background`,
       totalArtists: artistList.length,
-      ...result,
     });
   },
   {
