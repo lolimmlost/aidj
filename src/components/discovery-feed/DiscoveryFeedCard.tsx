@@ -209,7 +209,7 @@ export const DiscoveryFeedCard = memo(function DiscoveryFeedCard({
                 <Button
                   variant="default"
                   size="sm"
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+
                 >
                   <ListPlus className="mr-1 h-4 w-4" />
                   Queue
