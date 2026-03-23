@@ -154,14 +154,16 @@ export function FullscreenPlayer({
         animating ? 'opacity-100' : 'opacity-0'
       )}
     >
-      {/* Blurred background */}
+      {/* Solid black base — nothing bleeds through */}
+      <div className="absolute inset-0 bg-black" />
+      {/* Blurred album art tint on top */}
       {bgCoverUrl && (
         <div
-          className="absolute inset-0 bg-cover bg-center scale-110 blur-3xl opacity-60"
+          className="absolute inset-0 bg-cover bg-center scale-110 blur-3xl opacity-40"
           style={{ backgroundImage: `url(${bgCoverUrl})` }}
         />
       )}
-      <div className="absolute inset-0 bg-black/85" />
+      <div className="absolute inset-0 bg-black/40" />
 
       {/* Content container */}
       <div
