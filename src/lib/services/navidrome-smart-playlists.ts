@@ -77,6 +77,22 @@ interface NavidromeSongResponse {
 // ============================================================================
 
 /**
+ * Sanitize rules before sending to Navidrome.
+ * Removes empty arrays and undefined values that Navidrome rejects as invalid.
+ */
+function sanitizeRules(rules: SmartPlaylistRules): SmartPlaylistRules {
+  const clean: SmartPlaylistRules = {};
+  if (rules.all && rules.all.length > 0) clean.all = rules.all;
+  if (rules.any && rules.any.length > 0) clean.any = rules.any;
+  if (rules.sort) clean.sort = rules.sort;
+  if (rules.order) clean.order = rules.order;
+  if (rules.limit) clean.limit = rules.limit;
+  if (rules.name) clean.name = rules.name;
+  if (rules.comment) clean.comment = rules.comment;
+  return clean;
+}
+
+/**
  * Create a smart playlist in Navidrome using native REST API.
  * Navidrome evaluates the rules server-side — no client-side filtering needed.
  */
@@ -91,6 +107,7 @@ export async function createSmartPlaylist(
   }
 
   const adminToken = await getAuthToken();
+  const cleanRules = sanitizeRules(rules);
 
   const response = await fetch(`${config.navidromeUrl}/api/playlist`, {
     method: 'POST',
@@ -102,7 +119,7 @@ export async function createSmartPlaylist(
       name,
       comment: rules.comment || '',
       public: isPublic,
-      rules,
+      rules: cleanRules,
     }),
   });
 

@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../../lib/auth/auth';
+import { db } from '../../../../lib/db';
+import { userPlaylists, playlistSongs } from '../../../../lib/db/schema/playlists.schema';
+import { eq } from 'drizzle-orm';
 import {
   createSmartPlaylist,
   listSmartPlaylists,
@@ -53,25 +56,78 @@ export const Route = createFileRoute("/api/playlists/smart/")({
       const body = await request.json();
       const validatedData = SmartPlaylistSchema.parse(body);
 
+      // Check for duplicate playlist name in local DB
+      const existingPlaylist = await db
+        .select()
+        .from(userPlaylists)
+        .where(eq(userPlaylists.userId, session.user.id))
+        .where(eq(userPlaylists.name, validatedData.name))
+        .limit(1)
+        .then(rows => rows[0]);
+
+      if (existingPlaylist) {
+        return new Response(JSON.stringify({
+          error: 'Playlist name already exists',
+          code: 'DUPLICATE_PLAYLIST_NAME'
+        }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
       console.log('🎵 Creating smart playlist via Navidrome:', validatedData.name);
 
-      // Create directly in Navidrome — server-side rule evaluation
-      const playlist = await createSmartPlaylist(
+      // Create in Navidrome — server-side rule evaluation
+      const ndPlaylist = await createSmartPlaylist(
         validatedData.name,
         validatedData.rules as SmartPlaylistRules,
       );
 
-      console.log(`✅ Smart playlist "${validatedData.name}" created in Navidrome (id: ${playlist.id}, ${playlist.songCount} songs)`);
+      console.log(`✅ Smart playlist "${validatedData.name}" created in Navidrome (id: ${ndPlaylist.id}, ${ndPlaylist.songCount} songs)`);
 
-      // Fetch the actual songs so the client can see what matched
-      const songs = await getSmartPlaylistSongs(playlist.id, 0, validatedData.rules.limit || 500);
+      // Fetch the actual songs from Navidrome
+      const songs = await getSmartPlaylistSongs(ndPlaylist.id, 0, validatedData.rules.limit || 500);
+
+      // Save to local DB so it appears in the playlist list
+      const localPlaylist = {
+        id: crypto.randomUUID(),
+        userId: session.user.id,
+        name: validatedData.name,
+        description: validatedData.rules.comment || `Smart playlist: ${validatedData.rules.sort || 'custom rules'}`,
+        navidromeId: ndPlaylist.id,
+        lastSynced: new Date(),
+        songCount: songs.length,
+        totalDuration: ndPlaylist.duration || 0,
+        smartPlaylistCriteria: validatedData.rules,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      await db.insert(userPlaylists).values(localPlaylist);
+
+      // Also save the songs to local DB for offline access
+      if (songs.length > 0) {
+        const songsToAdd = songs.map((song, index) => ({
+          id: crypto.randomUUID(),
+          playlistId: localPlaylist.id,
+          songId: song.id,
+          songArtistTitle: `${song.artist || 'Unknown'} - ${song.name || song.title || 'Unknown'}`,
+          position: index,
+          addedAt: new Date(),
+        }));
+
+        await db.insert(playlistSongs).values(songsToAdd);
+      }
+
+      console.log(`✅ Saved to local DB: "${localPlaylist.name}" with ${songs.length} songs`);
 
       return new Response(JSON.stringify({
         data: {
-          id: playlist.id,
-          name: playlist.name,
-          songCount: playlist.songCount,
-          duration: playlist.duration,
+          id: localPlaylist.id,
+          navidromeId: ndPlaylist.id,
+          name: ndPlaylist.name,
+          songCount: songs.length,
+          duration: ndPlaylist.duration,
           songs,
           isSmartPlaylist: true,
         }
