@@ -1,10 +1,10 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/lib/toast';
-import { Link2, Loader2, Unplug, Upload, ExternalLink, FileDown, ArrowRight } from 'lucide-react';
+import { Link2, Loader2, Unplug, Upload, ExternalLink } from 'lucide-react';
 import { SpotifyPlaylistPicker } from '../spotify-playlist-picker';
 import type { SpotifyPlaylistSummary } from '@/lib/services/spotify';
 
@@ -100,7 +100,10 @@ export function FileUploadStep({
     if (file) {
       handleFileInput(file);
     }
-    e.target.value = '';
+    // Reset the input so the same file can be re-selected
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handlePaste = () => {

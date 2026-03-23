@@ -43,7 +43,7 @@ export function useCrossfade({
   scheduleGainRamp,
   cancelGainRamp,
   setGainImmediate,
-  getGainValue,
+  getGainValue: _getGainValue,
   onCrossfadeComplete,
   onCrossfadeAbort,
   canPlayHandlerRef,

@@ -42,7 +42,7 @@ function ForgotPasswordForm() {
       }
       // Always show success to avoid email enumeration
       setSuccess(true);
-    } catch (err) {
+    } catch (_err) {
       // Still show success to prevent email enumeration
       setSuccess(true);
     } finally {

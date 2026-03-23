@@ -69,7 +69,6 @@ interface SortablePlaylistCardProps {
   onPlayPlaylist: (playlist: Playlist) => void;
   onExport: (playlist: Playlist) => void;
   formatDuration: (seconds?: number | null) => string;
-  formatLastSynced: (date?: Date | null) => string | null;
   getSyncStatus: (playlist: Playlist) => { icon: typeof CheckCircle2; text: string; color: string } | null;
 }
 
@@ -84,7 +83,6 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
   onPlayPlaylist,
   onExport,
   formatDuration,
-  formatLastSynced,
   getSyncStatus,
 }: SortablePlaylistCardProps) {
   const {
@@ -112,18 +110,6 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
     if (isLikedSongs) return <Heart className="h-4 w-4 text-red-500 fill-red-500" />;
     if (isSmartPlaylist) return <Sparkles className="h-4 w-4 text-primary" />;
     return <ListMusic className="h-4 w-4 text-muted-foreground" />;
-  };
-
-  const getPlaylistType = () => {
-    if (isLikedSongs) return 'Liked Songs';
-    if (isSmartPlaylist) {
-      const criteria = playlist.smartPlaylistCriteria as { sort?: string };
-      if (criteria?.sort === 'random') return 'Smart playlist: random';
-      if (criteria?.sort === 'artist') return 'Smart playlist: artist';
-      if (criteria?.sort) return `Smart playlist: ${criteria.sort}`;
-      return 'Smart playlist: custom rules';
-    }
-    return null;
   };
 
   return (
@@ -793,7 +779,6 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
                 onPlayPlaylist={handlePlayPlaylist}
                 onExport={handleExport}
                 formatDuration={formatDuration}
-                formatLastSynced={formatLastSynced}
                 getSyncStatus={getSyncStatus}
               />
             ))}

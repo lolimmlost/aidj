@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { getArtists } from '@/lib/services/navidrome';
 import { Users, Search, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -106,10 +106,10 @@ export function ArtistsList() {
   const visible = sorted.slice(0, visibleCount);
   const hasMore = visibleCount < sorted.length;
 
-  // Reset visible count on search change
-  useEffect(() => {
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
     setVisibleCount(PAGE_SIZE);
-  }, [search]);
+  };
 
   if (error) {
     return (
@@ -140,7 +140,7 @@ export function ArtistsList() {
         <Input
           placeholder="Search artists..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           className="pl-10"
         />
       </div>

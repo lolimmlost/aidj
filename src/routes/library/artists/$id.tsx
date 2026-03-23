@@ -76,10 +76,6 @@ function ArtistDetail() {
   const location = useLocation();
   const isChildRoute = location.pathname.includes('/albums/');
 
-  // If a child route is active, just render the Outlet
-  if (isChildRoute) {
-    return <Outlet />;
-  }
   const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress } = useAudioStore();
 
   // Fetch artist details for the header
@@ -131,6 +127,11 @@ function ArtistDetail() {
 
   const error = artistError || albumsError || songsError;
   const isLoading = loadingArtist || loadingAlbums || loadingSongs;
+
+  // If a child route is active, just render the Outlet
+  if (isChildRoute) {
+    return <Outlet />;
+  }
 
   const handleSongClick = (songId: string) => {
     playSong(songId, songs);

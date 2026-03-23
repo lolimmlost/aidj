@@ -4,7 +4,7 @@ import { userPreferences } from '@/lib/db/schema/preferences.schema';
 import { artistAffinities } from '@/lib/db/schema/profile.schema';
 import { recommendationFeedback } from '@/lib/db/schema/recommendations.schema';
 import { eq, sql } from 'drizzle-orm';
-import type { OnboardingStatusData } from '@/lib/db/schema/preferences.schema';
+
 import {
   getArtistDetail,
   getTopSongs,
@@ -80,7 +80,7 @@ const POST = withAuthAndErrorHandling(
     let artistCount = 0;
 
     await db.transaction(async (tx) => {
-      for (const [artistId, { name: artistName, topSongs }] of artistDetails) {
+      for (const [_artistId, { name: artistName, topSongs }] of artistDetails) {
         await tx
           .insert(artistAffinities)
           .values({

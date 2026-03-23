@@ -31,7 +31,7 @@ export function useArtistMetadata(artistName: string | undefined, options?: {
   enabled?: boolean;
 }) {
   return useQuery({
-    queryKey: ['artist-metadata', artistName],
+    queryKey: ['artist-metadata', artistName, options?.navidromeId],
     queryFn: () => fetchArtistMetadata(artistName!, options?.navidromeId),
     enabled: !!artistName && (options?.enabled !== false),
     staleTime: 30 * 60 * 1000, // 30 min client-side

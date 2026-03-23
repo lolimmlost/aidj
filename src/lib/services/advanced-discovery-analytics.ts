@@ -359,7 +359,7 @@ export async function getTopRecommendedGenres(
   const cached = getCached<TopGenreMetric[]>(cacheKey);
   if (cached) return cached;
 
-  const { start, end } = getDateRange(period);
+  const { start: _start, end: _end } = getDateRange(period);
 
   // Try music identity summaries first (has real genre data)
   const identities = await db
