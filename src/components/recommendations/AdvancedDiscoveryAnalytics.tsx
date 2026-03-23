@@ -453,6 +453,12 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
   console.log('🎯 RecommendationModesTab - modeMetrics:', modeMetrics);
 
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
+  const totalFeedback = useMemo(
+    () => modeMetrics.reduce((sum, m) => sum + m.totalRecommendations, 0),
+    [modeMetrics]
+  );
+
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const chartData = useMemo(() => {
     return modeMetrics.map((m) => ({
       name: MODE_LABELS[m.mode] || m.mode,
@@ -460,9 +466,10 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
       total: m.totalRecommendations,
       accepted: m.thumbsUpCount,
       rejected: m.thumbsDownCount,
+      share: totalFeedback > 0 ? (m.totalRecommendations / totalFeedback) * 100 : 0,
       acceptanceRate: m.acceptanceRate * 100,
     }));
-  }, [modeMetrics]);
+  }, [modeMetrics, totalFeedback]);
 
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const pieData = useMemo(() => {
@@ -487,12 +494,12 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
 
   return (
     <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
-      {/* Acceptance Rate by Mode */}
+      {/* Feedback Volume by Type */}
       <Card>
         <CardHeader className="p-3 sm:p-6">
-          <CardTitle className="text-sm sm:text-base">Acceptance by Type</CardTitle>
+          <CardTitle className="text-sm sm:text-base">Feedback by Type</CardTitle>
           <CardDescription className="text-xs sm:text-sm">
-            Performance by recommendation type
+            Share of total feedback ({totalFeedback} rated)
           </CardDescription>
         </CardHeader>
         <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
@@ -507,7 +514,9 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
               />
               <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 10 }} />
               <Tooltip
-                formatter={(value: number) => `${value.toFixed(1)}%`}
+                formatter={(value: number, _name: string, props: { payload: { total: number } }) =>
+                  [`${value.toFixed(1)}% (${props.payload.total} songs)`, 'Share']
+                }
                 labelStyle={{ color: 'var(--foreground)' }}
                 contentStyle={{
                   backgroundColor: 'var(--background)',
@@ -516,7 +525,7 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
                 }}
               />
               <Bar
-                dataKey="acceptanceRate"
+                dataKey="share"
                 fill={COLORS.primary}
                 radius={[0, 4, 4, 0]}
               >
