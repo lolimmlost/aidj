@@ -978,16 +978,9 @@ const ABTestingTab = memo(function ABTestingTab({
 });
 
 const ABTestCard = memo(function ABTestCard({ test }: { test: ABTest }) {
-  const chartData = test.variants
-    .filter((v) => v.sampleSize > 0)
-    .sort((a, b) => b.sampleSize - a.sampleSize)
-    .map((v) => ({
-      name: v.variantName,
-      sampleSize: v.sampleSize,
-      accepted: Math.round(v.acceptanceRate * v.sampleSize),
-      rejected: v.sampleSize - Math.round(v.acceptanceRate * v.sampleSize),
-      isWinner: v.isWinner,
-    }));
+  // Sort variants by sample size descending
+  const sortedVariants = [...test.variants].sort((a, b) => b.sampleSize - a.sampleSize);
+  const maxSample = sortedVariants[0]?.sampleSize || 1;
 
   return (
     <Card>
@@ -1015,70 +1008,64 @@ const ABTestCard = memo(function ABTestCard({ test }: { test: ABTest }) {
         </div>
       </CardHeader>
       <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-        <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
-          {/* Variants Comparison Chart — volume by source */}
-          <ResponsiveContainer width="100%" height={Math.max(180, chartData.length * 40)} className="sm:!h-[250px]">
-            <BarChart data={chartData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" tick={{ fontSize: 9 }} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={100} />
-              <Tooltip contentStyle={{ fontSize: '11px' }} />
-              <Legend wrapperStyle={{ fontSize: '9px' }} />
-              <Bar dataKey="accepted" stackId="a" fill={COLORS.success} name="Accepted" />
-              <Bar dataKey="rejected" stackId="a" fill={COLORS.danger} name="Rejected" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-
-          {/* Variants Details */}
-          <div className="space-y-2 sm:space-y-3">
-            {test.variants.map((variant) => (
-              <div
-                key={variant.variantId}
-                className={`rounded-lg border p-2 sm:p-3 ${
-                  variant.isWinner ? 'border-success bg-success/5' : ''
-                }`}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className="font-medium text-xs sm:text-sm truncate">{variant.variantName}</span>
+        <div className="space-y-3 sm:space-y-4">
+          {sortedVariants.map((variant) => (
+            <div
+              key={variant.variantId}
+              className={`rounded-xl border p-3 sm:p-4 ${
+                variant.isWinner ? 'border-success bg-success/5' : ''
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="font-semibold text-xs sm:text-sm truncate">{variant.variantName}</span>
+                <div className="flex items-center gap-1.5 shrink-0">
                   {variant.isWinner && (
                     <Badge className="bg-success text-[10px] sm:text-xs px-1 sm:px-2">Winner</Badge>
                   )}
-                </div>
-                <div className="mt-1.5 sm:mt-2 grid grid-cols-2 gap-1 sm:gap-2 text-[10px] sm:text-sm">
-                  <div>
-                    <span className="text-muted-foreground">N: </span>
-                    <span className="font-medium">{variant.sampleSize}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Accept: </span>
-                    <span className="font-medium">
-                      {(variant.acceptanceRate * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Click: </span>
-                    <span className="font-medium">
-                      {(variant.clickThroughRate * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Play: </span>
-                    <span className="font-medium">
-                      {(variant.playRate * 100).toFixed(0)}%
-                    </span>
-                  </div>
+                  <Badge variant="secondary" className="text-[10px] sm:text-xs px-1 sm:px-2">
+                    {variant.sampleSize} items
+                  </Badge>
                 </div>
               </div>
-            ))}
-            {test.conclusionSummary && (
-              <div className="rounded-lg bg-muted p-2 sm:p-3">
-                <p className="text-xs sm:text-sm font-medium">Conclusion</p>
-                <p className="text-[10px] sm:text-sm text-muted-foreground line-clamp-2">
-                  {test.conclusionSummary}
-                </p>
+              {/* Volume bar */}
+              <div className="mb-2">
+                <div className="h-2 sm:h-3 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${(variant.sampleSize / maxSample) * 100}%` }}
+                  />
+                </div>
               </div>
-            )}
-          </div>
+              <div className="grid grid-cols-3 gap-2 text-[10px] sm:text-xs text-muted-foreground">
+                <div className="text-center">
+                  <div className="font-medium text-foreground text-xs sm:text-sm">
+                    {(variant.clickThroughRate * 100).toFixed(0)}%
+                  </div>
+                  <div>Clicked</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-medium text-foreground text-xs sm:text-sm">
+                    {(variant.playRate * 100).toFixed(0)}%
+                  </div>
+                  <div>Played</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-medium text-foreground text-xs sm:text-sm">
+                    {(variant.acceptanceRate * 100).toFixed(0)}%
+                  </div>
+                  <div>Liked</div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {test.conclusionSummary && (
+            <div className="rounded-xl bg-muted p-2 sm:p-3">
+              <p className="text-xs sm:text-sm font-medium">Conclusion</p>
+              <p className="text-[10px] sm:text-sm text-muted-foreground line-clamp-2">
+                {test.conclusionSummary}
+              </p>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
