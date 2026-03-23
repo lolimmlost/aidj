@@ -159,6 +159,28 @@ export function clearAdvancedAnalyticsCache(userId?: string): void {
 // Note: extractArtist, getDateRange, calculateTrend, getTimeSlot, calculateConfidenceInterval
 // are now imported from '~/lib/utils/analytics-helpers'
 
+/** Maps raw feedback source values to human-readable mode labels */
+const SOURCE_TO_MODE: Record<string, RecommendationMode | string> = {
+  recommendation: 'Similar',
+  ai_dj: 'AI DJ',
+  ai_dj_skip: 'AI DJ',
+  ai_dj_listen_through: 'AI DJ',
+  autoplay: 'Autoplay',
+  nudge: 'Discovery',
+  playlist_generator: 'Mood',
+  playlist: 'Playlist',
+  search: 'Search',
+  library: 'Library',
+  personalized: 'Personalized',
+  compound_score: 'Compound Score',
+  time_pattern: 'Time Pattern',
+  diversity: 'Diversity',
+};
+
+function mapSource(source: string): string {
+  return SOURCE_TO_MODE[source] || source.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 // ============================================================================
 // Core Analytics Functions
 // ============================================================================
@@ -195,20 +217,6 @@ export async function getAcceptanceRateByMode(
       )
     );
 
-  // Map sources to recommendation modes
-  const modeMapping: Record<string, RecommendationMode | string> = {
-    recommendation: 'similar',
-    ai_dj: 'AI DJ',
-    ai_dj_skip: 'AI DJ',
-    ai_dj_listen_through: 'AI DJ',
-    autoplay: 'Autoplay',
-    nudge: 'discovery',
-    playlist_generator: 'mood',
-    playlist: 'playlist',
-    search: 'search',
-    library: 'library',
-  };
-
   // Group by mode
   const modeGroups = new Map<
     string,
@@ -219,7 +227,7 @@ export async function getAcceptanceRateByMode(
   >();
 
   for (const fb of feedback) {
-    const mode = modeMapping[fb.source] || fb.source;
+    const mode = mapSource(fb.source);
 
     if (!modeGroups.has(mode)) {
       modeGroups.set(mode, {
@@ -399,7 +407,7 @@ export async function getTopRecommendedGenres(
 
     // Group by source as genre placeholder
     for (const fb of feedback) {
-      const genre = `${fb.source} recommendations`;
+      const genre = `${mapSource(fb.source)}`;
       const scores = genreScores.get(genre) || { up: 0, down: 0 };
 
       if (fb.feedbackType === 'thumbs_up') {
@@ -606,7 +614,7 @@ export async function getABTestResults(
     >();
 
     for (const fb of feedback) {
-      const variant = fb.source || 'unknown';
+      const variant = mapSource(fb.source || 'unknown');
 
       if (!feedbackGroups.has(variant)) {
         feedbackGroups.set(variant, { up: 0, down: 0 });

@@ -168,27 +168,33 @@ const COLORS = {
 };
 
 const MODE_COLORS: Record<string, string> = {
-  similar: COLORS.primary,
-  discovery: COLORS.success,
-  mood: COLORS.secondary,
-  personalized: COLORS.purple,
-  playlist: COLORS.info,
-  search: COLORS.warning,
-  library: COLORS.indigo,
+  Similar: COLORS.primary,
+  Discovery: COLORS.success,
+  Mood: COLORS.secondary,
+  Personalized: COLORS.purple,
+  Playlist: COLORS.info,
+  Search: COLORS.warning,
+  Library: COLORS.indigo,
   'AI DJ': COLORS.purple,
-  'Autoplay': COLORS.info,
+  Autoplay: COLORS.info,
+  'Compound Score': COLORS.success,
+  'Time Pattern': COLORS.warning,
+  Diversity: COLORS.secondary,
 };
 
 const MODE_LABELS: Record<string, string> = {
-  similar: 'Similar Songs',
-  discovery: 'Discovery',
-  mood: 'Mood-Based',
-  personalized: 'Personalized',
-  playlist: 'Playlist',
-  search: 'Search',
-  library: 'Library',
+  Similar: 'Similar Songs',
+  Discovery: 'Discovery',
+  Mood: 'Mood-Based',
+  Personalized: 'Personalized',
+  Playlist: 'Playlist',
+  Search: 'Search',
+  Library: 'Library',
   'AI DJ': 'AI DJ',
-  'Autoplay': 'Autoplay',
+  Autoplay: 'Autoplay',
+  'Compound Score': 'Compound Score',
+  'Time Pattern': 'Time Pattern',
+  Diversity: 'Diversity',
 };
 
 const PIE_COLORS = [
