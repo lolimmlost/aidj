@@ -72,32 +72,24 @@ export function MoodTimelineDashboard({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Mood Timeline</h2>
-        <p className="text-muted-foreground">
-          Explore the evolution of your music taste and preferences over time
-        </p>
-      </div>
-
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="timeline" className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4" />
-            <span className="hidden sm:inline">Timeline</span>
+          <TabsTrigger value="timeline" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            Timeline
           </TabsTrigger>
-          <TabsTrigger value="compare" className="flex items-center gap-2">
-            <GitCompare className="w-4 h-4" />
-            <span className="hidden sm:inline">Compare</span>
+          <TabsTrigger value="compare" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <GitCompare className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            Compare
           </TabsTrigger>
-          <TabsTrigger value="playlist" className="flex items-center gap-2">
-            <Music className="w-4 h-4" />
-            <span className="hidden sm:inline">Nostalgia</span>
+          <TabsTrigger value="playlist" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Music className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            Nostalgia
           </TabsTrigger>
-          <TabsTrigger value="export" className="flex items-center gap-2">
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export</span>
+          <TabsTrigger value="export" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            Export
           </TabsTrigger>
         </TabsList>
 

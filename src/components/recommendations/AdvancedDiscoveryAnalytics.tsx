@@ -8,7 +8,7 @@
  * - A/B testing capabilities for recommendation algorithms
  */
 
-import { useMemo, memo, useState } from 'react';
+import { useMemo, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -211,11 +211,9 @@ interface AdvancedDiscoveryAnalyticsProps {
 export function AdvancedDiscoveryAnalytics({
   period = '30d',
 }: AdvancedDiscoveryAnalyticsProps) {
-  const [selectedPeriod, setSelectedPeriod] = useState(period);
-
   const { data, isLoading, error } = useQuery({
-    queryKey: ['discovery-analytics', selectedPeriod],
-    queryFn: () => fetchDiscoveryAnalytics(selectedPeriod),
+    queryKey: ['discovery-analytics', period],
+    queryFn: () => fetchDiscoveryAnalytics(period),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
@@ -282,52 +280,27 @@ export function AdvancedDiscoveryAnalytics({
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Period Selector */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div className="min-w-0">
-          <h2 className="text-lg sm:text-2xl font-bold tracking-tight">
-            Analytics Overview
-          </h2>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Your recommendation patterns
-          </p>
-        </div>
-        <select
-          className="flex h-9 sm:h-10 w-full sm:w-[140px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          value={selectedPeriod}
-          onChange={(e) =>
-            setSelectedPeriod(e.target.value as typeof selectedPeriod)
-          }
-        >
-          <option value="7d">Last 7 Days</option>
-          <option value="30d">Last 30 Days</option>
-          <option value="90d">Last 90 Days</option>
-          <option value="1y">Last Year</option>
-          <option value="all">All Time</option>
-        </select>
-      </div>
-
       {/* Summary Cards */}
       <SummaryCards summary={metrics.summary} />
 
       {/* Tabs */}
       <Tabs defaultValue="modes" className="w-full">
         <TabsList className="grid w-full grid-cols-4 h-auto">
-          <TabsTrigger value="modes" className="gap-1 sm:gap-2 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+          <TabsTrigger value="modes" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
             <Target className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
-            <span className="hidden sm:inline">Types</span>
+            Types
           </TabsTrigger>
-          <TabsTrigger value="content" className="gap-1 sm:gap-2 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+          <TabsTrigger value="content" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
             <Music className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
-            <span className="hidden sm:inline">Content</span>
+            Content
           </TabsTrigger>
-          <TabsTrigger value="engagement" className="gap-1 sm:gap-2 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+          <TabsTrigger value="engagement" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
             <Clock className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
-            <span className="hidden sm:inline">Time</span>
+            Time
           </TabsTrigger>
-          <TabsTrigger value="experiments" className="gap-1 sm:gap-2 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+          <TabsTrigger value="experiments" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
             <FlaskConical className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
-            <span className="hidden sm:inline">Tests</span>
+            Tests
           </TabsTrigger>
         </TabsList>
 
