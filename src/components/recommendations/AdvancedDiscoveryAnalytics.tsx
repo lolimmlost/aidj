@@ -716,23 +716,9 @@ const TopContentTab = memo(function TopContentTab({
                   </span>
                   <span className="font-medium text-xs sm:text-sm truncate">{artist.artist}</span>
                 </div>
-                <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                  <span className="text-[10px] sm:text-sm text-muted-foreground hidden xs:inline">
-                    {artist.recommendationCount}
-                  </span>
-                  <Badge
-                    variant={
-                      artist.acceptanceRate > 0.7
-                        ? 'default'
-                        : artist.acceptanceRate > 0.5
-                          ? 'secondary'
-                          : 'outline'
-                    }
-                    className="text-[10px] sm:text-xs px-1 sm:px-2"
-                  >
-                    {(artist.acceptanceRate * 100).toFixed(0)}%
-                  </Badge>
-                </div>
+                <Badge variant="secondary" className="text-[10px] sm:text-xs px-1 sm:px-2 shrink-0">
+                  {artist.recommendationCount} {artist.recommendationCount === 1 ? 'song' : 'songs'}
+                </Badge>
               </div>
             ))}
             {topArtists.length === 0 && (
@@ -762,16 +748,18 @@ const TopContentTab = memo(function TopContentTab({
                 data={topGenres.slice(0, 8).map((g) => ({
                   genre: g.genre.length > 10 ? g.genre.slice(0, 10) + '...' : g.genre,
                   count: g.recommendationCount,
-                  acceptance: g.acceptanceRate * 100,
                 }))}
                 layout="vertical"
                 margin={{ left: 10, right: 10 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" tickFormatter={(v) => `${v}%`} domain={[0, 100]} tick={{ fontSize: 9 }} />
+                <XAxis type="number" tick={{ fontSize: 9 }} />
                 <YAxis type="category" dataKey="genre" tick={{ fontSize: 9 }} width={80} />
-                <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} contentStyle={{ fontSize: '11px' }} />
-                <Bar dataKey="acceptance" fill={COLORS.primary} name="Accept %" radius={[0, 4, 4, 0]} />
+                <Tooltip
+                  formatter={(v: number) => [`${v} songs`, 'Count']}
+                  contentStyle={{ fontSize: '11px' }}
+                />
+                <Bar dataKey="count" fill={COLORS.primary} name="Songs" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -990,16 +978,16 @@ const ABTestingTab = memo(function ABTestingTab({
 });
 
 const ABTestCard = memo(function ABTestCard({ test }: { test: ABTest }) {
-  const chartData = test.variants.map((v) => ({
-    name: v.variantName.length > 10 ? v.variantName.slice(0, 10) + '...' : v.variantName,
-    fullName: v.variantName,
-    acceptanceRate: v.acceptanceRate * 100,
-    clickRate: v.clickThroughRate * 100,
-    playRate: v.playRate * 100,
-    saveRate: v.saveRate * 100,
-    sampleSize: v.sampleSize,
-    isWinner: v.isWinner,
-  }));
+  const chartData = test.variants
+    .filter((v) => v.sampleSize > 0)
+    .sort((a, b) => b.sampleSize - a.sampleSize)
+    .map((v) => ({
+      name: v.variantName,
+      sampleSize: v.sampleSize,
+      accepted: Math.round(v.acceptanceRate * v.sampleSize),
+      rejected: v.sampleSize - Math.round(v.acceptanceRate * v.sampleSize),
+      isWinner: v.isWinner,
+    }));
 
   return (
     <Card>
@@ -1028,29 +1016,16 @@ const ABTestCard = memo(function ABTestCard({ test }: { test: ABTest }) {
       </CardHeader>
       <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
         <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
-          {/* Variants Comparison Chart */}
-          <ResponsiveContainer width="100%" height={180} className="sm:!h-[250px]">
-            <BarChart data={chartData}>
+          {/* Variants Comparison Chart — volume by source */}
+          <ResponsiveContainer width="100%" height={Math.max(180, chartData.length * 40)} className="sm:!h-[250px]">
+            <BarChart data={chartData} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fontSize: 9 }} />
-              <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 9 }} />
-              <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} contentStyle={{ fontSize: '11px' }} />
+              <XAxis type="number" tick={{ fontSize: 9 }} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={100} />
+              <Tooltip contentStyle={{ fontSize: '11px' }} />
               <Legend wrapperStyle={{ fontSize: '9px' }} />
-              <Bar
-                dataKey="acceptanceRate"
-                fill={COLORS.success}
-                name="Accept"
-              />
-              <Bar
-                dataKey="clickRate"
-                fill={COLORS.primary}
-                name="Click"
-              />
-              <Bar
-                dataKey="playRate"
-                fill={COLORS.info}
-                name="Play"
-              />
+              <Bar dataKey="accepted" stackId="a" fill={COLORS.success} name="Accepted" />
+              <Bar dataKey="rejected" stackId="a" fill={COLORS.danger} name="Rejected" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
 
