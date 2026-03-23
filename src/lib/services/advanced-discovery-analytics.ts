@@ -639,8 +639,8 @@ export async function getABTestResults(
       const total = group.up + group.down;
       variantGroups.set(variant, {
         shown: total,
-        clicked: total, // Assume all were clicked since they got feedback
-        played: total, // Assume all were played
+        clicked: 0,
+        played: 0,
         saved: 0,
         liked: group.up,
         disliked: group.down,

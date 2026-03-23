@@ -1038,22 +1038,22 @@ const ABTestCard = memo(function ABTestCard({ test }: { test: ABTest }) {
               </div>
               <div className="grid grid-cols-3 gap-2 text-[10px] sm:text-xs text-muted-foreground">
                 <div className="text-center">
-                  <div className="font-medium text-foreground text-xs sm:text-sm">
-                    {(variant.clickThroughRate * 100).toFixed(0)}%
+                  <div className="font-medium text-success text-xs sm:text-sm">
+                    {Math.round(variant.acceptanceRate * variant.sampleSize)}
                   </div>
-                  <div>Clicked</div>
+                  <div>Thumbs Up</div>
                 </div>
                 <div className="text-center">
-                  <div className="font-medium text-foreground text-xs sm:text-sm">
-                    {(variant.playRate * 100).toFixed(0)}%
+                  <div className="font-medium text-danger text-xs sm:text-sm">
+                    {variant.sampleSize - Math.round(variant.acceptanceRate * variant.sampleSize)}
                   </div>
-                  <div>Played</div>
+                  <div>Thumbs Down</div>
                 </div>
                 <div className="text-center">
                   <div className="font-medium text-foreground text-xs sm:text-sm">
                     {(variant.acceptanceRate * 100).toFixed(0)}%
                   </div>
-                  <div>Liked</div>
+                  <div>Accept Rate</div>
                 </div>
               </div>
             </div>
