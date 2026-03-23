@@ -23,7 +23,7 @@
 
 ## UI / UX
 
-- [ ] Add fullscreen song view — tap album art or expand button to show immersive full-screen now-playing with large artwork, controls, lyrics, and swipe-to-dismiss
+- [x] Add fullscreen song view — tap album art or expand button to show immersive full-screen now-playing with large artwork, controls, lyrics, and swipe-to-dismiss
 - [x] Improve toasts — centralized toast wrapper with per-type durations (success 3s, error 6s, info 4s, warning 5s), close buttons, max 4 visible
 - [x] Logout page invalidation — clear query cache on sign-out for instant redirect to login
 - [x] Redesign login page — improve visual design, branding, and UX

@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/query';
 import { usePlaybackSync, sendPlaybackMessage } from '@/lib/hooks/usePlaybackSync';
 import { ResumePlaybackPrompt } from './ResumePlaybackPrompt';
+import { FullscreenPlayer } from './FullscreenPlayer';
 
 // Import extracted hooks
 import { useDualDeckAudio, Song, SILENT_AUDIO_DATA_URL } from '@/lib/hooks/useDualDeckAudio';
@@ -121,6 +122,7 @@ export function PlayerBar() {
   const [isLoading, setIsLoading] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
   const [showVisualizer, setShowVisualizer] = useState(false);
+  const [showFullscreen, setShowFullscreen] = useState(false);
 
   // Track canplay/error handlers for cleanup
   const canPlayHandlerRef = useRef<(() => void) | null>(null);
@@ -1115,13 +1117,15 @@ export function PlayerBar() {
             "flex items-center gap-3 min-w-0 flex-1 rounded-lg transition-all",
             showRemoteTime && "ring-1 ring-green-500/60 bg-green-500/5 px-2 py-1"
           )}>
-            <AlbumArt
-              albumId={currentSong.albumId}
-              songId={currentSong.id}
-              artist={currentSong.artist}
-              size="sm"
-              isPlaying={isPlaying || isRemotePlaying}
-            />
+            <div onClick={() => setShowFullscreen(true)} className="cursor-pointer">
+              <AlbumArt
+                albumId={currentSong.albumId}
+                songId={currentSong.id}
+                artist={currentSong.artist}
+                size="sm"
+                isPlaying={isPlaying || isRemotePlaying}
+              />
+            </div>
 
             {/* Song Info */}
             <div className="min-w-0 flex-1">
@@ -1375,6 +1379,7 @@ export function PlayerBar() {
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
+            onClick={() => setShowFullscreen(true)}
           >
             <Maximize2 className="h-4 w-4" />
           </Button>
@@ -1396,6 +1401,32 @@ export function PlayerBar() {
         isOpen={showVisualizer}
         onClose={() => setShowVisualizer(false)}
         analyserNode={webAudioAnalyserRef.current}
+      />
+
+      {/* Fullscreen Now Playing */}
+      <FullscreenPlayer
+        isOpen={showFullscreen}
+        onClose={() => setShowFullscreen(false)}
+        currentSong={currentSong}
+        isPlaying={isPlaying}
+        isLoading={isLoading}
+        currentTime={displayCurrentTime}
+        duration={displayDuration}
+        isLiked={isLiked}
+        isLikePending={isLikePending}
+        isShuffled={isShuffled}
+        repeatMode="off"
+        onTogglePlayPause={togglePlayPause}
+        onPrevious={previousSong}
+        onNext={handleNextSong}
+        onSeek={seek}
+        onToggleLike={handleToggleLike}
+        onToggleShuffle={toggleShuffle}
+        onShowLyrics={() => {
+          setShowFullscreen(false);
+          setShowLyrics(true);
+        }}
+        onToggleRepeat={() => {}}
       />
     </>
   );
