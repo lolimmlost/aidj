@@ -72,9 +72,18 @@ export function FullscreenPlayer({
   const [visible, setVisible] = useState(false);
   const [animating, setAnimating] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const touchStartRef = useRef<{ y: number; time: number } | null>(null);
+  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+
+  // Vertical swipe-to-dismiss refs
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const touchOffsetRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Horizontal swipe refs for album art
+  const artSwipeRef = useRef<{ x: number; time: number } | null>(null);
+  const artOffsetRef = useRef(0);
+  const artAxisLockedRef = useRef<'x' | 'y' | null>(null);
+  const artContainerRef = useRef<HTMLDivElement>(null);
 
   // Handle open/close animation — setState drives mount/unmount for CSS transitions
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -98,35 +107,105 @@ export function FullscreenPlayer({
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setImgError(false); }, [currentSongId]);
 
-  // Swipe to dismiss
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    touchStartRef.current = { y: e.touches[0].clientY, time: Date.now() };
+  // Clear swipe animation after it plays
+  useEffect(() => {
+    if (!swipeDirection) return;
+    const timer = setTimeout(() => setSwipeDirection(null), 300);
+    return () => clearTimeout(timer);
+  }, [swipeDirection]);
+
+  // --- Album art horizontal swipe (prev/next song) ---
+  const handleArtTouchStart = useCallback((e: React.TouchEvent) => {
+    artSwipeRef.current = { x: e.touches[0].clientX, time: Date.now() };
+    artOffsetRef.current = 0;
+    artAxisLockedRef.current = null;
+    // Also store Y for axis detection
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
     touchOffsetRef.current = 0;
   }, []);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchStartRef.current || !containerRef.current) return;
+  const handleArtTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!artSwipeRef.current || !touchStartRef.current) return;
+
+    const deltaX = e.touches[0].clientX - artSwipeRef.current.x;
     const deltaY = e.touches[0].clientY - touchStartRef.current.y;
-    // Only track downward swipes
-    if (deltaY > 0) {
-      touchOffsetRef.current = deltaY;
-      containerRef.current.style.transform = `translateY(${deltaY}px)`;
-      containerRef.current.style.transition = 'none';
+
+    // Lock axis once movement exceeds threshold
+    if (!artAxisLockedRef.current) {
+      if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+        artAxisLockedRef.current = Math.abs(deltaX) > Math.abs(deltaY) ? 'x' : 'y';
+      } else {
+        return;
+      }
+    }
+
+    if (artAxisLockedRef.current === 'x') {
+      // Horizontal: drag album art
+      e.preventDefault();
+      artOffsetRef.current = deltaX;
+      if (artContainerRef.current) {
+        // Dampen the drag slightly for a rubbery feel
+        const dampened = deltaX * 0.6;
+        artContainerRef.current.style.transform = `translateX(${dampened}px)`;
+        artContainerRef.current.style.transition = 'none';
+        // Reduce opacity as it moves away
+        artContainerRef.current.style.opacity = `${1 - Math.abs(dampened) / 400}`;
+      }
+    } else {
+      // Vertical: dismiss (delegate to container)
+      if (deltaY > 0 && containerRef.current) {
+        touchOffsetRef.current = deltaY;
+        containerRef.current.style.transform = `translateY(${deltaY}px)`;
+        containerRef.current.style.transition = 'none';
+      }
     }
   }, []);
 
-  const handleTouchEnd = useCallback(() => {
-    if (!containerRef.current) return;
-    containerRef.current.style.transition = 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)';
-    if (touchOffsetRef.current > 100) {
-      containerRef.current.style.transform = 'translateY(100%)';
-      onClose();
-    } else {
-      containerRef.current.style.transform = 'translateY(0)';
+  const handleArtTouchEnd = useCallback(() => {
+    const axis = artAxisLockedRef.current;
+
+    if (axis === 'x' && artContainerRef.current) {
+      const offset = artOffsetRef.current;
+      const velocity = artSwipeRef.current
+        ? Math.abs(offset) / (Date.now() - artSwipeRef.current.time)
+        : 0;
+
+      // Trigger if dragged >80px or fast flick (>0.3px/ms)
+      if (Math.abs(offset) > 80 || velocity > 0.3) {
+        if (offset > 0) {
+          // Swipe right → previous
+          setSwipeDirection('right');
+          onPrevious();
+        } else {
+          // Swipe left → next
+          setSwipeDirection('left');
+          onNext();
+        }
+      }
+
+      // Snap back
+      artContainerRef.current.style.transition = 'transform 250ms cubic-bezier(0.32, 0.72, 0, 1), opacity 250ms ease';
+      artContainerRef.current.style.transform = 'translateX(0)';
+      artContainerRef.current.style.opacity = '1';
+    } else if (axis === 'y' || !axis) {
+      // Vertical dismiss or no movement
+      if (containerRef.current) {
+        containerRef.current.style.transition = 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)';
+        if (touchOffsetRef.current > 100) {
+          containerRef.current.style.transform = 'translateY(100%)';
+          onClose();
+        } else {
+          containerRef.current.style.transform = 'translateY(0)';
+        }
+      }
     }
+
+    artSwipeRef.current = null;
+    artOffsetRef.current = 0;
+    artAxisLockedRef.current = null;
     touchStartRef.current = null;
     touchOffsetRef.current = 0;
-  }, [onClose]);
+  }, [onClose, onPrevious, onNext]);
 
   // Close on Escape
   useEffect(() => {
@@ -172,9 +251,6 @@ export function FullscreenPlayer({
           'relative h-full flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]',
           animating ? 'translate-y-0' : 'translate-y-full'
         )}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
         {/* Top bar */}
         <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] py-3">
@@ -194,22 +270,37 @@ export function FullscreenPlayer({
 
         {/* Main content - centered */}
         <div className="flex-1 flex flex-col items-center justify-center px-8 max-w-lg mx-auto w-full gap-8">
-          {/* Album Art */}
-          <div className="w-[80vw] max-w-[400px] aspect-square relative mx-auto">
-            {coverUrl && !imgError ? (
-              <img
-                src={coverUrl}
-                alt={`${songTitle} album art`}
-                className="w-full h-full object-cover rounded-2xl shadow-2xl shadow-black/50"
-                onError={() => setImgError(true)}
-              />
-            ) : (
-              <div className="w-full h-full rounded-2xl bg-white/10 flex items-center justify-center">
-                <span className="text-6xl font-bold text-white/30">
-                  {songArtist.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                </span>
-              </div>
-            )}
+          {/* Album Art — swipeable */}
+          <div
+            className="w-[80vw] max-w-[400px] aspect-square relative mx-auto overflow-visible touch-pan-y"
+            onTouchStart={handleArtTouchStart}
+            onTouchMove={handleArtTouchMove}
+            onTouchEnd={handleArtTouchEnd}
+          >
+            <div
+              ref={artContainerRef}
+              className={cn(
+                'w-full h-full',
+                swipeDirection === 'left' && 'animate-[slideInRight_250ms_ease-out]',
+                swipeDirection === 'right' && 'animate-[slideInLeft_250ms_ease-out]',
+              )}
+            >
+              {coverUrl && !imgError ? (
+                <img
+                  src={coverUrl}
+                  alt={`${songTitle} album art`}
+                  className="w-full h-full object-cover rounded-2xl shadow-2xl shadow-black/50 select-none pointer-events-none"
+                  onError={() => setImgError(true)}
+                  draggable={false}
+                />
+              ) : (
+                <div className="w-full h-full rounded-2xl bg-white/10 flex items-center justify-center">
+                  <span className="text-6xl font-bold text-white/30">
+                    {songArtist.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Song info */}
