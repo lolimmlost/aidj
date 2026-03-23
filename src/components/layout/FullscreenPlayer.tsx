@@ -71,6 +71,7 @@ export function FullscreenPlayer({
 }: FullscreenPlayerProps) {
   const [visible, setVisible] = useState(false);
   const [animating, setAnimating] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const touchStartRef = useRef<{ y: number; time: number } | null>(null);
   const touchOffsetRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,6 +92,11 @@ export function FullscreenPlayer({
     }
   }, [isOpen]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Reset image error on song change
+  const currentSongId = currentSong?.id;
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setImgError(false); }, [currentSongId]);
 
   // Swipe to dismiss
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -134,7 +140,10 @@ export function FullscreenPlayer({
 
   if (!visible || !currentSong) return null;
 
-  const coverUrl = getCoverArtUrl(currentSong.albumId, 600);
+  // Use albumId or fall back to songId for cover art
+  const artId = currentSong.albumId || currentSong.id;
+  const coverUrl = getCoverArtUrl(artId, 600);
+  const bgCoverUrl = getCoverArtUrl(artId, 128); // smaller for blurred bg
   const songTitle = currentSong.name || currentSong.title || 'Unknown';
   const songArtist = currentSong.artist || 'Unknown';
 
@@ -146,13 +155,13 @@ export function FullscreenPlayer({
       )}
     >
       {/* Blurred background */}
-      {coverUrl && (
+      {bgCoverUrl && (
         <div
-          className="absolute inset-0 bg-cover bg-center scale-110 blur-3xl"
-          style={{ backgroundImage: `url(${coverUrl})` }}
+          className="absolute inset-0 bg-cover bg-center scale-110 blur-3xl opacity-60"
+          style={{ backgroundImage: `url(${bgCoverUrl})` }}
         />
       )}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/85" />
 
       {/* Content container */}
       <div
@@ -184,16 +193,17 @@ export function FullscreenPlayer({
         {/* Main content - centered */}
         <div className="flex-1 flex flex-col items-center justify-center px-8 max-w-lg mx-auto w-full gap-8">
           {/* Album Art */}
-          <div className="w-full max-w-[80vw] md:max-w-[400px] aspect-square relative">
-            {coverUrl ? (
+          <div className="w-[80vw] max-w-[400px] aspect-square relative mx-auto">
+            {coverUrl && !imgError ? (
               <img
                 src={coverUrl}
                 alt={`${songTitle} album art`}
                 className="w-full h-full object-cover rounded-2xl shadow-2xl shadow-black/50"
+                onError={() => setImgError(true)}
               />
             ) : (
               <div className="w-full h-full rounded-2xl bg-white/10 flex items-center justify-center">
-                <span className="text-4xl font-bold text-white/40">
+                <span className="text-6xl font-bold text-white/30">
                   {songArtist.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                 </span>
               </div>
