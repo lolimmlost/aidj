@@ -180,7 +180,7 @@ export function ArtistsList() {
                     <LazyArtistAvatar artistId={artist.id} name={artist.name} savedImageUrl={savedImages[artist.name.toLowerCase()]} />
 
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                      <h3 className="font-medium text-foreground line-clamp-2 group-hover:text-primary transition-colors">
                         {artist.name}
                       </h3>
                       {artist.albumCount && (

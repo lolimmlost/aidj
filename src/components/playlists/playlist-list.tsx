@@ -130,7 +130,7 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex items-center gap-2 p-2.5 sm:p-3 rounded-lg border bg-card hover:bg-accent/50 transition-all duration-200 ${
+      className={`group flex items-center gap-2 p-2.5 sm:p-3 rounded-xl border bg-card hover:bg-accent/50 transition-all duration-200 ${
         isLikedSongs ? 'ring-1 ring-red-500/20' : ''
       } ${isDragging ? 'shadow-2xl ring-2 ring-primary' : ''}`}
     >

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Play, Pause, Disc3, TrendingUp, TrendingDown, Shuffle, Library, RefreshCw, Loader2, Radio } from 'lucide-react';
+import { Play, Pause, Disc3, TrendingUp, TrendingDown, Shuffle, Library, RefreshCw, Loader2, Radio, Sun, Moon, CloudSun, Sunset } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAudioStore } from '@/lib/stores/audio';
 import { cn } from '@/lib/utils';
@@ -74,13 +74,13 @@ export function DashboardHero({
     return 'Good evening';
   };
 
-  const getTimeEmoji = () => {
+  const TimeIcon = () => {
     const hour = new Date().getHours();
-    if (hour < 6) return '🌙';
-    if (hour < 12) return '☀️';
-    if (hour < 18) return '🌤️';
-    if (hour < 21) return '🌆';
-    return '🌙';
+    if (hour < 6) return <Moon className="h-7 w-7 sm:h-8 sm:w-8 text-indigo-400" />;
+    if (hour < 12) return <Sun className="h-7 w-7 sm:h-8 sm:w-8 text-amber-400" />;
+    if (hour < 18) return <CloudSun className="h-7 w-7 sm:h-8 sm:w-8 text-orange-400" />;
+    if (hour < 21) return <Sunset className="h-7 w-7 sm:h-8 sm:w-8 text-rose-400" />;
+    return <Moon className="h-7 w-7 sm:h-8 sm:w-8 text-indigo-400" />;
   };
 
   return (
@@ -94,7 +94,7 @@ export function DashboardHero({
         {/* Left: Greeting & Context */}
         <div className="flex-1 space-y-4">
           <div className="animate-fade-up">
-            <span className="text-2xl sm:text-3xl">{getTimeEmoji()}</span>
+            <TimeIcon />
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mt-2">
               {getGreeting()},{' '}
               <span className="text-gradient-brand">{userName || 'Music Lover'}</span>
