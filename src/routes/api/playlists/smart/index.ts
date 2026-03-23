@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../../lib/auth/auth';
-import { db } from '../../../../lib/db';
-import { userPlaylists, playlistSongs } from '../../../../lib/db/schema/playlists.schema';
-import { eq } from 'drizzle-orm';
-import { evaluateSmartPlaylistRules } from '../../../../lib/services/smart-playlist-evaluator';
+import {
+  createSmartPlaylist,
+  listSmartPlaylists,
+  getSmartPlaylistSongs,
+  type SmartPlaylistRules,
+} from '../../../../lib/services/navidrome-smart-playlists';
 import { z } from 'zod';
 
 // Recursive type for rule conditions (any is required for recursive Zod schema)
@@ -33,13 +35,11 @@ const SmartPlaylistSchema = z.object({
 export const Route = createFileRoute("/api/playlists/smart/")({
   server: {
     handlers: {
-  // POST /api/playlists/smart - Create smart playlist using Navidrome rules
+  // POST /api/playlists/smart - Create smart playlist via Navidrome native API
   POST: async ({ request }) => {
     const session = await auth.api.getSession({
       headers: request.headers,
-      query: {
-        disableCookieCache: true,
-      },
+      query: { disableCookieCache: true },
     });
 
     if (!session) {
@@ -53,76 +53,27 @@ export const Route = createFileRoute("/api/playlists/smart/")({
       const body = await request.json();
       const validatedData = SmartPlaylistSchema.parse(body);
 
-      console.log('🎵 Creating smart playlist:', validatedData.name);
-      console.log('📋 Rules:', JSON.stringify(validatedData.rules, null, 2));
+      console.log('🎵 Creating smart playlist via Navidrome:', validatedData.name);
 
-      // Check for duplicate playlist name
-      const existingPlaylist = await db
-        .select()
-        .from(userPlaylists)
-        .where(eq(userPlaylists.userId, session.user.id))
-        .where(eq(userPlaylists.name, validatedData.name))
-        .limit(1)
-        .then(rows => rows[0]);
+      // Create directly in Navidrome — server-side rule evaluation
+      const playlist = await createSmartPlaylist(
+        validatedData.name,
+        validatedData.rules as SmartPlaylistRules,
+      );
 
-      if (existingPlaylist) {
-        return new Response(JSON.stringify({
-          error: 'Playlist name already exists',
-          code: 'DUPLICATE_PLAYLIST_NAME'
-        }), {
-          status: 409,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
+      console.log(`✅ Smart playlist "${validatedData.name}" created in Navidrome (id: ${playlist.id}, ${playlist.songCount} songs)`);
 
-      // Evaluate rules to get matching songs
-      const matchingSongs = await evaluateSmartPlaylistRules(validatedData.rules);
-      console.log(`✅ Found ${matchingSongs.length} songs matching smart playlist rules`);
-
-      // Create playlist in database
-      const newPlaylist = {
-        id: crypto.randomUUID(),
-        userId: session.user.id,
-        name: validatedData.name,
-        description: validatedData.rules.comment || `Smart playlist: ${validatedData.rules.sort || 'custom rules'}`,
-        smartPlaylistCriteria: validatedData.rules, // Store full rules for future re-evaluation
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      await db.insert(userPlaylists).values(newPlaylist);
-
-      // Add songs to playlist
-      if (matchingSongs.length > 0) {
-        const songsToAdd = matchingSongs.map((song, index) => ({
-          id: crypto.randomUUID(),
-          playlistId: newPlaylist.id,
-          songId: song.id,
-          songArtistTitle: `${song.artist} - ${song.title}`,
-          position: index,
-          addedAt: new Date(),
-        }));
-
-        await db.insert(playlistSongs).values(songsToAdd);
-
-        // Update playlist with song count and duration
-        const totalDuration = matchingSongs.reduce((sum, song) => sum + parseInt(song.duration || '0'), 0);
-        await db
-          .update(userPlaylists)
-          .set({
-            songCount: matchingSongs.length,
-            totalDuration,
-            updatedAt: new Date(),
-          })
-          .where(eq(userPlaylists.id, newPlaylist.id));
-
-        console.log(`✅ Smart playlist "${newPlaylist.name}" created with ${matchingSongs.length} songs`);
-      }
+      // Fetch the actual songs so the client can see what matched
+      const songs = await getSmartPlaylistSongs(playlist.id, 0, validatedData.rules.limit || 500);
 
       return new Response(JSON.stringify({
         data: {
-          ...newPlaylist,
-          songCount: matchingSongs.length,
+          id: playlist.id,
+          name: playlist.name,
+          songCount: playlist.songCount,
+          duration: playlist.duration,
+          songs,
+          isSmartPlaylist: true,
         }
       }), {
         status: 201,
@@ -147,6 +98,35 @@ export const Route = createFileRoute("/api/playlists/smart/")({
         code: 'SMART_PLAYLIST_CREATE_ERROR',
         message
       }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  },
+
+  // GET /api/playlists/smart - List all smart playlists
+  GET: async ({ request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+      query: { disableCookieCache: true },
+    });
+
+    if (!session) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    try {
+      const playlists = await listSmartPlaylists();
+      return new Response(JSON.stringify({ data: playlists }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to list smart playlists';
+      return new Response(JSON.stringify({ code: 'LIST_ERROR', message }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });

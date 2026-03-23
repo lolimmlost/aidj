@@ -148,6 +148,7 @@ import { Route as ApiAurralAddArtistRouteImport } from './routes/api/aurral/add-
 import { Route as ApiAiDjRecommendationsRouteImport } from './routes/api/ai-dj/recommendations'
 import { Route as ApiAdminStatsRouteImport } from './routes/api/admin/stats'
 import { Route as ApiPlaylistsSmartIndexRouteImport } from './routes/api/playlists/smart/index'
+import { Route as ApiPlaylistsSmartRandomRouteImport } from './routes/api/playlists/smart/random'
 import { Route as ApiPlaylistsSmartPreviewRouteImport } from './routes/api/playlists/smart/preview'
 import { Route as ApiPlaylistsLikedSongsSyncRouteImport } from './routes/api/playlists/liked-songs/sync'
 import { Route as ApiPlaylistsIdReorderRouteImport } from './routes/api/playlists/$id/reorder'
@@ -905,6 +906,11 @@ const ApiPlaylistsSmartIndexRoute = ApiPlaylistsSmartIndexRouteImport.update({
   path: '/api/playlists/smart/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPlaylistsSmartRandomRoute = ApiPlaylistsSmartRandomRouteImport.update({
+  id: '/api/playlists/smart/random',
+  path: '/api/playlists/smart/random',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPlaylistsSmartPreviewRoute =
   ApiPlaylistsSmartPreviewRouteImport.update({
     id: '/api/playlists/smart/preview',
@@ -1247,6 +1253,7 @@ export interface FileRoutesByFullPath {
   '/api/playlists/$id/reorder': typeof ApiPlaylistsIdReorderRoute
   '/api/playlists/liked-songs/sync': typeof ApiPlaylistsLikedSongsSyncRoute
   '/api/playlists/smart/preview': typeof ApiPlaylistsSmartPreviewRoute
+  '/api/playlists/smart/random': typeof ApiPlaylistsSmartRandomRoute
   '/api/playlists/smart': typeof ApiPlaylistsSmartIndexRoute
   '/api/navidrome/api/album/$id': typeof ApiNavidromeApiAlbumIdRoute
   '/api/navidrome/api/artist/$id': typeof ApiNavidromeApiArtistIdRoute
@@ -1418,6 +1425,7 @@ export interface FileRoutesByTo {
   '/api/playlists/$id/reorder': typeof ApiPlaylistsIdReorderRoute
   '/api/playlists/liked-songs/sync': typeof ApiPlaylistsLikedSongsSyncRoute
   '/api/playlists/smart/preview': typeof ApiPlaylistsSmartPreviewRoute
+  '/api/playlists/smart/random': typeof ApiPlaylistsSmartRandomRoute
   '/api/playlists/smart': typeof ApiPlaylistsSmartIndexRoute
   '/api/navidrome/api/album/$id': typeof ApiNavidromeApiAlbumIdRoute
   '/api/navidrome/api/artist/$id': typeof ApiNavidromeApiArtistIdRoute
@@ -1593,6 +1601,7 @@ export interface FileRoutesById {
   '/api/playlists/$id/reorder': typeof ApiPlaylistsIdReorderRoute
   '/api/playlists/liked-songs/sync': typeof ApiPlaylistsLikedSongsSyncRoute
   '/api/playlists/smart/preview': typeof ApiPlaylistsSmartPreviewRoute
+  '/api/playlists/smart/random': typeof ApiPlaylistsSmartRandomRoute
   '/api/playlists/smart/': typeof ApiPlaylistsSmartIndexRoute
   '/api/navidrome/api/album/$id': typeof ApiNavidromeApiAlbumIdRoute
   '/api/navidrome/api/artist/$id': typeof ApiNavidromeApiArtistIdRoute
@@ -1768,6 +1777,7 @@ export interface FileRouteTypes {
     | '/api/playlists/$id/reorder'
     | '/api/playlists/liked-songs/sync'
     | '/api/playlists/smart/preview'
+    | '/api/playlists/smart/random'
     | '/api/playlists/smart'
     | '/api/navidrome/api/album/$id'
     | '/api/navidrome/api/artist/$id'
@@ -1939,6 +1949,7 @@ export interface FileRouteTypes {
     | '/api/playlists/$id/reorder'
     | '/api/playlists/liked-songs/sync'
     | '/api/playlists/smart/preview'
+    | '/api/playlists/smart/random'
     | '/api/playlists/smart'
     | '/api/navidrome/api/album/$id'
     | '/api/navidrome/api/artist/$id'
@@ -2113,6 +2124,7 @@ export interface FileRouteTypes {
     | '/api/playlists/$id/reorder'
     | '/api/playlists/liked-songs/sync'
     | '/api/playlists/smart/preview'
+    | '/api/playlists/smart/random'
     | '/api/playlists/smart/'
     | '/api/navidrome/api/album/$id'
     | '/api/navidrome/api/artist/$id'
@@ -2260,6 +2272,7 @@ export interface RootRouteChildren {
   ApiNavidromeStreamIdRoute: typeof ApiNavidromeStreamIdRoute
   ApiPlaylistsLikedSongsSyncRoute: typeof ApiPlaylistsLikedSongsSyncRoute
   ApiPlaylistsSmartPreviewRoute: typeof ApiPlaylistsSmartPreviewRoute
+  ApiPlaylistsSmartRandomRoute: typeof ApiPlaylistsSmartRandomRoute
   ApiPlaylistsSmartIndexRoute: typeof ApiPlaylistsSmartIndexRoute
   ApiNavidromeStreamIdIdRoute: typeof ApiNavidromeStreamIdIdRoute
 }
@@ -3239,6 +3252,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPlaylistsSmartIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/playlists/smart/random': {
+      id: '/api/playlists/smart/random'
+      path: '/api/playlists/smart/random'
+      fullPath: '/api/playlists/smart/random'
+      preLoaderRoute: typeof ApiPlaylistsSmartRandomRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/playlists/smart/preview': {
       id: '/api/playlists/smart/preview'
       path: '/api/playlists/smart/preview'
@@ -3789,6 +3809,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNavidromeStreamIdRoute: ApiNavidromeStreamIdRoute,
   ApiPlaylistsLikedSongsSyncRoute: ApiPlaylistsLikedSongsSyncRoute,
   ApiPlaylistsSmartPreviewRoute: ApiPlaylistsSmartPreviewRoute,
+  ApiPlaylistsSmartRandomRoute: ApiPlaylistsSmartRandomRoute,
   ApiPlaylistsSmartIndexRoute: ApiPlaylistsSmartIndexRoute,
   ApiNavidromeStreamIdIdRoute: ApiNavidromeStreamIdIdRoute,
 }

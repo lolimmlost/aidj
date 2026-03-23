@@ -32,12 +32,13 @@ function generateId(): string {
 }
 
 // Navidrome Smart Playlist Rule Types - full .nsp field set
+// These are evaluated server-side by Navidrome's native rule engine
 type Field =
-  | 'title' | 'album' | 'artist' | 'genre' | 'filepath'
-  | 'playcount' | 'rating' | 'duration' | 'bitrate' | 'bpm'
-  | 'dateadded' | 'lastplayed' | 'dateloved'
-  | 'loved'
-  | 'year'
+  | 'title' | 'album' | 'artist' | 'albumartist' | 'genre' | 'comment' | 'filepath'
+  | 'playcount' | 'rating' | 'duration' | 'bitrate' | 'bpm' | 'channels' | 'size'
+  | 'dateadded' | 'lastplayed' | 'dateloved' | 'datemodified'
+  | 'loved' | 'hasrating'
+  | 'year' | 'discnumber' | 'tracknumber'
   | 'inPlaylist' | 'notInPlaylist';
 
 type Operator =
@@ -261,21 +262,29 @@ const FIELD_OPTIONS: FieldOption[] = [
   { value: 'title', label: 'Title', type: 'string', group: 'Song Info' },
   { value: 'album', label: 'Album', type: 'string', group: 'Song Info' },
   { value: 'artist', label: 'Artist', type: 'string', group: 'Song Info' },
+  { value: 'albumartist', label: 'Album Artist', type: 'string', group: 'Song Info' },
   { value: 'genre', label: 'Genre', type: 'string', group: 'Song Info' },
+  { value: 'comment', label: 'Comment', type: 'string', group: 'Song Info' },
   { value: 'filepath', label: 'File Path', type: 'string', group: 'Song Info' },
   // Stats
   { value: 'playcount', label: 'Play Count', type: 'number', group: 'Stats' },
   { value: 'rating', label: 'Rating (1-5)', type: 'number', group: 'Stats' },
   { value: 'duration', label: 'Duration (sec)', type: 'number', group: 'Stats' },
-  { value: 'bitrate', label: 'Bitrate', type: 'number', group: 'Stats' },
+  { value: 'bitrate', label: 'Bitrate (kbps)', type: 'number', group: 'Stats' },
   { value: 'bpm', label: 'BPM', type: 'number', group: 'Stats' },
+  { value: 'channels', label: 'Channels', type: 'number', group: 'Stats' },
+  { value: 'size', label: 'File Size (bytes)', type: 'number', group: 'Stats' },
   { value: 'year', label: 'Year', type: 'number', group: 'Stats' },
+  { value: 'discnumber', label: 'Disc Number', type: 'number', group: 'Stats' },
+  { value: 'tracknumber', label: 'Track Number', type: 'number', group: 'Stats' },
   // Dates
   { value: 'dateadded', label: 'Date Added', type: 'date', group: 'Dates' },
   { value: 'lastplayed', label: 'Last Played', type: 'date', group: 'Dates' },
   { value: 'dateloved', label: 'Date Loved', type: 'date', group: 'Dates' },
+  { value: 'datemodified', label: 'Date Modified', type: 'date', group: 'Dates' },
   // Status
   { value: 'loved', label: 'Loved', type: 'boolean', group: 'Status' },
+  { value: 'hasrating', label: 'Has Rating', type: 'boolean', group: 'Status' },
   // Advanced
   { value: 'inPlaylist', label: 'In Playlist', type: 'playlist', group: 'Advanced' },
   { value: 'notInPlaylist', label: 'Not In Playlist', type: 'playlist', group: 'Advanced' },
