@@ -775,16 +775,46 @@ export async function getDiscoveryAnalyticsSummary(
   const twoMonthsAgo = new Date();
   twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
 
-  // Fetch comparison data for trends
+  // Fetch comparison data for week-over-week trend
   const recentWeekMetrics = await getAcceptanceRateByMode(userId, '7d');
   const recentWeekTotal = recentWeekMetrics.reduce((sum, m) => sum + m.thumbsUpCount, 0);
   const recentWeekFeedback = recentWeekMetrics.reduce((sum, m) => sum + m.totalRecommendations, 0);
   const recentWeekRate = recentWeekFeedback > 0 ? recentWeekTotal / recentWeekFeedback : 0;
 
-  // Simplified trend calculation (comparing current period to overall)
   const weekOverWeekChange = overallAcceptanceRate > 0
     ? ((recentWeekRate - overallAcceptanceRate) / overallAcceptanceRate) * 100
     : 0;
+
+  // Fetch previous month data for real month-over-month comparison
+  // Query feedback from 30-60 days ago
+  const prevMonthFeedback = await db
+    .select()
+    .from(recommendationFeedback)
+    .where(
+      and(
+        eq(recommendationFeedback.userId, userId),
+        gte(recommendationFeedback.timestamp, twoMonthsAgo),
+        lte(recommendationFeedback.timestamp, monthAgo)
+      )
+    );
+
+  const prevMonthUp = prevMonthFeedback.filter((f) => f.feedbackType === 'thumbs_up').length;
+  const prevMonthTotal = prevMonthFeedback.length;
+  const prevMonthRate = prevMonthTotal > 0 ? prevMonthUp / prevMonthTotal : 0;
+
+  // Current month feedback
+  const currMonthMetrics = await getAcceptanceRateByMode(userId, '30d');
+  const currMonthUp = currMonthMetrics.reduce((sum, m) => sum + m.thumbsUpCount, 0);
+  const currMonthTotal = currMonthMetrics.reduce((sum, m) => sum + m.totalRecommendations, 0);
+  const currMonthRate = currMonthTotal > 0 ? currMonthUp / currMonthTotal : 0;
+
+  let monthOverMonthChange = 0;
+  if (prevMonthRate > 0) {
+    monthOverMonthChange = ((currMonthRate - prevMonthRate) / prevMonthRate) * 100;
+  } else if (currMonthTotal > 0) {
+    // No previous month data — show current rate as the change
+    monthOverMonthChange = currMonthRate * 100;
+  }
 
   const summary: DiscoveryAnalyticsSummary = {
     totalFeedback,
@@ -797,7 +827,7 @@ export async function getDiscoveryAnalyticsSummary(
     activeTests: abTests.active,
     completedTests: abTests.completed,
     weekOverWeekChange,
-    monthOverMonthChange: weekOverWeekChange * 4, // Rough approximation
+    monthOverMonthChange,
   };
 
   setCache(cacheKey, summary);
