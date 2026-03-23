@@ -13,12 +13,14 @@ import {
   Repeat1,
   MicVocal,
   Share2,
+  ListMusic,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { getCoverArtUrl } from '@/components/ui/album-art';
 import { cn } from '@/lib/utils';
 import { AIDJToggle } from '@/components/ai-dj-toggle';
+import { useAudioStore } from '@/lib/stores/audio';
 
 const formatTime = (time: number) => {
   if (!isFinite(time) || time < 0) return '0:00';
@@ -409,6 +411,22 @@ export function FullscreenPlayer({
               onClick={onShowLyrics}
             >
               <MicVocal className="h-5 w-5" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
+              onClick={() => {
+                // Close fullscreen, then open queue panel
+                onClose();
+                // Small delay so fullscreen dismisses before queue opens
+                setTimeout(() => {
+                  useAudioStore.getState().toggleQueuePanel();
+                }, 150);
+              }}
+            >
+              <ListMusic className="h-5 w-5" />
             </Button>
 
             {/* AI DJ toggle — styled for dark fullscreen context */}
