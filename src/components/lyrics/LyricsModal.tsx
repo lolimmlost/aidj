@@ -387,7 +387,7 @@ export function LyricsModal({ isOpen, onClose }: LyricsModalProps) {
   const coverUrl = getCoverArtUrl(currentSong?.albumId, 512);
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex flex-col bg-background">
+    <div className="fixed inset-0 z-[9999] flex flex-col bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       {/* Background with album art blur */}
       {coverUrl && (
         <div

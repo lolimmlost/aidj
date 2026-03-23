@@ -144,6 +144,8 @@ export function PlayerBar() {
     nextSong,
     previousSong,
     toggleShuffle,
+    repeatMode,
+    toggleRepeat,
     setAIUserActionInProgress,
     markUserPause,
   } = useAudioStore();
@@ -626,6 +628,14 @@ export function PlayerBar() {
 
         // Record in listening history
         recordListeningHistory(currentSong, currentSongIdRef.current, deck.currentTime, deck.duration);
+      }
+
+      // Repeat-one: seek back to start and keep playing (don't change song index)
+      if (useAudioStore.getState().repeatMode === 'one') {
+        deck.currentTime = 0;
+        deck.play().catch(() => {});
+        setCurrentTime(0);
+        return;
       }
 
       // Let the useEffect watching currentSongIndex handle loading the next song.
@@ -1415,7 +1425,7 @@ export function PlayerBar() {
         isLiked={isLiked}
         isLikePending={isLikePending}
         isShuffled={isShuffled}
-        repeatMode="off"
+        repeatMode={repeatMode}
         onTogglePlayPause={togglePlayPause}
         onPrevious={previousSong}
         onNext={handleNextSong}
@@ -1426,7 +1436,7 @@ export function PlayerBar() {
           setShowFullscreen(false);
           setShowLyrics(true);
         }}
-        onToggleRepeat={() => {}}
+        onToggleRepeat={toggleRepeat}
       />
     </>
   );
