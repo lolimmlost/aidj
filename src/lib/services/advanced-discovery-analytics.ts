@@ -572,7 +572,7 @@ export async function getABTestResults(
   >();
 
   for (const item of items) {
-    const variant = item.recommendationSource;
+    const variant = mapSource(item.recommendationSource);
 
     if (!variantGroups.has(variant)) {
       variantGroups.set(variant, {
