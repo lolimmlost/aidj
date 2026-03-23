@@ -198,7 +198,10 @@ export async function getAcceptanceRateByMode(
   // Map sources to recommendation modes
   const modeMapping: Record<string, RecommendationMode | string> = {
     recommendation: 'similar',
-    ai_dj: 'similar',
+    ai_dj: 'AI DJ',
+    ai_dj_skip: 'AI DJ',
+    ai_dj_listen_through: 'AI DJ',
+    autoplay: 'Autoplay',
     nudge: 'discovery',
     playlist_generator: 'mood',
     playlist: 'playlist',

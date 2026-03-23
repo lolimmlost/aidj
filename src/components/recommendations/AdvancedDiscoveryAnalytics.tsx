@@ -175,6 +175,8 @@ const MODE_COLORS: Record<string, string> = {
   playlist: COLORS.info,
   search: COLORS.warning,
   library: COLORS.indigo,
+  'AI DJ': COLORS.purple,
+  'Autoplay': COLORS.info,
 };
 
 const MODE_LABELS: Record<string, string> = {
@@ -185,6 +187,8 @@ const MODE_LABELS: Record<string, string> = {
   playlist: 'Playlist',
   search: 'Search',
   library: 'Library',
+  'AI DJ': 'AI DJ',
+  'Autoplay': 'Autoplay',
 };
 
 const PIE_COLORS = [
