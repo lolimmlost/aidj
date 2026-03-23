@@ -296,10 +296,10 @@ export async function previewSmartPlaylistRules(
   try {
     // Create temporary smart playlist
     tempPlaylist = await createSmartPlaylist(tempName, rules);
-    console.log(`🔍 Created temp smart playlist ${tempPlaylist.id} with ${tempPlaylist.songCount} matches`);
 
     // Fetch songs from it
     const songs = await getSmartPlaylistSongs(tempPlaylist.id, 0, limit);
+    console.log(`🔍 Preview smart playlist ${tempPlaylist.id}: ${songs.length} songs matched`);
 
     return songs;
   } finally {
