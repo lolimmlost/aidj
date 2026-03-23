@@ -82,8 +82,20 @@ interface NavidromeSongResponse {
  */
 function sanitizeRules(rules: SmartPlaylistRules): SmartPlaylistRules {
   const clean: SmartPlaylistRules = {};
-  if (rules.all && rules.all.length > 0) clean.all = rules.all;
-  if (rules.any && rules.any.length > 0) clean.any = rules.any;
+
+  const hasAll = rules.all && rules.all.length > 0;
+  const hasAny = rules.any && rules.any.length > 0;
+
+  if (hasAll) clean.all = rules.all;
+  if (hasAny) clean.any = rules.any;
+
+  // Navidrome requires at least one rule condition.
+  // If no filters were provided (e.g. "Random Mix"), add a catch-all
+  // condition that matches every song (duration > 0).
+  if (!hasAll && !hasAny) {
+    clean.all = [{ gt: { duration: 0 } }];
+  }
+
   if (rules.sort) clean.sort = rules.sort;
   if (rules.order) clean.order = rules.order;
   if (rules.limit) clean.limit = rules.limit;
