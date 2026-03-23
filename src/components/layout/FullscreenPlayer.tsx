@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { getCoverArtUrl } from '@/components/ui/album-art';
 import { cn } from '@/lib/utils';
+import { AIDJToggle } from '@/components/ai-dj-toggle';
 
 const formatTime = (time: number) => {
   if (!isFinite(time) || time < 0) return '0:00';
@@ -390,7 +391,7 @@ export function FullscreenPlayer({
           </div>
 
           {/* Secondary actions */}
-          <div className="flex items-center justify-center gap-8">
+          <div className="flex items-center justify-center gap-6">
             <Button
               variant="ghost"
               size="sm"
@@ -409,6 +410,11 @@ export function FullscreenPlayer({
             >
               <MicVocal className="h-5 w-5" />
             </Button>
+
+            {/* AI DJ toggle — styled for dark fullscreen context */}
+            <div className="[&_label]:text-white/70 [&_[data-state=checked]]:bg-primary">
+              <AIDJToggle compact />
+            </div>
 
             <Button
               variant="ghost"
