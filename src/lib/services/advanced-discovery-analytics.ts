@@ -594,8 +594,14 @@ export async function getABTestResults(
     if (item.feedback === 'disliked') group.disliked++;
   }
 
-  // If no discovery feed data, fall back to recommendation feedback
-  if (variantGroups.size === 0 && userId) {
+  // Check if discovery feed data has any actual interactions
+  const hasInteractions = Array.from(variantGroups.values()).some(
+    (g) => g.clicked > 0 || g.played > 0 || g.liked > 0 || g.disliked > 0
+  );
+
+  // Fall back to recommendation feedback if no interactions in discovery feed
+  if ((!hasInteractions || variantGroups.size === 0) && userId) {
+    variantGroups.clear();
     const feedback = await db
       .select()
       .from(recommendationFeedback)
