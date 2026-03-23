@@ -1,4 +1,5 @@
 import React, { useRef, useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronDown,
   SkipBack,
@@ -137,10 +138,10 @@ export function FullscreenPlayer({
   const songTitle = currentSong.name || currentSong.title || 'Unknown';
   const songArtist = currentSong.artist || 'Unknown';
 
-  return (
+  return createPortal(
     <div
       className={cn(
-        'fixed inset-0 z-50 transition-opacity duration-300',
+        'fixed inset-0 z-[60] transition-opacity duration-300',
         animating ? 'opacity-100' : 'opacity-0'
       )}
     >
@@ -165,7 +166,7 @@ export function FullscreenPlayer({
         onTouchEnd={handleTouchEnd}
       >
         {/* Top bar */}
-        <div className="flex items-center justify-between px-4 pt-safe-top py-3">
+        <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] py-3">
           <Button
             variant="ghost"
             size="sm"
@@ -325,8 +326,9 @@ export function FullscreenPlayer({
         </div>
 
         {/* Bottom safe area spacer */}
-        <div className="h-8 pb-safe-bottom" />
+        <div className="h-8 pb-[env(safe-area-inset-bottom)]" />
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
