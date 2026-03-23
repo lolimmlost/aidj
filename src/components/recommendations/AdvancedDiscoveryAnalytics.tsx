@@ -26,11 +26,6 @@ import {
   Cell,
   LineChart,
   Line,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
 } from 'recharts';
 import { Skeleton } from '../ui/skeleton';
 import { Badge } from '../ui/badge';
@@ -752,32 +747,26 @@ const TopContentTab = memo(function TopContentTab({
           </CardDescription>
         </CardHeader>
         <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-          <ResponsiveContainer width="100%" height={180} className="sm:!h-[300px]">
-            <RadarChart
-              cx="50%"
-              cy="50%"
-              outerRadius="70%"
-              data={topGenres.slice(0, 6).map((g) => ({
-                genre: g.genre.length > 8 ? g.genre.slice(0, 8) + '...' : g.genre,
-                count: g.recommendationCount,
-                acceptance: g.acceptanceRate * 100,
-              }))}
-            >
-              <PolarGrid />
-              <PolarAngleAxis dataKey="genre" tick={{ fontSize: 9 }} />
-              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 8 }} />
-              <Radar
-                name="Accept %"
-                dataKey="acceptance"
-                stroke={COLORS.primary}
-                fill={COLORS.primary}
-                fillOpacity={0.5}
-              />
-              <Tooltip />
-            </RadarChart>
-          </ResponsiveContainer>
-          {topGenres.length === 0 && (
-            <p className="text-xs sm:text-sm text-muted-foreground">
+          {topGenres.length > 0 ? (
+            <ResponsiveContainer width="100%" height={180} className="sm:!h-[300px]">
+              <BarChart
+                data={topGenres.slice(0, 8).map((g) => ({
+                  genre: g.genre.length > 10 ? g.genre.slice(0, 10) + '...' : g.genre,
+                  count: g.recommendationCount,
+                  acceptance: g.acceptanceRate * 100,
+                }))}
+                layout="vertical"
+                margin={{ left: 10, right: 10 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" tickFormatter={(v) => `${v}%`} domain={[0, 100]} tick={{ fontSize: 9 }} />
+                <YAxis type="category" dataKey="genre" tick={{ fontSize: 9 }} width={80} />
+                <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} contentStyle={{ fontSize: '11px' }} />
+                <Bar dataKey="acceptance" fill={COLORS.primary} name="Accept %" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-xs sm:text-sm text-muted-foreground py-8 text-center">
               No genre data available yet.
             </p>
           )}
