@@ -15,6 +15,7 @@ import {
   recommendationFeedback,
   discoveryFeedItems,
   listeningPatterns,
+  musicIdentitySummaries,
 } from '~/lib/db/schema';
 import { eq, and, gte, lte } from 'drizzle-orm';
 import {
@@ -360,82 +361,52 @@ export async function getTopRecommendedGenres(
 
   const { start, end } = getDateRange(period);
 
-  // Get listening patterns which contain genre info
-  const genreScores = new Map<
-    string,
-    {
-      up: number;
-      down: number;
-    }
-  >();
-
-  // Try listening patterns for genre data
-  const patterns = await db
+  // Try music identity summaries first (has real genre data)
+  const identities = await db
     .select()
-    .from(listeningPatterns)
-    .where(eq(listeningPatterns.userId, userId));
+    .from(musicIdentitySummaries)
+    .where(eq(musicIdentitySummaries.userId, userId));
 
-  for (const pattern of patterns) {
-    const topGenres = (pattern.topGenres as { genre: string; count: number; avgRating: number }[]) || [];
-    for (const genre of topGenres) {
-      const existing = genreScores.get(genre.genre) || { up: 0, down: 0 };
+  // Use the most recent identity summary's topGenres
+  const genreCounts = new Map<string, number>();
 
-      // Simulate feedback based on rating (rating > 3.5 = thumbs up)
-      const avgRating = genre.avgRating || 3;
-      if (avgRating > 3.5) {
-        existing.up += genre.count;
-      } else {
-        existing.down += genre.count;
-      }
-
-      genreScores.set(genre.genre, existing);
+  if (identities.length > 0) {
+    // Sort by most recent
+    identities.sort((a, b) => b.generatedAt.getTime() - a.generatedAt.getTime());
+    const latest = identities[0];
+    const genres = (latest.topGenres as { name: string; count: number; percentage: number }[]) || [];
+    for (const genre of genres) {
+      genreCounts.set(genre.name, (genreCounts.get(genre.name) || 0) + genre.count);
     }
   }
 
-  // If still no data, create some placeholder data from feedback
-  if (genreScores.size === 0) {
-    const feedback = await db
+  // Fallback: try listening patterns
+  if (genreCounts.size === 0) {
+    const patterns = await db
       .select()
-      .from(recommendationFeedback)
-      .where(
-        and(
-          eq(recommendationFeedback.userId, userId),
-          gte(recommendationFeedback.timestamp, start),
-          lte(recommendationFeedback.timestamp, end)
-        )
-      );
+      .from(listeningPatterns)
+      .where(eq(listeningPatterns.userId, userId));
 
-    // Group by source as genre placeholder
-    for (const fb of feedback) {
-      const genre = `${mapSource(fb.source)}`;
-      const scores = genreScores.get(genre) || { up: 0, down: 0 };
-
-      if (fb.feedbackType === 'thumbs_up') {
-        scores.up++;
-      } else {
-        scores.down++;
+    for (const pattern of patterns) {
+      const topGenres = (pattern.topGenres as { genre: string; count: number; avgRating: number }[]) || [];
+      for (const genre of topGenres) {
+        genreCounts.set(genre.genre, (genreCounts.get(genre.genre) || 0) + genre.count);
       }
-
-      genreScores.set(genre, scores);
     }
   }
 
   // Convert to metrics
   const metrics: TopGenreMetric[] = [];
 
-  for (const [genre, scores] of Array.from(genreScores.entries())) {
-    const total = scores.up + scores.down;
-    if (total === 0) continue;
-
-    const acceptanceRate = scores.up / total;
+  for (const [genre, count] of Array.from(genreCounts.entries())) {
+    if (count === 0) continue;
 
     metrics.push({
       genre,
-      recommendationCount: total,
-      acceptanceRate,
-      thumbsUpCount: scores.up,
-      thumbsDownCount: scores.down,
-      avgScore: acceptanceRate * 5, // Convert to 0-5 scale
+      recommendationCount: count,
+      acceptanceRate: 0,
+      thumbsUpCount: 0,
+      thumbsDownCount: 0,
     });
   }
 
