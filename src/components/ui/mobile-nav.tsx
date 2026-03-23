@@ -4,6 +4,7 @@ import { Menu, X, Music, Search, Settings, Download, LayoutDashboard, BarChart3,
 import { Button } from './button';
 import { cn } from '@/lib/utils';
 import authClient from '@/lib/auth/auth-client';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAudioStore } from '@/lib/stores/audio';
 
 function NavSectionLabel({ label }: { label: string }) {
@@ -24,12 +25,14 @@ export function MobileNav() {
   const { data: session } = authClient.useSession();
   const isAdmin = session?.user?.role === 'admin';
 
+  const queryClient = useQueryClient();
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
 
   const handleSignOut = async () => {
     closeMenu();
     await authClient.signOut();
+    queryClient.clear();
     navigate({ to: '/login' });
   };
 

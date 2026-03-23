@@ -25,7 +25,7 @@
 
 - [ ] Add fullscreen song view — tap album art or expand button to show immersive full-screen now-playing with large artwork, controls, lyrics, and swipe-to-dismiss
 - [x] Improve toasts — centralized toast wrapper with per-type durations (success 3s, error 6s, info 4s, warning 5s), close buttons, max 4 visible
-- [ ] Logout page invalidation — invalidate router/query cache on sign-out for instant redirect to login instead of stale page flash
+- [x] Logout page invalidation — clear query cache on sign-out for instant redirect to login
 - [x] Redesign login page — improve visual design, branding, and UX
 
 ## DevOps

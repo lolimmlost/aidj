@@ -668,6 +668,30 @@ function calculateListeningStats(
   const thumbsUpCount = feedback.filter(f => f.feedbackType === 'thumbs_up').length;
   const acceptanceRate = feedback.length > 0 ? (thumbsUpCount / feedback.length) * 100 : 0;
 
+  // Calculate longest listening streak (consecutive days with at least one listen)
+  let longestListeningStreak = 0;
+  if (history.length > 0) {
+    const listenDays = new Set<string>();
+    for (const h of history) {
+      listenDays.add(h.playedAt.toISOString().slice(0, 10));
+    }
+    const sortedDays = [...listenDays].sort();
+    let currentStreak = 1;
+    let maxStreak = 1;
+    for (let i = 1; i < sortedDays.length; i++) {
+      const prev = new Date(sortedDays[i - 1]);
+      const curr = new Date(sortedDays[i]);
+      const diffMs = curr.getTime() - prev.getTime();
+      if (diffMs <= 86400000) { // 1 day in ms
+        currentStreak++;
+        maxStreak = Math.max(maxStreak, currentStreak);
+      } else {
+        currentStreak = 1;
+      }
+    }
+    longestListeningStreak = maxStreak;
+  }
+
   return {
     totalListens: history.length,
     totalMinutesListened: Math.round(totalMinutes),
@@ -675,7 +699,7 @@ function calculateListeningStats(
     uniqueTracks: uniqueTracks.size,
     uniqueGenres: uniqueGenres.size,
     averageSessionLength: history.length > 0 ? Math.round(totalMinutes / Math.max(1, history.length / 5)) : 0,
-    longestListeningStreak: 0, // TODO: Calculate actual streak
+    longestListeningStreak,
     mostActiveDay,
     mostActiveHour,
     completionRate: Number(completionRate.toFixed(1)),

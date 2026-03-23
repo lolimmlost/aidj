@@ -602,6 +602,7 @@ function LeftSidebar() {
         <button
           onClick={async () => {
             await authClient.signOut();
+            queryClient.clear();
             navigate({ to: '/login' });
           }}
           title={isCollapsed ? 'Sign Out' : undefined}
