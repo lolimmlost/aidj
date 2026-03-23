@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Github, Loader2 } from 'lucide-react';
+import { Github, Loader2, User } from 'lucide-react';
 import { toast } from '@/lib/toast';
 import authClient from '@/lib/auth/auth-client';
 
@@ -43,10 +43,15 @@ export function ProfileSettings() {
   }
 
   return (
-    <Card className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Profile Information</h2>
-
-      <div className="space-y-6">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <User className="h-5 w-5" />
+          Profile Information
+        </CardTitle>
+        <CardDescription>Manage your account details and display name</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
         {/* Email (read-only) */}
         <div>
           <Label htmlFor="email">Email</Label>
@@ -108,7 +113,7 @@ export function ProfileSettings() {
             {message.text}
           </div>
         )}
-      </div>
+      </CardContent>
 
       {/* Connected Accounts */}
       <ConnectedAccounts />
@@ -194,8 +199,8 @@ function ConnectedAccounts() {
   ];
 
   return (
-    <div className="mt-8 pt-6 border-t">
-      <h3 className="text-lg font-semibold mb-4">Connected Accounts</h3>
+    <div className="px-6 pb-6 pt-2 border-t">
+      <h3 className="text-lg font-semibold mb-1 mt-4">Connected Accounts</h3>
       <p className="text-sm text-muted-foreground mb-4">
         Link your social accounts for easier sign-in
       </p>
@@ -207,7 +212,7 @@ function ConnectedAccounts() {
           return (
             <div
               key={id}
-              className="flex items-center justify-between p-3 rounded-lg border bg-card"
+              className="flex items-center justify-between p-3 rounded-xl border bg-card"
             >
               <div className="flex items-center gap-3">
                 <div className="text-muted-foreground">{icon}</div>

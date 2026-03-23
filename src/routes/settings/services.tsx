@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Card } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Server } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -377,17 +378,17 @@ export function ServicesSettings() {
   ];
 
   return (
-    <Card className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Service Configuration</h2>
-
-      <div className="space-y-6">
-        {/* Info Message */}
-        <div className="p-4 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
-          <p className="text-sm">
-            Configure the LLM provider and external services. These services power AI recommendations,
-            music playback, and automatic music management.
-          </p>
-        </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Server className="h-5 w-5" />
+          Service Configuration
+        </CardTitle>
+        <CardDescription>
+          Configure the LLM provider and external services that power AI recommendations, music playback, and automatic music management
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
 
         {/* Configuration Form */}
         <form onSubmit={onSubmit} className="space-y-6">
@@ -891,7 +892,7 @@ export function ServicesSettings() {
             {status}
           </div>
         )}
-      </div>
+      </CardContent>
     </Card>
   );
 }

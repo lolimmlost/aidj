@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Card } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { LayoutDashboard } from 'lucide-react';
 import { usePreferencesStore } from '@/lib/stores/preferences';
 
 export function LayoutSettings() {
@@ -27,16 +28,19 @@ export function LayoutSettings() {
   };
 
   return (
-    <Card className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Dashboard Layout</h2>
-
-      <div className="space-y-6">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <LayoutDashboard className="h-5 w-5" />
+          Dashboard Layout
+        </CardTitle>
+        <CardDescription>Customize which sections appear on your dashboard</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
         {/* Info Message */}
-        <div className="p-4 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
-          <p className="text-sm">
-            Customize which sections appear on your dashboard. Changes will take effect on your next visit.
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Changes will take effect on your next visit.
+        </p>
 
         {/* Show Recommendations Section */}
         <div className="flex items-center justify-between">
@@ -106,7 +110,7 @@ export function LayoutSettings() {
             {message.text}
           </div>
         )}
-      </div>
+      </CardContent>
     </Card>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Volume2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -63,10 +64,15 @@ export function PlaybackSettings() {
   };
 
   return (
-    <Card className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Playback Settings</h2>
-
-      <div className="space-y-6">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Volume2 className="h-5 w-5" />
+          Playback Settings
+        </CardTitle>
+        <CardDescription>Configure audio playback, crossfade, and quality</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
         {/* Volume Control */}
         <div>
           <div className="flex justify-between items-center mb-2">
@@ -192,7 +198,7 @@ export function PlaybackSettings() {
             {message.text}
           </div>
         )}
-      </div>
+      </CardContent>
     </Card>
   );
 }
