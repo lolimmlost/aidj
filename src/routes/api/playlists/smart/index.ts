@@ -66,8 +66,9 @@ export const Route = createFileRoute("/api/playlists/smart/")({
         .then(rows => rows[0]);
 
       if (existingPlaylist) {
+        console.log(`⚠️ Duplicate playlist name: "${validatedData.name}"`);
         return new Response(JSON.stringify({
-          error: 'Playlist name already exists',
+          message: `A playlist named "${validatedData.name}" already exists. Choose a different name.`,
           code: 'DUPLICATE_PLAYLIST_NAME'
         }), {
           status: 409,
