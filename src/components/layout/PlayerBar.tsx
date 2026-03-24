@@ -16,6 +16,7 @@ import {
   Smartphone,
   Repeat1,
 } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
 import { LyricsModal } from '@/components/lyrics';
 import { VisualizerModal } from '@/components/visualizer';
 import { Button } from '@/components/ui/button';
@@ -1155,7 +1156,7 @@ export function PlayerBar() {
             "flex items-center gap-3 min-w-0 flex-1 rounded-lg transition-all",
             showRemoteTime && "ring-1 ring-green-500/60 bg-green-500/5 px-2 py-1"
           )}>
-            <div onClick={() => setShowFullscreen(true)} className="cursor-pointer">
+            <div onClick={() => setShowFullscreen(true)} className="cursor-pointer relative group/art">
               <AlbumArt
                 albumId={currentSong.albumId}
                 songId={currentSong.id}
@@ -1163,12 +1164,32 @@ export function PlayerBar() {
                 size="sm"
                 isPlaying={isPlaying || isRemotePlaying}
               />
+              {/* Tap indicator — subtle expand icon */}
+              <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-active/art:bg-black/30 transition-colors rounded-md">
+                <Maximize2 className="h-3 w-3 text-white/0 group-active/art:text-white/80 transition-colors" />
+              </div>
             </div>
 
             {/* Song Info */}
             <div className="min-w-0 flex-1">
-              <p className={cn("font-medium text-sm truncate", showRemoteTime && "text-green-500")}>{currentSong.name || currentSong.title}</p>
-              <p className={cn("text-xs truncate", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
+              <p
+                className={cn("font-medium text-sm truncate active:text-primary transition-colors", showRemoteTime && "text-green-500")}
+                onClick={() => setShowFullscreen(true)}
+              >
+                {currentSong.name || currentSong.title}
+              </p>
+              {(currentSong as { artistId?: string }).artistId ? (
+                <Link
+                  to="/library/artists/$id"
+                  params={{ id: (currentSong as { artistId?: string }).artistId! }}
+                  className={cn("text-xs truncate block active:text-primary transition-colors", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {currentSong.artist || 'Unknown'}
+                </Link>
+              ) : (
+                <p className={cn("text-xs truncate", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
+              )}
               {showRemoteTime && (
                 <p className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5">
                   <Smartphone className="h-2.5 w-2.5" />
@@ -1255,7 +1276,17 @@ export function PlayerBar() {
           </div>
           <div className="min-w-0">
             <p className={cn("font-medium truncate text-sm", showRemoteTime && "text-green-500")}>{currentSong.name || currentSong.title}</p>
-            <p className={cn("text-xs truncate", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
+            {(currentSong as { artistId?: string }).artistId ? (
+              <Link
+                to="/library/artists/$id"
+                params={{ id: (currentSong as { artistId?: string }).artistId! }}
+                className={cn("text-xs truncate block hover:underline", showRemoteTime ? "text-green-500/70" : "text-muted-foreground hover:text-foreground")}
+              >
+                {currentSong.artist || 'Unknown'}
+              </Link>
+            ) : (
+              <p className={cn("text-xs truncate", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
+            )}
             {showRemoteTime && (
               <p className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5">
                 <Smartphone className="h-2.5 w-2.5" />
