@@ -1,11 +1,16 @@
 import { createFileRoute, Link, useParams, useNavigate, redirect, Outlet, useLocation } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { getAlbums, getArtistDetail, getSongsByArtist } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
-import { Loader2, Music, Disc, ListMusic, Play, Plus, ListPlus } from 'lucide-react';
+import {
+  Loader2, Music, Disc, ListMusic, Play, Plus, ListPlus,
+  Shuffle, Heart, Share2, MoreHorizontal, ChevronLeft, ChevronRight,
+  Clock, Disc3,
+} from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
@@ -16,9 +21,22 @@ import {
 import { toast } from '@/lib/toast';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
-import { PageLayout } from '@/components/ui/page-layout';
 import { useArtistMetadata } from '@/lib/hooks/useArtistMetadata';
 import { ArtistMetadataHero } from '@/components/library/ArtistMetadataHero';
+import { cn } from '@/lib/utils';
+
+// Deterministic gradient from name
+const GRADIENTS = [
+  'from-amber-500 to-orange-600', 'from-emerald-500 to-teal-600',
+  'from-violet-500 to-indigo-600', 'from-cyan-500 to-blue-600',
+  'from-rose-500 to-pink-600', 'from-purple-500 to-violet-600',
+  'from-blue-500 to-cyan-600', 'from-indigo-500 to-purple-600',
+];
+function getGradient(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return GRADIENTS[Math.abs(hash) % GRADIENTS.length];
+}
 
 /** Album cover with Navidrome getCoverArt proxy fallback, then placeholder */
 function AlbumCoverArt({ albumId, artwork, name }: { albumId: string; artwork?: string; name: string }) {
@@ -26,7 +44,6 @@ function AlbumCoverArt({ albumId, artwork, name }: { albumId: string; artwork?: 
   const [proxyError, setProxyError] = useState(false);
   const proxyUrl = `/api/navidrome/rest/getCoverArt?id=${albumId}&size=300`;
 
-  // Both sources failed — show placeholder
   if ((error && !artwork && proxyError) || (error && artwork && proxyError)) {
     return (
       <div className="w-full h-full bg-gradient-to-br from-muted to-muted/50 flex flex-col items-center justify-center gap-1.5">
@@ -38,7 +55,6 @@ function AlbumCoverArt({ albumId, artwork, name }: { albumId: string; artwork?: 
     );
   }
 
-  // Try artwork first, then proxy
   const src = error || !artwork ? proxyUrl : artwork;
 
   return (
@@ -48,11 +64,8 @@ function AlbumCoverArt({ albumId, artwork, name }: { albumId: string; artwork?: 
       className="w-full h-full object-cover"
       loading="lazy"
       onError={() => {
-        if (!error && artwork) {
-          setError(true);
-        } else {
-          setProxyError(true);
-        }
+        if (!error && artwork) setError(true);
+        else setProxyError(true);
       }}
     />
   );
@@ -60,9 +73,7 @@ function AlbumCoverArt({ albumId, artwork, name }: { albumId: string; artwork?: 
 
 export const Route = createFileRoute('/library/artists/$id')({
   beforeLoad: async ({ context }) => {
-    if (!context.user) {
-      throw redirect({ to: '/login' });
-    }
+    if (!context.user) throw redirect({ to: '/login' });
   },
   component: ArtistDetail,
 });
@@ -71,56 +82,40 @@ function ArtistDetail() {
   const { id } = useParams({ from: '/library/artists/$id' }) as { id: string };
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'all' | 'albums' | 'songs'>('all');
+  const [hoveredTrack, setHoveredTrack] = useState<string | null>(null);
+  const discographyRef = useRef<HTMLDivElement>(null);
 
-  // Check if a child route (album detail) is active
   const location = useLocation();
   const isChildRoute = location.pathname.includes('/albums/');
 
   const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress } = useAudioStore();
 
-  // Fetch artist details for the header
-  const {
-    data: artist,
-    isLoading: loadingArtist,
-    error: artistError,
-  } = useQuery({
+  const { data: artist, isLoading: loadingArtist, error: artistError } = useQuery({
     queryKey: ['artist', id],
     queryFn: () => getArtistDetail(id),
     retry: 1,
     refetchOnWindowFocus: false,
   });
 
-  // Fetch albums for this artist
-  const {
-    data: albums = [],
-    isLoading: loadingAlbums,
-    error: albumsError,
-  } = useQuery({
+  const { data: albums = [], isLoading: loadingAlbums, error: albumsError } = useQuery({
     queryKey: ['albums', id],
     queryFn: () => getAlbums(id, 0, 50),
     retry: 1,
     refetchOnWindowFocus: false,
   });
 
-  // Fetch songs for this artist
-  const {
-    data: songs = [],
-    isLoading: loadingSongs,
-    error: songsError,
-  } = useQuery({
+  const { data: songs = [], isLoading: loadingSongs, error: songsError } = useQuery({
     queryKey: ['artistSongs', id],
     queryFn: () => getSongsByArtist(id, 0, 100),
     retry: 1,
     refetchOnWindowFocus: false,
   });
 
-  // Fetch enriched metadata from Aurral (server-cached)
   const { data: artistMetadata, isLoading: loadingMetadata } = useArtistMetadata(artist?.name, {
     navidromeId: id,
     enabled: !!artist?.name,
   });
 
-  // Fetch feedback for all songs
   const songIds = songs.map(song => song.id);
   const { data: feedbackData } = useSongFeedback(songIds);
   const feedback = feedbackData?.feedback || {};
@@ -128,29 +123,26 @@ function ArtistDetail() {
   const error = artistError || albumsError || songsError;
   const isLoading = loadingArtist || loadingAlbums || loadingSongs;
 
-  // If a child route is active, just render the Outlet
-  if (isChildRoute) {
-    return <Outlet />;
-  }
+  if (isChildRoute) return <Outlet />;
 
-  const handleSongClick = (songId: string) => {
-    playSong(songId, songs);
+  const handleSongClick = (songId: string) => playSong(songId, songs);
+
+  const handleShuffleAll = () => {
+    if (songs.length > 0) {
+      const shuffled = [...songs].sort(() => Math.random() - 0.5);
+      playSong(shuffled[0].id, shuffled);
+      setIsPlaying(true);
+      toast.success(`Shuffling ${songs.length} songs`);
+    }
   };
 
   const handleAddToQueue = (song: typeof songs[0], position: 'now' | 'next' | 'end') => {
     const songName = song.name || song.title || 'Unknown';
     const audioSong = {
-      id: song.id,
-      name: songName,
-      title: songName,
-      artist: song.artist,
-      album: song.album,
-      albumId: song.albumId,
-      url: `/api/navidrome/stream/${song.id}`,
-      duration: song.duration,
-      track: song.track,
+      id: song.id, name: songName, title: songName,
+      artist: song.artist, album: song.album, albumId: song.albumId,
+      url: `/api/navidrome/stream/${song.id}`, duration: song.duration, track: song.track,
     };
-
     if (position === 'now') {
       playSong(song.id, songs);
       setIsPlaying(true);
@@ -168,149 +160,82 @@ function ArtistDetail() {
     }
   };
 
+  const scrollDiscography = (dir: number) => {
+    discographyRef.current?.scrollBy({ left: dir * 220, behavior: 'smooth' });
+  };
+
   if (error) {
     return (
-      <PageLayout
-        title="Error"
-        backLink="/library/artists"
-        backLabel="Artists"
-        compact
-      >
+      <div className="p-4 sm:p-6 lg:p-10">
         <Card className="p-6 bg-destructive/10 border-destructive">
-          <h2 className="text-xl font-bold text-destructive mb-2">
-            Error loading artist
-          </h2>
+          <h2 className="text-xl font-bold text-destructive mb-2">Error loading artist</h2>
           <p className="text-sm mb-4">{error.message}</p>
           <Button variant="outline" asChild>
-            <Link to="/library/artists">
-              Back to Artists
-            </Link>
+            <Link to="/library/artists">Back to Artists</Link>
           </Button>
         </Card>
-      </PageLayout>
+      </div>
     );
   }
 
-  const sortedAlbums = [...albums].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  const sortedSongs = [...songs].sort((a, b) => (a.name || a.title || '').localeCompare(b.name || b.title || ''));
-
   const artistName = artist?.name || 'Unknown Artist';
+  const gradient = getGradient(artistName);
+  const sortedAlbums = [...albums].sort((a, b) => (b.year || 0) - (a.year || 0));
+  const sortedSongs = [...songs].sort((a, b) => (a.name || a.title || '').localeCompare(b.name || b.title || ''));
+  // Top tracks by play count (or just first 5 if no play count)
+  const topTracks = [...songs].sort((a, b) => (b.playCount || 0) - (a.playCount || 0)).slice(0, 5);
 
-  const renderAlbumCard = (album: typeof albums[0]) => (
-    <Card
-      key={album.id}
-      className="cursor-pointer transition-shadow hover:shadow-md border-border/50 overflow-hidden"
-    >
-      <CardContent className="p-0">
-        <div
-          className="block p-3 sm:p-4 hover:bg-accent hover:text-accent-foreground transition-colors min-h-[44px]"
-          onClick={() =>
-            navigate({
-              to: '/library/artists/$id/albums/$albumId',
-              params: { id, albumId: album.id },
-            })
-          }
-          role="button"
-          tabIndex={0}
-          aria-label={`View album: ${album.name}${album.year ? ` (${album.year})` : ''}`}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              navigate({
-                to: '/library/artists/$id/albums/$albumId',
-                params: { id, albumId: album.id },
-              });
-            }
-          }}
-        >
-          <div className="aspect-square w-full rounded-lg mb-2 sm:mb-3 overflow-hidden bg-muted flex items-center justify-center">
-            <AlbumCoverArt albumId={album.id} artwork={album.artwork} name={album.name} />
-          </div>
-          <div className="space-y-1">
-            <div className="font-semibold line-clamp-2 text-xs sm:text-sm text-foreground">
-              {album.name}
-            </div>
-            {album.year ? (
-              <div className="text-xs text-muted-foreground">
-                {album.year}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+  const formatDuration = (d: number) =>
+    `${Math.floor(d / 60)}:${Math.floor(d % 60).toString().padStart(2, '0')}`;
 
-  const renderSongRow = (song: typeof songs[0]) => (
+  const renderSongRow = (song: typeof songs[0], index?: number) => (
     <div
       key={song.id}
-      className="flex items-center p-3 sm:p-4 border rounded hover:bg-accent transition-colors min-h-[44px] gap-3"
+      className="group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-200 hover:bg-card/60 cursor-pointer"
+      onMouseEnter={() => setHoveredTrack(song.id)}
+      onMouseLeave={() => setHoveredTrack(null)}
+      onClick={() => handleSongClick(song.id)}
     >
-      {/* Album art — desktop only */}
-      <div className="hidden md:block flex-shrink-0 w-10 h-10 rounded overflow-hidden bg-muted">
+      {index !== undefined && (
+        <span className="w-6 text-center text-sm tabular-nums text-muted-foreground">
+          {hoveredTrack === song.id ? (
+            <Play className="h-4 w-4 text-primary mx-auto fill-current" />
+          ) : (
+            index + 1
+          )}
+        </span>
+      )}
+      <div className="hidden sm:block flex-shrink-0 w-10 h-10 rounded-md overflow-hidden bg-muted">
         <AlbumCoverArt albumId={song.albumId} artwork={undefined} name={song.album || 'Unknown'} />
       </div>
-      <div
-        className="flex-1 min-w-0 cursor-pointer hover:text-accent-foreground"
-        onClick={() => handleSongClick(song.id)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleSongClick(song.id);
-          }
-        }}
-      >
-        <div className="font-medium truncate text-sm sm:text-base">{song.name || song.title || 'Unknown'}</div>
-        <div className="text-xs sm:text-sm text-muted-foreground">
-          {song.album && <span>{song.album} • </span>}
-          {Math.floor(song.duration / 60)}:{Math.floor(song.duration % 60).toString().padStart(2, '0')}
-        </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-foreground truncate">{song.name || song.title || 'Unknown'}</p>
+        <p className="text-xs text-muted-foreground truncate">{song.album}</p>
       </div>
-      <div className="ml-2 flex items-center gap-2 flex-shrink-0">
+      <span className="text-xs text-muted-foreground tabular-nums flex items-center gap-1">
+        <Clock className="h-3 w-3" /> {formatDuration(song.duration)}
+      </span>
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
-              variant="default"
+              variant="ghost"
               size="sm"
-              className="h-9 w-9 p-0 bg-green-600 hover:bg-green-700 text-white shadow-sm"
+              className="h-8 w-8 p-0"
               onClick={(e) => e.stopPropagation()}
             >
-              <ListPlus className="h-4 w-4" />
-              <span className="sr-only">Add to queue</span>
+              <MoreHorizontal className="h-4 w-4 text-muted-foreground hover:text-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-40">
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAddToQueue(song, 'now');
-              }}
-              className="min-h-[44px]"
-            >
-              <Play className="mr-2 h-4 w-4" />
-              Play Now
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'now'); }} className="min-h-[44px]">
+              <Play className="mr-2 h-4 w-4" /> Play Now
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAddToQueue(song, 'next');
-              }}
-              className="min-h-[44px]"
-            >
-              <Play className="mr-2 h-4 w-4" />
-              Play Next
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'next'); }} className="min-h-[44px]">
+              <ListPlus className="mr-2 h-4 w-4" /> Play Next
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAddToQueue(song, 'end');
-              }}
-              className="min-h-[44px]"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add to End
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'end'); }} className="min-h-[44px]">
+              <Plus className="mr-2 h-4 w-4" /> Add to End
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -327,151 +252,252 @@ function ArtistDetail() {
   );
 
   return (
-    <PageLayout
-      title={artistName}
-      description={`${albums.length} ${albums.length === 1 ? 'album' : 'albums'} \u2022 ${songs.length} ${songs.length === 1 ? 'song' : 'songs'}`}
-      backLink="/library/artists"
-      backLabel="Artists"
-      compact
-    >
-      {/* Enriched Artist Metadata */}
-      {loadingMetadata && (
-        <div className="rounded-xl border bg-card overflow-hidden animate-pulse">
-          <div className="p-4 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-6">
-            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-lg bg-muted flex-shrink-0" />
-            <div className="flex-1 space-y-3">
-              <div className="flex gap-2">
-                <div className="h-4 w-16 rounded bg-muted" />
-                <div className="h-4 w-20 rounded bg-muted" />
-                <div className="h-4 w-14 rounded bg-muted" />
-              </div>
-              <div className="flex gap-1.5">
-                <div className="h-5 w-12 rounded-full bg-muted" />
-                <div className="h-5 w-16 rounded-full bg-muted" />
-                <div className="h-5 w-10 rounded-full bg-muted" />
-                <div className="h-5 w-14 rounded-full bg-muted" />
-              </div>
-              <div className="space-y-2">
-                <div className="h-3 w-full rounded bg-muted" />
-                <div className="h-3 w-4/5 rounded bg-muted" />
-                <div className="h-3 w-3/5 rounded bg-muted" />
-              </div>
-            </div>
+    <div className="relative">
+      {/* ─── Hero ─── */}
+      <div className="relative h-[28vh] sm:h-[32vh] md:h-[38vh] overflow-hidden">
+        {/* Blurred BG — use artist image or gradient */}
+        {artistMetadata?.coverImageUrl ? (
+          <div className="absolute inset-0">
+            <img
+              src={artistMetadata.coverImageUrl}
+              alt=""
+              className="w-full h-full object-cover opacity-30 blur-3xl scale-110"
+            />
           </div>
-        </div>
-      )}
-      {artistMetadata && (
-        <ArtistMetadataHero
-          metadata={artistMetadata}
-          artistImageUrl={`/api/navidrome/rest/getCoverArt?id=${id}&size=300`}
-        />
-      )}
+        ) : (
+          <div className={cn('absolute inset-0 bg-gradient-to-br opacity-40 blur-3xl scale-110', gradient)} />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background" />
 
-      {/* Tabs for Albums/Songs */}
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      ) : (
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'all' | 'albums' | 'songs')}>
-          <TabsList className="grid w-full grid-cols-3 mb-4 h-auto">
-            <TabsTrigger value="all" className="py-2.5 text-xs sm:text-sm">
-              All
-            </TabsTrigger>
-            <TabsTrigger value="albums" className="py-2.5 text-xs sm:text-sm">
-              <Disc className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Albums ({albums.length})</span>
-              <span className="sm:hidden ml-1">{albums.length}</span>
-            </TabsTrigger>
-            <TabsTrigger value="songs" className="py-2.5 text-xs sm:text-sm">
-              <ListMusic className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Songs ({songs.length})</span>
-              <span className="sm:hidden ml-1">{songs.length}</span>
-            </TabsTrigger>
-          </TabsList>
+        {/* Content */}
+        <div className="relative z-10 h-full flex flex-col justify-end px-4 sm:px-6 lg:px-10 pb-6 sm:pb-8">
+          <Link
+            to="/library/artists"
+            className="group inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 w-fit"
+          >
+            <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+            Artists
+          </Link>
 
-          {/* All Content */}
-          <TabsContent value="all" className="space-y-6">
-            {/* Albums Section */}
-            {sortedAlbums.length > 0 && (
-              <div>
-                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                  <Disc className="h-5 w-5" />
-                  Albums
-                </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-                  {sortedAlbums.map(renderAlbumCard)}
+          {isLoading ? (
+            <div className="space-y-3">
+              <div className="h-10 w-64 rounded bg-muted/30 animate-pulse" />
+              <div className="h-4 w-40 rounded bg-muted/20 animate-pulse" />
+            </div>
+          ) : (
+            <>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-foreground tracking-tight leading-none mb-3">
+                {artistName}
+              </h1>
+
+              {/* Meta Pills */}
+              {artistMetadata && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {artistMetadata.country && (
+                    <span className="px-3 py-1 rounded-full bg-card/50 backdrop-blur-sm border border-border/50 text-xs font-medium text-foreground">
+                      {artistMetadata.country}
+                    </span>
+                  )}
+                  {artistMetadata.formedYear && (
+                    <span className="px-3 py-1 rounded-full bg-card/50 backdrop-blur-sm border border-border/50 text-xs font-medium text-muted-foreground">
+                      Est. {artistMetadata.formedYear}
+                    </span>
+                  )}
+                  {artistMetadata.genres?.slice(0, 3).map((g) => (
+                    <Badge key={g} variant="secondary" className="rounded-full text-xs bg-primary/10 text-primary border-0">
+                      {g}
+                    </Badge>
+                  ))}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Songs Section */}
-            {sortedSongs.length > 0 && (
-              <div>
-                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                  <ListMusic className="h-5 w-5" />
-                  Songs
-                </h2>
-                <div className="space-y-2">
-                  {sortedSongs.slice(0, 20).map(renderSongRow)}
-                  {sortedSongs.length > 20 && (
-                    <Button
-                      variant="ghost"
-                      className="w-full"
+              <p className="text-sm text-muted-foreground mb-4">
+                {albums.length} album{albums.length !== 1 ? 's' : ''} · {songs.length} song{songs.length !== 1 ? 's' : ''}
+              </p>
+
+              {/* Actions */}
+              <div className="flex items-center gap-2.5">
+                <Button
+                  className="rounded-full gap-2 px-6 shadow-lg shadow-primary/25"
+                  onClick={handleShuffleAll}
+                  disabled={songs.length === 0}
+                >
+                  <Shuffle className="h-4 w-4" /> Shuffle All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="rounded-full border-border/50 bg-card/30 backdrop-blur-sm"
+                  onClick={() => {
+                    if (navigator.share) {
+                      navigator.share({ title: artistName, text: `Check out ${artistName}` }).catch(() => {});
+                    }
+                  }}
+                >
+                  <Share2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ─── Content ─── */}
+      <div className="px-4 sm:px-6 lg:px-10 py-6 space-y-10">
+
+        {/* Enriched Metadata (About, Bio, Similar) */}
+        {loadingMetadata && (
+          <div className="rounded-xl bg-card/40 border border-border/50 p-4 sm:p-5 animate-pulse space-y-3">
+            <div className="h-3 w-full rounded bg-muted" />
+            <div className="h-3 w-4/5 rounded bg-muted" />
+            <div className="h-3 w-3/5 rounded bg-muted" />
+          </div>
+        )}
+        {artistMetadata && (
+          <ArtistMetadataHero
+            metadata={artistMetadata}
+            artistImageUrl={`/api/navidrome/rest/getCoverArt?id=${id}&size=300`}
+          />
+        )}
+
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <>
+            {/* Popular Tracks */}
+            {topTracks.length > 0 && (
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-foreground">Popular Tracks</h2>
+                  {songs.length > 5 && (
+                    <button
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                       onClick={() => setActiveTab('songs')}
                     >
-                      View all {songs.length} songs
-                    </Button>
+                      Show All
+                    </button>
                   )}
                 </div>
-              </div>
+                <div className="space-y-0.5">
+                  {topTracks.map((track, i) => renderSongRow(track, i))}
+                </div>
+              </section>
             )}
 
-            {sortedAlbums.length === 0 && sortedSongs.length === 0 && (
+            {/* Discography — horizontal scroll */}
+            {sortedAlbums.length > 0 && (
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-foreground">Discography</h2>
+                  <div className="flex items-center gap-1.5">
+                    <Button variant="outline" size="icon" className="h-7 w-7 rounded-full border-border/50" onClick={() => scrollDiscography(-1)}>
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="outline" size="icon" className="h-7 w-7 rounded-full border-border/50" onClick={() => scrollDiscography(1)}>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+                <div
+                  ref={discographyRef}
+                  className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide snap-x snap-mandatory"
+                >
+                  {sortedAlbums.map((album) => (
+                    <div
+                      key={album.id}
+                      className="group flex-shrink-0 w-[160px] sm:w-[180px] snap-start cursor-pointer"
+                      onClick={() => navigate({ to: '/library/artists/$id/albums/$albumId', params: { id, albumId: album.id } })}
+                    >
+                      <div className="relative mb-2.5">
+                        <div className="aspect-square rounded-xl overflow-hidden bg-muted transition-all duration-200 group-hover:shadow-lg group-hover:shadow-primary/15 group-hover:-translate-y-0.5">
+                          <AlbumCoverArt albumId={album.id} artwork={album.artwork} name={album.name} />
+                        </div>
+                        <Button
+                          size="icon"
+                          className="absolute bottom-2 right-2 w-9 h-9 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Play first song from this album
+                            const albumSongs = songs.filter(s => s.albumId === album.id).sort((a, b) => (a.track || 0) - (b.track || 0));
+                            if (albumSongs.length > 0) {
+                              playSong(albumSongs[0].id, albumSongs);
+                              setIsPlaying(true);
+                            }
+                          }}
+                        >
+                          <Play className="h-4 w-4 fill-current" />
+                        </Button>
+                      </div>
+                      <h3 className="text-sm font-bold text-foreground truncate">{album.name}</h3>
+                      <p className="text-xs text-muted-foreground">
+                        {album.year || 'Unknown'} · {album.songCount || '?'} tracks
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Full Songs Tab (hidden by default, shown via tabs) */}
+            {songs.length > 5 && (
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'all' | 'albums' | 'songs')}>
+                <TabsList className="grid w-full grid-cols-3 mb-4 h-auto">
+                  <TabsTrigger value="all" className="py-2.5 text-xs sm:text-sm">Overview</TabsTrigger>
+                  <TabsTrigger value="albums" className="py-2.5 text-xs sm:text-sm">
+                    <Disc className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Albums ({albums.length})</span>
+                    <span className="sm:hidden ml-1">{albums.length}</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="songs" className="py-2.5 text-xs sm:text-sm">
+                    <ListMusic className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Songs ({songs.length})</span>
+                    <span className="sm:hidden ml-1">{songs.length}</span>
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="all">
+                  {/* Overview is the content above — tabs just provide alternate views */}
+                </TabsContent>
+
+                <TabsContent value="albums">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                    {sortedAlbums.map((album) => (
+                      <div
+                        key={album.id}
+                        className="group cursor-pointer"
+                        onClick={() => navigate({ to: '/library/artists/$id/albums/$albumId', params: { id, albumId: album.id } })}
+                      >
+                        <div className="aspect-square rounded-xl overflow-hidden bg-muted mb-2 transition-all duration-200 group-hover:shadow-lg group-hover:-translate-y-0.5">
+                          <AlbumCoverArt albumId={album.id} artwork={album.artwork} name={album.name} />
+                        </div>
+                        <h3 className="text-sm font-semibold truncate">{album.name}</h3>
+                        <p className="text-xs text-muted-foreground">{album.year || 'Unknown'}</p>
+                      </div>
+                    ))}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="songs">
+                  <div className="space-y-0.5">
+                    {sortedSongs.map((song, i) => renderSongRow(song, i))}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            )}
+
+            {sortedAlbums.length === 0 && songs.length === 0 && (
               <Card className="text-center py-12">
                 <CardContent>
                   <Music className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">
-                    No albums or songs found for this artist.
-                  </p>
+                  <p className="text-muted-foreground">No albums or songs found for this artist.</p>
                 </CardContent>
               </Card>
             )}
-          </TabsContent>
-
-          {/* Albums Tab */}
-          <TabsContent value="albums">
-            {sortedAlbums.length === 0 ? (
-              <Card className="text-center py-12">
-                <CardContent>
-                  <Disc className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No albums found.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-                {sortedAlbums.map(renderAlbumCard)}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Songs Tab */}
-          <TabsContent value="songs">
-            {sortedSongs.length === 0 ? (
-              <Card className="text-center py-12">
-                <CardContent>
-                  <ListMusic className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No songs found.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-2">
-                {sortedSongs.map(renderSongRow)}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      )}
-    </PageLayout>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
