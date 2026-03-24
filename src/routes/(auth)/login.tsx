@@ -209,7 +209,9 @@ function LoginForm() {
               </div>
 
               {errorMessage && (
-                <p className="text-sm text-destructive animate-in fade-in">{errorMessage}</p>
+                <div className="rounded-lg bg-destructive/10 border border-destructive/30 px-3 py-2.5">
+                  <p className="text-sm font-medium text-red-500 dark:text-red-400">{errorMessage}</p>
+                </div>
               )}
 
               <Button type="submit" className="w-full min-h-[44px]" size="lg" disabled={isLoading}>
