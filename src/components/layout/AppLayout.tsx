@@ -145,24 +145,12 @@ const SidebarAlbumArt = ({
   );
 };
 
-/** Small circular artist avatar for sidebar — tries Navidrome, then Aurral metadata, then gradient */
-const SidebarArtistAvatar = ({ artistId, name, metadataImageUrl }: { artistId: string; name: string; metadataImageUrl?: string }) => {
-  const [navidromeError, setNavidromeError] = useState(false);
+/** Small circular artist avatar for sidebar — uses saved image (Deezer/Aurral) or gradient.
+ *  Skips Navidrome getCoverArt for artists because it returns a grey star placeholder
+ *  for missing art (never 404s), which looks worse than gradient initials. */
+const SidebarArtistAvatar = ({ name, metadataImageUrl }: { name: string; metadataImageUrl?: string }) => {
   const [metadataError, setMetadataError] = useState(false);
 
-  // Try Navidrome artist art first
-  if (!navidromeError) {
-    return (
-      <img
-        src={`/api/navidrome/rest/getCoverArt?id=${artistId}&size=80`}
-        alt={name}
-        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-        onError={() => setNavidromeError(true)}
-      />
-    );
-  }
-
-  // Try Aurral metadata image
   if (metadataImageUrl && !metadataError) {
     return (
       <img
@@ -711,14 +699,18 @@ function RightSidebar() {
     enabled: shouldFetchSidebarData, // Defer until after initial render
   });
 
-  // Fetch artist cover images from Aurral metadata cache
+  // Fetch artist cover images from both Aurral metadata cache and Deezer saved images
   const { data: artistImages = {} } = useQuery({
-    queryKey: ['artist-metadata-images'],
+    queryKey: ['artist-all-images'],
     queryFn: async () => {
-      const response = await fetch('/api/cover-art/artist-metadata-images');
-      if (!response.ok) return {};
-      const data = await response.json();
-      return (data.data?.images || {}) as Record<string, string>;
+      const [metaRes, deezerRes] = await Promise.all([
+        fetch('/api/cover-art/artist-metadata-images').then(r => r.ok ? r.json() : { data: {} }),
+        fetch('/api/cover-art/artist-images').then(r => r.ok ? r.json() : { data: {} }),
+      ]);
+      const metaImages = (metaRes.data?.images || {}) as Record<string, string>;
+      const deezerImages = (deezerRes.data?.images || {}) as Record<string, string>;
+      // Deezer images take priority (more entries), Aurral fills gaps
+      return { ...metaImages, ...deezerImages };
     },
     staleTime: 10 * 60 * 1000,
     enabled: shouldFetchSidebarData,
@@ -807,7 +799,6 @@ function RightSidebar() {
                       {index + 1}
                     </span>
                     <SidebarArtistAvatar
-                      artistId={artist.id}
                       name={artist.name}
                       metadataImageUrl={artistImages[artist.name.toLowerCase()]}
                     />
