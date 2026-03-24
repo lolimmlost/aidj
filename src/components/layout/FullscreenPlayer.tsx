@@ -271,11 +271,12 @@ export function FullscreenPlayer({
           <div className="w-10" /> {/* Spacer for centering */}
         </div>
 
-        {/* Main content - centered */}
-        <div className="flex-1 flex flex-col items-center justify-center px-8 max-w-lg mx-auto w-full gap-8">
+        {/* Main content - portrait on mobile, landscape side-by-side on desktop */}
+        <div className="flex-1 flex flex-col lg:flex-row items-center justify-center px-6 sm:px-8 lg:px-16 mx-auto w-full gap-6 sm:gap-8 lg:gap-16 max-w-6xl">
+
           {/* Album Art — swipeable */}
           <div
-            className="w-[80vw] max-w-[400px] aspect-square relative mx-auto overflow-visible touch-pan-y"
+            className="w-[75vw] sm:w-[60vw] md:w-[50vw] lg:w-auto lg:flex-1 max-w-[500px] aspect-square relative mx-auto lg:mx-0 overflow-visible touch-pan-y flex-shrink-0"
             onTouchStart={handleArtTouchStart}
             onTouchMove={handleArtTouchMove}
             onTouchEnd={handleArtTouchEnd}
@@ -298,7 +299,7 @@ export function FullscreenPlayer({
                 />
               ) : (
                 <div className="w-full h-full rounded-2xl bg-white/10 flex items-center justify-center">
-                  <span className="text-6xl font-bold text-white/30">
+                  <span className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white/30">
                     {songArtist.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                   </span>
                 </div>
@@ -306,149 +307,150 @@ export function FullscreenPlayer({
             </div>
           </div>
 
-          {/* Song info */}
-          <div className="w-full text-center">
-            <h2 className="text-xl font-bold text-white truncate">{songTitle}</h2>
-            <p className="text-sm text-white/60 mt-1 truncate">{songArtist}</p>
-          </div>
-
-          {/* Progress */}
-          <div className="w-full space-y-2">
-            <Slider
-              value={[isFinite(currentTime) ? currentTime : 0]}
-              max={isFinite(duration) && duration > 0 ? duration : 100}
-              step={0.1}
-              onValueChange={([v]) => onSeek(v)}
-              className="w-full [&_[data-slot=slider-track]]:bg-white/20 [&_[data-slot=slider-thumb]]:border-white [&_[data-slot=slider-thumb]]:bg-white"
-            />
-            <div className="flex justify-between">
-              <span className="text-xs font-mono text-white/50">{formatTime(currentTime)}</span>
-              <span className="text-xs font-mono text-white/50">-{formatTime(Math.max(0, duration - currentTime))}</span>
-            </div>
-          </div>
-
-          {/* Main controls */}
-          <div className="flex items-center justify-center gap-6 w-full">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn(
-                'h-10 w-10 p-0 hover:bg-white/10',
-                isShuffled ? 'text-primary' : 'text-white/70'
-              )}
-              onClick={onToggleShuffle}
-            >
-              <Shuffle className="h-5 w-5" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-12 w-12 p-0 text-white hover:bg-white/10"
-              onClick={onPrevious}
-            >
-              <SkipBack className="h-6 w-6 fill-current" />
-            </Button>
-
-            <Button
-              variant="default"
-              size="sm"
-              className="h-16 w-16 p-0 rounded-full shadow-lg"
-              onClick={onTogglePlayPause}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <Loader2 className="h-7 w-7 animate-spin" />
-              ) : isPlaying ? (
-                <Pause className="h-7 w-7" />
-              ) : (
-                <Play className="h-7 w-7 ml-1" />
-              )}
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-12 w-12 p-0 text-white hover:bg-white/10"
-              onClick={onNext}
-            >
-              <SkipForward className="h-6 w-6 fill-current" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn(
-                'h-10 w-10 p-0 hover:bg-white/10',
-                repeatMode !== 'off' ? 'text-primary' : 'text-white/70'
-              )}
-              onClick={onToggleRepeat}
-            >
-              {repeatMode === 'one' ? (
-                <Repeat1 className="h-5 w-5" />
-              ) : (
-                <Repeat className="h-5 w-5" />
-              )}
-            </Button>
-          </div>
-
-          {/* Secondary actions */}
-          <div className="flex items-center justify-center gap-6">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
-              onClick={onToggleLike}
-              disabled={isLikePending}
-            >
-              <Heart className={cn('h-5 w-5', isLiked && 'fill-red-500 text-red-500')} />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
-              onClick={onShowLyrics}
-            >
-              <MicVocal className="h-5 w-5" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
-              onClick={() => {
-                // Close fullscreen, then open queue panel
-                onClose();
-                // Small delay so fullscreen dismisses before queue opens
-                setTimeout(() => {
-                  useAudioStore.getState().toggleQueuePanel();
-                }, 150);
-              }}
-            >
-              <ListMusic className="h-5 w-5" />
-            </Button>
-
-            {/* AI DJ toggle — styled for dark fullscreen context */}
-            <div className="[&_label]:text-white/70 [&_[data-state=checked]]:bg-primary">
-              <AIDJToggle compact />
+          {/* Controls column */}
+          <div className="w-full lg:flex-1 lg:max-w-md flex flex-col items-center gap-6 sm:gap-8">
+            {/* Song info */}
+            <div className="w-full text-center lg:text-left">
+              <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate">{songTitle}</h2>
+              <p className="text-sm sm:text-base text-white/60 mt-1 truncate">{songArtist}</p>
             </div>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
-              onClick={() => {
-                if (navigator.share) {
-                  navigator.share({
-                    title: songTitle,
-                    text: `${songTitle} by ${songArtist}`,
-                  }).catch(() => {});
-                }
-              }}
-            >
-              <Share2 className="h-5 w-5" />
-            </Button>
+            {/* Progress */}
+            <div className="w-full space-y-2">
+              <Slider
+                value={[isFinite(currentTime) ? currentTime : 0]}
+                max={isFinite(duration) && duration > 0 ? duration : 100}
+                step={0.1}
+                onValueChange={([v]) => onSeek(v)}
+                className="w-full [&_[data-slot=slider-track]]:bg-white/20 [&_[data-slot=slider-thumb]]:border-white [&_[data-slot=slider-thumb]]:bg-white"
+              />
+              <div className="flex justify-between">
+                <span className="text-xs font-mono text-white/50">{formatTime(currentTime)}</span>
+                <span className="text-xs font-mono text-white/50">-{formatTime(Math.max(0, duration - currentTime))}</span>
+              </div>
+            </div>
+
+            {/* Main controls */}
+            <div className="flex items-center justify-center gap-4 sm:gap-6 w-full">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  'h-10 w-10 sm:h-11 sm:w-11 p-0 hover:bg-white/10',
+                  isShuffled ? 'text-primary' : 'text-white/70'
+                )}
+                onClick={onToggleShuffle}
+              >
+                <Shuffle className="h-5 w-5" />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-12 w-12 sm:h-14 sm:w-14 p-0 text-white hover:bg-white/10"
+                onClick={onPrevious}
+              >
+                <SkipBack className="h-6 w-6 sm:h-7 sm:w-7 fill-current" />
+              </Button>
+
+              <Button
+                variant="default"
+                size="sm"
+                className="h-16 w-16 sm:h-18 sm:w-18 p-0 rounded-full shadow-lg"
+                onClick={onTogglePlayPause}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-7 w-7 sm:h-8 sm:w-8 animate-spin" />
+                ) : isPlaying ? (
+                  <Pause className="h-7 w-7 sm:h-8 sm:w-8" />
+                ) : (
+                  <Play className="h-7 w-7 sm:h-8 sm:w-8 ml-1" />
+                )}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-12 w-12 sm:h-14 sm:w-14 p-0 text-white hover:bg-white/10"
+                onClick={onNext}
+              >
+                <SkipForward className="h-6 w-6 sm:h-7 sm:w-7 fill-current" />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  'h-10 w-10 sm:h-11 sm:w-11 p-0 hover:bg-white/10',
+                  repeatMode !== 'off' ? 'text-primary' : 'text-white/70'
+                )}
+                onClick={onToggleRepeat}
+              >
+                {repeatMode === 'one' ? (
+                  <Repeat1 className="h-5 w-5" />
+                ) : (
+                  <Repeat className="h-5 w-5" />
+                )}
+              </Button>
+            </div>
+
+            {/* Secondary actions */}
+            <div className="flex items-center justify-center gap-4 sm:gap-6">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
+                onClick={onToggleLike}
+                disabled={isLikePending}
+              >
+                <Heart className={cn('h-5 w-5', isLiked && 'fill-red-500 text-red-500')} />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
+                onClick={onShowLyrics}
+              >
+                <MicVocal className="h-5 w-5" />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
+                onClick={() => {
+                  onClose();
+                  setTimeout(() => {
+                    useAudioStore.getState().toggleQueuePanel();
+                  }, 150);
+                }}
+              >
+                <ListMusic className="h-5 w-5" />
+              </Button>
+
+              {/* AI DJ toggle — styled for dark fullscreen context */}
+              <div className="[&_label]:text-white/70 [&_[data-state=checked]]:bg-primary">
+                <AIDJToggle compact />
+              </div>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
+                onClick={() => {
+                  if (navigator.share) {
+                    navigator.share({
+                      title: songTitle,
+                      text: `${songTitle} by ${songArtist}`,
+                    }).catch(() => {});
+                  }
+                }}
+              >
+                <Share2 className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
         </div>
 

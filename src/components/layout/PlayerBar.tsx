@@ -222,7 +222,7 @@ export function PlayerBar() {
     }
     hasScrobbledRef.current = false;
     scrobbleThresholdReachedRef.current = false;
-    nextSong();
+    nextSong(true); // userSkip — bypass repeat-one lock
   }, [currentSong, getActiveDeck, nextSong, recordListeningHistory]);
 
   // Shared crossfade state ref - created here so it can be passed to both hooks
@@ -528,11 +528,22 @@ export function PlayerBar() {
         const crossfadeCooldownActive = Date.now() - crossfadeAbortedAtRef.current < 10000;
 
         if (xfadeDuration > 0 && timeRemaining <= xfadeDuration && timeRemaining > 0.5 && !crossfadeInProgressRef.current && !crossfadeCooldownActive) {
-          const nextIndex = (currentSongIndex + 1) % playlist.length;
-          const nextSongData = playlist[nextIndex] as Song;
+          const currentRepeatMode = useAudioStore.getState().repeatMode;
 
-          if (nextSongData && playlist.length > 1) {
-            startCrossfade(nextSongData, xfadeDuration);
+          // Don't crossfade when repeat-one is active — the onEnded handler
+          // will seek back to 0 and replay the same song
+          if (currentRepeatMode !== 'one') {
+            const isLastSong = currentSongIndex + 1 >= playlist.length;
+
+            // Don't crossfade at end of playlist when repeat is off — let it stop naturally
+            if (!isLastSong || currentRepeatMode === 'all' || useAudioStore.getState().isShuffled) {
+              const nextIndex = (currentSongIndex + 1) % playlist.length;
+              const nextSongData = playlist[nextIndex] as Song;
+
+              if (nextSongData && playlist.length > 1) {
+                startCrossfade(nextSongData, xfadeDuration);
+              }
+            }
           }
         }
 
@@ -624,11 +635,34 @@ export function PlayerBar() {
         recordListeningHistory(currentSong, currentSongIdRef.current, deck.currentTime, deck.duration);
       }
 
-      // Repeat-one: seek back to start and keep playing (don't change song index)
-      if (useAudioStore.getState().repeatMode === 'one') {
-        deck.currentTime = 0;
-        deck.play().catch(() => {});
-        setCurrentTime(0);
+      // Repeat-one (or repeat-all with single song): restart the same track
+      const currentRepeatMode = useAudioStore.getState().repeatMode;
+      const isSingleSongRepeatAll = currentRepeatMode === 'all' && useAudioStore.getState().playlist.length === 1;
+
+      if (currentRepeatMode === 'one' || isSingleSongRepeatAll) {
+        // After 'ended', browsers put the element in a finished state.
+        // Use a microtask to let the browser settle, then seek + play.
+        // Also re-load if readyState dropped (can happen on mobile).
+        const restartDeck = () => {
+          deck.currentTime = 0;
+          setCurrentTime(0);
+          if (deck.readyState >= 2) {
+            deck.play().catch((err) => {
+              console.warn('[REPEAT] play() after restart failed:', err.message);
+            });
+          } else {
+            // Deck lost data — re-trigger load then play on canplay
+            const onReady = () => {
+              deck.removeEventListener('canplay', onReady);
+              deck.play().catch(() => {});
+            };
+            deck.addEventListener('canplay', onReady);
+            deck.load();
+          }
+        };
+
+        // Microtask delay lets the browser finish processing the 'ended' event
+        setTimeout(restartDeck, 0);
         return;
       }
 
@@ -1208,15 +1242,17 @@ export function PlayerBar() {
           "flex items-center gap-3 w-72 min-w-0 rounded-lg transition-all",
           showRemoteTime && "ring-1 ring-green-500/60 bg-green-500/5 px-2 py-1 -ml-2"
         )}>
-          {/* Mini Album Art */}
-          <AlbumArt
-            albumId={currentSong.albumId}
-            songId={currentSong.id}
-            artist={currentSong.artist}
-            size="md"
-            isPlaying={isPlaying || isRemotePlaying}
-            className="rounded-md"
-          />
+          {/* Mini Album Art — click to open fullscreen */}
+          <div onClick={() => setShowFullscreen(true)} className="cursor-pointer">
+            <AlbumArt
+              albumId={currentSong.albumId}
+              songId={currentSong.id}
+              artist={currentSong.artist}
+              size="md"
+              isPlaying={isPlaying || isRemotePlaying}
+              className="rounded-md"
+            />
+          </div>
           <div className="min-w-0">
             <p className={cn("font-medium truncate text-sm", showRemoteTime && "text-green-500")}>{currentSong.name || currentSong.title}</p>
             <p className={cn("text-xs truncate", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
