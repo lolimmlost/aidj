@@ -1011,11 +1011,11 @@ const RecommendationsSection = memo(function RecommendationsSection({ recommenda
           <div
             key={index}
             className={cn(
-              "flex items-center gap-2 p-2 rounded-lg transition-colors group",
+              "flex items-center gap-2 p-2 rounded-lg transition-colors group cursor-pointer",
               "hover:bg-accent/50",
-              rec.foundInLibrary && "border-l-2 border-green-500 cursor-pointer"
+              rec.foundInLibrary && "border-l-2 border-green-500"
             )}
-            onClick={() => rec.foundInLibrary && handlePlayNow(rec)}
+            onClick={() => handlePlayNow(rec)}
           >
             <SidebarSongArt
               albumId={rec.actualSong?.albumId}
@@ -1027,7 +1027,7 @@ const RecommendationsSection = memo(function RecommendationsSection({ recommenda
               <p className="text-xs text-muted-foreground truncate">{rec.song.split(' - ')[0]}</p>
             </div>
             {/* Action buttons - show on hover */}
-            {rec.foundInLibrary && (
+            {(rec.foundInLibrary || rec.songId || rec.actualSong) && (
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button
                   variant="ghost"
