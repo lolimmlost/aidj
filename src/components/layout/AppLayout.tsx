@@ -1026,34 +1026,20 @@ const RecommendationsSection = memo(function RecommendationsSection({ recommenda
               <p className="text-sm font-medium truncate">{rec.song.split(' - ')[1] || rec.song}</p>
               <p className="text-xs text-muted-foreground truncate">{rec.song.split(' - ')[0]}</p>
             </div>
-            {/* Action buttons - show on hover */}
+            {/* Add to queue - show on hover */}
             {(rec.foundInLibrary || rec.songId || rec.actualSong) && (
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handlePlayNow(rec);
-                  }}
-                  title="Play now"
-                >
-                  <Play className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleAddToQueue(rec);
-                  }}
-                  title="Add to queue"
-                >
-                  <ListPlus className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary/20 hover:text-primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddToQueue(rec);
+                }}
+                title="Add to queue"
+              >
+                <ListPlus className="h-3.5 w-3.5" />
+              </Button>
             )}
           </div>
         )) || (
