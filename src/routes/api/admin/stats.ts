@@ -20,13 +20,21 @@ const GET = async ({ request }: { request: Request }) => {
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     // Clean up expired sessions + stale sessions from old 7-day TTL
-    // Keep only sessions created in the last 24h (matches new session config)
-    const deleted = await db
-      .delete(session)
-      .where(sql`${session.expiresAt} < ${now} OR ${session.createdAt} < ${oneDayAgo}`)
-      .returning({ id: session.id });
-    if (deleted.length > 0) {
-      console.log(`🧹 Pruned ${deleted.length} expired/stale sessions`);
+    // Never delete the current admin session
+    try {
+      const currentSessionToken = sess.session.token;
+      const deleted = await db
+        .delete(session)
+        .where(
+          sql`(${session.expiresAt} < ${now} OR ${session.createdAt} < ${oneDayAgo})
+              AND ${session.token} != ${currentSessionToken}`
+        )
+        .returning({ id: session.id });
+      if (deleted.length > 0) {
+        console.log(`🧹 Pruned ${deleted.length} expired/stale sessions`);
+      }
+    } catch (pruneError) {
+      console.warn('Session prune failed (non-fatal):', pruneError);
     }
 
     // Run queries in parallel
