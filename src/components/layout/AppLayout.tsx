@@ -1008,7 +1008,6 @@ const RecommendationsSection = memo(function RecommendationsSection({ recommenda
       };
       // Use addPlaylist which sets playlist, currentSongIndex, and isPlaying atomically
       addPlaylist([song]);
-      toast.success(`Now playing: ${song.name}`);
     } else {
       toast.error('Song not available in library');
     }
