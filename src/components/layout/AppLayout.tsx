@@ -145,6 +145,66 @@ const SidebarAlbumArt = ({
   );
 };
 
+/** Small circular artist avatar for sidebar — tries Navidrome, then Aurral metadata, then gradient */
+const SidebarArtistAvatar = ({ artistId, name, metadataImageUrl }: { artistId: string; name: string; metadataImageUrl?: string }) => {
+  const [navidromeError, setNavidromeError] = useState(false);
+  const [metadataError, setMetadataError] = useState(false);
+
+  // Try Navidrome artist art first
+  if (!navidromeError) {
+    return (
+      <img
+        src={`/api/navidrome/rest/getCoverArt?id=${artistId}&size=80`}
+        alt={name}
+        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+        onError={() => setNavidromeError(true)}
+      />
+    );
+  }
+
+  // Try Aurral metadata image
+  if (metadataImageUrl && !metadataError) {
+    return (
+      <img
+        src={metadataImageUrl}
+        alt={name}
+        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+        onError={() => setMetadataError(true)}
+      />
+    );
+  }
+
+  // Gradient fallback
+  return (
+    <div className={cn("w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center flex-shrink-0", getArtistGradient(name))}>
+      <span className="text-xs font-bold text-white/90">{getArtistInitials(name)}</span>
+    </div>
+  );
+};
+
+/** Small rounded album art for sidebar song rows — tries album art, then gradient */
+const SidebarSongArt = ({ albumId, songId, artist }: { albumId?: string; songId?: string; artist?: string }) => {
+  const [error, setError] = useState(false);
+  const artId = albumId || songId;
+
+  if (artId && !error) {
+    return (
+      <img
+        src={`/api/navidrome/rest/getCoverArt?id=${artId}&size=80`}
+        alt="Album art"
+        className="w-10 h-10 rounded-md object-cover flex-shrink-0"
+        onError={() => setError(true)}
+      />
+    );
+  }
+
+  return (
+    <div className={cn("w-10 h-10 rounded-md bg-gradient-to-br flex items-center justify-center flex-shrink-0", getArtistGradient(artist || 'Unknown'))}>
+      <span className="text-xs font-bold text-white/90">{getArtistInitials(artist || '?')}</span>
+    </div>
+  );
+};
+
 interface AppLayoutProps {
   children: React.ReactNode;
 }
@@ -746,19 +806,11 @@ function RightSidebar() {
                     <span className={cn("font-bold text-lg w-5", rankColors[index])}>
                       {index + 1}
                     </span>
-                    {artistImages[artist.name.toLowerCase()] ? (
-                      <img
-                        src={artistImages[artist.name.toLowerCase()]}
-                        alt={artist.name}
-                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <div className={cn("w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center flex-shrink-0", getArtistGradient(artist.name))}>
-                        <span className="text-xs font-bold text-white/90">
-                          {getArtistInitials(artist.name)}
-                        </span>
-                      </div>
-                    )}
+                    <SidebarArtistAvatar
+                      artistId={artist.id}
+                      name={artist.name}
+                      metadataImageUrl={artistImages[artist.name.toLowerCase()]}
+                    />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
                         {artist.name}
@@ -795,7 +847,7 @@ function RightSidebar() {
             </div>
             <div className="space-y-1">
               {mostPlayedSongs?.length > 0 ? (
-                mostPlayedSongs.slice(0, 5).map((song: { id: string; name: string; artist: string; album?: string; url: string }, index: number) => (
+                mostPlayedSongs.slice(0, 5).map((song: { id: string; name: string; artist: string; album?: string; albumId?: string; url: string }, index: number) => (
                   <div
                     key={song.id}
                     onClick={() => playNow(song.id, {
@@ -803,7 +855,7 @@ function RightSidebar() {
                       name: song.name,
                       artist: song.artist,
                       url: song.url,
-                      albumId: '',
+                      albumId: song.albumId || '',
                       duration: 0,
                       track: 0,
                     })}
@@ -812,11 +864,7 @@ function RightSidebar() {
                     <span className={cn("font-bold text-lg w-5", rankColors[index])}>
                       {index + 1}
                     </span>
-                    <div className="w-10 h-10 rounded-md bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-semibold text-green-500/70">
-                        {song.artist?.slice(0, 2).toUpperCase() || '♪'}
-                      </span>
-                    </div>
+                    <SidebarSongArt albumId={song.albumId} songId={song.id} artist={song.artist} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
                         {song.name}
@@ -860,11 +908,7 @@ function RightSidebar() {
                       index === currentSongIndex && "bg-accent"
                     )}
                   >
-                    <div className="w-10 h-10 rounded-md bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-semibold text-blue-500/70">
-                        {song.artist?.slice(0, 2).toUpperCase() || '♪'}
-                      </span>
-                    </div>
+                    <SidebarSongArt albumId={song.albumId} songId={song.id} artist={song.artist} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{song.name || song.title}</p>
                       <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
