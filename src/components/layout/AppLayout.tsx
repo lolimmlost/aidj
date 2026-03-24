@@ -1016,9 +1016,11 @@ const RecommendationsSection = memo(function RecommendationsSection({ recommenda
               rec.foundInLibrary && "border-l-2 border-green-500"
             )}
           >
-            <div className="w-10 h-10 rounded-md bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center flex-shrink-0">
-              <Sparkles className="h-4 w-4 text-purple-500/70" />
-            </div>
+            <SidebarSongArt
+              albumId={rec.actualSong?.albumId}
+              songId={rec.songId}
+              artist={rec.song.split(' - ')[0]}
+            />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium truncate">{rec.song.split(' - ')[1] || rec.song}</p>
               <p className="text-xs text-muted-foreground truncate">{rec.song.split(' - ')[0]}</p>
