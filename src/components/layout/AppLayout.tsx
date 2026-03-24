@@ -872,7 +872,7 @@ function RightSidebar() {
                       <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); }} title="Play now">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); playNow(song.id, { id: song.id, name: song.name, artist: song.artist, url: song.url, albumId: song.albumId || '', duration: 0, track: 0 }); }} title="Play now">
                         <Play className="h-3.5 w-3.5" />
                       </Button>
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); addToQueueEnd({ id: song.id, name: song.name, artist: song.artist, url: song.url, albumId: song.albumId || '', duration: 0, track: 0 }); toast.success(`Added "${song.name}" to queue`); }} title="Add to queue">
