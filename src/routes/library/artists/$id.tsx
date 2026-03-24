@@ -433,7 +433,7 @@ function ArtistDetail() {
                       </div>
                       <h3 className="text-sm font-bold text-foreground truncate">{album.name}</h3>
                       <p className="text-xs text-muted-foreground">
-                        {album.year || 'Unknown'} · {album.songCount || '?'} tracks
+                        {album.year ? `${album.year} · ` : ''}{album.songCount || '?'} tracks
                       </p>
                     </div>
                   ))}
@@ -474,7 +474,7 @@ function ArtistDetail() {
                           <AlbumCoverArt albumId={album.id} artwork={album.artwork} name={album.name} />
                         </div>
                         <h3 className="text-sm font-semibold truncate">{album.name}</h3>
-                        <p className="text-xs text-muted-foreground">{album.year || 'Unknown'}</p>
+                        {album.year ? <p className="text-xs text-muted-foreground">{album.year}</p> : null}
                       </div>
                     ))}
                   </div>

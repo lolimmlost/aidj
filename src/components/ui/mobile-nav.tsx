@@ -76,7 +76,7 @@ export function MobileNav() {
         >
           {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
-        <span className="flex-1 text-center text-sm font-semibold text-foreground truncate pr-9">
+        <span className="flex-1 text-center text-sm font-bold text-foreground truncate pr-9" style={{ fontFamily: 'var(--font-display), Inter, sans-serif' }}>
           {pageTitle}
         </span>
       </div>

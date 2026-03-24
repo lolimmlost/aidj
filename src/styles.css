@@ -4,6 +4,9 @@
 
 @import "./themes.css";
 
+/* Display fonts — swap font-display below to try alternatives */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Sora:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@500;600;700;800&display=swap');
+
 @custom-variant dark (&:is(.dark *));
 @custom-variant landscape (@media (orientation: landscape));
 
@@ -192,6 +195,14 @@
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-semibold tracking-tight;
+    font-family: var(--font-display), 'Inter', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  /* ═══ Display font — swap to try alternatives ═══
+     Options: 'Plus Jakarta Sans' | 'Sora' | 'Outfit' | 'Space Grotesk'
+  */
+  :root {
+    --font-display: 'Plus Jakarta Sans';
   }
   .card {
     @apply bg-card text-card-foreground rounded-lg border shadow-sm;
