@@ -254,7 +254,8 @@ function ArtistDetail() {
   return (
     <div className="relative">
       {/* ─── Hero ─── */}
-      <div className="relative h-[24vh] sm:h-[32vh] md:h-[38vh] overflow-hidden">
+      {/* mt-12 on mobile clears the fixed top bar (h-12); md: no top bar */}
+      <div className="relative h-[28vh] sm:h-[32vh] md:h-[38vh] mt-12 md:mt-0 overflow-hidden">
         {/* Blurred BG — use artist image or gradient */}
         {artistMetadata?.coverImageUrl ? (
           <div className="absolute inset-0">
@@ -273,7 +274,7 @@ function ArtistDetail() {
         <div className="relative z-10 h-full flex flex-col justify-end px-4 sm:px-6 lg:px-10 pb-6 sm:pb-8">
           <Link
             to="/library/artists"
-            className="group inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 w-fit"
+            className="hidden md:inline-flex group items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 w-fit"
           >
             <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
             Artists

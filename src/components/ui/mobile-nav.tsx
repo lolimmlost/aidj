@@ -7,6 +7,25 @@ import authClient from '@/lib/auth/auth-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAudioStore } from '@/lib/stores/audio';
 
+/** Derive a page title from the current route path */
+function getPageTitle(path: string): string {
+  if (path === '/dashboard' || path === '/dashboard/') return 'Dashboard';
+  if (path.includes('/dashboard/discover')) return 'Discover';
+  if (path.includes('/dashboard/analytics')) return 'Analytics';
+  if (path.includes('/dashboard/history')) return 'History';
+  if (path.match(/\/library\/artists\/[^/]+\/albums\//)) return 'Album';
+  if (path.match(/\/library\/artists\/[^/]+/)) return 'Artist';
+  if (path.includes('/library/artists')) return 'Artists';
+  if (path.includes('/library/search')) return 'Search';
+  if (path.startsWith('/playlists')) return 'Playlists';
+  if (path.startsWith('/downloads')) return 'Downloads';
+  if (path.startsWith('/music-identity')) return 'Music Identity';
+  if (path.startsWith('/settings')) return 'Settings';
+  if (path.startsWith('/admin')) return 'Admin';
+  if (path.startsWith('/dj')) return 'DJ';
+  return 'AIDJ';
+}
+
 function NavSectionLabel({ label }: { label: string }) {
   return (
     <p className="px-4 pt-4 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -14,6 +33,9 @@ function NavSectionLabel({ label }: { label: string }) {
     </p>
   );
 }
+
+/** Height of the mobile top bar in pixels — exported so other components can account for it */
+export const MOBILE_TOP_BAR_HEIGHT = 48;
 
 export function MobileNav() {
   const [isOpen, setIsOpen] = useState(false);
@@ -29,6 +51,8 @@ export function MobileNav() {
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
 
+  const pageTitle = getPageTitle(currentPath);
+
   const handleSignOut = async () => {
     closeMenu();
     await authClient.signOut();
@@ -38,17 +62,23 @@ export function MobileNav() {
 
   return (
     <>
-      {/* Hamburger Button - Fixed Top Left on Mobile, below iOS safe area */}
-      <div className="md:hidden fixed top-[calc(env(safe-area-inset-top)+0.75rem)] left-4 z-50">
+      {/* ─── Fixed Top Bar ─── */}
+      <div
+        className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center h-12 px-3 bg-background/80 backdrop-blur-xl border-b border-border/30"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={toggleMenu}
-          className="min-h-[44px] min-w-[44px] p-3 bg-background/95 backdrop-blur-sm shadow-lg"
+          className="h-9 w-9 p-0 shrink-0"
           aria-label="Toggle navigation menu"
         >
           {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
+        <span className="flex-1 text-center text-sm font-semibold text-foreground truncate pr-9">
+          {pageTitle}
+        </span>
       </div>
 
       {/* Overlay */}
