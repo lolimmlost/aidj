@@ -19,13 +19,14 @@ const GET = async ({ request }: { request: Request }) => {
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    // Clean up expired sessions
+    // Clean up expired sessions + stale sessions from old 7-day TTL
+    // Keep only sessions created in the last 24h (matches new session config)
     const deleted = await db
       .delete(session)
-      .where(lt(session.expiresAt, now))
+      .where(sql`${session.expiresAt} < ${now} OR ${session.createdAt} < ${oneDayAgo}`)
       .returning({ id: session.id });
     if (deleted.length > 0) {
-      console.log(`🧹 Pruned ${deleted.length} expired sessions`);
+      console.log(`🧹 Pruned ${deleted.length} expired/stale sessions`);
     }
 
     // Run queries in parallel
