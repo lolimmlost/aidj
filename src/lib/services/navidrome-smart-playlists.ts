@@ -9,7 +9,7 @@
  * which fetched all 10k songs and filtered in JavaScript with stub date operators.
  */
 
-import { getAuthToken, type Song } from './navidrome';
+import { getAuthToken, getPlaylist, type Song } from './navidrome';
 import { getConfig } from '../config/config';
 import { ServiceError } from '../utils';
 
@@ -182,39 +182,37 @@ export async function updateSmartPlaylist(
 
 /**
  * Get songs from a Navidrome playlist (works for both smart and regular playlists).
- * For smart playlists, Navidrome evaluates the rules server-side and returns matching songs.
+ * Uses the Subsonic getPlaylist endpoint which returns proper song entries with
+ * real media file IDs, albumId, duration, etc.
  */
 export async function getSmartPlaylistSongs(
   playlistId: string,
-  start: number = 0,
+  _start: number = 0,
   limit: number = 500,
 ): Promise<Song[]> {
-  const config = getConfig();
-  if (!config.navidromeUrl) {
-    throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
-  }
+  // Use Subsonic API — returns proper SubsonicSong entries with correct IDs
+  const playlist = await getPlaylist(playlistId);
+  const entries = playlist.entry || [];
 
-  const adminToken = await getAuthToken();
+  const songs = entries.slice(0, limit).map((entry): Song => ({
+    id: entry.id,
+    name: entry.title,
+    title: entry.title,
+    artist: entry.artist,
+    album: entry.album,
+    albumId: entry.albumId,
+    artistId: entry.artistId,
+    duration: parseInt(entry.duration) || 0,
+    track: parseInt(entry.track) || 0,
+    url: `/api/navidrome/stream/${entry.id}`,
+    genre: entry.genre,
+    year: entry.year,
+    playCount: entry.playCount,
+    rating: entry.rating,
+    loved: entry.loved,
+  }));
 
-  const response = await fetch(
-    `${config.navidromeUrl}/api/playlist/${playlistId}/tracks?_start=${start}&_end=${start + limit}`,
-    {
-      headers: {
-        'x-nd-authorization': `Bearer ${adminToken}`,
-      },
-    },
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new ServiceError(
-      'NAVIDROME_API_ERROR',
-      `Failed to get smart playlist songs: ${response.status} ${errorText}`,
-    );
-  }
-
-  const tracks: NavidromeSongResponse[] = await response.json();
-  return tracks.map(songFromNavidrome);
+  return songs;
 }
 
 /**
