@@ -1013,8 +1013,9 @@ const RecommendationsSection = memo(function RecommendationsSection({ recommenda
             className={cn(
               "flex items-center gap-2 p-2 rounded-lg transition-colors group",
               "hover:bg-accent/50",
-              rec.foundInLibrary && "border-l-2 border-green-500"
+              rec.foundInLibrary && "border-l-2 border-green-500 cursor-pointer"
             )}
+            onClick={() => rec.foundInLibrary && handlePlayNow(rec)}
           >
             <SidebarSongArt
               albumId={rec.actualSong?.albumId}
