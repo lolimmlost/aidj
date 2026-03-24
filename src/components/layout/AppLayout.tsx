@@ -39,6 +39,7 @@ import { QueuePanel } from '@/components/ui/queue-panel';
 import { MobileNav } from '@/components/ui/mobile-nav';
 import { toast } from '@/lib/toast';
 import { useDeferredRender } from '@/lib/utils/lazy-components';
+import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar';
 
 // Helper to get cover art URL from Navidrome
 const getCoverArtUrl = (albumId: string | undefined, size: number = 300) => {
@@ -732,9 +733,9 @@ function RightSidebar() {
                     <span className={cn("font-bold text-lg w-5", rankColors[index])}>
                       {index + 1}
                     </span>
-                    <div className="w-10 h-10 rounded-md bg-gradient-to-br from-orange-500/20 to-red-500/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-semibold text-orange-500/70">
-                        {artist.name.slice(0, 2).toUpperCase()}
+                    <div className={cn("w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center flex-shrink-0", getArtistGradient(artist.name))}>
+                      <span className="text-xs font-bold text-white/90">
+                        {getArtistInitials(artist.name)}
                       </span>
                     </div>
                     <div className="min-w-0 flex-1">
@@ -753,7 +754,7 @@ function RightSidebar() {
                 [...Array(3)].map((_, i) => (
                   <div key={i} className="flex items-center gap-3 p-2 animate-pulse">
                     <div className="w-5 h-5 bg-muted rounded" />
-                    <div className="w-10 h-10 rounded-md bg-muted" />
+                    <div className="w-10 h-10 rounded-full bg-muted" />
                     <div className="flex-1 space-y-1">
                       <div className="h-3 bg-muted rounded w-3/4" />
                       <div className="h-2 bg-muted rounded w-1/2" />
@@ -808,7 +809,7 @@ function RightSidebar() {
                 [...Array(3)].map((_, i) => (
                   <div key={i} className="flex items-center gap-3 p-2 animate-pulse">
                     <div className="w-5 h-5 bg-muted rounded" />
-                    <div className="w-10 h-10 rounded-md bg-muted" />
+                    <div className="w-10 h-10 rounded-full bg-muted" />
                     <div className="flex-1 space-y-1">
                       <div className="h-3 bg-muted rounded w-3/4" />
                       <div className="h-2 bg-muted rounded w-1/2" />

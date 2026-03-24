@@ -24,19 +24,7 @@ import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { useArtistMetadata } from '@/lib/hooks/useArtistMetadata';
 import { ArtistMetadataHero } from '@/components/library/ArtistMetadataHero';
 import { cn } from '@/lib/utils';
-
-// Deterministic gradient from name
-const GRADIENTS = [
-  'from-amber-500 to-orange-600', 'from-emerald-500 to-teal-600',
-  'from-violet-500 to-indigo-600', 'from-cyan-500 to-blue-600',
-  'from-rose-500 to-pink-600', 'from-purple-500 to-violet-600',
-  'from-blue-500 to-cyan-600', 'from-indigo-500 to-purple-600',
-];
-function getGradient(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return GRADIENTS[Math.abs(hash) % GRADIENTS.length];
-}
+import { getArtistGradient } from '@/lib/utils/artist-avatar';
 
 /** Album cover with Navidrome getCoverArt proxy fallback, then placeholder */
 function AlbumCoverArt({ albumId, artwork, name }: { albumId: string; artwork?: string; name: string }) {
@@ -179,7 +167,7 @@ function ArtistDetail() {
   }
 
   const artistName = artist?.name || 'Unknown Artist';
-  const gradient = getGradient(artistName);
+  const gradient = getArtistGradient(artistName);
   const sortedAlbums = [...albums].sort((a, b) => (b.year || 0) - (a.year || 0));
   const sortedSongs = [...songs].sort((a, b) => (a.name || a.title || '').localeCompare(b.name || b.title || ''));
   // Top tracks by play count (or just first 5 if no play count)

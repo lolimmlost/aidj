@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Compass, Clock, Plus, Loader2, Check, Music, TrendingUp } from 'lucide-react';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
+import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar';
 import { useState } from 'react';
 
 // ─── Recently Added Section ─────────────────────────────────────────────────
@@ -24,8 +25,8 @@ function RecentlyAddedSection() {
         {recentArtists.slice(0, 6).map((artist) => (
           <Card key={artist.id} className="border-border/50">
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center flex-shrink-0">
-                <Music className="h-5 w-5 text-emerald-500" />
+              <div className={cn("w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center flex-shrink-0", getArtistGradient(artist.artistName))}>
+                <span className="text-xs font-bold text-white/90">{getArtistInitials(artist.artistName)}</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate">{artist.artistName}</p>
@@ -72,12 +73,12 @@ function RecommendationCard({ rec }: { rec: { id: string; name: string; tags: st
             <img
               src={rec.image}
               alt={rec.name}
-              className="w-12 h-12 rounded-lg object-cover flex-shrink-0 bg-muted"
+              className="w-12 h-12 rounded-full object-cover flex-shrink-0 bg-muted"
             />
           ) : (
-            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center flex-shrink-0">
-              <span className="text-lg font-semibold text-primary">
-                {rec.name.charAt(0).toUpperCase()}
+            <div className={cn("w-12 h-12 rounded-full bg-gradient-to-br flex items-center justify-center flex-shrink-0", getArtistGradient(rec.name))}>
+              <span className="text-sm font-bold text-white/90">
+                {getArtistInitials(rec.name)}
               </span>
             </div>
           )}
