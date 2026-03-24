@@ -692,7 +692,7 @@ function LeftSidebar() {
  * Non-critical sidebar data is fetched after the main content renders.
  */
 function RightSidebar() {
-  const { playlist, currentSongIndex, isPlaying, playNow } = useAudioStore();
+  const { playlist, currentSongIndex, isPlaying, playNow, addToQueueEnd } = useAudioStore();
   const currentSong = playlist[currentSongIndex];
 
   // Deferred loading: Wait before fetching non-critical sidebar data
@@ -871,6 +871,14 @@ function RightSidebar() {
                       </p>
                       <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
                     </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); }} title="Play now">
+                        <Play className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); addToQueueEnd({ id: song.id, name: song.name, artist: song.artist, url: song.url, albumId: song.albumId || '', duration: 0, track: 0 }); toast.success(`Added "${song.name}" to queue`); }} title="Add to queue">
+                        <ListPlus className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -903,21 +911,31 @@ function RightSidebar() {
                   <div
                     key={`${song.id}-${index}`}
                     className={cn(
-                      "flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer",
+                      "flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer group",
                       "hover:bg-accent/50",
                       index === currentSongIndex && "bg-accent"
                     )}
+                    onClick={() => playNow(song.id, song)}
                   >
                     <SidebarSongArt albumId={song.albumId} songId={song.id} artist={song.artist} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{song.name || song.title}</p>
                       <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
                     </div>
-                    {index === currentSongIndex && isPlaying && (
+                    {index === currentSongIndex && isPlaying ? (
                       <div className="flex gap-0.5">
                         <div className="w-0.5 h-3 bg-primary animate-[wave_1s_ease-in-out_infinite]" />
                         <div className="w-0.5 h-4 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
                         <div className="w-0.5 h-3 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
+                      </div>
+                    ) : (
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); playNow(song.id, song); }} title="Play now">
+                          <Play className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); addToQueueEnd(song); toast.success(`Added "${song.name || song.title}" to queue`); }} title="Add to queue">
+                          <ListPlus className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -1026,20 +1044,16 @@ const RecommendationsSection = memo(function RecommendationsSection({ recommenda
               <p className="text-sm font-medium truncate">{rec.song.split(' - ')[1] || rec.song}</p>
               <p className="text-xs text-muted-foreground truncate">{rec.song.split(' - ')[0]}</p>
             </div>
-            {/* Add to queue - show on hover */}
+            {/* Action buttons - show on hover */}
             {(rec.foundInLibrary || rec.songId || rec.actualSong) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary/20 hover:text-primary"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleAddToQueue(rec);
-                }}
-                title="Add to queue"
-              >
-                <ListPlus className="h-3.5 w-3.5" />
-              </Button>
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); handlePlayNow(rec); }} title="Play now">
+                  <Play className="h-3.5 w-3.5" />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); handleAddToQueue(rec); }} title="Add to queue">
+                  <ListPlus className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             )}
           </div>
         )) || (
