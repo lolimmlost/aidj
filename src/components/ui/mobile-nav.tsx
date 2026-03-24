@@ -64,8 +64,8 @@ export function MobileNav() {
     <>
       {/* ─── Fixed Top Bar ─── */}
       <div
-        className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center h-12 px-3 bg-background/80 backdrop-blur-xl border-b border-border/30"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center px-3 bg-background/80 backdrop-blur-xl border-b border-border/30"
+        style={{ paddingTop: 'env(safe-area-inset-top)', height: 'calc(env(safe-area-inset-top) + 3rem)' }}
       >
         <Button
           variant="ghost"
