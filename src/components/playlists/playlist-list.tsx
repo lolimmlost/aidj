@@ -54,6 +54,7 @@ import {
   GripVertical,
   Download,
   Upload,
+  Trash2,
 } from 'lucide-react';
 import { useAudioStore } from '@/lib/stores/audio';
 
@@ -68,6 +69,7 @@ interface SortablePlaylistCardProps {
   onPlayFromSong: (playlist: Playlist, songs: PlaylistSong[], startIndex: number) => void;
   onPlayPlaylist: (playlist: Playlist) => void;
   onExport: (playlist: Playlist) => void;
+  onDelete: (playlist: Playlist) => void;
   formatDuration: (seconds?: number | null) => string;
   getSyncStatus: (playlist: Playlist) => { icon: typeof CheckCircle2; text: string; color: string } | null;
 }
@@ -82,6 +84,7 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
   onPlayFromSong,
   onPlayPlaylist,
   onExport,
+  onDelete,
   formatDuration,
   getSyncStatus,
 }: SortablePlaylistCardProps) {
@@ -230,6 +233,15 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
               <Download className="mr-2 h-4 w-4" />
               Export Playlist
             </DropdownMenuItem>
+            {playlist.name !== '❤️ Liked Songs' && (
+              <DropdownMenuItem
+                onClick={() => onDelete(playlist)}
+                className="min-h-[44px] text-destructive focus:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Playlist
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -537,6 +549,28 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     setExportDialogOpen(true);
   }, []);
 
+  const deleteMutation = useMutation({
+    mutationFn: async (playlistId: string) => {
+      const response = await fetch(`/api/playlists/${playlistId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete playlist');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['playlists'] });
+    },
+  });
+
+  const handleDelete = useCallback((playlist: Playlist) => {
+    if (!confirm(`Delete "${playlist.name}"? This cannot be undone.`)) return;
+    deleteMutation.mutate(playlist.id, {
+      onSuccess: () => toast.success(`Deleted "${playlist.name}"`),
+      onError: (err) => toast.error('Failed to delete playlist', { description: err.message }),
+    });
+  }, [deleteMutation]);
+
   const handleImportSuccess = useCallback((_playlistId: string) => {
     queryClient.invalidateQueries({ queryKey: ['playlists'] });
     toast.success('Playlist imported!', {
@@ -778,6 +812,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
                 onPlayFromSong={handlePlayFromSong}
                 onPlayPlaylist={handlePlayPlaylist}
                 onExport={handleExport}
+                onDelete={handleDelete}
                 formatDuration={formatDuration}
                 getSyncStatus={getSyncStatus}
               />
