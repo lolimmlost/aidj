@@ -651,6 +651,19 @@ function RightSidebar() {
     enabled: shouldFetchSidebarData, // Defer until after initial render
   });
 
+  // Fetch artist cover images from Aurral metadata cache
+  const { data: artistImages = {} } = useQuery({
+    queryKey: ['artist-metadata-images'],
+    queryFn: async () => {
+      const response = await fetch('/api/cover-art/artist-metadata-images');
+      if (!response.ok) return {};
+      const data = await response.json();
+      return (data.data?.images || {}) as Record<string, string>;
+    },
+    staleTime: 10 * 60 * 1000,
+    enabled: shouldFetchSidebarData,
+  });
+
   // Fetch most played songs - deferred
   const { data: mostPlayedSongs } = useQuery({
     queryKey: ['most-played-songs'],
@@ -733,11 +746,19 @@ function RightSidebar() {
                     <span className={cn("font-bold text-lg w-5", rankColors[index])}>
                       {index + 1}
                     </span>
-                    <div className={cn("w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center flex-shrink-0", getArtistGradient(artist.name))}>
-                      <span className="text-xs font-bold text-white/90">
-                        {getArtistInitials(artist.name)}
-                      </span>
-                    </div>
+                    {artistImages[artist.name.toLowerCase()] ? (
+                      <img
+                        src={artistImages[artist.name.toLowerCase()]}
+                        alt={artist.name}
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className={cn("w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center flex-shrink-0", getArtistGradient(artist.name))}>
+                        <span className="text-xs font-bold text-white/90">
+                          {getArtistInitials(artist.name)}
+                        </span>
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
                         {artist.name}

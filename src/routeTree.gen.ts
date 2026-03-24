@@ -130,6 +130,7 @@ import { Route as ApiCoverArtSaveRouteImport } from './routes/api/cover-art/save
 import { Route as ApiCoverArtMissingArtistsRouteImport } from './routes/api/cover-art/missing-artists'
 import { Route as ApiCoverArtMissingRouteImport } from './routes/api/cover-art/missing'
 import { Route as ApiCoverArtAutoFetchRouteImport } from './routes/api/cover-art/auto-fetch'
+import { Route as ApiCoverArtArtistMetadataImagesRouteImport } from './routes/api/cover-art/artist-metadata-images'
 import { Route as ApiCoverArtArtistImagesRouteImport } from './routes/api/cover-art/artist-images'
 import { Route as ApiBackgroundDiscoveryTriggerRouteImport } from './routes/api/background-discovery/trigger'
 import { Route as ApiBackgroundDiscoverySuggestionsRouteImport } from './routes/api/background-discovery/suggestions'
@@ -812,6 +813,12 @@ const ApiCoverArtAutoFetchRoute = ApiCoverArtAutoFetchRouteImport.update({
   path: '/api/cover-art/auto-fetch',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCoverArtArtistMetadataImagesRoute =
+  ApiCoverArtArtistMetadataImagesRouteImport.update({
+    id: '/api/cover-art/artist-metadata-images',
+    path: '/api/cover-art/artist-metadata-images',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCoverArtArtistImagesRoute = ApiCoverArtArtistImagesRouteImport.update({
   id: '/api/cover-art/artist-images',
   path: '/api/cover-art/artist-images',
@@ -1147,6 +1154,7 @@ export interface FileRoutesByFullPath {
   '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
   '/api/cover-art/artist-images': typeof ApiCoverArtArtistImagesRoute
+  '/api/cover-art/artist-metadata-images': typeof ApiCoverArtArtistMetadataImagesRoute
   '/api/cover-art/auto-fetch': typeof ApiCoverArtAutoFetchRoute
   '/api/cover-art/missing': typeof ApiCoverArtMissingRoute
   '/api/cover-art/missing-artists': typeof ApiCoverArtMissingArtistsRoute
@@ -1319,6 +1327,7 @@ export interface FileRoutesByTo {
   '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
   '/api/cover-art/artist-images': typeof ApiCoverArtArtistImagesRoute
+  '/api/cover-art/artist-metadata-images': typeof ApiCoverArtArtistMetadataImagesRoute
   '/api/cover-art/auto-fetch': typeof ApiCoverArtAutoFetchRoute
   '/api/cover-art/missing': typeof ApiCoverArtMissingRoute
   '/api/cover-art/missing-artists': typeof ApiCoverArtMissingArtistsRoute
@@ -1495,6 +1504,7 @@ export interface FileRoutesById {
   '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
   '/api/cover-art/artist-images': typeof ApiCoverArtArtistImagesRoute
+  '/api/cover-art/artist-metadata-images': typeof ApiCoverArtArtistMetadataImagesRoute
   '/api/cover-art/auto-fetch': typeof ApiCoverArtAutoFetchRoute
   '/api/cover-art/missing': typeof ApiCoverArtMissingRoute
   '/api/cover-art/missing-artists': typeof ApiCoverArtMissingArtistsRoute
@@ -1671,6 +1681,7 @@ export interface FileRouteTypes {
     | '/api/background-discovery/suggestions'
     | '/api/background-discovery/trigger'
     | '/api/cover-art/artist-images'
+    | '/api/cover-art/artist-metadata-images'
     | '/api/cover-art/auto-fetch'
     | '/api/cover-art/missing'
     | '/api/cover-art/missing-artists'
@@ -1843,6 +1854,7 @@ export interface FileRouteTypes {
     | '/api/background-discovery/suggestions'
     | '/api/background-discovery/trigger'
     | '/api/cover-art/artist-images'
+    | '/api/cover-art/artist-metadata-images'
     | '/api/cover-art/auto-fetch'
     | '/api/cover-art/missing'
     | '/api/cover-art/missing-artists'
@@ -2018,6 +2030,7 @@ export interface FileRouteTypes {
     | '/api/background-discovery/suggestions'
     | '/api/background-discovery/trigger'
     | '/api/cover-art/artist-images'
+    | '/api/cover-art/artist-metadata-images'
     | '/api/cover-art/auto-fetch'
     | '/api/cover-art/missing'
     | '/api/cover-art/missing-artists'
@@ -2182,6 +2195,7 @@ export interface RootRouteChildren {
   ApiBackgroundDiscoverySuggestionsRoute: typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   ApiBackgroundDiscoveryTriggerRoute: typeof ApiBackgroundDiscoveryTriggerRoute
   ApiCoverArtArtistImagesRoute: typeof ApiCoverArtArtistImagesRoute
+  ApiCoverArtArtistMetadataImagesRoute: typeof ApiCoverArtArtistMetadataImagesRoute
   ApiCoverArtAutoFetchRoute: typeof ApiCoverArtAutoFetchRoute
   ApiCoverArtMissingRoute: typeof ApiCoverArtMissingRoute
   ApiCoverArtMissingArtistsRoute: typeof ApiCoverArtMissingArtistsRoute
@@ -3126,6 +3140,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCoverArtAutoFetchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cover-art/artist-metadata-images': {
+      id: '/api/cover-art/artist-metadata-images'
+      path: '/api/cover-art/artist-metadata-images'
+      fullPath: '/api/cover-art/artist-metadata-images'
+      preLoaderRoute: typeof ApiCoverArtArtistMetadataImagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cover-art/artist-images': {
       id: '/api/cover-art/artist-images'
       path: '/api/cover-art/artist-images'
@@ -3716,6 +3737,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiBackgroundDiscoverySuggestionsRouteWithChildren,
   ApiBackgroundDiscoveryTriggerRoute: ApiBackgroundDiscoveryTriggerRoute,
   ApiCoverArtArtistImagesRoute: ApiCoverArtArtistImagesRoute,
+  ApiCoverArtArtistMetadataImagesRoute: ApiCoverArtArtistMetadataImagesRoute,
   ApiCoverArtAutoFetchRoute: ApiCoverArtAutoFetchRoute,
   ApiCoverArtMissingRoute: ApiCoverArtMissingRoute,
   ApiCoverArtMissingArtistsRoute: ApiCoverArtMissingArtistsRoute,

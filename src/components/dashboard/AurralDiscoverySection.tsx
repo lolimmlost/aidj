@@ -1,4 +1,5 @@
 import { useAurralDiscovery, useRecentArtists, useAddArtistToLibrary } from '@/lib/hooks/useArtistMetadata';
+import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,10 +9,49 @@ import { cn } from '@/lib/utils';
 import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar';
 import { useState } from 'react';
 
+/** Shared hook to fetch artist cover images from Aurral metadata cache */
+function useArtistImages() {
+  return useQuery({
+    queryKey: ['artist-metadata-images'],
+    queryFn: async () => {
+      const response = await fetch('/api/cover-art/artist-metadata-images');
+      if (!response.ok) return {};
+      const data = await response.json();
+      return (data.data?.images || {}) as Record<string, string>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+/** Circular artist avatar — real image if available, gradient bubble fallback */
+function ArtistBubble({ name, imageUrl, size = 'md' }: { name: string; imageUrl?: string; size?: 'sm' | 'md' }) {
+  const [imgError, setImgError] = useState(false);
+  const dim = size === 'sm' ? 'w-10 h-10' : 'w-12 h-12';
+  const textSize = size === 'sm' ? 'text-xs' : 'text-sm';
+
+  if (imageUrl && !imgError) {
+    return (
+      <img
+        src={imageUrl}
+        alt={name}
+        className={cn(dim, "rounded-full object-cover flex-shrink-0")}
+        onError={() => setImgError(true)}
+      />
+    );
+  }
+
+  return (
+    <div className={cn(dim, "rounded-full bg-gradient-to-br flex items-center justify-center flex-shrink-0", getArtistGradient(name))}>
+      <span className={cn(textSize, "font-bold text-white/90")}>{getArtistInitials(name)}</span>
+    </div>
+  );
+}
+
 // ─── Recently Added Section ─────────────────────────────────────────────────
 
 function RecentlyAddedSection() {
   const { data: recentArtists = [], isLoading } = useRecentArtists();
+  const { data: artistImages = {} } = useArtistImages();
 
   if (isLoading || recentArtists.length === 0) return null;
 
@@ -25,9 +65,11 @@ function RecentlyAddedSection() {
         {recentArtists.slice(0, 6).map((artist) => (
           <Card key={artist.id} className="border-border/50">
             <CardContent className="p-4 flex items-center gap-3">
-              <div className={cn("w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center flex-shrink-0", getArtistGradient(artist.artistName))}>
-                <span className="text-xs font-bold text-white/90">{getArtistInitials(artist.artistName)}</span>
-              </div>
+              <ArtistBubble
+                name={artist.artistName}
+                imageUrl={artistImages[artist.artistName.toLowerCase()]}
+                size="sm"
+              />
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate">{artist.artistName}</p>
                 {artist.statistics && (
@@ -69,19 +111,7 @@ function RecommendationCard({ rec }: { rec: { id: string; name: string; tags: st
     <Card className="border-border/50 hover:border-primary/20 transition-colors">
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          {rec.image ? (
-            <img
-              src={rec.image}
-              alt={rec.name}
-              className="w-12 h-12 rounded-full object-cover flex-shrink-0 bg-muted"
-            />
-          ) : (
-            <div className={cn("w-12 h-12 rounded-full bg-gradient-to-br flex items-center justify-center flex-shrink-0", getArtistGradient(rec.name))}>
-              <span className="text-sm font-bold text-white/90">
-                {getArtistInitials(rec.name)}
-              </span>
-            </div>
-          )}
+          <ArtistBubble name={rec.name} imageUrl={rec.image} />
 
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm truncate">{rec.name}</p>
