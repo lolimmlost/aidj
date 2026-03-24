@@ -23,6 +23,16 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Card,
   CardContent,
 } from '@/components/ui/card';
@@ -563,13 +573,25 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     },
   });
 
+  const [deleteTarget, setDeleteTarget] = useState<Playlist | null>(null);
+
   const handleDelete = useCallback((playlist: Playlist) => {
-    if (!confirm(`Delete "${playlist.name}"? This cannot be undone.`)) return;
-    deleteMutation.mutate(playlist.id, {
-      onSuccess: () => toast.success(`Deleted "${playlist.name}"`),
-      onError: (err) => toast.error('Failed to delete playlist', { description: err.message }),
+    setDeleteTarget(playlist);
+  }, []);
+
+  const confirmDelete = useCallback(() => {
+    if (!deleteTarget) return;
+    deleteMutation.mutate(deleteTarget.id, {
+      onSuccess: () => {
+        toast.success(`Deleted "${deleteTarget.name}"`);
+        setDeleteTarget(null);
+      },
+      onError: (err) => {
+        toast.error('Failed to delete playlist', { description: err.message });
+        setDeleteTarget(null);
+      },
     });
-  }, [deleteMutation]);
+  }, [deleteTarget, deleteMutation]);
 
   const handleImportSuccess = useCallback((_playlistId: string) => {
     queryClient.invalidateQueries({ queryKey: ['playlists'] });
@@ -837,6 +859,27 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
         onOpenChange={setImportDialogOpen}
         onSuccess={handleImportSuccess}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Playlist</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteTarget?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="min-h-[44px]">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="min-h-[44px] bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
