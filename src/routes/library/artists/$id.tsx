@@ -254,7 +254,7 @@ function ArtistDetail() {
   return (
     <div className="relative">
       {/* ─── Hero ─── */}
-      <div className="relative h-[28vh] sm:h-[32vh] md:h-[38vh] overflow-hidden">
+      <div className="relative h-[24vh] sm:h-[32vh] md:h-[38vh] overflow-hidden">
         {/* Blurred BG — use artist image or gradient */}
         {artistMetadata?.coverImageUrl ? (
           <div className="absolute inset-0">
@@ -286,56 +286,56 @@ function ArtistDetail() {
             </div>
           ) : (
             <>
-              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-foreground tracking-tight leading-none mb-3">
-                {artistName}
-              </h1>
+              <div className="flex flex-col sm:gap-1">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-foreground tracking-tight leading-none">
+                  {artistName}
+                </h1>
 
-              {/* Meta Pills */}
-              {artistMetadata && (
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {artistMetadata.country && (
-                    <span className="px-3 py-1 rounded-full bg-card/50 backdrop-blur-sm border border-border/50 text-xs font-medium text-foreground">
+                {/* Meta line: pills + stats inline on mobile */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mt-2 mb-2 sm:mb-3">
+                  {artistMetadata?.country && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-card/50 backdrop-blur-sm border border-border/50 text-[11px] font-medium text-foreground">
                       {artistMetadata.country}
                     </span>
                   )}
-                  {artistMetadata.formedYear && (
-                    <span className="px-3 py-1 rounded-full bg-card/50 backdrop-blur-sm border border-border/50 text-xs font-medium text-muted-foreground">
+                  {artistMetadata?.formedYear && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-card/50 backdrop-blur-sm border border-border/50 text-[11px] font-medium text-muted-foreground">
                       Est. {artistMetadata.formedYear}
                     </span>
                   )}
-                  {artistMetadata.genres?.slice(0, 3).map((g) => (
-                    <Badge key={g} variant="secondary" className="rounded-full text-xs bg-primary/10 text-primary border-0">
+                  {artistMetadata?.genres?.slice(0, 3).map((g) => (
+                    <Badge key={g} variant="secondary" className="rounded-full text-[11px] py-0.5 bg-primary/10 text-primary border-0">
                       {g}
                     </Badge>
                   ))}
+                  <span className="text-xs text-muted-foreground">
+                    {albums.length} album{albums.length !== 1 ? 's' : ''} · {songs.length} song{songs.length !== 1 ? 's' : ''}
+                  </span>
                 </div>
-              )}
 
-              <p className="text-sm text-muted-foreground mb-4">
-                {albums.length} album{albums.length !== 1 ? 's' : ''} · {songs.length} song{songs.length !== 1 ? 's' : ''}
-              </p>
-
-              {/* Actions */}
-              <div className="flex items-center gap-2.5">
-                <Button
-                  className="rounded-full gap-2 px-6 shadow-lg shadow-primary/25"
-                  onClick={handleShuffleAll}
-                  disabled={songs.length === 0}
-                >
-                  <Shuffle className="h-4 w-4" /> Shuffle All
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="rounded-full border-border/50 bg-card/30 backdrop-blur-sm"
-                  onClick={() => {
-                    if (navigator.share) {
-                      navigator.share({ title: artistName, text: `Check out ${artistName}` }).catch(() => {});
-                    }
-                  }}
-                >
-                  <Share2 className="h-4 w-4" />
-                </Button>
+                {/* Actions — inline with compact sizing on mobile */}
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    className="rounded-full gap-1.5 px-4 sm:px-6 shadow-lg shadow-primary/25 sm:h-10 sm:text-sm"
+                    onClick={handleShuffleAll}
+                    disabled={songs.length === 0}
+                  >
+                    <Shuffle className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Shuffle All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="rounded-full h-8 w-8 sm:h-10 sm:w-10 border-border/50 bg-card/30 backdrop-blur-sm"
+                    onClick={() => {
+                      if (navigator.share) {
+                        navigator.share({ title: artistName, text: `Check out ${artistName}` }).catch(() => {});
+                      }
+                    }}
+                  >
+                    <Share2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  </Button>
+                </div>
               </div>
             </>
           )}
