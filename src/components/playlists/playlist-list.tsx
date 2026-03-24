@@ -559,7 +559,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     setExportDialogOpen(true);
   }, []);
 
-  const deleteMutation = useMutation({
+  const { mutate: deletePlaylist, isPending: isDeleting } = useMutation({
     mutationFn: async (playlistId: string) => {
       const response = await fetch(`/api/playlists/${playlistId}`, { method: 'DELETE' });
       if (!response.ok) {
@@ -581,7 +581,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
 
   const confirmDelete = useCallback(() => {
     if (!deleteTarget) return;
-    deleteMutation.mutate(deleteTarget.id, {
+    deletePlaylist(deleteTarget.id, {
       onSuccess: () => {
         toast.success(`Deleted "${deleteTarget.name}"`);
         setDeleteTarget(null);
@@ -591,7 +591,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
         setDeleteTarget(null);
       },
     });
-  }, [deleteTarget, deleteMutation]);
+  }, [deleteTarget, deletePlaylist]);
 
   const handleImportSuccess = useCallback((_playlistId: string) => {
     queryClient.invalidateQueries({ queryKey: ['playlists'] });
@@ -875,7 +875,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
               onClick={confirmDelete}
               className="min-h-[44px] bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

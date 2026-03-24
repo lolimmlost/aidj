@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { auth } from '~/lib/auth/auth';
 import { db } from '~/lib/db';
 import { user, session } from '~/lib/db/schema/auth.schema';
-import { sql, gt, lt, desc } from 'drizzle-orm';
+import { sql, gt, desc } from 'drizzle-orm';
 import { jsonResponse } from '~/lib/utils/api-response';
 
 const GET = async ({ request }: { request: Request }) => {

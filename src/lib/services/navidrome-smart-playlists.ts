@@ -55,23 +55,6 @@ interface NavidromePlaylistResponse {
   updatedAt?: string;
 }
 
-interface NavidromeSongResponse {
-  id: string;
-  title: string;
-  artist: string;
-  album: string;
-  albumId: string;
-  artistId?: string;
-  duration: number;
-  trackNumber?: number;
-  genre?: string;
-  year?: number;
-  playCount?: number;
-  rating?: number;
-  starred?: boolean;
-  path?: string;
-}
-
 // ============================================================================
 // Core API functions
 // ============================================================================
@@ -386,23 +369,3 @@ export async function getRandomSongsFiltered(options: {
 // ============================================================================
 // Helpers
 // ============================================================================
-
-function songFromNavidrome(track: NavidromeSongResponse): Song {
-  return {
-    id: track.id,
-    name: track.title,
-    title: track.title,
-    artist: track.artist,
-    album: track.album,
-    albumId: track.albumId,
-    artistId: track.artistId,
-    duration: track.duration,
-    track: track.trackNumber || 0,
-    url: `/api/navidrome/stream/${track.id}`,
-    genre: track.genre,
-    year: track.year,
-    playCount: track.playCount,
-    rating: track.rating,
-    loved: track.starred,
-  };
-}
