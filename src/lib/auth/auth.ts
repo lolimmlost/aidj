@@ -19,6 +19,12 @@ const getAuthConfig = createServerOnlyFn(() =>
       provider: "pg",
     }),
 
+    // https://www.better-auth.com/docs/concepts/session-management
+    session: {
+      expiresIn: 60 * 60 * 24, // 1 day (seconds)
+      updateAge: 60 * 60, // refresh session token every 1 hour
+    },
+
     // Cookie configuration for Cloudflare tunnel / reverse proxy
     // https://www.better-auth.com/docs/concepts/cookies
     advanced: {

@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { auth } from '~/lib/auth/auth';
 import { db } from '~/lib/db';
 import { user, session } from '~/lib/db/schema/auth.schema';
-import { sql, gt, desc } from 'drizzle-orm';
+import { sql, gt, lt, desc } from 'drizzle-orm';
 import { jsonResponse } from '~/lib/utils/api-response';
 
 const GET = async ({ request }: { request: Request }) => {
@@ -18,6 +18,15 @@ const GET = async ({ request }: { request: Request }) => {
     const now = new Date();
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Clean up expired sessions
+    const deleted = await db
+      .delete(session)
+      .where(lt(session.expiresAt, now))
+      .returning({ id: session.id });
+    if (deleted.length > 0) {
+      console.log(`🧹 Pruned ${deleted.length} expired sessions`);
+    }
 
     // Run queries in parallel
     const [
