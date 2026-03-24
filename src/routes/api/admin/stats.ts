@@ -19,19 +19,20 @@ const GET = async ({ request }: { request: Request }) => {
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    // Clean up expired sessions + stale sessions from old 7-day TTL
-    // Never delete the current admin session
+    // Prune sessions: delete all except the most recent per user
     try {
-      const currentSessionToken = sess.session.token;
-      const deleted = await db
-        .delete(session)
-        .where(
-          sql`(${session.expiresAt} < ${now} OR ${session.createdAt} < ${oneDayAgo})
-              AND ${session.token} != ${currentSessionToken}`
+      const pruneResult = await db.execute(sql`
+        DELETE FROM "session" WHERE "id" IN (
+          SELECT "id" FROM (
+            SELECT "id", ROW_NUMBER() OVER (
+              PARTITION BY "user_id" ORDER BY "created_at" DESC
+            ) AS rn FROM "session"
+          ) ranked WHERE rn > 1
         )
-        .returning({ id: session.id });
-      if (deleted.length > 0) {
-        console.log(`🧹 Pruned ${deleted.length} expired/stale sessions`);
+      `);
+      const pruned = Number(pruneResult.rowCount ?? 0);
+      if (pruned > 0) {
+        console.log(`🧹 Pruned ${pruned} duplicate sessions (kept newest per user)`);
       }
     } catch (pruneError) {
       console.warn('Session prune failed (non-fatal):', pruneError);
