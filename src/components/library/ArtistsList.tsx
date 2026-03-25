@@ -188,28 +188,16 @@ export function ArtistsList() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch saved Deezer artist images for fallback
-  const { data: savedImages = {} } = useQuery({
-    queryKey: ['saved-artist-images'],
+  // Fetch unified artist images (Aurral + Deezer merged) in a single request
+  const { data: allArtistImages = {} } = useQuery({
+    queryKey: ['all-artist-images'],
     queryFn: async () => {
-      const res = await fetch('/api/cover-art/artist-images');
+      const res = await fetch('/api/cover-art/all-artist-images');
       if (!res.ok) return {};
       const json = await res.json();
       return (json.data?.images || {}) as Record<string, string>;
     },
     staleTime: 5 * 60 * 1000,
-  });
-
-  // Fetch Aurral metadata images as additional fallback
-  const { data: metadataImages = {} } = useQuery({
-    queryKey: ['artist-metadata-images'],
-    queryFn: async () => {
-      const res = await fetch('/api/cover-art/artist-metadata-images');
-      if (!res.ok) return {};
-      const json = await res.json();
-      return (json.data?.images || {}) as Record<string, string>;
-    },
-    staleTime: 10 * 60 * 1000,
   });
 
   // Filter
@@ -322,7 +310,7 @@ export function ArtistsList() {
                   <ArtistCard
                     key={artist.id}
                     artist={artist}
-                    savedImageUrl={savedImages[key] || metadataImages[key]}
+                    savedImageUrl={allArtistImages[key]}
                   />
                 );
               })}

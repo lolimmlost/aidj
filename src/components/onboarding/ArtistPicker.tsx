@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Search, X, Music, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar';
 
 interface ArtistItem {
   id: string;
@@ -25,6 +27,7 @@ export function ArtistPicker({ onComplete }: ArtistPickerProps) {
   const [selected, setSelected] = useState<ArtistItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [imgErrors, setImgErrors] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -121,14 +124,18 @@ export function ArtistPicker({ onComplete }: ArtistPickerProps) {
               key={artist.id}
               className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 pl-1 pr-2 py-1"
             >
-              <img
-                src={`/api/navidrome/rest/getCoverArt?id=${artist.id}&size=32`}
-                alt=""
-                className="h-6 w-6 rounded-full object-cover bg-muted"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
+              {!imgErrors.has(artist.id) ? (
+                <img
+                  src={`/api/navidrome/rest/getCoverArt?id=${artist.id}&size=64`}
+                  alt=""
+                  className="h-6 w-6 rounded-full object-cover bg-muted"
+                  onError={() => setImgErrors(prev => new Set(prev).add(artist.id))}
+                />
+              ) : (
+                <div className={cn("w-6 h-6 rounded-full bg-gradient-to-br flex items-center justify-center", getArtistGradient(artist.name))}>
+                  <span className="text-[9px] font-bold text-white/90">{getArtistInitials(artist.name)}</span>
+                </div>
+              )}
               <span className="text-sm font-medium">{artist.name}</span>
               <button
                 onClick={() => removeArtist(artist.id)}
@@ -178,19 +185,18 @@ export function ArtistPicker({ onComplete }: ArtistPickerProps) {
                   onClick={() => selectArtist(artist)}
                   className="flex w-full items-center gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-left"
                 >
-                  <img
-                    src={`/api/navidrome/rest/getCoverArt?id=${artist.id}&size=48`}
-                    alt=""
-                    className="h-10 w-10 rounded-full object-cover bg-muted shrink-0"
-                    onError={(e) => {
-                      const img = e.target as HTMLImageElement;
-                      img.style.display = 'none';
-                      img.nextElementSibling?.classList.remove('hidden');
-                    }}
-                  />
-                  <div className="h-10 w-10 rounded-full bg-muted items-center justify-center shrink-0 hidden">
-                    <Music className="h-4 w-4 text-muted-foreground" />
-                  </div>
+                  {!imgErrors.has(artist.id) ? (
+                    <img
+                      src={`/api/navidrome/rest/getCoverArt?id=${artist.id}&size=64`}
+                      alt=""
+                      className="h-10 w-10 rounded-full object-cover bg-muted shrink-0"
+                      onError={() => setImgErrors(prev => new Set(prev).add(artist.id))}
+                    />
+                  ) : (
+                    <div className={cn("h-10 w-10 rounded-full bg-gradient-to-br flex items-center justify-center shrink-0", getArtistGradient(artist.name))}>
+                      <span className="text-sm font-bold text-white/90">{getArtistInitials(artist.name)}</span>
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{artist.name}</p>
                     <p className="text-xs text-muted-foreground">

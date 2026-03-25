@@ -699,18 +699,14 @@ function RightSidebar() {
     enabled: shouldFetchSidebarData, // Defer until after initial render
   });
 
-  // Fetch artist cover images from both Aurral metadata cache and Deezer saved images
+  // Fetch unified artist cover images (Aurral + Deezer merged) in a single request
   const { data: artistImages = {} } = useQuery({
-    queryKey: ['artist-all-images'],
+    queryKey: ['all-artist-images'],
     queryFn: async () => {
-      const [metaRes, deezerRes] = await Promise.all([
-        fetch('/api/cover-art/artist-metadata-images').then(r => r.ok ? r.json() : { data: {} }),
-        fetch('/api/cover-art/artist-images').then(r => r.ok ? r.json() : { data: {} }),
-      ]);
-      const metaImages = (metaRes.data?.images || {}) as Record<string, string>;
-      const deezerImages = (deezerRes.data?.images || {}) as Record<string, string>;
-      // Deezer images take priority (more entries), Aurral fills gaps
-      return { ...metaImages, ...deezerImages };
+      const res = await fetch('/api/cover-art/all-artist-images');
+      if (!res.ok) return {};
+      const json = await res.json();
+      return (json.data?.images || {}) as Record<string, string>;
     },
     staleTime: 10 * 60 * 1000,
     enabled: shouldFetchSidebarData,
