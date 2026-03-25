@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
+import { hasRealSong } from './useDualDeckAudio';
 
 export interface UseStallRecoveryOptions {
   getActiveDeck: () => HTMLAudioElement | null;
@@ -188,7 +189,7 @@ export function useStallRecovery({
       if (audio.paused) {
         if (audio.duration > 0 && audio.currentTime >= audio.duration - 0.5) return;
 
-        if (storeIsPlaying && audio.src && audio.src.indexOf('data:audio') === -1) {
+        if (storeIsPlaying && hasRealSong(audio)) {
           if (audio.readyState >= 2) {
             const savedPosition = lastProgressValueRef.current;
             console.log(`🚨 [WATCHDOG] Desync: store=playing, audio=paused at ${audio.currentTime.toFixed(1)}s (was ${savedPosition.toFixed(1)}s)`);
@@ -210,7 +211,7 @@ export function useStallRecovery({
       if (!storeIsPlaying) return;
 
       // Skip if no real audio loaded
-      if (!audio.src || audio.src.indexOf('data:audio') !== -1) return;
+      if (!hasRealSong(audio)) return;
 
       const now = Date.now();
       const currentProgress = audio.currentTime;

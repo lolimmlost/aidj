@@ -15,15 +15,27 @@ export interface Song {
   duration?: number;
 }
 
+/**
+ * Returns true if an audio element has a real song loaded (not a silent data URL or empty).
+ */
+export function hasRealSong(el: HTMLAudioElement | null): boolean {
+  return !!el?.src && !el.src.startsWith('data:');
+}
+
+export interface SetActiveDeckOptions {
+  /** Skip cooldown (for legitimate transitions like crossfade completion) */
+  bypassCooldown?: boolean;
+  /** Custom cooldown in ms (default: 500) */
+  cooldownMs?: number;
+}
+
 export interface UseDualDeckAudioReturn {
   deckARef: React.RefObject<HTMLAudioElement | null>;
   deckBRef: React.RefObject<HTMLAudioElement | null>;
   activeDeckRef: React.MutableRefObject<'A' | 'B'>;
   getActiveDeck: () => HTMLAudioElement | null;
   getInactiveDeck: () => HTMLAudioElement | null;
-  loadSong: (song: Song | null) => void;
-  preloadNextSong: (song: Song | null) => void;
-  swapDecks: () => void;
+  setActiveDeck: (deck: 'A' | 'B', reason: string, opts?: SetActiveDeckOptions) => boolean;
 }
 
 /**
@@ -32,7 +44,7 @@ export interface UseDualDeckAudioReturn {
  * Key features:
  * - Tracks which deck is currently active
  * - Provides helpers to get active/inactive deck
- * - Load song on active deck, preload on inactive for crossfade
+ * - Centralized setActiveDeck with cooldown to prevent DESYNC ping-pong
  *
  * Note: Deck priming is no longer needed — Web Audio API handles
  * both decks through a single AudioContext, avoiding the iOS
@@ -46,6 +58,10 @@ export function useDualDeckAudio(): UseDualDeckAudioReturn {
   // Which deck is currently playing
   const activeDeckRef = useRef<'A' | 'B'>('A');
 
+  // Cooldown tracking for deck switches
+  const lastDeckSwitchRef = useRef<number>(0);
+  const DECK_SWITCH_COOLDOWN_MS = 500;
+
   // Get the currently active deck element
   const getActiveDeck = useCallback(() => {
     return activeDeckRef.current === 'A' ? deckARef.current : deckBRef.current;
@@ -56,31 +72,27 @@ export function useDualDeckAudio(): UseDualDeckAudioReturn {
     return activeDeckRef.current === 'A' ? deckBRef.current : deckARef.current;
   }, []);
 
-  // Load a song on the active deck
-  const loadSong = useCallback((song: Song | null) => {
-    const audio = getActiveDeck();
-    if (audio && song) {
-      audio.src = song.url;
-      audio.load();
-      console.log(`[AUDIO] Loaded song on deck ${activeDeckRef.current}: ${song.name || song.title}`);
-    }
-  }, [getActiveDeck]);
+  // Centralized deck switching with cooldown to prevent DESYNC ping-pong
+  const setActiveDeck = useCallback((
+    deck: 'A' | 'B',
+    reason: string,
+    opts?: SetActiveDeckOptions,
+  ): boolean => {
+    if (activeDeckRef.current === deck) return false; // already correct
 
-  // Preload a song on the inactive deck (for crossfade)
-  const preloadNextSong = useCallback((song: Song | null) => {
-    const inactiveDeck = getInactiveDeck();
-    if (inactiveDeck && song) {
-      console.log(`[XFADE] Preloading next song on inactive deck`);
-      inactiveDeck.src = song.url;
-      inactiveDeck.load();
-      // Gain is controlled via GainNode — element.volume stays at 1.0
-    }
-  }, [getInactiveDeck]);
+    const now = Date.now();
+    const cooldown = opts?.cooldownMs ?? DECK_SWITCH_COOLDOWN_MS;
 
-  // Swap which deck is active
-  const swapDecks = useCallback(() => {
-    activeDeckRef.current = activeDeckRef.current === 'A' ? 'B' : 'A';
-    console.log(`[AUDIO] Swapped active deck to ${activeDeckRef.current}`);
+    if (!opts?.bypassCooldown && now - lastDeckSwitchRef.current < cooldown) {
+      console.log(`[DECK] Ignoring switch to ${deck} (${reason}) — cooldown active`);
+      return false;
+    }
+
+    const prev = activeDeckRef.current;
+    activeDeckRef.current = deck;
+    lastDeckSwitchRef.current = now;
+    console.log(`[DECK] ${prev} → ${deck} (${reason})`);
+    return true;
   }, []);
 
   return {
@@ -89,8 +101,6 @@ export function useDualDeckAudio(): UseDualDeckAudioReturn {
     activeDeckRef,
     getActiveDeck,
     getInactiveDeck,
-    loadSong,
-    preloadNextSong,
-    swapDecks,
+    setActiveDeck,
   };
 }

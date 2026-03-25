@@ -1,6 +1,6 @@
 import { useRef, useCallback } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
-import { Song } from './useDualDeckAudio';
+import { Song, type SetActiveDeckOptions } from './useDualDeckAudio';
 
 export interface UseCrossfadeOptions {
   getActiveDeck: () => HTMLAudioElement | null;
@@ -15,6 +15,7 @@ export interface UseCrossfadeOptions {
   onCrossfadeAbort: (nextSong: Song | null) => void;
   canPlayHandlerRef?: React.MutableRefObject<(() => void) | null>;
   errorHandlerRef?: React.MutableRefObject<((e: Event) => void) | null>;
+  setActiveDeck: (deck: 'A' | 'B', reason: string, opts?: SetActiveDeckOptions) => boolean;
 }
 
 export interface UseCrossfadeReturn {
@@ -48,6 +49,7 @@ export function useCrossfade({
   onCrossfadeAbort,
   canPlayHandlerRef,
   errorHandlerRef,
+  setActiveDeck,
 }: UseCrossfadeOptions): UseCrossfadeReturn {
   // Crossfade state refs
   const crossfadeCanPlayFiredRef = useRef<boolean>(false);
@@ -202,7 +204,7 @@ export function useCrossfade({
       oldDeck.currentTime = 0;
 
       // Swap active deck
-      activeDeckRef.current = newDeckLabel;
+      setActiveDeck(newDeckLabel, 'crossfade-complete', { bypassCooldown: true });
 
       console.log(`[XFADE] Crossfade complete, active deck is now ${newDeckLabel}`);
 
@@ -281,7 +283,7 @@ export function useCrossfade({
         abortCrossfade('safety timeout exceeded');
       }
     }, (xfadeDuration + 5) * 1000);
-  }, [getActiveDeck, getInactiveDeck, activeDeckRef, crossfadeInProgressRef, onCrossfadeComplete, onCrossfadeAbort, clearCrossfade, canPlayHandlerRef, errorHandlerRef, scheduleGainRamp, cancelGainRamp, setGainImmediate]);
+  }, [getActiveDeck, getInactiveDeck, activeDeckRef, crossfadeInProgressRef, onCrossfadeComplete, onCrossfadeAbort, clearCrossfade, canPlayHandlerRef, errorHandlerRef, scheduleGainRamp, cancelGainRamp, setGainImmediate, setActiveDeck]);
 
   return {
     crossfadeJustCompletedRef,
