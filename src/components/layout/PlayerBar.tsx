@@ -480,14 +480,52 @@ export function PlayerBar() {
     const hasRealSong = (d: HTMLAudioElement) =>
       d.src && d.src.indexOf('data:audio') === -1;
 
+    // Track last DESYNC correction time to prevent ping-pong between decks
+    const lastDesyncCorrectionRef = { current: 0 };
+
     // Create handlers that check if the event came from the active deck
     const createUpdateTime = (deck: HTMLAudioElement, deckName: 'A' | 'B') => () => {
       // CRITICAL FIX: If this deck is playing with progress but isn't marked as active,
       // auto-correct activeDeckRef. This can happen after crossfade or component remount.
       if (activeDeckRef.current !== deckName) {
+        const otherDeckName: 'A' | 'B' = deckName === 'A' ? 'B' : 'A';
+        const otherDeck = deckName === 'A' ? deckBRef.current : deckARef.current;
+
         if (!deck.paused && deck.currentTime > 1 && hasRealSong(deck) && !crossfadeInProgressRef.current) {
+          // Prevent ping-pong: if we corrected recently (within 2s), don't correct again
+          const now = Date.now();
+          if (now - lastDesyncCorrectionRef.current < 2000) {
+            return;
+          }
+
+          // If BOTH decks are playing, pick the one with MORE progress (the "real" active one)
+          // and pause the other to break the feedback loop
+          if (otherDeck && !otherDeck.paused && otherDeck.currentTime > 1 && hasRealSong(otherDeck)) {
+            // Both decks playing — compare progress to decide which is the "intended" active deck
+            // The deck with LESS progress is likely the newly-loaded one that should be active
+            // But if the other deck has much more progress, it might be the old song still playing
+            // Safest approach: pause the deck with the LOWER currentTime (it was loaded more recently
+            // and is likely the incoming crossfade deck that should have been stopped)
+            const thisDeckIsNewer = deck.currentTime < otherDeck.currentTime;
+            if (thisDeckIsNewer) {
+              // This deck (deckName) has less progress — it's the newly loaded one, make it active
+              console.log(`⚠️ [DESYNC] Both decks playing. Deck ${deckName} (${deck.currentTime.toFixed(1)}s) is newer, Deck ${otherDeckName} (${otherDeck.currentTime.toFixed(1)}s) is older — pausing old deck`);
+              activeDeckRef.current = deckName;
+              otherDeck.pause();
+              otherDeck.currentTime = 0;
+            } else {
+              // Other deck has less progress — it's the active one, this deck is stale
+              console.log(`⚠️ [DESYNC] Both decks playing. Deck ${otherDeckName} (${otherDeck.currentTime.toFixed(1)}s) is newer — pausing stale Deck ${deckName} (${deck.currentTime.toFixed(1)}s)`);
+              deck.pause();
+              deck.currentTime = 0;
+            }
+            lastDesyncCorrectionRef.current = now;
+            return;
+          }
+
           console.log(`⚠️ [DESYNC] Deck ${deckName} is playing at ${deck.currentTime.toFixed(1)}s but activeDeckRef=${activeDeckRef.current} - auto-correcting`);
           activeDeckRef.current = deckName;
+          lastDesyncCorrectionRef.current = now;
         } else {
           return; // Not the active deck and not a desync situation
         }
