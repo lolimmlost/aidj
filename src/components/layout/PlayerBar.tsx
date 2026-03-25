@@ -1149,14 +1149,14 @@ export function PlayerBar() {
           </span>
         </div>
 
-        {/* Main row: Album art + song info | centered controls | like */}
-        <div className="flex items-center gap-2">
-          {/* Left: art + song info */}
+        {/* Main row: Album art, song info, controls */}
+        <div className="flex items-center gap-3">
+          {/* Small Album Artwork */}
           <div className={cn(
-            "flex items-center gap-2 min-w-0 flex-1 rounded-lg transition-all",
+            "flex items-center gap-3 min-w-0 flex-1 rounded-lg transition-all",
             showRemoteTime && "ring-1 ring-green-500/60 bg-green-500/5 px-2 py-1"
           )}>
-            <div onClick={() => setShowFullscreen(true)} className="cursor-pointer relative group/art flex-shrink-0">
+            <div onClick={() => setShowFullscreen(true)} className="cursor-pointer relative group/art">
               <AlbumArt
                 albumId={currentSong.albumId}
                 songId={currentSong.id}
@@ -1164,10 +1164,13 @@ export function PlayerBar() {
                 size="sm"
                 isPlaying={isPlaying || isRemotePlaying}
               />
+              {/* Tap indicator — subtle expand icon */}
               <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-active/art:bg-black/30 transition-colors rounded-md">
                 <Maximize2 className="h-3 w-3 text-white/0 group-active/art:text-white/80 transition-colors" />
               </div>
             </div>
+
+            {/* Song Info */}
             <div className="min-w-0 flex-1">
               <p
                 className={cn("font-medium text-sm truncate active:text-primary transition-colors", showRemoteTime && "text-green-500")}
@@ -1196,11 +1199,27 @@ export function PlayerBar() {
             </div>
           </div>
 
-          {/* Center: controls */}
-          <div className="flex items-center justify-center gap-1 flex-shrink-0">
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={previousSong}>
+          {/* Compact Controls */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={handleToggleLike}
+              disabled={isLikePending}
+            >
+              <Heart className={cn("h-4 w-4", isLiked && "fill-current text-red-500")} />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={previousSong}
+            >
               <SkipBack className="h-4 w-4" />
             </Button>
+
             <Button
               variant="default"
               size="sm"
@@ -1216,21 +1235,16 @@ export function PlayerBar() {
                 <Play className="h-5 w-5 ml-0.5" />
               )}
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleNextSong}>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={handleNextSong}
+            >
               <SkipForward className="h-4 w-4" />
             </Button>
           </div>
-
-          {/* Right: like */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 flex-shrink-0"
-            onClick={handleToggleLike}
-            disabled={isLikePending}
-          >
-            <Heart className={cn("h-4 w-4", isLiked && "fill-current text-red-500")} />
-          </Button>
         </div>
       </div>
 
