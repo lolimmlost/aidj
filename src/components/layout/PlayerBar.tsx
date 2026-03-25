@@ -1149,53 +1149,79 @@ export function PlayerBar() {
           </span>
         </div>
 
-        {/* Main row: Album art, song info, like — controls centered below */}
-        <div className={cn(
-          "flex items-center gap-3 rounded-lg transition-all",
-          showRemoteTime && "ring-1 ring-green-500/60 bg-green-500/5 px-2 py-1"
-        )}>
-          <div onClick={() => setShowFullscreen(true)} className="cursor-pointer relative group/art flex-shrink-0">
-            <AlbumArt
-              albumId={currentSong.albumId}
-              songId={currentSong.id}
-              artist={currentSong.artist}
-              size="sm"
-              isPlaying={isPlaying || isRemotePlaying}
-            />
-            {/* Tap indicator — subtle expand icon */}
-            <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-active/art:bg-black/30 transition-colors rounded-md">
-              <Maximize2 className="h-3 w-3 text-white/0 group-active/art:text-white/80 transition-colors" />
+        {/* Main row: Album art + song info | centered controls | like */}
+        <div className="flex items-center gap-2">
+          {/* Left: art + song info */}
+          <div className={cn(
+            "flex items-center gap-2 min-w-0 flex-1 rounded-lg transition-all",
+            showRemoteTime && "ring-1 ring-green-500/60 bg-green-500/5 px-2 py-1"
+          )}>
+            <div onClick={() => setShowFullscreen(true)} className="cursor-pointer relative group/art flex-shrink-0">
+              <AlbumArt
+                albumId={currentSong.albumId}
+                songId={currentSong.id}
+                artist={currentSong.artist}
+                size="sm"
+                isPlaying={isPlaying || isRemotePlaying}
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-active/art:bg-black/30 transition-colors rounded-md">
+                <Maximize2 className="h-3 w-3 text-white/0 group-active/art:text-white/80 transition-colors" />
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p
+                className={cn("font-medium text-sm truncate active:text-primary transition-colors", showRemoteTime && "text-green-500")}
+                onClick={() => setShowFullscreen(true)}
+              >
+                {currentSong.name || currentSong.title}
+              </p>
+              {(currentSong as { artistId?: string }).artistId ? (
+                <Link
+                  to="/library/artists/$id"
+                  params={{ id: (currentSong as { artistId?: string }).artistId! }}
+                  className={cn("text-xs truncate block active:text-primary transition-colors", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {currentSong.artist || 'Unknown'}
+                </Link>
+              ) : (
+                <p className={cn("text-xs truncate", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
+              )}
+              {showRemoteTime && (
+                <p className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5">
+                  <Smartphone className="h-2.5 w-2.5" />
+                  <span className="truncate">{remoteDevice?.deviceName || 'Another device'}</span>
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Song Info */}
-          <div className="min-w-0 flex-1">
-            <p
-              className={cn("font-medium text-sm truncate active:text-primary transition-colors", showRemoteTime && "text-green-500")}
-              onClick={() => setShowFullscreen(true)}
+          {/* Center: controls */}
+          <div className="flex items-center justify-center gap-1 flex-shrink-0">
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={previousSong}>
+              <SkipBack className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              className="h-10 w-10 p-0 rounded-full"
+              onClick={togglePlayPause}
+              disabled={isLoading}
             >
-              {currentSong.name || currentSong.title}
-            </p>
-            {(currentSong as { artistId?: string }).artistId ? (
-              <Link
-                to="/library/artists/$id"
-                params={{ id: (currentSong as { artistId?: string }).artistId! }}
-                className={cn("text-xs truncate block active:text-primary transition-colors", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {currentSong.artist || 'Unknown'}
-              </Link>
-            ) : (
-              <p className={cn("text-xs truncate", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
-            )}
-            {showRemoteTime && (
-              <p className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5">
-                <Smartphone className="h-2.5 w-2.5" />
-                <span className="truncate">{remoteDevice?.deviceName || 'Another device'}</span>
-              </p>
-            )}
+              {isLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : isPlaying ? (
+                <Pause className="h-5 w-5" />
+              ) : (
+                <Play className="h-5 w-5 ml-0.5" />
+              )}
+            </Button>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleNextSong}>
+              <SkipForward className="h-4 w-4" />
+            </Button>
           </div>
 
+          {/* Right: like */}
           <Button
             variant="ghost"
             size="sm"
@@ -1204,43 +1230,6 @@ export function PlayerBar() {
             disabled={isLikePending}
           >
             <Heart className={cn("h-4 w-4", isLiked && "fill-current text-red-500")} />
-          </Button>
-        </div>
-
-        {/* Centered Controls */}
-        <div className="flex items-center justify-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 w-9 p-0"
-            onClick={previousSong}
-          >
-            <SkipBack className="h-4 w-4" />
-          </Button>
-
-          <Button
-            variant="default"
-            size="sm"
-            className="h-11 w-11 p-0 rounded-full"
-            onClick={togglePlayPause}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : isPlaying ? (
-              <Pause className="h-5 w-5" />
-            ) : (
-              <Play className="h-5 w-5 ml-0.5" />
-            )}
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 w-9 p-0"
-            onClick={handleNextSong}
-          >
-            <SkipForward className="h-5 w-5" />
           </Button>
         </div>
       </div>
