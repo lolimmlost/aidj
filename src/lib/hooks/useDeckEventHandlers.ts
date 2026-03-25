@@ -101,10 +101,11 @@ export function useDeckEventHandlers({
             const thisDeckIsNewer = deck.currentTime < otherDeck.currentTime;
             if (thisDeckIsNewer) {
               // This deck (deckName) has less progress — it's the newly loaded one, make it active
-              if (setActiveDeck(deckName, `desync: deck ${deckName} newer (${deck.currentTime.toFixed(1)}s)`, { cooldownMs: 2000 })) {
-                otherDeck.pause();
-                otherDeck.currentTime = 0;
-              }
+              setActiveDeck(deckName, `desync: deck ${deckName} newer (${deck.currentTime.toFixed(1)}s)`, { cooldownMs: 2000 });
+              // Always pause the stale deck even if cooldown blocked the switch —
+              // two decks playing simultaneously is worse than a wrong activeDeckRef
+              otherDeck.pause();
+              otherDeck.currentTime = 0;
             } else {
               // Other deck has less progress — it's the active one, this deck is stale
               deck.pause();

@@ -301,6 +301,7 @@ export function PlayerBar() {
 
   // Stall recovery hook (uses shared crossfadeInProgressRef)
   const {
+    recoveryAttemptRef,
     lastProgressTimeRef,
     lastProgressValueRef,
     attemptStallRecovery,
@@ -481,7 +482,7 @@ export function PlayerBar() {
     currentSongIdRef, playbackSnapshotRef,
     scrobbleThresholdReachedRef, hasScrobbledRef,
     lastProgressTimeRef, lastProgressValueRef,
-    setCurrentTime, setDuration, setIsLoading: (v: boolean) => setIsLoading(v),
+    setCurrentTime, setDuration, setIsLoading,
     nextSong, currentSong, currentSongIndex, playlist, volume,
     startCrossfade, attemptStallRecovery,
     webAudioInitialized, setMasterVolume, setGainImmediate, getActiveDeck,
@@ -500,7 +501,7 @@ export function PlayerBar() {
     hasScrobbledRef, scrobbleThresholdReachedRef,
     canPlayHandlerRef, errorHandlerRef,
     ensureGraphInitializedRef, consecutiveFailuresRef,
-    setIsPlaying, setIsLoading: (v: boolean) => setIsLoading(v),
+    setIsPlaying, setIsLoading,
     setCurrentTime, clearCrossfade,
   });
 
@@ -575,18 +576,21 @@ export function PlayerBar() {
       const inactive = activeDeckLabel === 'A' ? deckB : deckA;
       const inactiveDeckLabel: 'A' | 'B' = activeDeckLabel === 'A' ? 'B' : 'A';
 
-      if (!inactive.paused && !crossfadeInProgressRef.current && hasRealSong(inactive)) {
+      // Skip during crossfade or active stall recovery (recovery may have
+      // just swapped activeDeckRef, leaving the old deck mid-operation)
+      if (crossfadeInProgressRef.current) return;
+      if (recoveryAttemptRef.current > 0) return;
+
+      if (!inactive.paused && hasRealSong(inactive)) {
         console.warn(`[SAFETY] Deck ${inactiveDeckLabel} playing unexpectedly — stopping`);
         inactive.pause();
         inactive.currentTime = 0;
         setGainImmediate(inactiveDeckLabel, 0);
-        inactive.removeAttribute('src');
-        inactive.load();
       }
     }, 10000);
 
     return () => clearInterval(safetyInterval);
-  }, [deckARef, deckBRef, activeDeckRef, crossfadeInProgressRef, setGainImmediate]);
+  }, [deckARef, deckBRef, activeDeckRef, crossfadeInProgressRef, setGainImmediate, recoveryAttemptRef]);
 
   // Debug logging effect (only active when localStorage.debug=true)
   useEffect(() => {
