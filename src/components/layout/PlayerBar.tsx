@@ -485,7 +485,7 @@ export function PlayerBar() {
     setCurrentTime, setDuration, setIsLoading,
     nextSong, currentSong, currentSongIndex, playlist, volume,
     startCrossfade, attemptStallRecovery,
-    webAudioInitialized, setMasterVolume, setGainImmediate, getActiveDeck,
+    webAudioInitialized, setMasterVolume, getActiveDeck,
     queryClient, recordListeningHistory,
   });
 

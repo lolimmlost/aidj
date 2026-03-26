@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
 import { Song, type SetActiveDeckOptions } from './useDualDeckAudio';
 
@@ -51,6 +51,12 @@ export function useCrossfade({
   errorHandlerRef,
   setActiveDeck,
 }: UseCrossfadeOptions): UseCrossfadeReturn {
+  // Stable refs for callbacks to avoid startCrossfade recreating on every render
+  const onCrossfadeCompleteRef = useRef(onCrossfadeComplete);
+  const onCrossfadeAbortRef = useRef(onCrossfadeAbort);
+  useEffect(() => { onCrossfadeCompleteRef.current = onCrossfadeComplete; }, [onCrossfadeComplete]);
+  useEffect(() => { onCrossfadeAbortRef.current = onCrossfadeAbort; }, [onCrossfadeAbort]);
+
   // Crossfade state refs
   const crossfadeCanPlayFiredRef = useRef<boolean>(false);
   const crossfadeJustCompletedRef = useRef<boolean>(false);
@@ -130,7 +136,7 @@ export function useCrossfade({
         (activeDeck.currentTime >= activeDeck.duration - 0.5 || activeDeck.ended);
 
       if (songHasEnded) {
-        onCrossfadeAbort(nextSongData);
+        onCrossfadeAbortRef.current(nextSongData);
       }
     };
 
@@ -237,7 +243,7 @@ export function useCrossfade({
       nextSongPreloadedRef.current = false;
 
       // Notify callback
-      onCrossfadeComplete(song);
+      onCrossfadeCompleteRef.current(song);
 
       // Reset the "just completed" flag after a short delay
       setTimeout(() => {
@@ -283,7 +289,8 @@ export function useCrossfade({
         abortCrossfade('safety timeout exceeded');
       }
     }, (xfadeDuration + 5) * 1000);
-  }, [getActiveDeck, getInactiveDeck, activeDeckRef, crossfadeInProgressRef, onCrossfadeComplete, onCrossfadeAbort, clearCrossfade, canPlayHandlerRef, errorHandlerRef, scheduleGainRamp, cancelGainRamp, setGainImmediate, setActiveDeck]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- onCrossfadeComplete/onCrossfadeAbort accessed via stable refs
+  }, [getActiveDeck, getInactiveDeck, activeDeckRef, crossfadeInProgressRef, clearCrossfade, canPlayHandlerRef, errorHandlerRef, scheduleGainRamp, cancelGainRamp, setGainImmediate, setActiveDeck]);
 
   return {
     crossfadeJustCompletedRef,

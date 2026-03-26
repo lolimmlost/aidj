@@ -135,10 +135,20 @@ export function useSongLoader({
             }
           };
 
+          const recoveryError = (e: Event) => {
+            const errorDeck = e.target as HTMLAudioElement;
+            console.error('[NETWORK] Recovery audio load error:', errorDeck?.error);
+            audio.removeEventListener('canplay', recoveryCanPlay);
+            setIsLoading(false);
+          };
+
           canPlayHandlerRef.current = recoveryCanPlay;
-          // Listener is cleaned up via canPlayHandlerRef in the unmount effect
+          errorHandlerRef.current = recoveryError;
+          // Listeners are cleaned up via refs in the unmount effect
           // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
           audio.addEventListener('canplay', recoveryCanPlay);
+          // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
+          audio.addEventListener('error', recoveryError);
           setIsLoading(true);
           // eslint-disable-next-line react-hooks/immutability -- DOM element property, not React state
           audio.src = song.url;

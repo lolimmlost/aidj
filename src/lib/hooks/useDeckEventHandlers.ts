@@ -29,7 +29,6 @@ export interface UseDeckEventHandlersOptions {
   attemptStallRecovery: (audio: HTMLAudioElement, source: string) => Promise<boolean>;
   webAudioInitialized: boolean;
   setMasterVolume: (v: number) => void;
-  setGainImmediate: (deck: 'A' | 'B', value: number) => void;
   getActiveDeck: () => HTMLAudioElement | null;
   queryClient: QueryClient;
   recordListeningHistory: (
@@ -76,7 +75,6 @@ export function useDeckEventHandlers({
   attemptStallRecovery,
   webAudioInitialized,
   setMasterVolume,
-  setGainImmediate: _setGainImmediate,
   getActiveDeck,
   queryClient,
   recordListeningHistory,
@@ -358,5 +356,5 @@ export function useDeckEventHandlers({
       deckB.removeEventListener('stalled', onStalledB);
       deckB.removeEventListener('ended', onEndedB);
     };
-  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong, queryClient, startCrossfade, getActiveDeck, playlist, attemptStallRecovery, deckARef, deckBRef, activeDeckRef, crossfadeInProgressRef, lastProgressTimeRef, lastProgressValueRef, webAudioInitialized, setMasterVolume, _setGainImmediate, setActiveDeck, crossfadeAbortedAtRef, currentSongIdRef, playbackSnapshotRef, scrobbleThresholdReachedRef, hasScrobbledRef, setIsLoading, recordListeningHistory]);
+  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong, queryClient, startCrossfade, getActiveDeck, playlist, attemptStallRecovery, deckARef, deckBRef, activeDeckRef, crossfadeInProgressRef, lastProgressTimeRef, lastProgressValueRef, webAudioInitialized, setMasterVolume, setActiveDeck, crossfadeAbortedAtRef, currentSongIdRef, playbackSnapshotRef, scrobbleThresholdReachedRef, hasScrobbledRef, setIsLoading, recordListeningHistory]);
 }
