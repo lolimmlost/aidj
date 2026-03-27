@@ -233,6 +233,40 @@ export function useWebAudioGraph(): WebAudioGraph {
     return true;
   }, []);
 
+  // --- Periodic AudioContext health check ---
+  //
+  // Browsers may suspend the AudioContext silently (tab backgrounding, autoplay
+  // policy enforcement, resource reclamation). Once routed through
+  // createMediaElementSource, audio ONLY flows through the Web Audio graph —
+  // a suspended context means silence even though HTMLAudioElement keeps playing.
+  //
+  // This watchdog checks every 5s and auto-resumes if music should be audible.
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const intervalId = setInterval(() => {
+      const ctx = audioContextRef.current;
+      if (!ctx) return;
+
+      const state = ctx.state as string;
+      if (state === 'running') return;
+
+      // Only auto-resume if something should be playing
+      const { isPlaying } = useAudioStore.getState();
+      const deckA = deckAElementRef.current;
+      const deckB = deckBElementRef.current;
+      const eitherDeckPlaying = (deckA && !deckA.paused) || (deckB && !deckB.paused);
+
+      if (isPlaying || eitherDeckPlaying) {
+        console.log(`[WEB AUDIO] Health check: context "${state}" but audio should be playing — resuming`);
+        ctx.resume().catch((err) =>
+          console.warn('[WEB AUDIO] Health check resume failed:', (err as Error).message));
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [isInitialized]);
+
   // --- iOS AudioContext state recovery ---
   //
   // When audio is routed through createMediaElementSource, iOS may

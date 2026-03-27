@@ -249,6 +249,7 @@ export function PlayerBar() {
     cancelGainRamp,
     setGainImmediate,
     getGainValue,
+    resumeContext,
     onCrossfadeComplete: (song) => {
       // Record the outgoing (just-finished) song before advancing
       const outgoingSong = currentSong;

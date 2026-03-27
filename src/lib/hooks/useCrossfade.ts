@@ -11,6 +11,7 @@ export interface UseCrossfadeOptions {
   cancelGainRamp: (deck: 'A' | 'B') => void;
   setGainImmediate: (deck: 'A' | 'B', value: number) => void;
   getGainValue: (deck: 'A' | 'B') => number;
+  resumeContext: () => Promise<boolean>;
   onCrossfadeComplete: (nextSong: Song) => void;
   onCrossfadeAbort: (nextSong: Song | null) => void;
   canPlayHandlerRef?: React.MutableRefObject<(() => void) | null>;
@@ -45,6 +46,7 @@ export function useCrossfade({
   cancelGainRamp,
   setGainImmediate,
   getGainValue: _getGainValue,
+  resumeContext,
   onCrossfadeComplete,
   onCrossfadeAbort,
   canPlayHandlerRef,
@@ -98,6 +100,11 @@ export function useCrossfade({
 
     // Clear any existing timeout (safety check)
     clearCrossfade();
+
+    // Ensure AudioContext is running before crossfade — it may have been
+    // silently suspended by the browser (tab backgrounding, policy).
+    // Without this, gain ramps schedule on a suspended context and produce silence.
+    resumeContext();
 
     console.log(`🔀 [XFADE] Starting crossfade, duration=${xfadeDuration}s, from deck ${activeDeckLabel}`);
     crossfadeInProgressRef.current = true;
@@ -290,7 +297,7 @@ export function useCrossfade({
       }
     }, (xfadeDuration + 5) * 1000);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- onCrossfadeComplete/onCrossfadeAbort accessed via stable refs
-  }, [getActiveDeck, getInactiveDeck, activeDeckRef, crossfadeInProgressRef, clearCrossfade, canPlayHandlerRef, errorHandlerRef, scheduleGainRamp, cancelGainRamp, setGainImmediate, setActiveDeck]);
+  }, [getActiveDeck, getInactiveDeck, activeDeckRef, crossfadeInProgressRef, clearCrossfade, canPlayHandlerRef, errorHandlerRef, scheduleGainRamp, cancelGainRamp, setGainImmediate, setActiveDeck, resumeContext]);
 
   return {
     crossfadeJustCompletedRef,
