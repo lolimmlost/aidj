@@ -94,7 +94,7 @@
     "@eslint/js": "^9.34.0",
     "@playwright/test": "^1.57.0",
     "@tailwindcss/vite": "^4.1.12",
-    "@tanstack/devtools-vite": "^0.2.10",
+    "@tanstack/devtools-vite": "^0.6.0",
     "@tanstack/eslint-plugin-query": "^5.83.1",
     "@tanstack/eslint-plugin-router": "^1.161.6",
     "@testing-library/jest-dom": "^6.5.0",
