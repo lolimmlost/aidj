@@ -1,6 +1,6 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
-import { Song } from './useDualDeckAudio';
+import { Song, type SetActiveDeckOptions } from './useDualDeckAudio';
 
 export interface UseCrossfadeOptions {
   getActiveDeck: () => HTMLAudioElement | null;
@@ -11,10 +11,12 @@ export interface UseCrossfadeOptions {
   cancelGainRamp: (deck: 'A' | 'B') => void;
   setGainImmediate: (deck: 'A' | 'B', value: number) => void;
   getGainValue: (deck: 'A' | 'B') => number;
+  resumeContext: () => Promise<boolean>;
   onCrossfadeComplete: (nextSong: Song) => void;
   onCrossfadeAbort: (nextSong: Song | null) => void;
   canPlayHandlerRef?: React.MutableRefObject<(() => void) | null>;
   errorHandlerRef?: React.MutableRefObject<((e: Event) => void) | null>;
+  setActiveDeck: (deck: 'A' | 'B', reason: string, opts?: SetActiveDeckOptions) => boolean;
 }
 
 export interface UseCrossfadeReturn {
@@ -44,11 +46,19 @@ export function useCrossfade({
   cancelGainRamp,
   setGainImmediate,
   getGainValue: _getGainValue,
+  resumeContext,
   onCrossfadeComplete,
   onCrossfadeAbort,
   canPlayHandlerRef,
   errorHandlerRef,
+  setActiveDeck,
 }: UseCrossfadeOptions): UseCrossfadeReturn {
+  // Stable refs for callbacks to avoid startCrossfade recreating on every render
+  const onCrossfadeCompleteRef = useRef(onCrossfadeComplete);
+  const onCrossfadeAbortRef = useRef(onCrossfadeAbort);
+  useEffect(() => { onCrossfadeCompleteRef.current = onCrossfadeComplete; }, [onCrossfadeComplete]);
+  useEffect(() => { onCrossfadeAbortRef.current = onCrossfadeAbort; }, [onCrossfadeAbort]);
+
   // Crossfade state refs
   const crossfadeCanPlayFiredRef = useRef<boolean>(false);
   const crossfadeJustCompletedRef = useRef<boolean>(false);
@@ -91,6 +101,11 @@ export function useCrossfade({
     // Clear any existing timeout (safety check)
     clearCrossfade();
 
+    // Ensure AudioContext is running before crossfade — it may have been
+    // silently suspended by the browser (tab backgrounding, policy).
+    // Without this, gain ramps schedule on a suspended context and produce silence.
+    resumeContext();
+
     console.log(`🔀 [XFADE] Starting crossfade, duration=${xfadeDuration}s, from deck ${activeDeckLabel}`);
     crossfadeInProgressRef.current = true;
     crossfadeCanPlayFiredRef.current = false;
@@ -128,7 +143,7 @@ export function useCrossfade({
         (activeDeck.currentTime >= activeDeck.duration - 0.5 || activeDeck.ended);
 
       if (songHasEnded) {
-        onCrossfadeAbort(nextSongData);
+        onCrossfadeAbortRef.current(nextSongData);
       }
     };
 
@@ -202,7 +217,7 @@ export function useCrossfade({
       oldDeck.currentTime = 0;
 
       // Swap active deck
-      activeDeckRef.current = newDeckLabel;
+      setActiveDeck(newDeckLabel, 'crossfade-complete', { bypassCooldown: true });
 
       console.log(`[XFADE] Crossfade complete, active deck is now ${newDeckLabel}`);
 
@@ -235,7 +250,7 @@ export function useCrossfade({
       nextSongPreloadedRef.current = false;
 
       // Notify callback
-      onCrossfadeComplete(song);
+      onCrossfadeCompleteRef.current(song);
 
       // Reset the "just completed" flag after a short delay
       setTimeout(() => {
@@ -281,7 +296,8 @@ export function useCrossfade({
         abortCrossfade('safety timeout exceeded');
       }
     }, (xfadeDuration + 5) * 1000);
-  }, [getActiveDeck, getInactiveDeck, activeDeckRef, crossfadeInProgressRef, onCrossfadeComplete, onCrossfadeAbort, clearCrossfade, canPlayHandlerRef, errorHandlerRef, scheduleGainRamp, cancelGainRamp, setGainImmediate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- onCrossfadeComplete/onCrossfadeAbort accessed via stable refs
+  }, [getActiveDeck, getInactiveDeck, activeDeckRef, crossfadeInProgressRef, clearCrossfade, canPlayHandlerRef, errorHandlerRef, scheduleGainRamp, cancelGainRamp, setGainImmediate, setActiveDeck, resumeContext]);
 
   return {
     crossfadeJustCompletedRef,

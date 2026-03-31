@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
+import { hasRealSong, type SetActiveDeckOptions } from './useDualDeckAudio';
 
 export interface UsePlaybackStateSyncOptions {
   deckARef: React.RefObject<HTMLAudioElement | null>;
@@ -11,6 +12,7 @@ export interface UsePlaybackStateSyncOptions {
   attemptStallRecovery: (audio: HTMLAudioElement, source: string) => Promise<boolean>;
   lastProgressTimeRef: React.RefObject<number>;
   lastProgressValueRef: React.RefObject<number>;
+  setActiveDeck: (deck: 'A' | 'B', reason: string, opts?: SetActiveDeckOptions) => boolean;
 }
 
 /**
@@ -33,6 +35,7 @@ export function usePlaybackStateSync({
   attemptStallRecovery,
   lastProgressTimeRef,
   lastProgressValueRef,
+  setActiveDeck,
 }: UsePlaybackStateSyncOptions): void {
   const { setIsPlaying } = useAudioStore();
 
@@ -42,21 +45,15 @@ export function usePlaybackStateSync({
     const deckB = deckBRef.current;
     if (!deckA || !deckB) return;
 
-    // Helper to check if a deck has a real song (not silent data URL)
-    const hasRealSong = (deck: HTMLAudioElement) =>
-      deck.src && deck.src.indexOf('data:audio') === -1;
-
     // CRITICAL: Check if activeDeckRef is pointing to the wrong deck
     const deckAWasPlaying = deckA.currentTime > 0 && hasRealSong(deckA);
     const deckBWasPlaying = deckB.currentTime > 0 && hasRealSong(deckB);
 
     // Correct activeDeckRef based on which deck has actually been playing
     if (deckBWasPlaying && !deckAWasPlaying && activeDeckRef.current === 'A') {
-      console.log('🎮 [STORE] Correcting activeDeckRef: Deck B has progress but ref says A');
-      activeDeckRef.current = 'B';
+      setActiveDeck('B', 'mount-correction: deck B has progress');
     } else if (deckAWasPlaying && !deckBWasPlaying && activeDeckRef.current === 'B') {
-      console.log('🎮 [STORE] Correcting activeDeckRef: Deck A has progress but ref says B');
-      activeDeckRef.current = 'A';
+      setActiveDeck('A', 'mount-correction: deck A has progress');
     }
 
     const audio = activeDeckRef.current === 'A' ? deckA : deckB;
@@ -180,7 +177,7 @@ export function usePlaybackStateSync({
         }
       });
     }
-  }, [isPlaying, setIsPlaying, deckARef, deckBRef, activeDeckRef, lastProgressTimeRef]);
+  }, [isPlaying, setIsPlaying, deckARef, deckBRef, activeDeckRef, lastProgressTimeRef, setActiveDeck]);
 
   // Visibility change recovery
   useEffect(() => {
@@ -191,9 +188,6 @@ export function usePlaybackStateSync({
       const deckB = deckBRef.current;
       if (!deckA || !deckB) return;
 
-      const hasRealSong = (deck: HTMLAudioElement) =>
-        deck.src && deck.src.indexOf('data:audio') === -1;
-
       // eslint-disable-next-line @eslint-react/web-api/no-leaked-timeout -- one-shot delay inside event handler, no cleanup needed
       setTimeout(() => {
         // Use currentTime > 0 as the PRIMARY signal for which deck was playing
@@ -202,11 +196,9 @@ export function usePlaybackStateSync({
 
         // Fix activeDeckRef based on which deck has actual playback progress
         if (deckBHasProgress && !deckAHasProgress && activeDeckRef.current === 'A') {
-          console.log('👁️ [VISIBILITY] Correcting activeDeckRef: Deck B has progress but ref says A');
-          activeDeckRef.current = 'B';
+          setActiveDeck('B', 'visibility-correction: deck B has progress');
         } else if (deckAHasProgress && !deckBHasProgress && activeDeckRef.current === 'B') {
-          console.log('👁️ [VISIBILITY] Correcting activeDeckRef: Deck A has progress but ref says B');
-          activeDeckRef.current = 'A';
+          setActiveDeck('A', 'visibility-correction: deck A has progress');
         }
 
         const activeDeck = activeDeckRef.current === 'A' ? deckA : deckB;
@@ -291,7 +283,7 @@ export function usePlaybackStateSync({
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [setIsPlaying, attemptStallRecovery, checkAndResumeAudioContext, deckARef, deckBRef, activeDeckRef, lastProgressTimeRef, lastProgressValueRef]);
+  }, [setIsPlaying, attemptStallRecovery, checkAndResumeAudioContext, deckARef, deckBRef, activeDeckRef, lastProgressTimeRef, lastProgressValueRef, setActiveDeck]);
 
   // Playback state preservation (beforeunload, pagehide, visibility hidden)
   // Uses a flag to prevent triple-save on iOS (visibilitychange + pagehide + beforeunload

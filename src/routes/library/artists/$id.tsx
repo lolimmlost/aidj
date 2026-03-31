@@ -104,6 +104,18 @@ function ArtistDetail() {
     enabled: !!artist?.name,
   });
 
+  // Fetch unified artist images (Aurral + Deezer) for fallback
+  const { data: savedArtistImages = {} } = useQuery({
+    queryKey: ['all-artist-images'],
+    queryFn: async () => {
+      const res = await fetch('/api/cover-art/all-artist-images');
+      if (!res.ok) return {};
+      const json = await res.json();
+      return (json.data?.images || {}) as Record<string, string>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
   const songIds = songs.map(song => song.id);
   const { data: feedbackData } = useSongFeedback(songIds);
   const feedback = feedbackData?.feedback || {};
@@ -345,7 +357,7 @@ function ArtistDetail() {
         {artistMetadata && (
           <ArtistMetadataHero
             metadata={artistMetadata}
-            artistImageUrl={`/api/navidrome/rest/getCoverArt?id=${id}&size=300`}
+            artistImageUrl={artistMetadata?.coverImageUrl || savedArtistImages[artistName?.toLowerCase() || ''] || undefined}
           />
         )}
 

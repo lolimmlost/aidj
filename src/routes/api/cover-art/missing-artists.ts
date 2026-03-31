@@ -8,6 +8,7 @@ import { eq, and, sql, desc, isNull } from 'drizzle-orm';
 import { db } from '../../../lib/db';
 import { listeningHistory } from '../../../lib/db/schema/listening-history.schema';
 import { savedCoverArt } from '../../../lib/db/schema/saved-cover-art.schema';
+import { artistMetadataCache } from '../../../lib/db/schema/artist-metadata.schema';
 import {
   withAuthAndErrorHandling,
   successResponse,
@@ -20,6 +21,7 @@ const GET = withAuthAndErrorHandling(
     const includeSaved = url.searchParams.get('includeSaved') === 'true';
 
     // Query distinct artists from listening history with play counts
+    // Excludes artists that have either a saved Deezer image or an Aurral metadata image
     const artists = await db
       .select({
         artist: listeningHistory.artist,
@@ -35,16 +37,28 @@ const GET = withAuthAndErrorHandling(
           eq(savedCoverArt.entityType, 'artist')
         )
       )
+      .leftJoin(
+        artistMetadataCache,
+        eq(
+          artistMetadataCache.artistNameNormalized,
+          sql`lower(${listeningHistory.artist})`
+        )
+      )
       .where(
         and(
           eq(listeningHistory.userId, userId),
-          ...(includeSaved ? [] : [isNull(savedCoverArt.imageUrl)])
+          ...(includeSaved ? [] : [
+            isNull(savedCoverArt.imageUrl),
+            isNull(artistMetadataCache.coverImageUrl),
+          ])
         )
       )
       .groupBy(
         listeningHistory.artist,
         savedCoverArt.imageUrl,
-        savedCoverArt.source
+        savedCoverArt.source,
+        artistMetadataCache.coverImageUrl,
+        artistMetadataCache.artistNameNormalized
       )
       .orderBy(desc(sql`count(*)`))
       .limit(200);

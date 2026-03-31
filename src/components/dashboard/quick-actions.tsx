@@ -4,9 +4,12 @@
  * Navigates to /dashboard/generate with preset param
  */
 
+import { useState, useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Sparkles, Zap, PartyPopper, Target, Compass, Music, Loader2 } from 'lucide-react';
+import { Sparkles, Zap, PartyPopper, Target, Compass, Music, Loader2, Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAudioStore } from '@/lib/stores/audio';
+import { toast } from '@/lib/toast';
 
 export interface StylePreset {
   id: string;
@@ -84,6 +87,7 @@ export function QuickActions({
   className,
 }: QuickActionsProps) {
   const navigate = useNavigate();
+  const [radioLoading, setRadioLoading] = useState(false);
 
   const handlePresetClick = (preset: StylePreset) => {
     // If a custom handler is provided (e.g., from generate page), use it
@@ -94,6 +98,30 @@ export function QuickActions({
     // Default: navigate to generate page with preset
     navigate({ to: '/dashboard/generate', search: { preset: preset.id } });
   };
+
+  const handleStartRadio = useCallback(async () => {
+    setRadioLoading(true);
+    try {
+      const res = await fetch('/api/radio/shuffle', { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch radio songs');
+      const json = await res.json();
+      const songs = json.data?.songs || [];
+      if (songs.length === 0) {
+        toast.error('No songs available for radio');
+        return;
+      }
+      const audioStore = useAudioStore.getState();
+      audioStore.setIsRadioSession(true);
+      audioStore.setPlaylist(songs);
+      audioStore.playSong(songs[0].id, songs);
+      audioStore.setIsPlaying(true);
+      toast.success(`Radio started with ${songs.length} songs`);
+    } catch {
+      toast.error('Failed to start radio');
+    } finally {
+      setRadioLoading(false);
+    }
+  }, []);
 
   return (
     <section className={cn('space-y-4', className)}>
@@ -121,10 +149,23 @@ export function QuickActions({
               compact
             />
           ))}
+          <button
+            onClick={handleStartRadio}
+            disabled={radioLoading}
+            className={cn(
+              'relative inline-flex items-center gap-2 px-4 py-2.5 rounded-full shrink-0',
+              'cursor-pointer transition-all duration-200 active:scale-95',
+              'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-sm',
+              radioLoading && 'animate-pulse'
+            )}
+          >
+            {radioLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radio className="h-4 w-4" />}
+            <span className="font-semibold text-sm whitespace-nowrap">Shuffle</span>
+          </button>
       </div>
 
       {/* Desktop: grid */}
-      <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-children">
+      <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-7 gap-3 stagger-children">
         {STYLE_PRESETS.map((preset) => (
           <MoodCard
             key={preset.id}
@@ -134,6 +175,22 @@ export function QuickActions({
             onClick={() => handlePresetClick(preset)}
           />
         ))}
+        <button
+          onClick={handleStartRadio}
+          disabled={radioLoading}
+          className={cn(
+            'mood-card bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white',
+            radioLoading && 'animate-pulse'
+          )}
+        >
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <div className="opacity-90 [&_svg]:h-4 [&_svg]:w-4">
+              {radioLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radio className="h-4 w-4" />}
+            </div>
+            <h3 className="font-bold text-sm leading-tight">Shuffle</h3>
+          </div>
+          <p className="text-[10px] opacity-75 leading-tight">Radio mix</p>
+        </button>
       </div>
     </section>
   );

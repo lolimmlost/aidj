@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { db } from '@/lib/db';
 import { userPreferences } from '@/lib/db/schema/preferences.schema';
+import { coverArtFetchJobs } from '@/lib/db/schema/cover-art-jobs.schema';
 import { eq, sql } from 'drizzle-orm';
 import {
   withAuthAndErrorHandling,
@@ -9,6 +10,7 @@ import {
 } from '@/lib/utils/api-response';
 import { calculateFullUserProfile } from '@/lib/services/compound-scoring';
 import { getBackgroundDiscoveryManager } from '@/lib/services/background-discovery';
+import { processAlbumsInBackground, processArtistsInBackground } from '@/lib/services/cover-art-auto-fetch';
 
 const POST = withAuthAndErrorHandling(
   async ({ session }) => {
@@ -54,6 +56,26 @@ const POST = withAuthAndErrorHandling(
       .catch((err) =>
         console.error('[onboarding/complete] Failed to trigger background discovery:', err)
       );
+
+    // Fire-and-forget: auto-fetch cover art from Deezer
+    const albumJobId = crypto.randomUUID();
+    const artistJobId = crypto.randomUUID();
+
+    await db.insert(coverArtFetchJobs).values([
+      { id: albumJobId, userId, type: 'albums', status: 'processing' as const, total: 0, processed: 0, found: 0, notFound: 0, errors: 0 },
+      { id: artistJobId, userId, type: 'artists', status: 'processing' as const, total: 0, processed: 0, found: 0, notFound: 0, errors: 0 },
+    ]);
+
+    setImmediate(() => {
+      processAlbumsInBackground(albumJobId, userId).catch(err =>
+        console.error('[onboarding/complete] Cover art album fetch failed:', err)
+      );
+    });
+    setImmediate(() => {
+      processArtistsInBackground(artistJobId, userId).catch(err =>
+        console.error('[onboarding/complete] Cover art artist fetch failed:', err)
+      );
+    });
 
     return successResponse({ success: true });
   },

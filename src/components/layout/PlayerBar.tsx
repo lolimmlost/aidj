@@ -35,13 +35,15 @@ import { ResumePlaybackPrompt } from './ResumePlaybackPrompt';
 import { FullscreenPlayer } from './FullscreenPlayer';
 
 // Import extracted hooks
-import { useDualDeckAudio, Song, SILENT_AUDIO_DATA_URL } from '@/lib/hooks/useDualDeckAudio';
+import { useDualDeckAudio, hasRealSong, Song } from '@/lib/hooks/useDualDeckAudio';
 import { useCrossfade } from '@/lib/hooks/useCrossfade';
 import { useStallRecovery } from '@/lib/hooks/useStallRecovery';
 import { useMediaSession } from '@/lib/hooks/useMediaSession';
 import { usePlayerKeyboardShortcuts } from '@/lib/hooks/usePlayerKeyboardShortcuts';
 import { usePlaybackStateSync } from '@/lib/hooks/usePlaybackStateSync';
 import { useWebAudioGraph } from '@/lib/hooks/useWebAudioGraph';
+import { useDeckEventHandlers } from '@/lib/hooks/useDeckEventHandlers';
+import { useSongLoader } from '@/lib/hooks/useSongLoader';
 
 // Helper function for time formatting
 const formatTime = (time: number) => {
@@ -74,6 +76,7 @@ export function PlayerBar() {
     activeDeckRef,
     getActiveDeck,
     getInactiveDeck,
+    setActiveDeck,
   } = useDualDeckAudio();
 
   // Web Audio API graph for crossfade via GainNodes
@@ -246,6 +249,7 @@ export function PlayerBar() {
     cancelGainRamp,
     setGainImmediate,
     getGainValue,
+    resumeContext,
     onCrossfadeComplete: (song) => {
       // Record the outgoing (just-finished) song before advancing
       const outgoingSong = currentSong;
@@ -293,10 +297,12 @@ export function PlayerBar() {
     },
     canPlayHandlerRef,
     errorHandlerRef,
+    setActiveDeck,
   });
 
   // Stall recovery hook (uses shared crossfadeInProgressRef)
   const {
+    recoveryAttemptRef,
     lastProgressTimeRef,
     lastProgressValueRef,
     attemptStallRecovery,
@@ -470,506 +476,36 @@ export function PlayerBar() {
     }
   }, [setVolume, getActiveDeck, webAudioInitialized, setMasterVolume]);
 
-  // Audio event listeners for BOTH decks
-  useEffect(() => {
-    const deckA = deckARef.current;
-    const deckB = deckBRef.current;
-    if (!deckA || !deckB) return;
+  // Audio event listeners for BOTH decks (extracted hook)
+  useDeckEventHandlers({
+    deckARef, deckBRef, activeDeckRef, setActiveDeck,
+    crossfadeInProgressRef, crossfadeAbortedAtRef,
+    currentSongIdRef, playbackSnapshotRef,
+    scrobbleThresholdReachedRef, hasScrobbledRef,
+    lastProgressTimeRef, lastProgressValueRef,
+    setCurrentTime, setDuration, setIsLoading,
+    nextSong, currentSong, currentSongIndex, playlist, volume,
+    startCrossfade, attemptStallRecovery,
+    webAudioInitialized, setMasterVolume, getActiveDeck,
+    queryClient, recordListeningHistory,
+  });
+
+
+  // Load song when it changes (extracted hook)
+  useSongLoader({
+    playlist: playlist as Song[],
+    currentSongIndex, getActiveDeck, loadSong, setActiveDeck,
+    crossfadeInProgressRef, crossfadeJustCompletedRef,
+    deckARef, deckBRef, activeDeckRef,
+    lastProgressTimeRef, lastProgressValueRef,
+    currentSongIdRef, playbackSnapshotRef,
+    hasScrobbledRef, scrobbleThresholdReachedRef,
+    canPlayHandlerRef, errorHandlerRef,
+    ensureGraphInitializedRef, consecutiveFailuresRef,
+    setIsPlaying, setIsLoading,
+    setCurrentTime, clearCrossfade,
+  });
 
-    // Helper to check if a deck has a real song (not silent data URL)
-    const hasRealSong = (d: HTMLAudioElement) =>
-      d.src && d.src.indexOf('data:audio') === -1;
-
-    // Create handlers that check if the event came from the active deck
-    const createUpdateTime = (deck: HTMLAudioElement, deckName: 'A' | 'B') => () => {
-      // CRITICAL FIX: If this deck is playing with progress but isn't marked as active,
-      // auto-correct activeDeckRef. This can happen after crossfade or component remount.
-      if (activeDeckRef.current !== deckName) {
-        if (!deck.paused && deck.currentTime > 1 && hasRealSong(deck) && !crossfadeInProgressRef.current) {
-          console.log(`⚠️ [DESYNC] Deck ${deckName} is playing at ${deck.currentTime.toFixed(1)}s but activeDeckRef=${activeDeckRef.current} - auto-correcting`);
-          activeDeckRef.current = deckName;
-        } else {
-          return; // Not the active deck and not a desync situation
-        }
-      }
-
-      setCurrentTime(deck.currentTime);
-
-      // Keep the playback snapshot up-to-date so handleNextSong can read the
-      // real position even after the deck has been reassigned on a rapid skip.
-      playbackSnapshotRef.current = { currentTime: deck.currentTime, duration: deck.duration || 0, songId: currentSongIdRef.current };
-
-      // CRITICAL: Always update lastProgressValueRef for recovery purposes
-      // This ensures we have the correct position even if watchdog isn't running
-      if (deck.currentTime > 0 && !deck.paused) {
-        lastProgressTimeRef.current = Date.now();
-        lastProgressValueRef.current = deck.currentTime;
-      }
-
-      // Use the audio element's duration when finite, otherwise fall back
-      // to the store's metadata duration (set from song metadata at load time).
-      // Transcoded/chunked streams report Infinity because there's no Content-Length.
-      const storeDuration = useAudioStore.getState().duration;
-      const effectiveDuration = (isFinite(deck.duration) && deck.duration > 0)
-        ? deck.duration
-        : (storeDuration > 0 ? storeDuration : 0);
-
-      if (effectiveDuration > 0 && currentSong) {
-        const playedPercentage = (deck.currentTime / effectiveDuration) * 100;
-        if (playedPercentage >= 50 && !scrobbleThresholdReachedRef.current) {
-          scrobbleThresholdReachedRef.current = true;
-        }
-
-        // CROSSFADE: Check if we should start crossfade
-        const timeRemaining = effectiveDuration - deck.currentTime;
-        const xfadeDuration = useAudioStore.getState().crossfadeDuration;
-
-        // Cooldown: don't re-trigger crossfade within 10s of an abort
-        // (the abort already called nextSong — the old deck is finishing its last moments)
-        const crossfadeCooldownActive = Date.now() - crossfadeAbortedAtRef.current < 10000;
-
-        if (xfadeDuration > 0 && timeRemaining <= xfadeDuration && timeRemaining > 0.5 && !crossfadeInProgressRef.current && !crossfadeCooldownActive) {
-          const currentRepeatMode = useAudioStore.getState().repeatMode;
-
-          // Don't crossfade when repeat-one is active — the onEnded handler
-          // will seek back to 0 and replay the same song
-          if (currentRepeatMode !== 'one') {
-            const isLastSong = currentSongIndex + 1 >= playlist.length;
-
-            // Don't crossfade at end of playlist when repeat is off — let it stop naturally
-            if (!isLastSong || currentRepeatMode === 'all' || useAudioStore.getState().isShuffled) {
-              const nextIndex = (currentSongIndex + 1) % playlist.length;
-              const nextSongData = playlist[nextIndex] as Song;
-
-              if (nextSongData && playlist.length > 1) {
-                startCrossfade(nextSongData, xfadeDuration);
-              }
-            }
-          }
-        }
-
-        // SAFETY NET: When audio duration is Infinity (chunked/transcoded stream)
-        // but we have metadata duration, detect end-of-song and advance manually.
-        // The browser won't fire 'ended' when duration is Infinity.
-        if (!isFinite(deck.duration) && timeRemaining <= 0.5 && !crossfadeInProgressRef.current) {
-          console.log(`⏭️ [INFINITY] Song reached metadata duration (${effectiveDuration.toFixed(1)}s) with Infinity audio duration — triggering end-of-song`);
-          deck.pause();
-          nextSong();
-        }
-      }
-    };
-
-    const createUpdateDuration = (deck: HTMLAudioElement, deckName: 'A' | 'B') => () => {
-      if (activeDeckRef.current !== deckName) return;
-      // Guard against Infinity duration from streaming audio where content-length
-      // is unknown. Keep the metadata duration from loadSong instead.
-      if (!isFinite(deck.duration) || deck.duration <= 0) return;
-      setDuration(deck.duration);
-    };
-
-    const createOnCanPlay = (deckName: 'A' | 'B') => () => {
-      if (activeDeckRef.current !== deckName) return;
-      setIsLoading(false);
-    };
-
-    const createOnWaiting = (deckName: 'A' | 'B') => () => {
-      if (activeDeckRef.current !== deckName) return;
-      setIsLoading(true);
-    };
-
-    // Stalled event handler
-    const lastStalledTimeRef = { current: 0 };
-    const createOnStalled = (deck: HTMLAudioElement, deckName: 'A' | 'B') => () => {
-      if (activeDeckRef.current !== deckName) return;
-      if (deck.paused) return;
-      if (deck.currentTime < 2) return;
-      if (crossfadeInProgressRef.current) return;
-
-      const now = Date.now();
-      if (now - lastStalledTimeRef.current < 10000) return;
-      lastStalledTimeRef.current = now;
-
-      const bufferedEnd = deck.buffered.length > 0
-        ? deck.buffered.end(deck.buffered.length - 1)
-        : 0;
-
-      if (deck.currentTime >= bufferedEnd - 1) {
-        console.log(`🔴 [STALLED EVENT] Deck ${deckName} genuinely stalled at ${deck.currentTime.toFixed(1)}s`);
-        attemptStallRecovery(deck, 'stalled-event');
-      }
-    };
-
-    const createOnEnded = (deck: HTMLAudioElement, deckName: 'A' | 'B') => () => {
-      if (activeDeckRef.current !== deckName) return;
-
-      // Ignore ENDED events for very short audio (e.g., silent data URL)
-      if (deck.duration && deck.duration < 5) {
-        console.log(`[MOBILE] Ignoring ended event for short audio`);
-        deck.pause();
-        deck.currentTime = 0;
-        return;
-      }
-
-      // If crossfade already handled the transition, skip
-      if (crossfadeInProgressRef.current) {
-        console.log(`[XFADE] onEnded fired but crossfade in progress, skipping`);
-        return;
-      }
-
-      // If a crossfade abort just handled the transition, skip
-      // (the abort already called nextSong — this ended event is for the old deck)
-      if (Date.now() - crossfadeAbortedAtRef.current < 3000) {
-        console.log(`[XFADE] onEnded fired but crossfade abort recently handled transition, skipping`);
-        return;
-      }
-
-      if (currentSongIdRef.current && !hasScrobbledRef.current && currentSong) {
-        hasScrobbledRef.current = true;
-        scrobbleSong(currentSongIdRef.current, true)
-          .then(() => {
-            queryClient.invalidateQueries({ queryKey: ['most-played-songs'] });
-            queryClient.invalidateQueries({ queryKey: ['top-artists'] });
-          })
-          .catch(console.error);
-
-        // Record in listening history
-        recordListeningHistory(currentSong, currentSongIdRef.current, deck.currentTime, deck.duration);
-      }
-
-      // Repeat-one (or repeat-all with single song): restart the same track
-      const currentRepeatMode = useAudioStore.getState().repeatMode;
-      const isSingleSongRepeatAll = currentRepeatMode === 'all' && useAudioStore.getState().playlist.length === 1;
-
-      if (currentRepeatMode === 'one' || isSingleSongRepeatAll) {
-        // After 'ended', browsers put the element in a finished state.
-        // Use a microtask to let the browser settle, then seek + play.
-        // Also re-load if readyState dropped (can happen on mobile).
-        const restartDeck = () => {
-          deck.currentTime = 0;
-          setCurrentTime(0);
-          if (deck.readyState >= 2) {
-            deck.play().catch((err) => {
-              console.warn('[REPEAT] play() after restart failed:', err.message);
-            });
-          } else {
-            // Deck lost data — re-trigger load then play on canplay
-            const onReady = () => {
-              deck.removeEventListener('canplay', onReady);
-              deck.play().catch(() => {});
-            };
-            deck.addEventListener('canplay', onReady);
-            deck.load();
-          }
-        };
-
-        // Microtask delay lets the browser finish processing the 'ended' event
-        setTimeout(restartDeck, 0);
-        return;
-      }
-
-      // Let the useEffect watching currentSongIndex handle loading the next song.
-      // Don't manually set deck.src here — it races with the effect and causes
-      // "The operation was aborted" errors.
-      nextSong();
-    };
-
-    // Create handlers for each deck
-    const updateTimeA = createUpdateTime(deckA, 'A');
-    const updateTimeB = createUpdateTime(deckB, 'B');
-    const updateDurationA = createUpdateDuration(deckA, 'A');
-    const updateDurationB = createUpdateDuration(deckB, 'B');
-    const onCanPlayA = createOnCanPlay('A');
-    const onCanPlayB = createOnCanPlay('B');
-    const onWaitingA = createOnWaiting('A');
-    const onWaitingB = createOnWaiting('B');
-    const onStalledA = createOnStalled(deckA, 'A');
-    const onStalledB = createOnStalled(deckB, 'B');
-    const onEndedA = createOnEnded(deckA, 'A');
-    const onEndedB = createOnEnded(deckB, 'B');
-
-    // Register listeners on both decks
-    deckA.addEventListener('timeupdate', updateTimeA);
-    deckA.addEventListener('loadedmetadata', updateDurationA);
-    deckA.addEventListener('durationchange', updateDurationA);
-    deckA.addEventListener('canplay', onCanPlayA);
-    deckA.addEventListener('waiting', onWaitingA);
-    deckA.addEventListener('stalled', onStalledA);
-    deckA.addEventListener('ended', onEndedA);
-
-    deckB.addEventListener('timeupdate', updateTimeB);
-    deckB.addEventListener('loadedmetadata', updateDurationB);
-    deckB.addEventListener('durationchange', updateDurationB);
-    deckB.addEventListener('canplay', onCanPlayB);
-    deckB.addEventListener('waiting', onWaitingB);
-    deckB.addEventListener('stalled', onStalledB);
-    deckB.addEventListener('ended', onEndedB);
-
-    // Set initial volume — use masterGain when Web Audio is initialized, else element.volume
-    if (webAudioInitialized) {
-      setMasterVolume(volume);
-    } else {
-      const activeDeck = getActiveDeck();
-      if (activeDeck && !crossfadeInProgressRef.current) {
-        activeDeck.volume = volume;
-      }
-    }
-
-    return () => {
-      deckA.removeEventListener('timeupdate', updateTimeA);
-      deckA.removeEventListener('loadedmetadata', updateDurationA);
-      deckA.removeEventListener('durationchange', updateDurationA);
-      deckA.removeEventListener('canplay', onCanPlayA);
-      deckA.removeEventListener('waiting', onWaitingA);
-      deckA.removeEventListener('stalled', onStalledA);
-      deckA.removeEventListener('ended', onEndedA);
-
-      deckB.removeEventListener('timeupdate', updateTimeB);
-      deckB.removeEventListener('loadedmetadata', updateDurationB);
-      deckB.removeEventListener('durationchange', updateDurationB);
-      deckB.removeEventListener('canplay', onCanPlayB);
-      deckB.removeEventListener('waiting', onWaitingB);
-      deckB.removeEventListener('stalled', onStalledB);
-      deckB.removeEventListener('ended', onEndedB);
-    };
-  }, [volume, currentSongIndex, setCurrentTime, setDuration, nextSong, currentSong, queryClient, startCrossfade, getActiveDeck, playlist, attemptStallRecovery, deckARef, deckBRef, activeDeckRef, crossfadeInProgressRef, lastProgressTimeRef, lastProgressValueRef, webAudioInitialized, setMasterVolume, setGainImmediate]);
-
-  // Load song when it changes
-  /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- loading state is set during async song load/recovery */
-  useEffect(() => {
-    if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {
-      const song = playlist[currentSongIndex] as Song;
-      const audio = getActiveDeck();
-
-      // Skip if crossfade is in progress
-      if (crossfadeInProgressRef.current) {
-        console.log(`[XFADE] Skipping loadSong - crossfade in progress`);
-        return;
-      }
-
-      // Skip if crossfade just completed
-      if (crossfadeJustCompletedRef.current) {
-        console.log(`[XFADE] Skipping loadSong - crossfade just completed`);
-        return;
-      }
-
-      // Skip if song ID already matches AND audio actually has data loaded
-      if (audio && song && currentSongIdRef.current === song.id) {
-        if (audio.readyState > 0) {
-          console.log(`[MOBILE] Skipping loadSong - already loaded`);
-          return;
-        }
-
-        // Check if we have saved progress to recover to
-        const storeState = useAudioStore.getState();
-        const savedProgress = lastProgressValueRef.current > 0
-          ? lastProgressValueRef.current
-          : storeState.currentTime;
-
-        // If no saved progress, this is a new song load (not recovery) - let loadSong handle it
-        if (savedProgress <= 0) {
-          console.log(`[NETWORK] Song ID matches but no saved progress - this is a new song load, skipping recovery`);
-          // Fall through to normal loadSong path below
-        } else {
-          // RECOVERY: Browser reclaimed audio resources while tab was backgrounded
-          const wasPlaying = storeState.isPlaying;
-          console.log(`[NETWORK] Song ID matches but audio empty (readyState=${audio.readyState}) - recovering to ${savedProgress.toFixed(1)}s (wasPlaying=${wasPlaying})`);
-
-          if (canPlayHandlerRef.current) {
-            audio.removeEventListener('canplay', canPlayHandlerRef.current);
-          }
-          if (errorHandlerRef.current) {
-            audio.removeEventListener('error', errorHandlerRef.current);
-          }
-
-          const recoveryCanPlay = () => {
-            audio.removeEventListener('canplay', recoveryCanPlay);
-            setIsLoading(false);
-            if (savedProgress > 0) {
-              audio.currentTime = savedProgress;
-              // Update lastProgressValueRef so it has the correct position after recovery
-              lastProgressValueRef.current = savedProgress;
-              lastProgressTimeRef.current = Date.now();
-            }
-            if (wasPlaying) {
-              ensureGraphInitializedRef.current();
-              audio.play()
-                .then(() => {
-                  console.log(`[NETWORK] Recovery successful - resumed at ${savedProgress.toFixed(1)}s`);
-                  setIsPlaying(true);
-                })
-                .catch(() => setIsPlaying(false));
-            }
-          };
-
-          canPlayHandlerRef.current = recoveryCanPlay;
-          // Listener is cleaned up via canPlayHandlerRef in the unmount effect
-          // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
-          audio.addEventListener('canplay', recoveryCanPlay);
-          setIsLoading(true);
-          // eslint-disable-next-line react-hooks/immutability -- DOM element property, not React state
-          audio.src = song.url;
-          audio.load();
-          return;
-        }
-      }
-
-      // REMOUNT RECOVERY: Check if either deck already has this song loaded
-      const deckA = deckARef.current;
-      const deckB = deckBRef.current;
-      const deckAHasSong = deckA && deckA.currentTime > 0 && deckA.src?.includes(song.id);
-      const deckBHasSong = deckB && deckB.currentTime > 0 && deckB.src?.includes(song.id);
-
-      if (deckAHasSong || deckBHasSong) {
-        const correctDeck = deckAHasSong ? 'A' : 'B';
-        console.log(`[REMOUNT] Skipping loadSong - Deck ${correctDeck} already has this song`);
-        currentSongIdRef.current = song.id;
-        if (activeDeckRef.current !== correctDeck) {
-          activeDeckRef.current = correctDeck;
-        }
-        return;
-      }
-
-      if (audio && song && currentSongIdRef.current !== song.id) {
-        // Remove old handlers
-        if (canPlayHandlerRef.current) {
-          audio.removeEventListener('canplay', canPlayHandlerRef.current);
-        }
-        if (errorHandlerRef.current) {
-          audio.removeEventListener('error', errorHandlerRef.current);
-        }
-
-        // REHYDRATION RECOVERY: On full page reload, _rehydratedCurrentTime holds
-        // the persisted position before any effect overwrites it. If > 0, this is
-        // a reload (not a user song change) — skip loadSong (which would setCurrentTime(0))
-        // and instead set up the audio element directly with a canplay seek.
-        const rehydratedTime = useAudioStore.getState()._rehydratedCurrentTime;
-        if (rehydratedTime > 0) {
-          // Clear immediately so this only fires once (not on subsequent song changes)
-          useAudioStore.setState({ _rehydratedCurrentTime: 0 });
-
-          const shouldResume = useAudioStore.getState().pendingPlaybackResume;
-          console.log(`🔄 [REHYDRATION] Recovery path: seeking to ${rehydratedTime.toFixed(1)}s, resume=${shouldResume}`);
-
-          const rehydrationCanPlay = () => {
-            audio.removeEventListener('canplay', rehydrationCanPlay);
-            setIsLoading(false);
-
-            // Seek to the rehydrated position, clamped to actual duration
-            if (rehydratedTime > 0 && isFinite(rehydratedTime)) {
-              const seekTo = isFinite(audio.duration) && audio.duration > 0
-                ? Math.min(rehydratedTime, audio.duration - 0.5)
-                : rehydratedTime;
-              audio.currentTime = seekTo;
-              setCurrentTime(seekTo);
-            }
-
-            // Auto-resume if playback was active before unload
-            if (shouldResume) {
-              ensureGraphInitializedRef.current();
-              audio.play()
-                .then(() => {
-                  setIsPlaying(true);
-                  useAudioStore.setState({ pendingPlaybackResume: false });
-                  console.log(`🔄 [REHYDRATION] Resumed playback at ${rehydratedTime.toFixed(1)}s`);
-                })
-                .catch(() => {
-                  setIsPlaying(false);
-                  useAudioStore.setState({ pendingPlaybackResume: false });
-                });
-            } else {
-              useAudioStore.setState({ pendingPlaybackResume: false });
-            }
-          };
-
-          const rehydrationError = (e: Event) => {
-            const errorDeck = e.target as HTMLAudioElement;
-            console.error('🔄 [REHYDRATION] Audio load error:', errorDeck?.error);
-            audio.removeEventListener('canplay', rehydrationCanPlay);
-            setIsLoading(false);
-            useAudioStore.setState({ pendingPlaybackResume: false });
-          };
-
-          canPlayHandlerRef.current = rehydrationCanPlay;
-          errorHandlerRef.current = rehydrationError;
-          // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
-          audio.addEventListener('canplay', rehydrationCanPlay);
-          // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
-          audio.addEventListener('error', rehydrationError);
-
-          // Initialize refs with the recovered position
-          currentSongIdRef.current = song.id;
-          playbackSnapshotRef.current = { currentTime: rehydratedTime, duration: 0, songId: song.id };
-          lastProgressValueRef.current = rehydratedTime;
-          hasScrobbledRef.current = false;
-          scrobbleThresholdReachedRef.current = false;
-
-          // Load audio directly (skip loadSong which would setCurrentTime(0))
-          setIsLoading(true);
-          clearCrossfade();
-          // eslint-disable-next-line -- audio.src is a DOM property assignment, not hook state mutation
-          audio.src = song.url;
-          audio.load();
-          return;
-        }
-
-        const handleCanPlay = () => {
-          setIsLoading(false);
-          consecutiveFailuresRef.current = 0;
-          if (useAudioStore.getState().isPlaying) {
-            ensureGraphInitializedRef.current();
-            audio.play().catch(console.error);
-          }
-        };
-
-        const handleError = (e: Event) => {
-          const errorDeck = e.target as HTMLAudioElement;
-          const activeDeck = getActiveDeck();
-          if (errorDeck !== activeDeck) return;
-          console.error('Audio load error:', errorDeck?.error);
-          setIsLoading(false);
-
-          consecutiveFailuresRef.current++;
-          const state = useAudioStore.getState();
-          const failedSong = state.playlist[state.currentSongIndex];
-          const songName = failedSong?.title || failedSong?.name || 'Unknown';
-          const artistName = failedSong?.artist || '';
-
-          if (consecutiveFailuresRef.current > 5) {
-            toast.error('Multiple songs unavailable — stopping playback');
-            console.error('[PLAYER] Too many consecutive failures, stopping');
-            setIsPlaying(false);
-            consecutiveFailuresRef.current = 0;
-            return;
-          }
-
-          toast.warning(`Skipped "${songName}"${artistName ? ` by ${artistName}` : ''} — unavailable`);
-          if (state.playlist.length > 1) {
-            console.warn(`[PLAYER] Stream failed for "${songName}", removing from queue`);
-            state.removeFromQueue(state.currentSongIndex);
-          }
-        };
-
-        canPlayHandlerRef.current = handleCanPlay;
-        errorHandlerRef.current = handleError;
-
-        // Listeners are cleaned up via refs in the unmount effect below
-        // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
-        audio.addEventListener('canplay', handleCanPlay);
-        // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
-        audio.addEventListener('error', handleError);
-        setIsLoading(true);
-        loadSong(song);
-
-        return () => {
-          if (scrobbleThresholdReachedRef.current && !hasScrobbledRef.current && currentSongIdRef.current) {
-            hasScrobbledRef.current = true;
-            scrobbleSong(currentSongIdRef.current, true).catch(console.error);
-          }
-        };
-      }
-    }
-  }, [currentSongIndex, playlist, loadSong, getActiveDeck, setIsPlaying, setCurrentTime, clearCrossfade, crossfadeInProgressRef, crossfadeJustCompletedRef, deckARef, deckBRef, activeDeckRef, lastProgressTimeRef, lastProgressValueRef]);
-  /* eslint-enable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect */
 
   // Cleanup listeners on unmount
   useEffect(() => {
@@ -1025,7 +561,37 @@ export function PlayerBar() {
     attemptStallRecovery,
     lastProgressTimeRef,
     lastProgressValueRef,
+    setActiveDeck,
   });
+
+  // SAFETY: Periodic check that the inactive deck isn't playing unexpectedly.
+  // Catches edge cases where crossfade abort or desync correction fails
+  // to properly stop the outgoing deck.
+  useEffect(() => {
+    const deckA = deckARef.current;
+    const deckB = deckBRef.current;
+    if (!deckA || !deckB) return;
+
+    const safetyInterval = setInterval(() => {
+      const activeDeckLabel = activeDeckRef.current;
+      const inactive = activeDeckLabel === 'A' ? deckB : deckA;
+      const inactiveDeckLabel: 'A' | 'B' = activeDeckLabel === 'A' ? 'B' : 'A';
+
+      // Skip during crossfade or active stall recovery (recovery may have
+      // just swapped activeDeckRef, leaving the old deck mid-operation)
+      if (crossfadeInProgressRef.current) return;
+      if (recoveryAttemptRef.current > 0) return;
+
+      if (!inactive.paused && hasRealSong(inactive)) {
+        console.warn(`[SAFETY] Deck ${inactiveDeckLabel} playing unexpectedly — stopping`);
+        inactive.pause();
+        inactive.currentTime = 0;
+        setGainImmediate(inactiveDeckLabel, 0);
+      }
+    }, 10000);
+
+    return () => clearInterval(safetyInterval);
+  }, [deckARef, deckBRef, activeDeckRef, crossfadeInProgressRef, setGainImmediate, recoveryAttemptRef]);
 
   // Debug logging effect (only active when localStorage.debug=true)
   useEffect(() => {
@@ -1100,15 +666,6 @@ export function PlayerBar() {
 
       if (active) {
         console.log(`📊 [STATE] Deck ${activeDeckLabel} | playing=${!active.paused} time=${active.currentTime.toFixed(1)}/${active.duration?.toFixed(1) || '?'}`);
-      }
-
-      // SAFETY CHECK: If inactive deck is playing unexpectedly, stop it
-      if (inactive && !inactive.paused && !crossfadeInProgressRef.current) {
-        console.warn(`⚠️ [SAFETY] Deck ${inactiveDeckLabel} playing unexpectedly - stopping it`);
-        inactive.pause();
-        inactive.currentTime = 0;
-        setGainImmediate(inactiveDeckLabel, 0);
-        inactive.src = SILENT_AUDIO_DATA_URL;
       }
     }, 10000);
 

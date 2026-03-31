@@ -27,7 +27,6 @@ function LazyArtistAvatar({
 }) {
   const [isVisible, setIsVisible] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const [savedError, setSavedError] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -70,39 +69,28 @@ function LazyArtistAvatar({
     );
   }
 
-  // Navidrome failed but we have a saved Deezer image
-  if (imgError && savedImageUrl && !savedError) {
+  // Use saved image (Deezer/Aurral — known real artist photos) or gradient initials.
+  // We skip Navidrome getCoverArt for artists because it returns a grey star placeholder
+  // for missing art (never 404s), which looks worse than our gradient initials.
+
+  if (savedImageUrl && !imgError) {
     return (
-      <div ref={ref} className="w-full h-full">
+      <div ref={ref} className="w-full h-full relative">
         <img
           src={savedImageUrl}
           alt={name}
           className="w-full h-full rounded-full object-cover"
-          onError={() => setSavedError(true)}
+          onError={() => setImgError(true)}
         />
+        <div className="absolute inset-0 -z-10">{fallback}</div>
       </div>
     );
   }
 
-  // Both failed — show gradient initials
-  if (imgError) {
-    return (
-      <div ref={ref} className="w-full h-full">
-        {fallback}
-      </div>
-    );
-  }
-
+  // No saved image — show gradient initials (looks better than Navidrome's grey star)
   return (
-    <div ref={ref} className="w-full h-full relative">
-      <img
-        src={`/api/navidrome/rest/getCoverArt?id=${artistId}&size=300`}
-        alt={name}
-        className="w-full h-full rounded-full object-cover"
-        onError={() => setImgError(true)}
-      />
-      {/* Hidden fallback behind image for seamless swap */}
-      <div className="absolute inset-0 -z-10">{fallback}</div>
+    <div ref={ref} className="w-full h-full">
+      {fallback}
     </div>
   );
 }
@@ -200,11 +188,11 @@ export function ArtistsList() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch saved Deezer artist images for fallback
-  const { data: savedImages = {} } = useQuery({
-    queryKey: ['saved-artist-images'],
+  // Fetch unified artist images (Aurral + Deezer merged) in a single request
+  const { data: allArtistImages = {} } = useQuery({
+    queryKey: ['all-artist-images'],
     queryFn: async () => {
-      const res = await fetch('/api/cover-art/artist-images');
+      const res = await fetch('/api/cover-art/all-artist-images');
       if (!res.ok) return {};
       const json = await res.json();
       return (json.data?.images || {}) as Record<string, string>;
@@ -316,13 +304,16 @@ export function ArtistsList() {
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
-              {visible.map((artist) => (
-                <ArtistCard
-                  key={artist.id}
-                  artist={artist}
-                  savedImageUrl={savedImages[artist.name.toLowerCase()]}
-                />
-              ))}
+              {visible.map((artist) => {
+                const key = artist.name.toLowerCase();
+                return (
+                  <ArtistCard
+                    key={artist.id}
+                    artist={artist}
+                    savedImageUrl={allArtistImages[key]}
+                  />
+                );
+              })}
             </div>
 
             {hasMore && (
