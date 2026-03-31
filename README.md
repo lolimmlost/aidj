@@ -62,19 +62,46 @@
 ### Cross-Device Sync
 
 - Spotify Connect-style device handoff via WebSocket
+- Remote transport commands (skip, pause, play) across devices
 - Per-field timestamp conflict resolution
-- Real-time queue, playback position, and volume sync across devices
+- Real-time queue, playback position, and volume sync
 - Device presence with heartbeat monitoring
 
 ### AI DJ & Recommendations
 
 - Multi-provider LLM support (Ollama, Anthropic, OpenRouter, GLM)
-- 7-signal blended scoring engine (Last.fm similarity, compound history, DJ match, feedback, skip penalty, temporal patterns, diversity)
+- 7-signal blended scoring engine:
+  - Last.fm similarity (crowdsourced from billions of scrobbles)
+  - Compound history correlation with recency decay
+  - DJ match scoring (BPM, energy, harmonic key compatibility)
+  - User feedback weighting (thumbs up/down)
+  - Skip penalty (avoids frequently skipped tracks)
+  - Temporal patterns (time-of-day, weekday vs weekend)
+  - Diversity bonus (artist variety enforcement)
 - DJ set builder with BPM analysis, harmonic mixing, energy flow
 - Mix compatibility badges
 - Background discovery with personalized suggestions
 - Discovery feed with interaction tracking & analytics
 - Artist fatigue, blocklists, and seasonal pattern detection
+
+### Aurral Artist Discovery
+
+- MusicBrainz-powered artist metadata enrichment (type, country, life-span, genres, tags, biography)
+- Similar artist discovery with match scoring
+- Dashboard discovery section with recommendations, trending artists, and recent additions
+- Rich artist detail pages with social links (Wikipedia, Discogs, AllMusic, Bandcamp)
+- DB-cached metadata with 7-day TTL (zero API overhead during playback)
+- Integrated as a candidate source in the blended recommendation engine
+
+### Smart Playlists
+
+- Rule-based filters evaluated server-side by Navidrome
+- Multi-field conditions: title, artist, album, genre, year, duration, rating, play count, loved, dates
+- Logical operators: AND/OR with nested conditions
+- 8 preset templates (Never Played, Favorites, Recent Releases, 80s & 90s Classics, and more)
+- Preview songs before creating
+- Random song generation from rules
+- Artist-aware shuffle algorithm (Fisher-Yates with artist separation repair)
 
 ### Music Identity (Spotify Wrapped-style)
 
@@ -97,7 +124,6 @@
 ### Playlists
 
 - Create, edit, drag-and-drop reorder
-- Smart playlists with rule-based filters
 - Collaborative playlists with real-time song suggestions
 - Import/export (M3U, JSON)
 - Navidrome two-way sync
@@ -124,7 +150,7 @@
 | Framework | [React 19](https://react.dev) + [React Compiler](https://react.dev/learn/react-compiler), [TanStack Start](https://tanstack.com/start/latest) / [Router](https://tanstack.com/router/latest) / [Query](https://tanstack.com/query/latest) |
 | Styling | [Tailwind CSS v4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) + [Radix UI](https://www.radix-ui.com/) |
 | State | [Zustand](https://zustand.docs.pmnd.rs/) (9 stores with persistence) |
-| Database | [PostgreSQL](https://www.postgresql.org/) + [Drizzle ORM](https://orm.drizzle.team/) (20 schemas, 25 migrations) |
+| Database | [PostgreSQL](https://www.postgresql.org/) + [Drizzle ORM](https://orm.drizzle.team/) (22 schemas, 30 migrations) |
 | Auth | [Better Auth](https://www.better-auth.com/) (email/password + GitHub + Google OAuth) |
 | Charts | [Recharts](https://recharts.org/) |
 | Audio | Web Audio API, dual-deck crossfade engine |
@@ -140,6 +166,7 @@
 |---------|---------|----------|
 | [Navidrome](https://www.navidrome.org/) | Music library & streaming (Subsonic API) | Yes |
 | [PostgreSQL](https://www.postgresql.org/) | Application database | Yes |
+| [Aurral](https://aurral.com/) | Artist metadata enrichment & similar artist discovery (MusicBrainz) | Optional |
 | [Ollama](https://ollama.com/) / [Anthropic](https://www.anthropic.com/) / [OpenRouter](https://openrouter.ai/) | AI DJ, mood translation, playlist generation | Optional |
 | [Last.fm](https://www.last.fm/) | Similar tracks/artists, scrobbling metadata | Optional |
 | [Lidarr](https://lidarr.audio/) | Music acquisition & monitoring | Optional |
@@ -171,7 +198,7 @@ npm run dev
 
 The dev server starts at [http://localhost:3003](http://localhost:3003).
 
-Optional services (Last.fm, Lidarr, MeTube, Ollama) can be configured later in Settings.
+Optional services (Last.fm, Lidarr, MeTube, Ollama, Aurral) can be configured later in Settings.
 
 ### Environment Variables
 
@@ -188,6 +215,9 @@ Optional services (Last.fm, Lidarr, MeTube, Ollama) can be configured later in S
 | `LIDARR_API_KEY` | No | Lidarr API key |
 | `LASTFM_API_KEY` | No | Last.fm API key |
 | `METUBE_URL` | No | MeTube server URL |
+| `AURRAL_URL` | No | Aurral metadata service URL |
+| `AURRAL_USERNAME` | No | Aurral authentication username |
+| `AURRAL_PASSWORD` | No | Aurral authentication password |
 | `SPOTIFY_CLIENT_ID` | No | Spotify client credentials |
 | `SPOTIFY_CLIENT_SECRET` | No | Spotify client credentials |
 | `GITHUB_CLIENT_ID` | No | GitHub OAuth |
@@ -201,26 +231,26 @@ Optional services (Last.fm, Lidarr, MeTube, Ollama) can be configured later in S
 
 ```
 src/
-├── components/          # 125 React components
-│   ├── dashboard/       # Dashboard widgets
+├── components/          # 135 React components
+│   ├── dashboard/       # Dashboard widgets, Aurral discovery section
 │   ├── discovery/       # Discovery queue & suggestions
 │   ├── discovery-feed/  # Discovery feed cards
 │   ├── dj/              # DJ tools & mix badges
 │   ├── downloads/       # Download management
 │   ├── layout/          # PlayerBar, sidebar, nav
-│   ├── library/         # Artist/album/song views
+│   ├── library/         # Artist/album/song views, artist metadata hero
 │   ├── lyrics/          # Lyrics modal
 │   ├── music-identity/  # Wrapped-style analytics charts
 │   ├── playlists/       # Playlist CRUD, collaboration, smart playlists
 │   ├── recommendations/ # Rec cards, analytics, mood timeline
-│   ├── ui/              # 37 shadcn/ui primitives
+│   ├── ui/              # 36 shadcn/ui primitives
 │   └── visualizer/      # Audio visualizer modal
 ├── lib/
 │   ├── auth/            # Better Auth config
 │   ├── config/          # Config & feature flag system
-│   ├── db/schema/       # 20 Drizzle schema files
-│   ├── hooks/           # 11 custom hooks (crossfade, sync, media session, etc.)
-│   ├── services/        # 100 backend service modules
+│   ├── db/schema/       # 22 Drizzle schema files
+│   ├── hooks/           # 17 custom hooks (crossfade, sync, media session, artist metadata, etc.)
+│   ├── services/        # ~98 backend service modules
 │   │   ├── ai-dj/       # AI DJ core engine
 │   │   ├── background-discovery/
 │   │   ├── cache/       # Caching layer
@@ -229,10 +259,11 @@ src/
 │   │   ├── library-sync/# Navidrome sync
 │   │   ├── llm/         # LLM providers (Ollama, Anthropic, OpenRouter, GLM)
 │   │   └── offline/     # Offline/PWA support
-│   └── stores/          # 9 Zustand stores
+│   ├── stores/          # 9 Zustand stores
+│   └── utils/           # Shuffle scoring, device info, etc.
 ├── routes/              # TanStack file-based routes
 │   ├── (auth)/          # Login / Signup
-│   ├── api/             # 114 API endpoints
+│   ├── api/             # 148 API endpoints
 │   ├── dashboard/       # Dashboard, analytics, discover, mood
 │   ├── dj/              # DJ set builder & settings
 │   ├── downloads/       # Download management
