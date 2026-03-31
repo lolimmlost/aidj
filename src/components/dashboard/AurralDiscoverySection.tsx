@@ -96,25 +96,15 @@ function RecentlyAddedSection() {
         <Clock className="h-4 w-4 text-emerald-500" />
         Recently Added to Library
       </h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {displayed.map((artist) => (
-          <Card key={artist.id} className="border-border/50">
-            <CardContent className="p-4 flex items-center gap-3">
-              <ArtistBubble
-                name={artist.artistName}
-                imageUrl={artistImages[artist.artistName.toLowerCase()]}
-                size="sm"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{artist.artistName}</p>
-                {artist.statistics && (
-                  <p className="text-xs text-muted-foreground">
-                    {artist.statistics.albumCount} album{artist.statistics.albumCount !== 1 ? 's' : ''}
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <div key={artist.id} className="flex flex-col items-center gap-2 text-center">
+            <ArtistBubble
+              name={artist.artistName}
+              imageUrl={artistImages[artist.artistName.toLowerCase()]}
+            />
+            <p className="font-medium text-xs truncate w-full">{artist.artistName}</p>
+          </div>
         ))}
       </div>
     </div>
