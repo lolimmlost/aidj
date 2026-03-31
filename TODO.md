@@ -4,6 +4,7 @@
 
 - [x] Improve fade-in smoothness when transitioning back from iOS background — there's still a slight audible pause. The settle delay (30ms quick bounce / 150ms long interrupt) before the 200ms fade-in in `useWebAudioGraph.ts` may be too aggressive. Consider starting reconnect at a low non-zero gain instead of 0, or reducing the settle delay.
 - [ ] iOS lock screen controls sometimes missing on first lock of a fresh session. On unlock→re-lock cycle, pitch shift can reappear. May be related to MediaSession not being set up in time, or the source reload on app switch interfering with lock screen recovery path.
+- [ ] iOS audio loss on lock/app-switch — root cause identified: the interrupted handler aggressively mutes (element.volume=0 + masterGain.disconnect()) to prevent pitch artifacts, but the visibility return handler only called ctx.resume() without reconnecting the graph. Fixed visibility handler to do full reconnection. If still occurring, investigate whether the HTMLAudioElement stream itself dies (network timeout on the Navidrome stream URL while backgrounded).
 
 - [ ] Fix cross-device skip: rapid skips from iPhone leave desktop with `isPlaying=false` and WS disconnect
 - [ ] Cross-device playback handoff: when user is playing music on phone and also has desktop session open, when song ends on phone the desktop session should pick up playback (Spotify Connect-style transfer)

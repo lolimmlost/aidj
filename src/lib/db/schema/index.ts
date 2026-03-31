@@ -19,3 +19,4 @@ export * from "./playback-session.schema";
 export * from "./devices.schema";
 export * from "./explicit-content.schema";
 export * from "./navidrome-users.schema";
+export * from "./artist-metadata.schema";

@@ -322,26 +322,23 @@ export function useWebAudioGraph(): WebAudioGraph {
         // cement a false pause during rapid AudioContext state bounces.
         useAudioStore.setState({ _lastAudioContextInterrupt: Date.now() });
 
-        // Two-layer muting BEFORE the interrupted→running transition:
-        // 1. element.volume=0 — works at the element level, independent of
-        //    AudioContext state. Prevents pitch-shifted audio from being audible.
-        // 2. masterGain.disconnect() — no graph path to speakers.
-        // Both set NOW (on interrupted), so they're in effect when the context
-        // transitions back to running. The pitch artifact happens during
-        // that transition, before any JS callback fires.
+        // Disconnect masterGain from destination to prevent pitch-shifted audio
+        // when the context transitions back to running through the Web Audio graph.
+        //
+        // CRITICAL: Do NOT set element.volume=0 here. When AudioContext is
+        // interrupted, iOS releases createMediaElementSource and routes audio
+        // directly through the HTMLAudioElement. Setting volume=0 kills that
+        // direct path, which stops background audio AND removes media controls
+        // from the lock screen. The element must stay at volume=1 so iOS can
+        // continue playing audio in the background.
         {
-          const dA = deckAElementRef.current;
-          const dB = deckBElementRef.current;
-          if (dA) dA.volume = 0;
-          if (dB) dB.volume = 0;
-
           const m = masterGainRef.current;
           if (m) {
             try { m.disconnect(); } catch {}
           }
         }
 
-        console.log(`[WEB AUDIO] Context ${state} — wasPlaying=${wasPlayingBeforeInterruptRef.current}, muted+disconnected`);
+        console.log(`[WEB AUDIO] Context ${state} — wasPlaying=${wasPlayingBeforeInterruptRef.current}, masterGain disconnected (elements untouched)`);
 
         // Persistent resume retry — iOS may not allow resume immediately after
         // interrupt. Instead of a fixed set of timeouts that can all expire while
@@ -378,8 +375,15 @@ export function useWebAudioGraph(): WebAudioGraph {
         console.log(`[WEB AUDIO] Context running — shouldResume=${shouldResume}, interruptMs=${interruptDuration}, needsResync=${needsResync}`);
 
         // Recovery sequence (order matters):
-        // 1. Reconnect masterGain at gain=0 — any click from topology change
-        //    is masked by element.volume=0 (still muted from interrupted handler)
+        // 1. Briefly mute elements — prevents pitch artifact during graph reconnect.
+        //    Elements were left at volume=1 during interrupted state (for background
+        //    audio), so we mute them now just for the reconnection transition.
+        const deckA = deckAElementRef.current;
+        const deckB = deckBElementRef.current;
+        if (deckA) deckA.volume = 0;
+        if (deckB) deckB.volume = 0;
+
+        // 2. Reconnect masterGain at gain=0
         const master = masterGainRef.current;
         if (master) {
           try { master.gain.cancelScheduledValues(0); } catch {}
@@ -387,11 +391,12 @@ export function useWebAudioGraph(): WebAudioGraph {
           try { master.connect(ctx.destination); } catch {}
         }
 
-        // 2. Restore element volumes — inaudible because masterGain=0
-        const deckA = deckAElementRef.current;
-        const deckB = deckBElementRef.current;
-        if (deckA) deckA.volume = 1;
-        if (deckB) deckB.volume = 1;
+        // 3. Restore element volumes after brief settle (graph is now connected,
+        //    masterGain=0 masks any transient)
+        setTimeout(() => {
+          if (deckA) deckA.volume = 1;
+          if (deckB) deckB.volume = 1;
+        }, 50);
 
         if (shouldResume) {
           // Delay clearing wasPlaying so rapid interrupt cycles don't lose the signal.
@@ -453,11 +458,66 @@ export function useWebAudioGraph(): WebAudioGraph {
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
       const state = ctx.state as string;
+      console.log(`[WEB AUDIO] Visibility returned, context ${state}`);
+
       if (state === 'suspended' || state === 'interrupted') {
-        console.log(`[WEB AUDIO] Visibility returned, context ${state} — resuming`);
+        console.log(`[WEB AUDIO] Context ${state} — attempting resume`);
         ctx.resume().catch((err) =>
           console.warn('[WEB AUDIO] Resume on visibility failed:', err));
       }
+
+      // CRITICAL: The interrupted handler disconnects masterGain and sets
+      // element.volume=0 to prevent pitch artifacts. If the context is already
+      // 'running' when visibility returns (e.g. lock/unlock recovered it), the
+      // statechange handler may have already fired before this event, leaving
+      // audio silently connected but volumes at 0. Do a full reconnection check.
+      // Also handles the case where ctx.resume() above succeeds synchronously.
+      setTimeout(() => {
+        const currentState = ctx.state as string;
+        if (currentState !== 'running') return;
+
+        const master = masterGainRef.current;
+        const deckA = deckAElementRef.current;
+        const deckB = deckBElementRef.current;
+        const shouldBeAudible = wasPlayingBeforeInterruptRef.current || useAudioStore.getState().isPlaying;
+
+        // Check if masterGain is disconnected (gain=0 is our signal from interrupted handler)
+        const needsReconnect = master && master.gain.value === 0;
+
+        if (needsReconnect && shouldBeAudible) {
+          console.log('[WEB AUDIO] Visibility recovery: reconnecting audio graph');
+          // Reconnect masterGain
+          try { master.gain.cancelScheduledValues(0); } catch {}
+          master.gain.setValueAtTime(0, ctx.currentTime);
+          try { master.connect(ctx.destination); } catch {}
+
+          // Restore element volumes
+          if (deckA) deckA.volume = 1;
+          if (deckB) deckB.volume = 1;
+
+          // Ensure store says playing
+          if (!useAudioStore.getState().isPlaying) {
+            useAudioStore.getState().setIsPlaying(true);
+          }
+
+          // Resume any paused deck
+          const active = findActiveDeck();
+          if (active?.paused) {
+            active.deck.play().catch((err) =>
+              console.warn(`[WEB AUDIO] Visibility resume deck ${active.label} failed:`, err.message));
+          }
+
+          // Fade in
+          fadeInMaster(50);
+
+          // Clear wasPlaying after recovery
+          if (clearWasPlayingTimerRef.current) clearTimeout(clearWasPlayingTimerRef.current);
+          clearWasPlayingTimerRef.current = setTimeout(() => {
+            wasPlayingBeforeInterruptRef.current = false;
+            clearWasPlayingTimerRef.current = null;
+          }, 3000);
+        }
+      }, 300); // Brief delay to let ctx.resume() settle
     };
 
     ctx.addEventListener('statechange', handleStateChange);

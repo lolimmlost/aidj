@@ -129,6 +129,7 @@ import { Route as ApiCoverArtSearchRouteImport } from './routes/api/cover-art/se
 import { Route as ApiCoverArtSaveRouteImport } from './routes/api/cover-art/save'
 import { Route as ApiCoverArtMissingArtistsRouteImport } from './routes/api/cover-art/missing-artists'
 import { Route as ApiCoverArtMissingRouteImport } from './routes/api/cover-art/missing'
+import { Route as ApiCoverArtAutoFetchRouteImport } from './routes/api/cover-art/auto-fetch'
 import { Route as ApiCoverArtArtistImagesRouteImport } from './routes/api/cover-art/artist-images'
 import { Route as ApiBackgroundDiscoveryTriggerRouteImport } from './routes/api/background-discovery/trigger'
 import { Route as ApiBackgroundDiscoverySuggestionsRouteImport } from './routes/api/background-discovery/suggestions'
@@ -137,6 +138,12 @@ import { Route as ApiBackgroundDiscoverySettingsRouteImport } from './routes/api
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiAurralSimilarRouteImport } from './routes/api/aurral/similar'
+import { Route as ApiAurralRecentRouteImport } from './routes/api/aurral/recent'
+import { Route as ApiAurralMetadataRouteImport } from './routes/api/aurral/metadata'
+import { Route as ApiAurralDownloadsRouteImport } from './routes/api/aurral/downloads'
+import { Route as ApiAurralDiscoverRouteImport } from './routes/api/aurral/discover'
+import { Route as ApiAurralAddArtistRouteImport } from './routes/api/aurral/add-artist'
 import { Route as ApiAiDjRecommendationsRouteImport } from './routes/api/ai-dj/recommendations'
 import { Route as ApiAdminStatsRouteImport } from './routes/api/admin/stats'
 import { Route as ApiPlaylistsSmartIndexRouteImport } from './routes/api/playlists/smart/index'
@@ -798,6 +805,11 @@ const ApiCoverArtMissingRoute = ApiCoverArtMissingRouteImport.update({
   path: '/api/cover-art/missing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCoverArtAutoFetchRoute = ApiCoverArtAutoFetchRouteImport.update({
+  id: '/api/cover-art/auto-fetch',
+  path: '/api/cover-art/auto-fetch',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCoverArtArtistImagesRoute = ApiCoverArtArtistImagesRouteImport.update({
   id: '/api/cover-art/artist-images',
   path: '/api/cover-art/artist-images',
@@ -840,6 +852,36 @@ const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAurralSimilarRoute = ApiAurralSimilarRouteImport.update({
+  id: '/api/aurral/similar',
+  path: '/api/aurral/similar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAurralRecentRoute = ApiAurralRecentRouteImport.update({
+  id: '/api/aurral/recent',
+  path: '/api/aurral/recent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAurralMetadataRoute = ApiAurralMetadataRouteImport.update({
+  id: '/api/aurral/metadata',
+  path: '/api/aurral/metadata',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAurralDownloadsRoute = ApiAurralDownloadsRouteImport.update({
+  id: '/api/aurral/downloads',
+  path: '/api/aurral/downloads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAurralDiscoverRoute = ApiAurralDiscoverRouteImport.update({
+  id: '/api/aurral/discover',
+  path: '/api/aurral/discover',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAurralAddArtistRoute = ApiAurralAddArtistRouteImport.update({
+  id: '/api/aurral/add-artist',
+  path: '/api/aurral/add-artist',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAiDjRecommendationsRoute = ApiAiDjRecommendationsRouteImport.update({
@@ -1078,6 +1120,12 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof TasksIndexRoute
   '/api/admin/stats': typeof ApiAdminStatsRoute
   '/api/ai-dj/recommendations': typeof ApiAiDjRecommendationsRoute
+  '/api/aurral/add-artist': typeof ApiAurralAddArtistRoute
+  '/api/aurral/discover': typeof ApiAurralDiscoverRoute
+  '/api/aurral/downloads': typeof ApiAurralDownloadsRoute
+  '/api/aurral/metadata': typeof ApiAurralMetadataRoute
+  '/api/aurral/recent': typeof ApiAurralRecentRoute
+  '/api/aurral/similar': typeof ApiAurralSimilarRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
@@ -1086,6 +1134,7 @@ export interface FileRoutesByFullPath {
   '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
   '/api/cover-art/artist-images': typeof ApiCoverArtArtistImagesRoute
+  '/api/cover-art/auto-fetch': typeof ApiCoverArtAutoFetchRoute
   '/api/cover-art/missing': typeof ApiCoverArtMissingRoute
   '/api/cover-art/missing-artists': typeof ApiCoverArtMissingArtistsRoute
   '/api/cover-art/save': typeof ApiCoverArtSaveRoute
@@ -1241,6 +1290,12 @@ export interface FileRoutesByTo {
   '/tasks': typeof TasksIndexRoute
   '/api/admin/stats': typeof ApiAdminStatsRoute
   '/api/ai-dj/recommendations': typeof ApiAiDjRecommendationsRoute
+  '/api/aurral/add-artist': typeof ApiAurralAddArtistRoute
+  '/api/aurral/discover': typeof ApiAurralDiscoverRoute
+  '/api/aurral/downloads': typeof ApiAurralDownloadsRoute
+  '/api/aurral/metadata': typeof ApiAurralMetadataRoute
+  '/api/aurral/recent': typeof ApiAurralRecentRoute
+  '/api/aurral/similar': typeof ApiAurralSimilarRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
@@ -1249,6 +1304,7 @@ export interface FileRoutesByTo {
   '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
   '/api/cover-art/artist-images': typeof ApiCoverArtArtistImagesRoute
+  '/api/cover-art/auto-fetch': typeof ApiCoverArtAutoFetchRoute
   '/api/cover-art/missing': typeof ApiCoverArtMissingRoute
   '/api/cover-art/missing-artists': typeof ApiCoverArtMissingArtistsRoute
   '/api/cover-art/save': typeof ApiCoverArtSaveRoute
@@ -1408,6 +1464,12 @@ export interface FileRoutesById {
   '/tasks/': typeof TasksIndexRoute
   '/api/admin/stats': typeof ApiAdminStatsRoute
   '/api/ai-dj/recommendations': typeof ApiAiDjRecommendationsRoute
+  '/api/aurral/add-artist': typeof ApiAurralAddArtistRoute
+  '/api/aurral/discover': typeof ApiAurralDiscoverRoute
+  '/api/aurral/downloads': typeof ApiAurralDownloadsRoute
+  '/api/aurral/metadata': typeof ApiAurralMetadataRoute
+  '/api/aurral/recent': typeof ApiAurralRecentRoute
+  '/api/aurral/similar': typeof ApiAurralSimilarRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
@@ -1416,6 +1478,7 @@ export interface FileRoutesById {
   '/api/background-discovery/suggestions': typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   '/api/background-discovery/trigger': typeof ApiBackgroundDiscoveryTriggerRoute
   '/api/cover-art/artist-images': typeof ApiCoverArtArtistImagesRoute
+  '/api/cover-art/auto-fetch': typeof ApiCoverArtAutoFetchRoute
   '/api/cover-art/missing': typeof ApiCoverArtMissingRoute
   '/api/cover-art/missing-artists': typeof ApiCoverArtMissingArtistsRoute
   '/api/cover-art/save': typeof ApiCoverArtSaveRoute
@@ -1575,6 +1638,12 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/api/admin/stats'
     | '/api/ai-dj/recommendations'
+    | '/api/aurral/add-artist'
+    | '/api/aurral/discover'
+    | '/api/aurral/downloads'
+    | '/api/aurral/metadata'
+    | '/api/aurral/recent'
+    | '/api/aurral/similar'
     | '/api/auth/$'
     | '/api/auth/login'
     | '/api/auth/register'
@@ -1583,6 +1652,7 @@ export interface FileRouteTypes {
     | '/api/background-discovery/suggestions'
     | '/api/background-discovery/trigger'
     | '/api/cover-art/artist-images'
+    | '/api/cover-art/auto-fetch'
     | '/api/cover-art/missing'
     | '/api/cover-art/missing-artists'
     | '/api/cover-art/save'
@@ -1738,6 +1808,12 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/api/admin/stats'
     | '/api/ai-dj/recommendations'
+    | '/api/aurral/add-artist'
+    | '/api/aurral/discover'
+    | '/api/aurral/downloads'
+    | '/api/aurral/metadata'
+    | '/api/aurral/recent'
+    | '/api/aurral/similar'
     | '/api/auth/$'
     | '/api/auth/login'
     | '/api/auth/register'
@@ -1746,6 +1822,7 @@ export interface FileRouteTypes {
     | '/api/background-discovery/suggestions'
     | '/api/background-discovery/trigger'
     | '/api/cover-art/artist-images'
+    | '/api/cover-art/auto-fetch'
     | '/api/cover-art/missing'
     | '/api/cover-art/missing-artists'
     | '/api/cover-art/save'
@@ -1904,6 +1981,12 @@ export interface FileRouteTypes {
     | '/tasks/'
     | '/api/admin/stats'
     | '/api/ai-dj/recommendations'
+    | '/api/aurral/add-artist'
+    | '/api/aurral/discover'
+    | '/api/aurral/downloads'
+    | '/api/aurral/metadata'
+    | '/api/aurral/recent'
+    | '/api/aurral/similar'
     | '/api/auth/$'
     | '/api/auth/login'
     | '/api/auth/register'
@@ -1912,6 +1995,7 @@ export interface FileRouteTypes {
     | '/api/background-discovery/suggestions'
     | '/api/background-discovery/trigger'
     | '/api/cover-art/artist-images'
+    | '/api/cover-art/auto-fetch'
     | '/api/cover-art/missing'
     | '/api/cover-art/missing-artists'
     | '/api/cover-art/save'
@@ -2059,6 +2143,12 @@ export interface RootRouteChildren {
   TasksIndexRoute: typeof TasksIndexRoute
   ApiAdminStatsRoute: typeof ApiAdminStatsRoute
   ApiAiDjRecommendationsRoute: typeof ApiAiDjRecommendationsRoute
+  ApiAurralAddArtistRoute: typeof ApiAurralAddArtistRoute
+  ApiAurralDiscoverRoute: typeof ApiAurralDiscoverRoute
+  ApiAurralDownloadsRoute: typeof ApiAurralDownloadsRoute
+  ApiAurralMetadataRoute: typeof ApiAurralMetadataRoute
+  ApiAurralRecentRoute: typeof ApiAurralRecentRoute
+  ApiAurralSimilarRoute: typeof ApiAurralSimilarRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
@@ -2067,6 +2157,7 @@ export interface RootRouteChildren {
   ApiBackgroundDiscoverySuggestionsRoute: typeof ApiBackgroundDiscoverySuggestionsRouteWithChildren
   ApiBackgroundDiscoveryTriggerRoute: typeof ApiBackgroundDiscoveryTriggerRoute
   ApiCoverArtArtistImagesRoute: typeof ApiCoverArtArtistImagesRoute
+  ApiCoverArtAutoFetchRoute: typeof ApiCoverArtAutoFetchRoute
   ApiCoverArtMissingRoute: typeof ApiCoverArtMissingRoute
   ApiCoverArtMissingArtistsRoute: typeof ApiCoverArtMissingArtistsRoute
   ApiCoverArtSaveRoute: typeof ApiCoverArtSaveRoute
@@ -3002,6 +3093,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCoverArtMissingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cover-art/auto-fetch': {
+      id: '/api/cover-art/auto-fetch'
+      path: '/api/cover-art/auto-fetch'
+      fullPath: '/api/cover-art/auto-fetch'
+      preLoaderRoute: typeof ApiCoverArtAutoFetchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cover-art/artist-images': {
       id: '/api/cover-art/artist-images'
       path: '/api/cover-art/artist-images'
@@ -3056,6 +3154,48 @@ declare module '@tanstack/react-router' {
       path: '/api/auth/$'
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/aurral/similar': {
+      id: '/api/aurral/similar'
+      path: '/api/aurral/similar'
+      fullPath: '/api/aurral/similar'
+      preLoaderRoute: typeof ApiAurralSimilarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/aurral/recent': {
+      id: '/api/aurral/recent'
+      path: '/api/aurral/recent'
+      fullPath: '/api/aurral/recent'
+      preLoaderRoute: typeof ApiAurralRecentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/aurral/metadata': {
+      id: '/api/aurral/metadata'
+      path: '/api/aurral/metadata'
+      fullPath: '/api/aurral/metadata'
+      preLoaderRoute: typeof ApiAurralMetadataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/aurral/downloads': {
+      id: '/api/aurral/downloads'
+      path: '/api/aurral/downloads'
+      fullPath: '/api/aurral/downloads'
+      preLoaderRoute: typeof ApiAurralDownloadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/aurral/discover': {
+      id: '/api/aurral/discover'
+      path: '/api/aurral/discover'
+      fullPath: '/api/aurral/discover'
+      preLoaderRoute: typeof ApiAurralDiscoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/aurral/add-artist': {
+      id: '/api/aurral/add-artist'
+      path: '/api/aurral/add-artist'
+      fullPath: '/api/aurral/add-artist'
+      preLoaderRoute: typeof ApiAurralAddArtistRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ai-dj/recommendations': {
@@ -3520,6 +3660,12 @@ const rootRouteChildren: RootRouteChildren = {
   TasksIndexRoute: TasksIndexRoute,
   ApiAdminStatsRoute: ApiAdminStatsRoute,
   ApiAiDjRecommendationsRoute: ApiAiDjRecommendationsRoute,
+  ApiAurralAddArtistRoute: ApiAurralAddArtistRoute,
+  ApiAurralDiscoverRoute: ApiAurralDiscoverRoute,
+  ApiAurralDownloadsRoute: ApiAurralDownloadsRoute,
+  ApiAurralMetadataRoute: ApiAurralMetadataRoute,
+  ApiAurralRecentRoute: ApiAurralRecentRoute,
+  ApiAurralSimilarRoute: ApiAurralSimilarRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
@@ -3529,6 +3675,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiBackgroundDiscoverySuggestionsRouteWithChildren,
   ApiBackgroundDiscoveryTriggerRoute: ApiBackgroundDiscoveryTriggerRoute,
   ApiCoverArtArtistImagesRoute: ApiCoverArtArtistImagesRoute,
+  ApiCoverArtAutoFetchRoute: ApiCoverArtAutoFetchRoute,
   ApiCoverArtMissingRoute: ApiCoverArtMissingRoute,
   ApiCoverArtMissingArtistsRoute: ApiCoverArtMissingArtistsRoute,
   ApiCoverArtSaveRoute: ApiCoverArtSaveRoute,
