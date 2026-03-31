@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams, useNavigate, redirect } from '@tanstack/react-router';
+import { createFileRoute, Link, useParams, useNavigate, redirect, Outlet, useLocation } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { getAlbums, getArtistDetail, getSongsByArtist } from '@/lib/services/navidrome';
@@ -20,22 +20,39 @@ import { PageLayout } from '@/components/ui/page-layout';
 import { useArtistMetadata } from '@/lib/hooks/useArtistMetadata';
 import { ArtistMetadataHero } from '@/components/library/ArtistMetadataHero';
 
-/** Album cover with Navidrome getCoverArt proxy fallback */
+/** Album cover with Navidrome getCoverArt proxy fallback, then placeholder */
 function AlbumCoverArt({ albumId, artwork, name }: { albumId: string; artwork?: string; name: string }) {
   const [error, setError] = useState(false);
+  const [proxyError, setProxyError] = useState(false);
   const proxyUrl = `/api/navidrome/rest/getCoverArt?id=${albumId}&size=300`;
+
+  // Both sources failed — show placeholder
+  if ((error && !artwork && proxyError) || (error && artwork && proxyError)) {
+    return (
+      <div className="w-full h-full bg-gradient-to-br from-muted to-muted/50 flex flex-col items-center justify-center gap-1.5">
+        <Disc className="h-8 w-8 text-muted-foreground/60" />
+        <span className="text-[10px] text-muted-foreground/50 font-medium px-2 text-center line-clamp-2">
+          {name}
+        </span>
+      </div>
+    );
+  }
+
+  // Try artwork first, then proxy
   const src = error || !artwork ? proxyUrl : artwork;
 
-  return error && !artwork ? (
-    <Disc className="h-12 w-12 text-muted-foreground" />
-  ) : (
+  return (
     <img
       src={src}
       alt={`Album cover for ${name}`}
       className="w-full h-full object-cover"
       loading="lazy"
       onError={() => {
-        if (!error) setError(true);
+        if (!error && artwork) {
+          setError(true);
+        } else {
+          setProxyError(true);
+        }
       }}
     />
   );
@@ -54,6 +71,15 @@ function ArtistDetail() {
   const { id } = useParams({ from: '/library/artists/$id' }) as { id: string };
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'all' | 'albums' | 'songs'>('all');
+
+  // Check if a child route (album detail) is active
+  const location = useLocation();
+  const isChildRoute = location.pathname.includes('/albums/');
+
+  // If a child route is active, just render the Outlet
+  if (isChildRoute) {
+    return <Outlet />;
+  }
   const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress } = useAudioStore();
 
   // Fetch artist details for the header
@@ -93,7 +119,7 @@ function ArtistDetail() {
   });
 
   // Fetch enriched metadata from Aurral (server-cached)
-  const { data: artistMetadata } = useArtistMetadata(artist?.name, {
+  const { data: artistMetadata, isLoading: loadingMetadata } = useArtistMetadata(artist?.name, {
     navidromeId: id,
     enabled: !!artist?.name,
   });
@@ -145,8 +171,8 @@ function ArtistDetail() {
     return (
       <PageLayout
         title="Error"
-        backLink="/library"
-        backLabel="Library"
+        backLink="/library/artists"
+        backLabel="Artists"
         compact
       >
         <Card className="p-6 bg-destructive/10 border-destructive">
@@ -217,8 +243,12 @@ function ArtistDetail() {
   const renderSongRow = (song: typeof songs[0]) => (
     <div
       key={song.id}
-      className="flex items-center p-3 sm:p-4 border rounded hover:bg-accent transition-colors min-h-[44px]"
+      className="flex items-center p-3 sm:p-4 border rounded hover:bg-accent transition-colors min-h-[44px] gap-3"
     >
+      {/* Album art — desktop only */}
+      <div className="hidden md:block flex-shrink-0 w-10 h-10 rounded overflow-hidden bg-muted">
+        <AlbumCoverArt albumId={song.albumId} artwork={undefined} name={song.album || 'Unknown'} />
+      </div>
       <div
         className="flex-1 min-w-0 cursor-pointer hover:text-accent-foreground"
         onClick={() => handleSongClick(song.id)}
@@ -299,11 +329,36 @@ function ArtistDetail() {
     <PageLayout
       title={artistName}
       description={`${albums.length} ${albums.length === 1 ? 'album' : 'albums'} \u2022 ${songs.length} ${songs.length === 1 ? 'song' : 'songs'}`}
-      backLink="/library"
-      backLabel="Library"
+      backLink="/library/artists"
+      backLabel="Artists"
       compact
     >
       {/* Enriched Artist Metadata */}
+      {loadingMetadata && (
+        <div className="rounded-xl border bg-card overflow-hidden animate-pulse">
+          <div className="p-4 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-6">
+            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-lg bg-muted flex-shrink-0" />
+            <div className="flex-1 space-y-3">
+              <div className="flex gap-2">
+                <div className="h-4 w-16 rounded bg-muted" />
+                <div className="h-4 w-20 rounded bg-muted" />
+                <div className="h-4 w-14 rounded bg-muted" />
+              </div>
+              <div className="flex gap-1.5">
+                <div className="h-5 w-12 rounded-full bg-muted" />
+                <div className="h-5 w-16 rounded-full bg-muted" />
+                <div className="h-5 w-10 rounded-full bg-muted" />
+                <div className="h-5 w-14 rounded-full bg-muted" />
+              </div>
+              <div className="space-y-2">
+                <div className="h-3 w-full rounded bg-muted" />
+                <div className="h-3 w-4/5 rounded bg-muted" />
+                <div className="h-3 w-3/5 rounded bg-muted" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {artistMetadata && (
         <ArtistMetadataHero
           metadata={artistMetadata}

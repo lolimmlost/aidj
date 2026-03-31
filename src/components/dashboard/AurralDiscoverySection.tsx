@@ -134,14 +134,36 @@ export function AurralDiscoverySection() {
           <Compass className="h-4 w-4 text-primary" />
           Discover New Artists
         </h3>
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={`skeleton-${i}`} className="flex items-center gap-3 p-4 rounded-lg border animate-pulse">
+              <div className="w-12 h-12 rounded-lg bg-muted flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-24 rounded bg-muted" />
+                <div className="h-3 w-32 rounded bg-muted" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
   }
 
-  if (!discovery) return null;
+  if (!discovery) {
+    return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-base flex items-center gap-2">
+          <Compass className="h-4 w-4 text-primary" />
+          Discover New Artists
+        </h3>
+        <div className="flex flex-col items-center justify-center py-8 text-center rounded-lg border border-dashed border-border bg-muted/20">
+          <Compass className="h-8 w-8 text-muted-foreground/40 mb-2" />
+          <p className="text-sm text-muted-foreground">Artist discovery unavailable</p>
+          <p className="text-xs text-muted-foreground/60 mt-0.5">Aurral service may be offline</p>
+        </div>
+      </div>
+    );
+  }
 
   const recs = discovery.recommendations?.slice(0, 6) ?? [];
   const trending = discovery.globalTop?.slice(0, 4) ?? [];

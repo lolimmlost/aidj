@@ -24,6 +24,13 @@ export interface FeatureFlags {
     allowMultipleDevices: boolean;
     showDeviceSelector: boolean;
   };
+
+  // Phase 4: Aurral-enhanced recommendations
+  aurralRecommendations: {
+    enabled: boolean;
+    similarArtistWeight: number; // Weight for Aurral similar-artist candidates (0-1)
+    genreBoostWeight: number;    // Weight for Aurral genre/tag scoring boost (0-1)
+  };
 }
 
 const defaultFlags: FeatureFlags = {
@@ -39,6 +46,11 @@ const defaultFlags: FeatureFlags = {
     enabled: false,
     allowMultipleDevices: true,
     showDeviceSelector: false,
+  },
+  aurralRecommendations: {
+    enabled: true, // Enabled by default — uses cached data only, no API overhead
+    similarArtistWeight: 0.9,
+    genreBoostWeight: 0.15,
   },
 };
 
@@ -71,6 +83,9 @@ function loadFeatureFlags(): FeatureFlags {
       flags.jukeboxMode.enabled = true;
       flags.jukeboxMode.showDeviceSelector = true;
     }
+    if (process.env.FEATURE_AURRAL_RECOMMENDATIONS === 'false') {
+      flags.aurralRecommendations.enabled = false;
+    }
   }
 
   return flags;
@@ -87,7 +102,7 @@ function mergeFlags(
 
   for (const key of Object.keys(overrides) as (keyof FeatureFlags)[]) {
     if (overrides[key] && typeof overrides[key] === 'object') {
-      result[key] = { ...base[key], ...overrides[key] };
+      (result as Record<string, unknown>)[key] = { ...base[key], ...overrides[key] };
     }
   }
 
@@ -111,7 +126,7 @@ export function getFeatureFlags(): FeatureFlags {
  * Check if a specific feature is enabled
  */
 export function isFeatureEnabled(
-  feature: 'hlsStreaming' | 'serverPlaybackState' | 'jukeboxMode'
+  feature: 'hlsStreaming' | 'serverPlaybackState' | 'jukeboxMode' | 'aurralRecommendations'
 ): boolean {
   return getFeatureFlags()[feature].enabled;
 }

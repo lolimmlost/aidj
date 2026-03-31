@@ -31,14 +31,20 @@ function countryFlag(code: string): string {
   return chars.join('');
 }
 
-/** Extract a readable bio string from the bio object */
-function extractBio(bio: Record<string, unknown> | null): string | null {
+/** Extract a readable bio string — handles both plain strings and objects */
+function extractBio(bio: unknown): string | null {
   if (!bio) return null;
-  if (typeof bio.content === 'string') return bio.content;
-  if (typeof bio.summary === 'string') return bio.summary;
-  if (typeof bio.en === 'string') return bio.en;
-  for (const val of Object.values(bio)) {
-    if (typeof val === 'string' && val.length > 20) return val;
+  // Aurral often returns bio as a plain string
+  if (typeof bio === 'string') return bio;
+  // Or as an object with various key formats
+  if (typeof bio === 'object') {
+    const obj = bio as Record<string, unknown>;
+    if (typeof obj.content === 'string') return obj.content;
+    if (typeof obj.summary === 'string') return obj.summary;
+    if (typeof obj.en === 'string') return obj.en;
+    for (const val of Object.values(obj)) {
+      if (typeof val === 'string' && val.length > 20) return val;
+    }
   }
   return null;
 }
@@ -241,6 +247,22 @@ export function ArtistMetadataHero({ metadata, artistImageUrl }: ArtistMetadataH
               const libraryId = libraryLookup.get(similar.name.toLowerCase());
               const inLibrary = !!libraryId;
 
+              const badge = (
+                <Badge
+                  key={similar.mbid || similar.name}
+                  variant="outline"
+                  className={cn(
+                    'text-xs h-7 transition-colors',
+                    inLibrary
+                      ? 'cursor-pointer border-primary/40 text-primary hover:bg-primary/10'
+                      : 'cursor-default text-muted-foreground'
+                  )}
+                >
+                  {inLibrary && <Library className="h-3 w-3 mr-1 flex-shrink-0" />}
+                  {similar.name}
+                </Badge>
+              );
+
               if (inLibrary) {
                 return (
                   <Link
@@ -248,26 +270,12 @@ export function ArtistMetadataHero({ metadata, artistImageUrl }: ArtistMetadataH
                     to="/library/artists/$id"
                     params={{ id: libraryId }}
                   >
-                    <Badge
-                      variant="outline"
-                      className="text-xs cursor-pointer border-primary/40 text-primary hover:bg-primary/10 transition-colors"
-                    >
-                      <Library className="h-3 w-3 mr-1 flex-shrink-0" />
-                      {similar.name}
-                    </Badge>
+                    {badge}
                   </Link>
                 );
               }
 
-              return (
-                <Badge
-                  key={similar.mbid || similar.name}
-                  variant="outline"
-                  className="text-xs cursor-default text-muted-foreground"
-                >
-                  {similar.name}
-                </Badge>
-              );
+              return badge;
             })}
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { createFileRoute, useParams, redirect, Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { getSongs, getAlbumDetail, getArtistDetail } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
 import { Loader2, Play, Plus, ListPlus, Disc } from 'lucide-react';
@@ -15,6 +16,30 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from '@/lib/toast';
 import { PageLayout } from '@/components/ui/page-layout';
+
+/** Album cover with Navidrome proxy fallback, then gradient placeholder */
+function AlbumCoverArt({ albumId, size = 300 }: { albumId: string; size?: number }) {
+  const [error, setError] = useState(false);
+  const proxyUrl = `/api/navidrome/rest/getCoverArt?id=${albumId}&size=${size}`;
+
+  if (error) {
+    return (
+      <div className="w-full h-full bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center">
+        <Disc className="h-12 w-12 text-muted-foreground/40" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={proxyUrl}
+      alt=""
+      className="w-full h-full object-cover"
+      loading="lazy"
+      onError={() => setError(true)}
+    />
+  );
+}
 
 export const Route = createFileRoute('/library/artists/$id/albums/$albumId')({
   beforeLoad: async ({ context }) => {
@@ -144,17 +169,37 @@ function AlbumSongs() {
   const sortedSongs = [...songs].sort((a, b) => a.track - b.track);
 
   const durationText = totalDuration > 0
-    ? ` \u2022 ${totalHours > 0 ? `${totalHours} hr ${remainingMinutes} min` : `${totalMinutes} min`}`
+    ? ` • ${totalHours > 0 ? `${totalHours} hr ${remainingMinutes} min` : `${totalMinutes} min`}`
     : '';
 
   return (
     <PageLayout
-      title={albumName}
-      description={`${artistName}${album?.year ? ` \u2022 ${album.year}` : ''} \u2022 ${songs.length} ${songs.length === 1 ? 'song' : 'songs'}${durationText}`}
+      title=""
       backLink={backPath}
       backLabel={artistName}
       compact
     >
+      {/* Album Art Hero */}
+      {!isLoading && album && (
+        <div className="relative rounded-xl overflow-hidden border bg-card">
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 p-4 sm:p-6">
+            <div className="flex-shrink-0 w-32 h-32 sm:w-40 sm:h-40 rounded-lg overflow-hidden shadow-lg bg-muted mx-auto sm:mx-0">
+              <AlbumCoverArt albumId={albumId} size={400} />
+            </div>
+            <div className="flex-1 min-w-0 flex flex-col justify-end text-center sm:text-left">
+              <p className="text-sm text-muted-foreground mb-1">Album</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-1">{albumName}</h2>
+              <p className="text-sm text-muted-foreground">
+                {artistName}{album?.year ? ` • ${album.year}` : ''} • {songs.length} {songs.length === 1 ? 'song' : 'songs'}{durationText}
+              </p>
+              {album?.genre && (
+                <p className="text-xs text-muted-foreground mt-1">{album.genre}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Songs List */}
       {isLoading ? (
         <div className="flex justify-center py-12">
@@ -169,13 +214,13 @@ function AlbumSongs() {
         </Card>
       ) : (
         <div className="space-y-2">
-          {sortedSongs.map((song) => (
+          {sortedSongs.map((song, index) => (
             <div
               key={song.id}
-              className="flex items-center p-3 sm:p-4 border rounded hover:bg-accent transition-colors min-h-[44px]"
+              className="flex items-center p-3 sm:p-4 border rounded hover:bg-accent transition-colors min-h-[44px] gap-3"
             >
-              <div className="w-6 sm:w-8 text-right mr-3 sm:mr-4 text-sm sm:text-base text-muted-foreground flex-shrink-0">
-                {song.track}
+              <div className="w-6 text-right text-sm text-muted-foreground flex-shrink-0">
+                {song.track || index + 1}
               </div>
               <div
                 className="flex-1 min-w-0 cursor-pointer hover:text-accent-foreground"
