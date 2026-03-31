@@ -337,7 +337,12 @@ export function QueuePanel() {
     nudgeMoreLikeThis,
     aiDJRecommendationReasons,
   } = useAudioStore();
-  const [isOpen, setIsOpen] = useState(false);
+  const queuePanelOpen = useAudioStore(s => s.queuePanelOpen);
+  const toggleQueuePanel = useAudioStore(s => s.toggleQueuePanel);
+  const isOpen = queuePanelOpen;
+  const setIsOpen = useCallback((open: boolean) => {
+    if (open !== queuePanelOpen) toggleQueuePanel();
+  }, [queuePanelOpen, toggleQueuePanel]);
   const [timeSinceLastQueue, setTimeSinceLastQueue] = useState(0);
   const [createPlaylistOpen, setCreatePlaylistOpen] = useState(false);
   const [undoTimeRemaining, setUndoTimeRemaining] = useState<number | null>(null);

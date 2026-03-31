@@ -30,6 +30,7 @@ interface AudioState {
   duration: number;
   volume: number;
   isShuffled: boolean;
+  repeatMode: 'off' | 'all' | 'one';
   // AI DJ state (Story 3.9)
   aiDJEnabled: boolean;
   aiDJLastQueueTime: number;
@@ -127,6 +128,7 @@ interface AudioState {
   undoClearQueue: () => void;
   reorderQueue: (fromIndex: number, toIndex: number) => void;
   toggleShuffle: () => void;
+  toggleRepeat: () => void;
   shufflePlaylist: () => void;
   // AI DJ actions (Story 3.9)
   setAIDJEnabled: (enabled: boolean) => void;
@@ -168,6 +170,7 @@ export const useAudioStore = create<AudioState>()(
     duration: 0,
     volume: 0.5,
     isShuffled: false,
+    repeatMode: 'off',
     // AI DJ initial state (Story 3.9)
     aiDJEnabled: false,
     aiDJLastQueueTime: 0,
@@ -377,6 +380,17 @@ export const useAudioStore = create<AudioState>()(
         }
       }
 
+      // Repeat-one: stay on the same song (reset position to retrigger playback)
+      if (state.repeatMode === 'one') {
+        set({
+          ...updates,
+          currentTime: 0,
+          lastKnownPosition: 0,
+          lastKnownDuration: 0,
+        });
+        return;
+      }
+
       const nextIndex = state.currentSongIndex + 1;
 
       // Drip-feed model: increment songs played counter when AI DJ is enabled
@@ -391,19 +405,29 @@ export const useAudioStore = create<AudioState>()(
       updates.lastKnownPosition = 0;
       updates.lastKnownDuration = 0;
 
-      // End of queue: auto-reshuffle if shuffle is enabled, otherwise wrap around
+      // End of queue
       if (nextIndex >= state.playlist.length) {
-        if (state.isShuffled) {
-          const reshuffled = shuffleSongs([...state.playlist]);
-          set({
-            ...updates,
-            playlist: reshuffled,
-            currentSongIndex: 0,
-          });
+        if (state.repeatMode === 'all' || state.isShuffled) {
+          // Repeat-all or shuffle: wrap around (reshuffle if needed)
+          if (state.isShuffled) {
+            const reshuffled = shuffleSongs([...state.playlist]);
+            set({
+              ...updates,
+              playlist: reshuffled,
+              currentSongIndex: 0,
+            });
+          } else {
+            set({
+              ...updates,
+              currentSongIndex: 0,
+            });
+          }
         } else {
+          // No repeat: stop at end
           set({
             ...updates,
             currentSongIndex: 0,
+            isPlaying: false,
           });
         }
       } else {
@@ -659,6 +683,13 @@ export const useAudioStore = create<AudioState>()(
       } else {
         get().shufflePlaylist();
       }
+    },
+
+    toggleRepeat: () => {
+      const state = get();
+      const modes: Array<'off' | 'all' | 'one'> = ['off', 'all', 'one'];
+      const nextIndex = (modes.indexOf(state.repeatMode) + 1) % modes.length;
+      set({ repeatMode: modes[nextIndex] });
     },
 
     shufflePlaylist: () => {

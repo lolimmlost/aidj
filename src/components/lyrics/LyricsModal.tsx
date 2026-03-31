@@ -387,7 +387,7 @@ export function LyricsModal({ isOpen, onClose }: LyricsModalProps) {
   const coverUrl = getCoverArtUrl(currentSong?.albumId, 512);
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex flex-col bg-background">
+    <div className="fixed inset-0 z-[9999] flex flex-col bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       {/* Background with album art blur */}
       {coverUrl && (
         <div
@@ -410,43 +410,41 @@ export function LyricsModal({ isOpen, onClose }: LyricsModalProps) {
       {/* Content */}
       <div className="relative flex flex-col h-full">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border/50">
-          <div className="flex items-center gap-4">
-            {/* Album Art */}
+        <div className="flex items-center gap-2 p-4 border-b border-border/50">
+          {/* Song info — takes available space, truncates */}
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             {coverUrl ? (
               <img
                 src={coverUrl}
                 alt="Album cover"
-                className="w-14 h-14 rounded-lg object-cover shadow-lg"
+                className="w-12 h-12 flex-shrink-0 rounded-lg object-cover shadow-lg"
               />
             ) : (
-              <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center">
-                <Music className="h-6 w-6 text-primary/60" />
+              <div className="w-12 h-12 flex-shrink-0 rounded-lg bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center">
+                <Music className="h-5 w-5 text-primary/60" />
               </div>
             )}
-
-            {/* Song Info */}
-            <div>
-              <h2 className="font-semibold text-lg">
+            <div className="min-w-0">
+              <h2 className="font-semibold text-sm truncate">
                 {currentSong?.name || currentSong?.title || 'Unknown Song'}
               </h2>
-              <p className="text-muted-foreground">
+              <p className="text-xs text-muted-foreground truncate">
                 {currentSong?.artist || 'Unknown Artist'}
                 {currentSong?.album && ` • ${currentSong.album}`}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Actions — fixed width, never pushes close button */}
+          <div className="flex items-center gap-1 flex-shrink-0">
             {/* Source indicator */}
-            {lyricsData && lyricsData.source !== 'none' && !isEditing && (
-              <span className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded">
+            {lyricsData && lyricsData.source !== 'none' && !isEditing && !isSearching && (
+              <span className="hidden sm:inline text-xs text-muted-foreground px-2 py-1 bg-muted rounded whitespace-nowrap">
                 {hasCustomLyrics ? 'Custom' : lyricsData.source === 'navidrome' ? 'Embedded' : 'LRCLIB'}
                 {lyricsData.syncedLyrics && ' • Synced'}
               </span>
             )}
 
-            {/* Edit/Save/Search buttons */}
             {isSearching ? (
               <Button
                 variant="ghost"
@@ -465,7 +463,7 @@ export function LyricsModal({ isOpen, onClose }: LyricsModalProps) {
                     className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
-                    Delete
+                    <span className="hidden sm:inline">Delete</span>
                   </Button>
                 )}
                 <Button
@@ -489,31 +487,31 @@ export function LyricsModal({ isOpen, onClose }: LyricsModalProps) {
               <>
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon"
+                  className="h-9 w-9"
                   onClick={handleStartSearch}
                   title="Search LRCLIB for lyrics"
                 >
-                  <Search className="h-4 w-4 mr-1" />
-                  Search
+                  <Search className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon"
+                  className="h-9 w-9"
                   onClick={handleStartEdit}
-                  title="Add or edit lyrics"
+                  title={lyricsData?.lyrics || hasCustomLyrics ? 'Edit lyrics' : 'Add lyrics'}
                 >
-                  <Edit3 className="h-4 w-4 mr-1" />
-                  {lyricsData?.lyrics || hasCustomLyrics ? 'Edit' : 'Add'}
+                  <Edit3 className="h-4 w-4" />
                 </Button>
               </>
             )}
 
-            {/* Close button */}
+            {/* Close button — always in the same position */}
             <Button
               variant="ghost"
               size="icon"
               onClick={onClose}
-              className="h-10 w-10"
+              className="h-10 w-10 flex-shrink-0"
             >
               <X className="h-5 w-5" />
             </Button>
