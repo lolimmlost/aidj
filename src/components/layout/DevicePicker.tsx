@@ -64,34 +64,23 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
   // Position above trigger once the dropdown DOM node is available
   const positionDropdown = useCallback((node: HTMLDivElement | null) => {
     if (!node) return;
-    // Store for outside-click detection
     (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
 
-    if (triggerRef?.current) {
-      const triggerRect = triggerRef.current.getBoundingClientRect();
-      const gap = 8;
-      const dropdownWidth = 256;
+    if (!triggerRef?.current) return;
+    const triggerRect = triggerRef.current.getBoundingClientRect();
+    const gap = 8;
+    const dropdownWidth = 256;
+    const dropdownHeight = node.offsetHeight || 200;
 
-      // Measure after content renders
-      requestAnimationFrame(() => {
-        const dropdownHeight = node.offsetHeight || 200;
-        let top = triggerRect.top - dropdownHeight - gap;
-        let left = triggerRect.left;
+    let top = triggerRect.top - dropdownHeight - gap;
+    let left = triggerRect.left;
 
-        if (top < 8) top = triggerRect.bottom + gap;
-        if (left + dropdownWidth > window.innerWidth) left = window.innerWidth - dropdownWidth - 8;
-        if (left < 8) left = 8;
+    if (top < 8) top = triggerRect.bottom + gap;
+    if (left + dropdownWidth > window.innerWidth) left = window.innerWidth - dropdownWidth - 8;
+    if (left < 8) left = 8;
 
-        node.style.top = `${top}px`;
-        node.style.left = `${left}px`;
-        node.style.visibility = 'visible';
-      });
-    } else {
-      // Fallback: position above player bar
-      node.style.bottom = '80px';
-      node.style.left = '16px';
-      node.style.visibility = 'visible';
-    }
+    node.style.top = `${top}px`;
+    node.style.left = `${left}px`;
   }, [triggerRef]);
 
   // Close on outside click (ignore clicks on the trigger button)
@@ -139,6 +128,17 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
 
   if (typeof document === 'undefined') return null;
 
+  // Compute initial position from trigger button
+  const initialStyle: React.CSSProperties = (() => {
+    if (triggerRef?.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      const top = Math.max(8, r.top - 208);
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - 264));
+      return { top: `${top}px`, left: `${left}px` };
+    }
+    return { bottom: '80px', left: '16px' };
+  })();
+
   const dropdown = (
     <div
       ref={positionDropdown}
@@ -147,7 +147,7 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
         "bg-popover border border-border rounded-lg shadow-xl",
         "animate-in fade-in slide-in-from-bottom-2 duration-150"
       )}
-      style={{ visibility: 'hidden' }}
+      style={initialStyle}
     >
       <div className="p-3">
         <h4 className="text-sm font-medium mb-2">Available Devices</h4>
