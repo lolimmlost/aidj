@@ -96,7 +96,7 @@
     "@tailwindcss/vite": "^4.1.12",
     "@tanstack/devtools-vite": "^0.2.10",
     "@tanstack/eslint-plugin-query": "^5.83.1",
-    "@tanstack/eslint-plugin-router": "^1.131.2",
+    "@tanstack/eslint-plugin-router": "^1.161.6",
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
