@@ -62,31 +62,27 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
     staleTime: 10_000,
   });
 
-  // Position the dropdown above the trigger button using layout effect
-  // so it's placed before the browser paints
+  // Position the dropdown above the trigger button on mount
   useLayoutEffect(() => {
     if (!triggerRef?.current || !ref.current) return;
     const triggerRect = triggerRef.current.getBoundingClientRect();
     const dropdownHeight = ref.current.offsetHeight || 200;
     const gap = 8;
 
-    // Place above the trigger, clamped to viewport
     let top = triggerRect.top - dropdownHeight - gap;
     let left = triggerRect.left;
 
-    // If it would go above viewport, place below instead
     if (top < 8) {
       top = triggerRect.bottom + gap;
     }
-    // Clamp to right edge
     if (left + 256 > window.innerWidth) {
       left = window.innerWidth - 256 - 8;
     }
-    // Clamp to left edge
     if (left < 8) left = 8;
 
     setStyle({ position: 'fixed', top: `${top}px`, left: `${left}px` });
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Close on outside click (ignore clicks on the trigger button)
   useEffect(() => {
