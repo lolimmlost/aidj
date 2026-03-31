@@ -1,0 +1,26 @@
+# Epic 9: User Onboarding & Dashboard Simplification — Brownfield Enhancement
+
+## Table of Contents
+
+- [Epic 9: User Onboarding & Dashboard Simplification — Brownfield Enhancement](#table-of-contents)
+  - [Epic Goal](./epic-goal.md)
+  - [Epic Description](./epic-description.md)
+    - [Existing System Context](./epic-description.md#existing-system-context)
+      - [Recommendation Pipeline Data Flow](./epic-description.md#recommendation-pipeline-data-flow)
+      - [Current Cold-Start Gaps](./epic-description.md#current-cold-start-gaps)
+    - [Enhancement Details](./epic-description.md#enhancement-details)
+  - [Stories](./stories.md)
+    - [Story 9.1: Onboarding State & New User Detection](./stories.md#story-91-onboarding-state-new-user-detection)
+      - [Acceptance Criteria](./stories.md#acceptance-criteria)
+      - [Technical Notes](./stories.md#technical-notes)
+    - [Story 9.2: Onboarding Wizard (Artist Picker + Liked Songs + Last.fm Import)](./stories.md#story-92-onboarding-wizard-artist-picker-liked-songs-lastfm-import)
+      - [Acceptance Criteria](./stories.md#acceptance-criteria)
+      - [Technical Notes](./stories.md#technical-notes)
+    - [Story 9.3: Radio Shuffle & Simplified Dashboard](./stories.md#story-93-radio-shuffle-simplified-dashboard)
+      - [Acceptance Criteria](./stories.md#acceptance-criteria)
+      - [Technical Notes](./stories.md#technical-notes)
+  - [Compatibility Requirements](./compatibility-requirements.md)
+  - [Risk Mitigation](./risk-mitigation.md)
+  - [Definition of Done](./definition-of-done.md)
+  - [Recommendation Pipeline Coverage Summary](./recommendation-pipeline-coverage-summary.md)
+  - [Story Manager Handoff](./story-manager-handoff.md)

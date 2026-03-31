@@ -1,15 +1,20 @@
+import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Play, Pause, Music2, Disc3, Sparkles, TrendingUp, TrendingDown } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { Play, Pause, Disc3, TrendingUp, TrendingDown, Shuffle, Library, RefreshCw, Loader2, Radio } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAudioStore } from '@/lib/stores/audio';
 import { cn } from '@/lib/utils';
 import { formatPercentChange } from '@/lib/utils/period-comparison';
 import { useDynamicColors } from '@/hooks/useDynamicColors';
+import { loadPlaylistIntoQueue } from '@/lib/utils/playlist-helpers';
 
 interface DashboardHeroProps {
   userName?: string;
   availableRecommendations: number;
   playlistSongsReady: number;
+  showRadioButton?: boolean;
+  onStartRadio?: () => void;
+  radioLoading?: boolean;
 }
 
 interface ListeningStatsResponse {
@@ -42,6 +47,9 @@ export function DashboardHero({
   userName,
   availableRecommendations,
   playlistSongsReady,
+  showRadioButton,
+  onStartRadio,
+  radioLoading,
 }: DashboardHeroProps) {
   const currentSong = useAudioStore((s) => s.playlist[s.currentSongIndex]);
   const isPlaying = useAudioStore((s) => s.isPlaying);
@@ -146,6 +154,8 @@ export function DashboardHero({
             isPlaying={isPlaying}
             onTogglePlay={() => setIsPlaying(!isPlaying)}
           />
+        ) : showRadioButton && onStartRadio ? (
+          <RadioCTA onStartRadio={onStartRadio} isLoading={radioLoading} />
         ) : (
           <StartListeningCTA />
         )}
@@ -316,28 +326,170 @@ function NowPlayingWidget({ song, isPlaying, onTogglePlay }: NowPlayingWidgetPro
 }
 
 function StartListeningCTA() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const queryClient = useQueryClient();
+  const setPlaylist = useAudioStore((s) => s.setPlaylist);
+  const playSong = useAudioStore((s) => s.playSong);
+  const setIsPlaying = useAudioStore((s) => s.setIsPlaying);
+
+  const { data: playlistsData } = useQuery({
+    queryKey: ['playlists'],
+    queryFn: async () => {
+      const response = await fetch('/api/playlists');
+      if (!response.ok) return { playlists: [] };
+      const json = await response.json();
+      return json.data || { playlists: [] };
+    },
+  });
+
+  const playlists = playlistsData?.playlists || [];
+  const likedPlaylist = playlists.find(
+    (p: { name: string }) => p.name === '❤️ Liked Songs'
+  );
+  const songCount = likedPlaylist?.actualSongCount || likedPlaylist?.songCount || 0;
+  const hasLikedSongs = likedPlaylist && songCount > 0;
+
+  const handleShuffleLiked = async () => {
+    if (!likedPlaylist) return;
+    setIsLoading(true);
+    try {
+      const songs = await loadPlaylistIntoQueue(likedPlaylist.id);
+      if (songs.length === 0) return;
+
+      // Fisher-Yates shuffle
+      const shuffled = [...songs];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+
+      setPlaylist(shuffled);
+      playSong(shuffled[0].id, shuffled);
+      setIsPlaying(true);
+    } catch (error) {
+      console.error('Failed to load liked songs:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSyncLikedSongs = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch('/api/playlists/liked-songs/sync', {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Sync failed');
+      queryClient.invalidateQueries({ queryKey: ['playlists'] });
+    } catch (error) {
+      console.error('Failed to sync liked songs:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
-    <Link
-      to="/library"
-      className="glass-card-premium p-5 sm:p-6 w-full lg:w-auto lg:min-w-[320px] animate-fade-up group"
-    >
-      <div className="flex items-center gap-4">
+    <div className="glass-card-premium p-5 sm:p-6 w-full lg:w-auto lg:min-w-[320px] animate-fade-up space-y-3">
+      {hasLikedSongs ? (
+        <button
+          onClick={handleShuffleLiked}
+          disabled={isLoading}
+          className="flex items-center gap-4 w-full group text-left"
+        >
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center group-hover:scale-105 transition-transform">
+            {isLoading ? (
+              <Loader2 className="w-7 h-7 sm:w-8 sm:h-8 text-primary animate-spin" />
+            ) : (
+              <Shuffle className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-base sm:text-lg">
+              {isLoading ? 'Loading...' : 'Shuffle Liked Songs'}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {songCount} song{songCount !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+            <Play className="w-4 h-4 text-primary ml-0.5" />
+          </div>
+        </button>
+      ) : (
+        <button
+          onClick={handleSyncLikedSongs}
+          disabled={isSyncing}
+          className="flex items-center gap-4 w-full group text-left"
+        >
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center group-hover:scale-105 transition-transform">
+            {isSyncing ? (
+              <Loader2 className="w-7 h-7 sm:w-8 sm:h-8 text-primary animate-spin" />
+            ) : (
+              <RefreshCw className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-base sm:text-lg">
+              {isSyncing ? 'Syncing...' : 'Sync Liked Songs'}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Import starred songs from Navidrome
+            </p>
+          </div>
+        </button>
+      )}
+
+      <div className="border-t border-border/50 pt-3">
+        <Link
+          to="/library"
+          className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+        >
+          <Library className="w-4 h-4" />
+          <span>Browse Library</span>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function RadioCTA({ onStartRadio, isLoading }: { onStartRadio: () => void; isLoading?: boolean }) {
+  return (
+    <div className="glass-card-premium p-5 sm:p-6 w-full lg:w-auto lg:min-w-[320px] animate-fade-up space-y-3">
+      <button
+        onClick={onStartRadio}
+        disabled={isLoading}
+        className="flex items-center gap-4 w-full group text-left"
+      >
         <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center group-hover:scale-105 transition-transform">
-          <Music2 className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
+          {isLoading ? (
+            <Loader2 className="w-7 h-7 sm:w-8 sm:h-8 text-primary animate-spin" />
+          ) : (
+            <Radio className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
+          )}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
-            Start Listening
-            <Sparkles className="w-4 h-4 text-primary" />
+          <h3 className="font-semibold text-base sm:text-lg">
+            {isLoading ? 'Loading...' : 'Start Radio'}
           </h3>
           <p className="text-sm text-muted-foreground">
-            Browse your library or let AI DJ take over
+            Play a shuffled mix based on your taste
           </p>
         </div>
         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
           <Play className="w-4 h-4 text-primary ml-0.5" />
         </div>
+      </button>
+
+      <div className="border-t border-border/50 pt-3">
+        <Link
+          to="/library"
+          className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+        >
+          <Library className="w-4 h-4" />
+          <span>Browse Library</span>
+        </Link>
       </div>
-    </Link>
+    </div>
   );
 }

@@ -198,9 +198,38 @@ export const POST = withAuthAndErrorHandling(
           if (validatedData.feedbackType === 'thumbs_up') {
             await starSong(validatedData.songId, creds);
             console.log(`✅ Starred song ${validatedData.songId} in Navidrome`);
+
+            // Sync to likedSongsSync so heart icon shows in playlist views
+            const parts = validatedData.songArtistTitle.split(' - ');
+            const artist = parts[0] || 'Unknown';
+            const title = parts.slice(1).join(' - ') || validatedData.songArtistTitle;
+            await db
+              .insert(likedSongsSync)
+              .values({
+                userId: session.user.id,
+                songId: validatedData.songId,
+                artist,
+                title,
+                isActive: 1,
+              })
+              .onConflictDoUpdate({
+                target: [likedSongsSync.userId, likedSongsSync.songId],
+                set: { isActive: 1, syncedAt: new Date() },
+              });
           } else if (validatedData.feedbackType === 'thumbs_down') {
             await unstarSong(validatedData.songId, creds);
             console.log(`❌ Unstarred song ${validatedData.songId} in Navidrome`);
+
+            // Mark as inactive in likedSongsSync
+            await db
+              .update(likedSongsSync)
+              .set({ isActive: 0 })
+              .where(
+                and(
+                  eq(likedSongsSync.userId, session.user.id),
+                  eq(likedSongsSync.songId, validatedData.songId)
+                )
+              );
           }
 
           // Auto-sync Liked Songs playlist after starring/unstarring

@@ -156,3 +156,12 @@ development_status:
   8-8-testflight-play-store-beta-distribution: backlog
   8-9-day-in-the-life-test: backlog
   epic-8-retrospective: optional
+
+  # ============================================
+  # Epic 9: User Onboarding & Dashboard Simplification (3 stories)
+  # ============================================
+  epic-9: in-progress
+  9-1-onboarding-state-new-user-detection: review
+  9-2-onboarding-wizard: review
+  9-3-radio-shuffle-simplified-dashboard: review
+  epic-9-retrospective: optional

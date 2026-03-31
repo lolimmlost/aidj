@@ -74,6 +74,7 @@ export interface UserPreferences {
   playbackSettings: PlaybackSettings;
   notificationSettings: NotificationSettings;
   dashboardLayout: DashboardLayout;
+  onboardingStatus?: import('@/lib/db/schema/preferences.schema').OnboardingStatusData | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
