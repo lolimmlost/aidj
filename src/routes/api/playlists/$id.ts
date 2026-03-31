@@ -5,6 +5,7 @@ import { userPlaylists, playlistSongs } from '../../../lib/db/schema/playlists.s
 import { likedSongsSync } from '../../../lib/db/schema';
 import { eq, and, asc, inArray } from 'drizzle-orm';
 import { getSongsByIds } from '../../../lib/services/navidrome';
+import { deleteSmartPlaylist } from '../../../lib/services/navidrome-smart-playlists';
 
 export const Route = createFileRoute("/api/playlists/$id")({
   server: {
@@ -170,6 +171,15 @@ export const Route = createFileRoute("/api/playlists/$id")({
           status: 404,
           headers: { 'Content-Type': 'application/json' }
         });
+      }
+
+      // Also delete from Navidrome if it's a synced/smart playlist
+      if (playlist.navidromeId) {
+        try {
+          await deleteSmartPlaylist(playlist.navidromeId);
+        } catch (ndError) {
+          console.warn('Failed to delete from Navidrome (continuing with local delete):', ndError);
+        }
       }
 
       // Delete playlist (cascade will delete songs)

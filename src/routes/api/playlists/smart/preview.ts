@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../../lib/auth/auth';
-import { evaluateSmartPlaylistRules } from '../../../../lib/services/smart-playlist-evaluator';
+import {
+  previewSmartPlaylistRules,
+  type SmartPlaylistRules,
+} from '../../../../lib/services/navidrome-smart-playlists';
 
 export const Route = createFileRoute("/api/playlists/smart/preview")({
   server: {
@@ -9,9 +12,7 @@ export const Route = createFileRoute("/api/playlists/smart/preview")({
   POST: async ({ request }) => {
     const session = await auth.api.getSession({
       headers: request.headers,
-      query: {
-        disableCookieCache: true,
-      },
+      query: { disableCookieCache: true },
     });
 
     if (!session) {
@@ -35,10 +36,13 @@ export const Route = createFileRoute("/api/playlists/smart/preview")({
         });
       }
 
-      console.log('📋 Previewing smart playlist with rules:', JSON.stringify(rules, null, 2));
+      console.log('🔍 Previewing smart playlist via Navidrome native API');
 
-      // Evaluate rules and get matching songs
-      const songs = await evaluateSmartPlaylistRules(rules);
+      // Preview via Navidrome — creates temp playlist, fetches songs, deletes it
+      const songs = await previewSmartPlaylistRules(
+        rules as SmartPlaylistRules,
+        rules.limit || 50,
+      );
 
       console.log(`✅ Preview found ${songs.length} matching songs`);
 

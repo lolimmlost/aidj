@@ -23,6 +23,16 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Card,
   CardContent,
 } from '@/components/ui/card';
@@ -54,6 +64,7 @@ import {
   GripVertical,
   Download,
   Upload,
+  Trash2,
 } from 'lucide-react';
 import { useAudioStore } from '@/lib/stores/audio';
 
@@ -68,6 +79,7 @@ interface SortablePlaylistCardProps {
   onPlayFromSong: (playlist: Playlist, songs: PlaylistSong[], startIndex: number) => void;
   onPlayPlaylist: (playlist: Playlist) => void;
   onExport: (playlist: Playlist) => void;
+  onDelete: (playlist: Playlist) => void;
   formatDuration: (seconds?: number | null) => string;
   getSyncStatus: (playlist: Playlist) => { icon: typeof CheckCircle2; text: string; color: string } | null;
 }
@@ -82,6 +94,7 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
   onPlayFromSong,
   onPlayPlaylist,
   onExport,
+  onDelete,
   formatDuration,
   getSyncStatus,
 }: SortablePlaylistCardProps) {
@@ -230,6 +243,15 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
               <Download className="mr-2 h-4 w-4" />
               Export Playlist
             </DropdownMenuItem>
+            {playlist.name !== '❤️ Liked Songs' && (
+              <DropdownMenuItem
+                onClick={() => onDelete(playlist)}
+                className="min-h-[44px] text-destructive focus:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Playlist
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -537,6 +559,40 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     setExportDialogOpen(true);
   }, []);
 
+  const { mutate: deletePlaylist, isPending: isDeleting } = useMutation({
+    mutationFn: async (playlistId: string) => {
+      const response = await fetch(`/api/playlists/${playlistId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete playlist');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['playlists'] });
+    },
+  });
+
+  const [deleteTarget, setDeleteTarget] = useState<Playlist | null>(null);
+
+  const handleDelete = useCallback((playlist: Playlist) => {
+    setDeleteTarget(playlist);
+  }, []);
+
+  const confirmDelete = useCallback(() => {
+    if (!deleteTarget) return;
+    deletePlaylist(deleteTarget.id, {
+      onSuccess: () => {
+        toast.success(`Deleted "${deleteTarget.name}"`);
+        setDeleteTarget(null);
+      },
+      onError: (err) => {
+        toast.error('Failed to delete playlist', { description: err.message });
+        setDeleteTarget(null);
+      },
+    });
+  }, [deleteTarget, deletePlaylist]);
+
   const handleImportSuccess = useCallback((_playlistId: string) => {
     queryClient.invalidateQueries({ queryKey: ['playlists'] });
     toast.success('Playlist imported!', {
@@ -778,6 +834,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
                 onPlayFromSong={handlePlayFromSong}
                 onPlayPlaylist={handlePlayPlaylist}
                 onExport={handleExport}
+                onDelete={handleDelete}
                 formatDuration={formatDuration}
                 getSyncStatus={getSyncStatus}
               />
@@ -802,6 +859,27 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
         onOpenChange={setImportDialogOpen}
         onSuccess={handleImportSuccess}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Playlist</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteTarget?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="min-h-[44px]">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="min-h-[44px] bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

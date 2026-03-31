@@ -16,7 +16,7 @@
 
 import { getLastFmClient, type LastFmClient } from './lastfm';
 import type { EnrichedTrack } from './lastfm/types';
-import { evaluateSmartPlaylistRules } from './smart-playlist-evaluator';
+import { previewSmartPlaylistRules, type SmartPlaylistRules } from './navidrome-smart-playlists';
 import { getSongsGlobal, getRandomSongs, search, type SubsonicSong } from './navidrome';
 import { translateMoodToQuery, toEvaluatorFormat, extractLastFmTags } from './mood-translator';
 import { getMoodFallbackSongs } from './mood-criteria-fallback';
@@ -641,15 +641,26 @@ async function getMoodBasedSongs(
 
     console.log(`📝 [Recommendations] Generated query:`, JSON.stringify(evaluatorQuery));
 
-    const songs = await evaluateSmartPlaylistRules({
-      ...evaluatorQuery,
-      limit: moodQuery.limit || limit,
-    });
+    const songs = await previewSmartPlaylistRules(
+      { ...evaluatorQuery, limit: moodQuery.limit || limit } as SmartPlaylistRules,
+      moodQuery.limit || limit,
+    );
 
     if (songs.length > 0) {
       console.log(`✅ [Recommendations] Smart playlist returned ${songs.length} songs`);
       return {
-        songs: songs.map(subsonicSongToSong),
+        songs: songs.map(s => ({
+          id: s.id,
+          name: s.name,
+          title: s.title,
+          artist: s.artist,
+          albumId: s.albumId,
+          album: s.album,
+          duration: s.duration,
+          track: s.track,
+          url: s.url,
+          genre: s.genre,
+        })),
         source: 'smart-playlist',
         mode: 'mood',
         metadata: {
