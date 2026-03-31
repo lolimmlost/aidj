@@ -30,9 +30,11 @@ function useArtistImages() {
  */
 function useDeezerArtistImages(artistNames: string[], cachedImages: Record<string, string>) {
   const missing = artistNames.filter(n => n && !cachedImages[n.toLowerCase()]);
+  // Stable sorted key to avoid refetches when array order changes between renders
+  const queryKey = [...missing].sort().join(',');
 
   return useQuery({
-    queryKey: ['deezer-artist-images', missing.sort().join(',')],
+    queryKey: ['deezer-artist-images', queryKey],
     queryFn: async () => {
       const res = await fetch('/api/cover-art/batch-artist-images', {
         method: 'POST',
@@ -185,8 +187,10 @@ export function AurralDiscoverySection() {
   const { data: discovery, isLoading } = useAurralDiscovery();
   const { data: cachedImages = {} } = useArtistImages();
 
-  // Collect all artist names from recommendations that need images
-  const recNames = (discovery?.recommendations ?? [])
+  // Only fetch Deezer images for the 6 recommendations actually displayed,
+  // not all 100 from the API. This keeps the batch request small and focused.
+  const displayedRecs = (discovery?.recommendations ?? []).slice(0, 6);
+  const recNames = displayedRecs
     .filter(r => !r.image)
     .map(r => r.name);
   const { data: deezerImages = {} } = useDeezerArtistImages(recNames, cachedImages);
