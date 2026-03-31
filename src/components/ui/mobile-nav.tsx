@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
-import { Menu, X, Music, Search, Settings, Download, LayoutDashboard, BarChart3, Clock, ListMusic, Sparkles, User, LogOut } from 'lucide-react';
+import { Menu, X, Music, Search, Settings, Download, LayoutDashboard, BarChart3, Clock, ListMusic, Sparkles, User, LogOut, Shield } from 'lucide-react';
 import { Button } from './button';
 import { cn } from '@/lib/utils';
 import authClient from '@/lib/auth/auth-client';
@@ -21,6 +21,8 @@ export function MobileNav() {
   const currentPath = routerState.location.pathname;
   const { playlist, currentSongIndex } = useAudioStore();
   const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
+  const { data: session } = authClient.useSession();
+  const isAdmin = session?.user?.role === 'admin';
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
@@ -33,8 +35,8 @@ export function MobileNav() {
 
   return (
     <>
-      {/* Hamburger Button - Fixed Top Left on Mobile */}
-      <div className="md:hidden fixed top-4 left-4 z-50">
+      {/* Hamburger Button - Fixed Top Left on Mobile, below iOS safe area */}
+      <div className="md:hidden fixed top-[calc(env(safe-area-inset-top)+0.75rem)] left-4 z-50">
         <Button
           variant="outline"
           size="sm"
@@ -64,7 +66,7 @@ export function MobileNav() {
         `}
         aria-label="Mobile navigation"
       >
-        <div className={`flex flex-col h-full pt-20 px-4 overflow-y-auto ${hasActiveSong ? 'pb-28' : 'pb-6'}`}>
+        <div className={`flex flex-col h-full pt-[calc(env(safe-area-inset-top)+4rem)] px-4 overflow-y-auto ${hasActiveSong ? 'pb-28' : 'pb-6'}`}>
           <div className="space-y-1">
             <NavSectionLabel label="Main" />
             <NavLink
@@ -136,6 +138,15 @@ export function MobileNav() {
             />
 
             <NavSectionLabel label="System" />
+            {isAdmin && (
+              <NavLink
+                to="/admin"
+                icon={<Shield className="h-5 w-5" />}
+                label="Admin"
+                onClick={closeMenu}
+                active={currentPath.startsWith('/admin')}
+              />
+            )}
             <NavLink
               to="/settings"
               icon={<Settings className="h-5 w-5" />}

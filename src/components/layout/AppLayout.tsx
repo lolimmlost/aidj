@@ -24,6 +24,7 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  Shield,
 } from 'lucide-react';
 import authClient from '@/lib/auth/auth-client';
 import { MusicTasteDebugPanel } from '@/components/debug/MusicTasteDebugPanel';
@@ -220,7 +221,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* CRITICAL: Always render PlayerBar to preserve audio elements across state changes.
          Unmounting destroys <audio> elements and kills playback. Hide visually instead. */}
       <div className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]",
+        "fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl",
         !hasActiveSong && "hidden"
       )}>
         <PlayerBar />
@@ -247,6 +248,8 @@ function LeftSidebar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isSyncingLiked, setIsSyncingLiked] = useState(false);
+  const { data: session } = authClient.useSession();
+  const isAdmin = session?.user?.role === 'admin';
 
   // Sidebar collapsed state with localStorage persistence
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -372,7 +375,7 @@ function LeftSidebar() {
             <NavItem
               to="/library/artists"
               icon={<Music className="h-4 w-4" />}
-              label="Browse"
+              label="Artists"
               active={currentPath.includes('/library/artists')}
               collapsed={isCollapsed}
             />
@@ -578,6 +581,15 @@ function LeftSidebar() {
           "flex items-center gap-2",
           isCollapsed && "flex-col"
         )}>
+          {isAdmin && (
+            <NavItem
+              to="/admin"
+              icon={<Shield className="h-4 w-4" />}
+              label="Admin"
+              active={currentPath.startsWith('/admin')}
+              collapsed={isCollapsed}
+            />
+          )}
           <NavItem
             to="/settings"
             icon={<Settings className="h-4 w-4" />}
