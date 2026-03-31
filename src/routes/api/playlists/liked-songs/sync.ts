@@ -5,6 +5,7 @@ import { userPlaylists, playlistSongs } from '../../../../lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { getStarredSongs } from '../../../../lib/services/navidrome';
 import { ensureNavidromeUser } from '../../../../lib/services/navidrome-users';
+import { syncLikedSongsToFeedback } from '../../../../lib/services/liked-songs-sync';
 
 export const Route = createFileRoute("/api/playlists/liked-songs/sync")({
   server: {
@@ -102,6 +103,14 @@ export const Route = createFileRoute("/api/playlists/liked-songs/sync")({
 
         await db.insert(playlistSongs).values(songsToInsert);
         console.log(`✅ Inserted ${songsToInsert.length} songs into Liked Songs playlist`);
+      }
+
+      // Sync starred songs to feedback table so the heart icon reflects Navidrome stars
+      try {
+        const syncResult = await syncLikedSongsToFeedback(userId);
+        console.log(`💜 Feedback sync: ${syncResult.synced} synced, ${syncResult.unchanged} unchanged`);
+      } catch (feedbackSyncError) {
+        console.error('Failed to sync liked songs to feedback (non-blocking):', feedbackSyncError);
       }
 
       return new Response(

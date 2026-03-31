@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, index, unique } from "drizzle-orm/pg-core";
 import { user } from "./auth.schema";
 import { recommendationsCache } from "./auth.schema";
 
@@ -59,6 +59,9 @@ export const recommendationFeedback = pgTable("recommendation_feedback", {
   // Index for songId lookups (Story 3.12)
   songIdIdx: index("recommendation_feedback_song_id_idx").on(table.songId),
   userSongIdIdx: index("recommendation_feedback_user_song_id_idx").on(table.userId, table.songId),
+
+  // Unique constraint so upserts (onConflictDoUpdate) work correctly
+  uniqueUserSong: unique("recommendation_feedback_user_song_unique").on(table.userId, table.songId),
 }));
 
 export type RecommendationFeedback = typeof recommendationFeedback.$inferSelect;

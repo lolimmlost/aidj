@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { db } from '../../../lib/db';
-import { recommendationFeedback, recommendationsCache, userPreferences } from '../../../lib/db/schema';
+import { recommendationFeedback, recommendationsCache, userPreferences, likedSongsSync } from '../../../lib/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { starSong, unstarSong, getStarredSongs } from '../../../lib/services/navidrome';
@@ -67,6 +67,25 @@ export const GET = withAuthAndErrorHandling(
     for (const record of feedbackRecords) {
       if (record.songId) {
         feedbackMap[record.songId] = record.feedbackType;
+      }
+    }
+
+    // Check liked_songs_sync for songs that are starred in Navidrome but don't
+    // have a feedback record yet (e.g. starred before AIDJ, or sync hasn't run)
+    const missingIds = songIds.filter(id => !(id in feedbackMap));
+    if (missingIds.length > 0) {
+      const likedRecords = await db
+        .select({ songId: likedSongsSync.songId })
+        .from(likedSongsSync)
+        .where(
+          and(
+            eq(likedSongsSync.userId, session.user.id),
+            eq(likedSongsSync.isActive, 1),
+            inArray(likedSongsSync.songId, missingIds)
+          )
+        );
+      for (const record of likedRecords) {
+        feedbackMap[record.songId] = 'thumbs_up';
       }
     }
 

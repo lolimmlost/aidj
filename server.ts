@@ -10,7 +10,10 @@
  */
 
 import { createServer } from 'http';
+import { join } from 'path';
 import { WebSocketServer } from 'ws';
+import { toNodeHandler } from 'srvx/node';
+import sirv from 'sirv';
 import { setupPlaybackWebSocket } from './src/lib/services/playback-websocket';
 import { getUserIdFromRequest } from './src/lib/auth/ws-session';
 
@@ -18,15 +21,27 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 
 async function start() {
-  // Import the built handler
-  // In production, this will be the compiled output
+  // Import the built handler and convert to a proper Node handler
+  // srvx/node's toNodeHandler correctly handles Set-Cookie splitting,
+  // streaming responses, and lazy Request body conversion.
   let handler: (req: import('http').IncomingMessage, res: import('http').ServerResponse) => void;
 
   try {
-    // Try to import from build output first
-    const mod = await import('./.output/server/index.mjs');
-    handler = mod.default || mod.handler || mod;
-    console.log('[Server] Loaded handler from .output/server/index.mjs');
+    // Serve static assets from dist/client/ (CSS, JS, images, etc.)
+    const serve = sirv(join(import.meta.dirname, 'dist/client'), {
+      immutable: true,
+      maxAge: 31536000, // 1 year for hashed assets
+    });
+
+    const mod = await import('./dist/server/server.js');
+    const fetchHandler = mod.default?.fetch || mod.default;
+    const ssrHandler = toNodeHandler(fetchHandler);
+
+    // Static files first, then SSR/API handler
+    handler = (req, res) => {
+      serve(req, res, () => ssrHandler(req, res));
+    };
+    console.log('[Server] Loaded handler from dist/server/server.js');
   } catch (err) {
     console.error('[Server] Failed to load handler:', err);
     console.error('[Server] Make sure to run `npm run build` first');
