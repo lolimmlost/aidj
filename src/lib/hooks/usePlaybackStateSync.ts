@@ -123,6 +123,54 @@ export function usePlaybackStateSync({
         audio.addEventListener('canplay', resumeOnReload, { once: true });
         return; // Don't call audio.pause()
       }
+      // iOS AudioContext state bounces (interrupted→running→interrupted) can cause
+      // isPlaying to flip false transiently. If there was a recent AudioContext interrupt
+      // and no user-initiated pause, don't cement the pause — the statechange handler
+      // will set isPlaying=true when the context stabilizes.
+      {
+        const lastInterrupt = storeState._lastAudioContextInterrupt;
+        const isRecentInterrupt = lastInterrupt > 0 && (Date.now() - lastInterrupt) < 5000;
+        const userPauseAt = storeState._userPauseAt;
+        const isRecentUserPause = userPauseAt > 0 && (Date.now() - userPauseAt) < 3000;
+        if (isRecentInterrupt && !isRecentUserPause && audio.currentTime > 0 && hasRealSong(audio)) {
+          console.log('🎮 [STORE] Ignoring pause during AudioContext interrupt recovery');
+          return;
+        }
+      }
+      // External audio session interruption (Siri, phone call, etc.)
+      // These force-pause the HTMLAudioElement WITHOUT triggering AudioContext
+      // statechange events. If the audio was recently making progress and no
+      // user-initiated pause occurred, attempt auto-resume after a delay.
+      {
+        const userPauseAt = storeState._userPauseAt;
+        const isRecentUserPause = userPauseAt > 0 && (Date.now() - userPauseAt) < 3000;
+        const wasRecentlyPlaying = lastProgressTimeRef.current > 0
+          && (Date.now() - lastProgressTimeRef.current) < 10000;
+        if (!isRecentUserPause && wasRecentlyPlaying && audio.currentTime > 0 && hasRealSong(audio)) {
+          console.log('🎮 [STORE] External audio session interruption detected — attempting auto-resume');
+          // Delay resume to let the interrupting app (Siri) finish
+          setTimeout(() => {
+            const currentState = useAudioStore.getState();
+            // Only resume if still not playing and no user pause occurred since
+            if (!currentState.isPlaying && !(currentState._userPauseAt > userPauseAt)) {
+              checkAndResumeAudioContext().then(() => {
+                audio.play()
+                  .then(() => {
+                    setIsPlaying(true);
+                    lastProgressTimeRef.current = Date.now();
+                    lastProgressValueRef.current = audio.currentTime;
+                    console.log('🎮 [STORE] Auto-resumed after external interruption');
+                  })
+                  .catch(() => {
+                    console.log('🎮 [STORE] Auto-resume failed — accepting pause');
+                    setIsPlaying(false);
+                  });
+              });
+            }
+          }, 1500);
+          return; // Don't call audio.pause()
+        }
+      }
       audio.pause();
     } else if (audio.readyState >= 2) {
       // Only try to play if audio is ready (has enough data)

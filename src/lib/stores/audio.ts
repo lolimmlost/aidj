@@ -6,7 +6,7 @@ import type { PlaybackStateResponse } from '@/lib/types/sync';
 import { getDeviceInfo } from '@/lib/utils/device';
 import { usePreferencesStore } from './preferences';
 import { toast } from 'sonner';
-import { selectBestShuffle } from '@/lib/utils/shuffle-scoring';
+import { shuffleSongs } from '@/lib/utils/shuffle-scoring';
 
 // Client-side helper functions (moved from ai-dj.ts to avoid server imports)
 function checkQueueThreshold(
@@ -30,7 +30,6 @@ interface AudioState {
   duration: number;
   volume: number;
   isShuffled: boolean;
-  originalPlaylist: Song[]; // Store original playlist order when shuffling
   // AI DJ state (Story 3.9)
   aiDJEnabled: boolean;
   aiDJLastQueueTime: number;
@@ -99,6 +98,8 @@ interface AudioState {
   lastKnownDuration: number;
   // Transient: timestamp of most recent user-initiated pause (self-expiring guard for stall recovery)
   _userPauseAt: number;
+  // Transient: timestamp of most recent AudioContext interrupt (iOS state bounce guard)
+  _lastAudioContextInterrupt: number;
   // Transient: snapshots persisted currentTime during rehydration before effects can overwrite it
   _rehydratedCurrentTime: number;
 
@@ -124,7 +125,6 @@ interface AudioState {
   reorderQueue: (fromIndex: number, toIndex: number) => void;
   toggleShuffle: () => void;
   shufflePlaylist: () => void;
-  unshufflePlaylist: () => void;
   // AI DJ actions (Story 3.9)
   setAIDJEnabled: (enabled: boolean) => void;
   monitorQueueForAIDJ: () => Promise<void>;
@@ -162,7 +162,6 @@ export const useAudioStore = create<AudioState>()(
     duration: 0,
     volume: 0.5,
     isShuffled: false,
-    originalPlaylist: [],
     // AI DJ initial state (Story 3.9)
     aiDJEnabled: false,
     aiDJLastQueueTime: 0,
@@ -206,6 +205,7 @@ export const useAudioStore = create<AudioState>()(
     lastKnownPosition: 0,
     lastKnownDuration: 0,
     _userPauseAt: 0,
+    _lastAudioContextInterrupt: 0,
     _rehydratedCurrentTime: 0,
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
@@ -214,7 +214,6 @@ export const useAudioStore = create<AudioState>()(
       playlist: songs,
       currentSongIndex: 0,
       isShuffled: false,
-      originalPlaylist: []
     }),
 
     playSong: (songId: string, newPlaylist?: Song[]) => {
@@ -257,49 +256,26 @@ export const useAudioStore = create<AudioState>()(
       
       if (state.playlist.length === 0 || state.currentSongIndex === -1) {
         // No existing playlist, just play the song
-        set({ 
-          playlist: [song], 
-          currentSongIndex: 0, 
+        set({
+          playlist: [song],
+          currentSongIndex: 0,
           isPlaying: true,
           isShuffled: false,
-          originalPlaylist: []
         });
       } else {
         // Replace the currently playing song with the new song
         // but keep the entire rest of the queue intact
         const newPlaylist = [
-          ...state.playlist.slice(0, state.currentSongIndex), // Keep songs before current
-          song, // New song to play now
-          ...state.playlist.slice(state.currentSongIndex + 1) // Keep songs after current
+          ...state.playlist.slice(0, state.currentSongIndex),
+          song,
+          ...state.playlist.slice(state.currentSongIndex + 1)
         ];
-        
-        // Preserve shuffle state - if playlist was shuffled, keep it shuffled
-        // and update the original playlist to reflect the change
-        if (state.isShuffled && state.originalPlaylist.length > 0) {
-          // Update original playlist to replace the current song there
-          const updatedOriginalPlaylist = [...state.originalPlaylist];
-          const originalCurrentSongIndex = updatedOriginalPlaylist.findIndex(s => s.id === state.playlist[state.currentSongIndex]?.id);
-          if (originalCurrentSongIndex !== -1) {
-            updatedOriginalPlaylist[originalCurrentSongIndex] = song;
-          }
-          
-          set({ 
-            playlist: newPlaylist, 
-            currentSongIndex: state.currentSongIndex, // Stay at the same position
-            isPlaying: true,
-            isShuffled: true, // Keep shuffle enabled
-            originalPlaylist: updatedOriginalPlaylist // Update original playlist
-          });
-        } else {
-          // Not shuffled, just replace normally
-          set({ 
-            playlist: newPlaylist, 
-            currentSongIndex: state.currentSongIndex, // Stay at the same position
-            isPlaying: true,
-            isShuffled: false,
-            originalPlaylist: []
-          });
-        }
+
+        set({
+          playlist: newPlaylist,
+          currentSongIndex: state.currentSongIndex,
+          isPlaying: true,
+        });
       }
       
       // Clear the flag after a short delay
@@ -405,11 +381,7 @@ export const useAudioStore = create<AudioState>()(
       // End of queue: auto-reshuffle if shuffle is enabled, otherwise wrap around
       if (nextIndex >= state.playlist.length) {
         if (state.isShuffled) {
-          const allSongs = [...state.playlist];
-          const reshuffled = selectBestShuffle(allSongs, {
-            recentlyPlayedIds: updates.recentlyPlayedIds || state.recentlyPlayedIds,
-            skipCounts: updates.skipCounts || state.skipCounts,
-          });
+          const reshuffled = shuffleSongs([...state.playlist]);
           set({
             ...updates,
             playlist: reshuffled,
@@ -450,7 +422,7 @@ export const useAudioStore = create<AudioState>()(
       currentSongIndex: -1,
       isPlaying: false,
       isShuffled: false,
-      originalPlaylist: []
+
     }),
     addPlaylist: (songs: Song[]) => {
       set({
@@ -458,7 +430,7 @@ export const useAudioStore = create<AudioState>()(
         currentSongIndex: 0,
         isPlaying: true,
         isShuffled: false,
-        originalPlaylist: []
+  
       });
     },
     addPlaylistToQueue: (songs: Song[], replaceQueue: boolean = false) => {
@@ -470,7 +442,7 @@ export const useAudioStore = create<AudioState>()(
           currentSongIndex: 0,
           isPlaying: true,
           isShuffled: false,
-          originalPlaylist: []
+    
         });
       } else {
         // Append to existing queue
@@ -500,13 +472,7 @@ export const useAudioStore = create<AudioState>()(
           ...state.playlist.slice(state.currentSongIndex + 1),
         ];
 
-        // If shuffled, also add to originalPlaylist so unshuffle preserves them
-        let newOriginalPlaylist = state.originalPlaylist;
-        if (state.isShuffled && state.originalPlaylist.length > 0) {
-          newOriginalPlaylist = [...state.originalPlaylist, ...songs];
-        }
-
-        set({ playlist: newPlaylist, originalPlaylist: newOriginalPlaylist });
+        set({ playlist: newPlaylist });
       }
 
       // Clear the flag after a short delay
@@ -528,13 +494,7 @@ export const useAudioStore = create<AudioState>()(
         // Append to end
         const newPlaylist = [...state.playlist, ...songs];
 
-        // If shuffled, also add to originalPlaylist so unshuffle preserves them
-        let newOriginalPlaylist = state.originalPlaylist;
-        if (state.isShuffled && state.originalPlaylist.length > 0) {
-          newOriginalPlaylist = [...state.originalPlaylist, ...songs];
-        }
-
-        set({ playlist: newPlaylist, originalPlaylist: newOriginalPlaylist });
+        set({ playlist: newPlaylist });
       }
 
       // Clear the flag after a short delay
@@ -681,7 +641,8 @@ export const useAudioStore = create<AudioState>()(
     toggleShuffle: () => {
       const state = get();
       if (state.isShuffled) {
-        get().unshufflePlaylist();
+        // Turn off shuffle — keep current order, just clear the flag
+        set({ isShuffled: false });
       } else {
         get().shufflePlaylist();
       }
@@ -690,51 +651,17 @@ export const useAudioStore = create<AudioState>()(
     shufflePlaylist: () => {
       const state = get();
       const upcomingCount = state.playlist.length - state.currentSongIndex - 1;
-      if (upcomingCount <= 1) return; // Nothing to shuffle
+      if (upcomingCount <= 1) return;
 
       const currentSong = state.playlist[state.currentSongIndex];
-
-      // Only get UPCOMING songs (after current), not already played ones
       const upcomingSongs = state.playlist.slice(state.currentSongIndex + 1);
-
-      // Store the original upcoming order (only if not already stored)
-      const originalUpcoming = state.originalPlaylist.length > 0
-        ? state.originalPlaylist
-        : [...upcomingSongs];
-
-      // Multi-candidate shuffle with scoring
-      const shuffledUpcoming = selectBestShuffle([...upcomingSongs], {
-        recentlyPlayedIds: state.recentlyPlayedIds,
-        skipCounts: state.skipCounts,
-      });
-
-      // New playlist: just current song + shuffled upcoming (discard played songs)
+      const shuffledUpcoming = shuffleSongs([...upcomingSongs]);
       const newPlaylist = currentSong ? [currentSong, ...shuffledUpcoming] : shuffledUpcoming;
 
       set({
         playlist: newPlaylist,
         currentSongIndex: currentSong ? 0 : -1,
         isShuffled: true,
-        originalPlaylist: originalUpcoming // Store original upcoming order for unshuffle
-      });
-    },
-
-    unshufflePlaylist: () => {
-      const state = get();
-      if (state.originalPlaylist.length === 0) return;
-
-      const currentSong = state.playlist[state.currentSongIndex];
-
-      // Restore original upcoming order (current song + original upcoming)
-      const newPlaylist = currentSong
-        ? [currentSong, ...state.originalPlaylist]
-        : state.originalPlaylist;
-
-      set({
-        playlist: newPlaylist,
-        currentSongIndex: currentSong ? 0 : -1,
-        isShuffled: false,
-        originalPlaylist: []
       });
     },
 
@@ -1093,15 +1020,8 @@ export const useAudioStore = create<AudioState>()(
         // Check if we need to start playback (empty queue case)
         const shouldStartPlayback = freshState.playlist.length === 0 || freshState.currentSongIndex === -1;
 
-        // If shuffled, also add to originalPlaylist so unshuffle preserves them
-        let newOriginalPlaylist = freshState.originalPlaylist;
-        if (freshState.isShuffled && freshState.originalPlaylist.length > 0) {
-          newOriginalPlaylist = [...freshState.originalPlaylist, ...recommendations];
-        }
-
         set({
           playlist: newPlaylist,
-          originalPlaylist: newOriginalPlaylist,
           currentSongIndex: shouldStartPlayback ? 0 : freshState.currentSongIndex,
           isPlaying: shouldStartPlayback ? true : freshState.isPlaying,
           aiDJLastQueueTime: now,
@@ -1296,15 +1216,8 @@ export const useAudioStore = create<AudioState>()(
           rec => now - rec.timestamp < 28800000 // 8 hours
         );
 
-        // If shuffled, also add to originalPlaylist so unshuffle preserves them
-        let newOriginalPlaylist = state.originalPlaylist;
-        if (state.isShuffled && state.originalPlaylist.length > 0) {
-          newOriginalPlaylist = [...state.originalPlaylist, ...recommendations];
-        }
-
         set({
           playlist: newPlaylist,
-          originalPlaylist: newOriginalPlaylist,
           aiDJLastQueueTime: now,
           aiQueuedSongIds: newQueuedIds,
           aiDJRecentlyRecommended: cleanedRecentlyRecommended,
@@ -1459,14 +1372,8 @@ export const useAudioStore = create<AudioState>()(
         }
 
         // Update original playlist if shuffled
-        let newOriginalPlaylist = state.originalPlaylist;
-        if (state.isShuffled && state.originalPlaylist.length > 0) {
-          newOriginalPlaylist = [...state.originalPlaylist, ...allRecommendations.map(r => r.song)];
-        }
-
         set({
           playlist: newPlaylist,
-          originalPlaylist: newOriginalPlaylist,
           aiDJLastQueueTime: now,
           aiQueuedSongIds: newQueuedIds,
           aiDJRecentlyRecommended: newRecentlyRecommended,
@@ -1634,15 +1541,8 @@ export const useAudioStore = create<AudioState>()(
           newQueuedIds.add(song.id);
         });
 
-        // If shuffled, also add to originalPlaylist
-        let newOriginalPlaylist = state.originalPlaylist;
-        if (state.isShuffled && state.originalPlaylist.length > 0) {
-          newOriginalPlaylist = [...state.originalPlaylist, ...recommendations];
-        }
-
         set({
           playlist: newPlaylist,
-          originalPlaylist: newOriginalPlaylist,
           autoplayLastQueueTime: now,
           autoplayQueuedSongIds: newQueuedIds,
           autoplayIsLoading: false,
@@ -1730,7 +1630,6 @@ export const useAudioStore = create<AudioState>()(
       // Queue fields: only apply if server is newer/equal AND local is NOT actively playing.
       if (!localIsPlaying && server.queueUpdatedAt >= (local.queueUpdatedAt ?? '')) {
         merged.playlist = server.queue.map(fromSyncSong);
-        merged.originalPlaylist = server.originalQueue.map(fromSyncSong);
         merged.currentSongIndex = server.currentIndex;
         merged.isShuffled = server.isShuffled;
         merged.queueUpdatedAt = server.queueUpdatedAt;

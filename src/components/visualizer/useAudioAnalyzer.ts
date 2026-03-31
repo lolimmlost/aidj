@@ -10,7 +10,7 @@ interface UseAudioAnalyzerOptions {
 interface UseAudioAnalyzerReturn {
   audioData: AudioData;
   isActive: boolean;
-  connect: (audioElement: HTMLAudioElement) => void;
+  connectAnalyser: (analyserNode: AnalyserNode) => void;
   disconnect: () => void;
 }
 
@@ -26,21 +26,23 @@ const DEFAULT_AUDIO_DATA: AudioData = {
   isBeat: false,
 };
 
+/**
+ * Audio analyzer that reads from an external AnalyserNode (provided by useWebAudioGraph).
+ *
+ * No longer creates its own AudioContext or MediaElementSourceNode.
+ * The shared AnalyserNode sees mixed audio from both decks during crossfade,
+ * giving better visualization than the old single-deck approach.
+ */
 export function useAudioAnalyzer(options: UseAudioAnalyzerOptions = {}): UseAudioAnalyzerReturn {
   const {
-    fftSize = 2048,
-    smoothingTimeConstant = 0.8,
     sensitivity = 1.0,
   } = options;
 
   const [isActive, setIsActive] = useState(false);
   const [audioData, setAudioData] = useState<AudioData>(DEFAULT_AUDIO_DATA);
 
-  const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const connectedElementRef = useRef<HTMLAudioElement | null>(null);
 
   // Beat detection state
   const lastPeakRef = useRef(0);
@@ -188,102 +190,30 @@ export function useAudioAnalyzer(options: UseAudioAnalyzerOptions = {}): UseAudi
     animationFrameRef.current = requestAnimationFrame(analyze);
   }, [sensitivity]);
 
-  const connect = useCallback((audioElement: HTMLAudioElement) => {
+  /**
+   * Connect to an external AnalyserNode (from useWebAudioGraph).
+   * No AudioContext creation — just stores the ref and starts the rAF loop.
+   */
+  const connectAnalyser = useCallback((analyserNode: AnalyserNode) => {
     // Clean up existing animation frame
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
 
-    try {
-      // Create or resume audio context
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-      }
+    analyserRef.current = analyserNode;
+    setIsActive(true);
 
-      const audioContext = audioContextRef.current;
-
-      if (audioContext.state === 'suspended') {
-        audioContext.resume();
-      }
-
-      // Create analyser node (always create fresh one)
-      const newAnalyser = audioContext.createAnalyser();
-      newAnalyser.fftSize = fftSize;
-      newAnalyser.smoothingTimeConstant = smoothingTimeConstant;
-
-      // If same element, reuse source but reconnect to new analyser
-      if (connectedElementRef.current === audioElement && sourceRef.current) {
-        try {
-          sourceRef.current.disconnect();
-        } catch {
-          // Ignore disconnect errors
-        }
-
-        // Reconnect existing source to new analyser
-        sourceRef.current.connect(newAnalyser);
-        newAnalyser.connect(audioContext.destination);
-        analyserRef.current = newAnalyser;
-      } else {
-        // Different element or first connection
-        if (sourceRef.current) {
-          try {
-            sourceRef.current.disconnect();
-          } catch {
-            // Ignore disconnect errors
-          }
-        }
-
-        // Create new source
-        try {
-          if (!audioElement.crossOrigin) {
-            console.warn('Audio element missing crossOrigin attribute - Firefox may not provide frequency data');
-          }
-          sourceRef.current = audioContext.createMediaElementSource(audioElement);
-        } catch (e: unknown) {
-          // Element already has a source - this happens when reconnecting
-          // The source is still valid, just reuse it
-          if (e instanceof DOMException && e.name === 'InvalidStateError' && sourceRef.current) {
-            try {
-              sourceRef.current.connect(newAnalyser);
-              newAnalyser.connect(audioContext.destination);
-              analyserRef.current = newAnalyser;
-              connectedElementRef.current = audioElement;
-              setIsActive(true);
-              animationFrameRef.current = requestAnimationFrame(analyze);
-              return;
-            } catch (reconnectError) {
-              console.error('Failed to reconnect existing source:', reconnectError);
-            }
-          }
-          console.warn('Could not create media element source:', e?.message || e);
-          setIsActive(false);
-          return;
-        }
-
-        // Connect: source -> analyser -> destination
-        sourceRef.current.connect(newAnalyser);
-        newAnalyser.connect(audioContext.destination);
-        analyserRef.current = newAnalyser;
-      }
-
-      connectedElementRef.current = audioElement;
-      setIsActive(true);
-
-      // Start analysis loop
-      animationFrameRef.current = requestAnimationFrame(analyze);
-
-    } catch (error) {
-      console.error('Error connecting audio analyzer:', error);
-      setIsActive(false);
-    }
-  }, [fftSize, smoothingTimeConstant, analyze]);
+    // Start analysis loop
+    animationFrameRef.current = requestAnimationFrame(analyze);
+  }, [analyze]);
 
   const disconnect = useCallback(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
+    analyserRef.current = null;
     setIsActive(false);
     setAudioData(DEFAULT_AUDIO_DATA);
   }, []);
@@ -294,27 +224,13 @@ export function useAudioAnalyzer(options: UseAudioAnalyzerOptions = {}): UseAudi
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
-      if (sourceRef.current) {
-        try {
-          sourceRef.current.disconnect();
-        } catch {
-          // Ignore
-        }
-      }
-      if (audioContextRef.current) {
-        try {
-          audioContextRef.current.close();
-        } catch {
-          // Ignore
-        }
-      }
     };
   }, []);
 
   return {
     audioData,
     isActive,
-    connect,
+    connectAnalyser,
     disconnect,
   };
 }

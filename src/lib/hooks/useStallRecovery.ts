@@ -5,14 +5,13 @@ export interface UseStallRecoveryOptions {
   getActiveDeck: () => HTMLAudioElement | null;
   crossfadeInProgressRef: React.RefObject<boolean>;
   onMaxAttemptsReached: () => void;
+  resumeContext: () => Promise<boolean>;
 }
 
 export interface UseStallRecoveryReturn {
   recoveryAttemptRef: React.RefObject<number>;
   lastProgressTimeRef: React.RefObject<number>;
   lastProgressValueRef: React.RefObject<number>;
-  audioContextRef: React.RefObject<AudioContext | null>;
-  checkAndResumeAudioContext: () => Promise<boolean>;
   attemptStallRecovery: (audio: HTMLAudioElement, source: string) => Promise<boolean>;
   resetRecoveryState: () => void;
 }
@@ -21,8 +20,8 @@ export interface UseStallRecoveryReturn {
  * Handles stall detection and recovery for audio playback.
  *
  * Features:
- * - AudioContext resume logic (iOS suspends it when backgrounded)
- * - Escalating recovery strategies: play → seek back → reload
+ * - Uses shared AudioContext resume from useWebAudioGraph
+ * - Escalating recovery strategies: play -> seek back -> reload
  * - Stall watchdog interval monitors playback progress
  * - Visibility change stall detection
  */
@@ -30,51 +29,14 @@ export function useStallRecovery({
   getActiveDeck,
   crossfadeInProgressRef,
   onMaxAttemptsReached,
+  resumeContext,
 }: UseStallRecoveryOptions): UseStallRecoveryReturn {
   // Recovery state refs
   const recoveryAttemptRef = useRef<number>(0);
   // eslint-disable-next-line react-hooks/purity -- initial timestamp for stall detection, safe in ref
   const lastProgressTimeRef = useRef<number>(Date.now());
   const lastProgressValueRef = useRef<number>(0);
-  const audioContextRef = useRef<AudioContext | null>(null);
   const stallWatchdogIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Check and resume AudioContext if suspended (iOS suspends it when backgrounded)
-  const checkAndResumeAudioContext = useCallback(async (): Promise<boolean> => {
-    try {
-      // Get or create AudioContext
-      if (!audioContextRef.current) {
-        const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        if (AudioContextClass) {
-          audioContextRef.current = new AudioContextClass();
-        }
-      }
-
-      const ctx = audioContextRef.current;
-      if (!ctx) return true; // No AudioContext support, proceed anyway
-
-      if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
-        console.log(`🔊 [AUDIO CONTEXT] State is "${ctx.state}" - attempting resume`);
-        // Add timeout - iOS can hang on resume() if page isn't fully foregrounded
-        const resumePromise = ctx.resume();
-        const timeoutPromise = new Promise<void>((_, reject) =>
-          setTimeout(() => reject(new Error('AudioContext resume timeout')), 2000)
-        );
-        try {
-          await Promise.race([resumePromise, timeoutPromise]);
-          console.log('🔊 [AUDIO CONTEXT] Resumed successfully');
-        } catch (err) {
-          console.warn(`🔊 [AUDIO CONTEXT] Resume failed/timed out: ${(err as Error).message} - proceeding anyway`);
-        }
-        return true;
-      }
-
-      return true;
-    } catch (err) {
-      console.error('🔊 [AUDIO CONTEXT] Resume failed:', err);
-      return false;
-    }
-  }, []);
 
   // Helper to play with timeout - iOS play() can hang
   const playWithTimeout = useCallback(async (audio: HTMLAudioElement, timeoutMs: number = 3000): Promise<void> => {
@@ -113,8 +75,8 @@ export function useStallRecovery({
       return false;
     }
 
-    // Always check AudioContext first
-    await checkAndResumeAudioContext();
+    // Always check AudioContext first (uses shared context from useWebAudioGraph)
+    await resumeContext();
 
     try {
       if (attempt === 1) {
@@ -180,7 +142,7 @@ export function useStallRecovery({
       console.log(`🔧 [RECOVERY] Attempt ${attempt} failed:`, (err as Error).message);
       return false;
     }
-  }, [checkAndResumeAudioContext, getActiveDeck, onMaxAttemptsReached, playWithTimeout]);
+  }, [resumeContext, getActiveDeck, onMaxAttemptsReached, playWithTimeout]);
 
   // Reset recovery state (called when song changes)
   const resetRecoveryState = useCallback(() => {
@@ -292,8 +254,6 @@ export function useStallRecovery({
     recoveryAttemptRef,
     lastProgressTimeRef,
     lastProgressValueRef,
-    audioContextRef,
-    checkAndResumeAudioContext,
     attemptStallRecovery,
     resetRecoveryState,
   };

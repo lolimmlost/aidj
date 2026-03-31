@@ -23,6 +23,10 @@ export class MockAudioContext {
     return new MockGainNode(this);
   }
 
+  createMediaElementSource(_element: HTMLMediaElement): MockAudioNode {
+    return new MockAudioNode(this);
+  }
+
   createAnalyser(): MockAnalyserNode {
     return new MockAnalyserNode(this);
   }
