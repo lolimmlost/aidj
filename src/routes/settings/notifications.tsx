@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Bell } from 'lucide-react';
 import { usePreferencesStore } from '@/lib/stores/preferences';
 
 export function NotificationSettings() {
@@ -62,10 +63,15 @@ export function NotificationSettings() {
   const isNotificationSupported = typeof window !== 'undefined' && 'Notification' in window;
 
   return (
-    <Card className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Notification Preferences</h2>
-
-      <div className="space-y-6">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Bell className="h-5 w-5" />
+          Notification Preferences
+        </CardTitle>
+        <CardDescription>Control how and when you receive notifications</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
         {/* Browser Notifications Warning */}
         {!isNotificationSupported && (
           <div className="p-4 rounded-md bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400">
@@ -170,7 +176,7 @@ export function NotificationSettings() {
             {message.text}
           </div>
         )}
-      </div>
+      </CardContent>
     </Card>
   );
 }

@@ -14,10 +14,17 @@ import {
   MicVocal,
   AudioWaveform,
   Smartphone,
+  MoreHorizontal,
 } from 'lucide-react';
 import { LyricsModal } from '@/components/lyrics';
 import { VisualizerModal } from '@/components/visualizer';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Slider } from '@/components/ui/slider';
 import { AlbumArt } from '@/components/ui/album-art';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -1175,27 +1182,30 @@ export function PlayerBar() {
               <SkipForward className="h-4 w-4" />
             </Button>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => setShowLyrics(true)}
-              title="Show lyrics"
-            >
-              <MicVocal className="h-4 w-4" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => setShowVisualizer(true)}
-              title="Show visualizer"
-            >
-              <AudioWaveform className="h-4 w-4" />
-            </Button>
-
-            <AIDJToggle compact />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={() => setShowLyrics(true)} className="min-h-[44px]">
+                  <MicVocal className="mr-2 h-4 w-4" />
+                  Lyrics
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowVisualizer(true)} className="min-h-[44px]">
+                  <AudioWaveform className="mr-2 h-4 w-4" />
+                  Visualizer
+                </DropdownMenuItem>
+                <div className="flex items-center justify-center px-2 py-1.5">
+                  <AIDJToggle compact />
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>

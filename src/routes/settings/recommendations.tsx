@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Card } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Wand2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -36,10 +37,15 @@ export function RecommendationSettings() {
   };
 
   return (
-    <Card className="p-6">
-      <h2 className="text-2xl font-bold mb-6">AI DJ</h2>
-
-      <div className="space-y-6">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Wand2 className="h-5 w-5" />
+          AI DJ
+        </CardTitle>
+        <CardDescription>Configure AI-powered recommendations and playlist generation</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
         {/* AI Recommendations Toggle */}
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
@@ -188,10 +194,10 @@ export function RecommendationSettings() {
             {message.text}
           </div>
         )}
-      </div>
+      </CardContent>
 
       {/* AI DJ Settings Section (Story 3.9) */}
-      <div className="mt-6">
+      <div className="px-6 pb-6">
         <AIDJSettings />
       </div>
     </Card>

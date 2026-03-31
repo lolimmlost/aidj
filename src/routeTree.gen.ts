@@ -138,6 +138,7 @@ import { Route as ApiBackgroundDiscoverySettingsRouteImport } from './routes/api
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiAurralWarmCacheRouteImport } from './routes/api/aurral/warm-cache'
 import { Route as ApiAurralSimilarRouteImport } from './routes/api/aurral/similar'
 import { Route as ApiAurralRecentRouteImport } from './routes/api/aurral/recent'
 import { Route as ApiAurralMetadataRouteImport } from './routes/api/aurral/metadata'
@@ -854,6 +855,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAurralWarmCacheRoute = ApiAurralWarmCacheRouteImport.update({
+  id: '/api/aurral/warm-cache',
+  path: '/api/aurral/warm-cache',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAurralSimilarRoute = ApiAurralSimilarRouteImport.update({
   id: '/api/aurral/similar',
   path: '/api/aurral/similar',
@@ -1126,6 +1132,7 @@ export interface FileRoutesByFullPath {
   '/api/aurral/metadata': typeof ApiAurralMetadataRoute
   '/api/aurral/recent': typeof ApiAurralRecentRoute
   '/api/aurral/similar': typeof ApiAurralSimilarRoute
+  '/api/aurral/warm-cache': typeof ApiAurralWarmCacheRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
@@ -1296,6 +1303,7 @@ export interface FileRoutesByTo {
   '/api/aurral/metadata': typeof ApiAurralMetadataRoute
   '/api/aurral/recent': typeof ApiAurralRecentRoute
   '/api/aurral/similar': typeof ApiAurralSimilarRoute
+  '/api/aurral/warm-cache': typeof ApiAurralWarmCacheRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
@@ -1470,6 +1478,7 @@ export interface FileRoutesById {
   '/api/aurral/metadata': typeof ApiAurralMetadataRoute
   '/api/aurral/recent': typeof ApiAurralRecentRoute
   '/api/aurral/similar': typeof ApiAurralSimilarRoute
+  '/api/aurral/warm-cache': typeof ApiAurralWarmCacheRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
@@ -1644,6 +1653,7 @@ export interface FileRouteTypes {
     | '/api/aurral/metadata'
     | '/api/aurral/recent'
     | '/api/aurral/similar'
+    | '/api/aurral/warm-cache'
     | '/api/auth/$'
     | '/api/auth/login'
     | '/api/auth/register'
@@ -1814,6 +1824,7 @@ export interface FileRouteTypes {
     | '/api/aurral/metadata'
     | '/api/aurral/recent'
     | '/api/aurral/similar'
+    | '/api/aurral/warm-cache'
     | '/api/auth/$'
     | '/api/auth/login'
     | '/api/auth/register'
@@ -1987,6 +1998,7 @@ export interface FileRouteTypes {
     | '/api/aurral/metadata'
     | '/api/aurral/recent'
     | '/api/aurral/similar'
+    | '/api/aurral/warm-cache'
     | '/api/auth/$'
     | '/api/auth/login'
     | '/api/auth/register'
@@ -2149,6 +2161,7 @@ export interface RootRouteChildren {
   ApiAurralMetadataRoute: typeof ApiAurralMetadataRoute
   ApiAurralRecentRoute: typeof ApiAurralRecentRoute
   ApiAurralSimilarRoute: typeof ApiAurralSimilarRoute
+  ApiAurralWarmCacheRoute: typeof ApiAurralWarmCacheRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
@@ -3156,6 +3169,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/aurral/warm-cache': {
+      id: '/api/aurral/warm-cache'
+      path: '/api/aurral/warm-cache'
+      fullPath: '/api/aurral/warm-cache'
+      preLoaderRoute: typeof ApiAurralWarmCacheRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/aurral/similar': {
       id: '/api/aurral/similar'
       path: '/api/aurral/similar'
@@ -3666,6 +3686,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAurralMetadataRoute: ApiAurralMetadataRoute,
   ApiAurralRecentRoute: ApiAurralRecentRoute,
   ApiAurralSimilarRoute: ApiAurralSimilarRoute,
+  ApiAurralWarmCacheRoute: ApiAurralWarmCacheRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,

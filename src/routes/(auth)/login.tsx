@@ -71,8 +71,8 @@ function HorizontalStrip({ songs }: { songs: typeof ALL_SONGS }) {
   const doubled = [...songs, ...songs];
   return (
     <div className="relative w-full overflow-hidden motion-reduce:overflow-x-auto">
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-background to-transparent motion-reduce:hidden" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-background to-transparent motion-reduce:hidden" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-20 bg-gradient-to-r from-background to-transparent motion-reduce:hidden" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-20 bg-gradient-to-l from-background to-transparent motion-reduce:hidden" />
       <div className="animate-scroll-left flex gap-3 py-2" style={{ animationDuration: "25s" }} aria-hidden="true">
         {doubled.map((song, i) => (
           <div key={`h-${song.initials}-${i}`} className="w-[220px] shrink-0 sm:w-[240px]">

@@ -208,7 +208,9 @@ export const DiscoveryFeed = memo(function DiscoveryFeed({
             <Sparkles className="h-5 w-5 text-primary" />
             {getGreeting()}
           </CardTitle>
-          <CardDescription className="mt-1.5">{getDescription()}</CardDescription>
+          {getDescription() !== 'Personalized music recommendations based on your listening habits' && (
+            <CardDescription className="mt-1.5">{getDescription()}</CardDescription>
+          )}
         </div>
         <Button
           variant="outline"
