@@ -73,7 +73,7 @@
     "cookie": "^1.1.1",
     "drizzle-orm": "^0.44.5",
     "hls.js": "^1.6.15",
-    "lucide-react": "^0.542.0",
+    "lucide-react": "^1.7.0",
     "postgres": "^3.4.7",
     "qrcode.react": "^4.2.0",
     "react": "^19.1.2",
