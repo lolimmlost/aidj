@@ -6,7 +6,7 @@
  * Renders via portal to avoid overflow clipping in the fixed player bar.
  */
 
-import { useEffect, useRef, useState, useLayoutEffect, memo } from 'react';
+import { useEffect, useRef, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Smartphone, Monitor, Tablet, Check, ArrowRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -45,7 +45,6 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
   const ref = useRef<HTMLDivElement>(null);
   const localDevice = getDeviceInfo();
   const remoteDevice = useAudioStore((s) => s.remoteDevice);
-  const [style, setStyle] = useState<React.CSSProperties>({ bottom: '80px', left: '16px' });
 
   const { data } = useQuery({
     queryKey: ['playback', 'devices'],
@@ -62,27 +61,38 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
     staleTime: 10_000,
   });
 
-  // Position the dropdown above the trigger button on mount
-  useLayoutEffect(() => {
-    if (!triggerRef?.current || !ref.current) return;
-    const triggerRect = triggerRef.current.getBoundingClientRect();
-    const dropdownHeight = ref.current.offsetHeight || 200;
-    const gap = 8;
+  // Position above trigger once the dropdown DOM node is available
+  const positionDropdown = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    // Store for outside-click detection
+    (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
 
-    let top = triggerRect.top - dropdownHeight - gap;
-    let left = triggerRect.left;
+    if (triggerRef?.current) {
+      const triggerRect = triggerRef.current.getBoundingClientRect();
+      const gap = 8;
+      const dropdownWidth = 256;
 
-    if (top < 8) {
-      top = triggerRect.bottom + gap;
+      // Measure after content renders
+      requestAnimationFrame(() => {
+        const dropdownHeight = node.offsetHeight || 200;
+        let top = triggerRect.top - dropdownHeight - gap;
+        let left = triggerRect.left;
+
+        if (top < 8) top = triggerRect.bottom + gap;
+        if (left + dropdownWidth > window.innerWidth) left = window.innerWidth - dropdownWidth - 8;
+        if (left < 8) left = 8;
+
+        node.style.top = `${top}px`;
+        node.style.left = `${left}px`;
+        node.style.visibility = 'visible';
+      });
+    } else {
+      // Fallback: position above player bar
+      node.style.bottom = '80px';
+      node.style.left = '16px';
+      node.style.visibility = 'visible';
     }
-    if (left + 256 > window.innerWidth) {
-      left = window.innerWidth - 256 - 8;
-    }
-    if (left < 8) left = 8;
-
-    setStyle({ position: 'fixed', top: `${top}px`, left: `${left}px` });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [triggerRef]);
 
   // Close on outside click (ignore clicks on the trigger button)
   useEffect(() => {
@@ -131,13 +141,13 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
 
   const dropdown = (
     <div
-      ref={ref}
+      ref={positionDropdown}
       className={cn(
         "fixed w-64 z-[9999]",
         "bg-popover border border-border rounded-lg shadow-xl",
         "animate-in fade-in slide-in-from-bottom-2 duration-150"
       )}
-      style={style}
+      style={{ visibility: 'hidden' }}
     >
       <div className="p-3">
         <h4 className="text-sm font-medium mb-2">Available Devices</h4>
