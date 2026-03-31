@@ -175,6 +175,7 @@ export function PlayerBar() {
 
   // Derived values for display: use remote time when remote is playing and local isn't
   const [showDevicePicker, setShowDevicePicker] = useState(false);
+  const devicePickerTriggerRef = useRef<HTMLButtonElement>(null);
   const showRemoteTime = isRemotePlaying && !isPlaying;
   const displayCurrentTime = showRemoteTime ? remoteEstimatedPositionMs / 1000 : currentTime;
   const displayDuration = showRemoteTime && remoteDevice?.durationMs ? remoteDevice.durationMs / 1000 : duration;
@@ -792,7 +793,8 @@ export function PlayerBar() {
               {showRemoteTime && (
                 <div className="relative">
                   <button
-                    onClick={(e) => { e.stopPropagation(); setShowDevicePicker(!showDevicePicker); }}
+                    ref={devicePickerTriggerRef}
+                    onClick={(e) => { e.stopPropagation(); setShowDevicePicker(prev => !prev); }}
                     className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5 hover:text-green-500 transition-colors"
                     aria-label="Switch playback device"
                   >
@@ -800,7 +802,7 @@ export function PlayerBar() {
                     <span className="truncate">{remoteDevice?.deviceName || 'Another device'}</span>
                   </button>
                   {showDevicePicker && (
-                    <DevicePicker onClose={() => setShowDevicePicker(false)} />
+                    <DevicePicker onClose={() => setShowDevicePicker(false)} triggerRef={devicePickerTriggerRef} />
                   )}
                 </div>
               )}
@@ -898,7 +900,8 @@ export function PlayerBar() {
             {showRemoteTime && (
               <div className="relative">
                 <button
-                  onClick={(e) => { e.stopPropagation(); setShowDevicePicker(!showDevicePicker); }}
+                  ref={devicePickerTriggerRef}
+                  onClick={(e) => { e.stopPropagation(); setShowDevicePicker(prev => !prev); }}
                   className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5 hover:text-green-500 transition-colors"
                   aria-label="Switch playback device"
                 >
@@ -906,7 +909,7 @@ export function PlayerBar() {
                   <span className="truncate">{remoteDevice?.deviceName || 'Another device'}</span>
                 </button>
                 {showDevicePicker && (
-                  <DevicePicker onClose={() => setShowDevicePicker(false)} />
+                  <DevicePicker onClose={() => setShowDevicePicker(false)} triggerRef={devicePickerTriggerRef} />
                 )}
               </div>
             )}

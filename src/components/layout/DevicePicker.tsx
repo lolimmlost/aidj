@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 
 interface DevicePickerProps {
   onClose: () => void;
+  triggerRef?: React.RefObject<HTMLElement | null>;
 }
 
 function getDeviceIcon(type: string) {
@@ -38,7 +39,7 @@ function formatLastSeen(iso: string): string {
   return `${days}d ago`;
 }
 
-export const DevicePicker = memo(function DevicePicker({ onClose }: DevicePickerProps) {
+export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: DevicePickerProps) {
   const ref = useRef<HTMLDivElement>(null);
   const localDevice = getDeviceInfo();
   const remoteDevice = useAudioStore((s) => s.remoteDevice);
@@ -58,16 +59,18 @@ export const DevicePicker = memo(function DevicePicker({ onClose }: DevicePicker
     staleTime: 10_000,
   });
 
-  // Close on outside click
+  // Close on outside click (ignore clicks on the trigger button)
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (ref.current && !ref.current.contains(target) &&
+          !(triggerRef?.current && triggerRef.current.contains(target))) {
         onClose();
       }
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [onClose]);
+  }, [onClose, triggerRef]);
 
   const devices = data?.devices ?? [];
 
