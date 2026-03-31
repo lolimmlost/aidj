@@ -12,6 +12,13 @@ updates:
       - "dependencies"
     commit-message:
       prefix: "chore(deps)"
+    ignore:
+      - dependency-name: "lucide-react"
+    groups:
+      tanstack-router:
+        patterns:
+          - "@tanstack/react-router*"
+          - "@tanstack/react-start*"
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
