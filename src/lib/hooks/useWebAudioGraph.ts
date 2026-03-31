@@ -66,6 +66,7 @@ export function useWebAudioGraph(): WebAudioGraph {
   const wasPlayingBeforeInterruptRef = useRef<boolean>(false);
   const interruptedAtRef = useRef<number>(0);
   const clearWasPlayingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resumeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const getGainNode = useCallback((deck: 'A' | 'B'): GainNode | null => {
     return deck === 'A' ? gainARef.current : gainBRef.current;
@@ -269,13 +270,16 @@ export function useWebAudioGraph(): WebAudioGraph {
       const master = masterGainRef.current;
       if (!master) return;
       const userVolume = useAudioStore.getState().volume ?? 1.0;
-      const FADE_MS = 200;
+      const FADE_MS = 250;
 
       const doFade = () => {
         if (!master) return;
-        master.gain.setValueAtTime(0, ctx.currentTime);
-        master.gain.linearRampToValueAtTime(
-          userVolume, ctx.currentTime + FADE_MS / 1000,
+        const now = ctx.currentTime;
+        // Start from a tiny non-zero value to avoid the hard 0→signal discontinuity
+        // that causes clicks. Use exponential ramp for a natural fade curve.
+        master.gain.setValueAtTime(0.001, now);
+        master.gain.exponentialRampToValueAtTime(
+          Math.max(userVolume, 0.001), now + FADE_MS / 1000,
         );
         console.log(`[WEB AUDIO] Fading in masterGain to ${userVolume} over ${FADE_MS}ms`);
       };
@@ -318,25 +322,53 @@ export function useWebAudioGraph(): WebAudioGraph {
         // cement a false pause during rapid AudioContext state bounces.
         useAudioStore.setState({ _lastAudioContextInterrupt: Date.now() });
 
-        // Disconnect masterGain from destination. The pitch/speed artifact
-        // happens in the audio rendering pipeline during interrupted→running,
-        // BEFORE any JS callback fires. Gain manipulation can't prevent it.
-        // disconnect() modifies graph topology synchronously — no path to
-        // speakers means no audible artifact.
-        const master = masterGainRef.current;
-        if (master) {
-          try { master.disconnect(); } catch {}
+        // Two-layer muting BEFORE the interrupted→running transition:
+        // 1. element.volume=0 — works at the element level, independent of
+        //    AudioContext state. Prevents pitch-shifted audio from being audible.
+        // 2. masterGain.disconnect() — no graph path to speakers.
+        // Both set NOW (on interrupted), so they're in effect when the context
+        // transitions back to running. The pitch artifact happens during
+        // that transition, before any JS callback fires.
+        {
+          const dA = deckAElementRef.current;
+          const dB = deckBElementRef.current;
+          if (dA) dA.volume = 0;
+          if (dB) dB.volume = 0;
+
+          const m = masterGainRef.current;
+          if (m) {
+            try { m.disconnect(); } catch {}
+          }
         }
 
-        console.log(`[WEB AUDIO] Context ${state} — wasPlaying=${wasPlayingBeforeInterruptRef.current}, disconnected`);
+        console.log(`[WEB AUDIO] Context ${state} — wasPlaying=${wasPlayingBeforeInterruptRef.current}, muted+disconnected`);
 
-        // Aggressively attempt resume (iOS may allow it via MediaSession)
-        nudgeResume();
-        setTimeout(nudgeResume, 200);
-        setTimeout(nudgeResume, 1000);
-        setTimeout(nudgeResume, 3000);
+        // Persistent resume retry — iOS may not allow resume immediately after
+        // interrupt. Instead of a fixed set of timeouts that can all expire while
+        // the system hasn't settled, use a setInterval that keeps trying until
+        // the context reaches 'running' (at which point the statechange handler
+        // fires and runs the recovery path).
+        if (resumeIntervalRef.current) clearInterval(resumeIntervalRef.current);
+        nudgeResume(); // immediate first attempt
+        resumeIntervalRef.current = setInterval(() => {
+          if ((ctx.state as string) === 'running') {
+            if (resumeIntervalRef.current) {
+              clearInterval(resumeIntervalRef.current);
+              resumeIntervalRef.current = null;
+            }
+            return;
+          }
+          console.log(`[WEB AUDIO] Retry resume — context still ${ctx.state}`);
+          nudgeResume();
+        }, 2000);
 
       } else if (state === 'running') {
+        // Clear the persistent resume interval — context is running now
+        if (resumeIntervalRef.current) {
+          clearInterval(resumeIntervalRef.current);
+          resumeIntervalRef.current = null;
+        }
+
         const shouldResume = wasPlayingBeforeInterruptRef.current || useAudioStore.getState().isPlaying;
         const interruptDuration = interruptedAtRef.current > 0
           ? Date.now() - interruptedAtRef.current : 0;
@@ -345,17 +377,24 @@ export function useWebAudioGraph(): WebAudioGraph {
 
         console.log(`[WEB AUDIO] Context running — shouldResume=${shouldResume}, interruptMs=${interruptDuration}, needsResync=${needsResync}`);
 
-        // Reconnect masterGain → destination, starting at gain=0
+        // Recovery sequence (order matters):
+        // 1. Reconnect masterGain at gain=0 — any click from topology change
+        //    is masked by element.volume=0 (still muted from interrupted handler)
         const master = masterGainRef.current;
         if (master) {
           try { master.gain.cancelScheduledValues(0); } catch {}
-          master.gain.value = 0;
+          master.gain.setValueAtTime(0, ctx.currentTime);
           try { master.connect(ctx.destination); } catch {}
         }
 
+        // 2. Restore element volumes — inaudible because masterGain=0
+        const deckA = deckAElementRef.current;
+        const deckB = deckBElementRef.current;
+        if (deckA) deckA.volume = 1;
+        if (deckB) deckB.volume = 1;
+
         if (shouldResume) {
           // Delay clearing wasPlaying so rapid interrupt cycles don't lose the signal.
-          // If another interrupted fires within 3s, the timer is cancelled above.
           if (clearWasPlayingTimerRef.current) clearTimeout(clearWasPlayingTimerRef.current);
           clearWasPlayingTimerRef.current = setTimeout(() => {
             wasPlayingBeforeInterruptRef.current = false;
@@ -367,23 +406,42 @@ export function useWebAudioGraph(): WebAudioGraph {
           }
 
           const active = findActiveDeck();
-          if (active?.paused) {
+
+          // 3. Fade in masterGain — the only audible transition
+          if (active && needsResync) {
+            // Long interruption (app switch) — the audio pipeline stays pitch-shifted
+            // for seconds after a simple seek. Force a full source reload to reset it:
+            // save position → reload src → seek → play → fade in.
+            const savedTime = active.deck.currentTime;
+            const src = active.deck.src;
+            console.log(`[WEB AUDIO] Hard resync deck ${active.label} at ${savedTime.toFixed(1)}s`);
+            active.deck.pause();
+            active.deck.src = src;
+            active.deck.currentTime = savedTime;
             active.deck.play().catch((err) =>
               console.warn(`[WEB AUDIO] Resume deck ${active.label} failed:`, err.message));
-          }
-
-          if (active && needsResync) {
-            // Long interruption — force pipeline resync via seek
-            active.deck.currentTime = active.deck.currentTime;
-            console.log(`[WEB AUDIO] Resynced deck ${active.label} at ${active.deck.currentTime.toFixed(1)}s`);
-            fadeInMaster(150);
+            // Keep element muted until pipeline stabilizes from reload
+            const dA = deckAElementRef.current;
+            const dB = deckBElementRef.current;
+            if (dA) dA.volume = 0;
+            if (dB) dB.volume = 0;
+            // Wait for pipeline to settle, then unmute and fade
+            setTimeout(() => {
+              if (dA) dA.volume = 1;
+              if (dB) dB.volume = 1;
+              fadeInMaster(0);
+            }, 300);
           } else {
-            // Quick bounce — brief settle then fade in
-            fadeInMaster(30);
+            if (active?.paused) {
+              active.deck.play().catch((err) =>
+                console.warn(`[WEB AUDIO] Resume deck ${active.label} failed:`, err.message));
+            }
+            // Quick bounce (lock screen) — immediate fade
+            fadeInMaster(0);
           }
         } else {
           wasPlayingBeforeInterruptRef.current = false;
-          // Not playing — just restore master gain without fade
+          // Not playing — just restore master gain
           const userVolume = useAudioStore.getState().volume ?? 1.0;
           if (master) {
             master.gain.setValueAtTime(userVolume, ctx.currentTime);
@@ -407,6 +465,10 @@ export function useWebAudioGraph(): WebAudioGraph {
     return () => {
       ctx.removeEventListener('statechange', handleStateChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (resumeIntervalRef.current) {
+        clearInterval(resumeIntervalRef.current);
+        resumeIntervalRef.current = null;
+      }
     };
   }, [isInitialized]);
 
