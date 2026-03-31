@@ -8,6 +8,15 @@ import { formatPercentChange } from '@/lib/utils/period-comparison';
 import { useDynamicColors } from '@/hooks/useDynamicColors';
 import { loadPlaylistIntoQueue } from '@/lib/utils/playlist-helpers';
 
+function getTimeIcon() {
+  const hour = new Date().getHours();
+  if (hour < 6) return <Moon className="h-7 w-7 sm:h-8 sm:w-8 text-indigo-400" />;
+  if (hour < 12) return <Sun className="h-7 w-7 sm:h-8 sm:w-8 text-amber-400" />;
+  if (hour < 18) return <CloudSun className="h-7 w-7 sm:h-8 sm:w-8 text-orange-400" />;
+  if (hour < 21) return <Sunset className="h-7 w-7 sm:h-8 sm:w-8 text-rose-400" />;
+  return <Moon className="h-7 w-7 sm:h-8 sm:w-8 text-indigo-400" />;
+}
+
 interface DashboardHeroProps {
   userName?: string;
   availableRecommendations: number;
@@ -74,14 +83,7 @@ export function DashboardHero({
     return 'Good evening';
   };
 
-  const TimeIcon = () => {
-    const hour = new Date().getHours();
-    if (hour < 6) return <Moon className="h-7 w-7 sm:h-8 sm:w-8 text-indigo-400" />;
-    if (hour < 12) return <Sun className="h-7 w-7 sm:h-8 sm:w-8 text-amber-400" />;
-    if (hour < 18) return <CloudSun className="h-7 w-7 sm:h-8 sm:w-8 text-orange-400" />;
-    if (hour < 21) return <Sunset className="h-7 w-7 sm:h-8 sm:w-8 text-rose-400" />;
-    return <Moon className="h-7 w-7 sm:h-8 sm:w-8 text-indigo-400" />;
-  };
+  const timeIcon = getTimeIcon();
 
   return (
     <section className="hero-section p-6 sm:p-8 lg:p-10">
@@ -94,7 +96,7 @@ export function DashboardHero({
         {/* Left: Greeting & Context */}
         <div className="flex-1 space-y-4">
           <div className="animate-fade-up">
-            <TimeIcon />
+            {timeIcon}
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mt-2">
               {getGreeting()},{' '}
               <span className="text-gradient-brand">{userName || 'Music Lover'}</span>

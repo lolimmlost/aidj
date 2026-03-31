@@ -196,8 +196,6 @@ function getSpotifyConfig(): SpotifyConfig {
     redirectUri: config.spotifyRedirectUri || defaultRedirectUri,
   };
 
-  console.log('[Spotify] Config: redirectUri =', spotifyConfig.redirectUri, '| clientId present:', !!spotifyConfig.clientId);
-
   return spotifyConfig;
 }
 

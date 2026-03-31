@@ -334,7 +334,7 @@ export function useWebAudioGraph(): WebAudioGraph {
         {
           const m = masterGainRef.current;
           if (m) {
-            try { m.disconnect(); } catch {}
+            try { m.disconnect(); } catch { /* already disconnected */ }
           }
         }
 
@@ -386,9 +386,9 @@ export function useWebAudioGraph(): WebAudioGraph {
         // 2. Reconnect masterGain at gain=0
         const master = masterGainRef.current;
         if (master) {
-          try { master.gain.cancelScheduledValues(0); } catch {}
+          try { master.gain.cancelScheduledValues(0); } catch { /* no scheduled values */ }
           master.gain.setValueAtTime(0, ctx.currentTime);
-          try { master.connect(ctx.destination); } catch {}
+          try { master.connect(ctx.destination); } catch { /* already connected */ }
         }
 
         // 3. Restore element volumes after brief settle (graph is now connected,
@@ -487,9 +487,9 @@ export function useWebAudioGraph(): WebAudioGraph {
         if (needsReconnect && shouldBeAudible) {
           console.log('[WEB AUDIO] Visibility recovery: reconnecting audio graph');
           // Reconnect masterGain
-          try { master.gain.cancelScheduledValues(0); } catch {}
+          try { master.gain.cancelScheduledValues(0); } catch { /* no scheduled values */ }
           master.gain.setValueAtTime(0, ctx.currentTime);
-          try { master.connect(ctx.destination); } catch {}
+          try { master.connect(ctx.destination); } catch { /* already connected */ }
 
           // Restore element volumes
           if (deckA) deckA.volume = 1;

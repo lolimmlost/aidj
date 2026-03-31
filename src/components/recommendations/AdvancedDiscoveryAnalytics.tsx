@@ -26,11 +26,6 @@ import {
   Cell,
   LineChart,
   Line,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
 } from 'recharts';
 import { Skeleton } from '../ui/skeleton';
 import { Badge } from '../ui/badge';
@@ -168,23 +163,33 @@ const COLORS = {
 };
 
 const MODE_COLORS: Record<string, string> = {
-  similar: COLORS.primary,
-  discovery: COLORS.success,
-  mood: COLORS.secondary,
-  personalized: COLORS.purple,
-  playlist: COLORS.info,
-  search: COLORS.warning,
-  library: COLORS.indigo,
+  Similar: COLORS.primary,
+  Discovery: COLORS.success,
+  Mood: COLORS.secondary,
+  Personalized: COLORS.purple,
+  Playlist: COLORS.info,
+  Search: COLORS.warning,
+  Library: COLORS.indigo,
+  'AI DJ': COLORS.purple,
+  Autoplay: COLORS.info,
+  'Compound Score': COLORS.success,
+  'Time Pattern': COLORS.warning,
+  Diversity: COLORS.secondary,
 };
 
 const MODE_LABELS: Record<string, string> = {
-  similar: 'Similar Songs',
-  discovery: 'Discovery',
-  mood: 'Mood-Based',
-  personalized: 'Personalized',
-  playlist: 'Playlist',
-  search: 'Search',
-  library: 'Library',
+  Similar: 'Similar Songs',
+  Discovery: 'Discovery',
+  Mood: 'Mood-Based',
+  Personalized: 'Personalized',
+  Playlist: 'Playlist',
+  Search: 'Search',
+  Library: 'Library',
+  'AI DJ': 'AI DJ',
+  Autoplay: 'Autoplay',
+  'Compound Score': 'Compound Score',
+  'Time Pattern': 'Time Pattern',
+  Diversity: 'Diversity',
 };
 
 const PIE_COLORS = [
@@ -448,6 +453,12 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
   console.log('🎯 RecommendationModesTab - modeMetrics:', modeMetrics);
 
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
+  const totalFeedback = useMemo(
+    () => modeMetrics.reduce((sum, m) => sum + m.totalRecommendations, 0),
+    [modeMetrics]
+  );
+
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const chartData = useMemo(() => {
     return modeMetrics.map((m) => ({
       name: MODE_LABELS[m.mode] || m.mode,
@@ -455,9 +466,10 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
       total: m.totalRecommendations,
       accepted: m.thumbsUpCount,
       rejected: m.thumbsDownCount,
+      share: totalFeedback > 0 ? (m.totalRecommendations / totalFeedback) * 100 : 0,
       acceptanceRate: m.acceptanceRate * 100,
     }));
-  }, [modeMetrics]);
+  }, [modeMetrics, totalFeedback]);
 
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const pieData = useMemo(() => {
@@ -482,12 +494,12 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
 
   return (
     <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
-      {/* Acceptance Rate by Mode */}
+      {/* Feedback Volume by Type */}
       <Card>
         <CardHeader className="p-3 sm:p-6">
-          <CardTitle className="text-sm sm:text-base">Acceptance by Type</CardTitle>
+          <CardTitle className="text-sm sm:text-base">Feedback by Type</CardTitle>
           <CardDescription className="text-xs sm:text-sm">
-            Performance by recommendation type
+            Share of total feedback ({totalFeedback} rated)
           </CardDescription>
         </CardHeader>
         <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
@@ -502,7 +514,9 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
               />
               <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 10 }} />
               <Tooltip
-                formatter={(value: number) => `${value.toFixed(1)}%`}
+                formatter={(value: number, _name: string, props: { payload: { total: number } }) =>
+                  [`${value.toFixed(1)}% (${props.payload.total} songs)`, 'Share']
+                }
                 labelStyle={{ color: 'var(--foreground)' }}
                 contentStyle={{
                   backgroundColor: 'var(--background)',
@@ -511,7 +525,7 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
                 }}
               />
               <Bar
-                dataKey="acceptanceRate"
+                dataKey="share"
                 fill={COLORS.primary}
                 radius={[0, 4, 4, 0]}
               >
@@ -702,23 +716,9 @@ const TopContentTab = memo(function TopContentTab({
                   </span>
                   <span className="font-medium text-xs sm:text-sm truncate">{artist.artist}</span>
                 </div>
-                <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                  <span className="text-[10px] sm:text-sm text-muted-foreground hidden xs:inline">
-                    {artist.recommendationCount}
-                  </span>
-                  <Badge
-                    variant={
-                      artist.acceptanceRate > 0.7
-                        ? 'default'
-                        : artist.acceptanceRate > 0.5
-                          ? 'secondary'
-                          : 'outline'
-                    }
-                    className="text-[10px] sm:text-xs px-1 sm:px-2"
-                  >
-                    {(artist.acceptanceRate * 100).toFixed(0)}%
-                  </Badge>
-                </div>
+                <Badge variant="secondary" className="text-[10px] sm:text-xs px-1 sm:px-2 shrink-0">
+                  {artist.recommendationCount} {artist.recommendationCount === 1 ? 'song' : 'songs'}
+                </Badge>
               </div>
             ))}
             {topArtists.length === 0 && (
@@ -742,32 +742,28 @@ const TopContentTab = memo(function TopContentTab({
           </CardDescription>
         </CardHeader>
         <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-          <ResponsiveContainer width="100%" height={180} className="sm:!h-[300px]">
-            <RadarChart
-              cx="50%"
-              cy="50%"
-              outerRadius="70%"
-              data={topGenres.slice(0, 6).map((g) => ({
-                genre: g.genre.length > 8 ? g.genre.slice(0, 8) + '...' : g.genre,
-                count: g.recommendationCount,
-                acceptance: g.acceptanceRate * 100,
-              }))}
-            >
-              <PolarGrid />
-              <PolarAngleAxis dataKey="genre" tick={{ fontSize: 9 }} />
-              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 8 }} />
-              <Radar
-                name="Accept %"
-                dataKey="acceptance"
-                stroke={COLORS.primary}
-                fill={COLORS.primary}
-                fillOpacity={0.5}
-              />
-              <Tooltip />
-            </RadarChart>
-          </ResponsiveContainer>
-          {topGenres.length === 0 && (
-            <p className="text-xs sm:text-sm text-muted-foreground">
+          {topGenres.length > 0 ? (
+            <ResponsiveContainer width="100%" height={180} className="sm:!h-[300px]">
+              <BarChart
+                data={topGenres.slice(0, 8).map((g) => ({
+                  genre: g.genre.length > 10 ? g.genre.slice(0, 10) + '...' : g.genre,
+                  count: g.recommendationCount,
+                }))}
+                layout="vertical"
+                margin={{ left: 10, right: 10 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" tick={{ fontSize: 9 }} />
+                <YAxis type="category" dataKey="genre" tick={{ fontSize: 9 }} width={80} />
+                <Tooltip
+                  formatter={(v: number) => [`${v} songs`, 'Count']}
+                  contentStyle={{ fontSize: '11px' }}
+                />
+                <Bar dataKey="count" fill={COLORS.primary} name="Songs" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-xs sm:text-sm text-muted-foreground py-8 text-center">
               No genre data available yet.
             </p>
           )}
@@ -982,16 +978,9 @@ const ABTestingTab = memo(function ABTestingTab({
 });
 
 const ABTestCard = memo(function ABTestCard({ test }: { test: ABTest }) {
-  const chartData = test.variants.map((v) => ({
-    name: v.variantName.length > 10 ? v.variantName.slice(0, 10) + '...' : v.variantName,
-    fullName: v.variantName,
-    acceptanceRate: v.acceptanceRate * 100,
-    clickRate: v.clickThroughRate * 100,
-    playRate: v.playRate * 100,
-    saveRate: v.saveRate * 100,
-    sampleSize: v.sampleSize,
-    isWinner: v.isWinner,
-  }));
+  // Sort variants by sample size descending
+  const sortedVariants = [...test.variants].sort((a, b) => b.sampleSize - a.sampleSize);
+  const maxSample = sortedVariants[0]?.sampleSize || 1;
 
   return (
     <Card>
@@ -1019,83 +1008,64 @@ const ABTestCard = memo(function ABTestCard({ test }: { test: ABTest }) {
         </div>
       </CardHeader>
       <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-        <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
-          {/* Variants Comparison Chart */}
-          <ResponsiveContainer width="100%" height={180} className="sm:!h-[250px]">
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fontSize: 9 }} />
-              <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 9 }} />
-              <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} contentStyle={{ fontSize: '11px' }} />
-              <Legend wrapperStyle={{ fontSize: '9px' }} />
-              <Bar
-                dataKey="acceptanceRate"
-                fill={COLORS.success}
-                name="Accept"
-              />
-              <Bar
-                dataKey="clickRate"
-                fill={COLORS.primary}
-                name="Click"
-              />
-              <Bar
-                dataKey="playRate"
-                fill={COLORS.info}
-                name="Play"
-              />
-            </BarChart>
-          </ResponsiveContainer>
-
-          {/* Variants Details */}
-          <div className="space-y-2 sm:space-y-3">
-            {test.variants.map((variant) => (
-              <div
-                key={variant.variantId}
-                className={`rounded-lg border p-2 sm:p-3 ${
-                  variant.isWinner ? 'border-success bg-success/5' : ''
-                }`}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className="font-medium text-xs sm:text-sm truncate">{variant.variantName}</span>
+        <div className="space-y-3 sm:space-y-4">
+          {sortedVariants.map((variant) => (
+            <div
+              key={variant.variantId}
+              className={`rounded-xl border p-3 sm:p-4 ${
+                variant.isWinner ? 'border-success bg-success/5' : ''
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="font-semibold text-xs sm:text-sm truncate">{variant.variantName}</span>
+                <div className="flex items-center gap-1.5 shrink-0">
                   {variant.isWinner && (
                     <Badge className="bg-success text-[10px] sm:text-xs px-1 sm:px-2">Winner</Badge>
                   )}
-                </div>
-                <div className="mt-1.5 sm:mt-2 grid grid-cols-2 gap-1 sm:gap-2 text-[10px] sm:text-sm">
-                  <div>
-                    <span className="text-muted-foreground">N: </span>
-                    <span className="font-medium">{variant.sampleSize}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Accept: </span>
-                    <span className="font-medium">
-                      {(variant.acceptanceRate * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Click: </span>
-                    <span className="font-medium">
-                      {(variant.clickThroughRate * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Play: </span>
-                    <span className="font-medium">
-                      {(variant.playRate * 100).toFixed(0)}%
-                    </span>
-                  </div>
+                  <Badge variant="secondary" className="text-[10px] sm:text-xs px-1 sm:px-2">
+                    {variant.sampleSize} items
+                  </Badge>
                 </div>
               </div>
-            ))}
-            {test.conclusionSummary && (
-              <div className="rounded-lg bg-muted p-2 sm:p-3">
-                <p className="text-xs sm:text-sm font-medium">Conclusion</p>
-                <p className="text-[10px] sm:text-sm text-muted-foreground line-clamp-2">
-                  {test.conclusionSummary}
-                </p>
+              {/* Volume bar */}
+              <div className="mb-2">
+                <div className="h-2 sm:h-3 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${(variant.sampleSize / maxSample) * 100}%` }}
+                  />
+                </div>
               </div>
-            )}
-          </div>
+              <div className="grid grid-cols-3 gap-2 text-[10px] sm:text-xs text-muted-foreground">
+                <div className="text-center">
+                  <div className="font-medium text-success text-xs sm:text-sm">
+                    {Math.round(variant.acceptanceRate * variant.sampleSize)}
+                  </div>
+                  <div>Thumbs Up</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-medium text-danger text-xs sm:text-sm">
+                    {variant.sampleSize - Math.round(variant.acceptanceRate * variant.sampleSize)}
+                  </div>
+                  <div>Thumbs Down</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-medium text-foreground text-xs sm:text-sm">
+                    {(variant.acceptanceRate * 100).toFixed(0)}%
+                  </div>
+                  <div>Accept Rate</div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {test.conclusionSummary && (
+            <div className="rounded-xl bg-muted p-2 sm:p-3">
+              <p className="text-xs sm:text-sm font-medium">Conclusion</p>
+              <p className="text-[10px] sm:text-sm text-muted-foreground line-clamp-2">
+                {test.conclusionSummary}
+              </p>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

@@ -84,7 +84,7 @@ const GET = withAuthAndErrorHandling(
 
     // Determine which metrics to fetch
     const requestedMetrics = validated.metrics === 'all'
-      ? ['summary', 'mode', 'artists', 'genres', 'engagement', 'abtest']
+      ? ['all', 'summary', 'mode', 'artists', 'genres', 'engagement', 'abtest']
       : validated.metrics.split(',').map(m => m.trim().toLowerCase());
 
     // Build response based on requested metrics

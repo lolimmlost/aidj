@@ -15,6 +15,7 @@ import {
   recommendationFeedback,
   discoveryFeedItems,
   listeningPatterns,
+  musicIdentitySummaries,
 } from '~/lib/db/schema';
 import { eq, and, gte, lte } from 'drizzle-orm';
 import {
@@ -159,6 +160,28 @@ export function clearAdvancedAnalyticsCache(userId?: string): void {
 // Note: extractArtist, getDateRange, calculateTrend, getTimeSlot, calculateConfidenceInterval
 // are now imported from '~/lib/utils/analytics-helpers'
 
+/** Maps raw feedback source values to human-readable mode labels */
+const SOURCE_TO_MODE: Record<string, RecommendationMode | string> = {
+  recommendation: 'Similar',
+  ai_dj: 'AI DJ',
+  ai_dj_skip: 'AI DJ',
+  ai_dj_listen_through: 'AI DJ',
+  autoplay: 'Autoplay',
+  nudge: 'Discovery',
+  playlist_generator: 'Mood',
+  playlist: 'Playlist',
+  search: 'Search',
+  library: 'Library',
+  personalized: 'Personalized',
+  compound_score: 'Compound Score',
+  time_pattern: 'Time Pattern',
+  diversity: 'Diversity',
+};
+
+function mapSource(source: string): string {
+  return SOURCE_TO_MODE[source] || source.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 // ============================================================================
 // Core Analytics Functions
 // ============================================================================
@@ -195,17 +218,6 @@ export async function getAcceptanceRateByMode(
       )
     );
 
-  // Map sources to recommendation modes
-  const modeMapping: Record<string, RecommendationMode | string> = {
-    recommendation: 'similar',
-    ai_dj: 'similar',
-    nudge: 'discovery',
-    playlist_generator: 'mood',
-    playlist: 'playlist',
-    search: 'search',
-    library: 'library',
-  };
-
   // Group by mode
   const modeGroups = new Map<
     string,
@@ -216,7 +228,7 @@ export async function getAcceptanceRateByMode(
   >();
 
   for (const fb of feedback) {
-    const mode = modeMapping[fb.source] || fb.source;
+    const mode = mapSource(fb.source);
 
     if (!modeGroups.has(mode)) {
       modeGroups.set(mode, {
@@ -347,84 +359,54 @@ export async function getTopRecommendedGenres(
   const cached = getCached<TopGenreMetric[]>(cacheKey);
   if (cached) return cached;
 
-  const { start, end } = getDateRange(period);
+  const { start: _start, end: _end } = getDateRange(period);
 
-  // Get listening patterns which contain genre info
-  const genreScores = new Map<
-    string,
-    {
-      up: number;
-      down: number;
-    }
-  >();
-
-  // Try listening patterns for genre data
-  const patterns = await db
+  // Try music identity summaries first (has real genre data)
+  const identities = await db
     .select()
-    .from(listeningPatterns)
-    .where(eq(listeningPatterns.userId, userId));
+    .from(musicIdentitySummaries)
+    .where(eq(musicIdentitySummaries.userId, userId));
 
-  for (const pattern of patterns) {
-    const topGenres = (pattern.topGenres as { genre: string; count: number; avgRating: number }[]) || [];
-    for (const genre of topGenres) {
-      const existing = genreScores.get(genre.genre) || { up: 0, down: 0 };
+  // Use the most recent identity summary's topGenres
+  const genreCounts = new Map<string, number>();
 
-      // Simulate feedback based on rating (rating > 3.5 = thumbs up)
-      const avgRating = genre.avgRating || 3;
-      if (avgRating > 3.5) {
-        existing.up += genre.count;
-      } else {
-        existing.down += genre.count;
-      }
-
-      genreScores.set(genre.genre, existing);
+  if (identities.length > 0) {
+    // Sort by most recent
+    identities.sort((a, b) => b.generatedAt.getTime() - a.generatedAt.getTime());
+    const latest = identities[0];
+    const genres = (latest.topGenres as { name: string; count: number; percentage: number }[]) || [];
+    for (const genre of genres) {
+      genreCounts.set(genre.name, (genreCounts.get(genre.name) || 0) + genre.count);
     }
   }
 
-  // If still no data, create some placeholder data from feedback
-  if (genreScores.size === 0) {
-    const feedback = await db
+  // Fallback: try listening patterns
+  if (genreCounts.size === 0) {
+    const patterns = await db
       .select()
-      .from(recommendationFeedback)
-      .where(
-        and(
-          eq(recommendationFeedback.userId, userId),
-          gte(recommendationFeedback.timestamp, start),
-          lte(recommendationFeedback.timestamp, end)
-        )
-      );
+      .from(listeningPatterns)
+      .where(eq(listeningPatterns.userId, userId));
 
-    // Group by source as genre placeholder
-    for (const fb of feedback) {
-      const genre = `${fb.source} recommendations`;
-      const scores = genreScores.get(genre) || { up: 0, down: 0 };
-
-      if (fb.feedbackType === 'thumbs_up') {
-        scores.up++;
-      } else {
-        scores.down++;
+    for (const pattern of patterns) {
+      const topGenres = (pattern.topGenres as { genre: string; count: number; avgRating: number }[]) || [];
+      for (const genre of topGenres) {
+        genreCounts.set(genre.genre, (genreCounts.get(genre.genre) || 0) + genre.count);
       }
-
-      genreScores.set(genre, scores);
     }
   }
 
   // Convert to metrics
   const metrics: TopGenreMetric[] = [];
 
-  for (const [genre, scores] of Array.from(genreScores.entries())) {
-    const total = scores.up + scores.down;
-    if (total === 0) continue;
-
-    const acceptanceRate = scores.up / total;
+  for (const [genre, count] of Array.from(genreCounts.entries())) {
+    if (count === 0) continue;
 
     metrics.push({
       genre,
-      recommendationCount: total,
-      acceptanceRate,
-      thumbsUpCount: scores.up,
-      thumbsDownCount: scores.down,
-      avgScore: acceptanceRate * 5, // Convert to 0-5 scale
+      recommendationCount: count,
+      acceptanceRate: 0,
+      thumbsUpCount: 0,
+      thumbsDownCount: 0,
     });
   }
 
@@ -561,7 +543,7 @@ export async function getABTestResults(
   >();
 
   for (const item of items) {
-    const variant = item.recommendationSource;
+    const variant = mapSource(item.recommendationSource);
 
     if (!variantGroups.has(variant)) {
       variantGroups.set(variant, {
@@ -583,8 +565,14 @@ export async function getABTestResults(
     if (item.feedback === 'disliked') group.disliked++;
   }
 
-  // If no discovery feed data, fall back to recommendation feedback
-  if (variantGroups.size === 0 && userId) {
+  // Check if discovery feed data has any actual interactions
+  const hasInteractions = Array.from(variantGroups.values()).some(
+    (g) => g.clicked > 0 || g.played > 0 || g.liked > 0 || g.disliked > 0
+  );
+
+  // Fall back to recommendation feedback if no interactions in discovery feed
+  if ((!hasInteractions || variantGroups.size === 0) && userId) {
+    variantGroups.clear();
     const feedback = await db
       .select()
       .from(recommendationFeedback)
@@ -603,7 +591,7 @@ export async function getABTestResults(
     >();
 
     for (const fb of feedback) {
-      const variant = fb.source || 'unknown';
+      const variant = mapSource(fb.source || 'unknown');
 
       if (!feedbackGroups.has(variant)) {
         feedbackGroups.set(variant, { up: 0, down: 0 });
@@ -622,8 +610,8 @@ export async function getABTestResults(
       const total = group.up + group.down;
       variantGroups.set(variant, {
         shown: total,
-        clicked: total, // Assume all were clicked since they got feedback
-        played: total, // Assume all were played
+        clicked: 0,
+        played: 0,
         saved: 0,
         liked: group.up,
         disliked: group.down,
@@ -758,16 +746,46 @@ export async function getDiscoveryAnalyticsSummary(
   const twoMonthsAgo = new Date();
   twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
 
-  // Fetch comparison data for trends
+  // Fetch comparison data for week-over-week trend
   const recentWeekMetrics = await getAcceptanceRateByMode(userId, '7d');
   const recentWeekTotal = recentWeekMetrics.reduce((sum, m) => sum + m.thumbsUpCount, 0);
   const recentWeekFeedback = recentWeekMetrics.reduce((sum, m) => sum + m.totalRecommendations, 0);
   const recentWeekRate = recentWeekFeedback > 0 ? recentWeekTotal / recentWeekFeedback : 0;
 
-  // Simplified trend calculation (comparing current period to overall)
   const weekOverWeekChange = overallAcceptanceRate > 0
     ? ((recentWeekRate - overallAcceptanceRate) / overallAcceptanceRate) * 100
     : 0;
+
+  // Fetch previous month data for real month-over-month comparison
+  // Query feedback from 30-60 days ago
+  const prevMonthFeedback = await db
+    .select()
+    .from(recommendationFeedback)
+    .where(
+      and(
+        eq(recommendationFeedback.userId, userId),
+        gte(recommendationFeedback.timestamp, twoMonthsAgo),
+        lte(recommendationFeedback.timestamp, monthAgo)
+      )
+    );
+
+  const prevMonthUp = prevMonthFeedback.filter((f) => f.feedbackType === 'thumbs_up').length;
+  const prevMonthTotal = prevMonthFeedback.length;
+  const prevMonthRate = prevMonthTotal > 0 ? prevMonthUp / prevMonthTotal : 0;
+
+  // Current month feedback
+  const currMonthMetrics = await getAcceptanceRateByMode(userId, '30d');
+  const currMonthUp = currMonthMetrics.reduce((sum, m) => sum + m.thumbsUpCount, 0);
+  const currMonthTotal = currMonthMetrics.reduce((sum, m) => sum + m.totalRecommendations, 0);
+  const currMonthRate = currMonthTotal > 0 ? currMonthUp / currMonthTotal : 0;
+
+  let monthOverMonthChange = 0;
+  if (prevMonthRate > 0) {
+    monthOverMonthChange = ((currMonthRate - prevMonthRate) / prevMonthRate) * 100;
+  } else if (currMonthTotal > 0) {
+    // No previous month data — show current rate as the change
+    monthOverMonthChange = currMonthRate * 100;
+  }
 
   const summary: DiscoveryAnalyticsSummary = {
     totalFeedback,
@@ -780,7 +798,7 @@ export async function getDiscoveryAnalyticsSummary(
     activeTests: abTests.active,
     completedTests: abTests.completed,
     weekOverWeekChange,
-    monthOverMonthChange: weekOverWeekChange * 4, // Rough approximation
+    monthOverMonthChange,
   };
 
   setCache(cacheKey, summary);

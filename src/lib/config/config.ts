@@ -107,6 +107,7 @@ if (typeof window !== 'undefined') {
     ...fileConfig, // Load from db/config.json
     // Override with environment variables if set
     llmProvider: (process.env.LLM_PROVIDER as LLMProviderType) || fileConfig.llmProvider || defaults.llmProvider,
+    ollamaUrl: process.env.OLLAMA_URL || fileConfig.ollamaUrl || defaults.ollamaUrl,
     ollamaModel: process.env.OLLAMA_MODEL || fileConfig.ollamaModel || defaults.ollamaModel,
     openrouterApiKey: process.env.OPENROUTER_API_KEY || fileConfig.openrouterApiKey || '',
     openrouterModel: process.env.OPENROUTER_MODEL || fileConfig.openrouterModel || defaults.openrouterModel,
@@ -151,6 +152,7 @@ async function loadServerConfigAsync(): Promise<void> {
         ...defaults,
         ...fileConfig,
         llmProvider: (process.env.LLM_PROVIDER as LLMProviderType) || fileConfig.llmProvider || defaults.llmProvider,
+        ollamaUrl: process.env.OLLAMA_URL || fileConfig.ollamaUrl || defaults.ollamaUrl,
         ollamaModel: process.env.OLLAMA_MODEL || fileConfig.ollamaModel || defaults.ollamaModel,
         openrouterApiKey: process.env.OPENROUTER_API_KEY || fileConfig.openrouterApiKey || '',
         openrouterModel: process.env.OPENROUTER_MODEL || fileConfig.openrouterModel || defaults.openrouterModel,
