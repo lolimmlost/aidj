@@ -795,11 +795,7 @@ export function PlayerBar() {
                   ref={devicePickerTriggerRef}
                   onClick={(e) => {
                     e.stopPropagation();
-                    console.log('[DevicePicker] trigger clicked, current:', showDevicePicker);
-                    setShowDevicePicker(prev => {
-                      console.log('[DevicePicker] toggling to:', !prev);
-                      return !prev;
-                    });
+                    setShowDevicePicker(prev => !prev);
                   }}
                   className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5 hover:text-green-500 transition-colors"
                   aria-label="Switch playback device"
@@ -1095,9 +1091,8 @@ export function PlayerBar() {
       />
 
       {/* Device Picker — rendered via portal */}
-      {showDevicePicker && console.log('[DevicePicker] rendering portal, triggerRef:', devicePickerTriggerRef.current)}
       {showDevicePicker && (
-        <DevicePicker onClose={() => { console.log('[DevicePicker] onClose called'); setShowDevicePicker(false); }} triggerRef={devicePickerTriggerRef} />
+        <DevicePicker onClose={() => setShowDevicePicker(false)} triggerRef={devicePickerTriggerRef} />
       )}
     </>
   );

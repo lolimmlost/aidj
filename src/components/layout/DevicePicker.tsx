@@ -6,7 +6,7 @@
  * Renders via portal to avoid overflow clipping in the fixed player bar.
  */
 
-import { useEffect, useRef, useState, memo } from 'react';
+import { useEffect, useRef, useState, useLayoutEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Smartphone, Monitor, Tablet, Check, ArrowRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -45,7 +45,7 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
   const ref = useRef<HTMLDivElement>(null);
   const localDevice = getDeviceInfo();
   const remoteDevice = useAudioStore((s) => s.remoteDevice);
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const [style, setStyle] = useState<React.CSSProperties>({ bottom: '80px', left: '16px' });
 
   const { data } = useQuery({
     queryKey: ['playback', 'devices'],
@@ -62,16 +62,31 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
     staleTime: 10_000,
   });
 
-  // Position the dropdown above the trigger button
-  useEffect(() => {
-    if (triggerRef?.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      setPosition({
-        top: rect.top - 8, // 8px gap above trigger
-        left: Math.max(8, rect.left), // clamp to viewport edge
-      });
+  // Position the dropdown above the trigger button using layout effect
+  // so it's placed before the browser paints
+  useLayoutEffect(() => {
+    if (!triggerRef?.current || !ref.current) return;
+    const triggerRect = triggerRef.current.getBoundingClientRect();
+    const dropdownHeight = ref.current.offsetHeight || 200;
+    const gap = 8;
+
+    // Place above the trigger, clamped to viewport
+    let top = triggerRect.top - dropdownHeight - gap;
+    let left = triggerRect.left;
+
+    // If it would go above viewport, place below instead
+    if (top < 8) {
+      top = triggerRect.bottom + gap;
     }
-  }, [triggerRef]);
+    // Clamp to right edge
+    if (left + 256 > window.innerWidth) {
+      left = window.innerWidth - 256 - 8;
+    }
+    // Clamp to left edge
+    if (left < 8) left = 8;
+
+    setStyle({ position: 'fixed', top: `${top}px`, left: `${left}px` });
+  });
 
   // Close on outside click (ignore clicks on the trigger button)
   useEffect(() => {
@@ -123,17 +138,10 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
       ref={ref}
       className={cn(
         "fixed w-64 z-[9999]",
-        "bg-popover border border-border rounded-lg shadow-lg",
+        "bg-popover border border-border rounded-lg shadow-xl",
         "animate-in fade-in slide-in-from-bottom-2 duration-150"
       )}
-      style={position ? {
-        top: position.top,
-        left: position.left,
-        transform: 'translateY(-100%)',
-      } : {
-        bottom: '80px',
-        left: '16px',
-      }}
+      style={style}
     >
       <div className="p-3">
         <h4 className="text-sm font-medium mb-2">Available Devices</h4>
