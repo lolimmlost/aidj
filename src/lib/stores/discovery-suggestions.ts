@@ -6,7 +6,7 @@
  */
 
 import { create } from 'zustand';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { useDiscoveryQueueStore } from './discovery-queue';
 import { isDeezerImage } from '@/components/ui/cover-art-approval';
 

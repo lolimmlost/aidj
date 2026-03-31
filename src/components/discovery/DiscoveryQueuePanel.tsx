@@ -9,7 +9,7 @@ import { useDiscoveryQueueStore, type DiscoveryItem } from '@/lib/stores/discove
 import { useDiscoveryMonitor } from '@/hooks/useDiscoveryMonitor';
 import { useAudioStore } from '@/lib/stores/audio';
 import { Play, Trash2, RefreshCw, Music, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 // Simple relative time formatter without date-fns
 function formatTimeAgo(timestamp: number): string {

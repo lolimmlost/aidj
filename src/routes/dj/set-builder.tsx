@@ -34,7 +34,7 @@ import {
   DEFAULT_PLANNING_OPTIONS,
 } from '@/lib/services/dj-set-planner';
 import { getRandomSongs } from '@/lib/services/navidrome';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import {
   Upload,
   Trash2,

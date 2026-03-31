@@ -5,7 +5,7 @@ import { X, Music, Trash2, GripVertical, Plus, RotateCcw, ThumbsUp, ThumbsDown, 
 import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { CreatePlaylistDialog } from '@/components/playlists/CreatePlaylistDialog';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 import { queryKeys } from '@/lib/query';
 import { useVirtualizer } from '@tanstack/react-virtual';

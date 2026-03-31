@@ -13,7 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import type { UnifiedTask } from '@/lib/services/task-aggregator';
 
 export const Route = createFileRoute('/tasks/')(

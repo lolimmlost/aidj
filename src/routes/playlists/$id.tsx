@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import {
   ListMusic, Play, Trash2, X, Plus, Shuffle,

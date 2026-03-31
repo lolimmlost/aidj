@@ -11,7 +11,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import authClient from '@/lib/auth/auth-client';
 import { queryKeys, queryPresets } from '@/lib/query';
 import {
@@ -152,7 +152,6 @@ export function useSubmitFeedbackOffline() {
 
       toast.error('Failed to save feedback', {
         description: 'Please try again',
-        duration: 3000,
       });
     },
   });

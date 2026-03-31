@@ -1,5 +1,5 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import authClient from '@/lib/auth/auth-client';
@@ -124,7 +124,6 @@ function GeneratePage() {
       } else {
         toast.error('Failed to save feedback', {
           description: error instanceof Error ? error.message : 'Please try again',
-          duration: 3000,
         });
       }
     },

@@ -5,7 +5,7 @@ import { fromSyncSong } from '@/lib/types/sync';
 import type { PlaybackStateResponse } from '@/lib/types/sync';
 import { getDeviceInfo } from '@/lib/utils/device';
 import { usePreferencesStore } from './preferences';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { shuffleSongs } from '@/lib/utils/shuffle-scoring';
 
 // Client-side helper functions (moved from ai-dj.ts to avoid server imports)

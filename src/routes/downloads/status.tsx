@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { PageLayout } from '@/components/ui/page-layout'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Clock } from 'lucide-react'
 import {
   type DownloadStatus,

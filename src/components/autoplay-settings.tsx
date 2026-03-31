@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { useAudioStore } from '@/lib/stores/audio';
 import { usePreferencesStore } from '@/lib/stores/preferences';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import {
   Music,
   Radio,

@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { Youtube, Download, Music, Video, List, Trash2, CheckCircle, AlertCircle, Loader2, Info } from 'lucide-react';
 import { queryKeys, queryPresets, createSmartPollingInterval } from '@/lib/query';
 

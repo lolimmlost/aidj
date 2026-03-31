@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
+import { toast } from '@/lib/toast';
 import authClient from "@/lib/auth/auth-client";
 
 interface TwoFactorSetup {

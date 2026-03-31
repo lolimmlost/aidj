@@ -880,4 +880,120 @@
   .animate-pulse-glow {
     animation: pulse-glow 3s ease-in-out infinite;
   }
+
+  /* ── Toast Notifications (Sonner) ──
+     Glass-card aesthetic with OKLCH brand colors, backdrop blur,
+     and a countdown progress bar that matches the toast duration. */
+
+  [data-sonner-toaster] {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  [data-sonner-toast] {
+    @apply rounded-xl shadow-lg overflow-hidden;
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border-width: 1px;
+  }
+
+  .dark [data-sonner-toast] {
+    box-shadow:
+      0 4px 16px oklch(0 0 0 / 0.3),
+      inset 0 1px 0 oklch(1 0 0 / 0.05);
+  }
+
+  /* Toast description text */
+  [data-sonner-toast] [data-description] {
+    @apply text-muted-foreground;
+  }
+
+  /* ── Countdown progress bar ──
+     A thin bar at the bottom that shrinks from 100% to 0%
+     over the toast's lifetime. Color matches the toast type. */
+  @keyframes toast-countdown {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
+  }
+
+  [data-sonner-toast][data-type="success"]::after,
+  [data-sonner-toast][data-type="error"]::after,
+  [data-sonner-toast][data-type="info"]::after,
+  [data-sonner-toast][data-type="warning"]::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    transform-origin: left;
+    animation: toast-countdown linear forwards;
+    pointer-events: none;
+  }
+
+  /* Pause countdown on hover so users can read */
+  [data-sonner-toast]:hover::after {
+    animation-play-state: paused;
+  }
+
+  /* Per-type colors & durations (match src/lib/toast.ts defaults) */
+  [data-sonner-toast][data-type="success"]::after {
+    background: var(--success-border, oklch(0.5 0.15 160 / 0.5));
+    animation-duration: 3s;
+  }
+
+  [data-sonner-toast][data-type="error"]::after {
+    background: var(--error-border, oklch(0.55 0.2 25 / 0.5));
+    animation-duration: 6s;
+  }
+
+  [data-sonner-toast][data-type="info"]::after {
+    background: var(--info-border, oklch(0.55 0.15 260 / 0.5));
+    animation-duration: 4s;
+  }
+
+  [data-sonner-toast][data-type="warning"]::after {
+    background: var(--warning-border, oklch(0.6 0.16 80 / 0.5));
+    animation-duration: 5s;
+  }
+
+  /* Respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    [data-sonner-toast]::after {
+      animation: none !important;
+    }
+  }
+
+  /* Login page queue carousel animations */
+  @keyframes scroll-up {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-50%); }
+  }
+
+  @keyframes scroll-down {
+    0% { transform: translateY(-50%); }
+    100% { transform: translateY(0); }
+  }
+
+  @keyframes scroll-left {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  .animate-scroll-up {
+    animation: scroll-up linear infinite;
+  }
+  .animate-scroll-down {
+    animation: scroll-down linear infinite;
+  }
+  .animate-scroll-left {
+    animation: scroll-left linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-scroll-up,
+    .animate-scroll-down,
+    .animate-scroll-left {
+      animation: none !important;
+    }
+  }
 }
