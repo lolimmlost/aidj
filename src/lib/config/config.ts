@@ -58,11 +58,11 @@ let currentConfig: ServiceConfig = {
   lastfmApiKey: '',
   spotifyClientId: '',
   spotifyClientSecret: '',
-  spotifyRedirectUri: 'http://localhost:3000/api/auth/spotify/callback',
+  spotifyRedirectUri: '',
   youtubeApiKey: '',
   youtubeClientId: '',
   youtubeClientSecret: '',
-  youtubeRedirectUri: 'http://localhost:3000/api/auth/youtube/callback',
+  youtubeRedirectUri: '',
 };
 
 if (typeof window !== 'undefined') {
@@ -111,6 +111,9 @@ if (typeof window !== 'undefined') {
     navidromeUsername: process.env.NAVIDROME_USERNAME || fileConfig.navidromeUsername || defaults.navidromeUsername,
     navidromePassword: process.env.NAVIDROME_PASSWORD || fileConfig.navidromePassword || defaults.navidromePassword,
     lastfmApiKey: process.env.LASTFM_API_KEY || fileConfig.lastfmApiKey || '',
+    spotifyClientId: process.env.SPOTIFY_CLIENT_ID || fileConfig.spotifyClientId || '',
+    spotifyClientSecret: process.env.SPOTIFY_CLIENT_SECRET || fileConfig.spotifyClientSecret || '',
+    spotifyRedirectUri: process.env.SPOTIFY_REDIRECT_URI || fileConfig.spotifyRedirectUri || '',
   };
 }
 
@@ -149,6 +152,9 @@ async function loadServerConfigAsync(): Promise<void> {
         navidromeUsername: process.env.NAVIDROME_USERNAME || fileConfig.navidromeUsername || defaults.navidromeUsername,
         navidromePassword: process.env.NAVIDROME_PASSWORD || fileConfig.navidromePassword || defaults.navidromePassword,
         lastfmApiKey: process.env.LASTFM_API_KEY || fileConfig.lastfmApiKey || '',
+        spotifyClientId: process.env.SPOTIFY_CLIENT_ID || fileConfig.spotifyClientId || '',
+        spotifyClientSecret: process.env.SPOTIFY_CLIENT_SECRET || fileConfig.spotifyClientSecret || '',
+        spotifyRedirectUri: process.env.SPOTIFY_REDIRECT_URI || fileConfig.spotifyRedirectUri || '',
       };
       serverConfigLoaded = true;
     }

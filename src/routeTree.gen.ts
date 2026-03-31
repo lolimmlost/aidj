@@ -57,6 +57,8 @@ import { Route as PlaylistsJoinShareCodeRouteImport } from './routes/playlists/j
 import { Route as MusicIdentityShareTokenRouteImport } from './routes/music-identity/share.$token'
 import { Route as LibraryArtistsIdRouteImport } from './routes/library/artists/$id'
 import { Route as DashboardRecommendationsIdRouteImport } from './routes/dashboard/recommendations/$id'
+import { Route as ApiSecurityEnable2faRouteImport } from './routes/api/security/enable-2fa'
+import { Route as ApiSecurityDisable2faRouteImport } from './routes/api/security/disable-2fa'
 import { Route as ApiRecommendationsSeasonalPlaylistRouteImport } from './routes/api/recommendations/seasonal-playlist'
 import { Route as ApiRecommendationsSeasonalInsightsRouteImport } from './routes/api/recommendations/seasonal-insights'
 import { Route as ApiRecommendationsMoodTimelineRouteImport } from './routes/api/recommendations/mood-timeline'
@@ -68,6 +70,10 @@ import { Route as ApiRecommendationsAnalyticsRouteImport } from './routes/api/re
 import { Route as ApiRadioShuffleRouteImport } from './routes/api/radio/shuffle'
 import { Route as ApiProfileUpdateRouteImport } from './routes/api/profile/update'
 import { Route as ApiPlaylistsSyncRouteImport } from './routes/api/playlists/sync'
+import { Route as ApiPlaylistsSpotifyStatusRouteImport } from './routes/api/playlists/spotify-status'
+import { Route as ApiPlaylistsSpotifyPlaylistsRouteImport } from './routes/api/playlists/spotify-playlists'
+import { Route as ApiPlaylistsSpotifyCallbackRouteImport } from './routes/api/playlists/spotify-callback'
+import { Route as ApiPlaylistsSpotifyAuthRouteImport } from './routes/api/playlists/spotify-auth'
 import { Route as ApiPlaylistsJoinRouteImport } from './routes/api/playlists/join'
 import { Route as ApiPlaylistsImportRouteImport } from './routes/api/playlists/import'
 import { Route as ApiPlaylistsExportRouteImport } from './routes/api/playlists/export'
@@ -406,6 +412,16 @@ const DashboardRecommendationsIdRoute =
     path: '/recommendations/$id',
     getParentRoute: () => DashboardRouteRoute,
   } as any)
+const ApiSecurityEnable2faRoute = ApiSecurityEnable2faRouteImport.update({
+  id: '/api/security/enable-2fa',
+  path: '/api/security/enable-2fa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSecurityDisable2faRoute = ApiSecurityDisable2faRouteImport.update({
+  id: '/api/security/disable-2fa',
+  path: '/api/security/disable-2fa',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiRecommendationsSeasonalPlaylistRoute =
   ApiRecommendationsSeasonalPlaylistRouteImport.update({
     id: '/seasonal-playlist',
@@ -466,6 +482,29 @@ const ApiProfileUpdateRoute = ApiProfileUpdateRouteImport.update({
 const ApiPlaylistsSyncRoute = ApiPlaylistsSyncRouteImport.update({
   id: '/api/playlists/sync',
   path: '/api/playlists/sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPlaylistsSpotifyStatusRoute =
+  ApiPlaylistsSpotifyStatusRouteImport.update({
+    id: '/api/playlists/spotify-status',
+    path: '/api/playlists/spotify-status',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPlaylistsSpotifyPlaylistsRoute =
+  ApiPlaylistsSpotifyPlaylistsRouteImport.update({
+    id: '/api/playlists/spotify-playlists',
+    path: '/api/playlists/spotify-playlists',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPlaylistsSpotifyCallbackRoute =
+  ApiPlaylistsSpotifyCallbackRouteImport.update({
+    id: '/api/playlists/spotify-callback',
+    path: '/api/playlists/spotify-callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPlaylistsSpotifyAuthRoute = ApiPlaylistsSpotifyAuthRouteImport.update({
+  id: '/api/playlists/spotify-auth',
+  path: '/api/playlists/spotify-auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPlaylistsJoinRoute = ApiPlaylistsJoinRouteImport.update({
@@ -1081,6 +1120,10 @@ export interface FileRoutesByFullPath {
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
   '/api/playlists/join': typeof ApiPlaylistsJoinRoute
+  '/api/playlists/spotify-auth': typeof ApiPlaylistsSpotifyAuthRoute
+  '/api/playlists/spotify-callback': typeof ApiPlaylistsSpotifyCallbackRoute
+  '/api/playlists/spotify-playlists': typeof ApiPlaylistsSpotifyPlaylistsRoute
+  '/api/playlists/spotify-status': typeof ApiPlaylistsSpotifyStatusRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/profile/update': typeof ApiProfileUpdateRoute
   '/api/radio/shuffle': typeof ApiRadioShuffleRoute
@@ -1092,6 +1135,8 @@ export interface FileRoutesByFullPath {
   '/api/recommendations/mood-timeline': typeof ApiRecommendationsMoodTimelineRoute
   '/api/recommendations/seasonal-insights': typeof ApiRecommendationsSeasonalInsightsRoute
   '/api/recommendations/seasonal-playlist': typeof ApiRecommendationsSeasonalPlaylistRoute
+  '/api/security/disable-2fa': typeof ApiSecurityDisable2faRoute
+  '/api/security/enable-2fa': typeof ApiSecurityEnable2faRoute
   '/dashboard/recommendations/$id': typeof DashboardRecommendationsIdRoute
   '/library/artists/$id': typeof LibraryArtistsIdRouteWithChildren
   '/music-identity/share/$token': typeof MusicIdentityShareTokenRoute
@@ -1235,6 +1280,10 @@ export interface FileRoutesByTo {
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
   '/api/playlists/join': typeof ApiPlaylistsJoinRoute
+  '/api/playlists/spotify-auth': typeof ApiPlaylistsSpotifyAuthRoute
+  '/api/playlists/spotify-callback': typeof ApiPlaylistsSpotifyCallbackRoute
+  '/api/playlists/spotify-playlists': typeof ApiPlaylistsSpotifyPlaylistsRoute
+  '/api/playlists/spotify-status': typeof ApiPlaylistsSpotifyStatusRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/profile/update': typeof ApiProfileUpdateRoute
   '/api/radio/shuffle': typeof ApiRadioShuffleRoute
@@ -1246,6 +1295,8 @@ export interface FileRoutesByTo {
   '/api/recommendations/mood-timeline': typeof ApiRecommendationsMoodTimelineRoute
   '/api/recommendations/seasonal-insights': typeof ApiRecommendationsSeasonalInsightsRoute
   '/api/recommendations/seasonal-playlist': typeof ApiRecommendationsSeasonalPlaylistRoute
+  '/api/security/disable-2fa': typeof ApiSecurityDisable2faRoute
+  '/api/security/enable-2fa': typeof ApiSecurityEnable2faRoute
   '/dashboard/recommendations/$id': typeof DashboardRecommendationsIdRoute
   '/library/artists/$id': typeof LibraryArtistsIdRouteWithChildren
   '/music-identity/share/$token': typeof MusicIdentityShareTokenRoute
@@ -1393,6 +1444,10 @@ export interface FileRoutesById {
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
   '/api/playlists/join': typeof ApiPlaylistsJoinRoute
+  '/api/playlists/spotify-auth': typeof ApiPlaylistsSpotifyAuthRoute
+  '/api/playlists/spotify-callback': typeof ApiPlaylistsSpotifyCallbackRoute
+  '/api/playlists/spotify-playlists': typeof ApiPlaylistsSpotifyPlaylistsRoute
+  '/api/playlists/spotify-status': typeof ApiPlaylistsSpotifyStatusRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/profile/update': typeof ApiProfileUpdateRoute
   '/api/radio/shuffle': typeof ApiRadioShuffleRoute
@@ -1404,6 +1459,8 @@ export interface FileRoutesById {
   '/api/recommendations/mood-timeline': typeof ApiRecommendationsMoodTimelineRoute
   '/api/recommendations/seasonal-insights': typeof ApiRecommendationsSeasonalInsightsRoute
   '/api/recommendations/seasonal-playlist': typeof ApiRecommendationsSeasonalPlaylistRoute
+  '/api/security/disable-2fa': typeof ApiSecurityDisable2faRoute
+  '/api/security/enable-2fa': typeof ApiSecurityEnable2faRoute
   '/dashboard/recommendations/$id': typeof DashboardRecommendationsIdRoute
   '/library/artists/$id': typeof LibraryArtistsIdRouteWithChildren
   '/music-identity/share/$token': typeof MusicIdentityShareTokenRoute
@@ -1551,6 +1608,10 @@ export interface FileRouteTypes {
     | '/api/playlists/export'
     | '/api/playlists/import'
     | '/api/playlists/join'
+    | '/api/playlists/spotify-auth'
+    | '/api/playlists/spotify-callback'
+    | '/api/playlists/spotify-playlists'
+    | '/api/playlists/spotify-status'
     | '/api/playlists/sync'
     | '/api/profile/update'
     | '/api/radio/shuffle'
@@ -1562,6 +1623,8 @@ export interface FileRouteTypes {
     | '/api/recommendations/mood-timeline'
     | '/api/recommendations/seasonal-insights'
     | '/api/recommendations/seasonal-playlist'
+    | '/api/security/disable-2fa'
+    | '/api/security/enable-2fa'
     | '/dashboard/recommendations/$id'
     | '/library/artists/$id'
     | '/music-identity/share/$token'
@@ -1705,6 +1768,10 @@ export interface FileRouteTypes {
     | '/api/playlists/export'
     | '/api/playlists/import'
     | '/api/playlists/join'
+    | '/api/playlists/spotify-auth'
+    | '/api/playlists/spotify-callback'
+    | '/api/playlists/spotify-playlists'
+    | '/api/playlists/spotify-status'
     | '/api/playlists/sync'
     | '/api/profile/update'
     | '/api/radio/shuffle'
@@ -1716,6 +1783,8 @@ export interface FileRouteTypes {
     | '/api/recommendations/mood-timeline'
     | '/api/recommendations/seasonal-insights'
     | '/api/recommendations/seasonal-playlist'
+    | '/api/security/disable-2fa'
+    | '/api/security/enable-2fa'
     | '/dashboard/recommendations/$id'
     | '/library/artists/$id'
     | '/music-identity/share/$token'
@@ -1862,6 +1931,10 @@ export interface FileRouteTypes {
     | '/api/playlists/export'
     | '/api/playlists/import'
     | '/api/playlists/join'
+    | '/api/playlists/spotify-auth'
+    | '/api/playlists/spotify-callback'
+    | '/api/playlists/spotify-playlists'
+    | '/api/playlists/spotify-status'
     | '/api/playlists/sync'
     | '/api/profile/update'
     | '/api/radio/shuffle'
@@ -1873,6 +1946,8 @@ export interface FileRouteTypes {
     | '/api/recommendations/mood-timeline'
     | '/api/recommendations/seasonal-insights'
     | '/api/recommendations/seasonal-playlist'
+    | '/api/security/disable-2fa'
+    | '/api/security/enable-2fa'
     | '/dashboard/recommendations/$id'
     | '/library/artists/$id'
     | '/music-identity/share/$token'
@@ -2008,9 +2083,15 @@ export interface RootRouteChildren {
   ApiPlaylistsExportRoute: typeof ApiPlaylistsExportRoute
   ApiPlaylistsImportRoute: typeof ApiPlaylistsImportRoute
   ApiPlaylistsJoinRoute: typeof ApiPlaylistsJoinRoute
+  ApiPlaylistsSpotifyAuthRoute: typeof ApiPlaylistsSpotifyAuthRoute
+  ApiPlaylistsSpotifyCallbackRoute: typeof ApiPlaylistsSpotifyCallbackRoute
+  ApiPlaylistsSpotifyPlaylistsRoute: typeof ApiPlaylistsSpotifyPlaylistsRoute
+  ApiPlaylistsSpotifyStatusRoute: typeof ApiPlaylistsSpotifyStatusRoute
   ApiPlaylistsSyncRoute: typeof ApiPlaylistsSyncRoute
   ApiProfileUpdateRoute: typeof ApiProfileUpdateRoute
   ApiRadioShuffleRoute: typeof ApiRadioShuffleRoute
+  ApiSecurityDisable2faRoute: typeof ApiSecurityDisable2faRoute
+  ApiSecurityEnable2faRoute: typeof ApiSecurityEnable2faRoute
   MusicIdentityShareTokenRoute: typeof MusicIdentityShareTokenRoute
   PlaylistsJoinShareCodeRoute: typeof PlaylistsJoinShareCodeRoute
   ApiDiscoveryFeedIndexRoute: typeof ApiDiscoveryFeedIndexRoute
@@ -2378,6 +2459,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRecommendationsIdRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/api/security/enable-2fa': {
+      id: '/api/security/enable-2fa'
+      path: '/api/security/enable-2fa'
+      fullPath: '/api/security/enable-2fa'
+      preLoaderRoute: typeof ApiSecurityEnable2faRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/security/disable-2fa': {
+      id: '/api/security/disable-2fa'
+      path: '/api/security/disable-2fa'
+      fullPath: '/api/security/disable-2fa'
+      preLoaderRoute: typeof ApiSecurityDisable2faRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/recommendations/seasonal-playlist': {
       id: '/api/recommendations/seasonal-playlist'
       path: '/seasonal-playlist'
@@ -2453,6 +2548,34 @@ declare module '@tanstack/react-router' {
       path: '/api/playlists/sync'
       fullPath: '/api/playlists/sync'
       preLoaderRoute: typeof ApiPlaylistsSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/playlists/spotify-status': {
+      id: '/api/playlists/spotify-status'
+      path: '/api/playlists/spotify-status'
+      fullPath: '/api/playlists/spotify-status'
+      preLoaderRoute: typeof ApiPlaylistsSpotifyStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/playlists/spotify-playlists': {
+      id: '/api/playlists/spotify-playlists'
+      path: '/api/playlists/spotify-playlists'
+      fullPath: '/api/playlists/spotify-playlists'
+      preLoaderRoute: typeof ApiPlaylistsSpotifyPlaylistsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/playlists/spotify-callback': {
+      id: '/api/playlists/spotify-callback'
+      path: '/api/playlists/spotify-callback'
+      fullPath: '/api/playlists/spotify-callback'
+      preLoaderRoute: typeof ApiPlaylistsSpotifyCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/playlists/spotify-auth': {
+      id: '/api/playlists/spotify-auth'
+      path: '/api/playlists/spotify-auth'
+      fullPath: '/api/playlists/spotify-auth'
+      preLoaderRoute: typeof ApiPlaylistsSpotifyAuthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/playlists/join': {
@@ -3400,9 +3523,15 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPlaylistsExportRoute: ApiPlaylistsExportRoute,
   ApiPlaylistsImportRoute: ApiPlaylistsImportRoute,
   ApiPlaylistsJoinRoute: ApiPlaylistsJoinRoute,
+  ApiPlaylistsSpotifyAuthRoute: ApiPlaylistsSpotifyAuthRoute,
+  ApiPlaylistsSpotifyCallbackRoute: ApiPlaylistsSpotifyCallbackRoute,
+  ApiPlaylistsSpotifyPlaylistsRoute: ApiPlaylistsSpotifyPlaylistsRoute,
+  ApiPlaylistsSpotifyStatusRoute: ApiPlaylistsSpotifyStatusRoute,
   ApiPlaylistsSyncRoute: ApiPlaylistsSyncRoute,
   ApiProfileUpdateRoute: ApiProfileUpdateRoute,
   ApiRadioShuffleRoute: ApiRadioShuffleRoute,
+  ApiSecurityDisable2faRoute: ApiSecurityDisable2faRoute,
+  ApiSecurityEnable2faRoute: ApiSecurityEnable2faRoute,
   MusicIdentityShareTokenRoute: MusicIdentityShareTokenRoute,
   PlaylistsJoinShareCodeRoute: PlaylistsJoinShareCodeRoute,
   ApiDiscoveryFeedIndexRoute: ApiDiscoveryFeedIndexRoute,

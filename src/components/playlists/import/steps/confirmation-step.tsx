@@ -11,8 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 
@@ -55,15 +53,12 @@ interface ConfirmationStepProps {
   reviewStats?: ReviewStats;
 }
 
-type DownloadService = 'lidarr' | 'metube' | 'both';
-
 export function ConfirmationStep({ importResult, playlistName, onReviewClick, reviewStats }: ConfirmationStepProps) {
   const { matchReport, createdPlaylistId } = importResult;
   const hasWarnings = matchReport.summary.noMatch > 0 || importResult.parseWarnings.length > 0;
   const hasUnmatchedSongs = matchReport.summary.noMatch > 0;
 
   const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
-  const [selectedService, setSelectedService] = useState<DownloadService>('both');
   const [isDownloading, setIsDownloading] = useState(false);
   const [selectedSongs, setSelectedSongs] = useState<Set<number>>(new Set());
   const [hasQueuedDownloads, setHasQueuedDownloads] = useState(false);
@@ -116,7 +111,7 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           importJobId: importResult.importJobId,
-          service: selectedService,
+          service: 'lidarr',
           songs: songsToDownload,
         }),
       });
@@ -148,24 +143,12 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
 
       // Check if anything was actually queued
       if (result.queued === 0) {
-        // Build a helpful error message based on what was tried
         const errorTitle = 'No songs could be queued';
-        let errorDescription = 'Check that Lidarr/MeTube are configured correctly';
+        let errorDescription = 'No matching albums found in Lidarr. The artists or albums may not be in MusicBrainz.';
 
-        if (selectedService === 'both') {
-          if (result.errors?.some((e: string) => e.includes('not found in Lidarr'))) {
-            errorDescription = 'Songs not found in Lidarr, and MeTube failed. Try different search terms or check service configuration.';
-          }
-        } else if (selectedService === 'lidarr') {
-          errorDescription = 'No matching albums found in Lidarr. The artists or albums may not be in MusicBrainz.';
-        } else if (selectedService === 'metube') {
-          errorDescription = 'MeTube failed to queue downloads. Check that MeTube is running and accessible.';
-        }
-
-        // Show specific errors if available
         if (result.errors?.length > 0) {
           const relevantErrors = result.errors.filter((e: string) =>
-            !e.includes('trying MeTube') && !e.includes('songs queued')
+            !e.includes('songs queued')
           );
           if (relevantErrors.length > 0) {
             errorDescription = relevantErrors[0];
@@ -184,39 +167,17 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
         return;
       }
 
-      // Show detailed success message
-      let description = '';
-      if (selectedService === 'both') {
-        const parts = [];
-        if (result.lidarrQueued > 0) parts.push(`${result.lidarrQueued} via Lidarr`);
-        if (result.metubeQueued > 0) parts.push(`${result.metubeQueued} via MeTube`);
-        description = parts.join(', ');
-      } else {
-        description = `${result.queued} songs sent to ${selectedService === 'lidarr' ? 'Lidarr' : 'MeTube'}`;
-      }
-
       toast.success('Downloads queued!', {
-        description,
+        description: `${result.queued} songs sent to Lidarr`,
         duration: 5000,
       });
 
-      // Show info about next steps
       setTimeout(() => {
         toast.info('Next steps', {
           description: 'Once downloaded, rescan your library and add the new songs to your playlist.',
           duration: 8000,
         });
       }, 1000);
-
-      // Show warning about MeTube files needing organization
-      if (result.metubeQueued > 0) {
-        setTimeout(() => {
-          toast.warning('MeTube files need manual organization', {
-            description: 'Move downloaded files to your music library folder, then rescan.',
-            duration: 8000,
-          });
-        }, 2500);
-      }
 
       // Show partial failure warning
       if (result.failed > 0) {
@@ -364,7 +325,7 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
                 <>
                   <span className="font-medium text-red-600 dark:text-red-400">Download failed</span>
                   <span className="text-muted-foreground block text-[10px] md:text-xs mt-0.5 truncate">
-                    {downloadErrorMessage || 'Could not find songs in Lidarr/MeTube'}
+                    {downloadErrorMessage || 'Could not find songs in Lidarr'}
                   </span>
                 </>
               ) : (
@@ -430,31 +391,9 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
           <DialogHeader className="flex-shrink-0 space-y-0 md:space-y-1">
             <DialogTitle className="text-sm md:text-base">Download Missing Songs</DialogTitle>
             <DialogDescription className="hidden md:block text-xs">
-              Choose a download service and select which songs to download.
+              Select which songs to download via Lidarr.
             </DialogDescription>
           </DialogHeader>
-
-          <div className="flex-shrink-0">
-            {/* Service Selection - Inline */}
-            <RadioGroup
-              value={selectedService}
-              onValueChange={(v) => setSelectedService(v as DownloadService)}
-              className="flex flex-wrap gap-1 md:gap-2"
-            >
-              <div className="flex items-center space-x-1 md:space-x-2 p-1 md:p-2 rounded border hover:bg-muted/50 cursor-pointer text-[10px] md:text-xs">
-                <RadioGroupItem value="lidarr" id="dl-lidarr" className="h-3 w-3 md:h-4 md:w-4" />
-                <Label htmlFor="dl-lidarr" className="cursor-pointer">Lidarr</Label>
-              </div>
-              <div className="flex items-center space-x-1 md:space-x-2 p-1 md:p-2 rounded border hover:bg-muted/50 cursor-pointer text-[10px] md:text-xs">
-                <RadioGroupItem value="metube" id="dl-metube" className="h-3 w-3 md:h-4 md:w-4" />
-                <Label htmlFor="dl-metube" className="cursor-pointer">MeTube</Label>
-              </div>
-              <div className="flex items-center space-x-1 md:space-x-2 p-1 md:p-2 rounded border bg-primary/5 border-primary/20 cursor-pointer text-[10px] md:text-xs">
-                <RadioGroupItem value="both" id="dl-both" className="h-3 w-3 md:h-4 md:w-4" />
-                <Label htmlFor="dl-both" className="cursor-pointer">Both (Rec.)</Label>
-              </div>
-            </RadioGroup>
-          </div>
 
           {/* Song Selection */}
           {unmatchedSongs.length > 0 && (

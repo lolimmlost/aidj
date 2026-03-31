@@ -1,5 +1,8 @@
 import { getConfig } from '@/lib/config/config';
 import { ServiceError } from '../utils';
+import { db } from '../db';
+import { platformCredentials } from '../db/schema/playlist-export.schema';
+import { eq, and } from 'drizzle-orm';
 import type { PlaylistPlatform } from '../db/schema/playlist-export.schema';
 import type { ExportablePlaylist, ExportableSong } from './playlist-export';
 import type { PlatformSearcher, PlatformSearchResult } from './song-matcher';
@@ -70,8 +73,111 @@ interface SpotifyPlaylistsResponse {
   next: string | null;
 }
 
-// Token storage (in-memory for simplicity, should use DB in production)
+/**
+ * Spotify playlist summary for picker UI
+ */
+export interface SpotifyPlaylistSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  owner: string;
+  trackCount: number;
+  imageUrl: string | null;
+}
+
+// Token storage — in-memory hot cache, backed by DB
 const tokenCache = new Map<string, SpotifyTokens>();
+
+// Client credentials token (app-level, no user auth needed)
+let clientCredentialsToken: { accessToken: string; expiresAt: number } | null = null;
+
+/**
+ * Load tokens from DB into memory cache
+ */
+async function loadTokensFromDb(userId: string): Promise<SpotifyTokens | null> {
+  const row = await db
+    .select()
+    .from(platformCredentials)
+    .where(
+      and(
+        eq(platformCredentials.userId, userId),
+        eq(platformCredentials.platform, 'spotify')
+      )
+    )
+    .limit(1)
+    .then(rows => rows[0]);
+
+  if (!row?.accessToken || !row?.refreshToken) return null;
+
+  const tokens: SpotifyTokens = {
+    accessToken: row.accessToken,
+    refreshToken: row.refreshToken,
+    expiresAt: row.tokenExpiry ? row.tokenExpiry.getTime() : 0,
+  };
+
+  tokenCache.set(userId, tokens);
+  return tokens;
+}
+
+/**
+ * Save tokens to DB (upsert)
+ */
+async function saveTokensToDb(
+  userId: string,
+  tokens: SpotifyTokens,
+  platformUserId?: string,
+  platformUsername?: string
+): Promise<void> {
+  const existing = await db
+    .select({ id: platformCredentials.id })
+    .from(platformCredentials)
+    .where(
+      and(
+        eq(platformCredentials.userId, userId),
+        eq(platformCredentials.platform, 'spotify')
+      )
+    )
+    .limit(1)
+    .then(rows => rows[0]);
+
+  const data = {
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    tokenExpiry: new Date(tokens.expiresAt),
+    updatedAt: new Date(),
+    ...(platformUserId && { platformUserId }),
+    ...(platformUsername && { platformUsername }),
+  };
+
+  if (existing) {
+    await db
+      .update(platformCredentials)
+      .set(data)
+      .where(eq(platformCredentials.id, existing.id));
+  } else {
+    await db.insert(platformCredentials).values({
+      userId,
+      platform: 'spotify',
+      scopes: ['playlist-read-private', 'playlist-read-collaborative', 'user-library-read'],
+      ...data,
+    });
+  }
+}
+
+/**
+ * Delete tokens from DB and memory cache
+ */
+export async function disconnectSpotify(userId: string): Promise<void> {
+  tokenCache.delete(userId);
+  await db
+    .delete(platformCredentials)
+    .where(
+      and(
+        eq(platformCredentials.userId, userId),
+        eq(platformCredentials.platform, 'spotify')
+      )
+    );
+}
 
 /**
  * Get Spotify configuration from app config
@@ -80,11 +186,17 @@ function getSpotifyConfig(): SpotifyConfig {
   const config = getConfig();
 
   // These would be stored in the config system
+  // Build default redirect URI from VITE_BASE_URL
+  const baseUrl = (typeof process !== 'undefined' && process.env?.VITE_BASE_URL) || 'http://localhost:3003';
+  const defaultRedirectUri = `${baseUrl.replace(/\/$/, '')}/api/playlists/spotify-callback`;
+
   const spotifyConfig = {
-    clientId: (config as Record<string, string>).spotifyClientId || '',
-    clientSecret: (config as Record<string, string>).spotifyClientSecret || '',
-    redirectUri: (config as Record<string, string>).spotifyRedirectUri || 'http://localhost:3000/api/auth/spotify/callback',
+    clientId: config.spotifyClientId || '',
+    clientSecret: config.spotifyClientSecret || '',
+    redirectUri: config.spotifyRedirectUri || defaultRedirectUri,
   };
+
+  console.log('[Spotify] Config: redirectUri =', spotifyConfig.redirectUri, '| clientId present:', !!spotifyConfig.clientId);
 
   return spotifyConfig;
 }
@@ -110,8 +222,6 @@ export function getAuthorizationUrl(userId: string, state?: string): string {
   const scopes = [
     'playlist-read-private',
     'playlist-read-collaborative',
-    'playlist-modify-public',
-    'playlist-modify-private',
     'user-library-read',
   ].join(' ');
 
@@ -165,6 +275,7 @@ export async function exchangeCodeForTokens(
   };
 
   tokenCache.set(userId, tokens);
+  await saveTokensToDb(userId, tokens);
   return tokens;
 }
 
@@ -173,7 +284,12 @@ export async function exchangeCodeForTokens(
  */
 export async function refreshAccessToken(userId: string): Promise<SpotifyTokens> {
   const config = getSpotifyConfig();
-  const tokens = tokenCache.get(userId);
+  let tokens = tokenCache.get(userId);
+
+  if (!tokens?.refreshToken) {
+    // Try loading from DB
+    tokens = (await loadTokensFromDb(userId)) ?? undefined;
+  }
 
   if (!tokens?.refreshToken) {
     throw new ServiceError('SPOTIFY_NOT_AUTHENTICATED', 'User not authenticated with Spotify');
@@ -192,8 +308,10 @@ export async function refreshAccessToken(userId: string): Promise<SpotifyTokens>
   });
 
   if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    console.error(`[Spotify] Token refresh failed (${response.status}):`, errorBody);
     tokenCache.delete(userId);
-    throw new ServiceError('SPOTIFY_AUTH_ERROR', 'Failed to refresh token');
+    throw new ServiceError('SPOTIFY_AUTH_ERROR', `Failed to refresh token: ${errorBody.error_description || errorBody.error || response.status}`);
   }
 
   const data = await response.json();
@@ -204,6 +322,7 @@ export async function refreshAccessToken(userId: string): Promise<SpotifyTokens>
   };
 
   tokenCache.set(userId, newTokens);
+  await saveTokensToDb(userId, newTokens);
   return newTokens;
 }
 
@@ -212,6 +331,10 @@ export async function refreshAccessToken(userId: string): Promise<SpotifyTokens>
  */
 async function getAccessToken(userId: string): Promise<string> {
   let tokens = tokenCache.get(userId);
+
+  if (!tokens) {
+    tokens = (await loadTokensFromDb(userId)) ?? undefined;
+  }
 
   if (!tokens) {
     throw new ServiceError('SPOTIFY_NOT_AUTHENTICATED', 'User not authenticated with Spotify');
@@ -231,7 +354,8 @@ async function getAccessToken(userId: string): Promise<string> {
 async function spotifyFetch<T>(
   userId: string,
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retries = 3
 ): Promise<T> {
   const accessToken = await getAccessToken(userId);
 
@@ -244,21 +368,25 @@ async function spotifyFetch<T>(
     },
   });
 
-  if (response.status === 429) {
-    // Rate limited
-    const retryAfter = parseInt(response.headers.get('Retry-After') || '1', 10);
-    throw new ServiceError(
-      'SPOTIFY_RATE_LIMIT',
-      `Rate limited. Retry after ${retryAfter} seconds`,
-      { retryAfter }
-    );
+  if (response.status === 429 && retries > 0) {
+    const retryAfter = parseInt(response.headers.get('Retry-After') || '2', 10);
+    console.warn(`[Spotify] Rate limited, retrying in ${retryAfter}s (${retries} retries left)`);
+    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+    return spotifyFetch<T>(userId, endpoint, options, retries - 1);
+  }
+
+  if (response.status === 401 && retries > 0) {
+    // Token expired mid-request, refresh and retry
+    await refreshAccessToken(userId);
+    return spotifyFetch<T>(userId, endpoint, options, retries - 1);
   }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+    console.error(`[Spotify] API error ${response.status} on ${endpoint}:`, JSON.stringify(error));
     throw new ServiceError(
       'SPOTIFY_API_ERROR',
-      `Spotify API error: ${error.error?.message || response.statusText}`
+      `Spotify API error (${response.status}): ${error.error?.message || response.statusText}`
     );
   }
 
@@ -290,6 +418,34 @@ export async function getUserPlaylists(userId: string): Promise<ExportablePlayli
   }
 
   return playlists;
+}
+
+/**
+ * Get user's playlist summaries for the picker UI (no track data)
+ */
+export async function getUserPlaylistSummaries(userId: string): Promise<SpotifyPlaylistSummary[]> {
+  const summaries: SpotifyPlaylistSummary[] = [];
+  let next: string | null = '/me/playlists?limit=50';
+
+  while (next) {
+    const endpoint = next.startsWith('/') ? next : next.replace('https://api.spotify.com/v1', '');
+    const response = await spotifyFetch<SpotifyPlaylistsResponse>(userId, endpoint);
+
+    for (const playlist of response.items) {
+      summaries.push({
+        id: playlist.id,
+        name: playlist.name,
+        description: playlist.description,
+        owner: playlist.owner.display_name,
+        trackCount: playlist.tracks.total,
+        imageUrl: playlist.images?.[0]?.url ?? null,
+      });
+    }
+
+    next = response.next;
+  }
+
+  return summaries;
 }
 
 /**
@@ -467,11 +623,51 @@ export function createSpotifySearcher(userId: string): PlatformSearcher {
 }
 
 /**
- * Check if user is authenticated
+ * Check if user is authenticated (checks memory cache then DB)
  */
-export function isAuthenticated(userId: string): boolean {
-  const tokens = tokenCache.get(userId);
-  return !!tokens?.accessToken;
+export async function isAuthenticated(userId: string): Promise<boolean> {
+  const cached = tokenCache.get(userId);
+  if (cached?.accessToken) return true;
+
+  const fromDb = await loadTokensFromDb(userId);
+  return !!fromDb?.accessToken;
+}
+
+/**
+ * Get the Spotify profile info stored for a user
+ */
+export async function getStoredSpotifyProfile(userId: string): Promise<{ platformUserId: string; platformUsername: string } | null> {
+  const row = await db
+    .select({
+      platformUserId: platformCredentials.platformUserId,
+      platformUsername: platformCredentials.platformUsername,
+    })
+    .from(platformCredentials)
+    .where(
+      and(
+        eq(platformCredentials.userId, userId),
+        eq(platformCredentials.platform, 'spotify')
+      )
+    )
+    .limit(1)
+    .then(rows => rows[0]);
+
+  if (!row?.platformUserId || !row?.platformUsername) return null;
+  return { platformUserId: row.platformUserId, platformUsername: row.platformUsername };
+}
+
+/**
+ * Fetch Spotify user profile and save to DB
+ */
+export async function fetchAndSaveSpotifyProfile(userId: string): Promise<{ id: string; display_name: string }> {
+  const profile = await spotifyFetch<{ id: string; display_name: string }>(userId, '/me');
+  await saveTokensToDb(
+    userId,
+    tokenCache.get(userId)!,
+    profile.id,
+    profile.display_name
+  );
+  return profile;
 }
 
 /**
@@ -493,4 +689,209 @@ export function setTokens(userId: string, tokens: SpotifyTokens): void {
  */
 export function getTokens(userId: string): SpotifyTokens | undefined {
   return tokenCache.get(userId);
+}
+
+// ============================================================================
+// Client Credentials Flow (public playlists, no user login)
+// ============================================================================
+
+/**
+ * Get a client credentials access token (app-level auth)
+ * Used for accessing public Spotify data without user login
+ */
+async function getClientCredentialsToken(): Promise<string> {
+  // Return cached token if still valid (with 60s buffer)
+  if (clientCredentialsToken && clientCredentialsToken.expiresAt > Date.now() + 60_000) {
+    return clientCredentialsToken.accessToken;
+  }
+
+  const config = getSpotifyConfig();
+  if (!config.clientId || !config.clientSecret) {
+    throw new ServiceError('SPOTIFY_NOT_CONFIGURED', 'Spotify client ID and secret are required');
+  }
+
+  const response = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64')}`,
+    },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'unknown' }));
+    throw new ServiceError(
+      'SPOTIFY_AUTH_ERROR',
+      `Failed to get client credentials token: ${error.error_description || error.error}`
+    );
+  }
+
+  const data = await response.json();
+  clientCredentialsToken = {
+    accessToken: data.access_token,
+    expiresAt: Date.now() + data.expires_in * 1000,
+  };
+
+  return clientCredentialsToken.accessToken;
+}
+
+/**
+ * Make a public Spotify API request using client credentials
+ * Includes retry with backoff for rate limiting
+ */
+async function spotifyFetchPublic<T>(endpoint: string, retries = 3): Promise<T> {
+  const accessToken = await getClientCredentialsToken();
+
+  const response = await fetch(`https://api.spotify.com/v1${endpoint}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (response.status === 429 && retries > 0) {
+    const retryAfter = parseInt(response.headers.get('Retry-After') || '2', 10);
+    console.warn(`[Spotify] Rate limited, retrying in ${retryAfter}s (${retries} retries left)`);
+    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+    return spotifyFetchPublic<T>(endpoint, retries - 1);
+  }
+
+  if (response.status === 401 && retries > 0) {
+    // Token expired mid-request, clear and retry
+    clientCredentialsToken = null;
+    return spotifyFetchPublic<T>(endpoint, retries - 1);
+  }
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new ServiceError('SPOTIFY_NOT_FOUND', 'Playlist not found. It may be private or deleted.');
+    }
+    if (response.status === 403) {
+      throw new ServiceError('SPOTIFY_FORBIDDEN', 'Cannot access this playlist. It may be private.');
+    }
+    const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+    throw new ServiceError(
+      'SPOTIFY_API_ERROR',
+      `Spotify API error: ${error.error?.message || response.statusText}`
+    );
+  }
+
+  return response.json();
+}
+
+/**
+ * Parse a Spotify URL and extract the resource type and ID
+ * Supports:
+ *   https://open.spotify.com/playlist/XXXXX
+ *   https://open.spotify.com/playlist/XXXXX?si=...
+ *   https://open.spotify.com/album/XXXXX
+ *   spotify:playlist:XXXXX
+ *   spotify:album:XXXXX
+ */
+export function parseSpotifyUrl(url: string): { type: 'playlist' | 'album'; id: string } | null {
+  const trimmed = url.trim();
+
+  // Spotify URI format: spotify:playlist:ID or spotify:album:ID
+  const uriMatch = trimmed.match(/^spotify:(playlist|album):([a-zA-Z0-9]{22})$/);
+  if (uriMatch) {
+    return { type: uriMatch[1] as 'playlist' | 'album', id: uriMatch[2] };
+  }
+
+  // Web URL format: https://open.spotify.com/playlist/ID or /album/ID
+  const urlMatch = trimmed.match(/open\.spotify\.com\/(playlist|album)\/([a-zA-Z0-9]{22})/);
+  if (urlMatch) {
+    return { type: urlMatch[1] as 'playlist' | 'album', id: urlMatch[2] };
+  }
+
+  return null;
+}
+
+/**
+ * Fetch a public Spotify playlist with all tracks using client credentials
+ * No user login required — works for any public playlist
+ */
+export async function getPublicPlaylist(playlistId: string): Promise<ExportablePlaylist> {
+  // Validate ID format
+  if (!/^[a-zA-Z0-9]{22}$/.test(playlistId)) {
+    throw new ServiceError('INVALID_SPOTIFY_ID', 'Invalid Spotify playlist ID format');
+  }
+
+  const playlist = await spotifyFetchPublic<SpotifyPlaylist>(`/playlists/${playlistId}`);
+
+  const songs: ExportableSong[] = [];
+  let next: string | null = `/playlists/${playlistId}/tracks?limit=100`;
+
+  while (next) {
+    const endpoint = next.startsWith('/') ? next : next.replace('https://api.spotify.com/v1', '');
+    const response = await spotifyFetchPublic<{
+      items: Array<{ track: SpotifyTrack | null }>;
+      next: string | null;
+    }>(endpoint);
+
+    for (const item of response.items) {
+      // Skip null tracks (removed/region-restricted songs)
+      if (item.track) {
+        songs.push(convertSpotifyTrack(item.track));
+      }
+    }
+
+    next = response.next;
+  }
+
+  return {
+    name: playlist.name,
+    description: playlist.description || undefined,
+    creator: playlist.owner.display_name,
+    platform: 'spotify',
+    songs,
+  };
+}
+
+/**
+ * Fetch a public Spotify album with all tracks using client credentials
+ */
+export async function getPublicAlbum(albumId: string): Promise<ExportablePlaylist> {
+  if (!/^[a-zA-Z0-9]{22}$/.test(albumId)) {
+    throw new ServiceError('INVALID_SPOTIFY_ID', 'Invalid Spotify album ID format');
+  }
+
+  const album = await spotifyFetchPublic<{
+    id: string;
+    name: string;
+    artists: Array<{ name: string }>;
+    tracks: {
+      items: Array<{
+        id: string;
+        name: string;
+        artists: Array<{ id: string; name: string }>;
+        duration_ms: number;
+        external_ids?: { isrc?: string };
+        uri: string;
+        external_urls: { spotify: string };
+      }>;
+      next: string | null;
+    };
+  }>(`/albums/${albumId}`);
+
+  const albumArtist = album.artists.map(a => a.name).join(', ');
+  const songs: ExportableSong[] = album.tracks.items.map(track => ({
+    id: track.id,
+    title: track.name,
+    artist: track.artists.map(a => a.name).join(', '),
+    album: album.name,
+    duration: Math.floor(track.duration_ms / 1000),
+    isrc: track.external_ids?.isrc,
+    platform: 'spotify' as const,
+    platformId: track.id,
+    url: track.external_urls.spotify,
+  }));
+
+  return {
+    name: `${albumArtist} - ${album.name}`,
+    description: `Album by ${albumArtist}`,
+    creator: albumArtist,
+    platform: 'spotify',
+    songs,
+  };
 }

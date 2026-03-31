@@ -18,6 +18,7 @@ import { MatchingStep } from './steps/matching-step';
 import { ConfirmationStep } from './steps/confirmation-step';
 import { SongMatchReviewer } from './song-match-reviewer';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import type { SpotifyPlaylistSummary } from '@/lib/services/spotify';
 
 type ImportStep = 'upload' | 'validation' | 'matching' | 'confirmation';
 type ExportFormat = 'm3u' | 'xspf' | 'json' | 'csv';
@@ -57,6 +58,7 @@ interface ImportResult {
   };
   unmatchedSongs: Array<{ title: string; artist: string; album?: string }>;
   parseWarnings: string[];
+  matchResults?: SongMatchResult[];
 }
 
 // Detect if content looks like CSV (Spotify Exportify format)
@@ -212,7 +214,27 @@ export function PlaylistImportDialog({
   const [isValidating, setIsValidating] = useState(false);
   const [showReviewer, setShowReviewer] = useState(false);
   const [reviewStats, setReviewStats] = useState<{ reviewed: number; skipped: number } | null>(null);
+  const [importMode, setImportMode] = useState<'file' | 'url' | 'spotify_oauth'>('file');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [spotifyPlaylistId, setSpotifyPlaylistId] = useState<string | null>(null);
+  const [isLoadingUrl, setIsLoadingUrl] = useState(false);
+  const spotifyPlaylistIdRef = useRef<string | null>(null);
+  const importModeRef = useRef<'file' | 'url' | 'spotify_oauth'>('file');
   const globalFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Check if Spotify is configured via server endpoint
+  const { data: spotifyStatus, refetch: refetchSpotifyStatus } = useQuery({
+    queryKey: ['spotify-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/playlists/spotify-status', { credentials: 'include' });
+      if (!res.ok) return { configured: false, connected: false };
+      const json = await res.json();
+      return json.data ?? json;
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: open,
+  });
+  const spotifyEnabled = spotifyStatus?.configured ?? false;
 
   // Handle file selection from the global input
   const handleGlobalFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -275,17 +297,41 @@ export function PlaylistImportDialog({
   // Import mutation - now returns immediately with 202, processing happens in background
   const importMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch('/api/playlists/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      let payload: Record<string, unknown>;
+
+      const currentSpotifyPlaylistId = spotifyPlaylistIdRef.current || spotifyPlaylistId;
+      const currentImportMode = importModeRef.current || importMode;
+      if (currentImportMode === 'spotify_oauth' && currentSpotifyPlaylistId) {
+        payload = {
+          spotifyPlaylistId: currentSpotifyPlaylistId,
+          playlistName: playlistName || undefined,
+          targetPlatform: 'navidrome',
+          autoMatch: true,
+          createPlaylist: true,
+        };
+      } else if (currentImportMode === 'url') {
+        payload = {
+          sourceUrl,
+          playlistName: playlistName || undefined,
+          targetPlatform: 'navidrome',
+          autoMatch: true,
+          createPlaylist: true,
+        };
+      } else {
+        payload = {
           content: fileContent,
           format,
           playlistName,
           targetPlatform: 'navidrome',
           autoMatch: true,
           createPlaylist: true,
-        }),
+        };
+      }
+
+      const response = await fetch('/api/playlists/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -308,6 +354,10 @@ export function PlaylistImportDialog({
     },
     onSuccess: (data) => {
       setImportJobId(data.data.importJobId);
+      // Update playlist name from server response (especially for URL imports)
+      if (data.data.playlistName) {
+        setPlaylistName(data.data.playlistName);
+      }
 
       // Check if processing is happening in background (202 response)
       if (data.data.status === 'processing') {
@@ -376,7 +426,6 @@ export function PlaylistImportDialog({
             matched,
             noMatch,
             pendingReview,
-            skipped: 0,
           },
           byConfidence: { exact: 0, high: 0, low: 0, none: 0 },
           unmatchedCount: noMatch,
@@ -390,6 +439,7 @@ export function PlaylistImportDialog({
             album: r.originalSong.album,
           })),
         matchResults,
+        parseWarnings: [],
       });
 
       if (pendingReview > 0) {
@@ -411,6 +461,8 @@ export function PlaylistImportDialog({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleFileUpload = (content: string, name: string, detectedFormat?: ExportFormat) => {
+    importModeRef.current = 'file';
+    setImportMode('file');
     setFileContent(content);
     setFileName(name);
     if (detectedFormat) {
@@ -418,6 +470,76 @@ export function PlaylistImportDialog({
     }
     setCurrentStep('validation');
     runValidation(content, detectedFormat);
+  };
+
+  const handleUrlSubmit = (url: string) => {
+    importModeRef.current = 'url';
+    setImportMode('url');
+    setSourceUrl(url);
+    setIsLoadingUrl(true);
+    // Skip validation step — go straight to matching
+    setCurrentStep('matching');
+    importMutation.mutate(undefined, {
+      onSettled: () => setIsLoadingUrl(false),
+    });
+  };
+
+  // Spotify OAuth: open popup for authorization
+  const handleSpotifyConnect = () => {
+    // Must be in direct click handler for popup blockers
+    fetch('/api/playlists/spotify-auth', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        const url = data.data?.url;
+        if (!url) {
+          toast.error('Failed to get Spotify auth URL');
+          return;
+        }
+        const popup = window.open(url, 'spotify-auth', 'width=500,height=700');
+
+        const onMessage = (event: MessageEvent) => {
+          if (event.data?.type === 'spotify-oauth-complete') {
+            window.removeEventListener('message', onMessage);
+            if (event.data.success) {
+              refetchSpotifyStatus();
+              toast.success('Spotify connected!');
+            } else {
+              toast.error('Spotify connection failed', {
+                description: event.data.error || 'Authorization was denied',
+              });
+            }
+          }
+        };
+        window.addEventListener('message', onMessage);
+
+        // Cleanup if popup is closed without completing
+        const checkClosed = setInterval(() => {
+          if (popup?.closed) {
+            clearInterval(checkClosed);
+            window.removeEventListener('message', onMessage);
+          }
+        }, 1000);
+      })
+      .catch(() => toast.error('Failed to connect Spotify'));
+  };
+
+  // Spotify OAuth: disconnect
+  const handleSpotifyDisconnect = async () => {
+    await fetch('/api/playlists/spotify-auth', { method: 'DELETE', credentials: 'include' });
+    refetchSpotifyStatus();
+    toast.info('Spotify disconnected');
+  };
+
+  // Spotify OAuth: playlist selected from picker
+  const handleSpotifyPlaylistSelect = (playlist: SpotifyPlaylistSummary) => {
+    // Set refs BEFORE mutate — setState is async and won't be ready
+    importModeRef.current = 'spotify_oauth';
+    spotifyPlaylistIdRef.current = playlist.id;
+    setImportMode('spotify_oauth');
+    setSpotifyPlaylistId(playlist.id);
+    setPlaylistName(playlist.name);
+    setCurrentStep('matching');
+    importMutation.mutate();
   };
 
   const handleNext = () => {
@@ -452,6 +574,12 @@ export function PlaylistImportDialog({
     setIsValidating(false);
     setShowReviewer(false);
     setReviewStats(null);
+    setImportMode('file');
+    setSourceUrl('');
+    setSpotifyPlaylistId(null);
+    spotifyPlaylistIdRef.current = null;
+    importModeRef.current = 'file';
+    setIsLoadingUrl(false);
     importMutation.reset();
     onOpenChange(false);
   };
@@ -534,7 +662,17 @@ export function PlaylistImportDialog({
           {/* Step Content */}
           <div className="py-2 md:py-4">
             {currentStep === 'upload' && (
-              <FileUploadStep onFileUpload={handleFileUpload} onTriggerFileSelect={triggerFileSelect} />
+              <FileUploadStep
+                onFileUpload={handleFileUpload}
+                onUrlSubmit={handleUrlSubmit}
+                onTriggerFileSelect={triggerFileSelect}
+                spotifyEnabled={spotifyEnabled}
+                spotifyStatus={spotifyStatus}
+                onSpotifyConnect={handleSpotifyConnect}
+                onSpotifyDisconnect={handleSpotifyDisconnect}
+                onSpotifyPlaylistSelect={handleSpotifyPlaylistSelect}
+                isLoadingUrl={isLoadingUrl}
+              />
             )}
 
           {currentStep === 'validation' && (
@@ -579,7 +717,7 @@ export function PlaylistImportDialog({
           <Button
             variant="outline"
             size="sm"
-            onClick={handleBack}
+            onClick={currentStep === 'matching' && (importMode === 'url' || importMode === 'spotify_oauth') ? () => setCurrentStep('upload') : handleBack}
             disabled={currentStep === 'upload' || isValidating || importMutation.isPending}
             className="h-8 md:h-9 text-xs md:text-sm"
           >

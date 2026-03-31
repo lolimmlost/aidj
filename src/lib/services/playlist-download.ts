@@ -179,12 +179,19 @@ export async function queueLidarrDownload(
         const artistData = artists.find(a => a.foreignArtistId === foreignArtistId);
 
         if (artistData) {
+          // addArtist now explicitly ensures monitoring after add
           await lidarr.addArtist(artistData, { monitorAll: false });
         }
       } else {
         // Artist exists - ensure it's monitored (required for Slskd)
-        if (searchResult.artistId) {
-          await lidarr.ensureArtistMonitored(searchResult.artistId);
+        // Try searchResult.artistId first, fall back to finding by foreignArtistId
+        let artistIdToMonitor = searchResult.artistId;
+        if (!artistIdToMonitor) {
+          const existingArtist = await lidarr.findArtistByName(song.artist);
+          artistIdToMonitor = existingArtist?.id;
+        }
+        if (artistIdToMonitor) {
+          await lidarr.ensureArtistMonitored(artistIdToMonitor);
         }
       }
 

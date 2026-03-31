@@ -12,6 +12,7 @@ import {
 import {
   parsePlaylist,
   validatePlaylistContent,
+  type ExportableSong,
 } from '../../../lib/services/playlist-export';
 import {
   matchSong,
@@ -19,7 +20,15 @@ import {
   type MatchOptions,
 } from '../../../lib/services/song-matcher';
 import { search as navidromeSearch } from '../../../lib/services/navidrome';
-import type { SongMatchResult, PlaylistPlatform } from '../../../lib/db/schema/playlist-export.schema';
+import {
+  parseSpotifyUrl,
+  getPublicPlaylist,
+  getPublicAlbum,
+  getPlaylist,
+  isSpotifyConfigured,
+  isAuthenticated as isSpotifyAuthenticated,
+} from '../../../lib/services/spotify';
+import type { SongMatchResult, PlaylistPlatform, PlaylistExportFormat } from '../../../lib/db/schema/playlist-export.schema';
 
 // Validation schemas
 const ImportValidateSchema = z.object({
@@ -28,12 +37,21 @@ const ImportValidateSchema = z.object({
 });
 
 const ImportRequestSchema = z.object({
-  content: z.string().min(1),
-  format: z.enum(['m3u', 'xspf', 'json', 'csv']).optional(),
+  content: z.string().min(1).optional(),
+  sourceUrl: z.string().url().optional(),
+  spotifyPlaylistId: z.string().optional(),
+  format: z.enum(['m3u', 'xspf', 'json', 'csv', 'spotify_url', 'spotify_oauth']).optional(),
   playlistName: z.string().min(1).max(100).optional(),
   targetPlatform: z.enum(['navidrome', 'spotify', 'youtube_music']).default('navidrome'),
   autoMatch: z.boolean().default(true),
   createPlaylist: z.boolean().default(true),
+}).superRefine((data, ctx) => {
+  if (!data.content && !data.sourceUrl && !data.spotifyPlaylistId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Either content, sourceUrl, or spotifyPlaylistId must be provided',
+    });
+  }
 });
 
 const ImportConfirmSchema = z.object({
@@ -282,21 +300,80 @@ async function processMatchingInBackground(
   }
 }
 
-// Type for exportable songs from playlist
-type ExportableSong = ReturnType<typeof parsePlaylist>['playlist']['songs'][0];
-
 // POST /api/playlists/import - Import a playlist
 const POST = withAuthAndErrorHandling(
   async ({ request, session }) => {
     const body = await request.json();
     const validatedData = ImportRequestSchema.parse(body);
 
-    // Parse the playlist content
-    const parseResult = parsePlaylist(validatedData.content, validatedData.format);
-    const playlist = parseResult.playlist;
+    let playlistName: string;
+    let playlistDescription: string | undefined;
+    let songs: ExportableSong[];
+    let format: PlaylistExportFormat;
+    let parseWarnings: string[] = [];
 
-    // Use provided name or parsed name
-    const playlistName = validatedData.playlistName || playlist.name || 'Imported Playlist';
+    // Branch: Spotify OAuth import vs URL import vs content-based import
+    if (validatedData.spotifyPlaylistId) {
+      // Spotify OAuth import — uses user's connected account
+      const connected = await isSpotifyAuthenticated(session.user.id);
+      if (!connected) {
+        return errorResponse('SPOTIFY_NOT_CONNECTED', 'Spotify account not connected. Please connect first.', { status: 401 });
+      }
+
+      console.log(`[Import] Fetching Spotify playlist ${validatedData.spotifyPlaylistId} via user OAuth...`);
+
+      const spotifyPlaylist = await getPlaylist(session.user.id, validatedData.spotifyPlaylistId);
+
+      if (spotifyPlaylist.songs.length === 0) {
+        return errorResponse('EMPTY_PLAYLIST', 'The Spotify playlist has no tracks.', { status: 400 });
+      }
+
+      playlistName = validatedData.playlistName || spotifyPlaylist.name || 'Spotify Import';
+      playlistDescription = spotifyPlaylist.description;
+      songs = spotifyPlaylist.songs;
+      format = 'spotify_oauth';
+
+      console.log(`[Import] Fetched "${playlistName}" with ${songs.length} tracks via OAuth`);
+    } else if (validatedData.sourceUrl) {
+      // Spotify URL import
+      if (!isSpotifyConfigured()) {
+        return errorResponse('SPOTIFY_NOT_CONFIGURED', 'Spotify integration is not configured. Contact your admin.', { status: 503 });
+      }
+
+      const parsed = parseSpotifyUrl(validatedData.sourceUrl);
+      if (!parsed) {
+        return errorResponse('INVALID_SPOTIFY_URL', 'Could not parse Spotify URL. Supported: playlist and album links.', { status: 400 });
+      }
+
+      console.log(`[Import] Fetching Spotify ${parsed.type} ${parsed.id}...`);
+
+      const spotifyPlaylist = parsed.type === 'album'
+        ? await getPublicAlbum(parsed.id)
+        : await getPublicPlaylist(parsed.id);
+
+      if (spotifyPlaylist.songs.length === 0) {
+        return errorResponse('EMPTY_PLAYLIST', 'The Spotify playlist has no tracks.', { status: 400 });
+      }
+
+      playlistName = validatedData.playlistName || spotifyPlaylist.name || 'Spotify Import';
+      playlistDescription = spotifyPlaylist.description;
+      songs = spotifyPlaylist.songs;
+      format = 'spotify_url';
+
+      console.log(`[Import] Fetched "${playlistName}" with ${songs.length} tracks from Spotify`);
+    } else if (validatedData.content) {
+      // Content-based import (CSV, M3U, etc.)
+      const parseResult = parsePlaylist(validatedData.content, validatedData.format);
+      const playlist = parseResult.playlist;
+
+      playlistName = validatedData.playlistName || playlist.name || 'Imported Playlist';
+      playlistDescription = playlist.description;
+      songs = playlist.songs;
+      format = parseResult.format;
+      parseWarnings = parseResult.parseWarnings || [];
+    } else {
+      return errorResponse('VALIDATION_ERROR', 'Either content or sourceUrl must be provided', { status: 400 });
+    }
 
     // Check for duplicate playlist name
     const existingPlaylist = await db
@@ -312,7 +389,7 @@ const POST = withAuthAndErrorHandling(
       .then(rows => rows[0]);
 
     if (existingPlaylist) {
-      return errorResponse('DUPLICATE_PLAYLIST_NAME', 'A playlist with this name already exists', { status: 409 });
+      return errorResponse('DUPLICATE_PLAYLIST_NAME', `A playlist named "${playlistName}" already exists. Choose a different name.`, { status: 409 });
     }
 
     // Create import job record
@@ -320,13 +397,13 @@ const POST = withAuthAndErrorHandling(
     const importJob = {
       id: importJobId,
       userId: session.user.id,
-      format: parseResult.format,
+      format,
       targetPlatform: validatedData.targetPlatform as PlaylistPlatform,
       originalFilename: undefined,
       playlistName,
-      playlistDescription: playlist.description,
+      playlistDescription,
       status: 'processing' as const,
-      totalSongs: playlist.songs.length,
+      totalSongs: songs.length,
       processedSongs: 0,
       matchedSongs: 0,
       unmatchedSongs: 0,
@@ -345,11 +422,11 @@ const POST = withAuthAndErrorHandling(
         processMatchingInBackground(
           importJobId,
           session.user.id,
-          playlist.songs,
+          songs,
           validatedData.targetPlatform,
           validatedData.createPlaylist,
           playlistName,
-          playlist.description
+          playlistDescription
         );
       });
     }
@@ -359,9 +436,9 @@ const POST = withAuthAndErrorHandling(
       importJobId,
       playlistName,
       status: 'processing',
-      totalSongs: playlist.songs.length,
+      totalSongs: songs.length,
       message: 'Import started. Matching songs in background...',
-      parseWarnings: parseResult.parseWarnings,
+      parseWarnings,
     }, 202); // 202 Accepted - processing has started
   },
   {

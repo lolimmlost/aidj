@@ -2,7 +2,7 @@ import { createServerOnlyFn } from "@tanstack/react-start";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
-import { admin } from "better-auth/plugins";
+import { admin, twoFactor } from "better-auth/plugins";
 
 import { env } from "~/env/server";
 import { db } from "~/lib/db";
@@ -34,6 +34,16 @@ const getAuthConfig = createServerOnlyFn(() =>
     plugins: [
       tanstackStartCookies(),
       admin(),
+      twoFactor({
+        issuer: "AIDJ",
+        totpOptions: {
+          digits: 6,
+          period: 30,
+        },
+        backupCodeOptions: {
+          length: 10,
+        },
+      }),
     ],
 
     // Configure trusted origins

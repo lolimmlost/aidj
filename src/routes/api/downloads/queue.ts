@@ -379,6 +379,23 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
         if (addArtistResponse.ok) {
           const addedArtist = await addArtistResponse.json();
           libraryArtistId = addedArtist.id;
+
+          // Lidarr can override monitored=true when addOptions.monitor='none'
+          // Explicitly ensure artist is monitored after adding
+          if (libraryArtistId && !addedArtist.monitored) {
+            console.log(`[Lidarr Queue] Artist added unmonitored, explicitly enabling monitoring...`);
+            await fetch(`${lidarrUrl}/api/v1/artist/${libraryArtistId}`, {
+              method: 'PUT',
+              headers: {
+                'X-Api-Key': lidarrApiKey,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                ...addedArtist,
+                monitored: true,
+              }),
+            });
+          }
         } else {
           // Artist might already exist (race condition), try to get them
           const retryResponse = await fetch(`${lidarrUrl}/api/v1/artist`, {
