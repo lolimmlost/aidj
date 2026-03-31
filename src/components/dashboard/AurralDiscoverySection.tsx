@@ -23,6 +23,32 @@ function useArtistImages() {
   });
 }
 
+/**
+ * Fetch artist images via server-side Deezer proxy for names not in the metadata cache.
+ * Uses POST /api/cover-art/batch-artist-images which caches results server-side (7-day TTL).
+ * This avoids CORS issues with direct Deezer API calls from the browser.
+ */
+function useDeezerArtistImages(artistNames: string[], cachedImages: Record<string, string>) {
+  const missing = artistNames.filter(n => n && !cachedImages[n.toLowerCase()]);
+
+  return useQuery({
+    queryKey: ['deezer-artist-images', missing.sort().join(',')],
+    queryFn: async () => {
+      const res = await fetch('/api/cover-art/batch-artist-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ artists: missing }),
+      });
+      if (!res.ok) return {};
+      const data = await res.json();
+      return (data.data?.images || {}) as Record<string, string>;
+    },
+    enabled: missing.length > 0,
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
 /** Circular artist avatar — real image if available, gradient bubble fallback */
 function ArtistBubble({ name, imageUrl, size = 'md' }: { name: string; imageUrl?: string; size?: 'sm' | 'md' }) {
   const [imgError, setImgError] = useState(false);
@@ -88,7 +114,7 @@ function RecentlyAddedSection() {
 
 // ─── Discovery Recommendation Card ──────────────────────────────────────────
 
-function RecommendationCard({ rec }: { rec: { id: string; name: string; tags: string[]; score: number; sourceArtist: string; image?: string } }) {
+function RecommendationCard({ rec, artistImages }: { rec: { id: string; name: string; tags: string[]; score: number; sourceArtist: string; image?: string }; artistImages: Record<string, string> }) {
   const addArtist = useAddArtistToLibrary();
   const [added, setAdded] = useState(false);
 
@@ -111,7 +137,7 @@ function RecommendationCard({ rec }: { rec: { id: string; name: string; tags: st
     <Card className="border-border/50 hover:border-primary/20 transition-colors">
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <ArtistBubble name={rec.name} imageUrl={rec.image} />
+          <ArtistBubble name={rec.name} imageUrl={rec.image || artistImages[rec.name.toLowerCase()]} />
 
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm truncate">{rec.name}</p>
@@ -157,6 +183,16 @@ function RecommendationCard({ rec }: { rec: { id: string; name: string; tags: st
 
 export function AurralDiscoverySection() {
   const { data: discovery, isLoading } = useAurralDiscovery();
+  const { data: cachedImages = {} } = useArtistImages();
+
+  // Collect all artist names from recommendations that need images
+  const recNames = (discovery?.recommendations ?? [])
+    .filter(r => !r.image)
+    .map(r => r.name);
+  const { data: deezerImages = {} } = useDeezerArtistImages(recNames, cachedImages);
+
+  // Merge: Aurral metadata cache + Deezer fallback
+  const artistImages = { ...cachedImages, ...deezerImages };
 
   if (isLoading) {
     return (
@@ -221,7 +257,7 @@ export function AurralDiscoverySection() {
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {recs.map((rec) => (
-              <RecommendationCard key={rec.id} rec={rec} />
+              <RecommendationCard key={rec.id} rec={rec} artistImages={artistImages} />
             ))}
           </div>
         </div>
