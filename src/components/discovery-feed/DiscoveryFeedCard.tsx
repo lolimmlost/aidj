@@ -140,8 +140,8 @@ export const DiscoveryFeedCard = memo(function DiscoveryFeedCard({
           {/* Content */}
           <div className="flex-1 space-y-2">
             {/* Title and badges */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-semibold text-base hover:text-primary transition-colors">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <h3 className="font-semibold text-base hover:text-primary transition-colors truncate max-w-[300px] sm:max-w-none">
                 {item.title}
               </h3>
               {item.targetTimeSlot !== 'any' && (
@@ -154,7 +154,7 @@ export const DiscoveryFeedCard = memo(function DiscoveryFeedCard({
 
             {/* Subtitle */}
             {item.subtitle && (
-              <p className="text-sm text-muted-foreground">{item.subtitle}</p>
+              <p className="text-sm text-muted-foreground truncate">{item.subtitle}</p>
             )}
 
             {/* Explanation */}

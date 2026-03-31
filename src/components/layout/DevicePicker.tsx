@@ -116,10 +116,11 @@ export const DevicePicker = memo(function DevicePicker({ onClose }: DevicePicker
                   }
                 }}
                 className={cn(
-                  "flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm transition-colors",
+                  "group flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm transition-colors",
                   "hover:bg-accent/50",
                   isActive && "bg-green-500/10"
                 )}
+                aria-label={`${isActive ? 'Playing on' : 'Transfer playback to'} ${device.deviceName}${isLocal ? ' (this device)' : ''}`}
               >
                 <span className={cn("text-muted-foreground", isActive && "text-green-500")}>
                   {getDeviceIcon(device.deviceType)}

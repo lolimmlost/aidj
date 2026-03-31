@@ -133,12 +133,19 @@ function SuggestionCard({
               alt={`${suggestion.artistName} - ${suggestion.trackName}`}
               className="w-full h-full object-cover"
               onError={(e) => {
+                // Hide the broken image and show the fallback sibling
                 e.currentTarget.style.display = 'none';
+                const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                if (fallback) fallback.style.display = 'flex';
               }}
             />
-          ) : (
+          ) : null}
+          <div
+            className="w-full h-full items-center justify-center"
+            style={{ display: suggestion.imageUrl ? 'none' : 'flex' }}
+          >
             <Music2 className="h-5 w-5 text-muted-foreground/50" />
-          )}
+          </div>
         </CoverArtApproval>
       </div>
 
@@ -208,6 +215,7 @@ function SuggestionCard({
               target="_blank"
               rel="noopener noreferrer"
               className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={`View ${suggestion.trackName} on Last.fm`}
             >
               <ExternalLink className="h-4 w-4" />
             </a>
@@ -314,6 +322,7 @@ export function DiscoverySuggestionsPanel({
                 size="sm"
                 className="h-8 w-8 p-0"
                 onClick={onOpenSettings}
+                aria-label="Discovery settings"
               >
                 <Settings className="h-4 w-4" />
               </Button>
@@ -338,6 +347,7 @@ export function DiscoverySuggestionsPanel({
                 size="sm"
                 className="h-8 w-8 p-0"
                 onClick={() => setIsExpanded(!isExpanded)}
+                aria-label={isExpanded ? 'Collapse suggestions' : 'Expand suggestions'}
               >
                 {isExpanded ? (
                   <ChevronUp className="h-4 w-4" />
