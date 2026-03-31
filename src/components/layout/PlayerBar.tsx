@@ -22,6 +22,7 @@ import { VisualizerModal } from '@/components/visualizer';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { AlbumArt } from '@/components/ui/album-art';
+import { DevicePicker } from '@/components/layout/DevicePicker';
 import { useAudioStore } from '@/lib/stores/audio';
 import { AIDJToggle } from '@/components/ai-dj-toggle';
 import { scrobbleSong } from '@/lib/services/navidrome';
@@ -173,6 +174,7 @@ export function PlayerBar() {
   }, [isRemotePlaying, remoteDevice?.currentPositionMs, remoteDevice?.updatedAt, remoteDevice?.durationMs]);
 
   // Derived values for display: use remote time when remote is playing and local isn't
+  const [showDevicePicker, setShowDevicePicker] = useState(false);
   const showRemoteTime = isRemotePlaying && !isPlaying;
   const displayCurrentTime = showRemoteTime ? remoteEstimatedPositionMs / 1000 : currentTime;
   const displayDuration = showRemoteTime && remoteDevice?.durationMs ? remoteDevice.durationMs / 1000 : duration;
@@ -788,10 +790,19 @@ export function PlayerBar() {
                 <p className={cn("text-xs truncate", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
               )}
               {showRemoteTime && (
-                <p className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5">
-                  <Smartphone className="h-2.5 w-2.5" />
-                  <span className="truncate">{remoteDevice?.deviceName || 'Another device'}</span>
-                </p>
+                <div className="relative">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowDevicePicker(!showDevicePicker); }}
+                    className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5 hover:text-green-500 transition-colors"
+                    aria-label="Switch playback device"
+                  >
+                    <Smartphone className="h-2.5 w-2.5" />
+                    <span className="truncate">{remoteDevice?.deviceName || 'Another device'}</span>
+                  </button>
+                  {showDevicePicker && (
+                    <DevicePicker onClose={() => setShowDevicePicker(false)} />
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -885,10 +896,19 @@ export function PlayerBar() {
               <p className={cn("text-xs truncate", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
             )}
             {showRemoteTime && (
-              <p className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5">
-                <Smartphone className="h-2.5 w-2.5" />
-                <span className="truncate">{remoteDevice?.deviceName || 'Another device'}</span>
-              </p>
+              <div className="relative">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowDevicePicker(!showDevicePicker); }}
+                  className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5 hover:text-green-500 transition-colors"
+                  aria-label="Switch playback device"
+                >
+                  <Smartphone className="h-2.5 w-2.5" />
+                  <span className="truncate">{remoteDevice?.deviceName || 'Another device'}</span>
+                </button>
+                {showDevicePicker && (
+                  <DevicePicker onClose={() => setShowDevicePicker(false)} />
+                )}
+              </div>
             )}
           </div>
           <Button

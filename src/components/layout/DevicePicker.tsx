@@ -94,7 +94,7 @@ export const DevicePicker = memo(function DevicePicker({ onClose }: DevicePicker
     <div
       ref={ref}
       className={cn(
-        "absolute bottom-full right-0 mb-2 w-64 z-50",
+        "absolute bottom-full left-0 mb-2 w-64 z-[60]",
         "bg-popover border border-border rounded-lg shadow-lg",
         "animate-in fade-in slide-in-from-bottom-2 duration-150"
       )}
