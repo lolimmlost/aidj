@@ -30,7 +30,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/query';
-import { usePlaybackSync, sendPlaybackMessage } from '@/lib/hooks/usePlaybackSync';
+import { usePlaybackSync, sendPlaybackMessage, sendRemoteCommand } from '@/lib/hooks/usePlaybackSync';
 import { ResumePlaybackPrompt } from './ResumePlaybackPrompt';
 import { FullscreenPlayer } from './FullscreenPlayer';
 
@@ -462,6 +462,46 @@ export function PlayerBar() {
     }
   }, [setCurrentTime, getActiveDeck]);
 
+  // --- Remote control wrappers ---
+  // When this device is NOT the active player (another device is playing),
+  // transport controls (play/pause/skip) should send a remote command via WS
+  // to the active player instead of modifying local state. The active player
+  // receives the command in handleIncomingMessage → 'remote_command' case and
+  // executes the action (e.g., store.nextSong()), then broadcasts its updated
+  // state back to all devices. Without this, skip/prev on a non-playing device
+  // only updates local state — the playing device ignores the state sync
+  // because it considers itself authoritative (applyServerState guard).
+  const isRemoteControlMode = isRemotePlaying && !isPlaying;
+
+  const remoteAwareNext = useCallback(() => {
+    if (isRemoteControlMode) {
+      sendRemoteCommand('next');
+    } else {
+      handleNextSong();
+    }
+  }, [isRemoteControlMode, handleNextSong]);
+
+  const remoteAwarePrevious = useCallback(() => {
+    if (isRemoteControlMode) {
+      sendRemoteCommand('previous');
+    } else {
+      previousSong();
+    }
+  }, [isRemoteControlMode, previousSong]);
+
+  const remoteAwareTogglePlayPause = useCallback(() => {
+    if (isRemoteControlMode) {
+      // Remote device is playing and we want to pause it
+      sendRemoteCommand('pause');
+    } else if (!isPlaying && remoteDevice?.isPlaying) {
+      // Remote device is playing, local wants to take over — use normal
+      // togglePlayPause which triggers playback takeover via timestamp logic
+      togglePlayPause();
+    } else {
+      togglePlayPause();
+    }
+  }, [isRemoteControlMode, isPlaying, remoteDevice?.isPlaying, togglePlayPause]);
+
   const changeVolume = useCallback((newVolume: number) => {
     const clampedVolume = Math.max(0, Math.min(1, newVolume));
     setVolume(clampedVolume);
@@ -536,12 +576,12 @@ export function PlayerBar() {
     crossfadeInProgressRef,
     setGainImmediate,
     resumeContext,
-    onPreviousTrack: previousSong,
-    onNextTrack: handleNextSong,
+    onPreviousTrack: remoteAwarePrevious,
+    onNextTrack: remoteAwareNext,
   });
 
   usePlayerKeyboardShortcuts({
-    togglePlayPause,
+    togglePlayPause: remoteAwareTogglePlayPause,
     seek,
     changeVolume,
     toggleLike: handleToggleLike,
@@ -772,7 +812,7 @@ export function PlayerBar() {
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0"
-              onClick={previousSong}
+              onClick={remoteAwarePrevious}
             >
               <SkipBack className="h-4 w-4" />
             </Button>
@@ -781,12 +821,12 @@ export function PlayerBar() {
               variant="default"
               size="sm"
               className="h-10 w-10 p-0 rounded-full"
-              onClick={togglePlayPause}
+              onClick={remoteAwareTogglePlayPause}
               disabled={isLoading}
             >
               {isLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
-              ) : isPlaying ? (
+              ) : isPlaying || isRemoteControlMode ? (
                 <Pause className="h-5 w-5" />
               ) : (
                 <Play className="h-5 w-5 ml-0.5" />
@@ -797,7 +837,7 @@ export function PlayerBar() {
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0"
-              onClick={handleNextSong}
+              onClick={remoteAwareNext}
             >
               <SkipForward className="h-4 w-4" />
             </Button>
@@ -881,7 +921,7 @@ export function PlayerBar() {
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0"
-              onClick={previousSong}
+              onClick={remoteAwarePrevious}
             >
               <SkipBack className="h-4 w-4" />
             </Button>
@@ -889,12 +929,12 @@ export function PlayerBar() {
               variant="default"
               size="sm"
               className="h-10 w-10 p-0 rounded-full"
-              onClick={togglePlayPause}
+              onClick={remoteAwareTogglePlayPause}
               disabled={isLoading}
             >
               {isLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
-              ) : isPlaying ? (
+              ) : isPlaying || isRemoteControlMode ? (
                 <Pause className="h-5 w-5" />
               ) : (
                 <Play className="h-5 w-5 ml-0.5" />
@@ -904,7 +944,7 @@ export function PlayerBar() {
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0"
-              onClick={handleNextSong}
+              onClick={remoteAwareNext}
             >
               <SkipForward className="h-4 w-4" />
             </Button>
@@ -1021,9 +1061,9 @@ export function PlayerBar() {
         isLikePending={isLikePending}
         isShuffled={isShuffled}
         repeatMode={repeatMode}
-        onTogglePlayPause={togglePlayPause}
-        onPrevious={previousSong}
-        onNext={handleNextSong}
+        onTogglePlayPause={remoteAwareTogglePlayPause}
+        onPrevious={remoteAwarePrevious}
+        onNext={remoteAwareNext}
         onSeek={seek}
         onToggleLike={handleToggleLike}
         onToggleShuffle={toggleShuffle}

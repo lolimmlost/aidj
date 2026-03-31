@@ -1669,13 +1669,20 @@ export const useAudioStore = create<AudioState>()(
       const merged: Partial<AudioState> = {};
       let changed = false;
 
-      // When this device is actively playing, it is the authoritative source —
-      // don't overwrite queue or position, only update remote device indicator.
-      // This prevents losing playback when another device syncs state.
       const localIsPlaying = local.isPlaying;
 
-      // Queue fields: only apply if server is newer/equal AND local is NOT actively playing.
-      if (!localIsPlaying && server.queueUpdatedAt >= (local.queueUpdatedAt ?? '')) {
+      // Queue fields (playlist, currentIndex, shuffle):
+      //   - If local is NOT playing: accept if server timestamp >= local (standard merge).
+      //   - If local IS playing: only accept if server timestamp is STRICTLY newer.
+      //     This allows a remote device's explicit skip/next to propagate to the
+      //     active player, while preventing equal-timestamp echoes from overwriting
+      //     the playing device's own queue state. (Fix for: phone skip not affecting
+      //     desktop playback — the old code blocked ALL queue updates when playing.)
+      const acceptQueue = localIsPlaying
+        ? server.queueUpdatedAt > (local.queueUpdatedAt ?? '')
+        : server.queueUpdatedAt >= (local.queueUpdatedAt ?? '');
+
+      if (acceptQueue) {
         merged.playlist = server.queue.map(fromSyncSong);
         merged.currentSongIndex = server.currentIndex;
         merged.isShuffled = server.isShuffled;
@@ -1683,8 +1690,14 @@ export const useAudioStore = create<AudioState>()(
         changed = true;
       }
 
-      // Position: only apply if server is newer/equal AND local is NOT actively playing.
-      if (!localIsPlaying && server.positionUpdatedAt >= (local.positionUpdatedAt ?? '')) {
+      // Position (currentTime):
+      //   - Same logic: non-playing devices accept >= (catch up to active player),
+      //     playing devices only accept strictly newer (remote seek override).
+      const acceptPosition = localIsPlaying
+        ? server.positionUpdatedAt > (local.positionUpdatedAt ?? '')
+        : server.positionUpdatedAt >= (local.positionUpdatedAt ?? '');
+
+      if (acceptPosition) {
         merged.currentTime = server.currentPositionMs / 1000;
         merged.positionUpdatedAt = server.positionUpdatedAt;
         changed = true;

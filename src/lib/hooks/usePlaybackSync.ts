@@ -36,6 +36,31 @@ export function sendPlaybackMessage(type: string, payload?: Record<string, unkno
 }
 
 /**
+ * Send a remote command (play/pause/next/previous/seek/volume) to the active
+ * player device via WebSocket.
+ *
+ * This uses the 'command' message type which the server broadcasts to ALL
+ * connected devices (including the sender). The receiving handler at
+ * handleIncomingMessage → 'remote_command' executes the action only on the
+ * device that is currently playing (the active player).
+ *
+ * Use this when the local device is NOT the active player — e.g., when
+ * viewing a remote playback session and pressing skip/play/pause. Without
+ * this, those actions only update local state and rely on state sync, which
+ * gets blocked by the "playing device is authoritative" guard in
+ * applyServerState().
+ */
+export function sendRemoteCommand(action: string, value?: unknown): void {
+  if (!_wsRef || _wsRef.readyState !== WebSocket.OPEN) return;
+  const deviceInfo = getDeviceInfo();
+  _wsRef.send(JSON.stringify({
+    type: 'command',
+    deviceId: deviceInfo.deviceId,
+    payload: { action, value },
+  }));
+}
+
+/**
  * Debounce a function call. Returns a cancel function.
  */
 function createDebounced(fn: () => void, delay: number): { trigger: () => void; cancel: () => void; flush: () => void } {
@@ -276,7 +301,12 @@ function handleIncomingMessage(
     }
 
     case 'remote_command': {
-      // Another device sent a command to this device
+      // A non-playing device sent a transport command (next/prev/play/pause/seek)
+      // to this device via sendRemoteCommand(). The server broadcasts 'command'
+      // messages to ALL devices (broadcastToAllDevices), but only the active
+      // player (isPlaying === true) executes the action. After execution, the
+      // store subscription detects the state change and broadcasts a state_update
+      // so all devices converge.
       const payload = msg.payload as { action: string; value?: unknown } | undefined;
       if (!payload) break;
 
@@ -484,12 +514,20 @@ export function usePlaybackSync(): void {
         useAudioStore.setState(tsUpdate);
       }
 
-      if (playStateChanged) {
-        // Play state changes broadcast immediately (no debounce) so the
-        // remote device pauses/resumes without a perceptible delay.
+      // Detect if the current song index changed (skip/next/prev) — these
+      // should broadcast immediately so the remote active player switches
+      // tracks without waiting for the 2s debounce. Playlist length and
+      // shuffle changes are less time-sensitive and can stay debounced.
+      const songIndexChanged = prev.currentSongIndex !== state.currentSongIndex;
+
+      if (playStateChanged || songIndexChanged) {
+        // Play state and song index changes broadcast immediately (no debounce)
+        // so the remote device pauses/resumes/skips without perceptible delay.
         broadcastStateViaWS(wsRef.current);
         pushStateToServer();
       } else if (queueChanged || volumeChanged) {
+        // Playlist length, shuffle, and volume changes use debounced sync
+        // to avoid flooding the server with rapid updates.
         debouncedSync.trigger();
       }
     });

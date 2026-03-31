@@ -88,7 +88,10 @@ export function setupPlaybackWebSocket(
             break;
 
           case 'command':
-            // Forward command to all devices
+            // Forward transport commands (play/pause/next/prev/seek/volume) to ALL
+            // devices including the sender. Sent by sendRemoteCommand() when a
+            // non-playing device triggers a control action. The receiving handler
+            // only executes on the device with isPlaying === true.
             broadcastToAllDevices(userId, {
               type: 'remote_command',
               payload: message.payload as PlaybackCommand,
