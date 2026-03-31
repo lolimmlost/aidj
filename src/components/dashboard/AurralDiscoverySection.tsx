@@ -23,6 +23,34 @@ function useArtistImages() {
   });
 }
 
+/**
+ * Fetch artist images via server-side Deezer proxy for names not in the metadata cache.
+ * Uses POST /api/cover-art/batch-artist-images which caches results server-side (7-day TTL).
+ * This avoids CORS issues with direct Deezer API calls from the browser.
+ */
+function useDeezerArtistImages(artistNames: string[], cachedImages: Record<string, string>) {
+  const missing = artistNames.filter(n => n && !cachedImages[n.toLowerCase()]);
+  // Stable sorted key to avoid refetches when array order changes between renders
+  const queryKey = [...missing].sort().join(',');
+
+  return useQuery({
+    queryKey: ['deezer-artist-images', queryKey],
+    queryFn: async () => {
+      const res = await fetch('/api/cover-art/batch-artist-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ artists: missing }),
+      });
+      if (!res.ok) return {};
+      const data = await res.json();
+      return (data.data?.images || {}) as Record<string, string>;
+    },
+    enabled: missing.length > 0,
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
 /** Circular artist avatar — real image if available, gradient bubble fallback */
 function ArtistBubble({ name, imageUrl, size = 'md' }: { name: string; imageUrl?: string; size?: 'sm' | 'md' }) {
   const [imgError, setImgError] = useState(false);
@@ -51,7 +79,14 @@ function ArtistBubble({ name, imageUrl, size = 'md' }: { name: string; imageUrl?
 
 function RecentlyAddedSection() {
   const { data: recentArtists = [], isLoading } = useRecentArtists();
-  const { data: artistImages = {} } = useArtistImages();
+  const { data: cachedImages = {} } = useArtistImages();
+
+  // Recently added artists are often not in the metadata cache yet —
+  // fall back to Deezer for any missing images.
+  const displayed = recentArtists.slice(0, 6);
+  const recentNames = displayed.map(a => a.artistName);
+  const { data: deezerImages = {} } = useDeezerArtistImages(recentNames, cachedImages);
+  const artistImages = { ...cachedImages, ...deezerImages };
 
   if (isLoading || recentArtists.length === 0) return null;
 
@@ -61,25 +96,15 @@ function RecentlyAddedSection() {
         <Clock className="h-4 w-4 text-emerald-500" />
         Recently Added to Library
       </h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {recentArtists.slice(0, 6).map((artist) => (
-          <Card key={artist.id} className="border-border/50">
-            <CardContent className="p-4 flex items-center gap-3">
-              <ArtistBubble
-                name={artist.artistName}
-                imageUrl={artistImages[artist.artistName.toLowerCase()]}
-                size="sm"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{artist.artistName}</p>
-                {artist.statistics && (
-                  <p className="text-xs text-muted-foreground">
-                    {artist.statistics.albumCount} album{artist.statistics.albumCount !== 1 ? 's' : ''}
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {displayed.map((artist) => (
+          <div key={artist.id} className="flex flex-col items-center gap-2 text-center">
+            <ArtistBubble
+              name={artist.artistName}
+              imageUrl={artistImages[artist.artistName.toLowerCase()]}
+            />
+            <p className="font-medium text-xs truncate w-full">{artist.artistName}</p>
+          </div>
         ))}
       </div>
     </div>
@@ -88,7 +113,7 @@ function RecentlyAddedSection() {
 
 // ─── Discovery Recommendation Card ──────────────────────────────────────────
 
-function RecommendationCard({ rec }: { rec: { id: string; name: string; tags: string[]; score: number; sourceArtist: string; image?: string } }) {
+function RecommendationCard({ rec, artistImages }: { rec: { id: string; name: string; tags: string[]; score: number; sourceArtist: string; image?: string }; artistImages: Record<string, string> }) {
   const addArtist = useAddArtistToLibrary();
   const [added, setAdded] = useState(false);
 
@@ -111,7 +136,7 @@ function RecommendationCard({ rec }: { rec: { id: string; name: string; tags: st
     <Card className="border-border/50 hover:border-primary/20 transition-colors">
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <ArtistBubble name={rec.name} imageUrl={rec.image} />
+          <ArtistBubble name={rec.name} imageUrl={rec.image || artistImages[rec.name.toLowerCase()]} />
 
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm truncate">{rec.name}</p>
@@ -157,6 +182,18 @@ function RecommendationCard({ rec }: { rec: { id: string; name: string; tags: st
 
 export function AurralDiscoverySection() {
   const { data: discovery, isLoading } = useAurralDiscovery();
+  const { data: cachedImages = {} } = useArtistImages();
+
+  // Only fetch Deezer images for the 6 recommendations actually displayed,
+  // not all 100 from the API. This keeps the batch request small and focused.
+  const displayedRecs = (discovery?.recommendations ?? []).slice(0, 6);
+  const recNames = displayedRecs
+    .filter(r => !r.image)
+    .map(r => r.name);
+  const { data: deezerImages = {} } = useDeezerArtistImages(recNames, cachedImages);
+
+  // Merge: Aurral metadata cache + Deezer fallback
+  const artistImages = { ...cachedImages, ...deezerImages };
 
   if (isLoading) {
     return (
@@ -221,7 +258,7 @@ export function AurralDiscoverySection() {
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {recs.map((rec) => (
-              <RecommendationCard key={rec.id} rec={rec} />
+              <RecommendationCard key={rec.id} rec={rec} artistImages={artistImages} />
             ))}
           </div>
         </div>
