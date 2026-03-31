@@ -485,30 +485,55 @@ export function useWebAudioGraph(): WebAudioGraph {
         const needsReconnect = master && master.gain.value === 0;
 
         if (needsReconnect && shouldBeAudible) {
-          console.log('[WEB AUDIO] Visibility recovery: reconnecting audio graph');
+          const visInterruptDuration = interruptedAtRef.current > 0
+            ? Date.now() - interruptedAtRef.current : 0;
+          const visNeedsResync = visInterruptDuration > 500;
+          console.log(`[WEB AUDIO] Visibility recovery: reconnecting audio graph (interruptMs=${visInterruptDuration}, hardResync=${visNeedsResync})`);
+
           // Reconnect masterGain
           try { master.gain.cancelScheduledValues(0); } catch { /* no scheduled values */ }
           master.gain.setValueAtTime(0, ctx.currentTime);
           try { master.connect(ctx.destination); } catch { /* already connected */ }
-
-          // Restore element volumes
-          if (deckA) deckA.volume = 1;
-          if (deckB) deckB.volume = 1;
 
           // Ensure store says playing
           if (!useAudioStore.getState().isPlaying) {
             useAudioStore.getState().setIsPlaying(true);
           }
 
-          // Resume any paused deck
           const active = findActiveDeck();
-          if (active?.paused) {
+
+          if (active && visNeedsResync) {
+            // Long interruption — do hard resync to fix pitch artifacts
+            // (same logic as the statechange handler)
+            if (deckA) deckA.volume = 0;
+            if (deckB) deckB.volume = 0;
+            const savedTime = active.deck.currentTime;
+            const src = active.deck.src;
+            console.log(`[WEB AUDIO] Visibility hard resync deck ${active.label} at ${savedTime.toFixed(1)}s`);
+            active.deck.pause();
+            active.deck.src = src;
+            active.deck.currentTime = savedTime;
             active.deck.play().catch((err) =>
               console.warn(`[WEB AUDIO] Visibility resume deck ${active.label} failed:`, err.message));
-          }
+            setTimeout(() => {
+              if (deckA) deckA.volume = 1;
+              if (deckB) deckB.volume = 1;
+              fadeInMaster(0);
+            }, 300);
+          } else {
+            // Short interruption — just restore volumes and fade in
+            if (deckA) deckA.volume = 1;
+            if (deckB) deckB.volume = 1;
 
-          // Fade in
-          fadeInMaster(50);
+            // Resume any paused deck
+            if (active?.paused) {
+              active.deck.play().catch((err) =>
+                console.warn(`[WEB AUDIO] Visibility resume deck ${active.label} failed:`, err.message));
+            }
+
+            // Fade in
+            fadeInMaster(50);
+          }
 
           // Clear wasPlaying after recovery
           if (clearWasPlayingTimerRef.current) clearTimeout(clearWasPlayingTimerRef.current);

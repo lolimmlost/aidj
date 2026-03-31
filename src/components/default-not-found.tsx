@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 
 export function DefaultNotFound() {
   return (
-    <div className="flex min-h-svh items-center justify-center bg-background px-4 pt-[calc(env(safe-area-inset-top)+4rem)]">
+    <div className="flex min-h-svh items-center justify-center bg-background px-4 pt-[calc(env(safe-area-inset-top)+3.5rem)]">
       <div className="flex flex-col items-center text-center space-y-6">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
           <SearchX className="h-10 w-10 text-primary" />

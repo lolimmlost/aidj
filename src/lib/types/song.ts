@@ -8,6 +8,7 @@ export type Song = {
   track: number;
   url: string;
   artist?: string; // Optional for display
+  artistId?: string; // Navidrome artist ID for navigation
   genre?: string; // Optional genre for recommendations
   // Story 7.5: Harmonic mixing metadata
   bpm?: number; // Beats per minute (from Navidrome or audio analysis)

@@ -39,6 +39,7 @@ import { QueuePanel } from '@/components/ui/queue-panel';
 import { MobileNav } from '@/components/ui/mobile-nav';
 import { toast } from '@/lib/toast';
 import { useDeferredRender } from '@/lib/utils/lazy-components';
+import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar';
 
 // Helper to get cover art URL from Navidrome
 const getCoverArtUrl = (albumId: string | undefined, size: number = 300) => {
@@ -140,6 +141,66 @@ const SidebarAlbumArt = ({
           </div>
         </>
       )}
+    </div>
+  );
+};
+
+/** Small circular artist avatar for sidebar — tries Navidrome, then Aurral metadata, then gradient */
+const SidebarArtistAvatar = ({ artistId, name, metadataImageUrl }: { artistId: string; name: string; metadataImageUrl?: string }) => {
+  const [navidromeError, setNavidromeError] = useState(false);
+  const [metadataError, setMetadataError] = useState(false);
+
+  // Try Navidrome artist art first
+  if (!navidromeError) {
+    return (
+      <img
+        src={`/api/navidrome/rest/getCoverArt?id=${artistId}&size=80`}
+        alt={name}
+        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+        onError={() => setNavidromeError(true)}
+      />
+    );
+  }
+
+  // Try Aurral metadata image
+  if (metadataImageUrl && !metadataError) {
+    return (
+      <img
+        src={metadataImageUrl}
+        alt={name}
+        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+        onError={() => setMetadataError(true)}
+      />
+    );
+  }
+
+  // Gradient fallback
+  return (
+    <div className={cn("w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center flex-shrink-0", getArtistGradient(name))}>
+      <span className="text-xs font-bold text-white/90">{getArtistInitials(name)}</span>
+    </div>
+  );
+};
+
+/** Small rounded album art for sidebar song rows — tries album art, then gradient */
+const SidebarSongArt = ({ albumId, songId, artist }: { albumId?: string; songId?: string; artist?: string }) => {
+  const [error, setError] = useState(false);
+  const artId = albumId || songId;
+
+  if (artId && !error) {
+    return (
+      <img
+        src={`/api/navidrome/rest/getCoverArt?id=${artId}&size=80`}
+        alt="Album art"
+        className="w-10 h-10 rounded-md object-cover flex-shrink-0"
+        onError={() => setError(true)}
+      />
+    );
+  }
+
+  return (
+    <div className={cn("w-10 h-10 rounded-md bg-gradient-to-br flex items-center justify-center flex-shrink-0", getArtistGradient(artist || 'Unknown'))}>
+      <span className="text-xs font-bold text-white/90">{getArtistInitials(artist || '?')}</span>
     </div>
   );
 };
@@ -631,7 +692,7 @@ function LeftSidebar() {
  * Non-critical sidebar data is fetched after the main content renders.
  */
 function RightSidebar() {
-  const { playlist, currentSongIndex, isPlaying, playNow } = useAudioStore();
+  const { playlist, currentSongIndex, isPlaying, playNow, addToQueueEnd } = useAudioStore();
   const currentSong = playlist[currentSongIndex];
 
   // Deferred loading: Wait before fetching non-critical sidebar data
@@ -648,6 +709,19 @@ function RightSidebar() {
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
     enabled: shouldFetchSidebarData, // Defer until after initial render
+  });
+
+  // Fetch artist cover images from Aurral metadata cache
+  const { data: artistImages = {} } = useQuery({
+    queryKey: ['artist-metadata-images'],
+    queryFn: async () => {
+      const response = await fetch('/api/cover-art/artist-metadata-images');
+      if (!response.ok) return {};
+      const data = await response.json();
+      return (data.data?.images || {}) as Record<string, string>;
+    },
+    staleTime: 10 * 60 * 1000,
+    enabled: shouldFetchSidebarData,
   });
 
   // Fetch most played songs - deferred
@@ -732,11 +806,11 @@ function RightSidebar() {
                     <span className={cn("font-bold text-lg w-5", rankColors[index])}>
                       {index + 1}
                     </span>
-                    <div className="w-10 h-10 rounded-md bg-gradient-to-br from-orange-500/20 to-red-500/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-semibold text-orange-500/70">
-                        {artist.name.slice(0, 2).toUpperCase()}
-                      </span>
-                    </div>
+                    <SidebarArtistAvatar
+                      artistId={artist.id}
+                      name={artist.name}
+                      metadataImageUrl={artistImages[artist.name.toLowerCase()]}
+                    />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
                         {artist.name}
@@ -753,7 +827,7 @@ function RightSidebar() {
                 [...Array(3)].map((_, i) => (
                   <div key={i} className="flex items-center gap-3 p-2 animate-pulse">
                     <div className="w-5 h-5 bg-muted rounded" />
-                    <div className="w-10 h-10 rounded-md bg-muted" />
+                    <div className="w-10 h-10 rounded-full bg-muted" />
                     <div className="flex-1 space-y-1">
                       <div className="h-3 bg-muted rounded w-3/4" />
                       <div className="h-2 bg-muted rounded w-1/2" />
@@ -773,7 +847,7 @@ function RightSidebar() {
             </div>
             <div className="space-y-1">
               {mostPlayedSongs?.length > 0 ? (
-                mostPlayedSongs.slice(0, 5).map((song: { id: string; name: string; artist: string; album?: string; url: string }, index: number) => (
+                mostPlayedSongs.slice(0, 5).map((song: { id: string; name: string; artist: string; album?: string; albumId?: string; url: string }, index: number) => (
                   <div
                     key={song.id}
                     onClick={() => playNow(song.id, {
@@ -781,7 +855,7 @@ function RightSidebar() {
                       name: song.name,
                       artist: song.artist,
                       url: song.url,
-                      albumId: '',
+                      albumId: song.albumId || '',
                       duration: 0,
                       track: 0,
                     })}
@@ -790,16 +864,20 @@ function RightSidebar() {
                     <span className={cn("font-bold text-lg w-5", rankColors[index])}>
                       {index + 1}
                     </span>
-                    <div className="w-10 h-10 rounded-md bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-semibold text-green-500/70">
-                        {song.artist?.slice(0, 2).toUpperCase() || '♪'}
-                      </span>
-                    </div>
+                    <SidebarSongArt albumId={song.albumId} songId={song.id} artist={song.artist} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
                         {song.name}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); playNow(song.id, { id: song.id, name: song.name, artist: song.artist, url: song.url, albumId: song.albumId || '', duration: 0, track: 0 }); }} title="Play now">
+                        <Play className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); addToQueueEnd({ id: song.id, name: song.name, artist: song.artist, url: song.url, albumId: song.albumId || '', duration: 0, track: 0 }); toast.success(`Added "${song.name}" to queue`); }} title="Add to queue">
+                        <ListPlus className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </div>
                 ))
@@ -808,7 +886,7 @@ function RightSidebar() {
                 [...Array(3)].map((_, i) => (
                   <div key={i} className="flex items-center gap-3 p-2 animate-pulse">
                     <div className="w-5 h-5 bg-muted rounded" />
-                    <div className="w-10 h-10 rounded-md bg-muted" />
+                    <div className="w-10 h-10 rounded-full bg-muted" />
                     <div className="flex-1 space-y-1">
                       <div className="h-3 bg-muted rounded w-3/4" />
                       <div className="h-2 bg-muted rounded w-1/2" />
@@ -833,25 +911,31 @@ function RightSidebar() {
                   <div
                     key={`${song.id}-${index}`}
                     className={cn(
-                      "flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer",
+                      "flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer group",
                       "hover:bg-accent/50",
                       index === currentSongIndex && "bg-accent"
                     )}
+                    onClick={() => playNow(song.id, song)}
                   >
-                    <div className="w-10 h-10 rounded-md bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-semibold text-blue-500/70">
-                        {song.artist?.slice(0, 2).toUpperCase() || '♪'}
-                      </span>
-                    </div>
+                    <SidebarSongArt albumId={song.albumId} songId={song.id} artist={song.artist} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{song.name || song.title}</p>
                       <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
                     </div>
-                    {index === currentSongIndex && isPlaying && (
+                    {index === currentSongIndex && isPlaying ? (
                       <div className="flex gap-0.5">
                         <div className="w-0.5 h-3 bg-primary animate-[wave_1s_ease-in-out_infinite]" />
                         <div className="w-0.5 h-4 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
                         <div className="w-0.5 h-3 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
+                      </div>
+                    ) : (
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); playNow(song.id, song); }} title="Play now">
+                          <Play className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); addToQueueEnd(song); toast.success(`Added "${song.name || song.title}" to queue`); }} title="Add to queue">
+                          <ListPlus className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -924,7 +1008,6 @@ const RecommendationsSection = memo(function RecommendationsSection({ recommenda
       };
       // Use addPlaylist which sets playlist, currentSongIndex, and isPlaying atomically
       addPlaylist([song]);
-      toast.success(`Now playing: ${song.name}`);
     } else {
       toast.error('Song not available in library');
     }
@@ -945,43 +1028,28 @@ const RecommendationsSection = memo(function RecommendationsSection({ recommenda
           <div
             key={index}
             className={cn(
-              "flex items-center gap-2 p-2 rounded-lg transition-colors group",
+              "flex items-center gap-2 p-2 rounded-lg transition-colors group cursor-pointer",
               "hover:bg-accent/50",
               rec.foundInLibrary && "border-l-2 border-green-500"
             )}
+            onClick={() => handlePlayNow(rec)}
           >
-            <div className="w-10 h-10 rounded-md bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center flex-shrink-0">
-              <Sparkles className="h-4 w-4 text-purple-500/70" />
-            </div>
+            <SidebarSongArt
+              albumId={rec.actualSong?.albumId}
+              songId={rec.songId}
+              artist={rec.song.split(' - ')[0]}
+            />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium truncate">{rec.song.split(' - ')[1] || rec.song}</p>
               <p className="text-xs text-muted-foreground truncate">{rec.song.split(' - ')[0]}</p>
             </div>
             {/* Action buttons - show on hover */}
-            {rec.foundInLibrary && (
+            {(rec.foundInLibrary || rec.songId || rec.actualSong) && (
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handlePlayNow(rec);
-                  }}
-                  title="Play now"
-                >
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); handlePlayNow(rec); }} title="Play now">
                   <Play className="h-3.5 w-3.5" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleAddToQueue(rec);
-                  }}
-                  title="Add to queue"
-                >
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); handleAddToQueue(rec); }} title="Add to queue">
                   <ListPlus className="h-3.5 w-3.5" />
                 </Button>
               </div>

@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Disc3, Headphones, Music, LoaderCircle } from "lucide-react";
+import { Disc3, Headphones, Music, LoaderCircle, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -91,6 +91,7 @@ function LoginForm() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -112,7 +113,13 @@ function LoginForm() {
       },
       {
         onError: (ctx) => {
-          setErrorMessage(ctx.error.message);
+          const msg = ctx.error.message;
+          // better-auth returns vague errors — make them user-friendly
+          if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('credential') || msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('not found')) {
+            setErrorMessage('Invalid email or password. Please try again.');
+          } else {
+            setErrorMessage(msg || 'Something went wrong. Please try again.');
+          }
           setIsLoading(false);
         },
         onSuccess: async () => {
@@ -180,19 +187,31 @@ function LoginForm() {
                     Forgot password?
                   </Link>
                 </div>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  placeholder="Enter password here"
-                  readOnly={isLoading}
-                  required
-                  className="min-h-[44px]"
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter password here"
+                    readOnly={isLoading}
+                    required
+                    className="min-h-[44px] pr-11"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
 
               {errorMessage && (
-                <p className="text-sm text-destructive animate-in fade-in">{errorMessage}</p>
+                <div className="rounded-lg bg-destructive/10 border border-destructive/30 px-3 py-2.5">
+                  <p className="text-sm font-medium text-red-500 dark:text-red-400">{errorMessage}</p>
+                </div>
               )}
 
               <Button type="submit" className="w-full min-h-[44px]" size="lg" disabled={isLoading}>

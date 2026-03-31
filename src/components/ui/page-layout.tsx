@@ -42,9 +42,9 @@ export function PageLayout({
     )}>
       <div className={cn(
         'mx-auto',
-        // On mobile: push content below hamburger button (safe-area + button height + gap)
-        // On desktop: just safe-area is enough (no hamburger)
-        'pt-[calc(env(safe-area-inset-top)+4rem)] md:pt-[env(safe-area-inset-top)]',
+        // On mobile: push content below the fixed top bar (safe-area + 3rem bar height)
+        // On desktop: just safe-area is enough (no top bar)
+        'pt-[calc(env(safe-area-inset-top)+3.5rem)] md:pt-[env(safe-area-inset-top)]',
         !fullWidth && 'max-w-7xl px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6',
         fullWidth && 'pb-4 sm:pb-6'
       )}>

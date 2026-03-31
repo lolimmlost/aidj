@@ -115,7 +115,7 @@ interface AudioState {
   setCurrentTime: (time: number) => void;
   setDuration: (dur: number) => void;
   setVolume: (vol: number) => void;
-  nextSong: () => void;
+  nextSong: (userSkip?: boolean) => void;
   previousSong: () => void;
   clearPlaylist: () => void;
   addPlaylist: (songs: Song[]) => void;
@@ -305,7 +305,7 @@ export const useAudioStore = create<AudioState>()(
 
     setVolume: (vol: number) => set({ volume: vol }),
 
-    nextSong: () => {
+    nextSong: (userSkip?: boolean) => {
       const state = get();
       if (state.playlist.length === 0) return;
 
@@ -381,7 +381,8 @@ export const useAudioStore = create<AudioState>()(
       }
 
       // Repeat-one: stay on the same song (reset position to retrigger playback)
-      if (state.repeatMode === 'one') {
+      // But allow user-initiated skips to advance normally
+      if (state.repeatMode === 'one' && !userSkip) {
         set({
           ...updates,
           currentTime: 0,
@@ -415,11 +416,13 @@ export const useAudioStore = create<AudioState>()(
               ...updates,
               playlist: reshuffled,
               currentSongIndex: 0,
+              isPlaying: true,
             });
           } else {
             set({
               ...updates,
               currentSongIndex: 0,
+              isPlaying: true,
             });
           }
         } else {

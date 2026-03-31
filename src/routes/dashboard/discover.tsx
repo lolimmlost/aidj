@@ -11,6 +11,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { PageLayout, PageSection } from '@/components/ui/page-layout';
 import { Sparkles } from 'lucide-react';
+import { useAudioStore } from '@/lib/stores/audio';
+import { getSongsByIds } from '@/lib/services/navidrome';
+import { toast } from '@/lib/toast';
 
 // Lazy load the discovery feed component
 const DiscoveryFeed = lazy(() =>
@@ -27,15 +30,37 @@ export const Route = createFileRoute("/dashboard/discover")({
 });
 
 function DiscoverPage() {
-  const handlePlaySong = useCallback((songId: string) => {
-    // The DiscoveryFeed component handles the actual song data
-    // This is just a callback for tracking/logging
-    console.log('🎵 Playing song:', songId);
-  }, []);
+  const { playNow, addToQueueNext, addToQueueEnd } = useAudioStore();
 
-  const handleQueueSong = useCallback((songId: string, position: 'next' | 'end') => {
-    console.log(`📋 Queueing song ${songId} at position: ${position}`);
-  }, []);
+  const handlePlaySong = useCallback(async (songId: string) => {
+    try {
+      const songs = await getSongsByIds([songId]);
+      if (songs.length > 0) {
+        playNow(songs[0].id, songs[0]);
+      } else {
+        toast.error('Song not found in library');
+      }
+    } catch {
+      toast.error('Failed to load song');
+    }
+  }, [playNow]);
+
+  const handleQueueSong = useCallback(async (songId: string, position: 'next' | 'end') => {
+    try {
+      const songs = await getSongsByIds([songId]);
+      if (songs.length > 0) {
+        if (position === 'next') {
+          addToQueueNext(songs);
+        } else {
+          addToQueueEnd(songs);
+        }
+      } else {
+        toast.error('Song not found in library');
+      }
+    } catch {
+      toast.error('Failed to load song');
+    }
+  }, [addToQueueNext, addToQueueEnd]);
 
   return (
     <PageLayout
