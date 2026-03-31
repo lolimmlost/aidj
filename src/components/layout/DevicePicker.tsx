@@ -3,9 +3,11 @@
  *
  * Shows available devices and allows transferring playback.
  * Spotify Connect-style device selection.
+ * Renders via portal to avoid overflow clipping in the fixed player bar.
  */
 
-import { useEffect, useRef, memo } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
+import { createPortal } from 'react-dom';
 import { Smartphone, Monitor, Tablet, Check, ArrowRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -43,6 +45,7 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
   const ref = useRef<HTMLDivElement>(null);
   const localDevice = getDeviceInfo();
   const remoteDevice = useAudioStore((s) => s.remoteDevice);
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
 
   const { data } = useQuery({
     queryKey: ['playback', 'devices'],
@@ -59,6 +62,17 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
     staleTime: 10_000,
   });
 
+  // Position the dropdown above the trigger button
+  useEffect(() => {
+    if (triggerRef?.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPosition({
+        top: rect.top - 8, // 8px gap above trigger
+        left: Math.max(8, rect.left), // clamp to viewport edge
+      });
+    }
+  }, [triggerRef]);
+
   // Close on outside click (ignore clicks on the trigger button)
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -71,6 +85,15 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [onClose, triggerRef]);
+
+  // Close on escape
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const devices = data?.devices ?? [];
 
@@ -93,14 +116,24 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
     }
   };
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  const dropdown = (
     <div
       ref={ref}
       className={cn(
-        "absolute bottom-full left-0 mb-2 w-64 z-[60]",
+        "fixed w-64 z-[9999]",
         "bg-popover border border-border rounded-lg shadow-lg",
         "animate-in fade-in slide-in-from-bottom-2 duration-150"
       )}
+      style={position ? {
+        top: position.top,
+        left: position.left,
+        transform: 'translateY(-100%)',
+      } : {
+        bottom: '80px',
+        left: '16px',
+      }}
     >
       <div className="p-3">
         <h4 className="text-sm font-medium mb-2">Available Devices</h4>
@@ -154,4 +187,6 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
       </div>
     </div>
   );
+
+  return createPortal(dropdown, document.body);
 });
