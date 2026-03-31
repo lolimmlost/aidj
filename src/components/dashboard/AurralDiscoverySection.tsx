@@ -79,7 +79,14 @@ function ArtistBubble({ name, imageUrl, size = 'md' }: { name: string; imageUrl?
 
 function RecentlyAddedSection() {
   const { data: recentArtists = [], isLoading } = useRecentArtists();
-  const { data: artistImages = {} } = useArtistImages();
+  const { data: cachedImages = {} } = useArtistImages();
+
+  // Recently added artists are often not in the metadata cache yet —
+  // fall back to Deezer for any missing images.
+  const displayed = recentArtists.slice(0, 6);
+  const recentNames = displayed.map(a => a.artistName);
+  const { data: deezerImages = {} } = useDeezerArtistImages(recentNames, cachedImages);
+  const artistImages = { ...cachedImages, ...deezerImages };
 
   if (isLoading || recentArtists.length === 0) return null;
 
@@ -90,7 +97,7 @@ function RecentlyAddedSection() {
         Recently Added to Library
       </h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {recentArtists.slice(0, 6).map((artist) => (
+        {displayed.map((artist) => (
           <Card key={artist.id} className="border-border/50">
             <CardContent className="p-4 flex items-center gap-3">
               <ArtistBubble
