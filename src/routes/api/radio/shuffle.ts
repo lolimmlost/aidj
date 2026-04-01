@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { withAuthAndErrorHandling, successResponse } from '@/lib/utils/api-response';
 import { db } from '@/lib/db';
 import { artistAffinities } from '@/lib/db/schema/profile.schema';
+import { userPreferences } from '@/lib/db/schema/preferences.schema';
 import { eq, desc } from 'drizzle-orm';
 import { getSongsByArtist, getRandomSongs, search } from '@/lib/services/navidrome';
 
@@ -122,6 +123,28 @@ const GET = withAuthAndErrorHandling(
       seen.add(s.id);
       return true;
     });
+
+    // Safe Mode: filter explicit songs if user has safeMode enabled
+    try {
+      const prefs = await db.select()
+        .from(userPreferences)
+        .where(eq(userPreferences.userId, userId))
+        .limit(1);
+
+      const safeMode = prefs[0]?.playbackSettings?.safeMode ?? false;
+
+      if (safeMode && songs.length > 0) {
+        const { filterExplicitSongs } = await import('@/lib/services/explicit-content');
+        const filtered = await filterExplicitSongs(songs);
+        const removedCount = songs.length - filtered.length;
+        if (removedCount > 0) {
+          console.log(`🔒 Safe Mode: Filtered ${removedCount} explicit song(s) from radio shuffle`);
+        }
+        songs = filtered;
+      }
+    } catch (err) {
+      console.warn('Safe Mode filter failed, continuing unfiltered:', err);
+    }
 
     // Final shuffle
     shuffle(songs);
