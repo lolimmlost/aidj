@@ -12,6 +12,7 @@ import { Smartphone, Monitor, Tablet, Check, ArrowRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAudioStore } from '@/lib/stores/audio';
 import { getDeviceInfo } from '@/lib/utils/device';
+import { sendPlaybackMessage } from '@/lib/hooks/usePlaybackSync';
 import { cn } from '@/lib/utils';
 
 interface DevicePickerProps {
@@ -104,6 +105,8 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
           play: true,
         }),
       });
+      // Notify all connected devices via WebSocket so the target starts playing
+      sendPlaybackMessage('transfer', { targetDeviceId, play: true });
       onClose();
     } catch (err) {
       console.error('Failed to transfer playback:', err);
