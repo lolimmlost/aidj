@@ -8,7 +8,7 @@
 import { getBackgroundSyncManager } from './library-sync/background-sync';
 import { getBackgroundDiscoveryManager } from './background-discovery';
 import { getActiveBackfill } from './lastfm-backfill';
-import { getAurralCacheWarmingManager } from './aurral-cache-warming';
+import { getAurralCacheWarmingManager, initializeAurralCacheWarming } from './aurral-cache-warming';
 
 export interface UnifiedTask {
   id: string;
@@ -212,8 +212,10 @@ export async function getAllTaskStatuses(userId: string): Promise<UnifiedTask[]>
     });
   }
 
-  // 4. Aurral Cache Warming
+  // 4. Aurral Cache Warming (auto-initializes on first status check)
   try {
+    // Lazy init: first time this runs, it starts the scheduler
+    initializeAurralCacheWarming().catch(() => {});
     const warmingManager = getAurralCacheWarmingManager();
     const warmingStatus = warmingManager.getStatus();
 

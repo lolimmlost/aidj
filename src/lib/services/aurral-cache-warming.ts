@@ -49,6 +49,7 @@ class AurralCacheWarmingManager {
   private lastError: string | null = null;
   private scheduledTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private startupTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private initialized = false;
 
   private constructor() {
     this.config = { ...DEFAULT_AURRAL_WARMING_CONFIG };
@@ -63,9 +64,12 @@ class AurralCacheWarmingManager {
 
   /**
    * Initialize and start the warming scheduler.
-   * Called once on server startup.
+   * Safe to call multiple times — only the first call takes effect.
    */
   async initialize(config?: Partial<AurralCacheWarmingConfig>): Promise<void> {
+    if (this.initialized) return;
+    this.initialized = true;
+
     if (config) {
       this.config = { ...this.config, ...config };
     }
