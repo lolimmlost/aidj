@@ -285,17 +285,31 @@ export function PlayerBar() {
     },
     onCrossfadeAbort: (song) => {
       if (song) {
-        console.log(`[XFADE] Crossfade aborted — falling back to standard transition for: ${song.name || song.title}`);
-        hasScrobbledRef.current = false;
-        scrobbleThresholdReachedRef.current = false;
-        // Set cooldown to prevent timeupdate from re-triggering crossfade
-        // on the still-ending current song before nextSong() takes effect
-        crossfadeAbortedAtRef.current = Date.now();
-        // Just advance the queue — the useEffect watching currentSongIndex
-        // will handle loading and playing the next song on the active deck.
-        // Do NOT manually set activeDeck.src here: that races with the effect
-        // and causes "The operation was aborted" errors + song skips.
-        nextSong();
+        const state = useAudioStore.getState();
+        const activeDeck = getActiveDeck();
+        const songHasEnded = activeDeck && activeDeck.duration > 0 &&
+          (activeDeck.currentTime >= activeDeck.duration - 0.5 || activeDeck.ended);
+
+        // Remove the failed song from queue so it's not retried
+        const nextIndex = state.currentSongIndex + 1;
+        if (nextIndex < state.playlist.length && state.playlist[nextIndex]?.id === song.id) {
+          const songName = song.name || song.title || 'Unknown';
+          console.log(`[XFADE] Removing unavailable song "${songName}" from queue (index ${nextIndex})`);
+          toast.warning(`Skipped "${songName}" — unavailable`);
+          state.removeFromQueue(nextIndex);
+        }
+
+        if (songHasEnded) {
+          console.log(`[XFADE] Crossfade aborted & song ended — advancing to next`);
+          hasScrobbledRef.current = false;
+          scrobbleThresholdReachedRef.current = false;
+          // Set cooldown to prevent timeupdate from re-triggering crossfade
+          crossfadeAbortedAtRef.current = Date.now();
+          nextSong();
+        } else {
+          console.log(`[XFADE] Crossfade aborted but song still playing — removed failed song, will advance naturally`);
+          // Don't set cooldown — onEnded needs to fire when the current song finishes
+        }
       }
     },
     canPlayHandlerRef,
