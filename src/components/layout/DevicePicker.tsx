@@ -61,27 +61,11 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
     staleTime: 10_000,
   });
 
-  // Position above trigger once the dropdown DOM node is available
+  // Store ref for outside-click detection
   const positionDropdown = useCallback((node: HTMLDivElement | null) => {
     if (!node) return;
     (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
-
-    if (!triggerRef?.current) return;
-    const triggerRect = triggerRef.current.getBoundingClientRect();
-    const gap = 8;
-    const dropdownWidth = 256;
-    const dropdownHeight = node.offsetHeight || 200;
-
-    let top = triggerRect.top - dropdownHeight - gap;
-    let left = triggerRect.left;
-
-    if (top < 8) top = triggerRect.bottom + gap;
-    if (left + dropdownWidth > window.innerWidth) left = window.innerWidth - dropdownWidth - 8;
-    if (left < 8) left = 8;
-
-    node.style.top = `${top}px`;
-    node.style.left = `${left}px`;
-  }, [triggerRef]);
+  }, []);
 
   // Close on outside click (ignore clicks on the trigger button)
   useEffect(() => {
@@ -128,21 +112,22 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
 
   if (typeof document === 'undefined') return null;
 
-  // Compute initial position from trigger button
+  // Position above the trigger — use bottom-anchored so it grows upward
   const initialStyle: React.CSSProperties = (() => {
     if (triggerRef?.current) {
       const r = triggerRef.current.getBoundingClientRect();
-      const top = Math.max(8, r.top - 208);
+      const bottomOffset = window.innerHeight - r.top + 8;
       const left = Math.max(8, Math.min(r.left, window.innerWidth - 264));
-      return { top: `${top}px`, left: `${left}px` };
+      const maxH = window.innerHeight - bottomOffset - 16;
+      return { bottom: `${bottomOffset}px`, left: `${left}px`, maxHeight: `${maxH}px` };
     }
-    return { bottom: '80px', left: '16px' };
+    return { bottom: '80px', left: '16px', maxHeight: 'calc(100vh - 100px)' };
   })();
 
   const dropdown = (
     <div
       ref={positionDropdown}
-      className="bg-popover text-popover-foreground border border-border rounded-lg shadow-xl"
+      className="bg-popover text-popover-foreground border border-border rounded-lg shadow-xl overflow-y-auto"
       style={{
         ...initialStyle,
         position: 'fixed',
