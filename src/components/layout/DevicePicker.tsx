@@ -142,12 +142,13 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
   const dropdown = (
     <div
       ref={positionDropdown}
-      className={cn(
-        "fixed w-64 z-[9999]",
-        "bg-popover border border-border rounded-lg shadow-xl",
-        "animate-in fade-in slide-in-from-bottom-2 duration-150"
-      )}
-      style={initialStyle}
+      className="bg-popover text-popover-foreground border border-border rounded-lg shadow-xl"
+      style={{
+        ...initialStyle,
+        position: 'fixed',
+        width: '256px',
+        zIndex: 99999,
+      }}
     >
       <div className="p-3">
         <h4 className="text-sm font-medium mb-2">Available Devices</h4>
