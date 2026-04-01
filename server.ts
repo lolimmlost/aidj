@@ -77,6 +77,13 @@ async function start() {
   server.listen(PORT, HOST, () => {
     console.log(`[Server] Listening on http://${HOST}:${PORT}`);
     console.log(`[Server] WebSocket available at ws://${HOST}:${PORT}/ws/playback`);
+
+    // Start background Aurral cache warming
+    import('./src/lib/services/aurral-cache-warming').then(({ initializeAurralCacheWarming }) => {
+      initializeAurralCacheWarming().catch(err =>
+        console.error('[AURRAL-WARMING] Init failed:', err)
+      );
+    });
   });
 
   // Graceful shutdown

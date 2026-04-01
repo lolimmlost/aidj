@@ -8,12 +8,13 @@
 import { getBackgroundSyncManager } from './library-sync/background-sync';
 import { getBackgroundDiscoveryManager } from './background-discovery';
 import { getActiveBackfill } from './lastfm-backfill';
+import { getAurralCacheWarmingManager } from './aurral-cache-warming';
 
 export interface UnifiedTask {
   id: string;
   name: string;
   description: string;
-  type: 'library-sync' | 'discovery' | 'lastfm-backfill';
+  type: 'library-sync' | 'discovery' | 'lastfm-backfill' | 'aurral-warming';
   status: 'idle' | 'running' | 'completed' | 'error';
   progress?: {
     current: number;
@@ -205,6 +206,52 @@ export async function getAllTaskStatuses(userId: string): Promise<UnifiedTask[]>
       lastRunAt: null,
       nextRunAt: null,
       interval: null,
+      lastDuration: null,
+      canTrigger: false,
+      canCancel: false,
+    });
+  }
+
+  // 4. Aurral Cache Warming
+  try {
+    const warmingManager = getAurralCacheWarmingManager();
+    const warmingStatus = warmingManager.getStatus();
+
+    tasks.push({
+      id: 'aurral-warming',
+      name: 'Artist Metadata Cache',
+      description: 'Warms Aurral artist metadata cache for better recommendations',
+      type: 'aurral-warming',
+      status: warmingStatus.isRunning
+        ? 'running'
+        : warmingStatus.lastError
+          ? 'error'
+          : warmingStatus.isEnabled
+            ? 'idle'
+            : 'idle',
+      lastRunAt: warmingStatus.lastRunAt?.toISOString() ?? null,
+      nextRunAt: warmingStatus.nextRunAt?.toISOString() ?? null,
+      interval: `${warmingStatus.intervalHours} hours`,
+      lastDuration: warmingStatus.lastDurationMs != null ? formatDurationMs(warmingStatus.lastDurationMs) : null,
+      error: warmingStatus.lastError ?? undefined,
+      canTrigger: warmingStatus.isEnabled && !warmingStatus.isRunning,
+      canCancel: false,
+      stats: warmingStatus.lastResult ? {
+        cached: warmingStatus.lastResult.cached,
+        skipped: warmingStatus.lastResult.skipped,
+        failed: warmingStatus.lastResult.failed,
+      } : undefined,
+    });
+  } catch {
+    tasks.push({
+      id: 'aurral-warming',
+      name: 'Artist Metadata Cache',
+      description: 'Warms Aurral artist metadata cache for better recommendations',
+      type: 'aurral-warming',
+      status: 'idle',
+      lastRunAt: null,
+      nextRunAt: null,
+      interval: '24 hours',
       lastDuration: null,
       canTrigger: false,
       canCancel: false,

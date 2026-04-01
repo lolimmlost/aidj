@@ -115,6 +115,13 @@ export function viteWebSocketPlugin(): Plugin {
       });
 
       console.log('[WS] WebSocket server initialized on /ws/playback');
+
+      // Start background Aurral cache warming
+      import('./src/lib/services/aurral-cache-warming').then(({ initializeAurralCacheWarming }) => {
+        initializeAurralCacheWarming().catch(err =>
+          console.error('[AURRAL-WARMING] Init failed:', err)
+        );
+      });
     },
 
     closeBundle() {
