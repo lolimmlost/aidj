@@ -138,15 +138,13 @@ export function useCrossfade({
 
       console.log(`⚠️ [XFADE] Abort cleanup complete - active deck remains ${activeDeckLabel}`);
 
-      // Notify callback so it can remove the failed song from queue.
-      // Always fire for load failures (timeout, never ready) so the unavailable
-      // song gets removed regardless of whether the current song has ended yet.
-      // For non-load aborts (user pause), only fire when the song has ended.
-      const isLoadFailure = reason.includes('timeout') || reason.includes('never became ready');
+      // Notify callback for fallback transition if the current song has ended.
+      // Don't fire for mid-song aborts (user pause, slow buffer) — the song
+      // will advance naturally via onEnded when the current track finishes.
       const songHasEnded = activeDeck.duration > 0 &&
         (activeDeck.currentTime >= activeDeck.duration - 0.5 || activeDeck.ended);
 
-      if (isLoadFailure || songHasEnded) {
+      if (songHasEnded) {
         onCrossfadeAbortRef.current(nextSongData);
       }
     };

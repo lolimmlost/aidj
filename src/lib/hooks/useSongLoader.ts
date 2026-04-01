@@ -310,17 +310,19 @@ export function useSongLoader({
         setIsLoading(true);
         loadSong(song);
 
-        // Safety timeout: skip song if it doesn't load within 10 seconds.
+        // Safety timeout: skip song if it doesn't load within 15 seconds.
         // Browser native error events can take 30+ seconds; this prevents
         // long silences that cause AudioContext suspension on mobile.
+        // 15s is generous enough for slow connections but still catches
+        // truly unavailable songs before AudioContext auto-suspends.
         loadTimeoutId = setTimeout(() => {
           if (audio.readyState < 2) {
-            console.warn(`[PLAYER] Song load timeout (10s) — readyState=${audio.readyState}`);
+            console.warn(`[PLAYER] Song load timeout (15s) — readyState=${audio.readyState}`);
             audio.removeEventListener('canplay', handleCanPlay);
             audio.removeEventListener('error', handleError);
             skipUnavailableSong('timed out');
           }
-        }, 10000);
+        }, 15000);
 
         return () => {
           if (loadTimeoutId) clearTimeout(loadTimeoutId);
