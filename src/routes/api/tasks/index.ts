@@ -58,6 +58,16 @@ const POST = withAuthAndErrorHandling(
       }
     }
 
+    if (taskId === 'aurral-warming') {
+      const { getAurralCacheWarmingManager } = await import('../../../lib/services/aurral-cache-warming');
+      const manager = getAurralCacheWarmingManager();
+
+      if (action === 'trigger') {
+        manager.triggerNow();
+        return successResponse({ triggered: true, taskId });
+      }
+    }
+
     return errorResponse('UNKNOWN_TASK', `Unknown task: ${taskId}`, { status: 400 });
   },
   {

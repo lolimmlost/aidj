@@ -10,6 +10,7 @@ import {
 } from '@/lib/utils/api-response';
 import { calculateFullUserProfile } from '@/lib/services/compound-scoring';
 import { getBackgroundDiscoveryManager } from '@/lib/services/background-discovery';
+import { initializeAurralCacheWarming } from '@/lib/services/aurral-cache-warming';
 import { processAlbumsInBackground, processArtistsInBackground } from '@/lib/services/cover-art-auto-fetch';
 
 const POST = withAuthAndErrorHandling(
@@ -56,6 +57,11 @@ const POST = withAuthAndErrorHandling(
       .catch((err) =>
         console.error('[onboarding/complete] Failed to trigger background discovery:', err)
       );
+
+    // Fire-and-forget: start Aurral cache warming scheduler
+    initializeAurralCacheWarming().catch((err) =>
+      console.error('[onboarding/complete] Failed to init Aurral cache warming:', err)
+    );
 
     // Fire-and-forget: auto-fetch cover art from Deezer
     const albumJobId = crypto.randomUUID();

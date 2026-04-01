@@ -28,9 +28,9 @@ export const Route = createFileRoute("/api/playback/devices")({
             });
           }
 
-          // Only return devices seen in the last 30 days
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          // Only return devices seen in the last 5 minutes (active sessions)
+          const fiveMinutesAgo = new Date();
+          fiveMinutesAgo.setTime(fiveMinutesAgo.getTime() - 5 * 60 * 1000);
 
           const userDevices = await db
             .select()
@@ -38,7 +38,7 @@ export const Route = createFileRoute("/api/playback/devices")({
             .where(
               and(
                 eq(devices.userId, session.user.id),
-                gte(devices.lastSeenAt, thirtyDaysAgo)
+                gte(devices.lastSeenAt, fiveMinutesAgo)
               )
             );
 

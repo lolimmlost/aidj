@@ -3,17 +3,21 @@
  *
  * Shows available devices and allows transferring playback.
  * Spotify Connect-style device selection.
+ * Renders via portal to avoid overflow clipping in the fixed player bar.
  */
 
-import { useEffect, useRef, memo } from 'react';
+import { useEffect, useRef, useCallback, memo } from 'react';
+import { createPortal } from 'react-dom';
 import { Smartphone, Monitor, Tablet, Check, ArrowRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAudioStore } from '@/lib/stores/audio';
 import { getDeviceInfo } from '@/lib/utils/device';
+import { sendPlaybackMessage } from '@/lib/hooks/usePlaybackSync';
 import { cn } from '@/lib/utils';
 
 interface DevicePickerProps {
   onClose: () => void;
+  triggerRef?: React.RefObject<HTMLElement | null>;
 }
 
 function getDeviceIcon(type: string) {
@@ -38,7 +42,7 @@ function formatLastSeen(iso: string): string {
   return `${days}d ago`;
 }
 
-export const DevicePicker = memo(function DevicePicker({ onClose }: DevicePickerProps) {
+export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: DevicePickerProps) {
   const ref = useRef<HTMLDivElement>(null);
   const localDevice = getDeviceInfo();
   const remoteDevice = useAudioStore((s) => s.remoteDevice);
@@ -58,15 +62,32 @@ export const DevicePicker = memo(function DevicePicker({ onClose }: DevicePicker
     staleTime: 10_000,
   });
 
-  // Close on outside click
+  // Store ref for outside-click detection
+  const positionDropdown = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+  }, []);
+
+  // Close on outside click (ignore clicks on the trigger button)
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (ref.current && !ref.current.contains(target) &&
+          !(triggerRef?.current && triggerRef.current.contains(target))) {
         onClose();
       }
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClose, triggerRef]);
+
+  // Close on escape
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
   const devices = data?.devices ?? [];
@@ -84,20 +105,38 @@ export const DevicePicker = memo(function DevicePicker({ onClose }: DevicePicker
           play: true,
         }),
       });
+      // Notify all connected devices via WebSocket so the target starts playing
+      sendPlaybackMessage('transfer', { targetDeviceId, play: true });
       onClose();
     } catch (err) {
       console.error('Failed to transfer playback:', err);
     }
   };
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  // Position above the trigger — use bottom-anchored so it grows upward
+  const initialStyle: React.CSSProperties = (() => {
+    if (triggerRef?.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      const bottomOffset = window.innerHeight - r.top + 8;
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - 264));
+      const maxH = window.innerHeight - bottomOffset - 16;
+      return { bottom: `${bottomOffset}px`, left: `${left}px`, maxHeight: `${maxH}px` };
+    }
+    return { bottom: '80px', left: '16px', maxHeight: 'calc(100vh - 100px)' };
+  })();
+
+  const dropdown = (
     <div
-      ref={ref}
-      className={cn(
-        "absolute bottom-full right-0 mb-2 w-64 z-50",
-        "bg-popover border border-border rounded-lg shadow-lg",
-        "animate-in fade-in slide-in-from-bottom-2 duration-150"
-      )}
+      ref={positionDropdown}
+      className="bg-popover text-popover-foreground border border-border rounded-lg shadow-xl overflow-y-auto"
+      style={{
+        ...initialStyle,
+        position: 'fixed',
+        width: '256px',
+        zIndex: 99999,
+      }}
     >
       <div className="p-3">
         <h4 className="text-sm font-medium mb-2">Available Devices</h4>
@@ -116,10 +155,11 @@ export const DevicePicker = memo(function DevicePicker({ onClose }: DevicePicker
                   }
                 }}
                 className={cn(
-                  "flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm transition-colors",
+                  "group flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm transition-colors",
                   "hover:bg-accent/50",
                   isActive && "bg-green-500/10"
                 )}
+                aria-label={`${isActive ? 'Playing on' : 'Transfer playback to'} ${device.deviceName}${isLocal ? ' (this device)' : ''}`}
               >
                 <span className={cn("text-muted-foreground", isActive && "text-green-500")}>
                   {getDeviceIcon(device.deviceType)}
@@ -150,4 +190,6 @@ export const DevicePicker = memo(function DevicePicker({ onClose }: DevicePicker
       </div>
     </div>
   );
+
+  return createPortal(dropdown, document.body);
 });

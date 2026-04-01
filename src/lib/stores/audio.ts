@@ -1727,7 +1727,15 @@ export const useAudioStore = create<AudioState>()(
             updatedAt: Date.now(),
           };
           changed = true;
+        } else if (local.remoteDevice) {
+          // Active device is this device — clear stale remote indicator
+          merged.remoteDevice = null;
+          changed = true;
         }
+      } else if (local.remoteDevice) {
+        // No active device on server — clear stale remote indicator
+        merged.remoteDevice = null;
+        changed = true;
       }
 
       if (changed) {

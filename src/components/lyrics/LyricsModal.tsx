@@ -671,7 +671,38 @@ export function LyricsModal({ isOpen, onClose }: LyricsModalProps) {
 
               {error && (
                 <div className="flex flex-col items-center justify-center h-full gap-4">
+                  <Music className="h-16 w-16 text-muted-foreground/30" />
                   <p className="text-muted-foreground">{error}</p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        lastSongIdRef.current = null;
+                        setError(null);
+                        setLyricsData(null);
+                      }}
+                    >
+                      <Loader2 className="h-4 w-4 mr-1" />
+                      Retry
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleStartSearch}
+                    >
+                      <Search className="h-4 w-4 mr-1" />
+                      Search LRCLIB
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleStartEdit}
+                    >
+                      <Edit3 className="h-4 w-4 mr-1" />
+                      Add Manually
+                    </Button>
+                  </div>
                 </div>
               )}
 

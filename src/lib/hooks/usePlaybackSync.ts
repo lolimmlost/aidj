@@ -543,7 +543,7 @@ export function usePlaybackSync(): void {
     window.addEventListener('beforeunload', handleUnload);
     window.addEventListener('pagehide', handleUnload);
 
-    // 7. Heartbeat
+    // 7. Heartbeat (WS keepalive + device registration refresh)
     const heartbeat = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
@@ -553,10 +553,21 @@ export function usePlaybackSync(): void {
       }
     }, HEARTBEAT_INTERVAL_MS);
 
+    // 8. Device presence heartbeat — keep lastSeenAt fresh for device picker
+    const deviceHeartbeat = setInterval(() => {
+      fetch('/api/playback/devices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(deviceInfo),
+      }).catch(() => {});
+    }, 2 * 60 * 1000); // Every 2 minutes
+
     return () => {
       unsub();
       debouncedSync.cancel();
       clearInterval(heartbeat);
+      clearInterval(deviceHeartbeat);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleUnload);
       window.removeEventListener('pagehide', handleUnload);

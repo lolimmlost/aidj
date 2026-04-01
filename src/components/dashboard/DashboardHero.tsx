@@ -65,7 +65,7 @@ export function DashboardHero({
   const setIsPlaying = useAudioStore((s) => s.setIsPlaying);
   const aiDJEnabled = useAudioStore((s) => s.aiDJEnabled);
 
-  const { data: stats } = useQuery<ListeningStatsResponse>({
+  const { data: stats, isLoading: statsLoading } = useQuery<ListeningStatsResponse>({
     queryKey: ['listening-stats', 'week'],
     queryFn: async () => {
       const res = await fetch('/api/listening-history/stats?preset=week');
@@ -110,6 +110,12 @@ export function DashboardHero({
 
           {/* Quick Stats - Desktop */}
           <div className="hidden sm:flex items-center gap-3 stagger-children flex-wrap">
+            {statsLoading && !stats && (
+              <>
+                <div className="h-8 w-32 rounded-full bg-muted/50 animate-pulse" />
+                <div className="h-8 w-24 rounded-full bg-muted/50 animate-pulse" />
+              </>
+            )}
             {stats?.current && (
               <>
                 <StatPill
@@ -165,6 +171,9 @@ export function DashboardHero({
 
       {/* Mobile Quick Stats */}
       <div className="flex sm:hidden items-center gap-2 mt-4 overflow-x-auto pb-1">
+        {statsLoading && !stats && (
+          <div className="h-7 w-20 rounded-full bg-muted/50 animate-pulse shrink-0" />
+        )}
         {stats?.current && (
           <StatPill
             label="Plays"

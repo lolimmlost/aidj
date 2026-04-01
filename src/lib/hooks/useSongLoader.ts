@@ -254,22 +254,9 @@ export function useSongLoader({
           return;
         }
 
-        const handleCanPlay = () => {
+        // Shared skip logic for error + load timeout
+        const skipUnavailableSong = (reason: string) => {
           setIsLoading(false);
-          consecutiveFailuresRef.current = 0;
-          if (useAudioStore.getState().isPlaying) {
-            ensureGraphInitializedRef.current();
-            audio.play().catch(console.error);
-          }
-        };
-
-        const handleError = (e: Event) => {
-          const errorDeck = e.target as HTMLAudioElement;
-          const activeDeck = getActiveDeck();
-          if (errorDeck !== activeDeck) return;
-          console.error('Audio load error:', errorDeck?.error);
-          setIsLoading(false);
-
           consecutiveFailuresRef.current++;
           const state = useAudioStore.getState();
           const failedSong = state.playlist[state.currentSongIndex];
@@ -284,11 +271,32 @@ export function useSongLoader({
             return;
           }
 
-          toast.warning(`Skipped "${songName}"${artistName ? ` by ${artistName}` : ''} — unavailable`);
+          toast.warning(`Skipped "${songName}"${artistName ? ` by ${artistName}` : ''} — ${reason}`);
           if (state.playlist.length > 1) {
-            console.warn(`[PLAYER] Stream failed for "${songName}", removing from queue`);
+            console.warn(`[PLAYER] "${songName}" ${reason}, removing from queue`);
             state.removeFromQueue(state.currentSongIndex);
           }
+        };
+
+        let loadTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+        const handleCanPlay = () => {
+          if (loadTimeoutId) clearTimeout(loadTimeoutId);
+          setIsLoading(false);
+          consecutiveFailuresRef.current = 0;
+          if (useAudioStore.getState().isPlaying) {
+            ensureGraphInitializedRef.current();
+            audio.play().catch(console.error);
+          }
+        };
+
+        const handleError = (e: Event) => {
+          if (loadTimeoutId) clearTimeout(loadTimeoutId);
+          const errorDeck = e.target as HTMLAudioElement;
+          const activeDeck = getActiveDeck();
+          if (errorDeck !== activeDeck) return;
+          console.error('Audio load error:', errorDeck?.error);
+          skipUnavailableSong('unavailable');
         };
 
         canPlayHandlerRef.current = handleCanPlay;
@@ -302,7 +310,20 @@ export function useSongLoader({
         setIsLoading(true);
         loadSong(song);
 
+        // Safety timeout: skip song if it doesn't load within 10 seconds.
+        // Browser native error events can take 30+ seconds; this prevents
+        // long silences that cause AudioContext suspension on mobile.
+        loadTimeoutId = setTimeout(() => {
+          if (audio.readyState < 2) {
+            console.warn(`[PLAYER] Song load timeout (10s) — readyState=${audio.readyState}`);
+            audio.removeEventListener('canplay', handleCanPlay);
+            audio.removeEventListener('error', handleError);
+            skipUnavailableSong('timed out');
+          }
+        }, 10000);
+
         return () => {
+          if (loadTimeoutId) clearTimeout(loadTimeoutId);
           if (scrobbleThresholdReachedRef.current && !hasScrobbledRef.current && currentSongIdRef.current) {
             hasScrobbledRef.current = true;
             scrobbleSong(currentSongIdRef.current, true).catch(console.error);
