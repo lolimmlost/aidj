@@ -1,5 +1,5 @@
-import { createFileRoute, redirect } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { search, getArtists } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -19,6 +19,9 @@ import { PageLayout } from '@/components/ui/page-layout';
 import { toast } from '@/lib/toast';
 
 export const Route = createFileRoute('/library/search')({
+  validateSearch: (search: Record<string, unknown>): { q?: string } => ({
+    q: typeof search.q === 'string' && search.q.trim().length > 0 ? search.q : undefined,
+  }),
   beforeLoad: async ({ context }) => {
     if (!context.user) {
       throw redirect({ to: '/login' });
@@ -27,9 +30,23 @@ export const Route = createFileRoute('/library/search')({
   component: SearchPage,
 });
 
+// Navidrome's /api/artist endpoint returns extra runtime fields beyond the
+// base type — albumCount, songCount, size. We read them here to filter out
+// ghost artist entries (featured-credit, composer-only, or zero-music rows).
+type ArtistWithCounts = { id: string; name: string; albumCount?: number; songCount?: number };
+
 function SearchPage() {
-  const [query, setQuery] = useState('');
+  const navigate = useNavigate({ from: '/library/search' });
+  const { q } = Route.useSearch();
+  const query = q ?? '';
   const { playSong, setAIUserActionInProgress } = useAudioStore();
+
+  const setQuery = (value: string) => {
+    navigate({
+      search: () => (value.trim().length > 0 ? { q: value } : {}),
+      replace: true,
+    });
+  };
 
   const { data: songs = [], isLoading: isLoadingSongs, error } = useQuery({
     queryKey: ['search', query],
@@ -60,11 +77,30 @@ function SearchPage() {
   });
 
   const matchedArtists = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return allArtists
-      .filter((a) => a.name.toLowerCase().includes(q))
-      .slice(0, 20);
+    const needle = query.trim().toLowerCase();
+    if (!needle) return [];
+    const runtimeArtists = allArtists as ArtistWithCounts[];
+
+    const matching = runtimeArtists.filter((a) => {
+      const hasMusic = (a.albumCount ?? 0) > 0 || (a.songCount ?? 0) > 0;
+      return hasMusic && a.name.toLowerCase().includes(needle);
+    });
+
+    // Dedupe by normalized name — Navidrome sometimes creates multiple artist
+    // rows with the same display name (imported at different times, different
+    // MBIDs). Keep the one with the most music.
+    const byName = new Map<string, ArtistWithCounts>();
+    for (const artist of matching) {
+      const key = artist.name.trim().toLowerCase();
+      const existing = byName.get(key);
+      const score = (artist.albumCount ?? 0) * 100 + (artist.songCount ?? 0);
+      const existingScore = existing ? (existing.albumCount ?? 0) * 100 + (existing.songCount ?? 0) : -1;
+      if (!existing || score > existingScore) {
+        byName.set(key, artist);
+      }
+    }
+
+    return Array.from(byName.values()).slice(0, 20);
   }, [allArtists, query]);
 
   const isLoading = isLoadingSongs || (isLoadingAllArtists && allArtists.length === 0);
