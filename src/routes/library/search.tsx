@@ -3,16 +3,19 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { search } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NavidromeErrorBoundary } from '@/components/navidrome-error-boundary';
-import { Search as SearchIcon } from 'lucide-react';
+import { Search as SearchIcon, Plus, Download, CheckCircle2, AlertCircle } from 'lucide-react';
 import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
 import { AddToQueueButton } from '@/components/playlists/AddToQueueButton';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
+import { useArtistMetadata, useAddArtistToLibrary } from '@/lib/hooks/useArtistMetadata';
 import { PageLayout } from '@/components/ui/page-layout';
+import { toast } from '@/lib/toast';
 
 export const Route = createFileRoute('/library/search')({
   beforeLoad: async ({ context }) => {
@@ -118,12 +121,7 @@ function SearchPage() {
             </CardContent>
           </Card>
         ) : songs.length === 0 ? (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <h3 className="font-semibold text-lg mb-2">No results found for "{query}"</h3>
-              <p className="text-sm text-muted-foreground">Try different keywords or check your spelling.</p>
-            </CardContent>
-          </Card>
+          <ArtistAddFallback query={query.trim()} />
         ) : (
           <div aria-live="polite" className="space-y-2">
             {songs.map((song) => (
@@ -246,5 +244,161 @@ function SearchPage() {
         )}
       </PageLayout>
     </NavidromeErrorBoundary>
+  );
+}
+
+// When Navidrome returns no results, try Aurral to resolve the query to a
+// MusicBrainz artist and offer a one-click "Add to Lidarr" fallback. If Aurral
+// can't resolve it either, fall back to a clear "not available" state.
+function ArtistAddFallback({ query }: { query: string }) {
+  const { data: metadata, isLoading, isError } = useArtistMetadata(query, {
+    enabled: query.length > 0,
+  });
+  const addArtist = useAddArtistToLibrary();
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-6 sm:p-8 space-y-4">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-20 w-20 rounded-full flex-shrink-0" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-5 w-1/2" />
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground text-center">
+            Searching MusicBrainz for "{query}"…
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const notFound = isError || !metadata || !metadata.mbid;
+
+  if (notFound) {
+    return (
+      <Card>
+        <CardContent className="p-8 sm:p-12 text-center space-y-3">
+          <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground opacity-60" />
+          <h3 className="font-semibold text-lg">No results for "{query}"</h3>
+          <p className="text-sm text-muted-foreground">
+            Not in your library, and MusicBrainz couldn't match this artist either.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Try different keywords, check spelling, or search by the artist's official name.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const alreadyMonitored = metadata.lidarrMonitored;
+  const topGenres = metadata.genres.slice(0, 3);
+  const formedLabel = metadata.formedYear ? `formed ${metadata.formedYear}` : null;
+  const countryLabel = metadata.country ?? null;
+  const details = [countryLabel, formedLabel].filter(Boolean).join(' • ');
+
+  const handleAdd = () => {
+    if (!metadata.mbid) return;
+    addArtist.mutate(
+      { mbid: metadata.mbid, artistName: metadata.artistName },
+      {
+        onSuccess: () => {
+          toast.success(`${metadata.artistName} queued for download via Lidarr`);
+        },
+        onError: (err) => {
+          toast.error(`Failed to add artist: ${err.message}`);
+        },
+      },
+    );
+  };
+
+  return (
+    <Card className="border-primary/30">
+      <CardContent className="p-6 sm:p-8 space-y-5">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            Not in your library. Found on MusicBrainz:
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+          {metadata.coverImageUrl ? (
+            <img
+              src={metadata.coverImageUrl}
+              alt={metadata.artistName}
+              className="h-24 w-24 sm:h-28 sm:w-28 rounded-full object-cover flex-shrink-0 border"
+              loading="lazy"
+            />
+          ) : (
+            <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+              <SearchIcon className="h-10 w-10 text-muted-foreground opacity-50" />
+            </div>
+          )}
+
+          <div className="flex-1 min-w-0 text-center sm:text-left space-y-1.5">
+            <h3 className="font-semibold text-xl truncate">{metadata.artistName}</h3>
+            {metadata.disambiguation && (
+              <p className="text-sm text-muted-foreground truncate">{metadata.disambiguation}</p>
+            )}
+            {details && (
+              <p className="text-xs text-muted-foreground">{details}</p>
+            )}
+            {topGenres.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 justify-center sm:justify-start pt-1">
+                {topGenres.map((genre) => (
+                  <span
+                    key={genre}
+                    className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground"
+                  >
+                    {genre}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="pt-1 border-t">
+          {alreadyMonitored ? (
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-2">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <span>Already monitored in Lidarr — songs will appear as they download.</span>
+            </div>
+          ) : addArtist.isSuccess ? (
+            <div className="flex items-center justify-center gap-2 text-sm text-green-600 dark:text-green-400 py-2">
+              <CheckCircle2 className="h-4 w-4" />
+              <span>Queued for download. Lidarr will notify when it finishes.</span>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <p className="text-xs text-muted-foreground flex-1 text-center sm:text-left">
+                Add to Lidarr to monitor this artist and auto-download new releases.
+              </p>
+              <Button
+                onClick={handleAdd}
+                disabled={addArtist.isPending}
+                className="min-h-[44px] w-full sm:w-auto"
+              >
+                {addArtist.isPending ? (
+                  <>
+                    <Download className="h-4 w-4 mr-2 animate-pulse" />
+                    Adding…
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add to Lidarr
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
