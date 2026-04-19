@@ -1,14 +1,14 @@
-import { createFileRoute, redirect } from '@tanstack/react-router';
+import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { search } from '@/lib/services/navidrome';
+import { search, searchArtistsByName } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NavidromeErrorBoundary } from '@/components/navidrome-error-boundary';
-import { Search as SearchIcon, Plus, Download, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Search as SearchIcon, Plus, Download, CheckCircle2, AlertCircle, User as UserIcon, ChevronRight } from 'lucide-react';
 import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
 import { AddToQueueButton } from '@/components/playlists/AddToQueueButton';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
@@ -30,11 +30,19 @@ function SearchPage() {
   const [query, setQuery] = useState('');
   const { playSong, setAIUserActionInProgress } = useAudioStore();
 
-  const { data: songs = [], isLoading, error } = useQuery({
+  const { data: songs = [], isLoading: isLoadingSongs, error } = useQuery({
     queryKey: ['search', query],
     queryFn: () => search(query.trim(), 0, 50),
     enabled: query.trim().length > 0,
   });
+
+  const { data: artists = [], isLoading: isLoadingArtists } = useQuery({
+    queryKey: ['search-artists', query],
+    queryFn: () => searchArtistsByName(query.trim(), 10),
+    enabled: query.trim().length > 0,
+  });
+
+  const isLoading = isLoadingSongs || isLoadingArtists;
 
   // Fetch feedback for displayed songs
   const songIds = songs.map(song => song.id);
@@ -79,7 +87,9 @@ function SearchPage() {
               />
               {query.trim().length > 0 && (
                 <p className="text-sm text-muted-foreground">
-                  {isLoading ? 'Searching...' : `Found ${songs.length} result${songs.length !== 1 ? 's' : ''}`}
+                  {isLoading
+                    ? 'Searching...'
+                    : `Found ${artists.length} artist${artists.length !== 1 ? 's' : ''} and ${songs.length} song${songs.length !== 1 ? 's' : ''}`}
                 </p>
               )}
             </div>
@@ -120,10 +130,55 @@ function SearchPage() {
               </p>
             </CardContent>
           </Card>
-        ) : songs.length === 0 ? (
+        ) : songs.length === 0 && artists.length === 0 ? (
           <ArtistAddFallback query={query.trim()} />
         ) : (
-          <div aria-live="polite" className="space-y-2">
+          <div aria-live="polite" className="space-y-6">
+            {artists.length > 0 && (
+              <section className="space-y-2">
+                <div className="flex items-baseline justify-between px-1">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    Artists
+                  </h2>
+                  <span className="text-xs text-muted-foreground">{artists.length}</span>
+                </div>
+                <div className="space-y-2">
+                  {artists.map((artist) => (
+                    <Link
+                      key={artist.id}
+                      to="/library/artists/$id"
+                      params={{ id: artist.id }}
+                      className="block"
+                    >
+                      <Card className="transition-all hover:shadow-md hover:border-primary/50">
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                              <UserIcon className="h-5 w-5 text-muted-foreground" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold truncate">{artist.name}</div>
+                              <div className="text-xs text-muted-foreground">View discography</div>
+                            </div>
+                            <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {songs.length > 0 && (
+              <section className="space-y-2">
+                <div className="flex items-baseline justify-between px-1">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    Songs
+                  </h2>
+                  <span className="text-xs text-muted-foreground">{songs.length}</span>
+                </div>
+                <div className="space-y-2">
             {songs.map((song) => (
               <Card
                 key={song.id}
@@ -240,6 +295,9 @@ function SearchPage() {
                 </CardContent>
               </Card>
             ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </PageLayout>
