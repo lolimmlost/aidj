@@ -1,17 +1,18 @@
-import { createFileRoute, Link, redirect } from '@tanstack/react-router';
-import { useState } from 'react';
+import { createFileRoute, redirect } from '@tanstack/react-router';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { search, searchArtistsByName } from '@/lib/services/navidrome';
+import { search, getArtists } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NavidromeErrorBoundary } from '@/components/navidrome-error-boundary';
-import { Search as SearchIcon, Plus, Download, CheckCircle2, AlertCircle, User as UserIcon, ChevronRight } from 'lucide-react';
+import { Search as SearchIcon, Plus, Download, CheckCircle2, AlertCircle } from 'lucide-react';
 import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
 import { AddToQueueButton } from '@/components/playlists/AddToQueueButton';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
+import { ArtistCard } from '@/components/library/ArtistsList';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { useArtistMetadata, useAddArtistToLibrary } from '@/lib/hooks/useArtistMetadata';
 import { PageLayout } from '@/components/ui/page-layout';
@@ -36,13 +37,37 @@ function SearchPage() {
     enabled: query.trim().length > 0,
   });
 
-  const { data: artists = [], isLoading: isLoadingArtists } = useQuery({
-    queryKey: ['search-artists', query],
-    queryFn: () => searchArtistsByName(query.trim(), 10),
+  // Reuse the cached full artist list from the browse page (shared query key).
+  // First visit costs one fetch; subsequent searches filter client-side for
+  // instant results and give us albumCount for free (missing from search3.view).
+  const { data: allArtists = [], isLoading: isLoadingAllArtists } = useQuery({
+    queryKey: ['artists'],
+    queryFn: () => getArtists(0, 5000),
     enabled: query.trim().length > 0,
+    staleTime: 5 * 60 * 1000,
   });
 
-  const isLoading = isLoadingSongs || isLoadingArtists;
+  const { data: allArtistImages = {} } = useQuery({
+    queryKey: ['all-artist-images'],
+    queryFn: async () => {
+      const res = await fetch('/api/cover-art/all-artist-images');
+      if (!res.ok) return {};
+      const json = await res.json() as { data?: { images?: Record<string, string> } };
+      return json.data?.images ?? {};
+    },
+    enabled: query.trim().length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const matchedArtists = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return allArtists
+      .filter((a) => a.name.toLowerCase().includes(q))
+      .slice(0, 20);
+  }, [allArtists, query]);
+
+  const isLoading = isLoadingSongs || (isLoadingAllArtists && allArtists.length === 0);
 
   // Fetch feedback for displayed songs
   const songIds = songs.map(song => song.id);
@@ -89,7 +114,7 @@ function SearchPage() {
                 <p className="text-sm text-muted-foreground">
                   {isLoading
                     ? 'Searching...'
-                    : `Found ${artists.length} artist${artists.length !== 1 ? 's' : ''} and ${songs.length} song${songs.length !== 1 ? 's' : ''}`}
+                    : `Found ${matchedArtists.length} artist${matchedArtists.length !== 1 ? 's' : ''} and ${songs.length} song${songs.length !== 1 ? 's' : ''}`}
                 </p>
               )}
             </div>
@@ -130,41 +155,30 @@ function SearchPage() {
               </p>
             </CardContent>
           </Card>
-        ) : songs.length === 0 && artists.length === 0 ? (
+        ) : songs.length === 0 && matchedArtists.length === 0 ? (
           <ArtistAddFallback query={query.trim()} />
         ) : (
           <div aria-live="polite" className="space-y-6">
-            {artists.length > 0 && (
-              <section className="space-y-2">
+            {matchedArtists.length > 0 && (
+              <section className="space-y-3">
                 <div className="flex items-baseline justify-between px-1">
-                  <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                    Artists
-                  </h2>
-                  <span className="text-xs text-muted-foreground">{artists.length}</span>
+                  <div className="flex items-baseline gap-2">
+                    <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                      Artists in library
+                    </h2>
+                    <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                      • Available
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{matchedArtists.length}</span>
                 </div>
-                <div className="space-y-2">
-                  {artists.map((artist) => (
-                    <Link
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                  {matchedArtists.map((artist) => (
+                    <ArtistCard
                       key={artist.id}
-                      to="/library/artists/$id"
-                      params={{ id: artist.id }}
-                      className="block"
-                    >
-                      <Card className="transition-all hover:shadow-md hover:border-primary/50">
-                        <CardContent className="p-3 sm:p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                              <UserIcon className="h-5 w-5 text-muted-foreground" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold truncate">{artist.name}</div>
-                              <div className="text-xs text-muted-foreground">View discography</div>
-                            </div>
-                            <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
+                      artist={artist}
+                      savedImageUrl={allArtistImages[artist.name.toLowerCase()]}
+                    />
                   ))}
                 </div>
               </section>

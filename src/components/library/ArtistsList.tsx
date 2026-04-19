@@ -16,7 +16,7 @@ import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar'
 
 const PAGE_SIZE = 60;
 
-function LazyArtistAvatar({
+export function LazyArtistAvatar({
   artistId,
   name,
   savedImageUrl,
@@ -100,7 +100,7 @@ interface ArtistCardProps {
   savedImageUrl?: string;
 }
 
-function ArtistCard({ artist, savedImageUrl }: ArtistCardProps) {
+export function ArtistCard({ artist, savedImageUrl }: ArtistCardProps) {
   const { playSong } = useAudioStore();
 
   const handlePlay = async (e: React.MouseEvent) => {
