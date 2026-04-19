@@ -276,9 +276,25 @@ function ArtistAddFallback({ query }: { query: string }) {
     );
   }
 
-  const notFound = isError || !metadata || !metadata.mbid;
+  // Distinguish "MusicBrainz has no match" from "Aurral service unreachable".
+  // The metadata endpoint returns null for both, but isError flags fetch/timeout failures.
+  if (isError) {
+    return (
+      <Card>
+        <CardContent className="p-8 sm:p-12 text-center space-y-3">
+          <AlertCircle className="h-10 w-10 mx-auto text-destructive opacity-70" />
+          <h3 className="font-semibold text-lg">MusicBrainz lookup unavailable</h3>
+          <p className="text-sm text-muted-foreground">
+            Couldn't reach the metadata service. "{query}" isn't in your library, and we
+            can't offer to add it right now.
+          </p>
+          <p className="text-xs text-muted-foreground">Try again in a moment.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
-  if (notFound) {
+  if (!metadata || !metadata.mbid) {
     return (
       <Card>
         <CardContent className="p-8 sm:p-12 text-center space-y-3">

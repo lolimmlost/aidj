@@ -177,27 +177,49 @@ async function ensureAuthenticated(): Promise<string> {
 
 // ─── HTTP Client ─────────────────────────────────────────────────────────────
 
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 2;
 const BASE_DELAY = 1000;
+const REQUEST_TIMEOUT_MS = 10_000;
 const RETRYABLE_CODES = [408, 429, 500, 502, 503, 504];
 
-async function aurralFetch<T>(path: string, options?: RequestInit & { retries?: number }): Promise<T> {
+async function aurralFetch<T>(path: string, options?: RequestInit & { retries?: number; timeoutMs?: number }): Promise<T> {
   const aurral = await getAurralConfig();
   if (!aurral) throw new Error('Aurral not configured');
 
   const retries = options?.retries ?? MAX_RETRIES;
+  const timeoutMs = options?.timeoutMs ?? REQUEST_TIMEOUT_MS;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const token = await ensureAuthenticated();
 
-    const res = await fetch(`${aurral.url}${path}`, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-    });
+    // Per-attempt AbortController so a hung Aurral can't block indefinitely.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    let res: Response;
+    try {
+      res = await fetch(`${aurral.url}${path}`, {
+        ...options,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+        signal: controller.signal,
+      });
+    } catch (err) {
+      clearTimeout(timeoutId);
+      const isAbort = err instanceof Error && err.name === 'AbortError';
+      if (isAbort && attempt < retries) {
+        // One quick retry on timeout; if still hung, surface the error.
+        continue;
+      }
+      if (isAbort) {
+        throw new Error(`Aurral request timed out after ${timeoutMs}ms: ${path}`);
+      }
+      throw err;
+    }
+    clearTimeout(timeoutId);
 
     // Re-auth on 401 (token expired)
     if (res.status === 401 && attempt < retries) {
