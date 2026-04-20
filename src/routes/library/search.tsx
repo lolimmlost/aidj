@@ -13,6 +13,7 @@ import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton'
 import { AddToQueueButton } from '@/components/playlists/AddToQueueButton';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { ArtistCard } from '@/components/library/ArtistsList';
+import { AlbumArt } from '@/components/ui/album-art';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { useArtistMetadata, useAddArtistToLibrary } from '@/lib/hooks/useArtistMetadata';
 import { PageLayout } from '@/components/ui/page-layout';
@@ -237,9 +238,12 @@ function SearchPage() {
                 <CardContent className="p-3 sm:p-4">
                   {/* Desktop layout: single row */}
                   <div className="hidden sm:flex items-center gap-3">
-                    <div className="w-8 text-right text-sm text-muted-foreground flex-shrink-0">
-                      {song.track}
-                    </div>
+                    <AlbumArt
+                      albumId={song.albumId}
+                      songId={song.id}
+                      artist={song.artist}
+                      size="sm"
+                    />
                     <div
                       className="flex-1 min-w-0 cursor-pointer"
                       onClick={() => handleSongClick(song.id)}
@@ -289,14 +293,17 @@ function SearchPage() {
 
                   {/* Mobile layout: two rows for better button visibility */}
                   <div className="sm:hidden space-y-1.5">
-                    {/* Row 1: Track number, song info (tappable) */}
+                    {/* Row 1: Album art, song info (tappable) */}
                     <div
-                      className="flex items-center gap-2 cursor-pointer"
+                      className="flex items-center gap-2.5 cursor-pointer"
                       onClick={() => handleSongClick(song.id)}
                     >
-                      <div className="w-6 text-right text-xs text-muted-foreground flex-shrink-0">
-                        {song.track}
-                      </div>
+                      <AlbumArt
+                        albumId={song.albumId}
+                        songId={song.id}
+                        artist={song.artist}
+                        size="sm"
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-sm truncate">{song.name || song.title || 'Unknown Song'}</div>
                         <div className="text-xs text-muted-foreground truncate">
