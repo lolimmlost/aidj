@@ -328,8 +328,12 @@ export function PlayerBar() {
           crossfadeAbortedAtRef.current = Date.now();
           nextSong();
         } else {
-          console.log(`[XFADE] Crossfade aborted but song still playing — removed failed song, will advance naturally`);
-          // Don't set cooldown — onEnded needs to fire when the current song finishes
+          console.log(`[XFADE] Crossfade aborted but song still playing — will advance naturally`);
+          // Stamp the cooldown so timeupdate doesn't immediately re-enter
+          // startCrossfade on the next tick. Without this, an autoplay-blocked
+          // abort thrashes the inactive deck dozens of times per second and
+          // never lets the current song reach onEnded → no scrobble, no history.
+          crossfadeAbortedAtRef.current = Date.now();
         }
       }
     },
