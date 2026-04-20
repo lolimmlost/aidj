@@ -282,18 +282,28 @@ export function useCrossfade({
 
     inactiveDeck.addEventListener('canplaythrough', onCanPlayThrough);
 
-    // Timeout fallback in case canplaythrough doesn't fire
+    // Timeout fallback in case canplaythrough doesn't fire.
+    // 10s gives cold-cache / first-byte-slow Navidrome streams room to reach
+    // a playable state after a shuffle. At the deadline, accept readyState >= 2
+    // (HAVE_CURRENT_DATA) — enough to start, with any remaining data buffering
+    // mid-ramp. A brief stutter is preferable to evicting a playable song.
     setTimeout(() => {
       if (!crossfadeInProgressRef.current || crossfadeCanPlayFiredRef.current) return;
       if (inactiveDeck.readyState >= 3) {
-        console.log(`[XFADE] Timeout fallback: forcing canplaythrough`);
+        console.log(`[XFADE] Timeout fallback (readyState=${inactiveDeck.readyState}): forcing canplaythrough`);
+        onCanPlayThrough();
+      } else if (inactiveDeck.readyState >= 2) {
+        console.warn(`[XFADE] Timeout fallback (readyState=${inactiveDeck.readyState}, HAVE_CURRENT_DATA): starting playback anyway — may stutter`);
         onCanPlayThrough();
       } else {
         abortCrossfade('timeout - deck never became ready');
       }
-    }, 5000);
+    }, 10000);
 
-    // Safety timeout: if crossfade is still in progress after duration + 5s
+    // Safety timeout: if crossfade is still in progress after duration + 10s.
+    // Must exceed the 10s canplaythrough window above so they don't race —
+    // a short xfadeDuration (e.g. 3s) would otherwise fire safety first and
+    // misclassify a still-loading deck as a hard failure.
     setTimeout(() => {
       if (!crossfadeInProgressRef.current) return;
 
@@ -305,7 +315,7 @@ export function useCrossfade({
         console.warn(`⚠️ [XFADE] Safety timeout: incoming deck not playing - aborting`);
         abortCrossfade('safety timeout exceeded');
       }
-    }, (xfadeDuration + 5) * 1000);
+    }, (xfadeDuration + 10) * 1000);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- onCrossfadeComplete/onCrossfadeAbort accessed via stable refs
   }, [getActiveDeck, getInactiveDeck, activeDeckRef, crossfadeInProgressRef, clearCrossfade, canPlayHandlerRef, errorHandlerRef, scheduleGainRamp, cancelGainRamp, setGainImmediate, setActiveDeck, resumeContext]);
 

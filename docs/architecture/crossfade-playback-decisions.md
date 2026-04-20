@@ -63,14 +63,18 @@ Owner: `useCrossfade.ts:122-158` (`abortCrossfade`).
 
 Triggers:
 
-- **5s `canplaythrough` timeout** (line 286-294) — inactive deck never reached
-  readyState >= 3. Reason string contains `timeout`.
+- **10s `canplaythrough` timeout** (line 286-300) — inactive deck never reached
+  readyState >= 2. At the deadline the fallback accepts `readyState >= 3`
+  cleanly and `readyState >= 2` with a warning (plays anyway, may stutter
+  briefly as data buffers). Only `readyState < 2` aborts with reason
+  containing `timeout`.
 - **`play()` rejection** (line 203-206) — typically autoplay policy blocking a
   backgrounded tab. Reason: `play() failed - likely autoplay blocked`.
 - **User pause during ramp** (line 181-188) — store subscription sees
   `isPlaying` flip false.
-- **Safety timeout** after `xfadeDuration + 5s` (line 297-308) if the inactive
-  deck isn't playing and past 1s.
+- **Safety timeout** after `xfadeDuration + 10s` (line 302-314) if the inactive
+  deck isn't playing and past 1s. Must exceed the 10s canplaythrough window so
+  the two don't race.
 - **Completion-time check** (line 197-200) — inactive deck was expected to be
   playing but stopped mid-ramp.
 
