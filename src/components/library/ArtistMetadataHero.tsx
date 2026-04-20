@@ -79,7 +79,7 @@ export function ArtistMetadataHero({ metadata, artistImageUrl }: ArtistMetadataH
   // Cross-reference similar artists with the user's library
   const { data: libraryArtists = [] } = useQuery({
     queryKey: ['artists'],
-    queryFn: () => getArtists(0, 5000),
+    queryFn: () => getArtists(0, 10000),
     staleTime: 5 * 60 * 1000,
   });
 

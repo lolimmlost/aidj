@@ -189,7 +189,7 @@ export function ArtistsList() {
     error,
   } = useQuery({
     queryKey: ['artists'],
-    queryFn: () => getArtists(0, 5000),
+    queryFn: () => getArtists(0, 10000),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -240,7 +240,7 @@ export function ArtistsList() {
   return (
     <PageLayout
       title="Artists"
-      description={`${filtered.length} artists in your library`}
+      description={isLoading ? 'Loading…' : `${filtered.length} artists in your library`}
       icon={<Users className="h-5 w-5" />}
       backLink="/dashboard"
       backLabel="Dashboard"

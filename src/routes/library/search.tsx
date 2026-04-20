@@ -59,7 +59,7 @@ function SearchPage() {
   // instant results and give us albumCount for free (missing from search3.view).
   const { data: allArtists = [], isLoading: isLoadingAllArtists } = useQuery({
     queryKey: ['artists'],
-    queryFn: () => getArtists(0, 5000),
+    queryFn: () => getArtists(0, 10000),
     enabled: query.trim().length > 0,
     staleTime: 5 * 60 * 1000,
   });
@@ -402,7 +402,14 @@ function ArtistAddFallback({ query }: { query: string }) {
     );
   }
 
-  if (!metadata || !metadata.mbid) {
+  // Aurral occasionally returns a metadata record with an mbid but no real
+  // artistName (observed as an empty string or the sentinel "[no artist]"),
+  // which would surface an Add-to-Lidarr button for a ghost. Treat those as
+  // no-match so we never offer to add an unidentified artist.
+  const mbArtistName = metadata?.artistName?.trim();
+  const hasValidMatch = !!(metadata && metadata.mbid && mbArtistName && mbArtistName !== '[no artist]');
+
+  if (!hasValidMatch) {
     return (
       <Card>
         <CardContent className="p-8 sm:p-12 text-center space-y-3">

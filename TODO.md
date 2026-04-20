@@ -28,6 +28,14 @@
 - [x] Logout page invalidation — clear query cache on sign-out for instant redirect to login
 - [x] Redesign login page — improve visual design, branding, and UX
 
+## Library / Browse / Search
+
+- [x] **Silent artist truncation in browse** — `getArtists(start, limit)` in `src/lib/services/navidrome/library.ts:15` used `_end=${start + limit - 1}` but Navidrome (react-admin) treats `_end` as exclusive, returning `limit - 1` rows. Juan's library has ≥5044 artists; browse was dropping ~45+. Fixed across `getArtists`, `getAlbums`, `getSongs`, `getSongsByArtist`, `getSongsGlobal`, and `searchArtistsByName`. Also bumped browse/search fetch cap from 5000 → 10000.
+- [x] **Aurral/Lidarr add-artist fallback rendered card for empty matches** — queries like `zzqqnope_not_a_real_artist` yielded "Not in your library. Found on MusicBrainz: [no artist]" with an Add to Lidarr button. Tightened guard in `src/routes/library/search.tsx`'s `ArtistAddFallback` to require a non-empty `artistName` (and reject the `[no artist]` sentinel) in addition to `mbid`.
+- [x] **"0 artists in your library" flashed under Artists header while loading** — now shows "Loading…" until the query resolves.
+- [ ] **Browse fetches all artists upfront** — on slow-3G the skeleton is still visible at 5s because we pull the full artist list (up to 10k) for client-side filtering. Consider server-side pagination with infinite scroll, or a lighter "index" endpoint (just id+name+counts).
+- [ ] **Navidrome tag-splitter creates artist fragments** — artists appear as `" esq."` and `" Inc."` (note leading spaces), clearly fragments from splitting "X, esq." / "Y, Inc." on commas during scan. Fix lives in Navidrome scanner config, not AIDJ. Flagging so we don't try to work around it client-side.
+
 ## DevOps
 
 - [ ] Switch Coolify deployment back to `main` branch and merge `feat/web-audio-crossfade` into `main`
