@@ -301,6 +301,23 @@ export function PlayerBar() {
 
         if (songHasEnded) {
           console.log(`[XFADE] Crossfade aborted & song ended — advancing to next`);
+          // Record the outgoing song: onEnded will be suppressed by the
+          // abort cooldown below, so this is our only chance to scrobble it.
+          const outgoingSong = currentSong;
+          const outgoingSongId = currentSongIdRef.current;
+          const snapshot = playbackSnapshotRef.current;
+          const outgoingPlayDuration = snapshot.songId === outgoingSongId ? snapshot.currentTime : activeDeck?.currentTime;
+          const outgoingSongDuration = snapshot.songId === outgoingSongId ? snapshot.duration : activeDeck?.duration;
+          if (outgoingSong && outgoingSongId && !hasScrobbledRef.current) {
+            hasScrobbledRef.current = true;
+            scrobbleSong(outgoingSongId, true)
+              .then(() => {
+                queryClient.invalidateQueries({ queryKey: ['most-played-songs'] });
+                queryClient.invalidateQueries({ queryKey: ['top-artists'] });
+              })
+              .catch(console.error);
+            recordListeningHistory(outgoingSong, outgoingSongId, outgoingPlayDuration, outgoingSongDuration);
+          }
           hasScrobbledRef.current = false;
           scrobbleThresholdReachedRef.current = false;
           // Set cooldown to prevent timeupdate from re-triggering crossfade
