@@ -36,7 +36,7 @@ import { ResumePlaybackPrompt } from './ResumePlaybackPrompt';
 import { FullscreenPlayer } from './FullscreenPlayer';
 
 // Import extracted hooks
-import { useDualDeckAudio, hasRealSong, Song } from '@/lib/hooks/useDualDeckAudio';
+import { useDualDeckAudio, hasRealSong, Song, SILENT_AUDIO_DATA_URL } from '@/lib/hooks/useDualDeckAudio';
 import { useCrossfade } from '@/lib/hooks/useCrossfade';
 import { useStallRecovery } from '@/lib/hooks/useStallRecovery';
 import { useMediaSession } from '@/lib/hooks/useMediaSession';
@@ -498,6 +498,35 @@ export function PlayerBar() {
         }
         resumeContext();
 
+        // Prime the inactive deck against autoplay policy. Browsers require
+        // a user gesture on each HTMLAudioElement before .play() can run
+        // autonomously; without this, every crossfade's inactiveDeck.play()
+        // is rejected with NotAllowedError and the ramp never starts.
+        // PWA visibility loss can revoke prior authorization, so re-prime on
+        // every user-initiated play rather than just on first gesture.
+        const inactive = getInactiveDeck();
+        if (inactive && inactive !== audio) {
+          const originalSrc = inactive.getAttribute('src');
+          // A play() on an element with no src resolves immediately on some
+          // browsers but still registers the gesture. Using a silent data URL
+          // is the safest portable prime.
+          if (!originalSrc) {
+            inactive.src = SILENT_AUDIO_DATA_URL;
+          }
+          inactive.play()
+            .then(() => {
+              inactive.pause();
+              // Restore clean state — only strip the silent source we just set.
+              if (!originalSrc) {
+                inactive.removeAttribute('src');
+                inactive.load();
+              }
+            })
+            .catch(() => {
+              // Priming is best-effort; don't block the active deck's play.
+            });
+        }
+
         audio.play().catch((e) => {
           setIsLoading(false);
           console.error('Play failed:', e);
@@ -505,7 +534,7 @@ export function PlayerBar() {
       }
       setIsPlaying(!isPlaying);
     }
-  }, [isPlaying, setIsPlaying, getActiveDeck, webAudioInitialized, deckARef, deckBRef, initializeGraph, setMasterVolume, volume, resumeContext]);
+  }, [isPlaying, setIsPlaying, getActiveDeck, getInactiveDeck, webAudioInitialized, deckARef, deckBRef, initializeGraph, setMasterVolume, volume, resumeContext]);
 
   const seek = useCallback((time: number) => {
     const audio = getActiveDeck();

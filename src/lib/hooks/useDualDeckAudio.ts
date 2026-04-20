@@ -46,9 +46,12 @@ export interface UseDualDeckAudioReturn {
  * - Provides helpers to get active/inactive deck
  * - Centralized setActiveDeck with cooldown to prevent DESYNC ping-pong
  *
- * Note: Deck priming is no longer needed — Web Audio API handles
- * both decks through a single AudioContext, avoiding the iOS
- * single-channel restriction on HTMLAudioElement.
+ * Note: The Web Audio API avoids iOS's single-channel HTMLAudioElement
+ * restriction by routing both decks through a single AudioContext — but
+ * the autoplay gesture policy is separate and still applies per element.
+ * The inactive deck must be primed via a user-gesture-initiated play()
+ * (see PlayerBar.togglePlayPause) or its later crossfade play() call
+ * will be rejected with NotAllowedError.
  */
 export function useDualDeckAudio(): UseDualDeckAudioReturn {
   // Audio element refs
