@@ -283,20 +283,24 @@ export function PlayerBar() {
       scrobbleThresholdReachedRef.current = false;
       nextSong();
     },
-    onCrossfadeAbort: (song) => {
+    onCrossfadeAbort: (song, isLoadFailure) => {
       if (song) {
         const state = useAudioStore.getState();
         const activeDeck = getActiveDeck();
         const songHasEnded = activeDeck && activeDeck.duration > 0 &&
           (activeDeck.currentTime >= activeDeck.duration - 0.5 || activeDeck.ended);
 
-        // Remove the failed song from queue so it's not retried
-        const nextIndex = state.currentSongIndex + 1;
-        if (nextIndex < state.playlist.length && state.playlist[nextIndex]?.id === song.id) {
-          const songName = song.name || song.title || 'Unknown';
-          console.log(`[XFADE] Removing unavailable song "${songName}" from queue (index ${nextIndex})`);
-          toast.warning(`Skipped "${songName}" — unavailable`);
-          state.removeFromQueue(nextIndex);
+        // Only evict when the song genuinely can't load. Autoplay-policy rejects
+        // or user pauses leave the song in the queue so useSongLoader can retry;
+        // its own 10s timeout handles truly broken files.
+        if (isLoadFailure) {
+          const nextIndex = state.currentSongIndex + 1;
+          if (nextIndex < state.playlist.length && state.playlist[nextIndex]?.id === song.id) {
+            const songName = song.name || song.title || 'Unknown';
+            console.log(`[XFADE] Removing unavailable song "${songName}" from queue (index ${nextIndex})`);
+            toast.warning(`Skipped "${songName}" — unavailable`);
+            state.removeFromQueue(nextIndex);
+          }
         }
 
         if (songHasEnded) {

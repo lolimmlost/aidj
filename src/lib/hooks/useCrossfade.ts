@@ -13,7 +13,7 @@ export interface UseCrossfadeOptions {
   getGainValue: (deck: 'A' | 'B') => number;
   resumeContext: () => Promise<boolean>;
   onCrossfadeComplete: (nextSong: Song) => void;
-  onCrossfadeAbort: (nextSong: Song | null) => void;
+  onCrossfadeAbort: (nextSong: Song | null, isLoadFailure: boolean) => void;
   canPlayHandlerRef?: React.MutableRefObject<(() => void) | null>;
   errorHandlerRef?: React.MutableRefObject<((e: Event) => void) | null>;
   setActiveDeck: (deck: 'A' | 'B', reason: string, opts?: SetActiveDeckOptions) => boolean;
@@ -147,7 +147,7 @@ export function useCrossfade({
         (activeDeck.currentTime >= activeDeck.duration - 0.5 || activeDeck.ended);
 
       if (isLoadFailure || songHasEnded) {
-        onCrossfadeAbortRef.current(nextSongData);
+        onCrossfadeAbortRef.current(nextSongData, isLoadFailure);
       }
     };
 
