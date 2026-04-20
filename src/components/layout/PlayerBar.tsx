@@ -248,6 +248,7 @@ export function PlayerBar() {
     getInactiveDeck,
     activeDeckRef,
     crossfadeInProgressRef, // Pass the shared ref
+    crossfadeAbortedAtRef,
     scheduleGainRamp,
     cancelGainRamp,
     setGainImmediate,
@@ -324,16 +325,11 @@ export function PlayerBar() {
           }
           hasScrobbledRef.current = false;
           scrobbleThresholdReachedRef.current = false;
-          // Set cooldown to prevent timeupdate from re-triggering crossfade
-          crossfadeAbortedAtRef.current = Date.now();
+          // Cooldown is stamped inside useCrossfade's abortCrossfade — no
+          // need to re-stamp here.
           nextSong();
         } else {
           console.log(`[XFADE] Crossfade aborted but song still playing — will advance naturally`);
-          // Stamp the cooldown so timeupdate doesn't immediately re-enter
-          // startCrossfade on the next tick. Without this, an autoplay-blocked
-          // abort thrashes the inactive deck dozens of times per second and
-          // never lets the current song reach onEnded → no scrobble, no history.
-          crossfadeAbortedAtRef.current = Date.now();
         }
       }
     },

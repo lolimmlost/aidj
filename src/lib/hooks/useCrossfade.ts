@@ -7,6 +7,7 @@ export interface UseCrossfadeOptions {
   getInactiveDeck: () => HTMLAudioElement | null;
   activeDeckRef: React.MutableRefObject<'A' | 'B'>;
   crossfadeInProgressRef: React.MutableRefObject<boolean>; // Shared ref from parent
+  crossfadeAbortedAtRef: React.MutableRefObject<number>; // Stamped on every abort; drives retry cooldown
   scheduleGainRamp: (deck: 'A' | 'B', target: number, durationSec: number, curve?: 'linear' | 'equalpower') => void;
   cancelGainRamp: (deck: 'A' | 'B') => void;
   setGainImmediate: (deck: 'A' | 'B', value: number) => void;
@@ -42,6 +43,7 @@ export function useCrossfade({
   getInactiveDeck,
   activeDeckRef,
   crossfadeInProgressRef, // Shared ref from parent
+  crossfadeAbortedAtRef,
   scheduleGainRamp,
   cancelGainRamp,
   setGainImmediate,
@@ -119,6 +121,10 @@ export function useCrossfade({
     // Helper to abort crossfade and reset state
     const abortCrossfade = (reason: string) => {
       console.warn(`⚠️ [XFADE] Aborting crossfade: ${reason}`);
+      // Stamp cooldown unconditionally so timeupdate doesn't immediately
+      // re-enter startCrossfade on the next tick. Without this, autoplay-
+      // blocked aborts thrash the inactive deck dozens of times per second.
+      crossfadeAbortedAtRef.current = Date.now();
       inactiveDeck.removeEventListener('canplaythrough', onCanPlayThrough);
       clearCrossfade();
       crossfadeInProgressRef.current = false;
