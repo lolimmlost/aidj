@@ -283,6 +283,21 @@ export function PlayerBar() {
       hasScrobbledRef.current = false;
       scrobbleThresholdReachedRef.current = false;
       nextSong();
+
+      // Queue mutations during the crossfade (addToQueueNext, AI DJ insertions,
+      // removals) can shift the crossfaded song off of currentSongIndex+1.
+      // nextSong() only increments by 1, so after advancing, playlist[currentSongIndex]
+      // may not match the song that's actually playing on the new active deck.
+      // If we don't correct this, useSongLoader will later load the mismatched
+      // song onto the active deck and interrupt playback.
+      const postState = useAudioStore.getState();
+      if (postState.playlist[postState.currentSongIndex]?.id !== song.id) {
+        const actualIndex = postState.playlist.findIndex(s => s.id === song.id);
+        if (actualIndex >= 0) {
+          console.log(`[XFADE] Playlist shifted during crossfade — correcting currentSongIndex ${postState.currentSongIndex} → ${actualIndex}`);
+          useAudioStore.setState({ currentSongIndex: actualIndex });
+        }
+      }
     },
     onCrossfadeAbort: (song, isLoadFailure) => {
       if (song) {
