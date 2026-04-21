@@ -7,13 +7,14 @@ export interface UseCrossfadeOptions {
   getInactiveDeck: () => HTMLAudioElement | null;
   activeDeckRef: React.MutableRefObject<'A' | 'B'>;
   crossfadeInProgressRef: React.MutableRefObject<boolean>; // Shared ref from parent
+  crossfadeAbortedAtRef: React.MutableRefObject<number>; // Stamped on every abort; drives retry cooldown
   scheduleGainRamp: (deck: 'A' | 'B', target: number, durationSec: number, curve?: 'linear' | 'equalpower') => void;
   cancelGainRamp: (deck: 'A' | 'B') => void;
   setGainImmediate: (deck: 'A' | 'B', value: number) => void;
   getGainValue: (deck: 'A' | 'B') => number;
   resumeContext: () => Promise<boolean>;
   onCrossfadeComplete: (nextSong: Song) => void;
-  onCrossfadeAbort: (nextSong: Song | null) => void;
+  onCrossfadeAbort: (nextSong: Song | null, isLoadFailure: boolean) => void;
   canPlayHandlerRef?: React.MutableRefObject<(() => void) | null>;
   errorHandlerRef?: React.MutableRefObject<((e: Event) => void) | null>;
   setActiveDeck: (deck: 'A' | 'B', reason: string, opts?: SetActiveDeckOptions) => boolean;
@@ -42,6 +43,7 @@ export function useCrossfade({
   getInactiveDeck,
   activeDeckRef,
   crossfadeInProgressRef, // Shared ref from parent
+  crossfadeAbortedAtRef,
   scheduleGainRamp,
   cancelGainRamp,
   setGainImmediate,
@@ -119,6 +121,10 @@ export function useCrossfade({
     // Helper to abort crossfade and reset state
     const abortCrossfade = (reason: string) => {
       console.warn(`⚠️ [XFADE] Aborting crossfade: ${reason}`);
+      // Stamp cooldown unconditionally so timeupdate doesn't immediately
+      // re-enter startCrossfade on the next tick. Without this, autoplay-
+      // blocked aborts thrash the inactive deck dozens of times per second.
+      crossfadeAbortedAtRef.current = Date.now();
       inactiveDeck.removeEventListener('canplaythrough', onCanPlayThrough);
       clearCrossfade();
       crossfadeInProgressRef.current = false;
@@ -147,7 +153,7 @@ export function useCrossfade({
         (activeDeck.currentTime >= activeDeck.duration - 0.5 || activeDeck.ended);
 
       if (isLoadFailure || songHasEnded) {
-        onCrossfadeAbortRef.current(nextSongData);
+        onCrossfadeAbortRef.current(nextSongData, isLoadFailure);
       }
     };
 
@@ -276,18 +282,28 @@ export function useCrossfade({
 
     inactiveDeck.addEventListener('canplaythrough', onCanPlayThrough);
 
-    // Timeout fallback in case canplaythrough doesn't fire
+    // Timeout fallback in case canplaythrough doesn't fire.
+    // 10s gives cold-cache / first-byte-slow Navidrome streams room to reach
+    // a playable state after a shuffle. At the deadline, accept readyState >= 2
+    // (HAVE_CURRENT_DATA) — enough to start, with any remaining data buffering
+    // mid-ramp. A brief stutter is preferable to evicting a playable song.
     setTimeout(() => {
       if (!crossfadeInProgressRef.current || crossfadeCanPlayFiredRef.current) return;
       if (inactiveDeck.readyState >= 3) {
-        console.log(`[XFADE] Timeout fallback: forcing canplaythrough`);
+        console.log(`[XFADE] Timeout fallback (readyState=${inactiveDeck.readyState}): forcing canplaythrough`);
+        onCanPlayThrough();
+      } else if (inactiveDeck.readyState >= 2) {
+        console.warn(`[XFADE] Timeout fallback (readyState=${inactiveDeck.readyState}, HAVE_CURRENT_DATA): starting playback anyway — may stutter`);
         onCanPlayThrough();
       } else {
         abortCrossfade('timeout - deck never became ready');
       }
-    }, 5000);
+    }, 10000);
 
-    // Safety timeout: if crossfade is still in progress after duration + 5s
+    // Safety timeout: if crossfade is still in progress after duration + 10s.
+    // Must exceed the 10s canplaythrough window above so they don't race —
+    // a short xfadeDuration (e.g. 3s) would otherwise fire safety first and
+    // misclassify a still-loading deck as a hard failure.
     setTimeout(() => {
       if (!crossfadeInProgressRef.current) return;
 
@@ -299,7 +315,7 @@ export function useCrossfade({
         console.warn(`⚠️ [XFADE] Safety timeout: incoming deck not playing - aborting`);
         abortCrossfade('safety timeout exceeded');
       }
-    }, (xfadeDuration + 5) * 1000);
+    }, (xfadeDuration + 10) * 1000);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- onCrossfadeComplete/onCrossfadeAbort accessed via stable refs
   }, [getActiveDeck, getInactiveDeck, activeDeckRef, crossfadeInProgressRef, clearCrossfade, canPlayHandlerRef, errorHandlerRef, scheduleGainRamp, cancelGainRamp, setGainImmediate, setActiveDeck, resumeContext]);
 

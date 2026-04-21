@@ -1,9 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState, useRef, useEffect } from 'react';
 import { getArtists } from '@/lib/services/navidrome';
-import { Users, Search, Play, Music } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+import { Users, Play, Music, Search as SearchIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from '@tanstack/react-router';
@@ -16,7 +14,7 @@ import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar'
 
 const PAGE_SIZE = 60;
 
-function LazyArtistAvatar({
+export function LazyArtistAvatar({
   artistId,
   name,
   savedImageUrl,
@@ -100,7 +98,7 @@ interface ArtistCardProps {
   savedImageUrl?: string;
 }
 
-function ArtistCard({ artist, savedImageUrl }: ArtistCardProps) {
+export function ArtistCard({ artist, savedImageUrl }: ArtistCardProps) {
   const { playSong } = useAudioStore();
 
   const handlePlay = async (e: React.MouseEvent) => {
@@ -136,11 +134,12 @@ function ArtistCard({ artist, savedImageUrl }: ArtistCardProps) {
             savedImageUrl={savedImageUrl}
           />
         </div>
-        {/* Hover Play Button */}
+        {/* Play Button — always tappable on touch, hover-reveal on desktop */}
         <Button
           size="icon"
-          className="absolute bottom-1 right-1 w-9 h-9 rounded-full shadow-lg shadow-primary/30 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0"
+          className="absolute bottom-1 right-1 w-9 h-9 rounded-full shadow-lg shadow-primary/30 transition-all duration-200 opacity-100 md:opacity-0 md:translate-y-1 md:group-hover:opacity-100 md:group-hover:translate-y-0"
           onClick={handlePlay}
+          aria-label={`Play ${artist.name}`}
         >
           <Play className="h-4 w-4 fill-current" />
         </Button>
@@ -171,10 +170,16 @@ function ArtistCardSkeleton() {
   );
 }
 
-const FILTERS = ['All', 'Most Albums', 'A-Z'] as const;
+const FILTERS = ['Most Albums', 'A-Z'] as const;
+
+type ArtistWithCounts = {
+  id: string;
+  name: string;
+  albumCount?: number;
+  songCount?: number;
+};
 
 export function ArtistsList() {
-  const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<string>('A-Z');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -184,7 +189,7 @@ export function ArtistsList() {
     error,
   } = useQuery({
     queryKey: ['artists'],
-    queryFn: () => getArtists(0, 5000),
+    queryFn: () => getArtists(0, 10000),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -200,10 +205,10 @@ export function ArtistsList() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Filter
-  let filtered = search
-    ? artists.filter((a) => a.name.toLowerCase().includes(search.toLowerCase()))
-    : artists;
+  // Filter out ghost artists (no albums and no songs — tag-only residue)
+  let filtered = (artists as ArtistWithCounts[]).filter(
+    (a) => (a.albumCount ?? 0) > 0 || (a.songCount ?? 0) > 0
+  );
 
   // Sort
   if (activeFilter === 'A-Z') {
@@ -216,11 +221,6 @@ export function ArtistsList() {
 
   const visible = filtered.slice(0, visibleCount);
   const hasMore = visibleCount < filtered.length;
-
-  const handleSearchChange = (value: string) => {
-    setSearch(value);
-    setVisibleCount(PAGE_SIZE);
-  };
 
   if (error) {
     return (
@@ -240,23 +240,14 @@ export function ArtistsList() {
   return (
     <PageLayout
       title="Artists"
-      description={`${filtered.length} artists in your library`}
+      description={isLoading ? 'Loading…' : `${filtered.length} artists in your library`}
       icon={<Users className="h-5 w-5" />}
       backLink="/dashboard"
       backLabel="Dashboard"
     >
-      {/* Search + Filters */}
+      {/* Filters + Search link */}
       <PageSection>
-        <div className="space-y-3">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search artists..."
-              value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-9 h-10 bg-card/50 backdrop-blur-sm border-border/50 rounded-xl text-sm"
-            />
-          </div>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex gap-2 flex-wrap">
             {FILTERS.map((f) => (
               <button
@@ -273,6 +264,13 @@ export function ArtistsList() {
               </button>
             ))}
           </div>
+          <Link
+            to="/library/search"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <SearchIcon className="h-3.5 w-3.5" />
+            Search library
+          </Link>
         </div>
       </PageSection>
 
@@ -287,19 +285,8 @@ export function ArtistsList() {
         ) : visible.length === 0 ? (
           <EmptyState
             title="No artists found"
-            description={
-              search
-                ? `No results for "${search}"`
-                : 'Check your library configuration.'
-            }
+            description="Check your library configuration."
             icon={<Music className="h-6 w-6" />}
-            action={
-              search && (
-                <Button variant="outline" onClick={() => setSearch('')}>
-                  Clear Search
-                </Button>
-              )
-            }
           />
         ) : (
           <>

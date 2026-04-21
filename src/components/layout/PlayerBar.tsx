@@ -36,7 +36,7 @@ import { ResumePlaybackPrompt } from './ResumePlaybackPrompt';
 import { FullscreenPlayer } from './FullscreenPlayer';
 
 // Import extracted hooks
-import { useDualDeckAudio, hasRealSong, Song } from '@/lib/hooks/useDualDeckAudio';
+import { useDualDeckAudio, hasRealSong, Song, SILENT_AUDIO_DATA_URL } from '@/lib/hooks/useDualDeckAudio';
 import { useCrossfade } from '@/lib/hooks/useCrossfade';
 import { useStallRecovery } from '@/lib/hooks/useStallRecovery';
 import { useMediaSession } from '@/lib/hooks/useMediaSession';
@@ -248,6 +248,7 @@ export function PlayerBar() {
     getInactiveDeck,
     activeDeckRef,
     crossfadeInProgressRef, // Pass the shared ref
+    crossfadeAbortedAtRef,
     scheduleGainRamp,
     cancelGainRamp,
     setGainImmediate,
@@ -282,33 +283,68 @@ export function PlayerBar() {
       hasScrobbledRef.current = false;
       scrobbleThresholdReachedRef.current = false;
       nextSong();
+
+      // Queue mutations during the crossfade (addToQueueNext, AI DJ insertions,
+      // removals) can shift the crossfaded song off of currentSongIndex+1.
+      // nextSong() only increments by 1, so after advancing, playlist[currentSongIndex]
+      // may not match the song that's actually playing on the new active deck.
+      // If we don't correct this, useSongLoader will later load the mismatched
+      // song onto the active deck and interrupt playback.
+      const postState = useAudioStore.getState();
+      if (postState.playlist[postState.currentSongIndex]?.id !== song.id) {
+        const actualIndex = postState.playlist.findIndex(s => s.id === song.id);
+        if (actualIndex >= 0) {
+          console.log(`[XFADE] Playlist shifted during crossfade — correcting currentSongIndex ${postState.currentSongIndex} → ${actualIndex}`);
+          useAudioStore.setState({ currentSongIndex: actualIndex });
+        }
+      }
     },
-    onCrossfadeAbort: (song) => {
+    onCrossfadeAbort: (song, isLoadFailure) => {
       if (song) {
         const state = useAudioStore.getState();
         const activeDeck = getActiveDeck();
         const songHasEnded = activeDeck && activeDeck.duration > 0 &&
           (activeDeck.currentTime >= activeDeck.duration - 0.5 || activeDeck.ended);
 
-        // Remove the failed song from queue so it's not retried
-        const nextIndex = state.currentSongIndex + 1;
-        if (nextIndex < state.playlist.length && state.playlist[nextIndex]?.id === song.id) {
-          const songName = song.name || song.title || 'Unknown';
-          console.log(`[XFADE] Removing unavailable song "${songName}" from queue (index ${nextIndex})`);
-          toast.warning(`Skipped "${songName}" — unavailable`);
-          state.removeFromQueue(nextIndex);
+        // Only evict when the song genuinely can't load. Autoplay-policy rejects
+        // or user pauses leave the song in the queue so useSongLoader can retry;
+        // its own 10s timeout handles truly broken files.
+        if (isLoadFailure) {
+          const nextIndex = state.currentSongIndex + 1;
+          if (nextIndex < state.playlist.length && state.playlist[nextIndex]?.id === song.id) {
+            const songName = song.name || song.title || 'Unknown';
+            console.log(`[XFADE] Removing unavailable song "${songName}" from queue (index ${nextIndex})`);
+            toast.warning(`Skipped "${songName}" — unavailable`);
+            state.removeFromQueue(nextIndex);
+          }
         }
 
         if (songHasEnded) {
           console.log(`[XFADE] Crossfade aborted & song ended — advancing to next`);
+          // Record the outgoing song: onEnded will be suppressed by the
+          // abort cooldown below, so this is our only chance to scrobble it.
+          const outgoingSong = currentSong;
+          const outgoingSongId = currentSongIdRef.current;
+          const snapshot = playbackSnapshotRef.current;
+          const outgoingPlayDuration = snapshot.songId === outgoingSongId ? snapshot.currentTime : activeDeck?.currentTime;
+          const outgoingSongDuration = snapshot.songId === outgoingSongId ? snapshot.duration : activeDeck?.duration;
+          if (outgoingSong && outgoingSongId && !hasScrobbledRef.current) {
+            hasScrobbledRef.current = true;
+            scrobbleSong(outgoingSongId, true)
+              .then(() => {
+                queryClient.invalidateQueries({ queryKey: ['most-played-songs'] });
+                queryClient.invalidateQueries({ queryKey: ['top-artists'] });
+              })
+              .catch(console.error);
+            recordListeningHistory(outgoingSong, outgoingSongId, outgoingPlayDuration, outgoingSongDuration);
+          }
           hasScrobbledRef.current = false;
           scrobbleThresholdReachedRef.current = false;
-          // Set cooldown to prevent timeupdate from re-triggering crossfade
-          crossfadeAbortedAtRef.current = Date.now();
+          // Cooldown is stamped inside useCrossfade's abortCrossfade — no
+          // need to re-stamp here.
           nextSong();
         } else {
-          console.log(`[XFADE] Crossfade aborted but song still playing — removed failed song, will advance naturally`);
-          // Don't set cooldown — onEnded needs to fire when the current song finishes
+          console.log(`[XFADE] Crossfade aborted but song still playing — will advance naturally`);
         }
       }
     },
@@ -462,6 +498,35 @@ export function PlayerBar() {
         }
         resumeContext();
 
+        // Prime the inactive deck against autoplay policy. Browsers require
+        // a user gesture on each HTMLAudioElement before .play() can run
+        // autonomously; without this, every crossfade's inactiveDeck.play()
+        // is rejected with NotAllowedError and the ramp never starts.
+        // PWA visibility loss can revoke prior authorization, so re-prime on
+        // every user-initiated play rather than just on first gesture.
+        const inactive = getInactiveDeck();
+        if (inactive && inactive !== audio) {
+          const originalSrc = inactive.getAttribute('src');
+          // A play() on an element with no src resolves immediately on some
+          // browsers but still registers the gesture. Using a silent data URL
+          // is the safest portable prime.
+          if (!originalSrc) {
+            inactive.src = SILENT_AUDIO_DATA_URL;
+          }
+          inactive.play()
+            .then(() => {
+              inactive.pause();
+              // Restore clean state — only strip the silent source we just set.
+              if (!originalSrc) {
+                inactive.removeAttribute('src');
+                inactive.load();
+              }
+            })
+            .catch(() => {
+              // Priming is best-effort; don't block the active deck's play.
+            });
+        }
+
         audio.play().catch((e) => {
           setIsLoading(false);
           console.error('Play failed:', e);
@@ -469,7 +534,7 @@ export function PlayerBar() {
       }
       setIsPlaying(!isPlaying);
     }
-  }, [isPlaying, setIsPlaying, getActiveDeck, webAudioInitialized, deckARef, deckBRef, initializeGraph, setMasterVolume, volume, resumeContext]);
+  }, [isPlaying, setIsPlaying, getActiveDeck, getInactiveDeck, webAudioInitialized, deckARef, deckBRef, initializeGraph, setMasterVolume, volume, resumeContext]);
 
   const seek = useCallback((time: number) => {
     const audio = getActiveDeck();

@@ -12,7 +12,7 @@ import type {
 
 export async function getArtists(start: number = 0, limit: number = 1000): Promise<Artist[]> {
   try {
-    const endpoint = `/api/artist?_start=${start}&_end=${start + limit - 1}`;
+    const endpoint = `/api/artist?_start=${start}&_end=${start + limit}`;
     const data = await apiFetch(endpoint) as Artist[];
     return data || [];
   } catch (error) {
@@ -38,7 +38,7 @@ export async function searchArtistsByName(query: string, limit: number = 20): Pr
       return artists.map((a) => ({ id: a.id, name: a.name }));
     }
 
-    const nativeEndpoint = `/api/artist?name=${encodeURIComponent(query)}&_start=0&_end=${limit - 1}`;
+    const nativeEndpoint = `/api/artist?name=${encodeURIComponent(query)}&_start=0&_end=${limit}`;
     const nativeResults = await apiFetch(nativeEndpoint) as Artist[];
     return nativeResults || [];
   } catch (error) {
@@ -75,7 +75,7 @@ export async function getArtistsWithDetails(start: number = 0, limit: number = 1
 
 export async function getAlbums(artistId: string, start: number = 0, limit: number = 50): Promise<Album[]> {
   try {
-    const data = await apiFetch(`/api/album?artist_id=${artistId}&_start=${start}&_end=${start + limit - 1}`) as Album[];
+    const data = await apiFetch(`/api/album?artist_id=${artistId}&_start=${start}&_end=${start + limit}`) as Album[];
     return data || [];
   } catch (error) {
     throw new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch albums: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -95,7 +95,7 @@ export async function getAlbumDetail(id: string): Promise<AlbumDetail> {
 
 export async function getSongs(albumId: string, start: number = 0, limit: number = 50): Promise<Song[]> {
   try {
-    const data = await apiFetch(`/api/song?album_id=${albumId}&_start=${start}&_end=${start + limit - 1}`) as RawSong[];
+    const data = await apiFetch(`/api/song?album_id=${albumId}&_start=${start}&_end=${start + limit}`) as RawSong[];
     const songs = data.map((song) => ({
       ...song,
       url: `/api/navidrome/stream/${song.id}`,
@@ -108,7 +108,7 @@ export async function getSongs(albumId: string, start: number = 0, limit: number
 
 export async function getSongsByArtist(artistId: string, start: number = 0, limit: number = 100): Promise<Song[]> {
   try {
-    const data = await apiFetch(`/api/song?artist_id=${artistId}&_start=${start}&_end=${start + limit - 1}&_sort=title&_order=ASC`) as RawSong[];
+    const data = await apiFetch(`/api/song?artist_id=${artistId}&_start=${start}&_end=${start + limit}&_sort=title&_order=ASC`) as RawSong[];
     const songs = data.map((song) => ({
       ...song,
       url: `/api/navidrome/stream/${song.id}`,
@@ -144,7 +144,7 @@ export async function getSongsByIds(songIds: string[]): Promise<Song[]> {
 
 export async function getSongsGlobal(start: number = 0, limit: number = 50): Promise<Song[]> {
   try {
-    const data = await apiFetch(`/api/song?_start=${start}&_end=${start + limit - 1}`) as RawSong[];
+    const data = await apiFetch(`/api/song?_start=${start}&_end=${start + limit}`) as RawSong[];
     const songs = data.map((song) => ({
       ...song,
       url: `/api/navidrome/stream/${song.id}`,

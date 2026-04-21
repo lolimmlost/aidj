@@ -82,9 +82,16 @@ export const Route = createFileRoute("/api/navidrome/stream/$id")({
     headers.set('Accept', '*/*');
 
     try {
+      // Pipe the client's AbortSignal to the upstream fetch so that when the
+      // browser cancels a stream (e.g. inactive deck src cleared on crossfade
+      // abort, or song skip) the connection to Navidrome is released instead
+      // of sitting open until the file finishes. After many songs these
+      // orphaned connections exhaust Navidrome's pool and new streams stop
+      // reaching readyState >= 3 within the 5s canplaythrough window.
       const response = await fetch(streamUrl.toString(), {
         method: 'GET',
         headers,
+        signal: request.signal,
       });
 
       console.log('Navidrome response:', response.status, response.statusText);
@@ -130,6 +137,11 @@ export const Route = createFileRoute("/api/navidrome/stream/$id")({
       });
       
     } catch (error) {
+      // Client-cancelled requests are expected (crossfade abort, skip) — don't
+      // pollute logs or treat them as server errors.
+      if (error instanceof Error && error.name === 'AbortError') {
+        return new Response(null, { status: 499 });
+      }
       console.error('Proxy fetch error:', error);
       return new Response(`Proxy error: ${String(error)}`, { status: 500 });
     }
