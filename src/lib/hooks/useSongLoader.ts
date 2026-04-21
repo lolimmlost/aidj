@@ -338,7 +338,21 @@ export function useSongLoader({
         // Safety timeout: skip song if it doesn't load within 10 seconds.
         // Browser native error events can take 30+ seconds; this prevents
         // long silences that cause AudioContext suspension on mobile.
+        //
+        // Stale-timeout guard: if a crossfade completed in the intervening 10s,
+        // completeCrossfade reset this deck's src (readyState → 0) and moved
+        // playback to the other deck. Without these guards we'd evict the now-
+        // playing song at the store's currentSongIndex based on a stale deck.
         loadTimeoutId = setTimeout(() => {
+          if (audio !== getActiveDeck()) {
+            console.log(`[PLAYER] Load timeout fired on stale deck (crossfade swapped) — ignoring`);
+            return;
+          }
+          const liveState = useAudioStore.getState();
+          if (liveState.playlist[liveState.currentSongIndex]?.id !== song.id) {
+            console.log(`[PLAYER] Load timeout fired for superseded song — ignoring`);
+            return;
+          }
           if (audio.readyState < 2) {
             console.warn(`[PLAYER] Song load timeout (10s) — readyState=${audio.readyState}`);
             audio.removeEventListener('canplay', handleCanPlay);
