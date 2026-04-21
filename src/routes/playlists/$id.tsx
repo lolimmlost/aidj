@@ -25,13 +25,16 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Radio } from 'lucide-react';
 import { PageLayout } from '@/components/ui/page-layout';
 import { useAudioStore } from '@/lib/stores/audio';
 import { playPlaylist, loadPlaylistIntoQueue } from '@/lib/utils/playlist-helpers';
 import { cn } from '@/lib/utils';
 import { CollaborativePlaylistPanel } from '@/components/playlists/collaboration';
+import { StartRadioButton } from '@/components/radio/StartRadioButton';
 import {
   DndContext,
   closestCenter,
@@ -91,6 +94,7 @@ interface SongRowProps {
   onAddSongToQueue: (song: PlaylistSong, position: 'now' | 'next' | 'end') => void;
   onRemoveSong: (songId: string) => void;
   onToggleStar: (songId: string, currentlyStarred: boolean) => void;
+  onStartRadioFromSong: (songId: string) => void;
   isRemovePending: boolean;
 }
 
@@ -154,6 +158,7 @@ function SongRowContent({
   onAddSongToQueue,
   onRemoveSong,
   onToggleStar,
+  onStartRadioFromSong,
   isRemovePending,
   dragHandle,
 }: SongRowProps & { dragHandle?: JSX.Element }) {
@@ -293,6 +298,15 @@ function SongRowContent({
             <Plus className="mr-2 h-4 w-4" />
             Add to End
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={(e) => { e.stopPropagation(); onStartRadioFromSong(song.songId); }}
+            className="min-h-[40px]"
+          >
+            <Radio className="mr-2 h-4 w-4" />
+            Start Radio from Song
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={(e) => { e.stopPropagation(); onRemoveSong(song.songId); }}
             disabled={isRemovePending}
@@ -377,6 +391,7 @@ interface VirtualizedPlaylistSongsProps {
   onAddSongToQueue: (song: PlaylistSong, position: 'now' | 'next' | 'end') => void;
   onRemoveSong: (songId: string) => void;
   onToggleStar: (songId: string, currentlyStarred: boolean) => void;
+  onStartRadioFromSong: (songId: string) => void;
   isRemovePending: boolean;
 }
 
@@ -390,6 +405,7 @@ function PlaylistSongsList({
   onAddSongToQueue,
   onRemoveSong,
   onToggleStar,
+  onStartRadioFromSong,
   isRemovePending,
 }: VirtualizedPlaylistSongsProps) {
   // Disable DnD on mobile — TouchSensor intercepts taps and wastes space
@@ -410,6 +426,7 @@ function PlaylistSongsList({
     onAddSongToQueue,
     onRemoveSong,
     onToggleStar,
+    onStartRadioFromSong,
     isRemovePending,
   };
 
@@ -473,7 +490,7 @@ function PlaylistDetailPage() {
   const { user } = Route.useRouteContext();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { setPlaylist, playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress, currentSong, isPlaying } = useAudioStore();
+  const { setPlaylist, playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress, currentSong, isPlaying, startRadio } = useAudioStore();
 
   // Collaboration panel state
   const [isCollaborationPanelOpen, setIsCollaborationPanelOpen] = useState(false);
@@ -935,6 +952,15 @@ function PlaylistDetailPage() {
             <Shuffle className="h-4 w-4" />
           </Button>
 
+          {/* Start Radio from this playlist */}
+          <StartRadioButton
+            seed={{ kind: 'playlist', playlistId: id }}
+            label="Start Radio"
+            size="icon"
+            variant="ghost"
+            className="rounded-full h-8 w-8 sm:h-9 sm:w-9 p-0"
+          />
+
           {/* More Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1052,6 +1078,7 @@ function PlaylistDetailPage() {
                 onAddSongToQueue={handleAddSongToQueue}
                 onRemoveSong={handleRemoveSong}
                 onToggleStar={handleToggleStar}
+                onStartRadioFromSong={(songId) => { void startRadio({ kind: 'song', songId }); }}
                 isRemovePending={removeSongMutation.isPending}
               />
             )}

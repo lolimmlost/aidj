@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { getSongs, getAlbumDetail, getArtistDetail } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
-import { Loader2, Play, Plus, ListPlus, Disc } from 'lucide-react';
+import { Loader2, Play, Plus, ListPlus, Disc, Radio } from 'lucide-react';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from '@/lib/toast';
 import { PageLayout } from '@/components/ui/page-layout';
+import { StartRadioButton } from '@/components/radio/StartRadioButton';
 
 /** Album cover with Navidrome proxy fallback, then gradient placeholder */
 function AlbumCoverArt({ albumId, size = 300 }: { albumId: string; size?: number }) {
@@ -52,7 +53,7 @@ export const Route = createFileRoute('/library/artists/$id/albums/$albumId')({
 
 function AlbumSongs() {
   const { id: artistId, albumId } = useParams({ from: '/library/artists/$id/albums/$albumId' }) as { id: string; albumId: string };
-  const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress } = useAudioStore();
+  const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress, startRadio } = useAudioStore();
 
   // Fetch album details
   const {
@@ -195,6 +196,14 @@ function AlbumSongs() {
               {album?.genre && (
                 <p className="text-xs text-muted-foreground mt-1">{album.genre}</p>
               )}
+              <div className="mt-3 flex justify-center sm:justify-start">
+                <StartRadioButton
+                  seed={{ kind: 'album', albumId }}
+                  label="Start Radio"
+                  size="sm"
+                  variant="outline"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -282,6 +291,16 @@ function AlbumSongs() {
                     >
                       <Plus className="mr-2 h-4 w-4" />
                       Add to End
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void startRadio({ kind: 'song', songId: song.id });
+                      }}
+                      className="min-h-[44px]"
+                    >
+                      <Radio className="mr-2 h-4 w-4" />
+                      Start Radio from Song
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
