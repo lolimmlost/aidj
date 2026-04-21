@@ -12,12 +12,26 @@ import type { Song } from '@/lib/types/song';
 // Mocks — must be declared before importing the module under test.
 // ---------------------------------------------------------------------------
 
-// Chainable + thenable mock: `.where()` returns a thenable with `.groupBy()`
-// so both `await db.select().from().where()` and
-// `await db.select().from().where().groupBy()` resolve to [].
-function thenableChain(): Promise<never[]> & { groupBy: () => Promise<never[]> } {
+// Chainable + thenable mock. `.where()` returns a thenable that also exposes
+// `.groupBy()`, `.orderBy()`, and `.limit()` so any of these chains resolve
+// to `[]`:
+//   await db.select().from().where()
+//   await db.select().from().where().groupBy()
+//   await db.select().from().where().orderBy().limit()
+type QueryChain = Promise<never[]> & {
+  groupBy: () => QueryChain;
+  orderBy: () => QueryChain;
+  limit: () => QueryChain;
+};
+
+function thenableChain(): QueryChain {
   const p = Promise.resolve([] as never[]);
-  return Object.assign(p, { groupBy: () => Promise.resolve([] as never[]) });
+  const chain = Object.assign(p, {
+    groupBy: () => thenableChain(),
+    orderBy: () => thenableChain(),
+    limit: () => thenableChain(),
+  }) as QueryChain;
+  return chain;
 }
 
 vi.mock('@/lib/db', () => ({
@@ -33,6 +47,12 @@ vi.mock('@/lib/services/navidrome', () => ({
   getSongs: vi.fn(),
   getSongsByArtist: vi.fn(),
   getSongsByIds: vi.fn(),
+  getStarredSongs: vi.fn().mockResolvedValue([]),
+  searchArtistsByName: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('@/lib/services/navidrome-users', () => ({
+  getNavidromeUserCreds: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('@/lib/services/blended-recommendation-scorer', () => ({

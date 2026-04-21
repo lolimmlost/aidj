@@ -436,6 +436,7 @@ export async function calculateFullUserProfile(
   compoundScores: number;
   artistAffinities: number;
   temporalPreferences: number;
+  artistCooccurrenceRows: number;
   likedSongsSync: { synced: number; unstarred: number };
 }> {
   console.log(`👤 [Profile] Starting full profile calculation for user ${userId}`);
@@ -478,13 +479,24 @@ export async function calculateFullUserProfile(
     console.error(`👤 [Profile] Failed to calculate temporal preferences:`, error);
   }
 
+  // Step 5: Rebuild artist co-occurrence graph
+  console.log(`👤 [Profile] Step 5/5: Computing artist co-occurrence graph...`);
+  let cooccurrenceRows = 0;
+  try {
+    const { computeForUser: computeCooccurrence } = await import('./artist-cooccurrence');
+    cooccurrenceRows = await computeCooccurrence(userId, daysBack * 6); // 90 days, same as artist affinity
+  } catch (error) {
+    console.error(`👤 [Profile] Failed to compute artist co-occurrence:`, error);
+  }
+
   const elapsed = Date.now() - startTime;
-  console.log(`👤 [Profile] Complete in ${elapsed}ms: ${compoundCount} compound scores, ${artistCount} artist affinities, ${temporalCount} temporal prefs, ${likedResult.synced} liked songs synced`);
+  console.log(`👤 [Profile] Complete in ${elapsed}ms: ${compoundCount} compound scores, ${artistCount} artist affinities, ${temporalCount} temporal prefs, ${cooccurrenceRows} co-occurrence rows, ${likedResult.synced} liked songs synced`);
 
   return {
     compoundScores: compoundCount,
     artistAffinities: artistCount,
     temporalPreferences: temporalCount,
+    artistCooccurrenceRows: cooccurrenceRows,
     likedSongsSync: likedResult,
   };
 }
