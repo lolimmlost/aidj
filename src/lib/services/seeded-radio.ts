@@ -29,11 +29,13 @@ import {
   getSongsByArtist,
   getSongsByIds,
   getStarredSongs,
+  searchArtistsByName,
 } from '@/lib/services/navidrome';
 import { getNavidromeUserCreds } from '@/lib/services/navidrome-users';
 import type { SubsonicSong } from '@/lib/services/navidrome/types';
 import type { Song } from '@/lib/types/song';
 import { getBlendedRecommendations } from '@/lib/services/blended-recommendation-scorer';
+import { getRelatedArtists } from '@/lib/services/artist-cooccurrence';
 
 // ============================================================================
 // Types
@@ -411,6 +413,40 @@ async function generateFromCollection(
   };
 }
 
+/**
+ * For the user's top co-occurring artists with the seed, look each up in
+ * Navidrome and fetch a handful of tracks. Best-effort — silently skips
+ * artists that aren't findable. Returns up to `maxTracks` songs total.
+ */
+async function fetchCoOccurrenceTracks(
+  userId: string,
+  seedArtistName: string,
+  maxArtists: number,
+  tracksPerArtist: number,
+  maxTracks: number,
+): Promise<Song[]> {
+  const related = await getRelatedArtists(userId, seedArtistName, maxArtists);
+  if (related.length === 0) return [];
+
+  const perArtistTracks = await Promise.all(
+    related.map(async (r) => {
+      try {
+        const hits = await searchArtistsByName(r.artist, 1);
+        if (hits.length === 0) return [] as Song[];
+        const songs = await getSongsByArtist(hits[0].id, 0, tracksPerArtist);
+        return songs;
+      } catch (err) {
+        console.warn(`[seeded-radio] co-occurrence lookup failed for ${r.artist}:`, err);
+        return [] as Song[];
+      }
+    }),
+  );
+
+  const flat: Song[] = [];
+  for (const row of perArtistTracks) flat.push(...row);
+  return flat.slice(0, maxTracks);
+}
+
 async function generateFromArtist(
   userId: string,
   artistId: string,
@@ -431,6 +467,17 @@ async function generateFromArtist(
 
   // Artist catalog slice — sampled randomly (no weighting, keeps it fresh).
   const artistSlice = sample(catalog, Math.min(catalogTarget + 5, catalog.length));
+
+  // Kick off co-occurrence lookup in parallel with the scorer.
+  // Top 5 co-occurring artists × 3 tracks each, capped at scorerTarget so
+  // we never fully crowd out the scorer's broader discovery.
+  const coocPromise = fetchCoOccurrenceTracks(
+    userId,
+    artistName,
+    5,
+    3,
+    Math.max(0, Math.floor(scorerTarget / 2)),
+  );
 
   // Scorer input: 3 seeds from catalog, exclude seed artist from results
   // so we get "similar artists" rather than more catalog.
@@ -454,7 +501,15 @@ async function generateFromArtist(
       if (row[i]) scorerMerged.push(row[i]);
     }
   }
-  let scorerSlice = dedupe(scorerMerged);
+
+  // Prepend co-occurrence tracks so they get priority in the adjacent pool.
+  // The interleave + diversity + recency cap downstream keep the mix honest.
+  const coocTracks = await coocPromise;
+  const coocFiltered = coocTracks.filter(
+    (s) => (s.artist ?? '').toLowerCase() !== artistName.toLowerCase(),
+  );
+
+  let scorerSlice = dedupe([...coocFiltered, ...scorerMerged]);
   scorerSlice = enforceArtistDiversity(scorerSlice);
 
   // Interleave: start with an artist track, then alternate to avoid clustering.
