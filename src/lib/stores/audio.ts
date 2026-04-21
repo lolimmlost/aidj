@@ -7,6 +7,7 @@ import { getDeviceInfo } from '@/lib/utils/device';
 import { usePreferencesStore } from './preferences';
 import { toast } from '@/lib/toast';
 import { shuffleSongs } from '@/lib/utils/shuffle-scoring';
+import type { SeededRadioSeed, ArtistVariety } from '@/lib/services/seeded-radio';
 
 // Client-side helper functions (moved from ai-dj.ts to avoid server imports)
 function checkQueueThreshold(
@@ -106,6 +107,9 @@ interface AudioState {
   // Transient: radio session play counter for profile refresh trigger (Story 9.3)
   radioSessionPlayCount: number;
   isRadioSession: boolean;
+  // Seeded radio (non-persisted): the seed and variety used for the current session
+  radioSeed: SeededRadioSeed | null;
+  radioVariety: ArtistVariety;
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
@@ -158,6 +162,9 @@ interface AudioState {
   // Radio session actions (Story 9.3)
   incrementRadioPlayCount: () => void;
   setIsRadioSession: (isRadio: boolean) => void;
+  // Seeded radio
+  startRadio: (seed: SeededRadioSeed, variety?: ArtistVariety) => Promise<void>;
+  saveRadioAsPlaylist: (name: string) => Promise<{ playlistId: string; name: string } | null>;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -218,6 +225,8 @@ export const useAudioStore = create<AudioState>()(
     _rehydratedCurrentTime: 0,
     radioSessionPlayCount: 0,
     isRadioSession: false,
+    radioSeed: null,
+    radioVariety: 'medium',
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -1750,6 +1759,73 @@ export const useAudioStore = create<AudioState>()(
     })),
 
     setIsRadioSession: (isRadio: boolean) => set({ isRadioSession: isRadio }),
+
+    startRadio: async (seed: SeededRadioSeed, variety: ArtistVariety = 'medium') => {
+      set({ aiDJUserActionInProgress: true });
+      try {
+        const res = await fetch('/api/radio/seeded', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ seed, variety }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.message || `Failed to start radio (${res.status})`);
+        }
+        const json = await res.json();
+        const songs: Song[] = json?.data?.songs ?? [];
+        const label: string = json?.data?.seedInfo?.label ?? 'Radio';
+        if (songs.length === 0) {
+          toast.warning('No songs found for this radio seed');
+          return;
+        }
+        get().setPlaylist(songs);
+        set({
+          isPlaying: true,
+          isRadioSession: true,
+          radioSeed: seed,
+          radioVariety: variety,
+          radioSessionPlayCount: 0,
+        });
+        toast.success(`Radio started — ${label}`);
+      } catch (err) {
+        console.error('[startRadio] failed:', err);
+        toast.error(err instanceof Error ? err.message : 'Failed to start radio');
+      } finally {
+        setTimeout(() => set({ aiDJUserActionInProgress: false }), 2000);
+      }
+    },
+
+    saveRadioAsPlaylist: async (name: string) => {
+      const state = get();
+      const songIds = state.playlist.map((s) => s.id).filter(Boolean);
+      if (songIds.length === 0) {
+        toast.warning('Queue is empty — nothing to save');
+        return null;
+      }
+      try {
+        const res = await fetch('/api/radio/save-as-playlist', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name, songIds }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.message || `Failed to save playlist (${res.status})`);
+        }
+        const json = await res.json();
+        const playlistId: string | undefined = json?.data?.playlistId;
+        const savedName: string = json?.data?.name ?? name;
+        toast.success(`Saved as "${savedName}"`);
+        return playlistId ? { playlistId, name: savedName } : null;
+      } catch (err) {
+        console.error('[saveRadioAsPlaylist] failed:', err);
+        toast.error(err instanceof Error ? err.message : 'Failed to save playlist');
+        return null;
+      }
+    },
   }),
   {
     name: 'audio-player-storage',
@@ -1780,6 +1856,8 @@ export const useAudioStore = create<AudioState>()(
         state.songsPlayedSinceLastRec = 0;
         state.radioSessionPlayCount = 0;
         state.isRadioSession = false;
+        state.radioSeed = null;
+        state.radioVariety = 'medium';
         state.aiQueuedSongIds = new Set<string>();
         state.autoplayIsLoading = false;
         state.autoplayTransitionActive = false;
