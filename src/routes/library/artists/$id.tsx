@@ -21,6 +21,7 @@ import {
 import { toast } from '@/lib/toast';
 import { useArtistMetadata } from '@/lib/hooks/useArtistMetadata';
 import { ArtistMetadataHero } from '@/components/library/ArtistMetadataHero';
+import { StartRadioButton } from '@/components/radio/StartRadioButton';
 import { cn } from '@/lib/utils';
 import { getArtistGradient } from '@/lib/utils/artist-avatar';
 
@@ -319,6 +320,13 @@ function ArtistDetail() {
                   >
                     <Shuffle className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Shuffle All
                   </Button>
+                  <StartRadioButton
+                    seed={{ kind: 'artist', artistId: id }}
+                    label="Start Radio"
+                    size="sm"
+                    variant="outline"
+                    className="rounded-full gap-1.5 px-3 sm:px-4 sm:h-10 sm:text-sm border-border/50 bg-card/30 backdrop-blur-sm"
+                  />
                   <Button
                     variant="outline"
                     size="icon"
