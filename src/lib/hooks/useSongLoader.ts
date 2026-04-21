@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
 import { scrobbleSong } from '@/lib/services/navidrome';
 import { toast } from '@/lib/toast';
@@ -68,6 +68,10 @@ export function useSongLoader({
   setCurrentTime,
   clearCrossfade,
 }: UseSongLoaderOptions): void {
+  // Track consecutive load timeouts separately from hard errors. Timeouts
+  // usually mean the library/network is slow, not that songs are unavailable —
+  // so we pause playback rather than nuking the queue.
+  const consecutiveTimeoutsRef = useRef(0);
   /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- loading state is set during async song load/recovery */
   useEffect(() => {
     if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {
@@ -254,7 +258,8 @@ export function useSongLoader({
           return;
         }
 
-        // Shared skip logic for error + load timeout
+        // Shared skip logic for hard errors only (not timeouts).
+        // Hard errors mean the file is genuinely unavailable.
         const skipUnavailableSong = (reason: string) => {
           setIsLoading(false);
           consecutiveFailuresRef.current++;
@@ -278,12 +283,32 @@ export function useSongLoader({
           }
         };
 
+        // Non-destructive handler for load timeouts.
+        // Timeouts usually indicate the library/network is slow, not that the
+        // song is missing — keep the song in the queue and pause playback after
+        // a few consecutive timeouts so the user can retry without losing it.
+        const handleLoadTimeout = () => {
+          setIsLoading(false);
+          consecutiveTimeoutsRef.current++;
+          console.warn(`[PLAYER] Load timeout #${consecutiveTimeoutsRef.current} — keeping song in queue`);
+
+          if (consecutiveTimeoutsRef.current >= 3) {
+            toast.error('Library is slow to respond — playback paused. Tap play to retry.');
+            console.warn('[PLAYER] Multiple load timeouts, pausing playback');
+            setIsPlaying(false);
+            consecutiveTimeoutsRef.current = 0;
+          } else {
+            toast.warning('Song is taking a while to load — library may be slow');
+          }
+        };
+
         let loadTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
         const handleCanPlay = () => {
           if (loadTimeoutId) clearTimeout(loadTimeoutId);
           setIsLoading(false);
           consecutiveFailuresRef.current = 0;
+          consecutiveTimeoutsRef.current = 0;
           if (useAudioStore.getState().isPlaying) {
             ensureGraphInitializedRef.current();
             audio.play().catch(console.error);
@@ -318,7 +343,7 @@ export function useSongLoader({
             console.warn(`[PLAYER] Song load timeout (10s) — readyState=${audio.readyState}`);
             audio.removeEventListener('canplay', handleCanPlay);
             audio.removeEventListener('error', handleError);
-            skipUnavailableSong('timed out');
+            handleLoadTimeout();
           }
         }, 10000);
 

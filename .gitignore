@@ -27,6 +27,7 @@ coverage/
 .env.development.local
 .env.test.local
 .env.production.local
+env
 
 # Config with secrets
 db/config.json
@@ -46,6 +47,11 @@ Thumbs.db
 *.swo
 .bmad
 .bmad-core
+_bmad/
+_bmad-output/
+
+# Database dumps (local only)
+*.sql
 
 # Dependency managers / caches
 .pnp.js
