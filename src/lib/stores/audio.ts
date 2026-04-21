@@ -234,6 +234,9 @@ export const useAudioStore = create<AudioState>()(
       playlist: songs,
       currentSongIndex: 0,
       isShuffled: false,
+      isRadioSession: false,
+      radioSeed: null,
+      radioVariety: 'medium' as ArtistVariety,
     }),
 
     playSong: (songId: string, newPlaylist?: Song[]) => {

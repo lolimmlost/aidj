@@ -28,7 +28,9 @@ import {
   getSongs,
   getSongsByArtist,
   getSongsByIds,
+  getStarredSongs,
 } from '@/lib/services/navidrome';
+import { getNavidromeUserCreds } from '@/lib/services/navidrome-users';
 import type { SubsonicSong } from '@/lib/services/navidrome/types';
 import type { Song } from '@/lib/types/song';
 import { getBlendedRecommendations } from '@/lib/services/blended-recommendation-scorer';
@@ -521,9 +523,20 @@ export async function generateSeededRadio(
     }
 
     case 'playlist': {
-      const pl = await getPlaylist(seed.playlistId);
-      const songs = (pl.entry ?? []).map(subsonicToSong);
-      const label = `Playlist Radio — ${pl.name ?? 'Unknown'}`;
+      let songs: Song[];
+      let label: string;
+
+      if (seed.playlistId === 'liked-songs') {
+        const creds = await getNavidromeUserCreds(userId);
+        const starred = creds ? await getStarredSongs(creds) : await getStarredSongs();
+        songs = starred.map(subsonicToSong);
+        label = 'Liked Songs Radio';
+      } else {
+        const pl = await getPlaylist(seed.playlistId);
+        songs = (pl.entry ?? []).map(subsonicToSong);
+        label = `Playlist Radio — ${pl.name ?? 'Unknown'}`;
+      }
+
       return generateFromCollection(userId, songs, label, size, recent);
     }
 
