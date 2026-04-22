@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
 import { scrobbleSong } from '@/lib/services/navidrome';
-import { hasRealSong, Song, type SetActiveDeckOptions } from './useDualDeckAudio';
+import { hasRealSong, SILENT_AUDIO_DATA_URL, Song, type SetActiveDeckOptions } from './useDualDeckAudio';
 import type { QueryClient } from '@tanstack/react-query';
 
 export interface UseDeckEventHandlersOptions {
@@ -79,6 +79,11 @@ export function useDeckEventHandlers({
   queryClient,
   recordListeningHistory,
 }: UseDeckEventHandlersOptions): void {
+  // Tracks which song we've already primed the inactive deck for. iOS revokes
+  // the autoplay gesture on idle elements, so we re-prime once per song as
+  // the active deck approaches crossfade range.
+  const lastPrimedForSongRef = useRef<string | null>(null);
+
   useEffect(() => {
     const deckA = deckARef.current;
     const deckB = deckBRef.current;
@@ -170,6 +175,43 @@ export function useDeckEventHandlers({
                 startCrossfade(nextSongData, xfadeDuration);
               }
             }
+          }
+        }
+
+        // PRIME INACTIVE DECK: iOS revokes the autoplay gesture on audio
+        // elements that haven't been used recently. Without priming, every
+        // crossfade's inactive.play() gets rejected with NotAllowedError and
+        // we fall back to a ~10s silence between songs via the ended-event
+        // path. Pre-poke the inactive deck with a silent data URL while the
+        // active deck is still playing — page is producing sound, so this
+        // succeeds without needing a user gesture.
+        //
+        // Triggered once per song when we're within the final 30s but still
+        // comfortably outside the crossfade window, so the gesture stamp is
+        // fresh when startCrossfade runs.
+        const songId = currentSongIdRef.current;
+        if (
+          songId &&
+          xfadeDuration > 0 &&
+          timeRemaining > xfadeDuration + 2 &&
+          timeRemaining <= 30 &&
+          !crossfadeInProgressRef.current &&
+          lastPrimedForSongRef.current !== songId
+        ) {
+          const inactive = activeDeckRef.current === 'A' ? deckBRef.current : deckARef.current;
+          if (inactive && !inactive.src) {
+            lastPrimedForSongRef.current = songId;
+            inactive.src = SILENT_AUDIO_DATA_URL;
+            inactive.play()
+              .then(() => {
+                inactive.pause();
+                inactive.removeAttribute('src');
+                inactive.load();
+                console.log(`[PRIME] Inactive deck re-primed for upcoming crossfade`);
+              })
+              .catch((err) => {
+                console.warn(`[PRIME] Inactive deck prime failed: ${err?.name || 'unknown'}`);
+              });
           }
         }
 
