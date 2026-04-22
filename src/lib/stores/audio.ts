@@ -173,6 +173,13 @@ interface AudioState {
   // Seeded radio
   startRadio: (seed: SeededRadioSeed, variety?: ArtistVariety) => Promise<void>;
   saveRadioAsPlaylist: (name: string) => Promise<{ playlistId: string; name: string } | null>;
+  /**
+   * Reconcile currentSongIndex with the song actually loaded on the active
+   * deck. Used to close the UI/audio drift window when a crossfade, visibility
+   * recovery, or other async event advances the deck before the store catches
+   * up. No-op when already in sync or the song isn't in the playlist.
+   */
+  syncIndexToActiveSong: (songId: string | null | undefined) => void;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -1775,6 +1782,16 @@ export const useAudioStore = create<AudioState>()(
     })),
 
     setIsRadioSession: (isRadio: boolean) => set({ isRadioSession: isRadio }),
+
+    syncIndexToActiveSong: (songId: string | null | undefined) => {
+      if (!songId) return;
+      const state = get();
+      if (state.playlist[state.currentSongIndex]?.id === songId) return;
+      const actualIndex = state.playlist.findIndex((s) => s.id === songId);
+      if (actualIndex < 0) return;
+      console.log(`[SYNC] Correcting currentSongIndex ${state.currentSongIndex} → ${actualIndex} (deck has ${songId})`);
+      set({ currentSongIndex: actualIndex });
+    },
 
     startRadio: async (seed: SeededRadioSeed, variety: ArtistVariety = 'medium') => {
       // Gate AI DJ auto-refresh while the queue is being replaced. Released

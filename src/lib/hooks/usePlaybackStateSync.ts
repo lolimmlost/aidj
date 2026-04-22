@@ -13,6 +13,8 @@ export interface UsePlaybackStateSyncOptions {
   lastProgressTimeRef: React.RefObject<number>;
   lastProgressValueRef: React.RefObject<number>;
   setActiveDeck: (deck: 'A' | 'B', reason: string, opts?: SetActiveDeckOptions) => boolean;
+  /** Source of truth for what song the active deck actually has loaded. */
+  currentSongIdRef: React.RefObject<string | null>;
 }
 
 /**
@@ -36,6 +38,7 @@ export function usePlaybackStateSync({
   lastProgressTimeRef,
   lastProgressValueRef,
   setActiveDeck,
+  currentSongIdRef,
 }: UsePlaybackStateSyncOptions): void {
   const { setIsPlaying } = useAudioStore();
 
@@ -206,6 +209,27 @@ export function usePlaybackStateSync({
         const audioIsActuallyPlaying = !activeDeck.paused;
         const audioHadProgress = activeDeck.currentTime > 0 && hasRealSong(activeDeck);
 
+        // OPTION A: reconcile currentSongIndex with the deck's actual song.
+        // Covers skip-during-crossfade and any path where the index drifted
+        // while we weren't looking.
+        useAudioStore.getState().syncIndexToActiveSong(currentSongIdRef.current);
+
+        // OPTION B: the song ended while the screen was locked — iOS throttles
+        // timeupdate + ended so nextSong() never fired. If the active deck
+        // has reached its natural end, force-advance now.
+        const deckDuration = activeDeck.duration;
+        const deckReachedEnd = activeDeck.ended ||
+          (isFinite(deckDuration) && deckDuration > 0 &&
+            activeDeck.currentTime >= deckDuration - 0.5);
+        if ((storeIsPlaying || useAudioStore.getState().wasPlayingBeforeUnload) && deckReachedEnd) {
+          const state = useAudioStore.getState();
+          if (state.playlist.length > 1 && state.currentSongIndex + 1 < state.playlist.length) {
+            console.log('👁️ [VISIBILITY] Song ended while backgrounded — advancing');
+            state.nextSong();
+            return;
+          }
+        }
+
         // Check for buffer stall
         const getBufferedEnd = (deck: HTMLAudioElement) => {
           if (deck.buffered.length > 0) {
@@ -222,6 +246,21 @@ export function usePlaybackStateSync({
         if (isStalled && storeIsPlaying) {
           console.log('👁️ [VISIBILITY] Audio stalled - delegating to recovery system');
           attemptStallRecovery(activeDeck, 'visibility-stall');
+          return;
+        }
+
+        // OPTION B: next song stuck loading. If the active deck has a real
+        // song set but readyState is still low (iOS throttled the fetch while
+        // the screen was locked), kick the browser with a fresh load() so we
+        // don't sit here silent waiting for the user to wake the screen again.
+        const wantsToPlay = storeIsPlaying || useAudioStore.getState().wasPlayingBeforeUnload;
+        if (wantsToPlay && hasRealSong(activeDeck) && activeDeck.readyState < 2 && !audioHadProgress) {
+          console.log(`👁️ [VISIBILITY] Active deck stuck loading (readyState=${activeDeck.readyState}) — forcing reload`);
+          checkAndResumeAudioContext().then(() => {
+            activeDeck.load();
+            // Best-effort play() once it can — no-op if still not ready.
+            activeDeck.play().catch(() => { /* waiting for canplay */ });
+          });
           return;
         }
 
@@ -283,7 +322,7 @@ export function usePlaybackStateSync({
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [setIsPlaying, attemptStallRecovery, checkAndResumeAudioContext, deckARef, deckBRef, activeDeckRef, lastProgressTimeRef, lastProgressValueRef, setActiveDeck]);
+  }, [setIsPlaying, attemptStallRecovery, checkAndResumeAudioContext, deckARef, deckBRef, activeDeckRef, lastProgressTimeRef, lastProgressValueRef, setActiveDeck, currentSongIdRef]);
 
   // Playback state preservation (beforeunload, pagehide, visibility hidden)
   // Uses a flag to prevent triple-save on iOS (visibilitychange + pagehide + beforeunload
