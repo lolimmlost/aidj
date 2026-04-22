@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
 import {
@@ -21,16 +21,37 @@ interface CreatePlaylistDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   onSubmit?: (data: { name: string; description?: string }) => void | Promise<void>;
+  /** Prefilled name when the dialog opens. Useful for snapshotting queues (e.g. "Radio — 4/22/2026"). */
+  defaultName?: string;
+  title?: string;
+  description?: string;
+  submitLabel?: string;
 }
 
-export function CreatePlaylistDialog({ trigger, open: externalOpen, onOpenChange: externalOnOpenChange, onSubmit }: CreatePlaylistDialogProps) {
+export function CreatePlaylistDialog({
+  trigger,
+  open: externalOpen,
+  onOpenChange: externalOnOpenChange,
+  onSubmit,
+  defaultName,
+  title = 'Create Playlist',
+  description: dialogDescription = 'Create a new playlist to organize your favorite songs.',
+  submitLabel = 'Create',
+}: CreatePlaylistDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
 
   // Use external control if provided, otherwise use internal state
   const open = externalOpen !== undefined ? externalOpen : internalOpen;
   const setOpen = externalOnOpenChange || setInternalOpen;
-  const [name, setName] = useState('');
+  const [name, setName] = useState(defaultName ?? '');
   const [description, setDescription] = useState('');
+
+  // When the dialog opens with a new defaultName, seed the input.
+  useEffect(() => {
+    if (open && defaultName !== undefined) {
+      setName(defaultName);
+    }
+  }, [open, defaultName]);
   const queryClient = useQueryClient();
 
   const createMutation = useMutation({
@@ -104,10 +125,8 @@ export function CreatePlaylistDialog({ trigger, open: externalOpen, onOpenChange
       <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Create Playlist</DialogTitle>
-            <DialogDescription>
-              Create a new playlist to organize your favorite songs.
-            </DialogDescription>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{dialogDescription}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
@@ -149,7 +168,7 @@ export function CreatePlaylistDialog({ trigger, open: externalOpen, onOpenChange
               disabled={createMutation.isPending}
               className="min-h-[44px]"
             >
-              {createMutation.isPending ? 'Creating...' : 'Create'}
+              {createMutation.isPending ? 'Creating...' : submitLabel}
             </Button>
           </DialogFooter>
         </form>

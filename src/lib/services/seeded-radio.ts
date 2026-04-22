@@ -20,7 +20,7 @@
  *  - Artist seed → seed artist catalog IS part of output (that's the point).
  */
 
-import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { listeningHistory } from '@/lib/db/schema/listening-history.schema';
 import {
@@ -414,6 +414,75 @@ async function generateFromCollection(
 }
 
 /**
+ * Interleave two pools (seed artist's own catalog vs. adjacent/scorer tracks)
+ * into a single list of length `size`, biasing the random choice toward the
+ * catalog pool by `catalogFraction`.
+ *
+ * Invariants:
+ *  - The catalog pool can contribute at most `catalogTarget` tracks (counted by
+ *    artist-name match against `seedArtist`).
+ *  - Likewise the scorer pool can contribute at most `scorerTarget` tracks.
+ *  - Once one pool is exhausted or over quota, the other drains to fill the
+ *    remaining slots.
+ *  - Ties are broken by `rng()` (defaults to Math.random). Passing a seeded
+ *    rng makes the result deterministic in tests.
+ */
+export function interleaveByFraction(
+  catalog: Song[],
+  scorer: Song[],
+  opts: {
+    size: number;
+    catalogTarget: number;
+    scorerTarget: number;
+    catalogFraction: number;
+    seedArtist: string;
+    rng?: () => number;
+  },
+): Song[] {
+  const { size, catalogTarget, scorerTarget, catalogFraction, seedArtist } = opts;
+  const rng = opts.rng ?? Math.random;
+  const seed = seedArtist.toLowerCase();
+  const isSeedArtist = (s: Song) => (s.artist ?? '').toLowerCase() === seed;
+
+  const out: Song[] = [];
+  const catalogQueue = [...catalog];
+  const scorerQueue = [...scorer];
+  let catalogUsed = 0;
+  let scorerUsed = 0;
+
+  while (out.length < size && (catalogQueue.length || scorerQueue.length)) {
+    const catalogRemaining = catalogTarget - catalogUsed;
+    const scorerRemaining = scorerTarget - scorerUsed;
+
+    const takeCatalog =
+      catalogRemaining > 0 &&
+      catalogQueue.length > 0 &&
+      (scorerRemaining <= 0 || scorerQueue.length === 0 || rng() < catalogFraction);
+
+    if (takeCatalog) {
+      const next = catalogQueue.shift()!;
+      out.push(next);
+      if (isSeedArtist(next)) catalogUsed++;
+      else scorerUsed++;
+    } else if (scorerQueue.length > 0) {
+      const next = scorerQueue.shift()!;
+      out.push(next);
+      if (isSeedArtist(next)) catalogUsed++;
+      else scorerUsed++;
+    } else if (catalogQueue.length > 0) {
+      const next = catalogQueue.shift()!;
+      out.push(next);
+      if (isSeedArtist(next)) catalogUsed++;
+      else scorerUsed++;
+    } else {
+      break;
+    }
+  }
+
+  return out;
+}
+
+/**
  * For the user's top co-occurring artists with the seed, look each up in
  * Navidrome and fetch a handful of tracks. Best-effort — silently skips
  * artists that aren't findable. Returns up to `maxTracks` songs total.
@@ -512,34 +581,19 @@ async function generateFromArtist(
   let scorerSlice = dedupe([...coocFiltered, ...scorerMerged]);
   scorerSlice = enforceArtistDiversity(scorerSlice);
 
-  // Interleave: start with an artist track, then alternate to avoid clustering.
-  const interleaved: Song[] = [];
-  const catalogQueue = [...artistSlice];
-  const scorerQueue = [...scorerSlice];
-  while (interleaved.length < size && (catalogQueue.length || scorerQueue.length)) {
-    const catalogRemaining = catalogTarget - interleaved.filter(
-      (s) => (s.artist ?? '').toLowerCase() === artistName.toLowerCase(),
-    ).length;
-    const scorerRemaining = scorerTarget - interleaved.filter(
-      (s) => (s.artist ?? '').toLowerCase() !== artistName.toLowerCase(),
-    ).length;
-    const takeCatalog =
-      catalogRemaining > 0 &&
-      catalogQueue.length > 0 &&
-      (scorerRemaining <= 0 || scorerQueue.length === 0 || Math.random() < catalogFraction);
-    if (takeCatalog) {
-      interleaved.push(catalogQueue.shift()!);
-    } else if (scorerQueue.length > 0) {
-      interleaved.push(scorerQueue.shift()!);
-    } else if (catalogQueue.length > 0) {
-      interleaved.push(catalogQueue.shift()!);
-    } else {
-      break;
-    }
-  }
+  const interleaved = interleaveByFraction(artistSlice, scorerSlice, {
+    size,
+    catalogTarget,
+    scorerTarget,
+    catalogFraction,
+    seedArtist: artistName,
+  });
 
   let final = dedupe(interleaved);
   final = enforceArtistDiversity(final, artistName);
+  // NOTE: recency cap runs after interleave, so in the pathological case where
+  // many tracks are "recent" the variety ratio may drift slightly from the
+  // catalogFraction target. Acceptable — the knob is approximate by design.
   final = applyRecencyCap(final, recent, size);
 
   return {
@@ -611,5 +665,6 @@ export const __internal = {
   enforceArtistDiversity,
   applyRecencyCap,
   pickSeedTracks,
+  interleaveByFraction,
   ARTIST_CATALOG_FRACTION,
 };
