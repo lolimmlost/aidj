@@ -9,6 +9,14 @@ import { toast } from '@/lib/toast';
 import { shuffleSongs } from '@/lib/utils/shuffle-scoring';
 import type { SeededRadioSeed, ArtistVariety } from '@/lib/services/seeded-radio';
 
+// Any non-additive queue replacement clears radio-session state. Spread into
+// the `set(...)` call of every action that swaps out the playlist wholesale.
+const RADIO_RESET = {
+  isRadioSession: false,
+  radioSeed: null as SeededRadioSeed | null,
+  radioVariety: 'medium' as ArtistVariety,
+} as const;
+
 // Client-side helper functions (moved from ai-dj.ts to avoid server imports)
 function checkQueueThreshold(
   currentSongIndex: number,
@@ -234,9 +242,7 @@ export const useAudioStore = create<AudioState>()(
       playlist: songs,
       currentSongIndex: 0,
       isShuffled: false,
-      isRadioSession: false,
-      radioSeed: null,
-      radioVariety: 'medium' as ArtistVariety,
+      ...RADIO_RESET,
     }),
 
     playSong: (songId: string, newPlaylist?: Song[]) => {
@@ -265,10 +271,16 @@ export const useAudioStore = create<AudioState>()(
         }
       }
 
+      // playSong may be handed a fresh playlist (full replacement) or a
+      // single-song fallback — both cases wipe radio state. If the existing
+      // queue is kept, radio continues (handled implicitly: state.playlist is
+      // reused and RADIO_RESET is not applied).
+      const replacing = playlist !== state.playlist;
       set({
         playlist,
         currentSongIndex: index,
         isPlaying: true,
+        ...(replacing ? RADIO_RESET : {}),
       });
     },
 
@@ -284,6 +296,7 @@ export const useAudioStore = create<AudioState>()(
           currentSongIndex: 0,
           isPlaying: true,
           isShuffled: false,
+          ...RADIO_RESET,
         });
       } else {
         // Replace the currently playing song with the new song
@@ -482,7 +495,7 @@ export const useAudioStore = create<AudioState>()(
         currentSongIndex: 0,
         isPlaying: true,
         isShuffled: false,
-  
+        ...RADIO_RESET,
       });
     },
     addPlaylistToQueue: (songs: Song[], replaceQueue: boolean = false) => {
@@ -494,7 +507,7 @@ export const useAudioStore = create<AudioState>()(
           currentSongIndex: 0,
           isPlaying: true,
           isShuffled: false,
-    
+          ...RADIO_RESET,
         });
       } else {
         // Append to existing queue
@@ -1764,6 +1777,9 @@ export const useAudioStore = create<AudioState>()(
     setIsRadioSession: (isRadio: boolean) => set({ isRadioSession: isRadio }),
 
     startRadio: async (seed: SeededRadioSeed, variety: ArtistVariety = 'medium') => {
+      // Gate AI DJ auto-refresh while the queue is being replaced. Released
+      // 2s after we finish — same cadence as playNow / addToQueue actions —
+      // so the monitor can't fire against a half-settled queue.
       set({ aiDJUserActionInProgress: true });
       try {
         const res = await fetch('/api/radio/seeded', {
@@ -1808,7 +1824,7 @@ export const useAudioStore = create<AudioState>()(
         return null;
       }
       try {
-        const res = await fetch('/api/radio/save-as-playlist', {
+        const res = await fetch('/api/playlists/create-from-ids', {
           method: 'POST',
           credentials: 'include',
           headers: { 'content-type': 'application/json' },

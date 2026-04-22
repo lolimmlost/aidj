@@ -29,6 +29,7 @@ const LOOKBACK_DAYS = 90;
 const SESSION_GAP_MS = 30 * 60 * 1000;
 const RECENCY_DECAY_RATE = 0.05;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const INSERT_BATCH_SIZE = 500;
 
 export interface RelatedArtist {
   artist: string;
@@ -175,18 +176,14 @@ export async function computeForUser(
     return 0;
   }
 
-  await db
-    .delete(artistCoOccurrence)
-    .where(eq(artistCoOccurrence.userId, userId));
-
-  let stored = 0;
+  const insertRows: ArtistCoOccurrenceInsert[] = [];
   for (const [key, acc] of pairs) {
     const [a, b] = key.split('|');
     const playsA = playsPerArtist.get(a) ?? 1;
     const playsB = playsPerArtist.get(b) ?? 1;
     const normalized = acc.weight / Math.sqrt(playsA * playsB);
 
-    const rowsToInsert: ArtistCoOccurrenceInsert[] = [
+    insertRows.push(
       {
         userId,
         artistA: a,
@@ -203,28 +200,39 @@ export async function computeForUser(
         coplayCount: acc.coplayCount,
         lastCoplayedAt: acc.lastCoplayedAt,
       },
-    ];
-
-    await db
-      .insert(artistCoOccurrence)
-      .values(rowsToInsert)
-      .onConflictDoUpdate({
-        target: [
-          artistCoOccurrence.userId,
-          artistCoOccurrence.artistA,
-          artistCoOccurrence.artistB,
-        ],
-        set: {
-          cooccurrenceScore: sql`excluded.cooccurrence_score`,
-          coplayCount: sql`excluded.coplay_count`,
-          lastCoplayedAt: sql`excluded.last_coplayed_at`,
-          calculatedAt: new Date(),
-        },
-      });
-
-    stored += 2;
+    );
   }
 
+  // Atomic swap: wipe + rewrite in a single transaction. If any insert fails
+  // we roll back so the user keeps their existing graph rather than ending up
+  // with a partial one.
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(artistCoOccurrence)
+      .where(eq(artistCoOccurrence.userId, userId));
+
+    for (let i = 0; i < insertRows.length; i += INSERT_BATCH_SIZE) {
+      const chunk = insertRows.slice(i, i + INSERT_BATCH_SIZE);
+      await tx
+        .insert(artistCoOccurrence)
+        .values(chunk)
+        .onConflictDoUpdate({
+          target: [
+            artistCoOccurrence.userId,
+            artistCoOccurrence.artistA,
+            artistCoOccurrence.artistB,
+          ],
+          set: {
+            cooccurrenceScore: sql`excluded.cooccurrence_score`,
+            coplayCount: sql`excluded.coplay_count`,
+            lastCoplayedAt: sql`excluded.last_coplayed_at`,
+            calculatedAt: new Date(),
+          },
+        });
+    }
+  });
+
+  const stored = insertRows.length;
   console.log(`🔗 [ArtistCoOccurrence] Stored ${stored} rows (${pairs.size} pairs) for user ${userId}`);
   return stored;
 }

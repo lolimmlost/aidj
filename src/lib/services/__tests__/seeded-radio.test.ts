@@ -59,14 +59,20 @@ vi.mock('@/lib/services/blended-recommendation-scorer', () => ({
   getBlendedRecommendations: vi.fn().mockResolvedValue({ songs: [], metadata: {} }),
 }));
 
+vi.mock('@/lib/services/artist-cooccurrence', () => ({
+  getRelatedArtists: vi.fn().mockResolvedValue([]),
+}));
+
 import { generateSeededRadio, __internal } from '../seeded-radio';
 import {
   getPlaylist,
   getSongs,
   getSongsByArtist,
   getSongsByIds,
+  searchArtistsByName,
 } from '@/lib/services/navidrome';
 import { getBlendedRecommendations } from '@/lib/services/blended-recommendation-scorer';
+import { getRelatedArtists } from '@/lib/services/artist-cooccurrence';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -311,5 +317,109 @@ describe('generateSeededRadio', () => {
     const seedArtistCount = result.songs.filter((s) => s.artist === 'TheArtist').length;
     expect(seedArtistCount).toBeGreaterThanOrEqual(18);
     expect(result.seedInfo.seedArtists).toEqual(['TheArtist']);
+  });
+
+  it('artist seed: surfaces co-occurrence artists in the adjacent pool', async () => {
+    const catalog = Array.from({ length: 10 }, (_, i) =>
+      makeSong({ id: `cat-${i}`, artist: 'TheArtist', title: `song${i}` }),
+    );
+    // Make the scorer return NOTHING so any non-seed tracks in the output
+    // can only come from the co-occurrence branch.
+    vi.mocked(getSongsByArtist).mockImplementation(async (artistId: string) => {
+      if (artistId === 'artist-1') return catalog;
+      // Second call — co-occurrence lookup for 'cooc-artist'
+      return [
+        makeSong({ id: 'cooc-1', artist: 'CoocArtist', title: 'c1' }),
+        makeSong({ id: 'cooc-2', artist: 'CoocArtist', title: 'c2' }),
+      ];
+    });
+    vi.mocked(getBlendedRecommendations).mockResolvedValue({ songs: [], metadata: {} });
+    vi.mocked(getRelatedArtists).mockResolvedValue([
+      { artist: 'coocartist', score: 0.8, coplayCount: 5 },
+    ]);
+    vi.mocked(searchArtistsByName).mockResolvedValue([
+      { id: 'cooc-id', name: 'CoocArtist' } as never,
+    ]);
+
+    const result = await generateSeededRadio(
+      'user-1',
+      { kind: 'artist', artistId: 'artist-1' },
+      { variety: 'medium', size: 20 },
+    );
+
+    const coocCount = result.songs.filter((s) => s.artist === 'CoocArtist').length;
+    expect(coocCount).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// interleaveByFraction — direct unit tests with deterministic rng
+// ---------------------------------------------------------------------------
+
+describe('interleaveByFraction', () => {
+  function makeRng(values: number[]): () => number {
+    let i = 0;
+    return () => values[i++ % values.length];
+  }
+
+  const seed = 'Seed';
+  const catalog = (n: number) =>
+    Array.from({ length: n }, (_, i) =>
+      makeSong({ id: `c${i}`, artist: seed, title: `c${i}` }),
+    );
+  const scorer = (n: number) =>
+    Array.from({ length: n }, (_, i) =>
+      makeSong({ id: `s${i}`, artist: `Other${i}`, title: `s${i}` }),
+    );
+
+  it('respects catalogTarget even when rng always picks catalog', () => {
+    const out = __internal.interleaveByFraction(catalog(20), scorer(20), {
+      size: 20,
+      catalogTarget: 8,
+      scorerTarget: 12,
+      catalogFraction: 0.9,
+      seedArtist: seed,
+      rng: () => 0, // always "take catalog"
+    });
+    const fromSeed = out.filter((s) => s.artist === seed).length;
+    expect(fromSeed).toBe(8);
+    expect(out).toHaveLength(20);
+  });
+
+  it('falls back to the other pool when one is empty', () => {
+    const out = __internal.interleaveByFraction(catalog(5), scorer(20), {
+      size: 20,
+      catalogTarget: 12,
+      scorerTarget: 8,
+      catalogFraction: 0.5,
+      seedArtist: seed,
+      rng: makeRng([0]), // prefer catalog, but it runs out after 5
+    });
+    expect(out).toHaveLength(20);
+    expect(out.filter((s) => s.artist === seed)).toHaveLength(5);
+    expect(out.filter((s) => s.artist !== seed)).toHaveLength(15);
+  });
+
+  it('stops at size even when both pools have more', () => {
+    const out = __internal.interleaveByFraction(catalog(30), scorer(30), {
+      size: 10,
+      catalogTarget: 4,
+      scorerTarget: 6,
+      catalogFraction: 0.5,
+      seedArtist: seed,
+      rng: makeRng([0.1, 0.9, 0.1, 0.9, 0.1, 0.9, 0.1, 0.9, 0.1, 0.9]),
+    });
+    expect(out).toHaveLength(10);
+  });
+
+  it('returns empty list when both pools are empty', () => {
+    const out = __internal.interleaveByFraction([], [], {
+      size: 10,
+      catalogTarget: 6,
+      scorerTarget: 4,
+      catalogFraction: 0.6,
+      seedArtist: seed,
+    });
+    expect(out).toEqual([]);
   });
 });

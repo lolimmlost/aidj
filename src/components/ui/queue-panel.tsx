@@ -347,6 +347,11 @@ export function QueuePanel() {
   }, [queuePanelOpen, toggleQueuePanel]);
   const [timeSinceLastQueue, setTimeSinceLastQueue] = useState(0);
   const [createPlaylistOpen, setCreatePlaylistOpen] = useState(false);
+  const [saveRadioDialogOpen, setSaveRadioDialogOpen] = useState(false);
+  const radioDefaultName = useMemo(
+    () => `Radio — ${new Date().toLocaleDateString()}`,
+    [saveRadioDialogOpen],
+  );
   const [undoTimeRemaining, setUndoTimeRemaining] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
@@ -814,15 +819,7 @@ export function QueuePanel() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      const defaultName = `Radio — ${new Date().toLocaleDateString()}`;
-                      const name = typeof window !== 'undefined'
-                        ? window.prompt('Save radio as playlist named:', defaultName)
-                        : defaultName;
-                      if (name && name.trim()) {
-                        void saveRadioAsPlaylist(name.trim());
-                      }
-                    }}
+                    onClick={() => setSaveRadioDialogOpen(true)}
                     className="w-full h-8 md:h-9 text-xs md:text-sm bg-gradient-to-r from-orange-500/5 to-amber-500/5 hover:from-orange-500/10 hover:to-amber-500/10 border-orange-500/20 hover:border-orange-500/30 text-orange-600/80 dark:text-orange-400/80 hover:text-orange-600 dark:hover:text-orange-400 transition-all duration-200 group"
                   >
                     <Radio className="mr-1 md:mr-2 h-3.5 w-3.5 md:h-4 md:w-4 group-hover:scale-110 transition-transform" />
@@ -883,6 +880,19 @@ export function QueuePanel() {
         open={createPlaylistOpen}
         onOpenChange={setCreatePlaylistOpen}
         onSubmit={handleCreatePlaylistFromQueue}
+      />
+
+      {/* Save Radio as Playlist Dialog */}
+      <CreatePlaylistDialog
+        open={saveRadioDialogOpen}
+        onOpenChange={setSaveRadioDialogOpen}
+        defaultName={radioDefaultName}
+        title="Save Radio as Playlist"
+        description="Snapshot the current radio queue as a new playlist in your library."
+        submitLabel="Save"
+        onSubmit={(data) => {
+          void saveRadioAsPlaylist(data.name.trim());
+        }}
       />
     </div>
   );

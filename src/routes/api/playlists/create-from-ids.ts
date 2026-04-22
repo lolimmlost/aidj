@@ -8,7 +8,7 @@ import {
 import { createPlaylist } from '@/lib/services/navidrome';
 import { getNavidromeUserCreds } from '@/lib/services/navidrome-users';
 
-const SaveAsPlaylistSchema = z.object({
+const CreateFromIdsSchema = z.object({
   name: z.string().min(1).max(120),
   songIds: z.array(z.string().min(1)).min(1).max(200),
 });
@@ -16,9 +16,9 @@ const SaveAsPlaylistSchema = z.object({
 const POST = withAuthAndErrorHandling(
   async ({ request, session }) => {
     const body = await request.json();
-    const parsed = SaveAsPlaylistSchema.safeParse(body);
+    const parsed = CreateFromIdsSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse('VALIDATION_ERROR', 'Invalid save-as-playlist request', {
+      return errorResponse('VALIDATION_ERROR', 'Invalid create-from-ids request', {
         status: 400,
         details: { issues: parsed.error.issues },
       });
@@ -45,13 +45,13 @@ const POST = withAuthAndErrorHandling(
     );
   },
   {
-    service: 'radio',
-    operation: 'save-as-playlist',
-    defaultCode: 'RADIO_SAVE_PLAYLIST_ERROR',
-    defaultMessage: 'Failed to save radio as playlist',
+    service: 'playlists',
+    operation: 'create-from-ids',
+    defaultCode: 'PLAYLIST_CREATE_FROM_IDS_ERROR',
+    defaultMessage: 'Failed to create playlist from song ids',
   },
 );
 
-export const Route = createFileRoute('/api/radio/save-as-playlist')({
+export const Route = createFileRoute('/api/playlists/create-from-ids')({
   server: { handlers: { POST } },
 });
