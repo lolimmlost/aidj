@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
 import { scrobbleSong } from '@/lib/services/navidrome';
-import { hasRealSong, Song, type SetActiveDeckOptions } from './useDualDeckAudio';
+import { hasRealSong, Song, SILENT_AUDIO_DATA_URL, type SetActiveDeckOptions } from './useDualDeckAudio';
 import type { QueryClient } from '@tanstack/react-query';
 
 export interface UseDeckEventHandlersOptions {
@@ -290,6 +290,28 @@ export function useDeckEventHandlers({
         // Microtask delay lets the browser finish processing the 'ended' event
         setTimeout(restartDeck, 0);
         return;
+      }
+
+      // Prime the opposite deck while we're still inside the ended event's
+      // user-activation context. iOS Safari revokes autoplay grants on idle
+      // <audio> elements; without a fresh gesture-derived play() on the
+      // inactive deck, the next song's crossfade will be rejected with
+      // NotAllowedError. The `ended` handler inherits activation from the
+      // original play() chain, so a silent play() here succeeds where a
+      // timeupdate-initiated one does not.
+      const inactiveDeck = deckName === 'A' ? deckBRef.current : deckARef.current;
+      if (inactiveDeck && !inactiveDeck.src) {
+        inactiveDeck.src = SILENT_AUDIO_DATA_URL;
+        inactiveDeck.play()
+          .then(() => {
+            inactiveDeck.pause();
+            inactiveDeck.removeAttribute('src');
+            inactiveDeck.load();
+            console.log(`[PRIME] Deck ${deckName === 'A' ? 'B' : 'A'} primed via ended-event gesture`);
+          })
+          .catch((err) => {
+            console.warn(`[PRIME] Ended-event prime failed: ${err?.name || 'unknown'}`);
+          });
       }
 
       // Let the useEffect watching currentSongIndex handle loading the next song.
