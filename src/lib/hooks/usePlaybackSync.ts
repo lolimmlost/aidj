@@ -238,10 +238,17 @@ function handleIncomingMessage(
         const currentIndex = payload.currentIndex as number | undefined;
         const currentSong = queue && typeof currentIndex === 'number' ? queue[currentIndex] : null;
         const remoteIsPlaying = (payload.isPlaying as boolean) ?? false;
+        const remoteDeviceId = (payload.deviceId as string | undefined) ?? null;
+
+        // During a WS reconnect the old and new sockets briefly coexist; the
+        // server broadcasts a fresh state_update from the new socket to the
+        // old (still-registered) socket, and the client sees its own deviceId
+        // echoed back. Treat that as a no-op instead of a remote takeover.
+        const isOwnEcho = remoteDeviceId !== null && remoteDeviceId === deviceId;
 
         // TAKEOVER: If remote device started playing and local is also playing,
         // the device with the newer playStateUpdatedAt wins. Pause the loser.
-        if (remoteIsPlaying && store.isPlaying) {
+        if (!isOwnEcho && remoteIsPlaying && store.isPlaying) {
           const remotePlayTs = (payload.playStateUpdatedAt as string) ?? '';
           const localPlayTs = store.playStateUpdatedAt ?? '';
           if (remotePlayTs > localPlayTs) {
@@ -256,6 +263,14 @@ function handleIncomingMessage(
               });
             }
           }
+        }
+
+        // If this is our own echo, skip the remote-device indicator and
+        // applyServerState too — the local state is already authoritative,
+        // and applying it back to ourselves risks overwriting fresh changes
+        // with the stale snapshot the echo contains.
+        if (isOwnEcho) {
+          break;
         }
 
         // Update the remote device indicator (green bubble)
