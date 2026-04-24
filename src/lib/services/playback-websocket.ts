@@ -13,6 +13,9 @@ const connections = new Map<string, Set<WebSocket>>();
 // Track last heartbeat per connection
 const lastHeartbeat = new WeakMap<WebSocket, number>();
 
+// Track which deviceId each ws represents (captured from first message carrying one)
+const wsDeviceIds = new WeakMap<WebSocket, string>();
+
 // Message types
 interface PlaybackMessage {
   type: 'state_update' | 'transfer' | 'command' | 'sync_request' | 'heartbeat' | 'feedback_update';
@@ -28,12 +31,22 @@ interface PlaybackCommand {
 // Session lookup function (to be implemented with your auth)
 type GetUserIdFromRequest = (request: import('http').IncomingMessage) => Promise<string | null>;
 
+// Optional DB hook to clear the active-device fields when a device disconnects.
+// Returns `cleared: true` only if the disconnecting device was in fact the
+// active player. `playStateUpdatedAt` is the new server timestamp used by the
+// client-side conflict-resolution merge.
+export type ClearActiveDevice = (
+  userId: string,
+  deviceId: string,
+) => Promise<{ cleared: boolean; playStateUpdatedAt: string | null }>;
+
 /**
  * Setup WebSocket handlers for playback sync
  */
 export function setupPlaybackWebSocket(
   wss: WebSocketServer,
-  getUserId: GetUserIdFromRequest
+  getUserId: GetUserIdFromRequest,
+  clearActiveDevice?: ClearActiveDevice,
 ) {
   // Heartbeat check - terminate dead connections
   const HEARTBEAT_TIMEOUT = 60000; // 60 seconds
@@ -77,6 +90,12 @@ export function setupPlaybackWebSocket(
 
         // Update heartbeat on any message
         lastHeartbeat.set(ws, Date.now());
+
+        // Capture the deviceId this ws represents so we can detect a stale
+        // active-device entry when the connection closes.
+        if (message.deviceId && !wsDeviceIds.has(ws)) {
+          wsDeviceIds.set(ws, message.deviceId);
+        }
 
         switch (message.type) {
           case 'state_update':
@@ -133,10 +152,34 @@ export function setupPlaybackWebSocket(
       }
     });
 
-    ws.on('close', () => {
+    ws.on('close', async () => {
       connections.get(userId)?.delete(ws);
       const remaining = connections.get(userId)?.size || 0;
       console.log(`[WS] User ${userId} disconnected (${remaining} remaining)`);
+
+      // If the closing device was the active player, clear server-side state
+      // so other devices drop out of remote-control mode with a dead target.
+      const deviceId = wsDeviceIds.get(ws);
+      if (deviceId && clearActiveDevice) {
+        try {
+          const { cleared, playStateUpdatedAt } = await clearActiveDevice(userId, deviceId);
+          if (cleared && playStateUpdatedAt) {
+            console.log(`[WS] Cleared stale active device for user ${userId} (was ${deviceId})`);
+            // Notify remaining devices so their remoteDevice indicator flips off.
+            broadcastToAllDevices(userId, {
+              type: 'state',
+              payload: {
+                isPlaying: false,
+                deviceId: null,
+                deviceName: null,
+                playStateUpdatedAt,
+              },
+            });
+          }
+        } catch (err) {
+          console.error('[WS] Error clearing active device on disconnect:', err);
+        }
+      }
 
       if (remaining === 0) {
         connections.delete(userId);

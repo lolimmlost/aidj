@@ -86,6 +86,46 @@ async function getUserIdFromRequest(request: import('http').IncomingMessage): Pr
   }
 }
 
+/**
+ * Clear the active-device fields if the disconnecting device matches.
+ * Dev-mode mirror of `src/lib/auth/ws-playback-ops.ts`, using the same
+ * postgres connection used for session lookups.
+ */
+async function clearActiveDeviceIfMatches(
+  userId: string,
+  deviceId: string,
+): Promise<{ cleared: boolean; playStateUpdatedAt: string | null }> {
+  const db = getDb();
+  if (!db) {
+    return { cleared: false, playStateUpdatedAt: null };
+  }
+
+  try {
+    const rows = await db`
+      UPDATE playback_sessions
+      SET is_playing = false,
+          active_device_id = NULL,
+          active_device_name = NULL,
+          active_device_type = NULL,
+          play_state_updated_at = NOW(),
+          updated_at = NOW()
+      WHERE user_id = ${userId} AND active_device_id = ${deviceId}
+      RETURNING play_state_updated_at
+    `;
+
+    if (rows.length === 0) {
+      return { cleared: false, playStateUpdatedAt: null };
+    }
+
+    const ts = rows[0].play_state_updated_at as Date | string;
+    const iso = typeof ts === 'string' ? new Date(ts).toISOString() : ts.toISOString();
+    return { cleared: true, playStateUpdatedAt: iso };
+  } catch (err) {
+    console.error('[WS Dev] clearActiveDeviceIfMatches error:', err);
+    return { cleared: false, playStateUpdatedAt: null };
+  }
+}
+
 export function viteWebSocketPlugin(): Plugin {
   let wss: WebSocketServer | null = null;
 
@@ -97,7 +137,7 @@ export function viteWebSocketPlugin(): Plugin {
       wss = new WebSocketServer({ noServer: true });
 
       // Setup playback handlers
-      setupPlaybackWebSocket(wss, getUserIdFromRequest);
+      setupPlaybackWebSocket(wss, getUserIdFromRequest, clearActiveDeviceIfMatches);
 
       // Handle upgrade requests
       server.httpServer?.on('upgrade', (request, socket, head) => {

@@ -16,6 +16,7 @@ import { toNodeHandler } from 'srvx/node';
 import sirv from 'sirv';
 import { setupPlaybackWebSocket } from './src/lib/services/playback-websocket';
 import { getUserIdFromRequest } from './src/lib/auth/ws-session';
+import { clearActiveDeviceIfMatches } from './src/lib/auth/ws-playback-ops';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -55,7 +56,7 @@ async function start() {
   const wss = new WebSocketServer({ noServer: true });
 
   // Setup playback WebSocket handlers
-  setupPlaybackWebSocket(wss, getUserIdFromRequest);
+  setupPlaybackWebSocket(wss, getUserIdFromRequest, clearActiveDeviceIfMatches);
 
   // Handle upgrade requests
   server.on('upgrade', (request, socket, head) => {
