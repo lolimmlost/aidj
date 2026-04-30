@@ -59,7 +59,7 @@ describe('audio store — seeded radio actions', () => {
       );
       vi.stubGlobal('fetch', fetchMock);
 
-      await useAudioStore.getState().startRadio(seed, 'medium');
+      await useAudioStore.getState().startRadio(seed, { variety: 'medium' });
 
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/radio/seeded',
@@ -74,7 +74,25 @@ describe('audio store — seeded radio actions', () => {
       expect(state.isRadioSession).toBe(true);
       expect(state.radioSeed).toEqual(seed);
       expect(state.radioVariety).toBe('medium');
+      expect(state.radioTargetMinutes).toBeNull();
       expect(state.radioSessionPlayCount).toBe(0);
+    });
+
+    it('forwards targetMinutes in the request body and persists it in state', async () => {
+      const seed: SeededRadioSeed = { kind: 'song', songId: 'abc' };
+      const songs = [
+        { id: 'abc', title: 'Seed', artist: 'X', duration: 100, url: '/s/abc' },
+      ];
+      const fetchMock = vi.fn().mockResolvedValue(
+        jsonResponse({ data: { songs, seedInfo: { label: 'Seed Radio' } } }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      await useAudioStore.getState().startRadio(seed, { targetMinutes: 60 });
+
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+      expect(body).toEqual({ seed, variety: 'medium', targetMinutes: 60 });
+      expect(useAudioStore.getState().radioTargetMinutes).toBe(60);
     });
 
     it('warns and does not mutate state when the server returns no songs', async () => {

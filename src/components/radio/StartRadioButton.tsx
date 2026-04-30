@@ -27,11 +27,24 @@ interface StartRadioButtonProps {
   className?: string;
 }
 
+// `null` = "Auto" (no constraint, default ~40 tracks).
+type LengthChoice = 30 | 60 | 120 | 180 | null;
+
+const LENGTH_OPTIONS: Array<{ value: LengthChoice; label: string; tag: string }> = [
+  { value: null, label: 'Auto', tag: 'auto' },
+  { value: 30, label: '30 minutes', tag: '30' },
+  { value: 60, label: '1 hour', tag: '60' },
+  { value: 120, label: '2 hours', tag: '120' },
+  { value: 180, label: 'Journey (3+ hours)', tag: '180' },
+];
+
 /**
  * Start Radio — a separate, additive entry point that never replaces
- * existing Play / Add-to-Queue controls. For artist seeds, opens a menu
- * letting the user pick Artist Variety (Low/Med/High). Other seed kinds
- * start immediately at Medium variety (the knob is artist-specific).
+ * existing Play / Add-to-Queue controls.
+ *
+ * Labelled variant opens a dropdown with Length (all seeds) and Variety
+ * (artist seeds only). Icon-only variant is one-tap with defaults so the
+ * dense context-menu callsites stay frictionless.
  */
 export function StartRadioButton({
   seed,
@@ -42,92 +55,93 @@ export function StartRadioButton({
 }: StartRadioButtonProps) {
   const startRadio = useAudioStore((s) => s.startRadio);
   const [variety, setVariety] = useState<ArtistVariety>('medium');
+  const [length, setLength] = useState<LengthChoice>(null);
   const [busy, setBusy] = useState(false);
 
-  const run = async (v: ArtistVariety = variety) => {
+  const run = async (
+    v: ArtistVariety = variety,
+    targetMinutes: LengthChoice = length,
+  ) => {
     if (busy) return;
     setBusy(true);
     try {
-      await startRadio(seed, v);
+      await startRadio(seed, {
+        variety: v,
+        ...(targetMinutes != null ? { targetMinutes } : {}),
+      });
     } finally {
       setBusy(false);
     }
   };
 
-  // For non-artist seeds, the variety knob doesn't apply — one-tap start.
-  if (seed.kind !== 'artist') {
-    if (size === 'icon') {
-      return (
-        <Button
-          size="icon"
-          variant={variant}
-          disabled={busy}
-          onClick={() => void run('medium')}
-          aria-label={label}
-          title={label}
-          className={className}
-        >
-          <Radio className="size-4" />
-        </Button>
-      );
-    }
+  // Icon-only callsites (per-song context menus) stay one-tap with defaults.
+  if (size === 'icon') {
     return (
       <Button
-        size={size}
+        size="icon"
         variant={variant}
         disabled={busy}
-        onClick={() => void run('medium')}
-        className={cn('gap-2', className)}
+        onClick={() => void run('medium', null)}
+        aria-label={label}
+        title={label}
+        className={className}
       >
         <Radio className="size-4" />
-        {label}
       </Button>
     );
   }
 
-  // Artist seed: dropdown offers variety selection
+  const showVariety = seed.kind === 'artist';
+  const lengthTag = LENGTH_OPTIONS.find((o) => o.value === length)?.tag ?? 'auto';
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {size === 'icon' ? (
-          <Button
-            size="icon"
-            variant={variant}
-            disabled={busy}
-            aria-label={label}
-            title={label}
-            className={className}
-          >
-            <Radio className="size-4" />
-          </Button>
-        ) : (
-          <Button
-            size={size}
-            variant={variant}
-            disabled={busy}
-            className={cn('gap-2', className)}
-          >
-            <Radio className="size-4" />
-            {label}
-          </Button>
-        )}
+        <Button
+          size={size}
+          variant={variant}
+          disabled={busy}
+          className={cn('gap-2', className)}
+        >
+          <Radio className="size-4" />
+          {label}
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>Artist Variety</DropdownMenuLabel>
+        <DropdownMenuLabel>Length</DropdownMenuLabel>
         <DropdownMenuRadioGroup
-          value={variety}
-          onValueChange={(v) => setVariety(v as ArtistVariety)}
+          value={lengthTag}
+          onValueChange={(t) => {
+            const found = LENGTH_OPTIONS.find((o) => o.tag === t);
+            if (found) setLength(found.value);
+          }}
         >
-          <DropdownMenuRadioItem value="low">
-            Low — mostly this artist
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="medium">
-            Medium — balanced mix
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="high">
-            High — adventurous
-          </DropdownMenuRadioItem>
+          {LENGTH_OPTIONS.map((o) => (
+            <DropdownMenuRadioItem key={o.tag} value={o.tag}>
+              {o.label}
+            </DropdownMenuRadioItem>
+          ))}
         </DropdownMenuRadioGroup>
+        {showVariety ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Artist Variety</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={variety}
+              onValueChange={(v) => setVariety(v as ArtistVariety)}
+            >
+              <DropdownMenuRadioItem value="low">
+                Low — mostly this artist
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="medium">
+                Medium — balanced mix
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="high">
+                High — adventurous
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => void run()} disabled={busy}>
           <Radio className="size-4" />
