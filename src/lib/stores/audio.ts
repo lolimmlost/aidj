@@ -15,7 +15,14 @@ const RADIO_RESET = {
   isRadioSession: false,
   radioSeed: null as SeededRadioSeed | null,
   radioVariety: 'medium' as ArtistVariety,
+  radioTargetMinutes: null as number | null,
 } as const;
+
+export interface StartRadioOptions {
+  variety?: ArtistVariety;
+  /** Target queue length in minutes (10–300). Omit for default ~40-track behavior. */
+  targetMinutes?: number;
+}
 
 // Client-side helper functions (moved from ai-dj.ts to avoid server imports)
 function checkQueueThreshold(
@@ -118,6 +125,8 @@ interface AudioState {
   // Seeded radio (non-persisted): the seed and variety used for the current session
   radioSeed: SeededRadioSeed | null;
   radioVariety: ArtistVariety;
+  // Optional duration constraint (minutes) used for the current session. null = unconstrained.
+  radioTargetMinutes: number | null;
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
@@ -171,7 +180,7 @@ interface AudioState {
   incrementRadioPlayCount: () => void;
   setIsRadioSession: (isRadio: boolean) => void;
   // Seeded radio
-  startRadio: (seed: SeededRadioSeed, variety?: ArtistVariety) => Promise<void>;
+  startRadio: (seed: SeededRadioSeed, opts?: StartRadioOptions) => Promise<void>;
   saveRadioAsPlaylist: (name: string) => Promise<{ playlistId: string; name: string } | null>;
   /**
    * Reconcile currentSongIndex with the song actually loaded on the active
@@ -242,6 +251,7 @@ export const useAudioStore = create<AudioState>()(
     isRadioSession: false,
     radioSeed: null,
     radioVariety: 'medium',
+    radioTargetMinutes: null,
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -1793,7 +1803,9 @@ export const useAudioStore = create<AudioState>()(
       set({ currentSongIndex: actualIndex });
     },
 
-    startRadio: async (seed: SeededRadioSeed, variety: ArtistVariety = 'medium') => {
+    startRadio: async (seed: SeededRadioSeed, opts: StartRadioOptions = {}) => {
+      const variety = opts.variety ?? 'medium';
+      const targetMinutes = opts.targetMinutes ?? null;
       // Gate AI DJ auto-refresh while the queue is being replaced. Released
       // 2s after we finish — same cadence as playNow / addToQueue actions —
       // so the monitor can't fire against a half-settled queue.
@@ -1803,7 +1815,11 @@ export const useAudioStore = create<AudioState>()(
           method: 'POST',
           credentials: 'include',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ seed, variety }),
+          body: JSON.stringify({
+            seed,
+            variety,
+            ...(targetMinutes != null ? { targetMinutes } : {}),
+          }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
@@ -1822,6 +1838,7 @@ export const useAudioStore = create<AudioState>()(
           isRadioSession: true,
           radioSeed: seed,
           radioVariety: variety,
+          radioTargetMinutes: targetMinutes,
           radioSessionPlayCount: 0,
         });
         toast.success(`Radio started — ${label}`);
@@ -1894,6 +1911,7 @@ export const useAudioStore = create<AudioState>()(
         state.isRadioSession = false;
         state.radioSeed = null;
         state.radioVariety = 'medium';
+        state.radioTargetMinutes = null;
         state.aiQueuedSongIds = new Set<string>();
         state.autoplayIsLoading = false;
         state.autoplayTransitionActive = false;

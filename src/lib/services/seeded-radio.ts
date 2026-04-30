@@ -52,6 +52,8 @@ export type ArtistVariety = 'low' | 'medium' | 'high';
 export interface SeededRadioOptions {
   variety?: ArtistVariety;
   size?: number;
+  /** Target queue length in minutes (10–300). Overrides `size` when set. */
+  targetMinutes?: number;
 }
 
 export interface SeededRadioResult {
@@ -82,6 +84,44 @@ const ARTIST_CATALOG_FRACTION: Record<ArtistVariety, number> = {
 
 // Per-seed scorer fetch size (we ask for more than we need so dedupe+cap leave headroom).
 const SCORER_LIMIT_PER_SEED = 20;
+
+// Conservative average track length used to estimate slot count from a duration target.
+// Generously over-shoots so the post-trim has room to land on the target.
+const AVG_TRACK_MINUTES = 3.75;
+const DURATION_BUFFER = 1.3;
+const MIN_ESTIMATED_SIZE = 15;
+
+function estimateSizeFromMinutes(minutes: number): number {
+  return Math.max(
+    MIN_ESTIMATED_SIZE,
+    Math.ceil((minutes / AVG_TRACK_MINUTES) * DURATION_BUFFER),
+  );
+}
+
+/**
+ * Trim a song list to land as close as possible to `targetSeconds` total
+ * duration. When the next track would push past target, choose the boundary
+ * (include or exclude that track) that lands closer to target. Always returns
+ * at least one track when input is non-empty, even if the first track alone
+ * overshoots — empty radio is worse than slightly-too-long radio.
+ */
+function applyDurationTarget(songs: Song[], targetSeconds: number): Song[] {
+  if (targetSeconds <= 0 || songs.length === 0) return songs;
+
+  let acc = 0;
+  for (let i = 0; i < songs.length; i++) {
+    const dur = songs[i].duration ?? 0;
+    const after = acc + dur;
+    if (after >= targetSeconds) {
+      const undershoot = targetSeconds - acc;
+      const overshoot = after - targetSeconds;
+      if (i === 0 || overshoot < undershoot) return songs.slice(0, i + 1);
+      return songs.slice(0, i);
+    }
+    acc = after;
+  }
+  return songs;
+}
 
 // ============================================================================
 // Utilities
@@ -615,20 +655,28 @@ export async function generateSeededRadio(
   seed: SeededRadioSeed,
   options: SeededRadioOptions = {},
 ): Promise<SeededRadioResult> {
-  const size = options.size ?? DEFAULT_SIZE;
   const variety = options.variety ?? 'medium';
+  const targetMinutes = options.targetMinutes;
+  // When a duration target is set we estimate (and over-shoot) the slot count
+  // so the post-trim has room to land near target. Otherwise honor `size`.
+  const size = targetMinutes != null
+    ? estimateSizeFromMinutes(targetMinutes)
+    : (options.size ?? DEFAULT_SIZE);
   const recent = await getRecentSongSet(userId);
 
+  let result: SeededRadioResult;
   switch (seed.kind) {
     case 'song':
-      return generateFromSong(userId, seed.songId, size, recent);
+      result = await generateFromSong(userId, seed.songId, size, recent);
+      break;
 
     case 'album': {
       const songs = await getSongs(seed.albumId, 0, 100);
       const label = songs[0]
         ? `Album Radio — ${songs[0].album ?? 'Unknown'}`
         : 'Album Radio';
-      return generateFromCollection(userId, songs, label, size, recent);
+      result = await generateFromCollection(userId, songs, label, size, recent);
+      break;
     }
 
     case 'playlist': {
@@ -646,17 +694,28 @@ export async function generateSeededRadio(
         label = `Playlist Radio — ${pl.name ?? 'Unknown'}`;
       }
 
-      return generateFromCollection(userId, songs, label, size, recent);
+      result = await generateFromCollection(userId, songs, label, size, recent);
+      break;
     }
 
     case 'artist':
-      return generateFromArtist(userId, seed.artistId, size, variety, recent);
+      result = await generateFromArtist(userId, seed.artistId, size, variety, recent);
+      break;
 
     default: {
       const exhaustive: never = seed;
       throw new Error(`Unknown seed kind: ${JSON.stringify(exhaustive)}`);
     }
   }
+
+  if (targetMinutes != null) {
+    result = {
+      ...result,
+      songs: applyDurationTarget(result.songs, targetMinutes * 60),
+    };
+  }
+
+  return result;
 }
 
 // Exports for testing
@@ -666,5 +725,7 @@ export const __internal = {
   applyRecencyCap,
   pickSeedTracks,
   interleaveByFraction,
+  applyDurationTarget,
+  estimateSizeFromMinutes,
   ARTIST_CATALOG_FRACTION,
 };

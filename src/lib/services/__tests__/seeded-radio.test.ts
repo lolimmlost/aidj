@@ -208,6 +208,87 @@ describe('seeded-radio helpers', () => {
       expect(Math.round(size * __internal.ARTIST_CATALOG_FRACTION.high)).toBe(6);
     });
   });
+
+  describe('applyDurationTarget', () => {
+    const mk = (id: string, duration: number): Song =>
+      ({
+        id,
+        name: id,
+        title: id,
+        artist: 'A',
+        album: '',
+        albumId: '',
+        track: 0,
+        duration,
+        url: '',
+      }) as unknown as Song;
+
+    it('returns input unchanged when target is 0 or negative', () => {
+      const songs = [mk('a', 200), mk('b', 200)];
+      expect(__internal.applyDurationTarget(songs, 0)).toBe(songs);
+      expect(__internal.applyDurationTarget(songs, -10)).toBe(songs);
+    });
+
+    it('returns empty when input is empty', () => {
+      expect(__internal.applyDurationTarget([], 600)).toEqual([]);
+    });
+
+    it('stops at exact boundary (include the track that hits target)', () => {
+      // 3x 200s = 600s exactly. Including the third hits target with 0 overshoot.
+      const songs = [mk('a', 200), mk('b', 200), mk('c', 200), mk('d', 200)];
+      expect(__internal.applyDurationTarget(songs, 600)).toHaveLength(3);
+    });
+
+    it('snaps to closer boundary on overshoot — undershoot wins', () => {
+      // After 2 tracks: 400s (undershoot 200). Adding 3rd: 700s (overshoot 100).
+      // Overshoot is closer → include the third track.
+      const songs = [mk('a', 200), mk('b', 200), mk('c', 300), mk('d', 200)];
+      expect(__internal.applyDurationTarget(songs, 600)).toHaveLength(3);
+    });
+
+    it('snaps to closer boundary on overshoot — overshoot wins', () => {
+      // After 2 tracks: 500s (undershoot 100). Adding 3rd: 800s (overshoot 200).
+      // Undershoot is closer → stop at two.
+      const songs = [mk('a', 250), mk('b', 250), mk('c', 300), mk('d', 200)];
+      expect(__internal.applyDurationTarget(songs, 600)).toHaveLength(2);
+    });
+
+    it('always returns at least one track when input is non-empty, even if first overshoots', () => {
+      // First track is 1200s, target 600s. Overshoot beats returning empty.
+      const songs = [mk('a', 1200), mk('b', 200)];
+      const out = __internal.applyDurationTarget(songs, 600);
+      expect(out).toHaveLength(1);
+      expect(out[0].id).toBe('a');
+    });
+
+    it('returns full list when total duration is below target', () => {
+      const songs = [mk('a', 100), mk('b', 100)];
+      expect(__internal.applyDurationTarget(songs, 600)).toHaveLength(2);
+    });
+
+    it('treats missing duration as 0 (does not advance accumulator)', () => {
+      const noDur = { id: 'a', name: 'a', title: 'a', artist: 'A', url: '' } as unknown as Song;
+      const songs = [noDur, mk('b', 600)];
+      // 'a' contributes 0, 'b' hits target exactly.
+      expect(__internal.applyDurationTarget(songs, 600)).toHaveLength(2);
+    });
+  });
+
+  describe('estimateSizeFromMinutes', () => {
+    it('floors at MIN_ESTIMATED_SIZE for very short targets', () => {
+      // 30 min / 3.75 * 1.3 = ~10.4 → 11, but min is 15.
+      expect(__internal.estimateSizeFromMinutes(30)).toBe(15);
+    });
+
+    it('scales linearly above the floor', () => {
+      // 60 / 3.75 * 1.3 = 20.8 → 21
+      expect(__internal.estimateSizeFromMinutes(60)).toBe(21);
+      // 120 / 3.75 * 1.3 = 41.6 → 42
+      expect(__internal.estimateSizeFromMinutes(120)).toBe(42);
+      // 180 / 3.75 * 1.3 = 62.4 → 63
+      expect(__internal.estimateSizeFromMinutes(180)).toBe(63);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

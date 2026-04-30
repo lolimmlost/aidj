@@ -16,6 +16,7 @@ const SeededRadioSchema = z.object({
   ]),
   variety: z.enum(['low', 'medium', 'high']).optional(),
   size: z.number().int().min(10).max(80).optional(),
+  targetMinutes: z.number().int().min(10).max(300).optional(),
 });
 
 const POST = withAuthAndErrorHandling(
@@ -29,10 +30,11 @@ const POST = withAuthAndErrorHandling(
       });
     }
 
-    const { seed, variety, size } = parsed.data;
+    const { seed, variety, size, targetMinutes } = parsed.data;
     const result = await generateSeededRadio(session.user.id, seed, {
       variety,
       size,
+      targetMinutes,
     });
 
     return successResponse({
