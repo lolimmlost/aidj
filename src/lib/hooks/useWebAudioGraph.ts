@@ -64,6 +64,11 @@ export function useWebAudioGraph(): WebAudioGraph {
   const interruptedAtRef = useRef<number>(0);
   const clearWasPlayingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resumeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Last observed AudioContext.sampleRate. iOS LPM can renegotiate the rate
+  // (48k↔44.1k) across an interrupt/resume cycle, which produces a pitch-shift
+  // artifact even after a hard resync. We log the rate at every state
+  // transition and explicitly warn if it changes.
+  const lastSampleRateRef = useRef<number | null>(null);
 
   const getGainNode = useCallback((deck: 'A' | 'B'): GainNode | null => {
     return deck === 'A' ? gainARef.current : gainBRef.current;
@@ -84,6 +89,7 @@ export function useWebAudioGraph(): WebAudioGraph {
 
       const ctx = new AudioContextClass();
       audioContextRef.current = ctx;
+      lastSampleRateRef.current = ctx.sampleRate;
 
       const gainA = ctx.createGain();
       const gainB = ctx.createGain();
@@ -134,7 +140,7 @@ export function useWebAudioGraph(): WebAudioGraph {
       deckBElementRef.current = deckB;
 
       setIsInitialized(true);
-      console.log('[WEB AUDIO] Graph initialized successfully');
+      console.log(`[WEB AUDIO] Graph initialized successfully sampleRate=${ctx.sampleRate}`);
       return true;
     } catch (err) {
       console.error('[WEB AUDIO] Failed to initialize graph:', err);
@@ -369,7 +375,7 @@ export function useWebAudioGraph(): WebAudioGraph {
           }
         }
 
-        console.log(`[WEB AUDIO] Context ${state} — wasPlaying=${wasPlayingBeforeInterruptRef.current}, masterGain disconnected (elements untouched)`);
+        console.log(`[WEB AUDIO] Context ${state} — wasPlaying=${wasPlayingBeforeInterruptRef.current}, sampleRate=${ctx.sampleRate}, masterGain disconnected (elements untouched)`);
 
         // Persistent resume retry — iOS may not allow resume immediately after
         // interrupt. Instead of a fixed set of timeouts that can all expire while
@@ -403,7 +409,14 @@ export function useWebAudioGraph(): WebAudioGraph {
         interruptedAtRef.current = 0;
         const needsResync = interruptDuration > 500;
 
-        console.log(`[WEB AUDIO] Context running — shouldResume=${shouldResume}, interruptMs=${interruptDuration}, needsResync=${needsResync}`);
+        const prevRate = lastSampleRateRef.current;
+        const currentRate = ctx.sampleRate;
+        const rateChanged = prevRate != null && prevRate !== currentRate;
+        if (rateChanged) {
+          console.warn(`[WEB AUDIO] ⚠️ sampleRate changed across interrupt: ${prevRate} → ${currentRate} (likely pitch-shift root cause)`);
+        }
+        lastSampleRateRef.current = currentRate;
+        console.log(`[WEB AUDIO] Context running — shouldResume=${shouldResume}, interruptMs=${interruptDuration}, needsResync=${needsResync}, sampleRate=${currentRate}${rateChanged ? ' (CHANGED)' : ''}`);
 
         // Recovery sequence (order matters):
         // 1. Briefly mute elements — prevents pitch artifact during graph reconnect.
@@ -489,7 +502,7 @@ export function useWebAudioGraph(): WebAudioGraph {
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
       const state = ctx.state as string;
-      console.log(`[WEB AUDIO] Visibility returned, context ${state}`);
+      console.log(`[WEB AUDIO] Visibility returned, context ${state} sampleRate=${ctx.sampleRate}`);
 
       if (state === 'suspended' || state === 'interrupted') {
         console.log(`[WEB AUDIO] Context ${state} — attempting resume`);
