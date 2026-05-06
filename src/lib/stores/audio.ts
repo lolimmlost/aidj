@@ -7,6 +7,22 @@ import { getDeviceInfo } from '@/lib/utils/device';
 import { usePreferencesStore } from './preferences';
 import { toast } from '@/lib/toast';
 import { shuffleSongs } from '@/lib/utils/shuffle-scoring';
+import type { SeededRadioSeed, ArtistVariety } from '@/lib/services/seeded-radio';
+
+// Any non-additive queue replacement clears radio-session state. Spread into
+// the `set(...)` call of every action that swaps out the playlist wholesale.
+const RADIO_RESET = {
+  isRadioSession: false,
+  radioSeed: null as SeededRadioSeed | null,
+  radioVariety: 'medium' as ArtistVariety,
+  radioTargetMinutes: null as number | null,
+} as const;
+
+export interface StartRadioOptions {
+  variety?: ArtistVariety;
+  /** Target queue length in minutes (10–300). Omit for default ~40-track behavior. */
+  targetMinutes?: number;
+}
 
 // Client-side helper functions (moved from ai-dj.ts to avoid server imports)
 function checkQueueThreshold(
@@ -106,6 +122,11 @@ interface AudioState {
   // Transient: radio session play counter for profile refresh trigger (Story 9.3)
   radioSessionPlayCount: number;
   isRadioSession: boolean;
+  // Seeded radio (non-persisted): the seed and variety used for the current session
+  radioSeed: SeededRadioSeed | null;
+  radioVariety: ArtistVariety;
+  // Optional duration constraint (minutes) used for the current session. null = unconstrained.
+  radioTargetMinutes: number | null;
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
@@ -158,6 +179,16 @@ interface AudioState {
   // Radio session actions (Story 9.3)
   incrementRadioPlayCount: () => void;
   setIsRadioSession: (isRadio: boolean) => void;
+  // Seeded radio
+  startRadio: (seed: SeededRadioSeed, opts?: StartRadioOptions) => Promise<void>;
+  saveRadioAsPlaylist: (name: string) => Promise<{ playlistId: string; name: string } | null>;
+  /**
+   * Reconcile currentSongIndex with the song actually loaded on the active
+   * deck. Used to close the UI/audio drift window when a crossfade, visibility
+   * recovery, or other async event advances the deck before the store catches
+   * up. No-op when already in sync or the song isn't in the playlist.
+   */
+  syncIndexToActiveSong: (songId: string | null | undefined) => void;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -218,6 +249,9 @@ export const useAudioStore = create<AudioState>()(
     _rehydratedCurrentTime: 0,
     radioSessionPlayCount: 0,
     isRadioSession: false,
+    radioSeed: null,
+    radioVariety: 'medium',
+    radioTargetMinutes: null,
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -225,6 +259,7 @@ export const useAudioStore = create<AudioState>()(
       playlist: songs,
       currentSongIndex: 0,
       isShuffled: false,
+      ...RADIO_RESET,
     }),
 
     playSong: (songId: string, newPlaylist?: Song[]) => {
@@ -253,10 +288,16 @@ export const useAudioStore = create<AudioState>()(
         }
       }
 
+      // playSong may be handed a fresh playlist (full replacement) or a
+      // single-song fallback — both cases wipe radio state. If the existing
+      // queue is kept, radio continues (handled implicitly: state.playlist is
+      // reused and RADIO_RESET is not applied).
+      const replacing = playlist !== state.playlist;
       set({
         playlist,
         currentSongIndex: index,
         isPlaying: true,
+        ...(replacing ? RADIO_RESET : {}),
       });
     },
 
@@ -272,6 +313,7 @@ export const useAudioStore = create<AudioState>()(
           currentSongIndex: 0,
           isPlaying: true,
           isShuffled: false,
+          ...RADIO_RESET,
         });
       } else {
         // Replace the currently playing song with the new song
@@ -470,7 +512,7 @@ export const useAudioStore = create<AudioState>()(
         currentSongIndex: 0,
         isPlaying: true,
         isShuffled: false,
-  
+        ...RADIO_RESET,
       });
     },
     addPlaylistToQueue: (songs: Song[], replaceQueue: boolean = false) => {
@@ -482,7 +524,7 @@ export const useAudioStore = create<AudioState>()(
           currentSongIndex: 0,
           isPlaying: true,
           isShuffled: false,
-    
+          ...RADIO_RESET,
         });
       } else {
         // Append to existing queue
@@ -1750,6 +1792,93 @@ export const useAudioStore = create<AudioState>()(
     })),
 
     setIsRadioSession: (isRadio: boolean) => set({ isRadioSession: isRadio }),
+
+    syncIndexToActiveSong: (songId: string | null | undefined) => {
+      if (!songId) return;
+      const state = get();
+      if (state.playlist[state.currentSongIndex]?.id === songId) return;
+      const actualIndex = state.playlist.findIndex((s) => s.id === songId);
+      if (actualIndex < 0) return;
+      console.log(`[SYNC] Correcting currentSongIndex ${state.currentSongIndex} → ${actualIndex} (deck has ${songId})`);
+      set({ currentSongIndex: actualIndex });
+    },
+
+    startRadio: async (seed: SeededRadioSeed, opts: StartRadioOptions = {}) => {
+      const variety = opts.variety ?? 'medium';
+      const targetMinutes = opts.targetMinutes ?? null;
+      // Gate AI DJ auto-refresh while the queue is being replaced. Released
+      // 2s after we finish — same cadence as playNow / addToQueue actions —
+      // so the monitor can't fire against a half-settled queue.
+      set({ aiDJUserActionInProgress: true });
+      try {
+        const res = await fetch('/api/radio/seeded', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            seed,
+            variety,
+            ...(targetMinutes != null ? { targetMinutes } : {}),
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.message || `Failed to start radio (${res.status})`);
+        }
+        const json = await res.json();
+        const songs: Song[] = json?.data?.songs ?? [];
+        const label: string = json?.data?.seedInfo?.label ?? 'Radio';
+        if (songs.length === 0) {
+          toast.warning('No songs found for this radio seed');
+          return;
+        }
+        get().setPlaylist(songs);
+        set({
+          isPlaying: true,
+          isRadioSession: true,
+          radioSeed: seed,
+          radioVariety: variety,
+          radioTargetMinutes: targetMinutes,
+          radioSessionPlayCount: 0,
+        });
+        toast.success(`Radio started — ${label}`);
+      } catch (err) {
+        console.error('[startRadio] failed:', err);
+        toast.error(err instanceof Error ? err.message : 'Failed to start radio');
+      } finally {
+        setTimeout(() => set({ aiDJUserActionInProgress: false }), 2000);
+      }
+    },
+
+    saveRadioAsPlaylist: async (name: string) => {
+      const state = get();
+      const songIds = state.playlist.map((s) => s.id).filter(Boolean);
+      if (songIds.length === 0) {
+        toast.warning('Queue is empty — nothing to save');
+        return null;
+      }
+      try {
+        const res = await fetch('/api/playlists/create-from-ids', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name, songIds }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.message || `Failed to save playlist (${res.status})`);
+        }
+        const json = await res.json();
+        const playlistId: string | undefined = json?.data?.playlistId;
+        const savedName: string = json?.data?.name ?? name;
+        toast.success(`Saved as "${savedName}"`);
+        return playlistId ? { playlistId, name: savedName } : null;
+      } catch (err) {
+        console.error('[saveRadioAsPlaylist] failed:', err);
+        toast.error(err instanceof Error ? err.message : 'Failed to save playlist');
+        return null;
+      }
+    },
   }),
   {
     name: 'audio-player-storage',
@@ -1780,6 +1909,9 @@ export const useAudioStore = create<AudioState>()(
         state.songsPlayedSinceLastRec = 0;
         state.radioSessionPlayCount = 0;
         state.isRadioSession = false;
+        state.radioSeed = null;
+        state.radioVariety = 'medium';
+        state.radioTargetMinutes = null;
         state.aiQueuedSongIds = new Set<string>();
         state.autoplayIsLoading = false;
         state.autoplayTransitionActive = false;

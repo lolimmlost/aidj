@@ -68,6 +68,8 @@ import { Route as ApiRecommendationsDiscoveryAnalyticsRouteImport } from './rout
 import { Route as ApiRecommendationsClearRouteImport } from './routes/api/recommendations/clear'
 import { Route as ApiRecommendationsAnalyticsRouteImport } from './routes/api/recommendations/analytics'
 import { Route as ApiRadioShuffleRouteImport } from './routes/api/radio/shuffle'
+import { Route as ApiRadioSeededRouteImport } from './routes/api/radio/seeded'
+import { Route as ApiRadioSaveAsPlaylistRouteImport } from './routes/api/radio/save-as-playlist'
 import { Route as ApiProfileUpdateRouteImport } from './routes/api/profile/update'
 import { Route as ApiPlaylistsSyncRouteImport } from './routes/api/playlists/sync'
 import { Route as ApiPlaylistsSpotifyStatusRouteImport } from './routes/api/playlists/spotify-status'
@@ -487,6 +489,16 @@ const ApiRecommendationsAnalyticsRoute =
 const ApiRadioShuffleRoute = ApiRadioShuffleRouteImport.update({
   id: '/api/radio/shuffle',
   path: '/api/radio/shuffle',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRadioSeededRoute = ApiRadioSeededRouteImport.update({
+  id: '/api/radio/seeded',
+  path: '/api/radio/seeded',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRadioSaveAsPlaylistRoute = ApiRadioSaveAsPlaylistRouteImport.update({
+  id: '/api/radio/save-as-playlist',
+  path: '/api/radio/save-as-playlist',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiProfileUpdateRoute = ApiProfileUpdateRouteImport.update({
@@ -1234,6 +1246,8 @@ export interface FileRoutesByFullPath {
   '/api/playlists/spotify-status': typeof ApiPlaylistsSpotifyStatusRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/profile/update': typeof ApiProfileUpdateRoute
+  '/api/radio/save-as-playlist': typeof ApiRadioSaveAsPlaylistRoute
+  '/api/radio/seeded': typeof ApiRadioSeededRoute
   '/api/radio/shuffle': typeof ApiRadioShuffleRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
   '/api/recommendations/clear': typeof ApiRecommendationsClearRoute
@@ -1409,6 +1423,8 @@ export interface FileRoutesByTo {
   '/api/playlists/spotify-status': typeof ApiPlaylistsSpotifyStatusRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/profile/update': typeof ApiProfileUpdateRoute
+  '/api/radio/save-as-playlist': typeof ApiRadioSaveAsPlaylistRoute
+  '/api/radio/seeded': typeof ApiRadioSeededRoute
   '/api/radio/shuffle': typeof ApiRadioShuffleRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
   '/api/recommendations/clear': typeof ApiRecommendationsClearRoute
@@ -1588,6 +1604,8 @@ export interface FileRoutesById {
   '/api/playlists/spotify-status': typeof ApiPlaylistsSpotifyStatusRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/profile/update': typeof ApiProfileUpdateRoute
+  '/api/radio/save-as-playlist': typeof ApiRadioSaveAsPlaylistRoute
+  '/api/radio/seeded': typeof ApiRadioSeededRoute
   '/api/radio/shuffle': typeof ApiRadioShuffleRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
   '/api/recommendations/clear': typeof ApiRecommendationsClearRoute
@@ -1767,6 +1785,8 @@ export interface FileRouteTypes {
     | '/api/playlists/spotify-status'
     | '/api/playlists/sync'
     | '/api/profile/update'
+    | '/api/radio/save-as-playlist'
+    | '/api/radio/seeded'
     | '/api/radio/shuffle'
     | '/api/recommendations/analytics'
     | '/api/recommendations/clear'
@@ -1942,6 +1962,8 @@ export interface FileRouteTypes {
     | '/api/playlists/spotify-status'
     | '/api/playlists/sync'
     | '/api/profile/update'
+    | '/api/radio/save-as-playlist'
+    | '/api/radio/seeded'
     | '/api/radio/shuffle'
     | '/api/recommendations/analytics'
     | '/api/recommendations/clear'
@@ -2120,6 +2142,8 @@ export interface FileRouteTypes {
     | '/api/playlists/spotify-status'
     | '/api/playlists/sync'
     | '/api/profile/update'
+    | '/api/radio/save-as-playlist'
+    | '/api/radio/seeded'
     | '/api/radio/shuffle'
     | '/api/recommendations/analytics'
     | '/api/recommendations/clear'
@@ -2287,6 +2311,8 @@ export interface RootRouteChildren {
   ApiPlaylistsSpotifyStatusRoute: typeof ApiPlaylistsSpotifyStatusRoute
   ApiPlaylistsSyncRoute: typeof ApiPlaylistsSyncRoute
   ApiProfileUpdateRoute: typeof ApiProfileUpdateRoute
+  ApiRadioSaveAsPlaylistRoute: typeof ApiRadioSaveAsPlaylistRoute
+  ApiRadioSeededRoute: typeof ApiRadioSeededRoute
   ApiRadioShuffleRoute: typeof ApiRadioShuffleRoute
   ApiSecurityDisable2faRoute: typeof ApiSecurityDisable2faRoute
   ApiSecurityEnable2faRoute: typeof ApiSecurityEnable2faRoute
@@ -2733,6 +2759,20 @@ declare module '@tanstack/react-router' {
       path: '/api/radio/shuffle'
       fullPath: '/api/radio/shuffle'
       preLoaderRoute: typeof ApiRadioShuffleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/radio/seeded': {
+      id: '/api/radio/seeded'
+      path: '/api/radio/seeded'
+      fullPath: '/api/radio/seeded'
+      preLoaderRoute: typeof ApiRadioSeededRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/radio/save-as-playlist': {
+      id: '/api/radio/save-as-playlist'
+      path: '/api/radio/save-as-playlist'
+      fullPath: '/api/radio/save-as-playlist'
+      preLoaderRoute: typeof ApiRadioSaveAsPlaylistRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/profile/update': {
@@ -3847,6 +3887,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPlaylistsSpotifyStatusRoute: ApiPlaylistsSpotifyStatusRoute,
   ApiPlaylistsSyncRoute: ApiPlaylistsSyncRoute,
   ApiProfileUpdateRoute: ApiProfileUpdateRoute,
+  ApiRadioSaveAsPlaylistRoute: ApiRadioSaveAsPlaylistRoute,
+  ApiRadioSeededRoute: ApiRadioSeededRoute,
   ApiRadioShuffleRoute: ApiRadioShuffleRoute,
   ApiSecurityDisable2faRoute: ApiSecurityDisable2faRoute,
   ApiSecurityEnable2faRoute: ApiSecurityEnable2faRoute,
@@ -3884,12 +3926,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
