@@ -177,6 +177,38 @@ export function useCrossfade({
           scheduleGainRamp(activeDeckLabel, 0, xfadeDuration, 'equalpower');
           scheduleGainRamp(inactiveDeckLabel, 1.0, xfadeDuration, 'equalpower');
 
+          // Diagnostic — capture both decks' state at the start, midpoint, and
+          // end of the crossfade. Under iOS LPM + Bluetooth, the two decks can
+          // drift against each other during the overlap (decode loop starvation
+          // on the throttled main thread), producing audible comb-filter /
+          // pitch-shift artifacts. The midpoint drift check is the smoking gun.
+          const xfadeStartWall = Date.now();
+          const xfadeStartInactiveT = inactiveDeck.currentTime;
+          const snapshotDecks = (label: string, drift?: number) => {
+            const a = activeDeck, i = inactiveDeck;
+            const driftStr = drift !== undefined ? ` drift=${drift.toFixed(3)}s` : '';
+            console.log(
+              `[XFADE] decks @ ${label} — ` +
+              `${activeDeckLabel}{t=${a.currentTime.toFixed(2)} rate=${a.playbackRate} paused=${a.paused} ready=${a.readyState} net=${a.networkState}} ` +
+              `${inactiveDeckLabel}{t=${i.currentTime.toFixed(2)} rate=${i.playbackRate} paused=${i.paused} ready=${i.readyState} net=${i.networkState}}` +
+              driftStr,
+            );
+            if (a.playbackRate !== 1 || i.playbackRate !== 1) {
+              console.warn(`[XFADE] ⚠️ playbackRate drift @ ${label}: ${activeDeckLabel}=${a.playbackRate} ${inactiveDeckLabel}=${i.playbackRate}`);
+            }
+          };
+          snapshotDecks('start');
+          setTimeout(() => {
+            if (!crossfadeInProgressRef.current) return;
+            const wallElapsed = (Date.now() - xfadeStartWall) / 1000;
+            const inactiveElapsed = inactiveDeck.currentTime - xfadeStartInactiveT;
+            const drift = inactiveElapsed - wallElapsed;
+            snapshotDecks('midpoint', drift);
+            if (Math.abs(drift) > 0.1) {
+              console.warn(`[XFADE] ⚠️ inactive deck drift exceeds 100ms at midpoint: ${drift.toFixed(3)}s (likely pitch-shift root cause)`);
+            }
+          }, (xfadeDuration * 1000) / 2);
+
           // Subscribe to store for pause detection during crossfade
           pauseUnsubscribeRef.current = useAudioStore.subscribe((state, prevState) => {
             if (prevState.isPlaying && !state.isPlaying && crossfadeInProgressRef.current) {
@@ -225,6 +257,15 @@ export function useCrossfade({
       // Stop the old deck completely
       oldDeck.pause();
       oldDeck.currentTime = 0;
+
+      // Diagnostic — final snapshot before swap. Compare to start/midpoint
+      // to see whether the new (now-active) deck's currentTime advanced
+      // smoothly through the crossfade window, or stalled at any point.
+      console.log(
+        `[XFADE] decks @ complete — ` +
+        `${oldDeckLabel}{t=${oldDeck.currentTime.toFixed(2)} rate=${oldDeck.playbackRate} paused=${oldDeck.paused} ready=${oldDeck.readyState} net=${oldDeck.networkState}} ` +
+        `${newDeckLabel}{t=${newDeck.currentTime.toFixed(2)} rate=${newDeck.playbackRate} paused=${newDeck.paused} ready=${newDeck.readyState} net=${newDeck.networkState}}`,
+      );
 
       // Swap active deck
       setActiveDeck(newDeckLabel, 'crossfade-complete', { bypassCooldown: true });
