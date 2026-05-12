@@ -362,8 +362,20 @@ function handleIncomingMessage(
       if (!payload) break;
 
       if (payload.targetDeviceId === deviceId) {
-        // Transfer TO this device — fetch full state from server and apply
-        fetchAndReconcileState();
+        // Transfer TO this device — fetch full state from server and apply,
+        // then honor payload.play. applyServerState deliberately never sets
+        // isPlaying=true (browser autoplay policy on the remote-state path),
+        // so transfer-to-self has to flip it explicitly. The user clicked
+        // the picker in DevicePicker → fresh gesture activation, so play()
+        // will work even after the WS round-trip.
+        void (async () => {
+          await fetchAndReconcileState();
+          if (payload.play) {
+            const s = useAudioStore.getState();
+            console.log('[PlaybackSync] Transfer to this device — starting playback');
+            s.setIsPlaying(true);
+          }
+        })();
       } else if (store.isPlaying) {
         // Transfer AWAY from this device — pause and show indicator
         store.markUserPause();
