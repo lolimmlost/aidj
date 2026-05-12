@@ -174,7 +174,8 @@ export function PlayerBar() {
   }, [isRemotePlaying, remoteDevice?.currentPositionMs, remoteDevice?.updatedAt, remoteDevice?.durationMs]);
 
   // Derived values for display: use remote time when remote is playing and local isn't
-  const [showDevicePicker, setShowDevicePicker] = useState(false);
+  const showDevicePicker = useAudioStore((s) => s.isDevicePickerOpen);
+  const setDevicePickerOpen = useAudioStore((s) => s.setDevicePickerOpen);
   const devicePickerTriggerRef = useRef<HTMLButtonElement>(null);
   const showRemoteTime = isRemotePlaying && !isPlaying;
   const displayCurrentTime = showRemoteTime ? remoteEstimatedPositionMs / 1000 : currentTime;
@@ -867,7 +868,7 @@ export function PlayerBar() {
                   ref={devicePickerTriggerRef}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setShowDevicePicker(prev => !prev);
+                    setDevicePickerOpen(!showDevicePicker);
                   }}
                   className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5 hover:text-green-500 transition-colors"
                   aria-label="Switch playback device"
@@ -970,7 +971,7 @@ export function PlayerBar() {
             {showRemoteTime && (
               <button
                 ref={devicePickerTriggerRef}
-                onClick={(e) => { e.stopPropagation(); setShowDevicePicker(prev => !prev); }}
+                onClick={(e) => { e.stopPropagation(); setDevicePickerOpen(!showDevicePicker); }}
                 className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5 hover:text-green-500 transition-colors"
                 aria-label="Switch playback device"
               >
@@ -1164,7 +1165,7 @@ export function PlayerBar() {
 
       {/* Device Picker — rendered via portal */}
       {showDevicePicker && (
-        <DevicePicker onClose={() => setShowDevicePicker(false)} triggerRef={devicePickerTriggerRef} />
+        <DevicePicker onClose={() => setDevicePickerOpen(false)} triggerRef={devicePickerTriggerRef} />
       )}
     </>
   );

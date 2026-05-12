@@ -97,6 +97,9 @@ interface AudioState {
   queueUpdatedAt: string;
   positionUpdatedAt: string;
   playStateUpdatedAt: string;
+  // UI: whether the device picker dropdown is open (lifted from PlayerBar so
+  // gating code in actions can open it via toast actions).
+  isDevicePickerOpen: boolean;
   // Remote device indicator (set when another device is active)
   remoteDevice: {
     deviceId: string | null;
@@ -176,6 +179,7 @@ interface AudioState {
   // Cross-device sync actions
   applyServerState: (server: PlaybackStateResponse) => void;
   setRemoteDevice: (device: AudioState['remoteDevice']) => void;
+  setDevicePickerOpen: (open: boolean) => void;
   // Radio session actions (Story 9.3)
   incrementRadioPlayCount: () => void;
   setIsRadioSession: (isRadio: boolean) => void;
@@ -242,6 +246,7 @@ export const useAudioStore = create<AudioState>()(
     positionUpdatedAt: '',
     playStateUpdatedAt: '',
     remoteDevice: null,
+    isDevicePickerOpen: false,
     lastKnownPosition: 0,
     lastKnownDuration: 0,
     _userPauseAt: 0,
@@ -264,6 +269,22 @@ export const useAudioStore = create<AudioState>()(
 
     playSong: (songId: string, newPlaylist?: Song[]) => {
       const state = get();
+      // Gate: if another device is the active player, refuse to start a
+      // competing local stream. Prompt the user to switch devices first
+      // via the existing DevicePicker. Skip / next / prev still route
+      // correctly via remote_command — only ad-hoc song-click is gated.
+      if (state.remoteDevice && state.remoteDevice.isPlaying) {
+        toast.warning('Another device is playing', {
+          description: state.remoteDevice.deviceName
+            ? `Active: ${state.remoteDevice.deviceName}. Switch device to play here.`
+            : 'Switch device to play here.',
+          action: {
+            label: 'Switch device',
+            onClick: () => get().setDevicePickerOpen(true),
+          },
+        });
+        return;
+      }
       let playlist: Song[] = newPlaylist || state.playlist;
       let index = playlist.findIndex((song: Song) => song.id === songId);
 
@@ -303,9 +324,23 @@ export const useAudioStore = create<AudioState>()(
 
     playNow: (songId: string, song: Song) => {
       const state = get();
+      // Gate: if another device is the active player, refuse to start a
+      // competing local stream. See playSong for rationale.
+      if (state.remoteDevice && state.remoteDevice.isPlaying) {
+        toast.warning('Another device is playing', {
+          description: state.remoteDevice.deviceName
+            ? `Active: ${state.remoteDevice.deviceName}. Switch device to play here.`
+            : 'Switch device to play here.',
+          action: {
+            label: 'Switch device',
+            onClick: () => get().setDevicePickerOpen(true),
+          },
+        });
+        return;
+      }
       // Set user action flag to prevent AI DJ auto-refresh
       set({ aiDJUserActionInProgress: true });
-      
+
       if (state.playlist.length === 0 || state.currentSongIndex === -1) {
         // No existing playlist, just play the song
         set({
@@ -1786,6 +1821,8 @@ export const useAudioStore = create<AudioState>()(
     },
 
     setRemoteDevice: (device) => set({ remoteDevice: device }),
+
+    setDevicePickerOpen: (open: boolean) => set({ isDevicePickerOpen: open }),
 
     incrementRadioPlayCount: () => set((state) => ({
       radioSessionPlayCount: state.radioSessionPlayCount + 1,
