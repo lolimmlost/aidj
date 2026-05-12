@@ -85,8 +85,9 @@ export function setupPlaybackWebSocket(
 
     // Handle messages
     ws.on('message', async (data: Buffer) => {
+      const raw = data.toString();
       try {
-        const message: PlaybackMessage = JSON.parse(data.toString());
+        const message: PlaybackMessage = JSON.parse(raw);
 
         // Update heartbeat on any message
         lastHeartbeat.set(ws, Date.now());
@@ -95,6 +96,25 @@ export function setupPlaybackWebSocket(
         // active-device entry when the connection closes.
         if (message.deviceId && !wsDeviceIds.has(ws)) {
           wsDeviceIds.set(ws, message.deviceId);
+          console.log(`[WS RX] user=${userId} device=${message.deviceId} bound to socket (first message)`);
+        }
+
+        // Compact RX summary so the transfer/command/state flow is traceable
+        // in the log. Pulls only the fields that matter for diagnosis.
+        const fromDevice = message.deviceId ?? '?';
+        let summary = `type=${message.type} from=${fromDevice}`;
+        if (message.type === 'transfer') {
+          const p = message.payload as { targetDeviceId?: string; targetDeviceName?: string; play?: boolean } | undefined;
+          summary += ` target=${p?.targetDeviceId ?? '?'} targetName=${JSON.stringify(p?.targetDeviceName ?? null)} play=${p?.play ?? '?'}`;
+        } else if (message.type === 'command') {
+          const p = message.payload as { action?: string; value?: unknown } | undefined;
+          summary += ` action=${p?.action ?? '?'}` + (p?.value !== undefined ? ` value=${JSON.stringify(p.value)}` : '');
+        } else if (message.type === 'state_update') {
+          const p = message.payload as { isPlaying?: boolean; deviceId?: string; deviceName?: string; currentIndex?: number; playStateUpdatedAt?: string } | undefined;
+          summary += ` isPlaying=${p?.isPlaying ?? '?'} senderName=${JSON.stringify(p?.deviceName ?? null)} idx=${p?.currentIndex ?? '?'}`;
+        }
+        if (message.type !== 'heartbeat') {
+          console.log(`[WS RX] ${summary}`);
         }
 
         switch (message.type) {
@@ -103,7 +123,7 @@ export function setupPlaybackWebSocket(
             broadcastToUser(userId, ws, {
               type: 'state',
               payload: message.payload,
-            });
+            }, 'state');
             break;
 
           case 'command':
@@ -115,7 +135,7 @@ export function setupPlaybackWebSocket(
               type: 'remote_command',
               payload: message.payload as PlaybackCommand,
               fromDevice: message.deviceId,
-            });
+            }, 'remote_command');
             break;
 
           case 'transfer':
@@ -123,7 +143,7 @@ export function setupPlaybackWebSocket(
             broadcastToAllDevices(userId, {
               type: 'transfer',
               payload: message.payload,
-            });
+            }, 'transfer');
             break;
 
           case 'sync_request':
@@ -131,7 +151,7 @@ export function setupPlaybackWebSocket(
             broadcastToUser(userId, ws, {
               type: 'sync_request',
               requestingDevice: message.deviceId,
-            });
+            }, 'sync_request');
             break;
 
           case 'feedback_update':
@@ -139,16 +159,22 @@ export function setupPlaybackWebSocket(
             broadcastToUser(userId, ws, {
               type: 'feedback_update',
               payload: message.payload,
-            });
+            }, 'feedback_update');
             break;
 
           case 'heartbeat':
             // Already updated lastHeartbeat, just acknowledge
             ws.send(JSON.stringify({ type: 'heartbeat_ack' }));
             break;
+
+          default:
+            // Surface unknown message types — silently dropped messages are
+            // a common cause of "I sent X but the other device didn't react."
+            console.warn(`[WS RX] ⚠️ unknown message type — dropped: ${JSON.stringify(message).slice(0, 200)}`);
         }
       } catch (err) {
-        console.error('[WS] Message error:', err);
+        // Include the raw payload (truncated) so we can see what failed to parse.
+        console.error(`[WS] ⚠️ Message error: ${(err as Error).message} — raw=${raw.slice(0, 200)}`);
       }
     });
 
@@ -174,7 +200,7 @@ export function setupPlaybackWebSocket(
                 deviceName: null,
                 playStateUpdatedAt,
               },
-            });
+            }, 'state-cleared-on-disconnect');
           }
         } catch (err) {
           console.error('[WS] Error clearing active device on disconnect:', err);
@@ -193,45 +219,58 @@ export function setupPlaybackWebSocket(
 }
 
 /**
- * Broadcast to all devices of a user except the sender
+ * Broadcast to all devices of a user except the sender. `typeForLog` is the
+ * outgoing message's `type` field, used only for diagnostic logging.
  */
-function broadcastToUser(userId: string, sender: WebSocket, message: Record<string, unknown>) {
+function broadcastToUser(userId: string, sender: WebSocket, message: Record<string, unknown>, typeForLog: string) {
   const userConnections = connections.get(userId);
   if (!userConnections) return;
 
   const data = JSON.stringify(message);
   let sent = 0;
+  let skippedClosed = 0;
 
   for (const ws of userConnections) {
-    if (ws !== sender && ws.readyState === 1) { // WebSocket.OPEN = 1
-      ws.send(data);
-      sent++;
+    if (ws !== sender) {
+      if (ws.readyState === 1) {
+        ws.send(data);
+        sent++;
+      } else {
+        skippedClosed++;
+      }
     }
   }
 
-  if (sent > 0) {
-    console.log(`[WS] Broadcast to ${sent} device(s) for user ${userId}`);
-  }
+  const skipNote = skippedClosed > 0 ? ` (skipped ${skippedClosed} closed)` : '';
+  console.log(`[WS TX] type=${typeForLog} to=${sent} device(s) (excluding sender)${skipNote}`);
 }
 
 /**
- * Broadcast to all devices of a user including sender
+ * Broadcast to all devices of a user including sender. `typeForLog` is the
+ * outgoing message's `type` field, used only for diagnostic logging.
  */
-function broadcastToAllDevices(userId: string, message: Record<string, unknown>) {
+function broadcastToAllDevices(userId: string, message: Record<string, unknown>, typeForLog: string) {
   const userConnections = connections.get(userId);
-  if (!userConnections) return;
+  if (!userConnections) {
+    console.warn(`[WS TX] ⚠️ type=${typeForLog} dropped — no connections for user ${userId}`);
+    return;
+  }
 
   const data = JSON.stringify(message);
   let sent = 0;
+  let skippedClosed = 0;
 
   for (const ws of userConnections) {
-    if (ws.readyState === 1) { // WebSocket.OPEN = 1
+    if (ws.readyState === 1) {
       ws.send(data);
       sent++;
+    } else {
+      skippedClosed++;
     }
   }
 
-  console.log(`[WS] Broadcast to all ${sent} device(s) for user ${userId}`);
+  const skipNote = skippedClosed > 0 ? ` (skipped ${skippedClosed} closed)` : '';
+  console.log(`[WS TX] type=${typeForLog} to=ALL ${sent} device(s)${skipNote}`);
 }
 
 /**
