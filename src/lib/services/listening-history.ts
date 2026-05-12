@@ -71,7 +71,11 @@ export async function recordSongPlay(
     duration?: number;
   },
   playDuration?: number,
-  userInitiatedSkip?: boolean
+  userInitiatedSkip?: boolean,
+  /** Origin of the play. Surfaced in logs so we can tell AI DJ
+   * recommendations apart from manual clicks / radio / autoplay. Not
+   * persisted to DB yet — log-only for first iteration. */
+  source?: string,
 ): Promise<void> {
   const completed = playDuration && song.duration
     ? (playDuration / song.duration >= COMPLETION_THRESHOLD ? 1 : 0)
@@ -115,7 +119,7 @@ export async function recordSongPlay(
 
   await db.insert(listeningHistory).values(record);
 
-  console.log(`📊 [ListeningHistory] Recorded play: ${song.artist} - ${song.title} (completed: ${completed === 1}, skipped: ${skipDetected === 1})`);
+  console.log(`📊 [ListeningHistory] Recorded play: ${song.artist} - ${song.title} (source=${source ?? 'unknown'}, completed: ${completed === 1}, skipped: ${skipDetected === 1})`);
 
   // Trigger async similarity fetch (don't await - fire and forget)
   fetchAndStoreSimilarTracks(song.artist, song.title).catch(err => {
