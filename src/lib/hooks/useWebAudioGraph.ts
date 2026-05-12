@@ -425,6 +425,39 @@ export function useWebAudioGraph(): WebAudioGraph {
         }
         console.log(`[WEB AUDIO] Context running — shouldResume=${shouldResume}, interruptMs=${interruptDuration}, needsResync=${needsResync}, sampleRate=${currentRate}${rateChanged ? ' (CHANGED)' : ''}, pbA=${pbA} pbB=${pbB}`);
 
+        // Fast path for sub-100ms iOS state bounces (screen lock / brief
+        // visibility blur). The full recovery sequence below — element-volume
+        // toggle + masterGain disconnect + 250ms fade-in — was designed for
+        // real suspensions. On a 30–80ms iOS bounce it's the recovery itself
+        // that becomes the audible event: the 250ms fade forces the Bluetooth
+        // A2DP codec to re-establish its time base, and the first ~200ms
+        // after resume plays at a perceptibly altered tempo (= "pitch shift"
+        // reported on screen-lock). For these short bounces we just reconnect
+        // masterGain at user volume directly. No fade, no element toggle.
+        if (interruptDuration > 0 && interruptDuration < 100) {
+          console.log(`[WEB AUDIO] Short interrupt (${interruptDuration}ms) — instant restore, skipping fade/element-toggle`);
+          const masterFast = masterGainRef.current;
+          if (masterFast) {
+            try { masterFast.gain.cancelScheduledValues(0); } catch { /* no scheduled values */ }
+            try { masterFast.connect(ctx.destination); } catch { /* already connected */ }
+            const userVolume = useAudioStore.getState().volume ?? 1.0;
+            masterFast.gain.setValueAtTime(userVolume, ctx.currentTime);
+          }
+          if (shouldResume) {
+            if (!useAudioStore.getState().isPlaying) {
+              useAudioStore.getState().setIsPlaying(true);
+            }
+            if (clearWasPlayingTimerRef.current) clearTimeout(clearWasPlayingTimerRef.current);
+            clearWasPlayingTimerRef.current = setTimeout(() => {
+              wasPlayingBeforeInterruptRef.current = false;
+              clearWasPlayingTimerRef.current = null;
+            }, 3000);
+          } else {
+            wasPlayingBeforeInterruptRef.current = false;
+          }
+          return;
+        }
+
         // Recovery sequence (order matters):
         // 1. Briefly mute elements — prevents pitch artifact during graph reconnect.
         //    Elements were left at volume=1 during interrupted state (for background
