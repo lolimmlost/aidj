@@ -182,7 +182,11 @@ export function useCrossfade({
           // off to a fully-warmed decoder for the audible portion of the
           // fade. The crossfade overlap duration is unchanged — only the
           // start is delayed.
-          const WARMUP_MS = 500;
+          // Bumped from 500 → 1000ms after first iteration: 500ms reduced
+          // observed drift from −0.5s to −0.36s on iOS PWA + car BT (48k
+          // codec), still above the 100ms threshold. Doubling the warmup
+          // gives the decoder more headroom before the audible ramps begin.
+          const WARMUP_MS = 1000;
           console.log(`[XFADE] Inactive deck play() succeeded — pre-warming decoder for ${WARMUP_MS}ms before ramps`);
 
           setTimeout(() => {
