@@ -191,6 +191,16 @@ export function PlayerBar() {
     userInitiatedSkip?: boolean,
   ) => {
     if (!songId || !song) return;
+    // Tag where this play originated so we can tell AI-DJ recommendations
+    // apart from manual clicks / radio sessions / autoplay in the logs.
+    // Precedence: ai_dj > autoplay > radio > manual. AI DJ insertions can
+    // happen during a radio session; the more specific tag wins.
+    const audioState = useAudioStore.getState();
+    const source: 'ai_dj' | 'autoplay' | 'radio' | 'manual' =
+      audioState.aiQueuedSongIds.has(songId) ? 'ai_dj'
+      : audioState.autoplayQueuedSongIds.has(songId) ? 'autoplay'
+      : audioState.isRadioSession ? 'radio'
+      : 'manual';
     fetch('/api/listening-history/record', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -203,6 +213,7 @@ export function PlayerBar() {
         duration: songDuration,
         playDuration,
         userInitiatedSkip,
+        source,
       }),
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ['listening-history'] });
