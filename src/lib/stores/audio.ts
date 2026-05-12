@@ -1841,6 +1841,22 @@ export const useAudioStore = create<AudioState>()(
     },
 
     startRadio: async (seed: SeededRadioSeed, opts: StartRadioOptions = {}) => {
+      // Gate: same as playSong/playNow — refuse to start a competing local
+      // stream when another device is the active player. Surface the
+      // existing DevicePicker so the user can transfer explicitly.
+      const initialState = get();
+      if (initialState.remoteDevice && initialState.remoteDevice.isPlaying) {
+        toast.warning('Another device is playing', {
+          description: initialState.remoteDevice.deviceName
+            ? `Active: ${initialState.remoteDevice.deviceName}. Switch device to start radio here.`
+            : 'Switch device to start radio here.',
+          action: {
+            label: 'Switch device',
+            onClick: () => get().setDevicePickerOpen(true),
+          },
+        });
+        return;
+      }
       const variety = opts.variety ?? 'medium';
       const targetMinutes = opts.targetMinutes ?? null;
       // Gate AI DJ auto-refresh while the queue is being replaced. Released
