@@ -716,14 +716,21 @@ export function QueuePanel() {
         </CardHeader>
         <CardContent className="pb-2 md:pb-3 px-3 md:px-6 flex-1 overflow-hidden flex flex-col min-h-0">
           {currentSong && (
-            <div className="mb-2 md:mb-3 pb-2 md:pb-3 border-b border-border/50 bg-gradient-to-r from-primary/5 to-transparent -mx-3 md:-mx-4 px-3 md:px-4 py-2 md:py-3">
-              <p className="text-[10px] md:text-xs font-semibold text-primary/80 mb-1.5 md:mb-2 uppercase tracking-wider">Now Playing</p>
+            <div
+              className="mb-2 md:mb-3 pb-2 md:pb-3 border-b border-border/50 -mx-3 md:-mx-4 px-3 md:px-4 py-2 md:py-3"
+              style={{ background: 'linear-gradient(to right, oklch(from var(--aidj-magenta) l c h / 0.06), transparent)' }}
+            >
+              {/* DS rule: magenta is the "now playing" accent. */}
+              <p className="eyebrow text-[10px] md:text-xs mb-1.5 md:mb-2" style={{ color: 'var(--aidj-magenta)' }}>Now Playing</p>
               <div className="flex items-center gap-2 md:gap-3">
-                <div className="p-1.5 md:p-2 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-lg shadow-sm animate-pulse">
-                  <Music className="h-3.5 w-3.5 md:h-4 md:w-4 text-primary" />
+                <div
+                  className="p-1.5 md:p-2 rounded-lg shadow-sm animate-pulse"
+                  style={{ background: 'oklch(from var(--aidj-magenta) l c h / 0.15)' }}
+                >
+                  <Music className="h-3.5 w-3.5 md:h-4 md:w-4" style={{ color: 'var(--aidj-magenta)' }} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-xs md:text-sm truncate bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">{currentSong.title}</p>
+                  <p className="font-display font-semibold text-xs md:text-sm truncate">{currentSong.title}</p>
                   <p className="text-[10px] md:text-xs text-muted-foreground/80 truncate">{currentSong.artist}</p>
                 </div>
               </div>

@@ -863,6 +863,65 @@
            bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300;
   }
 
+  /* ─────────────────────────────────────────────────────────────────────
+     AIDJ Design-System primitives
+     Curated utilities that replace repeated inline class strings around
+     the analytics + brand surfaces. Keep this section narrow — only add
+     primitives that show up in 3+ places.
+     ───────────────────────────────────────────────────────────────────── */
+
+  /* Eyebrow — small uppercase label above a stat or chart overlay.
+     11px / 0.12em tracking / weight 600 / muted, per the AIDJ DS .stat .label. */
+  .eyebrow {
+    @apply text-[11px] uppercase font-semibold text-muted-foreground;
+    letter-spacing: 0.12em;
+  }
+
+  /* Brand glow — soft brand-tinted shadow for hero stats and feature cards.
+     Pair with bg-card so the glow reads as halo, not the card surface. */
+  .card-glow {
+    box-shadow: var(--shadow-glow-sm);
+  }
+
+  /* AIDJ brand-hue badges — translucent fill + matching border + colored text,
+     per the DS badge-violet/magenta/cyan/emerald/amber pattern. Use these for
+     mood tags, source labels, and small categorical indicators. */
+  .badge-violet {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5
+           text-xs font-semibold;
+    background: oklch(from var(--aidj-violet) l c h / 0.12);
+    color: var(--aidj-violet);
+    border-color: oklch(from var(--aidj-violet) l c h / 0.25);
+  }
+  .badge-magenta {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5
+           text-xs font-semibold;
+    background: oklch(from var(--aidj-magenta) l c h / 0.12);
+    color: var(--aidj-magenta);
+    border-color: oklch(from var(--aidj-magenta) l c h / 0.25);
+  }
+  .badge-cyan {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5
+           text-xs font-semibold;
+    background: oklch(from var(--aidj-cyan) l c h / 0.12);
+    color: var(--aidj-cyan);
+    border-color: oklch(from var(--aidj-cyan) l c h / 0.25);
+  }
+  .badge-emerald {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5
+           text-xs font-semibold;
+    background: oklch(from var(--aidj-emerald) l c h / 0.12);
+    color: var(--aidj-emerald);
+    border-color: oklch(from var(--aidj-emerald) l c h / 0.25);
+  }
+  .badge-amber {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5
+           text-xs font-semibold;
+    background: oklch(from var(--aidj-amber) l c h / 0.12);
+    color: var(--aidj-amber);
+    border-color: oklch(from var(--aidj-amber) l c h / 0.25);
+  }
+
   /* ── Hero Glow Tertiary ── */
   .hero-glow-tertiary {
     @apply absolute w-80 h-80 rounded-full blur-3xl opacity-25 pointer-events-none;
