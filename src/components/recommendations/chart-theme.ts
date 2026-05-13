@@ -14,22 +14,27 @@ import type { CSSProperties } from 'react';
 /**
  * Tooltip popover style — rounded, hairline border, themed background,
  * small body type. Pass to `<Tooltip contentStyle={chartTooltipContentStyle}>`.
+ *
+ * IMPORTANT: AIDJ tokens are stored as full `oklch(...)` values (not raw
+ * H/S/L components), so wrapping in `hsl(var(--popover))` produces invalid
+ * CSS and the tooltip renders with default browser styling (black text on
+ * transparent bg). Use `var(--popover)` etc. directly.
  */
 export const chartTooltipContentStyle: CSSProperties = {
   borderRadius: 8,
-  border: '1px solid hsl(var(--border))',
-  background: 'hsl(var(--popover))',
-  color: 'hsl(var(--popover-foreground))',
+  border: '1px solid var(--border)',
+  background: 'var(--popover)',
+  color: 'var(--popover-foreground)',
   fontSize: 12,
   padding: '8px 10px',
-  boxShadow: '0 4px 12px -2px hsl(var(--foreground) / 0.08)',
+  boxShadow: 'var(--shadow-md)',
 };
 
 /**
  * Label style for tooltip body — slightly muted to match the popover.
  */
 export const chartTooltipLabelStyle: CSSProperties = {
-  color: 'hsl(var(--muted-foreground))',
+  color: 'var(--muted-foreground)',
   fontSize: 11,
   fontWeight: 500,
   marginBottom: 2,
@@ -39,7 +44,7 @@ export const chartTooltipLabelStyle: CSSProperties = {
  * Cursor for bar charts. Sits *behind* the bars as a subtle muted fill.
  */
 export const chartBarCursor = {
-  fill: 'hsl(var(--muted))',
+  fill: 'var(--muted)',
   opacity: 0.4,
 } as const;
 
@@ -47,7 +52,7 @@ export const chartBarCursor = {
  * Cursor for line/area charts. A thin vertical guide line.
  */
 export const chartLineCursor = {
-  stroke: 'hsl(var(--muted-foreground))',
+  stroke: 'var(--muted-foreground)',
   strokeWidth: 1,
   strokeDasharray: '3 3',
 } as const;
@@ -76,7 +81,7 @@ export const chartPalette = [
 
 /** Soft slate fill for "unknown / pre-tagged" buckets that shouldn't compete
  *  for visual attention with real data. */
-export const chartMutedColor = 'hsl(var(--muted-foreground))';
+export const chartMutedColor = 'var(--muted-foreground)';
 
 /**
  * Stable color for known play sources. Reaches into `--chart-N` for typed
@@ -101,4 +106,4 @@ export const sourceColors: Record<string, string> = {
  *     active ? <div className={chartTooltipPopoverClass}>{...}</div> : null} />
  */
 export const chartTooltipPopoverClass =
-  'rounded-lg border border-border bg-popover text-popover-foreground shadow-[0_4px_12px_-2px_hsl(var(--foreground)/0.08)]';
+  'rounded-lg border border-border bg-popover text-popover-foreground shadow-lg';
