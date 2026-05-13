@@ -289,6 +289,75 @@ describe('seeded-radio helpers', () => {
       expect(__internal.estimateSizeFromMinutes(180)).toBe(63);
     });
   });
+
+  describe('tokenizeGenre', () => {
+    it('lowercases and splits on common separators', () => {
+      expect(__internal.tokenizeGenre('Classic Rock')).toEqual(['classic', 'rock']);
+      expect(__internal.tokenizeGenre('Rock;Pop')).toEqual(['rock', 'pop']);
+      expect(__internal.tokenizeGenre('Rock/Folk')).toEqual(['rock', 'folk']);
+      expect(__internal.tokenizeGenre('Indie-Rock')).toEqual(['indie', 'rock']);
+      expect(__internal.tokenizeGenre('Rock & Roll')).toEqual(['rock', 'roll']);
+    });
+
+    it('drops short tokens and stop-words to avoid spurious matches', () => {
+      // "en" would match between "Rock en Español" and "Pop en Inglés" without filter
+      expect(__internal.tokenizeGenre('Rock en Español')).toEqual(['rock', 'español']);
+      expect(__internal.tokenizeGenre('The Rock and Roll')).toEqual(['rock', 'roll']);
+      // 1-2 char tokens dropped
+      expect(__internal.tokenizeGenre('UK Rock')).toEqual(['rock']);
+    });
+
+    it('returns empty array for null / empty / whitespace', () => {
+      expect(__internal.tokenizeGenre(null)).toEqual([]);
+      expect(__internal.tokenizeGenre(undefined)).toEqual([]);
+      expect(__internal.tokenizeGenre('')).toEqual([]);
+      expect(__internal.tokenizeGenre('   ')).toEqual([]);
+    });
+  });
+
+  describe('filterByGenreOverlap', () => {
+    const mk = (id: string, artist: string, genre: string | null): Song =>
+      ({
+        id,
+        name: id,
+        title: id,
+        artist,
+        album: '',
+        albumId: '',
+        track: 0,
+        duration: 180,
+        url: '',
+        genre,
+      }) as unknown as Song;
+
+    it('returns input unchanged when seed token set is empty', () => {
+      const songs = [mk('a', 'A', 'Rock'), mk('b', 'B', 'Hip Hop')];
+      expect(__internal.filterByGenreOverlap(songs, new Set())).toEqual(songs);
+    });
+
+    it('keeps tracks whose genre tokens overlap the seed set', () => {
+      const seed = new Set(['rock', 'classic', 'blues']);
+      const songs = [
+        mk('the-who', 'The Who', 'Rock'),              // rock ∈ seed → KEEP
+        mk('uzi', 'Lil Uzi Vert', 'Hip Hop'),          // no overlap → DROP
+        mk('summit', 'John Summit', 'House'),          // no overlap → DROP
+        mk('enanitos', 'Los Enanitos Verdes', 'Rock en Español'), // rock ∈ seed → KEEP
+      ];
+      const kept = __internal.filterByGenreOverlap(songs, seed);
+      expect(kept.map((s) => s.id)).toEqual(['the-who', 'enanitos']);
+    });
+
+    it('keeps tracks with no genre metadata (lenient on missing data)', () => {
+      const seed = new Set(['rock']);
+      const songs = [
+        mk('rock', 'Rock Band', 'Rock'),
+        mk('no-genre', 'Unknown Artist', null),
+        mk('hiphop', 'HH Artist', 'Hip Hop'),
+      ];
+      const kept = __internal.filterByGenreOverlap(songs, seed);
+      expect(kept.map((s) => s.id)).toEqual(['rock', 'no-genre']);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
