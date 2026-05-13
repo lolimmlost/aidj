@@ -32,7 +32,10 @@ const CardTitle = ({ className, ref, ...props }: CardTitleProps) => (
   <h3
     ref={ref}
     className={cn(
-      "text-2xl font-semibold leading-none tracking-tight",
+      // Responsive sizing: narrow mobile cards looked broken at the
+      // shadcn default of text-2xl (24px). Scale down to text-lg on
+      // mobile, restore at sm+.
+      "text-lg sm:text-2xl font-semibold leading-tight tracking-tight",
       className
     )}
     {...props}
