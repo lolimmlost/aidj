@@ -5,7 +5,7 @@
 @import "./themes.css";
 
 /* Display fonts — swap font-display below to try alternatives */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Sora:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Sora:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant landscape (@media (orientation: landscape));
@@ -14,6 +14,11 @@
   /* Custom screen for very wide displays (1920p / 4K). Default Tailwind tops
      out at 2xl=1536px; without 3xl, layouts strand content on big monitors. */
   --breakpoint-3xl: 1920px;
+
+  /* Display + mono font utilities. font-display drives big stat numbers and
+     headings; font-mono is reserved for stats, timestamps, BPM/key labels. */
+  --font-display: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'Menlo', monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

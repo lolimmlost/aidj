@@ -31,6 +31,9 @@ import {
   chartTooltipLabelStyle,
   chartBarCursor,
   chartLineCursor,
+  chartPalette,
+  chartMutedColor,
+  sourceColors,
 } from './chart-theme';
 
 // ============================================================================
@@ -107,7 +110,10 @@ const COLORS = {
   info: '#3b82f6',
 };
 
-const PIE_COLORS = ['#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#3b82f6', '#06b6d4', '#84cc16'];
+// Use the AIDJ design-system chart palette (chart-1..5 CSS vars) so theme
+// switches repaint the charts. PIE_COLORS is kept as a name for back-compat
+// with existing callsites but routes through chartPalette.
+const PIE_COLORS = chartPalette;
 
 // ============================================================================
 // Components
@@ -236,6 +242,8 @@ function OverviewTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
           icon={BarChart3}
           label="Feedback"
           value={analytics.profile.feedbackCount.total.toLocaleString()}
+          gradient
+          glow
           caption={
             analytics.profile.feedbackCount.librarySynced &&
             analytics.profile.feedbackCount.librarySynced > 0
@@ -512,15 +520,9 @@ interface SourceCountRow {
   plays: number;
 }
 
-// Stable color per source. `unknown` is muted (gray) so the pre-instrumentation
-// backlog doesn't visually dominate while early data is sparse.
-const SOURCE_COLORS: Record<string, string> = {
-  ai_dj: '#8b5cf6',    // violet
-  manual: '#3b82f6',   // blue
-  radio: '#f59e0b',    // amber
-  autoplay: '#10b981', // emerald
-  unknown: '#94a3b8',  // slate
-};
+// Pulled from chart-theme.ts so source colors track the AIDJ design-system
+// chart palette and stay consistent with theme switches.
+const SOURCE_COLORS = sourceColors;
 
 const SOURCE_LABELS: Record<string, string> = {
   ai_dj: 'AI DJ',
@@ -729,7 +731,7 @@ const SourceBreakdownCard = memo(function SourceBreakdownCard({
                     {chartData.map((entry) => (
                       <Cell
                         key={entry.source}
-                        fill={SOURCE_COLORS[entry.source] ?? '#94a3b8'}
+                        fill={SOURCE_COLORS[entry.source] ?? chartMutedColor}
                       />
                     ))}
                   </Pie>
@@ -743,9 +745,9 @@ const SourceBreakdownCard = memo(function SourceBreakdownCard({
                   />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-semibold tabular-nums">{total.toLocaleString()}</span>
-                <span className="text-xs uppercase tracking-wide text-muted-foreground">Total plays</span>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1">
+                <span className="font-display text-3xl font-extrabold tabular-nums tracking-tight leading-none">{total.toLocaleString()}</span>
+                <span className="text-[10px] tracking-[0.12em] uppercase font-semibold text-muted-foreground">Total plays</span>
               </div>
             </div>
 
@@ -753,7 +755,7 @@ const SourceBreakdownCard = memo(function SourceBreakdownCard({
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 self-center">
               {rows.map((row) => {
                 const pct = total > 0 ? (row.plays / total) * 100 : 0;
-                const color = SOURCE_COLORS[row.source] ?? '#94a3b8';
+                const color = SOURCE_COLORS[row.source] ?? chartMutedColor;
                 const isTop = row === top;
                 return (
                   <li
@@ -769,15 +771,15 @@ const SourceBreakdownCard = memo(function SourceBreakdownCard({
                         className="size-2.5 rounded-full shrink-0"
                         style={{ backgroundColor: color }}
                       />
-                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <span className="text-[11px] tracking-[0.12em] uppercase font-semibold text-muted-foreground">
                         {SOURCE_LABELS[row.source] ?? row.source}
                       </span>
                     </div>
                     <div className="mt-1 flex items-baseline gap-2">
-                      <span className="text-xl font-semibold tabular-nums">
+                      <span className="font-display text-xl font-extrabold tabular-nums tracking-tight">
                         {row.plays.toLocaleString()}
                       </span>
-                      <span className="text-xs tabular-nums text-muted-foreground">
+                      <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
                         {pct.toFixed(1)}%
                       </span>
                     </div>
@@ -917,9 +919,9 @@ const TopArtistsChart = memo(function TopArtistsChart({ artists }: { artists: Ar
             />
           </PieChart>
         </ResponsiveContainer>
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-semibold tabular-nums">{total.toLocaleString()}</span>
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Top {chartData.length}</span>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1">
+          <span className="font-display text-2xl font-extrabold tabular-nums tracking-tight leading-none">{total.toLocaleString()}</span>
+          <span className="text-[10px] tracking-[0.12em] uppercase font-semibold text-muted-foreground">Top {chartData.length}</span>
         </div>
       </div>
       <ul className="space-y-1 self-center">
@@ -1016,6 +1018,8 @@ const StatCard = memo(function StatCard({
   trend,
   trendValue,
   progress,
+  gradient,
+  glow,
 }: {
   icon: LucideIcon;
   label: string;
@@ -1026,29 +1030,47 @@ const StatCard = memo(function StatCard({
   trendValue?: string;
   /** 0–100 progress bar shown under the value. */
   progress?: number;
+  /** Render the value in the AIDJ brand gradient. Reserve for the
+   *  hero/featured stat in a row — overuse dilutes it. */
+  gradient?: boolean;
+  /** Apply the brand glow shadow. Same rule: hero stat only. */
+  glow?: boolean;
 }) {
   const t = trendVisual(trend);
   return (
-    <Card>
+    <Card className={cn(glow && 'shadow-[var(--shadow-glow-sm)]')}>
       <CardHeader className="pb-1 sm:pb-2 p-3 sm:p-6">
-        <CardTitle className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium">
-          <Icon className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+        <CardTitle
+          // AIDJ eyebrow per design system: 11px, 0.12em tracking, weight 600,
+          // uppercase, muted. Tighter weight than the rest of the card titles
+          // so the BIG number reads as the primary mark.
+          className="flex items-center gap-1.5 sm:gap-2 text-[11px] tracking-[0.12em] uppercase font-semibold text-muted-foreground"
+        >
+          <Icon className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
           <span className="truncate">{label}</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-        <div className="text-lg sm:text-2xl font-bold tabular-nums capitalize">{value}</div>
+        <div
+          className={cn(
+            'font-display font-extrabold tabular-nums capitalize tracking-tight leading-none',
+            'text-2xl sm:text-3xl',
+            gradient && 'bg-[image:var(--gradient-brand)] bg-clip-text text-transparent',
+          )}
+        >
+          {value}
+        </div>
         {t && (
-          <div className={cn('mt-0.5 flex items-center gap-1 text-[10px] sm:text-xs', t.klass)}>
-            <t.Icon className="h-3 w-3 sm:h-4 sm:w-4" />
+          <div className={cn('mt-1.5 flex items-center gap-1 font-mono text-[11px]', t.klass)}>
+            <t.Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
             <span>{trendValue ?? (trend === 'up' ? 'Improving' : trend === 'down' ? 'Declining' : 'Stable')}</span>
           </div>
         )}
         {progress != null && (
-          <Progress value={progress} className="mt-1 sm:mt-2 h-1.5 sm:h-2" />
+          <Progress value={progress} className="mt-2 h-1.5 sm:h-2" />
         )}
         {caption && (
-          <p className="mt-1 text-[10px] sm:text-xs text-muted-foreground">{caption}</p>
+          <p className="mt-1.5 text-[11px] sm:text-xs text-muted-foreground">{caption}</p>
         )}
       </CardContent>
     </Card>
