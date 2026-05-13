@@ -195,7 +195,7 @@ export const ListeningHourChart = memo(function ListeningHourChart({
                   if (!active || !payload?.[0]) return null;
                   const d = payload[0].payload;
                   return (
-                    <div className="rounded-lg border border-border bg-popover text-popover-foreground px-3 py-2 text-sm shadow-[0_4px_12px_-2px_hsl(var(--foreground)/0.08)]">
+                    <div className="rounded-lg border border-border bg-popover text-popover-foreground px-3 py-2 text-sm shadow-lg">
                       <p className="font-medium">{formatHour(d.hour)} - {d.timeOfDay}</p>
                       <p className="text-muted-foreground">{d.plays} plays</p>
                     </div>

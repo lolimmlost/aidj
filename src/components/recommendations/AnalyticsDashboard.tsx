@@ -346,7 +346,7 @@ const QualityTab = memo(function QualityTab({ analytics }: { analytics: Enhanced
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
               <XAxis dataKey="period" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
               <Tooltip cursor={chartBarCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
@@ -456,7 +456,7 @@ const ActivityTab = memo(function ActivityTab({ analytics }: { analytics: Enhanc
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={dayData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="day" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
                 <Tooltip cursor={chartBarCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
@@ -474,7 +474,7 @@ const ActivityTab = memo(function ActivityTab({ analytics }: { analytics: Enhanc
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
               <LineChart data={hourData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} interval={2} />
                 <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
                 <Tooltip cursor={chartLineCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
@@ -725,7 +725,7 @@ const SourceBreakdownCard = memo(function SourceBreakdownCard({
                     paddingAngle={2}
                     dataKey="value"
                     nameKey="name"
-                    stroke="hsl(var(--background))"
+                    stroke="var(--background)"
                     strokeWidth={2}
                   >
                     {chartData.map((entry) => (
@@ -902,7 +902,7 @@ const TopArtistsChart = memo(function TopArtistsChart({ artists }: { artists: Ar
               paddingAngle={2}
               dataKey="value"
               nameKey="name"
-              stroke="hsl(var(--background))"
+              stroke="var(--background)"
               strokeWidth={2}
             >
               {chartData.map((entry) => (
