@@ -34,6 +34,7 @@ function MusicIdentityPage() {
       title="Music Identity"
       description="AI-powered listening reports"
       backLink=""
+      wide
     >
       <Suspense fallback={<MusicIdentityPageSkeleton />}>
         <MusicIdentityDashboard />

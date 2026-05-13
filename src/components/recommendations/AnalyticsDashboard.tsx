@@ -26,6 +26,12 @@ import { Skeleton } from '../ui/skeleton';
 import { Progress } from '../ui/progress';
 import { LayoutDashboard, Target, Activity, Compass, Headphones, TrendingUp, TrendingDown, Minus, BarChart3, Sparkles, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  chartTooltipContentStyle,
+  chartTooltipLabelStyle,
+  chartBarCursor,
+  chartLineCursor,
+} from './chart-theme';
 
 // ============================================================================
 // Types
@@ -335,15 +341,7 @@ const QualityTab = memo(function QualityTab({ analytics }: { analytics: Enhanced
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
               <XAxis dataKey="period" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
-              <Tooltip
-                cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
-                contentStyle={{
-                  borderRadius: 8,
-                  border: '1px solid hsl(var(--border))',
-                  background: 'hsl(var(--popover))',
-                  fontSize: 12,
-                }}
-              />
+              <Tooltip cursor={chartBarCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
               <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
               <Bar dataKey="liked" fill={COLORS.success} name="Liked" radius={[4, 4, 0, 0]} />
               <Bar dataKey="disliked" fill={COLORS.danger} name="Disliked" radius={[4, 4, 0, 0]} />
@@ -453,15 +451,7 @@ const ActivityTab = memo(function ActivityTab({ analytics }: { analytics: Enhanc
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                 <XAxis dataKey="day" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
-                <Tooltip
-                  cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
-                  contentStyle={{
-                    borderRadius: 8,
-                    border: '1px solid hsl(var(--border))',
-                    background: 'hsl(var(--popover))',
-                    fontSize: 12,
-                  }}
-                />
+                <Tooltip cursor={chartBarCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
                 <Bar dataKey="count" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -479,15 +469,7 @@ const ActivityTab = memo(function ActivityTab({ analytics }: { analytics: Enhanc
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                 <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} interval={2} />
                 <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
-                <Tooltip
-                  cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1 }}
-                  contentStyle={{
-                    borderRadius: 8,
-                    border: '1px solid hsl(var(--border))',
-                    background: 'hsl(var(--popover))',
-                    fontSize: 12,
-                  }}
-                />
+                <Tooltip cursor={chartLineCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
                 <Line
                   type="monotone"
                   dataKey="count"
@@ -756,12 +738,8 @@ const SourceBreakdownCard = memo(function SourceBreakdownCard({
                       const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
                       return [`${value} plays (${pct}%)`, name];
                     }}
-                    contentStyle={{
-                      borderRadius: 8,
-                      border: '1px solid hsl(var(--border))',
-                      background: 'hsl(var(--popover))',
-                      fontSize: 12,
-                    }}
+                    contentStyle={chartTooltipContentStyle}
+                    labelStyle={chartTooltipLabelStyle}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -934,12 +912,8 @@ const TopArtistsChart = memo(function TopArtistsChart({ artists }: { artists: Ar
                 const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
                 return [`${value} thumbs-up (${pct}%)`, name];
               }}
-              contentStyle={{
-                borderRadius: 8,
-                border: '1px solid hsl(var(--border))',
-                background: 'hsl(var(--popover))',
-                fontSize: 12,
-              }}
+              contentStyle={chartTooltipContentStyle}
+              labelStyle={chartTooltipLabelStyle}
             />
           </PieChart>
         </ResponsiveContainer>

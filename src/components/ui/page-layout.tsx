@@ -16,6 +16,13 @@ interface PageLayoutProps {
   fullWidth?: boolean;
   /** Compact header for secondary pages */
   compact?: boolean;
+  /**
+   * Opt-in to a wider max-width on large displays for content that benefits
+   * from horizontal real estate (analytics dashboards, multi-column lists).
+   * Forms/reading-heavy pages should leave this off so line lengths stay
+   * comfortable.
+   */
+  wide?: boolean;
 }
 
 /**
@@ -33,6 +40,7 @@ export function PageLayout({
   className,
   fullWidth = false,
   compact = false,
+  wide = false,
 }: PageLayoutProps) {
   return (
     <div className={cn(
@@ -45,7 +53,14 @@ export function PageLayout({
         // On mobile: push content below the fixed top bar (safe-area + 3rem bar height)
         // On desktop: just safe-area is enough (no top bar)
         'pt-[calc(env(safe-area-inset-top)+3.5rem)] md:pt-[env(safe-area-inset-top)]',
-        !fullWidth && 'max-w-7xl px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6',
+        !fullWidth && [
+          'px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6',
+          // Default ladder: 1280 → 1600 (2xl) → 1900 (3xl).
+          // Wide ladder for dashboards: 1280 → 1800 (2xl) → 2400 (3xl).
+          wide
+            ? 'max-w-7xl 2xl:max-w-[1800px] 3xl:max-w-[2400px]'
+            : 'max-w-7xl 2xl:max-w-[1600px] 3xl:max-w-[1900px]',
+        ],
         fullWidth && 'pb-4 sm:pb-6'
       )}>
         {/* Page Header */}

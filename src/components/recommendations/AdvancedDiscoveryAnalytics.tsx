@@ -31,6 +31,12 @@ import { Skeleton } from '../ui/skeleton';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
 import {
+  chartTooltipContentStyle,
+  chartTooltipLabelStyle,
+  chartBarCursor,
+  chartLineCursor,
+} from './chart-theme';
+import {
   TrendingUp,
   TrendingDown,
   Minus,
@@ -514,15 +520,12 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
               />
               <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 10 }} />
               <Tooltip
+                cursor={chartBarCursor}
                 formatter={(value: number, _name: string, props: { payload: { total: number } }) =>
                   [`${value.toFixed(1)}% (${props.payload.total} songs)`, 'Share']
                 }
-                labelStyle={{ color: 'var(--foreground)' }}
-                contentStyle={{
-                  backgroundColor: 'var(--background)',
-                  border: '1px solid var(--border)',
-                  fontSize: '12px',
-                }}
+                contentStyle={chartTooltipContentStyle}
+                labelStyle={chartTooltipLabelStyle}
               />
               <Bar
                 dataKey="share"
@@ -568,7 +571,7 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip />
+              <Tooltip contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
               <Legend wrapperStyle={{ fontSize: '10px' }} />
             </PieChart>
           </ResponsiveContainer>
@@ -756,8 +759,10 @@ const TopContentTab = memo(function TopContentTab({
                 <XAxis type="number" tick={{ fontSize: 9 }} />
                 <YAxis type="category" dataKey="genre" tick={{ fontSize: 9 }} width={80} />
                 <Tooltip
+                  cursor={chartBarCursor}
                   formatter={(v: number) => [`${v} songs`, 'Count']}
-                  contentStyle={{ fontSize: '11px' }}
+                  contentStyle={chartTooltipContentStyle}
+                  labelStyle={chartTooltipLabelStyle}
                 />
                 <Bar dataKey="count" fill={COLORS.primary} name="Songs" radius={[0, 4, 4, 0]} />
               </BarChart>
@@ -856,7 +861,7 @@ const EngagementTab = memo(function EngagementTab({
                 tickFormatter={(v) => `${v}%`}
                 tick={{ fontSize: 10 }}
               />
-              <Tooltip contentStyle={{ fontSize: '12px' }} />
+              <Tooltip cursor={chartLineCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
               <Legend wrapperStyle={{ fontSize: '10px' }} />
               <Bar
                 yAxisId="left"
@@ -900,7 +905,7 @@ const EngagementTab = memo(function EngagementTab({
                 tickFormatter={(v) => `${v}%`}
                 tick={{ fontSize: 10 }}
               />
-              <Tooltip contentStyle={{ fontSize: '12px' }} />
+              <Tooltip cursor={chartLineCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
               <Legend wrapperStyle={{ fontSize: '10px' }} />
               <Line
                 yAxisId="left"

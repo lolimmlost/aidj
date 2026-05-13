@@ -131,6 +131,7 @@ function HistoryPage() {
       icon={<Clock className="h-5 w-5" />}
       backLink="/dashboard"
       backLabel="Dashboard"
+      wide
       actions={
         <div className="flex gap-1 rounded-lg border p-1 bg-muted/30">
           {(Object.keys(PERIOD_LABELS) as TimePeriod[]).map((p) => (
