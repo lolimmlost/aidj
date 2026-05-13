@@ -157,24 +157,24 @@ export function AnalyticsDashboard({ period = '30d' }: AnalyticsDashboardProps) 
     <div className="space-y-6">
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="grid w-full grid-cols-5 h-auto">
-          <TabsTrigger value="overview" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
-            <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+          <TabsTrigger value="overview" className="flex items-center justify-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+            <LayoutDashboard className="hidden sm:inline-block h-4 w-4 shrink-0" />
             Overview
           </TabsTrigger>
-          <TabsTrigger value="listening" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
-            <Headphones className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+          <TabsTrigger value="listening" className="flex items-center justify-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+            <Headphones className="hidden sm:inline-block h-4 w-4 shrink-0" />
             Listening
           </TabsTrigger>
-          <TabsTrigger value="quality" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
-            <Target className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+          <TabsTrigger value="quality" className="flex items-center justify-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+            <Target className="hidden sm:inline-block h-4 w-4 shrink-0" />
             Quality
           </TabsTrigger>
-          <TabsTrigger value="activity" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
-            <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+          <TabsTrigger value="activity" className="flex items-center justify-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+            <Activity className="hidden sm:inline-block h-4 w-4 shrink-0" />
             Activity
           </TabsTrigger>
-          <TabsTrigger value="discovery" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
-            <Compass className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+          <TabsTrigger value="discovery" className="flex items-center justify-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+            <Compass className="hidden sm:inline-block h-4 w-4 shrink-0" />
             Discovery
           </TabsTrigger>
         </TabsList>
