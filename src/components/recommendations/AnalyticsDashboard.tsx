@@ -23,8 +23,8 @@ import {
   Cell,
 } from 'recharts';
 import { Skeleton } from '../ui/skeleton';
-import { Progress } from '../ui/progress';
-import { LayoutDashboard, Target, Activity, Compass, Headphones, TrendingUp, TrendingDown, Minus, BarChart3, Sparkles, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Target, Activity, Compass, Headphones, TrendingUp, TrendingDown, Minus, BarChart3, Sparkles } from 'lucide-react';
+import { StatCard, type MetricTrend } from './StatCard';
 import { cn } from '@/lib/utils';
 import {
   chartTooltipContentStyle,
@@ -993,89 +993,6 @@ const TasteProfileCard = memo(function TasteProfileCard({ analytics }: { analyti
   );
 });
 
-type MetricTrend = 'up' | 'down' | 'flat';
-
-function trendVisual(trend?: MetricTrend) {
-  if (!trend) return null;
-  const Icon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
-  const klass =
-    trend === 'up' ? 'text-emerald-500'
-    : trend === 'down' ? 'text-destructive'
-    : 'text-muted-foreground';
-  return { Icon, klass };
-}
-
-/**
- * Compact stat card matching the visual language of AdvancedDiscoveryAnalytics:
- * icon-prefixed header, dense padding on mobile, value with optional inline
- * trend chip or progress bar.
- */
-const StatCard = memo(function StatCard({
-  icon: Icon,
-  label,
-  value,
-  caption,
-  trend,
-  trendValue,
-  progress,
-  gradient,
-  glow,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  caption?: string;
-  trend?: MetricTrend;
-  /** Optional explicit delta string shown next to the trend icon, e.g. "+3.4%". */
-  trendValue?: string;
-  /** 0–100 progress bar shown under the value. */
-  progress?: number;
-  /** Render the value in the AIDJ brand gradient. Reserve for the
-   *  hero/featured stat in a row — overuse dilutes it. */
-  gradient?: boolean;
-  /** Apply the brand glow shadow. Same rule: hero stat only. */
-  glow?: boolean;
-}) {
-  const t = trendVisual(trend);
-  return (
-    <Card className={cn(glow && 'card-glow')}>
-      <CardHeader className="pb-1 sm:pb-2 p-3 sm:p-6">
-        <CardTitle
-          // AIDJ eyebrow per design system: 11px, 0.12em tracking, weight 600,
-          // uppercase, muted. Tighter weight than the rest of the card titles
-          // so the BIG number reads as the primary mark.
-          className="flex items-center gap-1.5 sm:gap-2 eyebrow"
-        >
-          <Icon className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
-          <span className="truncate">{label}</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-        <div
-          className={cn(
-            'font-display font-extrabold tabular-nums capitalize tracking-tight leading-none',
-            'text-2xl sm:text-3xl',
-            gradient && 'bg-[image:var(--gradient-brand)] bg-clip-text text-transparent',
-          )}
-        >
-          {value}
-        </div>
-        {t && (
-          <div className={cn('mt-1.5 flex items-center gap-1 font-mono text-[11px]', t.klass)}>
-            <t.Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-            <span>{trendValue ?? (trend === 'up' ? 'Improving' : trend === 'down' ? 'Declining' : 'Stable')}</span>
-          </div>
-        )}
-        {progress != null && (
-          <Progress value={progress} className="mt-2 h-1.5 sm:h-2" />
-        )}
-        {caption && (
-          <p className="mt-1.5 text-[11px] sm:text-xs text-muted-foreground">{caption}</p>
-        )}
-      </CardContent>
-    </Card>
-  );
-});
 
 const AnalyticsLoadingSkeleton = memo(function AnalyticsLoadingSkeleton() {
   return (

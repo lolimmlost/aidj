@@ -36,6 +36,7 @@ import {
   chartBarCursor,
   chartLineCursor,
 } from './chart-theme';
+import { StatCard, type MetricTrend } from './StatCard';
 import {
   TrendingUp,
   TrendingDown,
@@ -49,8 +50,6 @@ import {
   Calendar,
   Sparkles,
   Target,
-  ArrowUpRight,
-  ArrowDownRight,
 } from 'lucide-react';
 
 // ============================================================================
@@ -350,99 +349,43 @@ const SummaryCards = memo(function SummaryCards({
 }: {
   summary: NonNullable<DiscoveryAnalyticsResponse['metrics']['summary']>;
 }) {
-  const trendIcon = (change: number) => {
-    if (change > 0) return <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-success" />;
-    if (change < 0) return <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4 text-danger" />;
-    return <Minus className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />;
-  };
+  const weekTrend: MetricTrend =
+    summary.weekOverWeekChange > 0 ? 'up'
+    : summary.weekOverWeekChange < 0 ? 'down'
+    : 'flat';
+  const monthTrend: MetricTrend =
+    summary.monthOverMonthChange > 0 ? 'up'
+    : summary.monthOverMonthChange < 0 ? 'down'
+    : 'flat';
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="pb-1 sm:pb-2 p-3 sm:p-6">
-          <CardTitle className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium">
-            <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
-            <span className="truncate">Feedback</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-          <div className="text-lg sm:text-2xl font-bold">{summary.totalFeedback}</div>
-          <p className="text-[10px] sm:text-xs text-muted-foreground">
-            Feedback events
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-1 sm:pb-2 p-3 sm:p-6">
-          <CardTitle className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium">
-            <Target className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
-            <span className="truncate">Accept Rate</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-          <div className="text-lg sm:text-2xl font-bold">
-            {(summary.overallAcceptanceRate * 100).toFixed(1)}%
-          </div>
-          <div className="flex items-center gap-1 text-[10px] sm:text-xs">
-            {trendIcon(summary.weekOverWeekChange)}
-            <span
-              className={
-                summary.weekOverWeekChange > 0
-                  ? 'text-success'
-                  : summary.weekOverWeekChange < 0
-                    ? 'text-danger'
-                    : 'text-muted-foreground'
-              }
-            >
-              {summary.weekOverWeekChange > 0 ? '+' : ''}
-              {summary.weekOverWeekChange.toFixed(1)}%
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-1 sm:pb-2 p-3 sm:p-6">
-          <CardTitle className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium">
-            <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
-            <span className="truncate">Discovery</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-          <div className="text-lg sm:text-2xl font-bold">
-            {summary.discoveryScore.toFixed(0)}
-          </div>
-          <Progress value={summary.discoveryScore} className="mt-1 sm:mt-2 h-1.5 sm:h-2" />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-1 sm:pb-2 p-3 sm:p-6">
-          <CardTitle className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium">
-            <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
-            <span className="truncate">Monthly</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-          <div className="flex items-center gap-1 sm:gap-2">
-            <div className="text-lg sm:text-2xl font-bold">
-              {summary.monthOverMonthChange > 0 ? '+' : ''}
-              {summary.monthOverMonthChange.toFixed(1)}%
-            </div>
-            {summary.monthOverMonthChange > 0 ? (
-              <ArrowUpRight className="h-4 w-4 sm:h-5 sm:w-5 text-success" />
-            ) : summary.monthOverMonthChange < 0 ? (
-              <ArrowDownRight className="h-4 w-4 sm:h-5 sm:w-5 text-danger" />
-            ) : (
-              <Minus className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
-            )}
-          </div>
-          <p className="text-[10px] sm:text-xs text-muted-foreground">
-            vs prev month
-          </p>
-        </CardContent>
-      </Card>
+    <div className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4">
+      <StatCard
+        icon={BarChart3}
+        label="Feedback"
+        value={summary.totalFeedback.toLocaleString()}
+        caption="Feedback events"
+      />
+      <StatCard
+        icon={Target}
+        label="Accept Rate"
+        value={`${(summary.overallAcceptanceRate * 100).toFixed(1)}%`}
+        trend={weekTrend}
+        trendValue={`${summary.weekOverWeekChange > 0 ? '+' : ''}${summary.weekOverWeekChange.toFixed(1)}% wk`}
+      />
+      <StatCard
+        icon={Sparkles}
+        label="Discovery"
+        value={summary.discoveryScore.toFixed(0)}
+        progress={summary.discoveryScore}
+      />
+      <StatCard
+        icon={Calendar}
+        label="Monthly"
+        value={`${summary.monthOverMonthChange > 0 ? '+' : ''}${summary.monthOverMonthChange.toFixed(1)}%`}
+        trend={monthTrend}
+        caption="vs prev month"
+      />
     </div>
   );
 });
