@@ -784,6 +784,38 @@ export async function getTopPlayedSongs(
   return results;
 }
 
+/**
+ * Play counts grouped by `source` column for the period.
+ *
+ * Rows with a null `source` (pre-instrumentation plays) are bucketed as
+ * `"unknown"` so callers always get a complete picture. Order is by count
+ * desc so the largest wedge is first.
+ */
+export async function getPlayCountsBySource(
+  userId: string,
+  start: Date,
+  end: Date,
+): Promise<Array<{ source: string; plays: number }>> {
+  const results = await db
+    .select({
+      source: sql<string | null>`${listeningHistory.source}`,
+      plays: sql<number>`count(*)::int`,
+    })
+    .from(listeningHistory)
+    .where(and(
+      eq(listeningHistory.userId, userId),
+      gte(listeningHistory.playedAt, start),
+      lte(listeningHistory.playedAt, end),
+    ))
+    .groupBy(listeningHistory.source)
+    .orderBy(desc(sql`count(*)`));
+
+  return results.map((r) => ({
+    source: r.source ?? 'unknown',
+    plays: r.plays,
+  }));
+}
+
 // ============================================================================
 // Exports for Testing
 // ============================================================================

@@ -38,6 +38,7 @@ import {
   getRecentListeningHistory,
   getUniqueSongsPlayed,
   getCachedSimilarTracks,
+  getPlayCountsBySource,
   COMPLETION_THRESHOLD,
   MAX_SIMILAR_TRACKS_PER_SONG,
 } from '../listening-history';
@@ -203,6 +204,54 @@ describe('Listening History Service', () => {
 
       expect(songs).toHaveLength(2);
       expect(songs[0].playCount).toBe(5);
+    });
+  });
+
+  describe('getPlayCountsBySource', () => {
+    it('returns rows grouped by source, sorted by plays desc', async () => {
+      const mockResults = [
+        { source: null, plays: 12673 },
+        { source: 'radio', plays: 30 },
+        { source: 'manual', plays: 5 },
+      ];
+
+      (db.select as Mock).mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            groupBy: vi.fn().mockReturnValue({
+              orderBy: vi.fn().mockResolvedValue(mockResults),
+            }),
+          }),
+        }),
+      });
+
+      const start = new Date('2026-04-01');
+      const end = new Date('2026-05-01');
+      const result = await getPlayCountsBySource('user-123', start, end);
+
+      expect(result).toEqual([
+        { source: 'unknown', plays: 12673 },
+        { source: 'radio', plays: 30 },
+        { source: 'manual', plays: 5 },
+      ]);
+    });
+
+    it('returns an empty array when no plays exist', async () => {
+      (db.select as Mock).mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            groupBy: vi.fn().mockReturnValue({
+              orderBy: vi.fn().mockResolvedValue([]),
+            }),
+          }),
+        }),
+      });
+
+      const start = new Date('2026-04-01');
+      const end = new Date('2026-05-01');
+      const result = await getPlayCountsBySource('user-123', start, end);
+
+      expect(result).toEqual([]);
     });
   });
 
