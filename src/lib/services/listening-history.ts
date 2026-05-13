@@ -115,6 +115,7 @@ export async function recordSongPlay(
     songDuration: song.duration || null,
     completed,
     skipDetected,
+    source: source ?? null,
   };
 
   await db.insert(listeningHistory).values(record);

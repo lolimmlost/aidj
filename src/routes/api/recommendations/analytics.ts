@@ -31,9 +31,12 @@ export interface EnhancedAnalyticsResponse {
     likedArtists: Array<{ artist: string; count: number }>;
     dislikedArtists: Array<{ artist: string; count: number }>;
     feedbackCount: {
+      /** Real interactions (excludes bulk library-sync rows). */
       total: number;
       thumbsUp: number;
       thumbsDown: number;
+      /** Bulk library-sync rows, surfaced separately for the Overview card. */
+      librarySynced: number;
     };
   };
 
@@ -123,6 +126,7 @@ export const Route = createFileRoute("/api/recommendations/analytics")({
             total: profile.totalFeedbackCount,
             thumbsUp: profile.thumbsUpCount,
             thumbsDown: profile.thumbsDownCount,
+            librarySynced: profile.librarySyncedCount,
           },
         },
       };

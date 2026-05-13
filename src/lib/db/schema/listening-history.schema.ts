@@ -53,6 +53,13 @@ export const listeningHistory = pgTable("listening_history", {
   // 0 = not skipped (completed or just not tracked)
   // 1 = skipped (played < 30% AND played > 5 seconds)
   skipDetected: integer("skip_detected").default(0),
+
+  // Origin of the play: 'ai_dj' | 'autoplay' | 'radio' | 'manual' | null.
+  // NULL for rows recorded before this column existed. Set by the client at
+  // scrobble time based on which queue path delivered the song; lets the
+  // analytics page tell true listening-history slices apart (e.g. how much
+  // of the user's listening came from AI DJ vs manual clicks).
+  source: text("source"),
 }, (table) => ({
   // Index for user's listening history
   userIdIdx: index("listening_history_user_id_idx").on(table.userId),
