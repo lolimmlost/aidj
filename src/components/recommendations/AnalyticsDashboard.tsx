@@ -23,7 +23,7 @@ import {
   Cell,
 } from 'recharts';
 import { Skeleton } from '../ui/skeleton';
-import { LayoutDashboard, Target, Activity, Compass, Headphones } from 'lucide-react';
+import { LayoutDashboard, Target, Activity, Compass, Headphones, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ============================================================================
@@ -210,52 +210,54 @@ export function AnalyticsDashboard({ period = '30d' }: AnalyticsDashboardProps) 
 function OverviewTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {/* Stats Cards */}
+      {/* Stat cards */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Total Feedback</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{analytics.profile.feedbackCount.total}</div>
-          <p className="text-xs text-muted-foreground">
-            {analytics.profile.feedbackCount.thumbsUp} up / {analytics.profile.feedbackCount.thumbsDown} down
+        <CardContent className="pt-6">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total Feedback</p>
+          <div className="mt-2 text-3xl font-semibold tabular-nums">
+            {analytics.profile.feedbackCount.total.toLocaleString()}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            <span className="font-medium text-emerald-500">{analytics.profile.feedbackCount.thumbsUp}</span> up
+            {' / '}
+            <span className="font-medium text-destructive">{analytics.profile.feedbackCount.thumbsDown}</span> down
           </p>
           {analytics.profile.feedbackCount.librarySynced !== undefined &&
            analytics.profile.feedbackCount.librarySynced > 0 && (
             <p className="text-[10px] text-muted-foreground mt-1">
-              + {analytics.profile.feedbackCount.librarySynced} library-synced (excluded from charts)
+              + {analytics.profile.feedbackCount.librarySynced.toLocaleString()} library-synced (excluded)
             </p>
           )}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Acceptance Rate</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            {analytics.quality ? `${(analytics.quality.acceptanceRate * 100).toFixed(0)}%` : 'N/A'}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {analytics.quality?.qualityTrend === 'improving' && '📈 Improving'}
-            {analytics.quality?.qualityTrend === 'declining' && '📉 Declining'}
-            {analytics.quality?.qualityTrend === 'stable' && '➡️ Stable'}
-          </p>
-        </CardContent>
-      </Card>
+      <MetricCard
+        title="Acceptance Rate"
+        value={analytics.quality ? `${(analytics.quality.acceptanceRate * 100).toFixed(0)}%` : 'N/A'}
+        trend={
+          analytics.quality?.qualityTrend === 'improving' ? 'up'
+          : analytics.quality?.qualityTrend === 'declining' ? 'down'
+          : analytics.quality?.qualityTrend === 'stable' ? 'flat'
+          : undefined
+        }
+        description={
+          analytics.quality?.qualityTrend === 'improving' ? 'Improving'
+          : analytics.quality?.qualityTrend === 'declining' ? 'Declining'
+          : analytics.quality?.qualityTrend === 'stable' ? 'Stable'
+          : 'Not enough data'
+        }
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">New Artists</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{analytics.discovery?.newArtistsDiscovered || 0}</div>
-          <p className="text-xs text-muted-foreground">
-            Taste: {analytics.discovery?.diversityTrend || 'stable'}
-          </p>
-        </CardContent>
-      </Card>
+      <MetricCard
+        title="New Artists"
+        value={(analytics.discovery?.newArtistsDiscovered || 0).toString()}
+        description={`Taste: ${analytics.discovery?.diversityTrend || 'stable'}`}
+        trend={
+          analytics.discovery?.diversityTrend === 'expanding' ? 'up'
+          : analytics.discovery?.diversityTrend === 'narrowing' ? 'down'
+          : 'flat'
+        }
+      />
 
       {/* Top Artists */}
       <Card className="md:col-span-2">
@@ -327,14 +329,22 @@ const QualityTab = memo(function QualityTab({ analytics }: { analytics: Enhanced
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="period" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="liked" fill={COLORS.success} name="Liked" />
-              <Bar dataKey="disliked" fill={COLORS.danger} name="Disliked" />
+            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+              <XAxis dataKey="period" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
+              <Tooltip
+                cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
+                contentStyle={{
+                  borderRadius: 8,
+                  border: '1px solid hsl(var(--border))',
+                  background: 'hsl(var(--popover))',
+                  fontSize: 12,
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
+              <Bar dataKey="liked" fill={COLORS.success} name="Liked" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="disliked" fill={COLORS.danger} name="Disliked" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
@@ -349,6 +359,11 @@ const QualityTab = memo(function QualityTab({ analytics }: { analytics: Enhanced
         <MetricCard
           title="Quality Trend"
           value={analytics.quality.qualityTrend}
+          trend={
+            analytics.quality.qualityTrend === 'improving' ? 'up'
+            : analytics.quality.qualityTrend === 'declining' ? 'down'
+            : 'flat'
+          }
           description={
             analytics.quality.qualityTrend === 'improving'
               ? 'Recommendations getting better'
@@ -410,13 +425,14 @@ const ActivityTab = memo(function ActivityTab({ analytics }: { analytics: Enhanc
           <CardDescription>When you most often rate AI DJ recommendations</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
+          <ul className="space-y-2">
             {analytics.activity.listeningPatternInsights.map((insight, i) => (
-              <p key={i} className="text-sm">
-                • {insight}
-              </p>
+              <li key={i} className="flex items-start gap-2 text-sm">
+                <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/60" />
+                <span>{insight}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         </CardContent>
       </Card>
 
@@ -428,12 +444,20 @@ const ActivityTab = memo(function ActivityTab({ analytics }: { analytics: Enhanc
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={dayData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="day" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill={COLORS.primary} />
+              <BarChart data={dayData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis dataKey="day" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
+                <Tooltip
+                  cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
+                  contentStyle={{
+                    borderRadius: 8,
+                    border: '1px solid hsl(var(--border))',
+                    background: 'hsl(var(--popover))',
+                    fontSize: 12,
+                  }}
+                />
+                <Bar dataKey="count" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -446,12 +470,27 @@ const ActivityTab = memo(function ActivityTab({ analytics }: { analytics: Enhanc
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={hourData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="hour" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="count" stroke={COLORS.secondary} strokeWidth={2} />
+              <LineChart data={hourData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} interval={2} />
+                <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
+                <Tooltip
+                  cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1 }}
+                  contentStyle={{
+                    borderRadius: 8,
+                    border: '1px solid hsl(var(--border))',
+                    background: 'hsl(var(--popover))',
+                    fontSize: 12,
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="count"
+                  stroke={COLORS.secondary}
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: COLORS.secondary }}
+                  activeDot={{ r: 5 }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -801,6 +840,11 @@ const DiscoveryTab = memo(function DiscoveryTab({ analytics }: { analytics: Enha
         <MetricCard
           title="Diversity Trend"
           value={analytics.discovery.diversityTrend}
+          trend={
+            analytics.discovery.diversityTrend === 'expanding' ? 'up'
+            : analytics.discovery.diversityTrend === 'narrowing' ? 'down'
+            : 'flat'
+          }
           description={
             analytics.discovery.diversityTrend === 'expanding'
               ? 'Exploring more variety'
@@ -843,14 +887,13 @@ const DiscoveryTab = memo(function DiscoveryTab({ analytics }: { analytics: Enha
 // ============================================================================
 
 const TopArtistsChart = memo(function TopArtistsChart({ artists }: { artists: Array<{ artist: string; count: number }> }) {
-  // Memoize chart data transformation
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
-  const chartData = useMemo(() => {
-    return artists.slice(0, 5).map((item, index) => ({
+  const { chartData, total } = useMemo(() => {
+    const data = artists.slice(0, 5).map((item, index) => ({
       name: item.artist,
       value: item.count,
       color: PIE_COLORS[index % PIE_COLORS.length],
     }));
+    return { chartData: data, total: data.reduce((acc, d) => acc + d.value, 0) };
   }, [artists]);
 
   if (artists.length === 0) {
@@ -858,25 +901,72 @@ const TopArtistsChart = memo(function TopArtistsChart({ artists }: { artists: Ar
   }
 
   return (
-    <ResponsiveContainer width="100%" height={200}>
-      <PieChart>
-        <Pie
-          data={chartData}
-          cx="50%"
-          cy="50%"
-          labelLine={false}
-          label={(entry) => `${entry.name} (${entry.value})`}
-          outerRadius={80}
-          fill="#8884d8"
-          dataKey="value"
-        >
-          {chartData.map((entry) => (
-            <Cell key={entry.name} fill={entry.color} />
-          ))}
-        </Pie>
-        <Tooltip />
-      </PieChart>
-    </ResponsiveContainer>
+    <div className="grid gap-6 md:grid-cols-[220px_1fr]">
+      <div className="relative mx-auto md:mx-0">
+        <ResponsiveContainer width={220} height={220}>
+          <PieChart>
+            <Pie
+              data={chartData}
+              cx="50%"
+              cy="50%"
+              innerRadius={62}
+              outerRadius={92}
+              paddingAngle={2}
+              dataKey="value"
+              nameKey="name"
+              stroke="hsl(var(--background))"
+              strokeWidth={2}
+            >
+              {chartData.map((entry) => (
+                <Cell key={entry.name} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(value: number, name) => {
+                const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+                return [`${value} thumbs-up (${pct}%)`, name];
+              }}
+              contentStyle={{
+                borderRadius: 8,
+                border: '1px solid hsl(var(--border))',
+                background: 'hsl(var(--popover))',
+                fontSize: 12,
+              }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-2xl font-semibold tabular-nums">{total.toLocaleString()}</span>
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Top {chartData.length}</span>
+        </div>
+      </div>
+      <ul className="space-y-1 self-center">
+        {chartData.map((entry, idx) => {
+          const pct = total > 0 ? (entry.value / total) * 100 : 0;
+          return (
+            <li
+              key={entry.name}
+              className="grid grid-cols-[1.5rem_1fr_auto] items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-muted/40"
+            >
+              <span className="flex items-center gap-1.5">
+                <span
+                  aria-hidden
+                  className="size-2 rounded-full"
+                  style={{ backgroundColor: entry.color }}
+                />
+                <span className="text-xs font-medium tabular-nums text-muted-foreground">{idx + 1}</span>
+              </span>
+              <span className="truncate font-medium">{entry.name}</span>
+              <span className="text-right tabular-nums text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">{entry.value}</span>
+                {' · '}
+                {pct.toFixed(0)}%
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 });
 
@@ -919,15 +1009,33 @@ const TasteProfileCard = memo(function TasteProfileCard({ analytics }: { analyti
   );
 });
 
-const MetricCard = memo(function MetricCard({ title, value, description }: { title: string; value: string; description: string }) {
+type MetricTrend = 'up' | 'down' | 'flat';
+
+const MetricCard = memo(function MetricCard({
+  title,
+  value,
+  description,
+  trend,
+}: {
+  title: string;
+  value: string;
+  description: string;
+  trend?: MetricTrend;
+}) {
+  const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : trend === 'flat' ? Minus : null;
+  const trendClass =
+    trend === 'up' ? 'text-emerald-500'
+    : trend === 'down' ? 'text-destructive'
+    : 'text-muted-foreground';
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold capitalize">{value}</div>
-        <p className="text-xs text-muted-foreground">{description}</p>
+      <CardContent className="pt-6">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
+        <div className="mt-2 flex items-baseline gap-2">
+          <span className="text-3xl font-semibold tabular-nums capitalize">{value}</span>
+          {TrendIcon && <TrendIcon className={cn('size-4 self-center', trendClass)} />}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       </CardContent>
     </Card>
   );
