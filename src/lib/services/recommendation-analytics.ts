@@ -317,12 +317,12 @@ export async function getActivityTrends(userId: string): Promise<ActivityTrends>
   const insights: string[] = [];
 
   if (peakDayOfWeek !== null) {
-    insights.push(`Most active on ${DAY_NAMES[peakDayOfWeek]}`);
+    insights.push(`Most feedback on ${DAY_NAMES[peakDayOfWeek]}`);
   }
 
   if (peakHourOfDay !== null) {
     const timeOfDay = peakHourOfDay < 12 ? 'morning' : peakHourOfDay < 17 ? 'afternoon' : 'evening';
-    insights.push(`Peak listening in the ${timeOfDay} (around ${peakHourOfDay}:00)`);
+    insights.push(`Peak feedback in the ${timeOfDay} (around ${peakHourOfDay}:00)`);
   }
 
   // Weekend vs weekday pattern
@@ -330,9 +330,9 @@ export async function getActivityTrends(userId: string): Promise<ActivityTrends>
   const weekdayCount = allFeedback.length - weekendCount;
 
   if (weekendCount > weekdayCount * 0.5) {
-    insights.push('More active on weekends');
+    insights.push('More feedback on weekends');
   } else if (weekdayCount > weekendCount * 2) {
-    insights.push('More active on weekdays');
+    insights.push('More feedback on weekdays');
   }
 
   const trends: ActivityTrends = {
