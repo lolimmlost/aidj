@@ -105,6 +105,7 @@ import { Route as ApiListeningHistoryRecentRouteImport } from './routes/api/list
 import { Route as ApiListeningHistoryInterestOverTimeRouteImport } from './routes/api/listening-history/interest-over-time'
 import { Route as ApiListeningHistoryFullRouteImport } from './routes/api/listening-history/full'
 import { Route as ApiListeningHistoryCompoundScoresRouteImport } from './routes/api/listening-history/compound-scores'
+import { Route as ApiListeningHistoryBySourceRouteImport } from './routes/api/listening-history/by-source'
 import { Route as ApiListeningHistoryByHourRouteImport } from './routes/api/listening-history/by-hour'
 import { Route as ApiListeningHistoryAlbumAgesRouteImport } from './routes/api/listening-history/album-ages'
 import { Route as ApiLidarrUnmonitorRouteImport } from './routes/api/lidarr/unmonitor'
@@ -691,6 +692,12 @@ const ApiListeningHistoryCompoundScoresRoute =
     path: '/api/listening-history/compound-scores',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiListeningHistoryBySourceRoute =
+  ApiListeningHistoryBySourceRouteImport.update({
+    id: '/api/listening-history/by-source',
+    path: '/api/listening-history/by-source',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiListeningHistoryByHourRoute =
   ApiListeningHistoryByHourRouteImport.update({
     id: '/api/listening-history/by-hour',
@@ -1228,6 +1235,7 @@ export interface FileRoutesByFullPath {
   '/api/lidarr/unmonitor': typeof ApiLidarrUnmonitorRoute
   '/api/listening-history/album-ages': typeof ApiListeningHistoryAlbumAgesRoute
   '/api/listening-history/by-hour': typeof ApiListeningHistoryByHourRoute
+  '/api/listening-history/by-source': typeof ApiListeningHistoryBySourceRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
   '/api/listening-history/full': typeof ApiListeningHistoryFullRoute
   '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
@@ -1407,6 +1415,7 @@ export interface FileRoutesByTo {
   '/api/lidarr/unmonitor': typeof ApiLidarrUnmonitorRoute
   '/api/listening-history/album-ages': typeof ApiListeningHistoryAlbumAgesRoute
   '/api/listening-history/by-hour': typeof ApiListeningHistoryByHourRoute
+  '/api/listening-history/by-source': typeof ApiListeningHistoryBySourceRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
   '/api/listening-history/full': typeof ApiListeningHistoryFullRoute
   '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
@@ -1590,6 +1599,7 @@ export interface FileRoutesById {
   '/api/lidarr/unmonitor': typeof ApiLidarrUnmonitorRoute
   '/api/listening-history/album-ages': typeof ApiListeningHistoryAlbumAgesRoute
   '/api/listening-history/by-hour': typeof ApiListeningHistoryByHourRoute
+  '/api/listening-history/by-source': typeof ApiListeningHistoryBySourceRoute
   '/api/listening-history/compound-scores': typeof ApiListeningHistoryCompoundScoresRoute
   '/api/listening-history/full': typeof ApiListeningHistoryFullRoute
   '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
@@ -1773,6 +1783,7 @@ export interface FileRouteTypes {
     | '/api/lidarr/unmonitor'
     | '/api/listening-history/album-ages'
     | '/api/listening-history/by-hour'
+    | '/api/listening-history/by-source'
     | '/api/listening-history/compound-scores'
     | '/api/listening-history/full'
     | '/api/listening-history/interest-over-time'
@@ -1952,6 +1963,7 @@ export interface FileRouteTypes {
     | '/api/lidarr/unmonitor'
     | '/api/listening-history/album-ages'
     | '/api/listening-history/by-hour'
+    | '/api/listening-history/by-source'
     | '/api/listening-history/compound-scores'
     | '/api/listening-history/full'
     | '/api/listening-history/interest-over-time'
@@ -2134,6 +2146,7 @@ export interface FileRouteTypes {
     | '/api/lidarr/unmonitor'
     | '/api/listening-history/album-ages'
     | '/api/listening-history/by-hour'
+    | '/api/listening-history/by-source'
     | '/api/listening-history/compound-scores'
     | '/api/listening-history/full'
     | '/api/listening-history/interest-over-time'
@@ -2305,6 +2318,7 @@ export interface RootRouteChildren {
   ApiLidarrUnmonitorRoute: typeof ApiLidarrUnmonitorRoute
   ApiListeningHistoryAlbumAgesRoute: typeof ApiListeningHistoryAlbumAgesRoute
   ApiListeningHistoryByHourRoute: typeof ApiListeningHistoryByHourRoute
+  ApiListeningHistoryBySourceRoute: typeof ApiListeningHistoryBySourceRoute
   ApiListeningHistoryCompoundScoresRoute: typeof ApiListeningHistoryCompoundScoresRoute
   ApiListeningHistoryFullRoute: typeof ApiListeningHistoryFullRoute
   ApiListeningHistoryInterestOverTimeRoute: typeof ApiListeningHistoryInterestOverTimeRoute
@@ -3047,6 +3061,13 @@ declare module '@tanstack/react-router' {
       path: '/api/listening-history/compound-scores'
       fullPath: '/api/listening-history/compound-scores'
       preLoaderRoute: typeof ApiListeningHistoryCompoundScoresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/listening-history/by-source': {
+      id: '/api/listening-history/by-source'
+      path: '/api/listening-history/by-source'
+      fullPath: '/api/listening-history/by-source'
+      preLoaderRoute: typeof ApiListeningHistoryBySourceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/listening-history/by-hour': {
@@ -3895,6 +3916,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLidarrUnmonitorRoute: ApiLidarrUnmonitorRoute,
   ApiListeningHistoryAlbumAgesRoute: ApiListeningHistoryAlbumAgesRoute,
   ApiListeningHistoryByHourRoute: ApiListeningHistoryByHourRoute,
+  ApiListeningHistoryBySourceRoute: ApiListeningHistoryBySourceRoute,
   ApiListeningHistoryCompoundScoresRoute:
     ApiListeningHistoryCompoundScoresRoute,
   ApiListeningHistoryFullRoute: ApiListeningHistoryFullRoute,

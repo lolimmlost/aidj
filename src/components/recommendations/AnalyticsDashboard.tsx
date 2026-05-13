@@ -481,6 +481,29 @@ interface TopSongRow {
   lastPlayedAt: string;
 }
 
+interface SourceCountRow {
+  source: string;
+  plays: number;
+}
+
+// Stable color per source. `unknown` is muted (gray) so the pre-instrumentation
+// backlog doesn't visually dominate while early data is sparse.
+const SOURCE_COLORS: Record<string, string> = {
+  ai_dj: '#8b5cf6',    // violet
+  manual: '#3b82f6',   // blue
+  radio: '#f59e0b',    // amber
+  autoplay: '#10b981', // emerald
+  unknown: '#94a3b8',  // slate
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  ai_dj: 'AI DJ',
+  manual: 'Manual',
+  radio: 'Radio',
+  autoplay: 'Autoplay',
+  unknown: 'Pre-tagged',
+};
+
 function periodToDateRange(period: '30d' | '90d' | '1y'): { from: string; to: string } {
   const days = period === '90d' ? 90 : period === '1y' ? 365 : 30;
   const to = new Date();
@@ -515,7 +538,21 @@ const ListeningTab = memo(function ListeningTab({ period }: { period: '30d' | '9
     staleTime: 5 * 60 * 1000,
   });
 
+  const bySource = useQuery({
+    queryKey: ['listening-history', 'by-source', period],
+    queryFn: async () => {
+      const params = new URLSearchParams({ from: range.from, to: range.to });
+      const res = await fetch(`/api/listening-history/by-source?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch source breakdown');
+      const json = await res.json() as { success: boolean; data: SourceCountRow[] };
+      return json.data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   return (
+    <div className="space-y-4">
+      <SourceBreakdownCard query={bySource} />
     <div className="grid gap-4 md:grid-cols-2">
       <Card>
         <CardHeader>
@@ -592,6 +629,94 @@ const ListeningTab = memo(function ListeningTab({ period }: { period: '30d' | '9
         </CardContent>
       </Card>
     </div>
+    </div>
+  );
+});
+
+const SourceBreakdownCard = memo(function SourceBreakdownCard({
+  query,
+}: {
+  query: { isLoading: boolean; error: unknown; data: SourceCountRow[] | undefined };
+}) {
+  const { rows, chartData, total } = useMemo(() => {
+    const data = query.data ?? [];
+    const sum = data.reduce((acc, r) => acc + r.plays, 0);
+    const shaped = data.map((r) => ({
+      name: SOURCE_LABELS[r.source] ?? r.source,
+      value: r.plays,
+      source: r.source,
+    }));
+    return { rows: data, chartData: shaped, total: sum };
+  }, [query.data]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Plays by Source</CardTitle>
+        <CardDescription>
+          Where your plays came from. AI DJ, manual picks, radio, and autoplay are
+          tagged from instrumentation rollout onward; older plays show as "Pre-tagged".
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {query.isLoading ? (
+          <Skeleton className="h-56 w-full" />
+        ) : query.error ? (
+          <p className="text-sm text-destructive">Failed to load.</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No listening history in this period.</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-[1fr_1fr] items-center">
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={85}
+                  paddingAngle={2}
+                  dataKey="value"
+                  nameKey="name"
+                >
+                  {chartData.map((entry) => (
+                    <Cell
+                      key={entry.source}
+                      fill={SOURCE_COLORS[entry.source] ?? '#94a3b8'}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value: number, name) => {
+                    const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+                    return [`${value} plays (${pct}%)`, name];
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <ul className="space-y-2 text-sm">
+              {rows.map((row) => {
+                const pct = total > 0 ? (row.plays / total) * 100 : 0;
+                return (
+                  <li key={row.source} className="flex items-baseline gap-3">
+                    <span
+                      aria-hidden
+                      className="inline-block size-3 rounded-sm shrink-0"
+                      style={{ backgroundColor: SOURCE_COLORS[row.source] ?? '#94a3b8' }}
+                    />
+                    <span className="flex-1 truncate">{SOURCE_LABELS[row.source] ?? row.source}</span>
+                    <span className="tabular-nums text-muted-foreground">{row.plays}</span>
+                    <span className="tabular-nums text-xs text-muted-foreground w-12 text-right">
+                      {pct.toFixed(1)}%
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 });
 
