@@ -425,16 +425,24 @@ export function useWebAudioGraph(): WebAudioGraph {
         }
         console.log(`[WEB AUDIO] Context running — shouldResume=${shouldResume}, interruptMs=${interruptDuration}, needsResync=${needsResync}, sampleRate=${currentRate}${rateChanged ? ' (CHANGED)' : ''}, pbA=${pbA} pbB=${pbB}`);
 
-        // Fast path for sub-100ms iOS state bounces (screen lock / brief
-        // visibility blur). The full recovery sequence below — element-volume
-        // toggle + masterGain disconnect + 250ms fade-in — was designed for
-        // real suspensions. On a 30–80ms iOS bounce it's the recovery itself
-        // that becomes the audible event: the 250ms fade forces the Bluetooth
-        // A2DP codec to re-establish its time base, and the first ~200ms
-        // after resume plays at a perceptibly altered tempo (= "pitch shift"
-        // reported on screen-lock). For these short bounces we just reconnect
-        // masterGain at user volume directly. No fade, no element toggle.
-        if (interruptDuration > 0 && interruptDuration < 100) {
+        // Fast path for sub-500ms iOS state bounces. The full recovery
+        // sequence below — element-volume toggle + masterGain disconnect +
+        // 250ms fade-in — was designed for real suspensions. For any
+        // bounce that's not long enough to warrant the hard-resync path
+        // (>500ms, `needsResync=true` below) the recovery itself is
+        // louder than the actual interrupt would be: the 250ms fade
+        // forces the Bluetooth A2DP codec to re-establish its time base,
+        // and the first ~200ms after resume plays at a perceptibly
+        // altered tempo (= "pitch shift" reported on screen-lock).
+        //
+        // The threshold was originally 100ms based on the first wave of
+        // observations (21–65ms bounces). Real-world iOS produces bounces
+        // anywhere in 20–500ms (observed 25, 98, 298ms in one session) —
+        // anything in that window was getting the audible recovery.
+        // Aligning the threshold with `needsResync` means: short bounce →
+        // instant restore, real suspension → hard resync, no audible
+        // middle ground.
+        if (interruptDuration > 0 && interruptDuration < 500) {
           console.log(`[WEB AUDIO] Short interrupt (${interruptDuration}ms) — instant restore, skipping fade/element-toggle`);
           const masterFast = masterGainRef.current;
           if (masterFast) {
