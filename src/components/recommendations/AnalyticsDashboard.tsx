@@ -361,13 +361,13 @@ const QualityTab = memo(function QualityTab({ analytics }: { analytics: Enhanced
       <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3">
         <StatCard
           icon={Target}
-          label="Acceptance Rate"
+          label="Accept Rate"
           value={`${(analytics.quality.acceptanceRate * 100).toFixed(1)}%`}
           caption={`${analytics.quality.thumbsUpCount} liked of ${analytics.quality.totalRecommendations}`}
         />
         <StatCard
           icon={TrendingUp}
-          label="Quality Trend"
+          label="Trend"
           value={analytics.quality.qualityTrend}
           trend={
             analytics.quality.qualityTrend === 'improving' ? 'up'
@@ -384,7 +384,7 @@ const QualityTab = memo(function QualityTab({ analytics }: { analytics: Enhanced
         />
         <StatCard
           icon={BarChart3}
-          label="Total Ratings"
+          label="Ratings"
           value={analytics.quality.totalRecommendations.toLocaleString()}
           caption="Feedback events"
         />
@@ -814,19 +814,19 @@ const DiscoveryTab = memo(function DiscoveryTab({ analytics }: { analytics: Enha
       <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3">
         <StatCard
           icon={Sparkles}
-          label="New Artists Discovered"
+          label="New Artists"
           value={analytics.discovery.newArtistsDiscovered.toString()}
-          caption="In the selected period"
+          caption="Discovered this period"
         />
         <StatCard
           icon={Compass}
-          label="Diversity Score"
+          label="Diversity"
           value={`${(analytics.discovery.genreDiversityScore * 100).toFixed(0)}%`}
           progress={analytics.discovery.genreDiversityScore * 100}
         />
         <StatCard
           icon={TrendingUp}
-          label="Diversity Trend"
+          label="Trend"
           value={analytics.discovery.diversityTrend}
           trend={
             analytics.discovery.diversityTrend === 'expanding' ? 'up'
