@@ -108,6 +108,15 @@ export function StartRadioButton({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
+        {/*
+          Radix's DropdownMenuRadioItem closes the menu on select by default.
+          That made it impossible to pick a Length and then a Variety without
+          re-opening the dropdown — and impossible to confirm with "Start
+          Radio" after picking either. Calling e.preventDefault() in onSelect
+          on each option keeps the menu open. The final "Start Radio"
+          DropdownMenuItem deliberately does NOT preventDefault so it closes
+          the menu when the user commits.
+        */}
         <DropdownMenuLabel>Length</DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={lengthTag}
@@ -117,7 +126,11 @@ export function StartRadioButton({
           }}
         >
           {LENGTH_OPTIONS.map((o) => (
-            <DropdownMenuRadioItem key={o.tag} value={o.tag}>
+            <DropdownMenuRadioItem
+              key={o.tag}
+              value={o.tag}
+              onSelect={(e) => e.preventDefault()}
+            >
               {o.label}
             </DropdownMenuRadioItem>
           ))}
@@ -130,13 +143,13 @@ export function StartRadioButton({
               value={variety}
               onValueChange={(v) => setVariety(v as ArtistVariety)}
             >
-              <DropdownMenuRadioItem value="low">
+              <DropdownMenuRadioItem value="low" onSelect={(e) => e.preventDefault()}>
                 Low — mostly this artist
               </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="medium">
+              <DropdownMenuRadioItem value="medium" onSelect={(e) => e.preventDefault()}>
                 Medium — balanced mix
               </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="high">
+              <DropdownMenuRadioItem value="high" onSelect={(e) => e.preventDefault()}>
                 High — adventurous
               </DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
