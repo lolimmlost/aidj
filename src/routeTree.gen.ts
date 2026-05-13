@@ -69,7 +69,6 @@ import { Route as ApiRecommendationsClearRouteImport } from './routes/api/recomm
 import { Route as ApiRecommendationsAnalyticsRouteImport } from './routes/api/recommendations/analytics'
 import { Route as ApiRadioShuffleRouteImport } from './routes/api/radio/shuffle'
 import { Route as ApiRadioSeededRouteImport } from './routes/api/radio/seeded'
-import { Route as ApiRadioSaveAsPlaylistRouteImport } from './routes/api/radio/save-as-playlist'
 import { Route as ApiProfileUpdateRouteImport } from './routes/api/profile/update'
 import { Route as ApiPlaylistsSyncRouteImport } from './routes/api/playlists/sync'
 import { Route as ApiPlaylistsSpotifyStatusRouteImport } from './routes/api/playlists/spotify-status'
@@ -80,6 +79,7 @@ import { Route as ApiPlaylistsJoinRouteImport } from './routes/api/playlists/joi
 import { Route as ApiPlaylistsImportRouteImport } from './routes/api/playlists/import'
 import { Route as ApiPlaylistsExportRouteImport } from './routes/api/playlists/export'
 import { Route as ApiPlaylistsDownloadRouteImport } from './routes/api/playlists/download'
+import { Route as ApiPlaylistsCreateFromIdsRouteImport } from './routes/api/playlists/create-from-ids'
 import { Route as ApiPlaylistsIdRouteImport } from './routes/api/playlists/$id'
 import { Route as ApiPlaybackTransferRouteImport } from './routes/api/playback/transfer'
 import { Route as ApiPlaybackStateRouteImport } from './routes/api/playback/state'
@@ -96,6 +96,8 @@ import { Route as ApiMusicIdentityIdRouteImport } from './routes/api/music-ident
 import { Route as ApiMetubeStatusRouteImport } from './routes/api/metube/status'
 import { Route as ApiMetubeDeleteRouteImport } from './routes/api/metube/delete'
 import { Route as ApiMetubeAddRouteImport } from './routes/api/metube/add'
+import { Route as ApiListeningHistoryTopSongsRouteImport } from './routes/api/listening-history/top-songs'
+import { Route as ApiListeningHistoryTopArtistsRouteImport } from './routes/api/listening-history/top-artists'
 import { Route as ApiListeningHistoryStatsRouteImport } from './routes/api/listening-history/stats'
 import { Route as ApiListeningHistorySessionsRouteImport } from './routes/api/listening-history/sessions'
 import { Route as ApiListeningHistoryRecordRouteImport } from './routes/api/listening-history/record'
@@ -496,11 +498,6 @@ const ApiRadioSeededRoute = ApiRadioSeededRouteImport.update({
   path: '/api/radio/seeded',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiRadioSaveAsPlaylistRoute = ApiRadioSaveAsPlaylistRouteImport.update({
-  id: '/api/radio/save-as-playlist',
-  path: '/api/radio/save-as-playlist',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiProfileUpdateRoute = ApiProfileUpdateRouteImport.update({
   id: '/api/profile/update',
   path: '/api/profile/update',
@@ -554,6 +551,12 @@ const ApiPlaylistsDownloadRoute = ApiPlaylistsDownloadRouteImport.update({
   path: '/api/playlists/download',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPlaylistsCreateFromIdsRoute =
+  ApiPlaylistsCreateFromIdsRouteImport.update({
+    id: '/api/playlists/create-from-ids',
+    path: '/api/playlists/create-from-ids',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPlaylistsIdRoute = ApiPlaylistsIdRouteImport.update({
   id: '/api/playlists/$id',
   path: '/api/playlists/$id',
@@ -635,6 +638,18 @@ const ApiMetubeAddRoute = ApiMetubeAddRouteImport.update({
   path: '/api/metube/add',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiListeningHistoryTopSongsRoute =
+  ApiListeningHistoryTopSongsRouteImport.update({
+    id: '/api/listening-history/top-songs',
+    path: '/api/listening-history/top-songs',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiListeningHistoryTopArtistsRoute =
+  ApiListeningHistoryTopArtistsRouteImport.update({
+    id: '/api/listening-history/top-artists',
+    path: '/api/listening-history/top-artists',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiListeningHistoryStatsRoute =
   ApiListeningHistoryStatsRouteImport.update({
     id: '/api/listening-history/stats',
@@ -1220,6 +1235,8 @@ export interface FileRoutesByFullPath {
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
   '/api/listening-history/sessions': typeof ApiListeningHistorySessionsRoute
   '/api/listening-history/stats': typeof ApiListeningHistoryStatsRoute
+  '/api/listening-history/top-artists': typeof ApiListeningHistoryTopArtistsRoute
+  '/api/listening-history/top-songs': typeof ApiListeningHistoryTopSongsRoute
   '/api/metube/add': typeof ApiMetubeAddRoute
   '/api/metube/delete': typeof ApiMetubeDeleteRoute
   '/api/metube/status': typeof ApiMetubeStatusRoute
@@ -1236,6 +1253,7 @@ export interface FileRoutesByFullPath {
   '/api/playback/state': typeof ApiPlaybackStateRoute
   '/api/playback/transfer': typeof ApiPlaybackTransferRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
+  '/api/playlists/create-from-ids': typeof ApiPlaylistsCreateFromIdsRoute
   '/api/playlists/download': typeof ApiPlaylistsDownloadRoute
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
@@ -1246,7 +1264,6 @@ export interface FileRoutesByFullPath {
   '/api/playlists/spotify-status': typeof ApiPlaylistsSpotifyStatusRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/profile/update': typeof ApiProfileUpdateRoute
-  '/api/radio/save-as-playlist': typeof ApiRadioSaveAsPlaylistRoute
   '/api/radio/seeded': typeof ApiRadioSeededRoute
   '/api/radio/shuffle': typeof ApiRadioShuffleRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
@@ -1397,6 +1414,8 @@ export interface FileRoutesByTo {
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
   '/api/listening-history/sessions': typeof ApiListeningHistorySessionsRoute
   '/api/listening-history/stats': typeof ApiListeningHistoryStatsRoute
+  '/api/listening-history/top-artists': typeof ApiListeningHistoryTopArtistsRoute
+  '/api/listening-history/top-songs': typeof ApiListeningHistoryTopSongsRoute
   '/api/metube/add': typeof ApiMetubeAddRoute
   '/api/metube/delete': typeof ApiMetubeDeleteRoute
   '/api/metube/status': typeof ApiMetubeStatusRoute
@@ -1413,6 +1432,7 @@ export interface FileRoutesByTo {
   '/api/playback/state': typeof ApiPlaybackStateRoute
   '/api/playback/transfer': typeof ApiPlaybackTransferRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
+  '/api/playlists/create-from-ids': typeof ApiPlaylistsCreateFromIdsRoute
   '/api/playlists/download': typeof ApiPlaylistsDownloadRoute
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
@@ -1423,7 +1443,6 @@ export interface FileRoutesByTo {
   '/api/playlists/spotify-status': typeof ApiPlaylistsSpotifyStatusRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/profile/update': typeof ApiProfileUpdateRoute
-  '/api/radio/save-as-playlist': typeof ApiRadioSaveAsPlaylistRoute
   '/api/radio/seeded': typeof ApiRadioSeededRoute
   '/api/radio/shuffle': typeof ApiRadioShuffleRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
@@ -1578,6 +1597,8 @@ export interface FileRoutesById {
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
   '/api/listening-history/sessions': typeof ApiListeningHistorySessionsRoute
   '/api/listening-history/stats': typeof ApiListeningHistoryStatsRoute
+  '/api/listening-history/top-artists': typeof ApiListeningHistoryTopArtistsRoute
+  '/api/listening-history/top-songs': typeof ApiListeningHistoryTopSongsRoute
   '/api/metube/add': typeof ApiMetubeAddRoute
   '/api/metube/delete': typeof ApiMetubeDeleteRoute
   '/api/metube/status': typeof ApiMetubeStatusRoute
@@ -1594,6 +1615,7 @@ export interface FileRoutesById {
   '/api/playback/state': typeof ApiPlaybackStateRoute
   '/api/playback/transfer': typeof ApiPlaybackTransferRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
+  '/api/playlists/create-from-ids': typeof ApiPlaylistsCreateFromIdsRoute
   '/api/playlists/download': typeof ApiPlaylistsDownloadRoute
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
@@ -1604,7 +1626,6 @@ export interface FileRoutesById {
   '/api/playlists/spotify-status': typeof ApiPlaylistsSpotifyStatusRoute
   '/api/playlists/sync': typeof ApiPlaylistsSyncRoute
   '/api/profile/update': typeof ApiProfileUpdateRoute
-  '/api/radio/save-as-playlist': typeof ApiRadioSaveAsPlaylistRoute
   '/api/radio/seeded': typeof ApiRadioSeededRoute
   '/api/radio/shuffle': typeof ApiRadioShuffleRoute
   '/api/recommendations/analytics': typeof ApiRecommendationsAnalyticsRoute
@@ -1759,6 +1780,8 @@ export interface FileRouteTypes {
     | '/api/listening-history/record'
     | '/api/listening-history/sessions'
     | '/api/listening-history/stats'
+    | '/api/listening-history/top-artists'
+    | '/api/listening-history/top-songs'
     | '/api/metube/add'
     | '/api/metube/delete'
     | '/api/metube/status'
@@ -1775,6 +1798,7 @@ export interface FileRouteTypes {
     | '/api/playback/state'
     | '/api/playback/transfer'
     | '/api/playlists/$id'
+    | '/api/playlists/create-from-ids'
     | '/api/playlists/download'
     | '/api/playlists/export'
     | '/api/playlists/import'
@@ -1785,7 +1809,6 @@ export interface FileRouteTypes {
     | '/api/playlists/spotify-status'
     | '/api/playlists/sync'
     | '/api/profile/update'
-    | '/api/radio/save-as-playlist'
     | '/api/radio/seeded'
     | '/api/radio/shuffle'
     | '/api/recommendations/analytics'
@@ -1936,6 +1959,8 @@ export interface FileRouteTypes {
     | '/api/listening-history/record'
     | '/api/listening-history/sessions'
     | '/api/listening-history/stats'
+    | '/api/listening-history/top-artists'
+    | '/api/listening-history/top-songs'
     | '/api/metube/add'
     | '/api/metube/delete'
     | '/api/metube/status'
@@ -1952,6 +1977,7 @@ export interface FileRouteTypes {
     | '/api/playback/state'
     | '/api/playback/transfer'
     | '/api/playlists/$id'
+    | '/api/playlists/create-from-ids'
     | '/api/playlists/download'
     | '/api/playlists/export'
     | '/api/playlists/import'
@@ -1962,7 +1988,6 @@ export interface FileRouteTypes {
     | '/api/playlists/spotify-status'
     | '/api/playlists/sync'
     | '/api/profile/update'
-    | '/api/radio/save-as-playlist'
     | '/api/radio/seeded'
     | '/api/radio/shuffle'
     | '/api/recommendations/analytics'
@@ -2116,6 +2141,8 @@ export interface FileRouteTypes {
     | '/api/listening-history/record'
     | '/api/listening-history/sessions'
     | '/api/listening-history/stats'
+    | '/api/listening-history/top-artists'
+    | '/api/listening-history/top-songs'
     | '/api/metube/add'
     | '/api/metube/delete'
     | '/api/metube/status'
@@ -2132,6 +2159,7 @@ export interface FileRouteTypes {
     | '/api/playback/state'
     | '/api/playback/transfer'
     | '/api/playlists/$id'
+    | '/api/playlists/create-from-ids'
     | '/api/playlists/download'
     | '/api/playlists/export'
     | '/api/playlists/import'
@@ -2142,7 +2170,6 @@ export interface FileRouteTypes {
     | '/api/playlists/spotify-status'
     | '/api/playlists/sync'
     | '/api/profile/update'
-    | '/api/radio/save-as-playlist'
     | '/api/radio/seeded'
     | '/api/radio/shuffle'
     | '/api/recommendations/analytics'
@@ -2285,6 +2312,8 @@ export interface RootRouteChildren {
   ApiListeningHistoryRecordRoute: typeof ApiListeningHistoryRecordRoute
   ApiListeningHistorySessionsRoute: typeof ApiListeningHistorySessionsRoute
   ApiListeningHistoryStatsRoute: typeof ApiListeningHistoryStatsRoute
+  ApiListeningHistoryTopArtistsRoute: typeof ApiListeningHistoryTopArtistsRoute
+  ApiListeningHistoryTopSongsRoute: typeof ApiListeningHistoryTopSongsRoute
   ApiMetubeAddRoute: typeof ApiMetubeAddRoute
   ApiMetubeDeleteRoute: typeof ApiMetubeDeleteRoute
   ApiMetubeStatusRoute: typeof ApiMetubeStatusRoute
@@ -2301,6 +2330,7 @@ export interface RootRouteChildren {
   ApiPlaybackStateRoute: typeof ApiPlaybackStateRoute
   ApiPlaybackTransferRoute: typeof ApiPlaybackTransferRoute
   ApiPlaylistsIdRoute: typeof ApiPlaylistsIdRouteWithChildren
+  ApiPlaylistsCreateFromIdsRoute: typeof ApiPlaylistsCreateFromIdsRoute
   ApiPlaylistsDownloadRoute: typeof ApiPlaylistsDownloadRoute
   ApiPlaylistsExportRoute: typeof ApiPlaylistsExportRoute
   ApiPlaylistsImportRoute: typeof ApiPlaylistsImportRoute
@@ -2311,7 +2341,6 @@ export interface RootRouteChildren {
   ApiPlaylistsSpotifyStatusRoute: typeof ApiPlaylistsSpotifyStatusRoute
   ApiPlaylistsSyncRoute: typeof ApiPlaylistsSyncRoute
   ApiProfileUpdateRoute: typeof ApiProfileUpdateRoute
-  ApiRadioSaveAsPlaylistRoute: typeof ApiRadioSaveAsPlaylistRoute
   ApiRadioSeededRoute: typeof ApiRadioSeededRoute
   ApiRadioShuffleRoute: typeof ApiRadioShuffleRoute
   ApiSecurityDisable2faRoute: typeof ApiSecurityDisable2faRoute
@@ -2768,13 +2797,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRadioSeededRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/radio/save-as-playlist': {
-      id: '/api/radio/save-as-playlist'
-      path: '/api/radio/save-as-playlist'
-      fullPath: '/api/radio/save-as-playlist'
-      preLoaderRoute: typeof ApiRadioSaveAsPlaylistRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/profile/update': {
       id: '/api/profile/update'
       path: '/api/profile/update'
@@ -2843,6 +2865,13 @@ declare module '@tanstack/react-router' {
       path: '/api/playlists/download'
       fullPath: '/api/playlists/download'
       preLoaderRoute: typeof ApiPlaylistsDownloadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/playlists/create-from-ids': {
+      id: '/api/playlists/create-from-ids'
+      path: '/api/playlists/create-from-ids'
+      fullPath: '/api/playlists/create-from-ids'
+      preLoaderRoute: typeof ApiPlaylistsCreateFromIdsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/playlists/$id': {
@@ -2955,6 +2984,20 @@ declare module '@tanstack/react-router' {
       path: '/api/metube/add'
       fullPath: '/api/metube/add'
       preLoaderRoute: typeof ApiMetubeAddRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/listening-history/top-songs': {
+      id: '/api/listening-history/top-songs'
+      path: '/api/listening-history/top-songs'
+      fullPath: '/api/listening-history/top-songs'
+      preLoaderRoute: typeof ApiListeningHistoryTopSongsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/listening-history/top-artists': {
+      id: '/api/listening-history/top-artists'
+      path: '/api/listening-history/top-artists'
+      fullPath: '/api/listening-history/top-artists'
+      preLoaderRoute: typeof ApiListeningHistoryTopArtistsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/listening-history/stats': {
@@ -3861,6 +3904,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiListeningHistoryRecordRoute: ApiListeningHistoryRecordRoute,
   ApiListeningHistorySessionsRoute: ApiListeningHistorySessionsRoute,
   ApiListeningHistoryStatsRoute: ApiListeningHistoryStatsRoute,
+  ApiListeningHistoryTopArtistsRoute: ApiListeningHistoryTopArtistsRoute,
+  ApiListeningHistoryTopSongsRoute: ApiListeningHistoryTopSongsRoute,
   ApiMetubeAddRoute: ApiMetubeAddRoute,
   ApiMetubeDeleteRoute: ApiMetubeDeleteRoute,
   ApiMetubeStatusRoute: ApiMetubeStatusRoute,
@@ -3877,6 +3922,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPlaybackStateRoute: ApiPlaybackStateRoute,
   ApiPlaybackTransferRoute: ApiPlaybackTransferRoute,
   ApiPlaylistsIdRoute: ApiPlaylistsIdRouteWithChildren,
+  ApiPlaylistsCreateFromIdsRoute: ApiPlaylistsCreateFromIdsRoute,
   ApiPlaylistsDownloadRoute: ApiPlaylistsDownloadRoute,
   ApiPlaylistsExportRoute: ApiPlaylistsExportRoute,
   ApiPlaylistsImportRoute: ApiPlaylistsImportRoute,
@@ -3887,7 +3933,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPlaylistsSpotifyStatusRoute: ApiPlaylistsSpotifyStatusRoute,
   ApiPlaylistsSyncRoute: ApiPlaylistsSyncRoute,
   ApiProfileUpdateRoute: ApiProfileUpdateRoute,
-  ApiRadioSaveAsPlaylistRoute: ApiRadioSaveAsPlaylistRoute,
   ApiRadioSeededRoute: ApiRadioSeededRoute,
   ApiRadioShuffleRoute: ApiRadioShuffleRoute,
   ApiSecurityDisable2faRoute: ApiSecurityDisable2faRoute,
@@ -3926,3 +3971,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

@@ -23,7 +23,8 @@ import {
   Cell,
 } from 'recharts';
 import { Skeleton } from '../ui/skeleton';
-import { LayoutDashboard, Target, Activity, Compass } from 'lucide-react';
+import { LayoutDashboard, Target, Activity, Compass, Headphones } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // ============================================================================
 // Types
@@ -155,10 +156,14 @@ export function AnalyticsDashboard({ period = '30d' }: AnalyticsDashboardProps) 
   return (
     <div className="space-y-6">
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-5 h-auto">
           <TabsTrigger value="overview" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
             <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
             Overview
+          </TabsTrigger>
+          <TabsTrigger value="listening" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
+            <Headphones className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            Listening
           </TabsTrigger>
           <TabsTrigger value="quality" className="flex items-center gap-1.5 py-2 px-1 sm:px-3 text-xs sm:text-sm">
             <Target className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
@@ -176,6 +181,10 @@ export function AnalyticsDashboard({ period = '30d' }: AnalyticsDashboardProps) 
 
         <TabsContent value="overview" className="space-y-4">
           <OverviewTab analytics={analytics} />
+        </TabsContent>
+
+        <TabsContent value="listening" className="space-y-4">
+          <ListeningTab period={period} />
         </TabsContent>
 
         <TabsContent value="quality" className="space-y-4">
@@ -448,6 +457,140 @@ const ActivityTab = memo(function ActivityTab({ analytics }: { analytics: Enhanc
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+});
+
+// ============================================================================
+// Listening Tab (PR 2 of Listening Analytics — sources from listening_history,
+// not recommendation_feedback. Surfaces actual play counts and repeat patterns)
+// ============================================================================
+
+interface TopArtistRow {
+  artist: string;
+  plays: number;
+  uniqueSongs: number;
+  lastPlayedAt: string;
+}
+
+interface TopSongRow {
+  songId: string;
+  artist: string;
+  title: string;
+  plays: number;
+  lastPlayedAt: string;
+}
+
+function periodToDateRange(period: '30d' | '90d' | '1y'): { from: string; to: string } {
+  const days = period === '90d' ? 90 : period === '1y' ? 365 : 30;
+  const to = new Date();
+  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
+const ListeningTab = memo(function ListeningTab({ period }: { period: '30d' | '90d' | '1y' }) {
+  const range = useMemo(() => periodToDateRange(period), [period]);
+
+  const topArtists = useQuery({
+    queryKey: ['listening-history', 'top-artists', period],
+    queryFn: async () => {
+      const params = new URLSearchParams({ from: range.from, to: range.to, limit: '10' });
+      const res = await fetch(`/api/listening-history/top-artists?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch top artists');
+      const json = await res.json() as { success: boolean; data: TopArtistRow[] };
+      return json.data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const topSongs = useQuery({
+    queryKey: ['listening-history', 'top-songs', period],
+    queryFn: async () => {
+      const params = new URLSearchParams({ from: range.from, to: range.to, limit: '15' });
+      const res = await fetch(`/api/listening-history/top-songs?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch top songs');
+      const json = await res.json() as { success: boolean; data: TopSongRow[] };
+      return json.data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Top Played Artists</CardTitle>
+          <CardDescription>
+            By total plays in this period. The plays-per-unique-song ratio surfaces
+            artists where the same few tracks repeat (high) vs deep catalog rotation (low).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {topArtists.isLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : topArtists.error ? (
+            <p className="text-sm text-destructive">Failed to load.</p>
+          ) : !topArtists.data || topArtists.data.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No listening history in this period.</p>
+          ) : (
+            <ul className="space-y-2">
+              {topArtists.data.map((row) => {
+                const ratio = row.uniqueSongs > 0 ? row.plays / row.uniqueSongs : 0;
+                const ratioBadgeClass =
+                  ratio >= 4 ? 'text-destructive'
+                  : ratio >= 2.5 ? 'text-warning'
+                  : 'text-muted-foreground';
+                return (
+                  <li key={row.artist} className="flex items-baseline gap-3 text-sm">
+                    <span className="flex-1 truncate font-medium">{row.artist}</span>
+                    <span className="tabular-nums text-muted-foreground">
+                      {row.plays} plays
+                    </span>
+                    <span className="tabular-nums text-xs text-muted-foreground">
+                      {row.uniqueSongs} unique
+                    </span>
+                    <span className={cn('tabular-nums text-xs font-medium', ratioBadgeClass)}
+                          title="Plays per unique song">
+                      {ratio.toFixed(1)}×
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Top Played Songs</CardTitle>
+          <CardDescription>
+            Most-repeated individual tracks. High counts here are the songs the
+            AI DJ or your manual choices keep returning to.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {topSongs.isLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : topSongs.error ? (
+            <p className="text-sm text-destructive">Failed to load.</p>
+          ) : !topSongs.data || topSongs.data.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No listening history in this period.</p>
+          ) : (
+            <ol className="space-y-2">
+              {topSongs.data.map((row) => (
+                <li key={row.songId} className="flex items-baseline gap-3 text-sm">
+                  <span className="flex-1 min-w-0">
+                    <span className="block truncate font-medium">{row.title}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{row.artist}</span>
+                  </span>
+                  <span className="tabular-nums text-muted-foreground">{row.plays} plays</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 });
