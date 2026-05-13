@@ -22,6 +22,7 @@ function PlaylistsPage() {
       icon={<ListMusic className="h-5 w-5" />}
       backLink="/dashboard"
       backLabel="Dashboard"
+      wide
       actions={
         <div className="flex items-center gap-2">
           <CreatePlaylistDialog />

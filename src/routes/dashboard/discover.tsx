@@ -67,6 +67,7 @@ function DiscoverPage() {
       title="Discover"
       description="Personalized music recommendations based on your listening patterns"
       icon={<Sparkles className="h-6 w-6" />}
+      wide
     >
       <PageSection>
         <Suspense fallback={<DiscoveryFeedSkeleton />}>

@@ -187,7 +187,7 @@ export const InterestOverTimeChart = memo(function InterestOverTimeChart({
                 content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null;
                   return (
-                    <div className="rounded-lg border bg-background/95 backdrop-blur-sm px-3 py-2 shadow-md text-sm">
+                    <div className="rounded-lg border border-border bg-popover text-popover-foreground px-3 py-2 text-sm shadow-[0_4px_12px_-2px_hsl(var(--foreground)/0.08)]">
                       <p className="font-medium mb-1">{formatMonth(label as string)}</p>
                       {payload.map(p => (
                         <div key={p.name} className="flex items-center gap-2">

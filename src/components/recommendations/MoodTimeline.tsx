@@ -188,7 +188,7 @@ const MoodTimelineTooltip = memo(function MoodTimelineTooltip({ active, payload 
   const hasMoodData = Object.keys(moodDistribution).length > 0;
 
   return (
-    <div className="bg-popover border border-border rounded-lg p-3 shadow-lg max-w-xs">
+    <div className="rounded-lg border border-border bg-popover text-popover-foreground p-3 max-w-xs shadow-[0_4px_12px_-2px_hsl(var(--foreground)/0.08)]">
       <p className="font-medium text-sm mb-2">{dataPoint.periodLabel || 'Unknown Period'}</p>
 
       {/* Mood Breakdown */}

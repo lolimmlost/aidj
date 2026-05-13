@@ -42,6 +42,7 @@ function LibraryGrowthPage() {
       title="Library Growth"
       description="Discover new music based on your listening habits and grow your collection"
       icon={<TrendingUp className="h-6 w-6" />}
+      wide
     >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main suggestions panel */}

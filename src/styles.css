@@ -11,6 +11,10 @@
 @custom-variant landscape (@media (orientation: landscape));
 
 @theme inline {
+  /* Custom screen for very wide displays (1920p / 4K). Default Tailwind tops
+     out at 2xl=1536px; without 3xl, layouts strand content on big monitors. */
+  --breakpoint-3xl: 1920px;
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
