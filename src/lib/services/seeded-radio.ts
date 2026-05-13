@@ -85,6 +85,12 @@ const ARTIST_CATALOG_FRACTION: Record<ArtistVariety, number> = {
 // Per-seed scorer fetch size (we ask for more than we need so dedupe+cap leave headroom).
 const SCORER_LIMIT_PER_SEED = 20;
 
+// If the genre-coherence filter for artist radio would leave fewer than
+// MIN_FILTERED_FRACTION * (raw candidate count) candidates, we fall back to
+// the unfiltered pool with a warning. Prevents pathological cases (sparse or
+// missing genre tags) from producing an empty radio.
+const MIN_FILTERED_FRACTION = 0.25;
+
 // Conservative average track length used to estimate slot count from a duration target.
 // Generously over-shoots so the post-trim has room to land on the target.
 const AVG_TRACK_MINUTES = 3.75;
@@ -138,6 +144,47 @@ function shuffle<T>(arr: T[]): T[] {
 
 function sample<T>(arr: T[], n: number): T[] {
   return shuffle(arr).slice(0, n);
+}
+
+/**
+ * Split a genre string into lowercased tokens. Genre strings vary by source
+ * ("Classic Rock", "rock; pop", "Rock/Folk", "Indie-Rock") so we tokenize on
+ * common separators and lowercase. Stop-words and very-short tokens are
+ * dropped to avoid spurious matches (e.g., "en" in "Rock en Español").
+ */
+function tokenizeGenre(genre: string | null | undefined): string[] {
+  if (!genre) return [];
+  const STOP = new Set(['the', 'and', 'of', 'en', 'a', 'an', 'de', 'la', 'le']);
+  return genre
+    .toLowerCase()
+    .split(/[\s;,/\-&|]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 3 && !STOP.has(t));
+}
+
+/**
+ * Filter candidates by genre-token overlap with the seed token set.
+ *
+ *  - Empty seed set → no filter applied (no seed-genre info to compare against).
+ *  - Candidate with no genre → KEPT (lenient: don't punish missing metadata).
+ *  - Candidate with genre → KEPT iff at least one of its tokens is in the seed set.
+ *
+ * Used by artist radio to keep the "adjacent" candidate pool genre-coherent
+ * with the seed artist. Without this, the blended scorer's broader candidate
+ * pool can leak in user-favorite artists from totally unrelated genres
+ * (e.g., hip-hop / EDM picks in a classic-rock radio) because they score high
+ * on the user's overall affinity profile.
+ */
+function filterByGenreOverlap(
+  candidates: Song[],
+  seedTokens: Set<string>,
+): Song[] {
+  if (seedTokens.size === 0) return candidates;
+  return candidates.filter((c) => {
+    const tokens = tokenizeGenre(c.genre);
+    if (tokens.length === 0) return true;
+    return tokens.some((t) => seedTokens.has(t));
+  });
 }
 
 function titleKey(song: { artist?: string; title?: string; name?: string }): string {
@@ -618,7 +665,41 @@ async function generateFromArtist(
     (s) => (s.artist ?? '').toLowerCase() !== artistName.toLowerCase(),
   );
 
-  let scorerSlice = dedupe([...coocFiltered, ...scorerMerged]);
+  // Genre-coherence filter on the adjacent slice. The blended scorer ranks
+  // candidates by the user's overall profile (compound score, artist
+  // affinity, temporal) — which has no notion of "should sound like the
+  // seed artist", so top-played user favorites can leak in regardless of
+  // genre (observed: hip-hop / EDM picks in a classic-rock radio). We
+  // build a token set from the seed catalog's genres and drop candidates
+  // whose genre tokens don't overlap. Tracks with no genre metadata are
+  // kept (lenient on missing data).
+  const seedTokens = new Set<string>();
+  for (const t of catalog) {
+    for (const tok of tokenizeGenre(t.genre)) seedTokens.add(tok);
+  }
+  const rawCount = coocFiltered.length + scorerMerged.length;
+  let filteredCooc = filterByGenreOverlap(coocFiltered, seedTokens);
+  let filteredScorer = filterByGenreOverlap(scorerMerged, seedTokens);
+  const filteredCount = filteredCooc.length + filteredScorer.length;
+  // Fallback: if the filter is too aggressive (sparse genre tags, mismatched
+  // taxonomy between seed catalog and candidates), fall back to unfiltered
+  // so the radio always has enough candidates to fill the queue.
+  if (rawCount > 0 && filteredCount < rawCount * MIN_FILTERED_FRACTION) {
+    console.warn(
+      `[seeded-radio] Genre filter too aggressive for "${artistName}" ` +
+      `(${filteredCount}/${rawCount} candidates, seed tokens=[${[...seedTokens].join(',')}]) ` +
+      `— falling back to unfiltered pool`,
+    );
+    filteredCooc = coocFiltered;
+    filteredScorer = scorerMerged;
+  } else if (rawCount > 0 && filteredCount < rawCount) {
+    console.log(
+      `[seeded-radio] Genre filter for "${artistName}": ${rawCount} → ${filteredCount} ` +
+      `candidates (seed tokens=[${[...seedTokens].join(',')}])`,
+    );
+  }
+
+  let scorerSlice = dedupe([...filteredCooc, ...filteredScorer]);
   scorerSlice = enforceArtistDiversity(scorerSlice);
 
   const interleaved = interleaveByFraction(artistSlice, scorerSlice, {
@@ -727,5 +808,8 @@ export const __internal = {
   interleaveByFraction,
   applyDurationTarget,
   estimateSizeFromMinutes,
+  tokenizeGenre,
+  filterByGenreOverlap,
   ARTIST_CATALOG_FRACTION,
+  MIN_FILTERED_FRACTION,
 };
