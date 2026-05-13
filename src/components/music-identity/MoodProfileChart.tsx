@@ -14,7 +14,7 @@ import {
   Tooltip,
 } from 'recharts';
 import { Heart, Sun, Moon, CloudRain, Zap, Music2, Focus, Flame } from 'lucide-react';
-import { chartTooltipContentStyle, chartTooltipLabelStyle } from '@/components/recommendations/chart-theme';
+import { chartTooltipContentStyle, chartTooltipLabelStyle, chartTooltipItemStyle } from '@/components/recommendations/chart-theme';
 import type { MoodProfile } from '@/lib/db/schema/music-identity.schema';
 
 // ============================================================================
@@ -190,6 +190,7 @@ export const MoodProfileChart = memo(function MoodProfileChart({
                   formatter={(value: number) => `${value}%`}
                   contentStyle={chartTooltipContentStyle}
                   labelStyle={chartTooltipLabelStyle}
+                  itemStyle={chartTooltipItemStyle}
                 />
               </PieChart>
             </ResponsiveContainer>
