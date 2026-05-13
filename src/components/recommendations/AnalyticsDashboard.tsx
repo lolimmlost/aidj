@@ -34,9 +34,12 @@ interface EnhancedAnalyticsResponse {
     likedArtists: Array<{ artist: string; count: number }>;
     dislikedArtists: Array<{ artist: string; count: number }>;
     feedbackCount: {
+      /** Real interactions (excludes bulk library-sync rows). */
       total: number;
       thumbsUp: number;
       thumbsDown: number;
+      /** Bulk library-sync rows. May be missing on older responses. */
+      librarySynced?: number;
     };
   };
   tasteEvolution?: {
@@ -208,6 +211,12 @@ function OverviewTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
           <p className="text-xs text-muted-foreground">
             {analytics.profile.feedbackCount.thumbsUp} up / {analytics.profile.feedbackCount.thumbsDown} down
           </p>
+          {analytics.profile.feedbackCount.librarySynced !== undefined &&
+           analytics.profile.feedbackCount.librarySynced > 0 && (
+            <p className="text-[10px] text-muted-foreground mt-1">
+              + {analytics.profile.feedbackCount.librarySynced} library-synced (excluded from charts)
+            </p>
+          )}
         </CardContent>
       </Card>
 

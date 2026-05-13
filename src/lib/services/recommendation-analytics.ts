@@ -5,7 +5,7 @@
 
 import { db } from '../db';
 import { recommendationFeedback } from '../db/schema';
-import { eq, and, gte } from 'drizzle-orm';
+import { eq, and, gte, ne } from 'drizzle-orm';
 import {
   extractArtist,
   getDaysAgo,
@@ -103,6 +103,17 @@ export function clearAnalyticsCache(userId?: string): void {
 // Note: extractArtist, getDaysAgo, getStartOfWeek, getStartOfMonth
 // are now imported from '../utils/analytics-helpers'
 
+/**
+ * Exclude bulk library-sync rows (source='library') from analytics queries.
+ * The user's starred-songs sync writes one feedback row per starred song
+ * with `source='library'` — useful as signal for the scoring path, but
+ * meaningless on the analytics page (a single sync of 500 songs would
+ * spike the dow/hour heatmap and dominate the "top liked artists" chart
+ * over real user interactions). All analytics functions filter it out;
+ * the scoring path queries the table directly and is unaffected.
+ */
+const excludeLibrarySync = ne(recommendationFeedback.source, 'library');
+
 // ============================================================================
 // Taste Evolution Timeline (AC 1)
 // ============================================================================
@@ -125,14 +136,15 @@ export async function getTasteEvolutionTimeline(
   // Determine period type: weekly for <= 90 days, monthly for > 90 days
   const periodType: 'week' | 'month' = days <= 90 ? 'week' : 'month';
 
-  // Fetch all feedback in the time range
+  // Fetch all feedback in the time range (excluding library-sync rows)
   const feedback = await db
     .select()
     .from(recommendationFeedback)
     .where(
       and(
         eq(recommendationFeedback.userId, userId),
-        gte(recommendationFeedback.timestamp, startDate)
+        gte(recommendationFeedback.timestamp, startDate),
+        excludeLibrarySync,
       )
     )
     .orderBy(recommendationFeedback.timestamp);
@@ -218,11 +230,11 @@ export async function getRecommendationQualityMetrics(
   const cached = getCachedAnalytics<RecommendationQualityMetrics>(cacheKey);
   if (cached) return cached;
 
-  // Get all feedback
+  // Get all feedback (excluding library-sync rows)
   const allFeedback = await db
     .select()
     .from(recommendationFeedback)
-    .where(eq(recommendationFeedback.userId, userId))
+    .where(and(eq(recommendationFeedback.userId, userId), excludeLibrarySync))
     .orderBy(recommendationFeedback.timestamp);
 
   const totalRecommendations = allFeedback.length;
@@ -275,11 +287,11 @@ export async function getActivityTrends(userId: string): Promise<ActivityTrends>
   const cached = getCachedAnalytics<ActivityTrends>(cacheKey);
   if (cached) return cached;
 
-  // Get all feedback
+  // Get all feedback (excluding library-sync rows)
   const allFeedback = await db
     .select()
     .from(recommendationFeedback)
-    .where(eq(recommendationFeedback.userId, userId))
+    .where(and(eq(recommendationFeedback.userId, userId), excludeLibrarySync))
     .orderBy(recommendationFeedback.timestamp);
 
   const feedbackByDayOfWeek = new Map<number, number>();
@@ -365,14 +377,16 @@ export async function getDiscoveryInsights(
 
   const recentStartDate = getDaysAgo(recentDays);
 
-  // Get all liked feedback
+  // Get all liked feedback (excluding library-sync rows so a bulk import
+  // doesn't show up as "newly discovered artists")
   const allLikedFeedback = await db
     .select()
     .from(recommendationFeedback)
     .where(
       and(
         eq(recommendationFeedback.userId, userId),
-        eq(recommendationFeedback.feedbackType, 'thumbs_up')
+        eq(recommendationFeedback.feedbackType, 'thumbs_up'),
+        excludeLibrarySync,
       )
     )
     .orderBy(recommendationFeedback.timestamp);

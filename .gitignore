@@ -50,8 +50,9 @@ Thumbs.db
 _bmad/
 _bmad-output/
 
-# Database dumps (local only)
+# Database dumps (local only). Drizzle migrations are tracked via exception.
 *.sql
+!drizzle/*.sql
 
 # Dependency managers / caches
 .pnp.js

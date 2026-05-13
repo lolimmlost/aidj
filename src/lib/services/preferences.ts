@@ -13,10 +13,20 @@ export interface UserPreferenceProfile {
   dislikedArtists: Array<{ artist: string; count: number }>;
   likedSongs: Array<{ songArtistTitle: string; timestamp: Date }>;
   dislikedSongs: Array<{ songArtistTitle: string; timestamp: Date }>;
+  /**
+   * Interaction-only counts (excludes source='library' bulk-sync rows).
+   * Use these for analytics display.
+   */
   totalFeedbackCount: number;
   thumbsUpCount: number;
   thumbsDownCount: number;
   feedbackRatio: number; // thumbsUp / total (0.0 - 1.0)
+  /**
+   * Count of bulk library-sync rows (source='library'). Surfaced separately
+   * so the UI can display "X interactions + Y library-synced" rather than
+   * lumping a single starred-songs import with real user feedback.
+   */
+  librarySyncedCount: number;
 }
 
 export interface ListeningPatterns {
@@ -53,12 +63,20 @@ export async function buildUserPreferenceProfile(userId: string): Promise<UserPr
     return cached.profile;
   }
 
-  // Fetch all user feedback
-  const allFeedback = await db
+  // Fetch all user feedback, then partition in memory into real
+  // interactions vs bulk library-sync rows (source='library'). The library
+  // slice represents starred songs imported in bulk and is surfaced as
+  // a separate count so a single sync spike doesn't dominate every chart.
+  // The scoring path queries the table directly with its own filters and
+  // is unaffected.
+  const rawFeedback = await db
     .select()
     .from(recommendationFeedback)
     .where(eq(recommendationFeedback.userId, userId))
     .orderBy(desc(recommendationFeedback.timestamp));
+
+  const allFeedback = rawFeedback.filter(f => f.source !== 'library');
+  const librarySyncedCount = rawFeedback.length - allFeedback.length;
 
   // Separate into liked/disliked
   const likedFeedback = allFeedback.filter(f => f.feedbackType === 'thumbs_up');
@@ -103,6 +121,7 @@ export async function buildUserPreferenceProfile(userId: string): Promise<UserPr
     thumbsUpCount: likedFeedback.length,
     thumbsDownCount: dislikedFeedback.length,
     feedbackRatio: allFeedback.length > 0 ? likedFeedback.length / allFeedback.length : 0,
+    librarySyncedCount,
   };
 
   // Cache the profile
