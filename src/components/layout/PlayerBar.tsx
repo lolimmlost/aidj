@@ -217,6 +217,11 @@ export function PlayerBar() {
       }),
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ['listening-history'] });
+      // Auto-refresh the AI DJ affinity profile after a meaningful chunk of
+      // plays. Without this the profile is frozen at onboarding and the
+      // "profile-based recommendations (zero API calls)" path keeps picking
+      // the same handful of songs forever.
+      useAudioStore.getState().recordPlayForProfileTrigger();
     }).catch(err => console.warn('Failed to record listening history:', err));
   }, [queryClient]);
 

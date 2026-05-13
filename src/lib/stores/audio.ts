@@ -130,6 +130,14 @@ interface AudioState {
   radioVariety: ArtistVariety;
   // Optional duration constraint (minutes) used for the current session. null = unconstrained.
   radioTargetMinutes: number | null;
+  // Auto-recompute trigger for AI DJ affinity profile. The profile drives the
+  // "profile-based recommendations (zero API calls)" path — without periodic
+  // recompute it stays frozen at onboarding values and the AI DJ recommends
+  // the same handful of songs forever. We trigger a fresh
+  // /api/profile/update after N recorded plays AND M hours since the last
+  // update — both conditions must hold so we don't thrash.
+  playsSinceLastProfileUpdate: number;
+  lastProfileUpdateAt: number; // epoch ms; 0 = never
 
   setPlaylist: (songs: Song[]) => void;
   playSong: (songId: string, newPlaylist?: Song[]) => void;
@@ -180,6 +188,9 @@ interface AudioState {
   applyServerState: (server: PlaybackStateResponse) => void;
   setRemoteDevice: (device: AudioState['remoteDevice']) => void;
   setDevicePickerOpen: (open: boolean) => void;
+  /** Increment the post-onboarding play counter and, if thresholds are met,
+   * fire an async /api/profile/update to refresh AI DJ affinity weights. */
+  recordPlayForProfileTrigger: () => void;
   // Radio session actions (Story 9.3)
   incrementRadioPlayCount: () => void;
   setIsRadioSession: (isRadio: boolean) => void;
@@ -247,6 +258,8 @@ export const useAudioStore = create<AudioState>()(
     playStateUpdatedAt: '',
     remoteDevice: null,
     isDevicePickerOpen: false,
+    playsSinceLastProfileUpdate: 0,
+    lastProfileUpdateAt: 0,
     lastKnownPosition: 0,
     lastKnownDuration: 0,
     _userPauseAt: 0,
@@ -1824,6 +1837,38 @@ export const useAudioStore = create<AudioState>()(
 
     setDevicePickerOpen: (open: boolean) => set({ isDevicePickerOpen: open }),
 
+    recordPlayForProfileTrigger: () => {
+      const PROFILE_REFRESH_PLAY_THRESHOLD = 10;
+      const PROFILE_REFRESH_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4h
+      const state = get();
+      const nextCount = state.playsSinceLastProfileUpdate + 1;
+      const now = Date.now();
+      const cooledDown = now - state.lastProfileUpdateAt >= PROFILE_REFRESH_COOLDOWN_MS;
+      if (nextCount >= PROFILE_REFRESH_PLAY_THRESHOLD && cooledDown) {
+        // Optimistically reset both counters BEFORE the fetch so concurrent
+        // plays during the recompute don't queue a second update.
+        set({ playsSinceLastProfileUpdate: 0, lastProfileUpdateAt: now });
+        console.log(`👤 [ProfileTrigger] Threshold reached (${nextCount} plays since last update, ${Math.round((now - state.lastProfileUpdateAt) / 3_600_000)}h cooldown) — recomputing AI DJ profile`);
+        fetch('/api/profile/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ daysBack: 14 }),
+        })
+          .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+          .then((data) => {
+            console.log('👤 [ProfileTrigger] Profile update succeeded:', data?.data ?? data);
+          })
+          .catch((err) => {
+            console.warn('👤 [ProfileTrigger] Profile update failed (will retry on next threshold):', err);
+            // Roll back the cooldown so the next play retries sooner.
+            set({ lastProfileUpdateAt: state.lastProfileUpdateAt });
+          });
+      } else {
+        set({ playsSinceLastProfileUpdate: nextCount });
+      }
+    },
+
     incrementRadioPlayCount: () => set((state) => ({
       radioSessionPlayCount: state.radioSessionPlayCount + 1,
     })),
@@ -1950,6 +1995,8 @@ export const useAudioStore = create<AudioState>()(
       autoplaySmartTransitions: state.autoplaySmartTransitions,
       recentlyPlayedIds: state.recentlyPlayedIds,
       skipCounts: state.skipCounts,
+      playsSinceLastProfileUpdate: state.playsSinceLastProfileUpdate,
+      lastProfileUpdateAt: state.lastProfileUpdateAt,
     }),
     // Only preferences are persisted — queue/position come from server on mount
     onRehydrateStorage: () => (state) => {
