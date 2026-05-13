@@ -570,24 +570,31 @@ const ListeningTab = memo(function ListeningTab({ period }: { period: '30d' | '9
           ) : !topArtists.data || topArtists.data.length === 0 ? (
             <p className="text-sm text-muted-foreground">No listening history in this period.</p>
           ) : (
-            <ul className="space-y-2">
-              {topArtists.data.map((row) => {
+            <ul className="space-y-1">
+              {topArtists.data.map((row, idx) => {
                 const ratio = row.uniqueSongs > 0 ? row.plays / row.uniqueSongs : 0;
                 const ratioBadgeClass =
-                  ratio >= 4 ? 'text-destructive'
-                  : ratio >= 2.5 ? 'text-warning'
-                  : 'text-muted-foreground';
+                  ratio >= 4 ? 'bg-destructive/10 text-destructive'
+                  : ratio >= 2.5 ? 'bg-warning/10 text-warning'
+                  : 'bg-muted text-muted-foreground';
                 return (
-                  <li key={row.artist} className="flex items-baseline gap-3 text-sm">
-                    <span className="flex-1 truncate font-medium">{row.artist}</span>
-                    <span className="tabular-nums text-muted-foreground">
-                      {row.plays} plays
+                  <li
+                    key={row.artist}
+                    className="grid grid-cols-[1.5rem_1fr_auto_auto] items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-muted/40"
+                  >
+                    <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                      {idx + 1}
                     </span>
-                    <span className="tabular-nums text-xs text-muted-foreground">
-                      {row.uniqueSongs} unique
+                    <span className="truncate font-medium">{row.artist}</span>
+                    <span className="text-right tabular-nums text-xs text-muted-foreground">
+                      <span className="font-semibold text-foreground">{row.plays}</span>
+                      {' / '}
+                      {row.uniqueSongs}
                     </span>
-                    <span className={cn('tabular-nums text-xs font-medium', ratioBadgeClass)}
-                          title="Plays per unique song">
+                    <span
+                      className={cn('rounded-full px-2 py-0.5 text-xs font-medium tabular-nums', ratioBadgeClass)}
+                      title="Plays per unique song"
+                    >
                       {ratio.toFixed(1)}×
                     </span>
                   </li>
@@ -614,14 +621,22 @@ const ListeningTab = memo(function ListeningTab({ period }: { period: '30d' | '9
           ) : !topSongs.data || topSongs.data.length === 0 ? (
             <p className="text-sm text-muted-foreground">No listening history in this period.</p>
           ) : (
-            <ol className="space-y-2">
-              {topSongs.data.map((row) => (
-                <li key={row.songId} className="flex items-baseline gap-3 text-sm">
-                  <span className="flex-1 min-w-0">
+            <ol className="space-y-1">
+              {topSongs.data.map((row, idx) => (
+                <li
+                  key={row.songId}
+                  className="grid grid-cols-[1.5rem_1fr_auto] items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-muted/40"
+                >
+                  <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                    {idx + 1}
+                  </span>
+                  <span className="min-w-0">
                     <span className="block truncate font-medium">{row.title}</span>
                     <span className="block truncate text-xs text-muted-foreground">{row.artist}</span>
                   </span>
-                  <span className="tabular-nums text-muted-foreground">{row.plays} plays</span>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground">
+                    {row.plays}
+                  </span>
                 </li>
               ))}
             </ol>
@@ -649,6 +664,8 @@ const SourceBreakdownCard = memo(function SourceBreakdownCard({
     return { rows: data, chartData: shaped, total: sum };
   }, [query.data]);
 
+  const top = rows[0];
+
   return (
     <Card>
       <CardHeader>
@@ -660,55 +677,88 @@ const SourceBreakdownCard = memo(function SourceBreakdownCard({
       </CardHeader>
       <CardContent>
         {query.isLoading ? (
-          <Skeleton className="h-56 w-full" />
+          <Skeleton className="h-72 w-full" />
         ) : query.error ? (
           <p className="text-sm text-destructive">Failed to load.</p>
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">No listening history in this period.</p>
         ) : (
-          <div className="grid gap-4 md:grid-cols-[1fr_1fr] items-center">
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={85}
-                  paddingAngle={2}
-                  dataKey="value"
-                  nameKey="name"
-                >
-                  {chartData.map((entry) => (
-                    <Cell
-                      key={entry.source}
-                      fill={SOURCE_COLORS[entry.source] ?? '#94a3b8'}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: number, name) => {
-                    const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
-                    return [`${value} plays (${pct}%)`, name];
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <ul className="space-y-2 text-sm">
+          <div className="grid gap-6 md:grid-cols-[260px_1fr]">
+            {/* Donut + hero stat */}
+            <div className="relative mx-auto md:mx-0">
+              <ResponsiveContainer width={260} height={260}>
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={75}
+                    outerRadius={110}
+                    paddingAngle={2}
+                    dataKey="value"
+                    nameKey="name"
+                    stroke="hsl(var(--background))"
+                    strokeWidth={2}
+                  >
+                    {chartData.map((entry) => (
+                      <Cell
+                        key={entry.source}
+                        fill={SOURCE_COLORS[entry.source] ?? '#94a3b8'}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number, name) => {
+                      const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+                      return [`${value} plays (${pct}%)`, name];
+                    }}
+                    contentStyle={{
+                      borderRadius: 8,
+                      border: '1px solid hsl(var(--border))',
+                      background: 'hsl(var(--popover))',
+                      fontSize: 12,
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-3xl font-semibold tabular-nums">{total.toLocaleString()}</span>
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">Total plays</span>
+              </div>
+            </div>
+
+            {/* Stat-card legend */}
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 self-center">
               {rows.map((row) => {
                 const pct = total > 0 ? (row.plays / total) * 100 : 0;
+                const color = SOURCE_COLORS[row.source] ?? '#94a3b8';
+                const isTop = row === top;
                 return (
-                  <li key={row.source} className="flex items-baseline gap-3">
-                    <span
-                      aria-hidden
-                      className="inline-block size-3 rounded-sm shrink-0"
-                      style={{ backgroundColor: SOURCE_COLORS[row.source] ?? '#94a3b8' }}
-                    />
-                    <span className="flex-1 truncate">{SOURCE_LABELS[row.source] ?? row.source}</span>
-                    <span className="tabular-nums text-muted-foreground">{row.plays}</span>
-                    <span className="tabular-nums text-xs text-muted-foreground w-12 text-right">
-                      {pct.toFixed(1)}%
-                    </span>
+                  <li
+                    key={row.source}
+                    className={cn(
+                      'rounded-lg border bg-card/50 px-3 py-2.5 transition-colors',
+                      isTop && 'ring-1 ring-primary/20',
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        aria-hidden
+                        className="size-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: color }}
+                      />
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {SOURCE_LABELS[row.source] ?? row.source}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <span className="text-xl font-semibold tabular-nums">
+                        {row.plays.toLocaleString()}
+                      </span>
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        {pct.toFixed(1)}%
+                      </span>
+                    </div>
                   </li>
                 );
               })}
