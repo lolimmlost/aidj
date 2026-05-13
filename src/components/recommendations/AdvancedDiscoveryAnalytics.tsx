@@ -362,7 +362,7 @@ const SummaryCards = memo(function SummaryCards({
         <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
           <div className="text-lg sm:text-2xl font-bold">{summary.totalFeedback}</div>
           <p className="text-[10px] sm:text-xs text-muted-foreground">
-            Songs rated
+            Feedback events
           </p>
         </CardContent>
       </Card>

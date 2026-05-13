@@ -243,7 +243,7 @@ function OverviewTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
       <Card className="md:col-span-2">
         <CardHeader>
           <CardTitle>Top Liked Artists</CardTitle>
-          <CardDescription>Your most favorited artists</CardDescription>
+          <CardDescription>Artists you've thumbed up most on AI DJ recommendations</CardDescription>
         </CardHeader>
         <CardContent>
           <TopArtistsChart artists={analytics.profile.likedArtists.slice(0, 10)} />
@@ -342,7 +342,7 @@ const QualityTab = memo(function QualityTab({ analytics }: { analytics: Enhanced
         <MetricCard
           title="Total Ratings"
           value={analytics.quality.totalRecommendations.toString()}
-          description="Songs rated"
+          description="Feedback events (a song may be rated more than once)"
         />
       </div>
     </div>
@@ -388,8 +388,8 @@ const ActivityTab = memo(function ActivityTab({ analytics }: { analytics: Enhanc
     <div className="grid gap-4">
       <Card>
         <CardHeader>
-          <CardTitle>Listening Patterns</CardTitle>
-          <CardDescription>When you're most active</CardDescription>
+          <CardTitle>Feedback Patterns</CardTitle>
+          <CardDescription>When you most often rate AI DJ recommendations</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
@@ -405,7 +405,8 @@ const ActivityTab = memo(function ActivityTab({ analytics }: { analytics: Enhanc
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Activity by Day of Week</CardTitle>
+            <CardTitle>Feedback Events by Day of Week</CardTitle>
+            <CardDescription>Summed across every day in the selected period</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
@@ -422,7 +423,8 @@ const ActivityTab = memo(function ActivityTab({ analytics }: { analytics: Enhanc
 
         <Card>
           <CardHeader>
-            <CardTitle>Activity by Hour</CardTitle>
+            <CardTitle>Feedback Events by Hour</CardTitle>
+            <CardDescription>Summed across every hour in the selected period</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
