@@ -870,7 +870,7 @@ export function PlayerBar() {
             {/* Song Info */}
             <div className="min-w-0 flex-1">
               <p
-                className={cn("font-medium text-sm truncate active:text-primary transition-colors", showRemoteTime && "text-green-500")}
+                className={cn("font-display font-semibold text-sm truncate active:text-primary transition-colors", showRemoteTime && "text-green-500")}
                 onClick={() => setShowFullscreen(true)}
               >
                 {currentSong.name || currentSong.title}
@@ -980,7 +980,7 @@ export function PlayerBar() {
             />
           </div>
           <div className="min-w-0">
-            <p className={cn("font-medium truncate text-sm", showRemoteTime && "text-green-500")}>{currentSong.name || currentSong.title}</p>
+            <p className={cn("font-display font-semibold truncate text-sm", showRemoteTime && "text-green-500")}>{currentSong.name || currentSong.title}</p>
             {(currentSong as { artistId?: string }).artistId ? (
               <Link
                 to="/library/artists/$id"

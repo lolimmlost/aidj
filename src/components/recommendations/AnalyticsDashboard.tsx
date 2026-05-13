@@ -747,7 +747,7 @@ const SourceBreakdownCard = memo(function SourceBreakdownCard({
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1">
                 <span className="font-display text-3xl font-extrabold tabular-nums tracking-tight leading-none">{total.toLocaleString()}</span>
-                <span className="text-[10px] tracking-[0.12em] uppercase font-semibold text-muted-foreground">Total plays</span>
+                <span className="eyebrow text-[10px]">Total plays</span>
               </div>
             </div>
 
@@ -771,7 +771,7 @@ const SourceBreakdownCard = memo(function SourceBreakdownCard({
                         className="size-2.5 rounded-full shrink-0"
                         style={{ backgroundColor: color }}
                       />
-                      <span className="text-[11px] tracking-[0.12em] uppercase font-semibold text-muted-foreground">
+                      <span className="eyebrow">
                         {SOURCE_LABELS[row.source] ?? row.source}
                       </span>
                     </div>
@@ -921,7 +921,7 @@ const TopArtistsChart = memo(function TopArtistsChart({ artists }: { artists: Ar
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1">
           <span className="font-display text-2xl font-extrabold tabular-nums tracking-tight leading-none">{total.toLocaleString()}</span>
-          <span className="text-[10px] tracking-[0.12em] uppercase font-semibold text-muted-foreground">Top {chartData.length}</span>
+          <span className="eyebrow text-[10px]">Top {chartData.length}</span>
         </div>
       </div>
       <ul className="space-y-1 self-center">
@@ -1038,13 +1038,13 @@ const StatCard = memo(function StatCard({
 }) {
   const t = trendVisual(trend);
   return (
-    <Card className={cn(glow && 'shadow-[var(--shadow-glow-sm)]')}>
+    <Card className={cn(glow && 'card-glow')}>
       <CardHeader className="pb-1 sm:pb-2 p-3 sm:p-6">
         <CardTitle
           // AIDJ eyebrow per design system: 11px, 0.12em tracking, weight 600,
           // uppercase, muted. Tighter weight than the rest of the card titles
           // so the BIG number reads as the primary mark.
-          className="flex items-center gap-1.5 sm:gap-2 text-[11px] tracking-[0.12em] uppercase font-semibold text-muted-foreground"
+          className="flex items-center gap-1.5 sm:gap-2 eyebrow"
         >
           <Icon className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
           <span className="truncate">{label}</span>

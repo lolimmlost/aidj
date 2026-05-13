@@ -299,6 +299,9 @@ function LeftSidebar() {
   const [isSyncingLiked, setIsSyncingLiked] = useState(false);
   const { data: session } = authClient.useSession();
   const isAdmin = session?.user?.role === 'admin';
+  // DS rule: vinyl-disc icon spins when audio is playing. The sidebar's brand
+  // mark is the most visible Disc3 in the app — wire its spin to playback.
+  const isAudioPlaying = useAudioStore((s) => s.isPlaying);
 
   // Sidebar collapsed state with localStorage persistence
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -378,7 +381,7 @@ function LeftSidebar() {
         {!isCollapsed && (
           <Link to="/dashboard" className="flex items-center gap-2 group">
             <div className="p-1.5 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-              <Disc3 className="h-5 w-5 text-primary" />
+              <Disc3 className={cn('h-5 w-5 text-primary', isAudioPlaying && 'animate-spin-slow')} />
             </div>
             {/* Brand wordmark: Unbounded weight 900 for "AI" (wide geometric,
                 rave-flyer feel), Syne italic 800 for "DJ" (off-axis accent). */}
