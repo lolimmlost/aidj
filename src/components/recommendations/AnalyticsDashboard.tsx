@@ -23,7 +23,8 @@ import {
   Cell,
 } from 'recharts';
 import { Skeleton } from '../ui/skeleton';
-import { LayoutDashboard, Target, Activity, Compass, Headphones, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Progress } from '../ui/progress';
+import { LayoutDashboard, Target, Activity, Compass, Headphones, TrendingUp, TrendingDown, Minus, BarChart3, Sparkles, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ============================================================================
@@ -208,78 +209,79 @@ export function AnalyticsDashboard({ period = '30d' }: AnalyticsDashboardProps) 
 // ============================================================================
 
 function OverviewTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
+  const acceptanceTrend: MetricTrend | undefined =
+    analytics.quality?.qualityTrend === 'improving' ? 'up'
+    : analytics.quality?.qualityTrend === 'declining' ? 'down'
+    : analytics.quality?.qualityTrend === 'stable' ? 'flat'
+    : undefined;
+
+  const diversityTrend: MetricTrend =
+    analytics.discovery?.diversityTrend === 'expanding' ? 'up'
+    : analytics.discovery?.diversityTrend === 'narrowing' ? 'down'
+    : 'flat';
+
+  const diversityScore = (analytics.discovery?.genreDiversityScore ?? 0) * 100;
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {/* Stat cards */}
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total Feedback</p>
-          <div className="mt-2 text-3xl font-semibold tabular-nums">
-            {analytics.profile.feedbackCount.total.toLocaleString()}
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            <span className="font-medium text-emerald-500">{analytics.profile.feedbackCount.thumbsUp}</span> up
-            {' / '}
-            <span className="font-medium text-destructive">{analytics.profile.feedbackCount.thumbsDown}</span> down
-          </p>
-          {analytics.profile.feedbackCount.librarySynced !== undefined &&
-           analytics.profile.feedbackCount.librarySynced > 0 && (
-            <p className="text-[10px] text-muted-foreground mt-1">
-              + {analytics.profile.feedbackCount.librarySynced.toLocaleString()} library-synced (excluded)
-            </p>
-          )}
-        </CardContent>
-      </Card>
+    <div className="space-y-4">
+      {/* Compact 4-up stat row matching the Discovery analytics summary cards */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
+        <StatCard
+          icon={BarChart3}
+          label="Feedback"
+          value={analytics.profile.feedbackCount.total.toLocaleString()}
+          caption={
+            analytics.profile.feedbackCount.librarySynced &&
+            analytics.profile.feedbackCount.librarySynced > 0
+              ? `${analytics.profile.feedbackCount.thumbsUp} up / ${analytics.profile.feedbackCount.thumbsDown} down (+${analytics.profile.feedbackCount.librarySynced.toLocaleString()} synced)`
+              : `${analytics.profile.feedbackCount.thumbsUp} up / ${analytics.profile.feedbackCount.thumbsDown} down`
+          }
+        />
+        <StatCard
+          icon={Target}
+          label="Accept Rate"
+          value={analytics.quality ? `${(analytics.quality.acceptanceRate * 100).toFixed(0)}%` : 'N/A'}
+          trend={acceptanceTrend}
+        />
+        <StatCard
+          icon={Sparkles}
+          label="New Artists"
+          value={(analytics.discovery?.newArtistsDiscovered || 0).toString()}
+          caption="In the selected period"
+          trend={diversityTrend}
+          trendValue={analytics.discovery?.diversityTrend ?? 'stable'}
+        />
+        <StatCard
+          icon={Compass}
+          label="Diversity"
+          value={`${diversityScore.toFixed(0)}%`}
+          progress={diversityScore}
+        />
+      </div>
 
-      <MetricCard
-        title="Acceptance Rate"
-        value={analytics.quality ? `${(analytics.quality.acceptanceRate * 100).toFixed(0)}%` : 'N/A'}
-        trend={
-          analytics.quality?.qualityTrend === 'improving' ? 'up'
-          : analytics.quality?.qualityTrend === 'declining' ? 'down'
-          : analytics.quality?.qualityTrend === 'stable' ? 'flat'
-          : undefined
-        }
-        description={
-          analytics.quality?.qualityTrend === 'improving' ? 'Improving'
-          : analytics.quality?.qualityTrend === 'declining' ? 'Declining'
-          : analytics.quality?.qualityTrend === 'stable' ? 'Stable'
-          : 'Not enough data'
-        }
-      />
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Top Artists */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Top Liked Artists</CardTitle>
+            <CardDescription>Artists you've thumbed up most on AI DJ recommendations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TopArtistsChart artists={analytics.profile.likedArtists.slice(0, 10)} />
+          </CardContent>
+        </Card>
 
-      <MetricCard
-        title="New Artists"
-        value={(analytics.discovery?.newArtistsDiscovered || 0).toString()}
-        description={`Taste: ${analytics.discovery?.diversityTrend || 'stable'}`}
-        trend={
-          analytics.discovery?.diversityTrend === 'expanding' ? 'up'
-          : analytics.discovery?.diversityTrend === 'narrowing' ? 'down'
-          : 'flat'
-        }
-      />
-
-      {/* Top Artists */}
-      <Card className="md:col-span-2">
-        <CardHeader>
-          <CardTitle>Top Liked Artists</CardTitle>
-          <CardDescription>Artists you've thumbed up most on AI DJ recommendations</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TopArtistsChart artists={analytics.profile.likedArtists.slice(0, 10)} />
-        </CardContent>
-      </Card>
-
-      {/* Taste Profile */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Taste Profile</CardTitle>
-          <CardDescription>Your musical fingerprint</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TasteProfileCard analytics={analytics} />
-        </CardContent>
-      </Card>
+        {/* Taste Profile */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Taste Profile</CardTitle>
+            <CardDescription>Your musical fingerprint</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TasteProfileCard analytics={analytics} />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -350,21 +352,23 @@ const QualityTab = memo(function QualityTab({ analytics }: { analytics: Enhanced
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <MetricCard
-          title="Acceptance Rate"
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3">
+        <StatCard
+          icon={Target}
+          label="Acceptance Rate"
           value={`${(analytics.quality.acceptanceRate * 100).toFixed(1)}%`}
-          description={`${analytics.quality.thumbsUpCount} liked out of ${analytics.quality.totalRecommendations}`}
+          caption={`${analytics.quality.thumbsUpCount} liked of ${analytics.quality.totalRecommendations}`}
         />
-        <MetricCard
-          title="Quality Trend"
+        <StatCard
+          icon={TrendingUp}
+          label="Quality Trend"
           value={analytics.quality.qualityTrend}
           trend={
             analytics.quality.qualityTrend === 'improving' ? 'up'
             : analytics.quality.qualityTrend === 'declining' ? 'down'
             : 'flat'
           }
-          description={
+          caption={
             analytics.quality.qualityTrend === 'improving'
               ? 'Recommendations getting better'
               : analytics.quality.qualityTrend === 'declining'
@@ -372,10 +376,11 @@ const QualityTab = memo(function QualityTab({ analytics }: { analytics: Enhanced
                 : 'Recommendations are consistent'
           }
         />
-        <MetricCard
-          title="Total Ratings"
-          value={analytics.quality.totalRecommendations.toString()}
-          description="Feedback events (a song may be rated more than once)"
+        <StatCard
+          icon={BarChart3}
+          label="Total Ratings"
+          value={analytics.quality.totalRecommendations.toLocaleString()}
+          caption="Feedback events"
         />
       </div>
     </div>
@@ -826,26 +831,29 @@ const DiscoveryTab = memo(function DiscoveryTab({ analytics }: { analytics: Enha
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-4 md:grid-cols-3">
-        <MetricCard
-          title="New Artists Discovered"
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3">
+        <StatCard
+          icon={Sparkles}
+          label="New Artists Discovered"
           value={analytics.discovery.newArtistsDiscovered.toString()}
-          description="In the selected period"
+          caption="In the selected period"
         />
-        <MetricCard
-          title="Diversity Score"
+        <StatCard
+          icon={Compass}
+          label="Diversity Score"
           value={`${(analytics.discovery.genreDiversityScore * 100).toFixed(0)}%`}
-          description="How varied your taste is"
+          progress={analytics.discovery.genreDiversityScore * 100}
         />
-        <MetricCard
-          title="Diversity Trend"
+        <StatCard
+          icon={TrendingUp}
+          label="Diversity Trend"
           value={analytics.discovery.diversityTrend}
           trend={
             analytics.discovery.diversityTrend === 'expanding' ? 'up'
             : analytics.discovery.diversityTrend === 'narrowing' ? 'down'
             : 'flat'
           }
-          description={
+          caption={
             analytics.discovery.diversityTrend === 'expanding'
               ? 'Exploring more variety'
               : analytics.discovery.diversityTrend === 'narrowing'
@@ -1011,31 +1019,63 @@ const TasteProfileCard = memo(function TasteProfileCard({ analytics }: { analyti
 
 type MetricTrend = 'up' | 'down' | 'flat';
 
-const MetricCard = memo(function MetricCard({
-  title,
-  value,
-  description,
-  trend,
-}: {
-  title: string;
-  value: string;
-  description: string;
-  trend?: MetricTrend;
-}) {
-  const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : trend === 'flat' ? Minus : null;
-  const trendClass =
+function trendVisual(trend?: MetricTrend) {
+  if (!trend) return null;
+  const Icon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
+  const klass =
     trend === 'up' ? 'text-emerald-500'
     : trend === 'down' ? 'text-destructive'
     : 'text-muted-foreground';
+  return { Icon, klass };
+}
+
+/**
+ * Compact stat card matching the visual language of AdvancedDiscoveryAnalytics:
+ * icon-prefixed header, dense padding on mobile, value with optional inline
+ * trend chip or progress bar.
+ */
+const StatCard = memo(function StatCard({
+  icon: Icon,
+  label,
+  value,
+  caption,
+  trend,
+  trendValue,
+  progress,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  caption?: string;
+  trend?: MetricTrend;
+  /** Optional explicit delta string shown next to the trend icon, e.g. "+3.4%". */
+  trendValue?: string;
+  /** 0–100 progress bar shown under the value. */
+  progress?: number;
+}) {
+  const t = trendVisual(trend);
   return (
     <Card>
-      <CardContent className="pt-6">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
-        <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-3xl font-semibold tabular-nums capitalize">{value}</span>
-          {TrendIcon && <TrendIcon className={cn('size-4 self-center', trendClass)} />}
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+      <CardHeader className="pb-1 sm:pb-2 p-3 sm:p-6">
+        <CardTitle className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium">
+          <Icon className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+          <span className="truncate">{label}</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+        <div className="text-lg sm:text-2xl font-bold tabular-nums capitalize">{value}</div>
+        {t && (
+          <div className={cn('mt-0.5 flex items-center gap-1 text-[10px] sm:text-xs', t.klass)}>
+            <t.Icon className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span>{trendValue ?? (trend === 'up' ? 'Improving' : trend === 'down' ? 'Declining' : 'Stable')}</span>
+          </div>
+        )}
+        {progress != null && (
+          <Progress value={progress} className="mt-1 sm:mt-2 h-1.5 sm:h-2" />
+        )}
+        {caption && (
+          <p className="mt-1 text-[10px] sm:text-xs text-muted-foreground">{caption}</p>
+        )}
       </CardContent>
     </Card>
   );
