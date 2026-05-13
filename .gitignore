@@ -20,6 +20,9 @@ out/
 
 # Coverage / Tests
 coverage/
+tests/.auth/
+test-results/
+playwright-report/
 
 # Environment files
 .env
