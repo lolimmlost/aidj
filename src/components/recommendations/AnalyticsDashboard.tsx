@@ -237,7 +237,7 @@ function OverviewTab({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
   return (
     <div className="space-y-4">
       {/* Compact 4-up stat row matching the Discovery analytics summary cards */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4">
         <StatCard
           icon={BarChart3}
           label="Feedback"
