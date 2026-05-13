@@ -714,6 +714,77 @@ export async function getLongestSessions(
 }
 
 // ============================================================================
+// Top-played aggregations (Listening Analytics — PR 2)
+// ============================================================================
+
+/**
+ * Top artists by play count in a date range, with unique-song count.
+ *
+ * The plays-per-unique-song ratio (plays / uniqueSongs) is the metric
+ * that exposed the AI DJ stuck-on-same-songs problem: an artist with
+ * 11 plays across 2 unique songs has a ratio of 5.5 (high repetition),
+ * versus an artist with 80 plays across 39 unique songs (ratio 2.05,
+ * healthy variety).
+ */
+export async function getTopPlayedArtists(
+  userId: string,
+  start: Date,
+  end: Date,
+  limit = 10,
+): Promise<Array<{ artist: string; plays: number; uniqueSongs: number; lastPlayedAt: Date }>> {
+  const results = await db
+    .select({
+      artist: listeningHistory.artist,
+      plays: sql<number>`count(*)::int`,
+      uniqueSongs: sql<number>`count(distinct ${listeningHistory.songId})::int`,
+      lastPlayedAt: sql<Date>`max(${listeningHistory.playedAt})`,
+    })
+    .from(listeningHistory)
+    .where(and(
+      eq(listeningHistory.userId, userId),
+      gte(listeningHistory.playedAt, start),
+      lte(listeningHistory.playedAt, end),
+    ))
+    .groupBy(listeningHistory.artist)
+    .orderBy(desc(sql`count(*)`))
+    .limit(limit);
+
+  return results;
+}
+
+/**
+ * Top individual songs by play count in a date range.
+ *
+ * Returns the worst repeat-offenders first when sorted by `plays` desc.
+ */
+export async function getTopPlayedSongs(
+  userId: string,
+  start: Date,
+  end: Date,
+  limit = 15,
+): Promise<Array<{ songId: string; artist: string; title: string; plays: number; lastPlayedAt: Date }>> {
+  const results = await db
+    .select({
+      songId: listeningHistory.songId,
+      artist: listeningHistory.artist,
+      title: listeningHistory.title,
+      plays: sql<number>`count(*)::int`,
+      lastPlayedAt: sql<Date>`max(${listeningHistory.playedAt})`,
+    })
+    .from(listeningHistory)
+    .where(and(
+      eq(listeningHistory.userId, userId),
+      gte(listeningHistory.playedAt, start),
+      lte(listeningHistory.playedAt, end),
+    ))
+    .groupBy(listeningHistory.songId, listeningHistory.artist, listeningHistory.title)
+    .orderBy(desc(sql`count(*)`))
+    .limit(limit);
+
+  return results;
+}
+
+// ============================================================================
 // Exports for Testing
 // ============================================================================
 
