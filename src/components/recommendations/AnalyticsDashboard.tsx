@@ -29,6 +29,7 @@ import { cn } from '@/lib/utils';
 import {
   chartTooltipContentStyle,
   chartTooltipLabelStyle,
+  chartTooltipItemStyle,
   chartBarCursor,
   chartLineCursor,
   chartPalette,
@@ -349,7 +350,7 @@ const QualityTab = memo(function QualityTab({ analytics }: { analytics: Enhanced
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
               <XAxis dataKey="period" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
-              <Tooltip cursor={chartBarCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
+              <Tooltip cursor={chartBarCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} itemStyle={chartTooltipItemStyle} />
               <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
               <Bar dataKey="liked" fill={COLORS.success} name="Liked" radius={[4, 4, 0, 0]} />
               <Bar dataKey="disliked" fill={COLORS.danger} name="Disliked" radius={[4, 4, 0, 0]} />
@@ -459,7 +460,7 @@ const ActivityTab = memo(function ActivityTab({ analytics }: { analytics: Enhanc
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="day" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
-                <Tooltip cursor={chartBarCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
+                <Tooltip cursor={chartBarCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} itemStyle={chartTooltipItemStyle} />
                 <Bar dataKey="count" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -477,7 +478,7 @@ const ActivityTab = memo(function ActivityTab({ analytics }: { analytics: Enhanc
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} interval={2} />
                 <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={32} />
-                <Tooltip cursor={chartLineCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
+                <Tooltip cursor={chartLineCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} itemStyle={chartTooltipItemStyle} />
                 <Line
                   type="monotone"
                   dataKey="count"
@@ -742,6 +743,7 @@ const SourceBreakdownCard = memo(function SourceBreakdownCard({
                     }}
                     contentStyle={chartTooltipContentStyle}
                     labelStyle={chartTooltipLabelStyle}
+                    itemStyle={chartTooltipItemStyle}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -916,6 +918,7 @@ const TopArtistsChart = memo(function TopArtistsChart({ artists }: { artists: Ar
               }}
               contentStyle={chartTooltipContentStyle}
               labelStyle={chartTooltipLabelStyle}
+              itemStyle={chartTooltipItemStyle}
             />
           </PieChart>
         </ResponsiveContainer>

@@ -41,6 +41,18 @@ export const chartTooltipLabelStyle: CSSProperties = {
 };
 
 /**
+ * Item-row style. Recharts colors each row by its series color by default,
+ * which is unreadable on the popover background for pale series. Force the
+ * label/value text to the popover-foreground; series color lives on the
+ * marker dot, not the text.
+ */
+export const chartTooltipItemStyle: CSSProperties = {
+  color: 'var(--popover-foreground)',
+  fontSize: 12,
+  padding: 0,
+};
+
+/**
  * Cursor for bar charts. Sits *behind* the bars as a subtle muted fill.
  */
 export const chartBarCursor = {

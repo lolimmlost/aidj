@@ -33,6 +33,7 @@ import { Progress } from '../ui/progress';
 import {
   chartTooltipContentStyle,
   chartTooltipLabelStyle,
+  chartTooltipItemStyle,
   chartBarCursor,
   chartLineCursor,
 } from './chart-theme';
@@ -469,6 +470,7 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
                 }
                 contentStyle={chartTooltipContentStyle}
                 labelStyle={chartTooltipLabelStyle}
+                itemStyle={chartTooltipItemStyle}
               />
               <Bar
                 dataKey="share"
@@ -514,7 +516,7 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
+              <Tooltip contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} itemStyle={chartTooltipItemStyle} />
               <Legend wrapperStyle={{ fontSize: '10px' }} />
             </PieChart>
           </ResponsiveContainer>
@@ -706,6 +708,7 @@ const TopContentTab = memo(function TopContentTab({
                   formatter={(v: number) => [`${v} songs`, 'Count']}
                   contentStyle={chartTooltipContentStyle}
                   labelStyle={chartTooltipLabelStyle}
+                  itemStyle={chartTooltipItemStyle}
                 />
                 <Bar dataKey="count" fill={COLORS.primary} name="Songs" radius={[0, 4, 4, 0]} />
               </BarChart>
@@ -804,7 +807,7 @@ const EngagementTab = memo(function EngagementTab({
                 tickFormatter={(v) => `${v}%`}
                 tick={{ fontSize: 10 }}
               />
-              <Tooltip cursor={chartLineCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
+              <Tooltip cursor={chartLineCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} itemStyle={chartTooltipItemStyle} />
               <Legend wrapperStyle={{ fontSize: '10px' }} />
               <Bar
                 yAxisId="left"
@@ -848,7 +851,7 @@ const EngagementTab = memo(function EngagementTab({
                 tickFormatter={(v) => `${v}%`}
                 tick={{ fontSize: 10 }}
               />
-              <Tooltip cursor={chartLineCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} />
+              <Tooltip cursor={chartLineCursor} contentStyle={chartTooltipContentStyle} labelStyle={chartTooltipLabelStyle} itemStyle={chartTooltipItemStyle} />
               <Legend wrapperStyle={{ fontSize: '10px' }} />
               <Line
                 yAxisId="left"
