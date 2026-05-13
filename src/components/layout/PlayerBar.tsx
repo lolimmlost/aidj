@@ -195,9 +195,17 @@ export function PlayerBar() {
     // apart from manual clicks / radio sessions / autoplay in the logs.
     // Precedence: ai_dj > autoplay > radio > manual. AI DJ insertions can
     // happen during a radio session; the more specific tag wins.
+    //
+    // aiQueuedSongIds is a Set kept in memory only — it gets wiped on
+    // rehydrate (page reload, PWA resume). aiDJRecentlyRecommended is
+    // persisted with an 8h window, so we check it first to survive
+    // reloads of long sessions.
     const audioState = useAudioStore.getState();
+    const isAiDj =
+      audioState.aiQueuedSongIds.has(songId) ||
+      audioState.aiDJRecentlyRecommended.some((rec) => rec.songId === songId);
     const source: 'ai_dj' | 'autoplay' | 'radio' | 'manual' =
-      audioState.aiQueuedSongIds.has(songId) ? 'ai_dj'
+      isAiDj ? 'ai_dj'
       : audioState.autoplayQueuedSongIds.has(songId) ? 'autoplay'
       : audioState.isRadioSession ? 'radio'
       : 'manual';
