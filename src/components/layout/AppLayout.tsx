@@ -380,7 +380,12 @@ function LeftSidebar() {
             <div className="p-1.5 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
               <Disc3 className="h-5 w-5 text-primary" />
             </div>
-            <span className="font-bold text-lg tracking-tight">AIDJ</span>
+            {/* Brand wordmark: Unbounded weight 900 for "AI" (wide geometric,
+                rave-flyer feel), Syne italic 800 for "DJ" (off-axis accent). */}
+            <span className="text-lg leading-none">
+              <span className="font-brand font-black tracking-[-0.045em]">AI</span>
+              <span className="font-accent font-extrabold italic">DJ</span>
+            </span>
           </Link>
         )}
         <button

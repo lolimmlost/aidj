@@ -23,9 +23,22 @@ export default function HeroSection() {
           />
         </div>
 
-        {/* Brand name */}
-        <h1 className="text-6xl sm:text-7xl lg:text-8xl font-bold tracking-tight mb-4 animate-fade-up">
-          <span className="text-gradient-brand">AIDJ</span>
+        {/* Eyebrow tagline — Syne 700 uppercase 0.32em, the small mark above
+            the wordmark, per the design system's brand-mark spec. */}
+        <p
+          className="font-accent text-xs sm:text-sm font-bold uppercase text-muted-foreground mb-3 animate-fade-up"
+          style={{ letterSpacing: '0.32em' }}
+        >
+          Command center · by appahouse
+        </p>
+
+        {/* Brand wordmark — Unbounded weight 900 for "AI" (wide geometric,
+            rave-flyer feel), Syne italic 800 for "DJ" (off-axis accent). */}
+        <h1 className="text-6xl sm:text-7xl lg:text-8xl mb-4 animate-fade-up leading-none">
+          <span className="text-gradient-brand">
+            <span className="font-brand font-black tracking-[-0.045em]">AI</span>
+            <span className="font-accent font-extrabold italic">DJ</span>
+          </span>
         </h1>
 
         {/* Tagline */}
