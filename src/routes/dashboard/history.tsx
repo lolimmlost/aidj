@@ -152,9 +152,11 @@ function HistoryPage() {
         </div>
       }
     >
-      {/* Summary Stats — canonical AIDJ StatCard treatment */}
+      {/* Summary Stats — canonical AIDJ StatCard treatment.
+          1-up on mobile (each card has room for label + value + caption);
+          3-up on sm+ where there's enough horizontal room. */}
       {summary && (
-        <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4">
           <StatCard
             icon={Headphones}
             label="Total Plays"
