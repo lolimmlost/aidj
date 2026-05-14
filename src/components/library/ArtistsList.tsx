@@ -244,6 +244,7 @@ export function ArtistsList() {
       icon={<Users className="h-5 w-5" />}
       backLink="/dashboard"
       backLabel="Dashboard"
+      wide
     >
       {/* Filters + Search link */}
       <PageSection>
@@ -277,7 +278,7 @@ export function ArtistsList() {
       {/* Artist Grid */}
       <PageSection>
         {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-8 gap-4 sm:gap-5">
             {Array.from({ length: 12 }).map((_, i) => (
               <ArtistCardSkeleton key={i} />
             ))}
@@ -290,7 +291,7 @@ export function ArtistsList() {
           />
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-8 gap-4 sm:gap-5">
               {visible.map((artist) => {
                 const key = artist.name.toLowerCase();
                 return (

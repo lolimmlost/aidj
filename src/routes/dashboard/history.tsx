@@ -10,7 +10,8 @@ import { PageLayout } from '@/components/ui/page-layout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Clock, Music, SkipForward, CheckCircle2, Repeat, Loader2 } from 'lucide-react';
+import { Clock, Music, SkipForward, CheckCircle2, Repeat, Loader2, Headphones, Disc, RotateCcw } from 'lucide-react';
+import { StatCard } from '@/components/recommendations/StatCard';
 import { useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
@@ -151,27 +152,27 @@ function HistoryPage() {
         </div>
       }
     >
-      {/* Summary Stats */}
+      {/* Summary Stats — canonical AIDJ StatCard treatment */}
       {summary && (
-        <div className="grid grid-cols-3 gap-3 sm:gap-4">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-2xl sm:text-3xl font-bold">{summary.totalPlays}</p>
-              <p className="text-xs sm:text-sm text-muted-foreground">Total Plays</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-2xl sm:text-3xl font-bold">{summary.uniqueSongs}</p>
-              <p className="text-xs sm:text-sm text-muted-foreground">Unique Songs</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-2xl sm:text-3xl font-bold">{summary.repeatCount}</p>
-              <p className="text-xs sm:text-sm text-muted-foreground">Repeated Songs</p>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          <StatCard
+            icon={Headphones}
+            label="Total Plays"
+            value={summary.totalPlays.toLocaleString()}
+            gradient
+            glow
+          />
+          <StatCard
+            icon={Disc}
+            label="Unique Songs"
+            value={summary.uniqueSongs.toLocaleString()}
+          />
+          <StatCard
+            icon={RotateCcw}
+            label="Repeated"
+            value={summary.repeatCount.toLocaleString()}
+            caption={summary.repeatCount > 0 ? 'Songs played 2+ times' : 'No repeats yet'}
+          />
         </div>
       )}
 
