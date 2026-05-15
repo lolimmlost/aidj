@@ -47,6 +47,66 @@ export async function searchArtistsByName(query: string, limit: number = 20): Pr
   }
 }
 
+/**
+ * Resolve a free-text artist name to a Navidrome artist id, looking at BOTH
+ * artist records AND song-level artist tags via search3. Important when the
+ * Navidrome artist record has a typo or alternate spelling (e.g. real-world:
+ * library has "Frnkiero and the Cellabration" while songs are tagged "Frank
+ * Iero" — searching by song-level artist tag still resolves to the correct
+ * artistId).
+ *
+ * Returns null if no match. Match must be exact (normalized) or a prefix
+ * word match — never a loose substring.
+ */
+export async function resolveArtistIdByName(query: string): Promise<string | null> {
+  try {
+    await getAuthToken();
+
+    const endpoint = `/rest/search3.view?query=${encodeURIComponent(query)}&artistCount=10&songCount=20&albumCount=0`;
+    const response = await apiFetch(endpoint) as SubsonicSearchResponse;
+    const subsonicData = response['subsonic-response'] || response;
+    const result3 = subsonicData.searchResult3 || subsonicData.searchResult;
+
+    const normalize = (s: string) =>
+      s
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/^the\s+/i, '')
+        .replace(/\s*&\s*/g, ' and ')
+        .replace(/[^\w\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const target = normalize(query);
+    const matches = (candidate: string) => {
+      const c = normalize(candidate);
+      return c === target || c.startsWith(target + ' ') || target.startsWith(c + ' ');
+    };
+
+    // 1. Try artist records first — these are the canonical match.
+    const artists = result3?.artist || [];
+    for (const a of artists) {
+      if (matches(a.name)) return a.id;
+    }
+
+    // 2. Fall back to song results — read each song's artist tag. If any song
+    //    is tagged with the target name, take its artistId. This catches the
+    //    Navidrome artist-name-typo case.
+    const songs = result3?.song || [];
+    for (const s of songs) {
+      const artistName = (s as { artist?: string }).artist;
+      const artistId = (s as { artistId?: string }).artistId;
+      if (artistName && artistId && matches(artistName)) return artistId;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error resolving artist id by name:', error);
+    return null;
+  }
+}
+
 export async function getArtistDetail(id: string): Promise<ArtistDetail> {
   try {
     const data = await apiFetch(`/api/artist/${id}`) as ArtistDetail;

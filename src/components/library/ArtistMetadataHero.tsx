@@ -15,7 +15,7 @@ import {
   Library,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getArtists, searchArtistsByName } from '@/lib/services/navidrome';
+import { getArtists, resolveArtistIdByName } from '@/lib/services/navidrome';
 
 interface ArtistMetadataHeroProps {
   metadata: EnrichedArtistMetadata;
@@ -129,18 +129,8 @@ export function ArtistMetadataHero({ metadata, artistImageUrl }: ArtistMetadataH
   const unresolvedNames = similarNames.filter((name) => !findInLibrary(name));
   const searchQueries = useQueries({
     queries: unresolvedNames.map((name) => ({
-      queryKey: ['artist-search', normalize(name)],
-      queryFn: async () => {
-        const results = await searchArtistsByName(name, 5);
-        // Only return a hit when the search result name normalizes to the
-        // similar artist name (or contains it as a prefix word).
-        const target = normalize(name);
-        const match = results.find((r) => {
-          const rn = normalize(r.name);
-          return rn === target || rn.startsWith(target + ' ') || target.startsWith(rn + ' ');
-        });
-        return match ? match.id : null;
-      },
+      queryKey: ['artist-resolve', normalize(name)],
+      queryFn: () => resolveArtistIdByName(name),
       staleTime: 10 * 60 * 1000, // 10 min — artist names don't change
       retry: false,
     })),
