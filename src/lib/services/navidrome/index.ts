@@ -22,7 +22,7 @@ export {
 
 // Library (artists, albums, songs, search)
 export {
-  getArtists, searchArtistsByName, getArtistDetail, getArtistsWithDetails,
+  getArtists, searchArtistsByName, resolveArtistIdByName, getArtistDetail, getArtistsWithDetails,
   getAlbums, getAlbumDetail,
   getSongs, getSongsByArtist, getSongsByIds, getSongsGlobal, getRandomSongs, getTopSongs,
   search, resolveSongByArtistTitle,
