@@ -33,7 +33,7 @@ import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/query';
 import { usePlaybackSync, sendPlaybackMessage, sendRemoteCommand } from '@/lib/hooks/usePlaybackSync';
 import { ResumePlaybackPrompt } from './ResumePlaybackPrompt';
-import { FullscreenPlayer } from './FullscreenPlayer';
+import { NowPlayingFullscreen } from './NowPlayingFullscreen';
 
 // Import extracted hooks
 import { useDualDeckAudio, hasRealSong, Song, SILENT_AUDIO_DATA_URL } from '@/lib/hooks/useDualDeckAudio';
@@ -151,6 +151,9 @@ export function PlayerBar() {
 
   const currentSong = useMemo(() => playlist[currentSongIndex] || null, [playlist, currentSongIndex]) as Song | null;
   const queryClient = useQueryClient();
+
+  // Pulled separately so the song-title click can start a song-seeded radio.
+  const startRadio = useAudioStore((s) => s.startRadio);
 
   // Remote device state for cross-device sync indicator
   const remoteDevice = useAudioStore((s) => s.remoteDevice);
@@ -867,19 +870,24 @@ export function PlayerBar() {
               </div>
             </div>
 
-            {/* Song Info */}
+            {/* Song Info — title starts a song-seeded radio; artist links to artist page */}
             <div className="min-w-0 flex-1">
-              <p
-                className={cn("font-display font-semibold text-sm truncate active:text-primary transition-colors", showRemoteTime && "text-green-500")}
-                onClick={() => setShowFullscreen(true)}
+              <button
+                type="button"
+                className={cn("font-display font-semibold text-sm truncate active:text-primary transition-colors text-left w-full hover:underline", showRemoteTime && "text-green-500")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void startRadio({ kind: 'song', songId: currentSong.id });
+                }}
+                title="Start radio from this song"
               >
                 {currentSong.name || currentSong.title}
-              </p>
+              </button>
               {(currentSong as { artistId?: string }).artistId ? (
                 <Link
                   to="/library/artists/$id"
                   params={{ id: (currentSong as { artistId?: string }).artistId! }}
-                  className={cn("text-xs truncate block active:text-primary transition-colors", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
+                  className={cn("text-xs truncate block active:text-primary transition-colors hover:underline", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {currentSong.artist || 'Unknown'}
@@ -980,7 +988,14 @@ export function PlayerBar() {
             />
           </div>
           <div className="min-w-0">
-            <p className={cn("font-display font-semibold truncate text-sm", showRemoteTime && "text-green-500")}>{currentSong.name || currentSong.title}</p>
+            <button
+              type="button"
+              className={cn("font-display font-semibold truncate text-sm text-left w-full hover:underline", showRemoteTime && "text-green-500")}
+              onClick={() => { void startRadio({ kind: 'song', songId: currentSong.id }); }}
+              title="Start radio from this song"
+            >
+              {currentSong.name || currentSong.title}
+            </button>
             {(currentSong as { artistId?: string }).artistId ? (
               <Link
                 to="/library/artists/$id"
@@ -1161,8 +1176,8 @@ export function PlayerBar() {
         analyserNode={webAudioAnalyserRef.current}
       />
 
-      {/* Fullscreen Now Playing */}
-      <FullscreenPlayer
+      {/* Fullscreen Now Playing — unified chassis (PR A: art mode only) */}
+      <NowPlayingFullscreen
         isOpen={showFullscreen}
         onClose={() => setShowFullscreen(false)}
         currentSong={currentSong}

@@ -1,5 +1,14 @@
-import React, { useRef, useCallback, useEffect, useState } from 'react';
+/**
+ * Unified Now Playing fullscreen surface (chassis).
+ *
+ * Replaces the old single-purpose FullscreenPlayer. The chassis renders
+ * the persistent header, metadata, scrubber, and transport — and swaps
+ * out a mode-specific content area in the middle. Phase A only ships
+ * the 'art' mode; phases B/C/D add lyrics / visualizer / queue.
+ */
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from '@tanstack/react-router';
 import {
   ChevronDown,
   SkipBack,
@@ -21,6 +30,8 @@ import { getCoverArtUrl } from '@/components/ui/album-art';
 import { cn } from '@/lib/utils';
 import { AIDJToggle } from '@/components/ai-dj-toggle';
 import { useAudioStore } from '@/lib/stores/audio';
+import { ArtMode } from './ArtMode';
+import type { NowPlayingFullscreenProps, NPMode } from './types';
 
 const formatTime = (time: number) => {
   if (!isFinite(time) || time < 0) return '0:00';
@@ -29,31 +40,10 @@ const formatTime = (time: number) => {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
-export interface FullscreenPlayerProps {
-  isOpen: boolean;
-  onClose: () => void;
-  currentSong: { id: string; name?: string; title?: string; artist?: string; albumId?: string } | null;
-  isPlaying: boolean;
-  isLoading: boolean;
-  currentTime: number;
-  duration: number;
-  isLiked: boolean;
-  isLikePending: boolean;
-  isShuffled: boolean;
-  repeatMode: 'off' | 'all' | 'one';
-  onTogglePlayPause: () => void;
-  onPrevious: () => void;
-  onNext: () => void;
-  onSeek: (time: number) => void;
-  onToggleLike: () => void;
-  onToggleShuffle: () => void;
-  onToggleRepeat: () => void;
-  onShowLyrics: () => void;
-}
-
-export function FullscreenPlayer({
+export function NowPlayingFullscreen({
   isOpen,
   onClose,
+  initialMode = 'art',
   currentSong,
   isPlaying,
   isLoading,
@@ -71,163 +61,89 @@ export function FullscreenPlayer({
   onToggleShuffle,
   onToggleRepeat,
   onShowLyrics,
-}: FullscreenPlayerProps) {
+}: NowPlayingFullscreenProps) {
+  const startRadio = useAudioStore((s) => s.startRadio);
+
   const [visible, setVisible] = useState(false);
   const [animating, setAnimating] = useState(false);
-  const [imgError, setImgError] = useState(false);
-  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+  // Reserved for phase B+ pill switcher. Kept stateful now so the chassis
+  // shape is locked in even though only ArtMode renders today.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [mode, _setMode] = useState<NPMode>(initialMode);
 
-  // Vertical swipe-to-dismiss refs
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const touchOffsetRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Horizontal swipe refs for album art
-  const artSwipeRef = useRef<{ x: number; time: number } | null>(null);
-  const artOffsetRef = useRef(0);
-  const artAxisLockedRef = useRef<'x' | 'y' | null>(null);
-  const artContainerRef = useRef<HTMLDivElement>(null);
-
-  // Handle open/close animation — setState drives mount/unmount for CSS transitions
+  // Mount/unmount with CSS-driven slide-up animation.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (isOpen) {
       setVisible(true);
-      // Trigger animation on next frame
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setAnimating(true));
-      });
+      requestAnimationFrame(() => requestAnimationFrame(() => setAnimating(true)));
     } else {
       setAnimating(false);
-      const timer = setTimeout(() => setVisible(false), 300);
-      return () => clearTimeout(timer);
+      const t = setTimeout(() => setVisible(false), 300);
+      return () => clearTimeout(t);
     }
   }, [isOpen]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Reset image error on song change
-  const currentSongId = currentSong?.id;
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setImgError(false); }, [currentSongId]);
-
-  // Clear swipe animation after it plays
-  useEffect(() => {
-    if (!swipeDirection) return;
-    const timer = setTimeout(() => setSwipeDirection(null), 300);
-    return () => clearTimeout(timer);
-  }, [swipeDirection]);
-
-  // --- Album art horizontal swipe (prev/next song) ---
-  const handleArtTouchStart = useCallback((e: React.TouchEvent) => {
-    artSwipeRef.current = { x: e.touches[0].clientX, time: Date.now() };
-    artOffsetRef.current = 0;
-    artAxisLockedRef.current = null;
-    // Also store Y for axis detection
+  // Vertical swipe-to-dismiss on the body (not the art swipe area).
+  const handleBodyTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
     touchOffsetRef.current = 0;
   }, []);
 
-  const handleArtTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!artSwipeRef.current || !touchStartRef.current) return;
-
-    const deltaX = e.touches[0].clientX - artSwipeRef.current.x;
+  const handleBodyTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
     const deltaY = e.touches[0].clientY - touchStartRef.current.y;
-
-    // Lock axis once movement exceeds threshold
-    if (!artAxisLockedRef.current) {
-      if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
-        artAxisLockedRef.current = Math.abs(deltaX) > Math.abs(deltaY) ? 'x' : 'y';
-      } else {
-        return;
-      }
-    }
-
-    if (artAxisLockedRef.current === 'x') {
-      // Horizontal: drag album art
-      e.preventDefault();
-      artOffsetRef.current = deltaX;
-      if (artContainerRef.current) {
-        // Dampen the drag slightly for a rubbery feel
-        const dampened = deltaX * 0.6;
-        artContainerRef.current.style.transform = `translateX(${dampened}px)`;
-        artContainerRef.current.style.transition = 'none';
-        // Reduce opacity as it moves away
-        artContainerRef.current.style.opacity = `${1 - Math.abs(dampened) / 400}`;
-      }
-    } else {
-      // Vertical: dismiss (delegate to container)
-      if (deltaY > 0 && containerRef.current) {
-        touchOffsetRef.current = deltaY;
-        containerRef.current.style.transform = `translateY(${deltaY}px)`;
-        containerRef.current.style.transition = 'none';
-      }
+    if (deltaY > 0 && containerRef.current) {
+      touchOffsetRef.current = deltaY;
+      containerRef.current.style.transform = `translateY(${deltaY}px)`;
+      containerRef.current.style.transition = 'none';
     }
   }, []);
 
-  const handleArtTouchEnd = useCallback(() => {
-    const axis = artAxisLockedRef.current;
-
-    if (axis === 'x' && artContainerRef.current) {
-      const offset = artOffsetRef.current;
-      const velocity = artSwipeRef.current
-        ? Math.abs(offset) / (Date.now() - artSwipeRef.current.time)
-        : 0;
-
-      // Trigger if dragged >80px or fast flick (>0.3px/ms)
-      if (Math.abs(offset) > 80 || velocity > 0.3) {
-        if (offset > 0) {
-          // Swipe right → previous
-          setSwipeDirection('right');
-          onPrevious();
-        } else {
-          // Swipe left → next
-          setSwipeDirection('left');
-          onNext();
-        }
-      }
-
-      // Snap back
-      artContainerRef.current.style.transition = 'transform 250ms cubic-bezier(0.32, 0.72, 0, 1), opacity 250ms ease';
-      artContainerRef.current.style.transform = 'translateX(0)';
-      artContainerRef.current.style.opacity = '1';
-    } else if (axis === 'y' || !axis) {
-      // Vertical dismiss or no movement
-      if (containerRef.current) {
-        containerRef.current.style.transition = 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)';
-        if (touchOffsetRef.current > 100) {
-          containerRef.current.style.transform = 'translateY(100%)';
-          onClose();
-        } else {
-          containerRef.current.style.transform = 'translateY(0)';
-        }
+  const handleBodyTouchEnd = useCallback(() => {
+    if (containerRef.current) {
+      containerRef.current.style.transition = 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)';
+      if (touchOffsetRef.current > 100) {
+        containerRef.current.style.transform = 'translateY(100%)';
+        onClose();
+      } else {
+        containerRef.current.style.transform = 'translateY(0)';
       }
     }
-
-    artSwipeRef.current = null;
-    artOffsetRef.current = 0;
-    artAxisLockedRef.current = null;
     touchStartRef.current = null;
     touchOffsetRef.current = 0;
-  }, [onClose, onPrevious, onNext]);
+  }, [onClose]);
 
-  // Close on Escape
+  // Esc to close.
   useEffect(() => {
     if (!isOpen) return;
-    const handleKey = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, onClose]);
+
+  // Closes the surface, then runs an action (used by clickable artist link
+  // and song-radio trigger so the navigation/queue change isn't hidden
+  // behind the open fullscreen).
+  const closeAndThen = useCallback((fn: () => void) => {
+    onClose();
+    setTimeout(fn, 150);
+  }, [onClose]);
 
   if (!visible || !currentSong) return null;
 
-  // Use albumId or fall back to songId for cover art
   const artId = currentSong.albumId || currentSong.id;
-  const coverUrl = getCoverArtUrl(artId, 600);
-  const bgCoverUrl = getCoverArtUrl(artId, 128); // smaller for blurred bg
+  const bgCoverUrl = getCoverArtUrl(artId, 128);
   const songTitle = currentSong.name || currentSong.title || 'Unknown';
   const songArtist = currentSong.artist || 'Unknown';
+  const artistId = currentSong.artistId;
 
   return createPortal(
     <div
@@ -236,9 +152,8 @@ export function FullscreenPlayer({
         animating ? 'opacity-100' : 'opacity-0'
       )}
     >
-      {/* Solid black base — nothing bleeds through */}
+      {/* Solid black base + blurred album art tint */}
       <div className="absolute inset-0 bg-black" />
-      {/* Blurred album art tint on top */}
       {bgCoverUrl && (
         <div
           className="absolute inset-0 bg-cover bg-center scale-110 blur-3xl opacity-40"
@@ -247,15 +162,18 @@ export function FullscreenPlayer({
       )}
       <div className="absolute inset-0 bg-black/40" />
 
-      {/* Content container */}
+      {/* Slide-up container */}
       <div
         ref={containerRef}
         className={cn(
           'relative h-full flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]',
           animating ? 'translate-y-0' : 'translate-y-full'
         )}
+        onTouchStart={handleBodyTouchStart}
+        onTouchMove={handleBodyTouchMove}
+        onTouchEnd={handleBodyTouchEnd}
       >
-        {/* Top bar */}
+        {/* Persistent header */}
         <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] py-3">
           <Button
             variant="ghost"
@@ -268,54 +186,51 @@ export function FullscreenPlayer({
           <p className="text-xs font-medium text-white/60 uppercase tracking-wider">
             Now Playing
           </p>
-          <div className="w-10" /> {/* Spacer for centering */}
+          <div className="w-10" /> {/* spacer for centering */}
         </div>
 
-        {/* Main content - portrait on mobile, landscape side-by-side on desktop */}
+        {/* Mode swap area + persistent metadata/transport (portrait stack on
+            mobile, side-by-side on desktop) */}
         <div className="flex-1 flex flex-col lg:flex-row items-center justify-center px-6 sm:px-8 lg:px-16 mx-auto w-full gap-6 sm:gap-8 lg:gap-16 max-w-6xl">
 
-          {/* Album Art — swipeable */}
-          <div
-            className="w-[75vw] sm:w-[60vw] md:w-[50vw] lg:w-auto lg:flex-1 max-w-[500px] aspect-square relative mx-auto lg:mx-0 overflow-visible touch-pan-y flex-shrink-0"
-            onTouchStart={handleArtTouchStart}
-            onTouchMove={handleArtTouchMove}
-            onTouchEnd={handleArtTouchEnd}
-          >
-            <div
-              ref={artContainerRef}
-              className={cn(
-                'w-full h-full',
-                swipeDirection === 'left' && 'animate-[slideInRight_250ms_ease-out]',
-                swipeDirection === 'right' && 'animate-[slideInLeft_250ms_ease-out]',
-              )}
-            >
-              {coverUrl && !imgError ? (
-                <img
-                  src={coverUrl}
-                  alt={`${songTitle} album art`}
-                  className="w-full h-full object-cover rounded-2xl shadow-2xl shadow-black/50 select-none pointer-events-none"
-                  onError={() => setImgError(true)}
-                  draggable={false}
-                />
-              ) : (
-                <div className="w-full h-full rounded-2xl bg-white/10 flex items-center justify-center">
-                  <span className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white/30">
-                    {songArtist.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
+          {/* === Mode swap area === */}
+          {mode === 'art' && (
+            <ArtMode song={currentSong} onPrevious={onPrevious} onNext={onNext} />
+          )}
 
-          {/* Controls column */}
+          {/* === Persistent metadata + transport column === */}
           <div className="w-full lg:flex-1 lg:max-w-md flex flex-col items-center gap-6 sm:gap-8">
-            {/* Song info */}
+            {/* Song info — clickable title + artist */}
             <div className="w-full text-center lg:text-left">
-              <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate">{songTitle}</h2>
-              <p className="text-sm sm:text-base text-white/60 mt-1 truncate">{songArtist}</p>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeAndThen(() => { void startRadio({ kind: 'song', songId: currentSong.id }); });
+                }}
+                title="Start radio from this song"
+                className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate hover:underline focus:outline-none focus:underline w-full text-center lg:text-left"
+              >
+                {songTitle}
+              </button>
+              {artistId ? (
+                <Link
+                  to="/library/artists/$id"
+                  params={{ id: artistId }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeAndThen(() => undefined);
+                  }}
+                  className="text-sm sm:text-base text-white/60 mt-1 truncate hover:text-white hover:underline block"
+                >
+                  {songArtist}
+                </Link>
+              ) : (
+                <p className="text-sm sm:text-base text-white/60 mt-1 truncate">{songArtist}</p>
+              )}
             </div>
 
-            {/* Progress */}
+            {/* Scrubber */}
             <div className="w-full space-y-2">
               <Slider
                 value={[isFinite(currentTime) ? currentTime : 0]}
@@ -330,7 +245,7 @@ export function FullscreenPlayer({
               </div>
             </div>
 
-            {/* Main controls */}
+            {/* Transport */}
             <div className="flex items-center justify-center gap-4 sm:gap-6 w-full">
               <Button
                 variant="ghost"
@@ -343,7 +258,6 @@ export function FullscreenPlayer({
               >
                 <Shuffle className="h-5 w-5" />
               </Button>
-
               <Button
                 variant="ghost"
                 size="sm"
@@ -352,7 +266,6 @@ export function FullscreenPlayer({
               >
                 <SkipBack className="h-6 w-6 sm:h-7 sm:w-7 fill-current" />
               </Button>
-
               <Button
                 variant="default"
                 size="sm"
@@ -368,7 +281,6 @@ export function FullscreenPlayer({
                   <Play className="h-7 w-7 sm:h-8 sm:w-8 ml-1" />
                 )}
               </Button>
-
               <Button
                 variant="ghost"
                 size="sm"
@@ -377,7 +289,6 @@ export function FullscreenPlayer({
               >
                 <SkipForward className="h-6 w-6 sm:h-7 sm:w-7 fill-current" />
               </Button>
-
               <Button
                 variant="ghost"
                 size="sm"
@@ -387,11 +298,7 @@ export function FullscreenPlayer({
                 )}
                 onClick={onToggleRepeat}
               >
-                {repeatMode === 'one' ? (
-                  <Repeat1 className="h-5 w-5" />
-                ) : (
-                  <Repeat className="h-5 w-5" />
-                )}
+                {repeatMode === 'one' ? <Repeat1 className="h-5 w-5" /> : <Repeat className="h-5 w-5" />}
               </Button>
             </div>
 
@@ -406,35 +313,28 @@ export function FullscreenPlayer({
               >
                 <Heart className={cn('h-5 w-5', isLiked && 'fill-red-500 text-red-500')} />
               </Button>
-
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
                 onClick={onShowLyrics}
+                title="Lyrics"
               >
                 <MicVocal className="h-5 w-5" />
               </Button>
-
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
-                onClick={() => {
-                  onClose();
-                  setTimeout(() => {
-                    useAudioStore.getState().toggleQueuePanel();
-                  }, 150);
-                }}
+                onClick={() => closeAndThen(() => {
+                  useAudioStore.getState().toggleQueuePanel();
+                })}
               >
                 <ListMusic className="h-5 w-5" />
               </Button>
-
-              {/* AI DJ toggle — styled for dark fullscreen context */}
               <div className="[&_label]:text-white/70 [&_[data-state=checked]]:bg-primary">
                 <AIDJToggle compact />
               </div>
-
               <Button
                 variant="ghost"
                 size="sm"
@@ -454,10 +354,10 @@ export function FullscreenPlayer({
           </div>
         </div>
 
-        {/* Bottom safe area spacer */}
         <div className="h-8 pb-[env(safe-area-inset-bottom)]" />
       </div>
     </div>,
     document.body
   );
 }
+
