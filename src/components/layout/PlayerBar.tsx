@@ -152,9 +152,6 @@ export function PlayerBar() {
   const currentSong = useMemo(() => playlist[currentSongIndex] || null, [playlist, currentSongIndex]) as Song | null;
   const queryClient = useQueryClient();
 
-  // Pulled separately so the song-title click can start a song-seeded radio.
-  const startRadio = useAudioStore((s) => s.startRadio);
-
   // Remote device state for cross-device sync indicator
   const remoteDevice = useAudioStore((s) => s.remoteDevice);
   const isRemotePlaying = !!remoteDevice?.isPlaying;
@@ -870,19 +867,23 @@ export function PlayerBar() {
               </div>
             </div>
 
-            {/* Song Info — title starts a song-seeded radio; artist links to artist page */}
+            {/* Song Info — title links to album page (song info context); artist links to artist page */}
             <div className="min-w-0 flex-1">
-              <button
-                type="button"
-                className={cn("font-display font-semibold text-sm truncate active:text-primary transition-colors text-left w-full hover:underline", showRemoteTime && "text-green-500")}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void startRadio({ kind: 'song', songId: currentSong.id });
-                }}
-                title="Start radio from this song"
-              >
-                {currentSong.name || currentSong.title}
-              </button>
+              {(currentSong as { artistId?: string }).artistId && currentSong.albumId ? (
+                <Link
+                  to="/library/artists/$id/albums/$albumId"
+                  params={{ id: (currentSong as { artistId?: string }).artistId!, albumId: currentSong.albumId }}
+                  className={cn("font-display font-semibold text-sm truncate active:text-primary transition-colors block hover:underline", showRemoteTime && "text-green-500")}
+                  onClick={(e) => e.stopPropagation()}
+                  title="View album"
+                >
+                  {currentSong.name || currentSong.title}
+                </Link>
+              ) : (
+                <p className={cn("font-display font-semibold text-sm truncate", showRemoteTime && "text-green-500")}>
+                  {currentSong.name || currentSong.title}
+                </p>
+              )}
               {(currentSong as { artistId?: string }).artistId ? (
                 <Link
                   to="/library/artists/$id"
@@ -988,14 +989,20 @@ export function PlayerBar() {
             />
           </div>
           <div className="min-w-0">
-            <button
-              type="button"
-              className={cn("font-display font-semibold truncate text-sm text-left w-full hover:underline", showRemoteTime && "text-green-500")}
-              onClick={() => { void startRadio({ kind: 'song', songId: currentSong.id }); }}
-              title="Start radio from this song"
-            >
-              {currentSong.name || currentSong.title}
-            </button>
+            {(currentSong as { artistId?: string }).artistId && currentSong.albumId ? (
+              <Link
+                to="/library/artists/$id/albums/$albumId"
+                params={{ id: (currentSong as { artistId?: string }).artistId!, albumId: currentSong.albumId }}
+                className={cn("font-display font-semibold truncate text-sm block hover:underline", showRemoteTime && "text-green-500")}
+                title="View album"
+              >
+                {currentSong.name || currentSong.title}
+              </Link>
+            ) : (
+              <p className={cn("font-display font-semibold truncate text-sm", showRemoteTime && "text-green-500")}>
+                {currentSong.name || currentSong.title}
+              </p>
+            )}
             {(currentSong as { artistId?: string }).artistId ? (
               <Link
                 to="/library/artists/$id"

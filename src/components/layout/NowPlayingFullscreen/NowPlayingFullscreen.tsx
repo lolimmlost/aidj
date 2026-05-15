@@ -62,8 +62,6 @@ export function NowPlayingFullscreen({
   onToggleRepeat,
   onShowLyrics,
 }: NowPlayingFullscreenProps) {
-  const startRadio = useAudioStore((s) => s.startRadio);
-
   const [visible, setVisible] = useState(false);
   const [animating, setAnimating] = useState(false);
   // Reserved for phase B+ pill switcher. Kept stateful now so the chassis
@@ -200,27 +198,26 @@ export function NowPlayingFullscreen({
 
           {/* === Persistent metadata + transport column === */}
           <div className="w-full lg:flex-1 lg:max-w-md flex flex-col items-center gap-6 sm:gap-8">
-            {/* Song info — clickable title + artist */}
+            {/* Song info — title links to album page (song info context); artist links to artist page */}
             <div className="w-full text-center lg:text-left">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeAndThen(() => { void startRadio({ kind: 'song', songId: currentSong.id }); });
-                }}
-                title="Start radio from this song"
-                className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate hover:underline focus:outline-none focus:underline w-full text-center lg:text-left"
-              >
-                {songTitle}
-              </button>
+              {artistId && currentSong.albumId ? (
+                <Link
+                  to="/library/artists/$id/albums/$albumId"
+                  params={{ id: artistId, albumId: currentSong.albumId }}
+                  onClick={() => onClose()}
+                  className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate hover:underline focus:outline-none focus:underline block"
+                  title="View album"
+                >
+                  {songTitle}
+                </Link>
+              ) : (
+                <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate">{songTitle}</h2>
+              )}
               {artistId ? (
                 <Link
                   to="/library/artists/$id"
                   params={{ id: artistId }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    closeAndThen(() => undefined);
-                  }}
+                  onClick={() => onClose()}
                   className="text-sm sm:text-base text-white/60 mt-1 truncate hover:text-white hover:underline block"
                 >
                   {songArtist}
