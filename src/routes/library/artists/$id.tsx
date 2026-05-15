@@ -22,6 +22,7 @@ import { toast } from '@/lib/toast';
 import { useArtistMetadata } from '@/lib/hooks/useArtistMetadata';
 import { ArtistMetadataHero } from '@/components/library/ArtistMetadataHero';
 import { StartRadioButton } from '@/components/radio/StartRadioButton';
+import { HeartButton } from '@/components/library/HeartButton';
 import { cn } from '@/lib/utils';
 import { getArtistGradient } from '@/lib/utils/artist-avatar';
 
@@ -210,6 +211,12 @@ function ArtistDetail() {
       <span className="text-xs text-muted-foreground tabular-nums flex items-center gap-1">
         <Clock className="h-3 w-3" /> {formatDuration(song.duration)}
       </span>
+      {/* Heart — always visible (vs hover-only) so save is one tap on mobile */}
+      <HeartButton
+        songId={song.id}
+        artist={artist?.name}
+        title={song.name || song.title}
+      />
       {/* Play Next - desktop hover only */}
       <Button
         variant="ghost"

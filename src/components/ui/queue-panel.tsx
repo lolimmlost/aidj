@@ -147,8 +147,9 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
                 ? 'text-green-600 bg-green-500/20 hover:bg-green-500/30'
                 : 'hover:bg-green-500/10 hover:text-green-600'
             }`}
-            aria-label={isLiked ? 'Already liked this song' : 'Like this recommendation'}
+            aria-label={isLiked ? 'Marked as a good pick' : 'Good pick — like this suggestion'}
             aria-pressed={isLiked}
+            title={isLiked ? 'Marked as a good pick' : 'Good pick'}
           >
             <ThumbsUp className={`h-3.5 w-3.5 transition-all ${isLiked ? 'fill-current scale-110' : ''}`} />
           </Button>
@@ -164,8 +165,9 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
                 ? 'text-red-600 bg-red-500/20 hover:bg-red-500/30'
                 : 'hover:bg-red-500/10 hover:text-red-600'
             }`}
-            aria-label={isDisliked ? 'Already disliked this song' : 'Dislike this recommendation'}
+            aria-label={isDisliked ? 'Marked as a bad suggestion' : 'Bad suggestion — don\'t recommend like this'}
             aria-pressed={isDisliked}
+            title={isDisliked ? 'Marked as a bad suggestion' : 'Bad suggestion'}
           >
             <ThumbsDown className={`h-3.5 w-3.5 transition-all ${isDisliked ? 'fill-current scale-110' : ''}`} />
           </Button>
@@ -410,8 +412,8 @@ export function QueuePanel() {
         // Keep the optimistic state - feedback was already there
         toast.success(
           feedbackType === 'thumbs_up'
-            ? `Already liked "${songTitle}"`
-            : `Already disliked "${songTitle}"`,
+            ? `Already marked "${songTitle}" as a good pick`
+            : `Already marked "${songTitle}" as a bad suggestion`,
           { duration: 2000 }
         );
         // Invalidate to sync with server state
@@ -434,9 +436,9 @@ export function QueuePanel() {
 
       toast.success(
         feedbackType === 'thumbs_up'
-          ? `Liked "${songTitle}" - AI will learn from this`
-          : `Disliked "${songTitle}" - AI will avoid similar songs`,
-        { duration: 2000 }
+          ? `Good pick — "${songTitle}". AI will lean into this.`
+          : `Bad suggestion — won't recommend "${songTitle}" again.`,
+        { duration: 2400 }
       );
     } catch (error) {
       console.error('Failed to submit feedback:', error);
