@@ -83,11 +83,42 @@ export function ArtistMetadataHero({ metadata, artistImageUrl }: ArtistMetadataH
     staleTime: 5 * 60 * 1000,
   });
 
-  // Build a lookup map: normalized name → artist id
+  // Build a lookup map: normalized name → artist id. Tolerant matching is
+  // important because Last.fm returns "Frank Iero" but the library may have
+  // "Frank Iero and the Patience" (or vice versa); without softer matching
+  // that artist appears as plain text even when their songs are right there
+  // in the library.
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[̀-ͯ]/g, '')   // strip combining accents
+      .replace(/^the\s+/i, '')           // ignore leading "the "
+      .replace(/\s*&\s*/g, ' and ')      // unify "&" / "and"
+      .replace(/[^\w\s]/g, ' ')          // strip punctuation
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  // Index library artists by normalized name AND by their first 1–3 word
+  // prefixes so "Frank Iero" matches "Frank Iero and the Patience".
   const libraryLookup = new Map<string, string>();
   for (const a of libraryArtists) {
-    libraryLookup.set(a.name.toLowerCase(), a.id);
+    const n = normalize(a.name);
+    if (!libraryLookup.has(n)) libraryLookup.set(n, a.id);
+    // Also index a "core name" variant by stripping common collab suffixes.
+    const core = n.replace(/\s+(and|with|feat|featuring|vs|presents|plus)\s+.+$/, '').trim();
+    if (core && core !== n && !libraryLookup.has(core)) libraryLookup.set(core, a.id);
   }
+
+  const findInLibrary = (similarName: string): string | null => {
+    const n = normalize(similarName);
+    if (libraryLookup.has(n)) return libraryLookup.get(n)!;
+    // Last fallback: prefix match against the core-name index.
+    for (const [key, id] of libraryLookup) {
+      if (key.startsWith(n + ' ') || n.startsWith(key + ' ')) return id;
+    }
+    return null;
+  };
 
   const imageUrl = metadata.coverImageUrl || artistImageUrl;
   const showImage = imageUrl && !imgError;
@@ -244,7 +275,7 @@ export function ArtistMetadataHero({ metadata, artistImageUrl }: ArtistMetadataH
           </h3>
           <div className="flex flex-wrap gap-2">
             {metadata.similarArtists.slice(0, 10).map((similar) => {
-              const libraryId = libraryLookup.get(similar.name.toLowerCase());
+              const libraryId = findInLibrary(similar.name);
               const inLibrary = !!libraryId;
 
               const badge = (
