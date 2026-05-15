@@ -544,6 +544,26 @@ export function PlayerBar() {
             });
         }
 
+        // Resume-from-saved-position: after a hard refresh the WS hello
+        // populates store.currentTime but the freshly-loaded deck is at 0.
+        // If the deck hasn't been seeked yet AND the store has a meaningful
+        // saved position, seed the deck so play() starts where the user
+        // left off instead of jumping to 0:00.
+        const storeTime = useAudioStore.getState().currentTime;
+        if (audio.currentTime < 0.5 && storeTime > 0.5) {
+          console.log(`▶️ [PLAY] Seeding deck to saved position ${storeTime.toFixed(1)}s`);
+          try {
+            audio.currentTime = storeTime;
+          } catch {
+            // Metadata may not be loaded yet; one-shot listener applies it.
+            const onMeta = () => {
+              try { audio.currentTime = storeTime; } catch { /* ignore */ }
+              audio.removeEventListener('loadedmetadata', onMeta);
+            };
+            audio.addEventListener('loadedmetadata', onMeta);
+          }
+        }
+
         audio.play().catch((e) => {
           setIsLoading(false);
           console.error('Play failed:', e);
