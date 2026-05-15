@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueries } from '@tanstack/react-query';
 import type { EnrichedArtistMetadata } from '@/lib/services/aurral';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import {
   Library,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getArtists } from '@/lib/services/navidrome';
+import { getArtists, searchArtistsByName } from '@/lib/services/navidrome';
 
 interface ArtistMetadataHeroProps {
   metadata: EnrichedArtistMetadata;
@@ -119,6 +119,40 @@ export function ArtistMetadataHero({ metadata, artistImageUrl }: ArtistMetadataH
     }
     return null;
   };
+
+  // Server-side fallback: for any similar artist that doesn't match the bulk
+  // index, fire a Navidrome search3 lookup. Some artists (e.g. solo work by
+  // a band member) only appear as track-level artist tags and aren't in
+  // /api/artist, so the bulk index misses them — but search3 hits the song
+  // index too and finds them.
+  const similarNames = (metadata.similarArtists ?? []).slice(0, 10).map((s) => s.name);
+  const unresolvedNames = similarNames.filter((name) => !findInLibrary(name));
+  const searchQueries = useQueries({
+    queries: unresolvedNames.map((name) => ({
+      queryKey: ['artist-search', normalize(name)],
+      queryFn: async () => {
+        const results = await searchArtistsByName(name, 5);
+        // Only return a hit when the search result name normalizes to the
+        // similar artist name (or contains it as a prefix word).
+        const target = normalize(name);
+        const match = results.find((r) => {
+          const rn = normalize(r.name);
+          return rn === target || rn.startsWith(target + ' ') || target.startsWith(rn + ' ');
+        });
+        return match ? match.id : null;
+      },
+      staleTime: 10 * 60 * 1000, // 10 min — artist names don't change
+      retry: false,
+    })),
+  });
+  const searchLookup = new Map<string, string>();
+  unresolvedNames.forEach((name, i) => {
+    const id = searchQueries[i]?.data;
+    if (id) searchLookup.set(normalize(name), id);
+  });
+
+  const resolveArtistId = (similarName: string): string | null =>
+    findInLibrary(similarName) ?? searchLookup.get(normalize(similarName)) ?? null;
 
   const imageUrl = metadata.coverImageUrl || artistImageUrl;
   const showImage = imageUrl && !imgError;
@@ -275,7 +309,7 @@ export function ArtistMetadataHero({ metadata, artistImageUrl }: ArtistMetadataH
           </h3>
           <div className="flex flex-wrap gap-2">
             {metadata.similarArtists.slice(0, 10).map((similar) => {
-              const libraryId = findInLibrary(similar.name);
+              const libraryId = resolveArtistId(similar.name);
               const inLibrary = !!libraryId;
 
               const badge = (
