@@ -880,7 +880,6 @@ export function PlayerBar() {
                 artist={currentSong.artist}
                 size="sm"
                 isPlaying={isPlaying || isRemotePlaying}
-                className="!w-10 !h-10"
               />
               {/* Tap indicator — subtle expand icon */}
               <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-active/art:bg-black/30 transition-colors rounded-md">
