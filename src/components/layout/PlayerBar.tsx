@@ -893,14 +893,14 @@ export function PlayerBar() {
                 <Link
                   to="/library/artists/$id/albums/$albumId"
                   params={{ id: (currentSong as { artistId?: string }).artistId!, albumId: currentSong.albumId }}
-                  className={cn("font-medium text-[13px] leading-tight truncate active:text-primary transition-colors block hover:underline", showRemoteTime && "text-green-500")}
+                  className={cn("font-medium text-sm leading-tight truncate active:text-primary transition-colors block hover:underline", showRemoteTime && "text-green-500")}
                   onClick={(e) => e.stopPropagation()}
                   title="View album"
                 >
                   {currentSong.name || currentSong.title}
                 </Link>
               ) : (
-                <p className={cn("font-medium text-[13px] leading-tight truncate", showRemoteTime && "text-green-500")}>
+                <p className={cn("font-medium text-sm leading-tight truncate", showRemoteTime && "text-green-500")}>
                   {currentSong.name || currentSong.title}
                 </p>
               )}
@@ -908,13 +908,13 @@ export function PlayerBar() {
                 <Link
                   to="/library/artists/$id"
                   params={{ id: (currentSong as { artistId?: string }).artistId! }}
-                  className={cn("text-[11px] leading-tight truncate block active:text-primary transition-colors hover:underline mt-0.5", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
+                  className={cn("text-xs leading-tight truncate block active:text-primary transition-colors hover:underline mt-0.5", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {currentSong.artist || 'Unknown'}
                 </Link>
               ) : (
-                <p className={cn("text-[11px] leading-tight truncate mt-0.5", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
+                <p className={cn("text-xs leading-tight truncate mt-0.5", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
               )}
               {showRemoteTime && (
                 <button
