@@ -113,9 +113,12 @@ export function ArtistMetadataHero({ metadata, artistImageUrl }: ArtistMetadataH
   const findInLibrary = (similarName: string): string | null => {
     const n = normalize(similarName);
     if (libraryLookup.has(n)) return libraryLookup.get(n)!;
-    // Last fallback: prefix match against the core-name index.
+    // Last fallback: candidate must be a longer variant of the target (e.g.
+    // library has "Frank Iero and the Patience", we're looking for "Frank
+    // Iero"). The reverse direction is unsafe — it makes "Russ Gabriel" match
+    // library "Russ", which is wrong.
     for (const [key, id] of libraryLookup) {
-      if (key.startsWith(n + ' ') || n.startsWith(key + ' ')) return id;
+      if (key.startsWith(n + ' ')) return id;
     }
     return null;
   };
