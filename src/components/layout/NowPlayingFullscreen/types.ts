@@ -39,7 +39,4 @@ export interface NowPlayingFullscreenProps {
   onToggleLike: () => void;
   onToggleShuffle: () => void;
   onToggleRepeat: () => void;
-  /** Phase A: triggered by the lyrics button in the chassis footer.
-   *  Phase B replaces this with an internal mode switch. */
-  onShowLyrics: () => void;
 }
