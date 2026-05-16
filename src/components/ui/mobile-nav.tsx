@@ -99,7 +99,7 @@ export function MobileNav() {
         `}
         aria-label="Mobile navigation"
       >
-        <div className={`flex flex-col h-full pt-[calc(env(safe-area-inset-top)+4rem)] px-4 overflow-y-auto ${hasActiveSong ? 'pb-24' : 'pb-6'}`}>
+        <div className={`flex flex-col h-full pt-[calc(env(safe-area-inset-top)+4rem)] px-4 overflow-y-auto ${hasActiveSong ? 'pb-28' : 'pb-6'}`}>
           <div className="space-y-1">
             <NavSectionLabel label="Main" />
             <NavLink
