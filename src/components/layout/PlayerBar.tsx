@@ -878,7 +878,7 @@ export function PlayerBar() {
                 albumId={currentSong.albumId}
                 songId={currentSong.id}
                 artist={currentSong.artist}
-                size="sm"
+                size="md"
                 isPlaying={isPlaying || isRemotePlaying}
               />
               {/* Tap indicator — subtle expand icon */}
@@ -888,12 +888,12 @@ export function PlayerBar() {
             </div>
 
             {/* Song Info — title links to album page (song info context); artist links to artist page */}
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 space-y-0.5">
               {(currentSong as { artistId?: string }).artistId && currentSong.albumId ? (
                 <Link
                   to="/library/artists/$id/albums/$albumId"
                   params={{ id: (currentSong as { artistId?: string }).artistId!, albumId: currentSong.albumId }}
-                  className={cn("font-display font-semibold text-sm truncate active:text-primary transition-colors block", showRemoteTime && "text-green-500")}
+                  className={cn("font-display font-semibold text-sm truncate leading-tight active:text-primary transition-colors block", showRemoteTime && "text-green-500")}
                   onClick={(e) => e.stopPropagation()}
                   title="View album"
                 >
@@ -901,7 +901,7 @@ export function PlayerBar() {
                 </Link>
               ) : (
                 <p
-                  className={cn("font-display font-semibold text-sm truncate active:text-primary transition-colors", showRemoteTime && "text-green-500")}
+                  className={cn("font-display font-semibold text-sm truncate leading-tight active:text-primary transition-colors", showRemoteTime && "text-green-500")}
                   onClick={() => setShowFullscreen(true)}
                 >
                   {currentSong.name || currentSong.title}
@@ -911,13 +911,13 @@ export function PlayerBar() {
                 <Link
                   to="/library/artists/$id"
                   params={{ id: (currentSong as { artistId?: string }).artistId! }}
-                  className={cn("text-xs truncate block active:text-primary transition-colors", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
+                  className={cn("text-xs truncate leading-tight block active:text-primary transition-colors", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {currentSong.artist || 'Unknown'}
                 </Link>
               ) : (
-                <p className={cn("text-xs truncate", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
+                <p className={cn("text-xs truncate leading-tight", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
               )}
               {showRemoteTime && (
                 <button
