@@ -846,28 +846,26 @@ export function PlayerBar() {
 
   return (
     <>
-      {/* Mobile Layout */}
-      <div className="md:hidden px-3 py-1.5 space-y-1.5">
-        {/* Progress bar at top */}
-        <div className="flex items-center gap-2">
-          <span className={cn("text-[10px] font-mono w-8 text-right", showRemoteTime ? "text-green-500" : "text-muted-foreground")}>
-            {formatTime(displayCurrentTime)}
-          </span>
-          <Slider
-            value={[isFinite(displayCurrentTime) ? displayCurrentTime : 0]}
-            max={isFinite(displayDuration) && displayDuration > 0 ? displayDuration : 100}
-            step={0.1}
-            onValueChange={([newValue]) => seek(newValue)}
-            className={cn("flex-1 h-1", showRemoteTime && "[&_[data-slot=slider-range]]:bg-green-500 [&_[data-slot=slider-thumb]]:border-green-500")}
-            disabled={showRemoteTime}
+      {/* Mobile Layout — single compact row + thin top progress (matches desktop pattern) */}
+      <div className="md:hidden relative">
+        {/* Thin progress at top — tap to seek */}
+        <div
+          className="absolute top-0 left-0 right-0 h-1 bg-muted cursor-pointer"
+          onClick={(e) => {
+            if (showRemoteTime || !isFinite(displayDuration) || displayDuration <= 0) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            seek(pct * displayDuration);
+          }}
+        >
+          <div
+            className={cn("h-full transition-all duration-100", showRemoteTime ? "bg-green-500" : "bg-primary")}
+            style={{ width: `${progressPercent}%` }}
           />
-          <span className={cn("text-[10px] font-mono w-8", showRemoteTime ? "text-green-500" : "text-muted-foreground")}>
-            -{formatTime(Math.max(0, displayDuration - displayCurrentTime))}
-          </span>
         </div>
 
         {/* Main row: Album art, song info, controls */}
-        <div className="flex items-center gap-3">
+        <div className="px-3 py-2 flex items-center gap-3">
           {/* Small Album Artwork */}
           <div className={cn(
             "flex items-center gap-3 min-w-0 flex-1 rounded-lg transition-all",

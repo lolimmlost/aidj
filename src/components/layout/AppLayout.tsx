@@ -245,10 +245,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Main content area with sidebars.
            Bottom padding reserves space so the fixed PlayerBar doesn't
            overlap sidebar bottom sections or the last playlist rows.
-           Mobile player is taller (~96px) than desktop (h-20 = 80px). */}
+           Mobile player is now ~64px (single row + thin top progress);
+           desktop is h-20 = 80px. pb-20 covers both. */}
       <div className={cn(
         "flex-1 flex overflow-hidden",
-        hasActiveSong && "pb-24 md:pb-20"
+        hasActiveSong && "pb-20"
       )}>
         {/* Left Sidebar - Navigation & Playlists */}
         <LeftSidebar />
