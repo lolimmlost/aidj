@@ -887,38 +887,41 @@ export function PlayerBar() {
               </div>
             </div>
 
-            {/* Song Info — title links to album page (song info context); artist links to artist page */}
-            <div className="min-w-0 flex-1 space-y-0.5">
-              {(currentSong as { artistId?: string }).artistId && currentSong.albumId ? (
-                <Link
-                  to="/library/artists/$id/albums/$albumId"
-                  params={{ id: (currentSong as { artistId?: string }).artistId!, albumId: currentSong.albumId }}
-                  className={cn("font-display font-semibold text-sm truncate leading-tight active:text-primary transition-colors block", showRemoteTime && "text-green-500")}
-                  onClick={(e) => e.stopPropagation()}
-                  title="View album"
-                >
-                  {currentSong.name || currentSong.title}
-                </Link>
-              ) : (
-                <p
-                  className={cn("font-display font-semibold text-sm truncate leading-tight active:text-primary transition-colors", showRemoteTime && "text-green-500")}
-                  onClick={() => setShowFullscreen(true)}
-                >
-                  {currentSong.name || currentSong.title}
-                </p>
-              )}
-              {(currentSong as { artistId?: string }).artistId ? (
-                <Link
-                  to="/library/artists/$id"
-                  params={{ id: (currentSong as { artistId?: string }).artistId! }}
-                  className={cn("text-xs truncate leading-tight block active:text-primary transition-colors", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {currentSong.artist || 'Unknown'}
-                </Link>
-              ) : (
-                <p className={cn("text-xs truncate leading-tight", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
-              )}
+            {/* Song Info — single-line: Title · Artist. Inline children flow as one text run, so `truncate` on the parent yields a single clean ellipsis instead of two stacked rows. */}
+            <div className="min-w-0 flex-1">
+              <div className={cn("text-sm truncate", showRemoteTime && "text-green-500")}>
+                {(currentSong as { artistId?: string }).artistId && currentSong.albumId ? (
+                  <Link
+                    to="/library/artists/$id/albums/$albumId"
+                    params={{ id: (currentSong as { artistId?: string }).artistId!, albumId: currentSong.albumId }}
+                    className="font-display font-semibold active:text-primary transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                    title="View album"
+                  >
+                    {currentSong.name || currentSong.title}
+                  </Link>
+                ) : (
+                  <span
+                    className="font-display font-semibold active:text-primary transition-colors"
+                    onClick={() => setShowFullscreen(true)}
+                  >
+                    {currentSong.name || currentSong.title}
+                  </span>
+                )}
+                <span className={cn("mx-1.5", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>·</span>
+                {(currentSong as { artistId?: string }).artistId ? (
+                  <Link
+                    to="/library/artists/$id"
+                    params={{ id: (currentSong as { artistId?: string }).artistId! }}
+                    className={cn("active:text-primary transition-colors", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {currentSong.artist || 'Unknown'}
+                  </Link>
+                ) : (
+                  <span className={cn(showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</span>
+                )}
+              </div>
               {showRemoteTime && (
                 <button
                   ref={devicePickerTriggerRef}
