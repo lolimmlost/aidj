@@ -3,8 +3,8 @@
  *
  * Replaces the old single-purpose FullscreenPlayer. The chassis renders
  * the persistent header, metadata, scrubber, and transport — and swaps
- * out a mode-specific content area in the middle. Phase A only ships
- * the 'art' mode; phases B/C/D add lyrics / visualizer / queue.
+ * out a mode-specific content area in the middle. Phase B ships the
+ * 'art' and 'lyrics' modes; phases C/D add visualizer / queue.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -20,7 +20,6 @@ import {
   Shuffle,
   Repeat,
   Repeat1,
-  MicVocal,
   Share2,
   ListMusic,
 } from 'lucide-react';
@@ -31,6 +30,8 @@ import { cn } from '@/lib/utils';
 import { AIDJToggle } from '@/components/ai-dj-toggle';
 import { useAudioStore } from '@/lib/stores/audio';
 import { ArtMode } from './ArtMode';
+import { LyricsMode } from './LyricsMode';
+import { ModeSwitcher } from './ModeSwitcher';
 import type { NowPlayingFullscreenProps, NPMode } from './types';
 
 const formatTime = (time: number) => {
@@ -60,14 +61,20 @@ export function NowPlayingFullscreen({
   onToggleLike,
   onToggleShuffle,
   onToggleRepeat,
-  onShowLyrics,
 }: NowPlayingFullscreenProps) {
   const [visible, setVisible] = useState(false);
   const [animating, setAnimating] = useState(false);
-  // Reserved for phase B+ pill switcher. Kept stateful now so the chassis
-  // shape is locked in even though only ArtMode renders today.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [mode, _setMode] = useState<NPMode>(initialMode);
+  const [mode, setMode] = useState<NPMode>(initialMode);
+
+  // Reset mode on each open so re-opening from a fresh trigger respects
+  // the caller's initialMode (e.g. opening from the player-bar lyrics
+  // button should land on 'lyrics' even if the user previously closed
+  // the surface while on 'art').
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (isOpen) setMode(initialMode);
+  }, [isOpen, initialMode]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const touchOffsetRef = useRef(0);
@@ -171,7 +178,7 @@ export function NowPlayingFullscreen({
         onTouchMove={handleBodyTouchMove}
         onTouchEnd={handleBodyTouchEnd}
       >
-        {/* Persistent header */}
+        {/* Persistent header — chevron + mode pill + spacer */}
         <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] py-3">
           <Button
             variant="ghost"
@@ -181,9 +188,7 @@ export function NowPlayingFullscreen({
           >
             <ChevronDown className="h-6 w-6" />
           </Button>
-          <p className="text-xs font-medium text-white/60 uppercase tracking-wider">
-            Now Playing
-          </p>
+          <ModeSwitcher mode={mode} onModeChange={setMode} />
           <div className="w-10" /> {/* spacer for centering */}
         </div>
 
@@ -194,6 +199,11 @@ export function NowPlayingFullscreen({
           {/* === Mode swap area === */}
           {mode === 'art' && (
             <ArtMode song={currentSong} onPrevious={onPrevious} onNext={onNext} />
+          )}
+          {mode === 'lyrics' && (
+            <div className="w-full lg:flex-1 flex-1 min-h-0 flex">
+              <LyricsMode />
+            </div>
           )}
 
           {/* === Persistent metadata + transport column === */}
@@ -309,15 +319,6 @@ export function NowPlayingFullscreen({
                 disabled={isLikePending}
               >
                 <Heart className={cn('h-5 w-5', isLiked && 'fill-red-500 text-red-500')} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
-                onClick={onShowLyrics}
-                title="Lyrics"
-              >
-                <MicVocal className="h-5 w-5" />
               </Button>
               <Button
                 variant="ghost"

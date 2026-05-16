@@ -17,7 +17,6 @@ import {
   Repeat1,
 } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
-import { LyricsModal } from '@/components/lyrics';
 import { VisualizerModal } from '@/components/visualizer';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -119,9 +118,9 @@ export function PlayerBar() {
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);
-  const [showLyrics, setShowLyrics] = useState(false);
   const [showVisualizer, setShowVisualizer] = useState(false);
   const [showFullscreen, setShowFullscreen] = useState(false);
+  const [fullscreenInitialMode, setFullscreenInitialMode] = useState<'art' | 'lyrics'>('art');
 
   // Track canplay/error handlers for cleanup
   const canPlayHandlerRef = useRef<(() => void) | null>(null);
@@ -1147,7 +1146,10 @@ export function PlayerBar() {
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
-            onClick={() => setShowLyrics(true)}
+            onClick={() => {
+              setFullscreenInitialMode('lyrics');
+              setShowFullscreen(true);
+            }}
             title="Show lyrics"
           >
             <MicVocal className="h-4 w-4" />
@@ -1199,9 +1201,6 @@ export function PlayerBar() {
       <audio ref={deckARef} preload="metadata" crossOrigin="anonymous" className="hidden" />
       <audio ref={deckBRef} preload="metadata" crossOrigin="anonymous" className="hidden" />
 
-      {/* Lyrics Modal */}
-      <LyricsModal isOpen={showLyrics} onClose={() => setShowLyrics(false)} />
-
       {/* Visualizer Modal */}
       <VisualizerModal
         isOpen={showVisualizer}
@@ -1209,10 +1208,14 @@ export function PlayerBar() {
         analyserNode={webAudioAnalyserRef.current}
       />
 
-      {/* Fullscreen Now Playing — unified chassis (PR A: art mode only) */}
+      {/* Fullscreen Now Playing — unified chassis (Phase B: art + lyrics modes) */}
       <NowPlayingFullscreen
         isOpen={showFullscreen}
-        onClose={() => setShowFullscreen(false)}
+        onClose={() => {
+          setShowFullscreen(false);
+          setFullscreenInitialMode('art');
+        }}
+        initialMode={fullscreenInitialMode}
         currentSong={currentSong}
         isPlaying={isPlaying}
         isLoading={isLoading}
@@ -1228,10 +1231,6 @@ export function PlayerBar() {
         onSeek={seek}
         onToggleLike={handleToggleLike}
         onToggleShuffle={toggleShuffle}
-        onShowLyrics={() => {
-          setShowFullscreen(false);
-          setShowLyrics(true);
-        }}
         onToggleRepeat={toggleRepeat}
       />
 
