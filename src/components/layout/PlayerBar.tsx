@@ -847,7 +847,7 @@ export function PlayerBar() {
   return (
     <>
       {/* Mobile Layout */}
-      <div className="md:hidden px-3 py-2 space-y-2">
+      <div className="md:hidden px-3 py-1.5 space-y-1.5">
         {/* Progress bar at top */}
         <div className="flex items-center gap-2">
           <span className={cn("text-[10px] font-mono w-8 text-right", showRemoteTime ? "text-green-500" : "text-muted-foreground")}>
@@ -893,14 +893,14 @@ export function PlayerBar() {
                 <Link
                   to="/library/artists/$id/albums/$albumId"
                   params={{ id: (currentSong as { artistId?: string }).artistId!, albumId: currentSong.albumId }}
-                  className={cn("font-display font-semibold text-sm truncate active:text-primary transition-colors block hover:underline", showRemoteTime && "text-green-500")}
+                  className={cn("font-display font-semibold text-sm leading-tight truncate active:text-primary transition-colors block hover:underline", showRemoteTime && "text-green-500")}
                   onClick={(e) => e.stopPropagation()}
                   title="View album"
                 >
                   {currentSong.name || currentSong.title}
                 </Link>
               ) : (
-                <p className={cn("font-display font-semibold text-sm truncate", showRemoteTime && "text-green-500")}>
+                <p className={cn("font-display font-semibold text-sm leading-tight truncate", showRemoteTime && "text-green-500")}>
                   {currentSong.name || currentSong.title}
                 </p>
               )}
@@ -908,13 +908,13 @@ export function PlayerBar() {
                 <Link
                   to="/library/artists/$id"
                   params={{ id: (currentSong as { artistId?: string }).artistId! }}
-                  className={cn("text-xs truncate block active:text-primary transition-colors hover:underline", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
+                  className={cn("text-xs leading-tight truncate block active:text-primary transition-colors hover:underline mt-0.5", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {currentSong.artist || 'Unknown'}
                 </Link>
               ) : (
-                <p className={cn("text-xs truncate", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
+                <p className={cn("text-xs leading-tight truncate mt-0.5", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</p>
               )}
               {showRemoteTime && (
                 <button

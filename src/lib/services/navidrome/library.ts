@@ -81,7 +81,11 @@ export async function resolveArtistIdByName(query: string): Promise<string | nul
     const target = normalize(query);
     const matches = (candidate: string) => {
       const c = normalize(candidate);
-      return c === target || c.startsWith(target + ' ') || target.startsWith(c + ' ');
+      // Exact match, or candidate is a longer variant of target ("Frank Iero"
+      // matches "Frank Iero and the Cellabration"). Do NOT match in the
+      // opposite direction: "Russ Gabriel" must not resolve to library "Russ"
+      // just because the search returned a Russ song.
+      return c === target || c.startsWith(target + ' ');
     };
 
     // 1. Try artist records first — these are the canonical match.
