@@ -193,21 +193,32 @@ export function NowPlayingFullscreen({
         </div>
 
         {/* Mode swap area + persistent metadata/transport (portrait stack on
-            mobile, side-by-side on desktop) */}
-        <div className="flex-1 flex flex-col lg:flex-row items-center justify-center px-6 sm:px-8 lg:px-16 mx-auto w-full gap-6 sm:gap-8 lg:gap-16 max-w-6xl">
+            mobile, side-by-side on desktop).
+            items-center on art mode for cosmetic balance; items-stretch on
+            lyrics mode so both columns fill row height — the lyrics column
+            scrolls internally and the metadata column centers its own
+            content via justify-center, keeping metadata position stable
+            regardless of lyrics state. */}
+        <div className={cn(
+          "flex-1 flex flex-col lg:flex-row justify-center px-6 sm:px-8 lg:px-16 mx-auto w-full gap-6 sm:gap-8 lg:gap-16 max-w-6xl min-h-0",
+          mode === 'lyrics' ? "items-stretch" : "items-center"
+        )}>
 
           {/* === Mode swap area === */}
           {mode === 'art' && (
             <ArtMode song={currentSong} onPrevious={onPrevious} onNext={onNext} />
           )}
           {mode === 'lyrics' && (
-            <div className="w-full lg:flex-1 lg:self-stretch flex-1 min-h-0 flex">
+            <div className="w-full lg:flex-1 flex-1 min-h-0 flex">
               <LyricsMode />
             </div>
           )}
 
           {/* === Persistent metadata + transport column === */}
-          <div className="w-full lg:flex-1 lg:max-w-md flex flex-col items-center gap-6 sm:gap-8">
+          <div className={cn(
+            "w-full lg:flex-1 lg:max-w-md flex flex-col items-center gap-6 sm:gap-8",
+            mode === 'lyrics' && "justify-center"
+          )}>
             {/* Song info — title links to album page (song info context); artist links to artist page */}
             <div className="w-full text-center lg:text-left">
               {artistId && currentSong.albumId ? (
