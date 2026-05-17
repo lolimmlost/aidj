@@ -159,15 +159,18 @@ export function NowPlayingFullscreen({
         animating ? 'opacity-100' : 'opacity-0'
       )}
     >
-      {/* Solid black base + blurred album art tint */}
+      {/* Solid black base + blurred album art tint.
+       *  Skipped in visualizer mode because the opaque canvas covers the
+       *  same area and the blur-3xl filter is expensive GPU work that
+       *  would never be visible. */}
       <div className="absolute inset-0 bg-black" />
-      {bgCoverUrl && (
+      {bgCoverUrl && mode !== 'visualizer' && (
         <div
           className="absolute inset-0 bg-cover bg-center scale-110 blur-3xl opacity-40"
           style={{ backgroundImage: `url(${bgCoverUrl})` }}
         />
       )}
-      <div className="absolute inset-0 bg-black/40" />
+      {mode !== 'visualizer' && <div className="absolute inset-0 bg-black/40" />}
 
       {/* Slide-up container */}
       <div

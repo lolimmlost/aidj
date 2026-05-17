@@ -374,8 +374,10 @@ export function VisualizerMode({ analyserNode }: VisualizerModeProps) {
   };
 
   return (
-    <div className="w-full h-full relative overflow-hidden rounded-2xl">
-      {/* Canvas background — fills the visualizer column */}
+    <div className="w-full h-full relative overflow-hidden">
+      {/* Canvas background — fills the visualizer column. No rounded
+       *  corners so the GPU doesn't re-clip the animating canvas each
+       *  frame. */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"
