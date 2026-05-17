@@ -17,7 +17,6 @@ import {
   Repeat1,
 } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
-import { VisualizerModal } from '@/components/visualizer';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { AlbumArt } from '@/components/ui/album-art';
@@ -118,9 +117,8 @@ export function PlayerBar() {
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);
-  const [showVisualizer, setShowVisualizer] = useState(false);
   const [showFullscreen, setShowFullscreen] = useState(false);
-  const [fullscreenInitialMode, setFullscreenInitialMode] = useState<'art' | 'lyrics'>('art');
+  const [fullscreenInitialMode, setFullscreenInitialMode] = useState<'art' | 'lyrics' | 'visualizer'>('art');
 
   // Track canplay/error handlers for cleanup
   const canPlayHandlerRef = useRef<(() => void) | null>(null);
@@ -1159,7 +1157,10 @@ export function PlayerBar() {
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
-            onClick={() => setShowVisualizer(true)}
+            onClick={() => {
+              setFullscreenInitialMode('visualizer');
+              setShowFullscreen(true);
+            }}
             title="Show visualizer"
           >
             <AudioWaveform className="h-4 w-4" />
@@ -1201,14 +1202,7 @@ export function PlayerBar() {
       <audio ref={deckARef} preload="metadata" crossOrigin="anonymous" className="hidden" />
       <audio ref={deckBRef} preload="metadata" crossOrigin="anonymous" className="hidden" />
 
-      {/* Visualizer Modal */}
-      <VisualizerModal
-        isOpen={showVisualizer}
-        onClose={() => setShowVisualizer(false)}
-        analyserNode={webAudioAnalyserRef.current}
-      />
-
-      {/* Fullscreen Now Playing — unified chassis (Phase B: art + lyrics modes) */}
+      {/* Fullscreen Now Playing — unified chassis (Phase C: art + lyrics + visualizer modes) */}
       <NowPlayingFullscreen
         isOpen={showFullscreen}
         onClose={() => {
@@ -1225,6 +1219,7 @@ export function PlayerBar() {
         isLikePending={isLikePending}
         isShuffled={isShuffled}
         repeatMode={repeatMode}
+        analyserNode={webAudioAnalyserRef.current}
         onTogglePlayPause={remoteAwareTogglePlayPause}
         onPrevious={remoteAwarePrevious}
         onNext={remoteAwareNext}

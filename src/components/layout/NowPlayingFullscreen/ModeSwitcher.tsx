@@ -1,4 +1,4 @@
-import { ImageIcon, MicVocal } from 'lucide-react';
+import { AudioWaveform, ImageIcon, MicVocal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { NPMode } from './types';
 
@@ -10,6 +10,7 @@ interface ModeSwitcherProps {
 const visibleModes: { id: NPMode; label: string; Icon: typeof ImageIcon }[] = [
   { id: 'art', label: 'Art', Icon: ImageIcon },
   { id: 'lyrics', label: 'Lyrics', Icon: MicVocal },
+  { id: 'visualizer', label: 'Visualizer', Icon: AudioWaveform },
 ];
 
 export function ModeSwitcher({ mode, onModeChange }: ModeSwitcherProps) {

@@ -31,6 +31,7 @@ import { AIDJToggle } from '@/components/ai-dj-toggle';
 import { useAudioStore } from '@/lib/stores/audio';
 import { ArtMode } from './ArtMode';
 import { LyricsMode } from './LyricsMode';
+import { VisualizerMode } from './VisualizerMode';
 import { ModeSwitcher } from './ModeSwitcher';
 import type { NowPlayingFullscreenProps, NPMode } from './types';
 
@@ -61,6 +62,7 @@ export function NowPlayingFullscreen({
   onToggleLike,
   onToggleShuffle,
   onToggleRepeat,
+  analyserNode,
 }: NowPlayingFullscreenProps) {
   const [visible, setVisible] = useState(false);
   const [animating, setAnimating] = useState(false);
@@ -195,13 +197,13 @@ export function NowPlayingFullscreen({
         {/* Mode swap area + persistent metadata/transport (portrait stack on
             mobile, side-by-side on desktop).
             items-center on art mode for cosmetic balance; items-stretch on
-            lyrics mode so both columns fill row height — the lyrics column
-            scrolls internally and the metadata column centers its own
-            content via justify-center, keeping metadata position stable
-            regardless of lyrics state. */}
+            lyrics/visualizer modes so both columns fill row height — the
+            mode column scrolls/renders internally and the metadata column
+            centers its own content via justify-center, keeping metadata
+            position stable regardless of mode-column content. */}
         <div className={cn(
           "flex-1 flex flex-col lg:flex-row justify-center px-6 sm:px-8 lg:px-16 mx-auto w-full gap-6 sm:gap-8 lg:gap-16 max-w-6xl min-h-0",
-          mode === 'lyrics' ? "items-stretch" : "items-center"
+          mode === 'art' ? "items-center" : "items-stretch"
         )}>
 
           {/* === Mode swap area === */}
@@ -213,11 +215,16 @@ export function NowPlayingFullscreen({
               <LyricsMode />
             </div>
           )}
+          {mode === 'visualizer' && (
+            <div className="w-full lg:flex-1 flex-1 min-h-0 flex">
+              <VisualizerMode analyserNode={analyserNode ?? null} />
+            </div>
+          )}
 
           {/* === Persistent metadata + transport column === */}
           <div className={cn(
             "w-full lg:flex-1 lg:max-w-md flex flex-col items-center gap-6 sm:gap-8",
-            mode === 'lyrics' && "justify-center"
+            mode !== 'art' && "justify-center"
           )}>
             {/* Song info — title links to album page (song info context); artist links to artist page */}
             <div className="w-full text-center lg:text-left">
