@@ -409,19 +409,25 @@ export function VisualizerMode({ analyserNode }: VisualizerModeProps) {
           </Button>
         </div>
 
-        {/* Settings backdrop */}
+        {/* Settings backdrop. Fixed so it covers the whole chassis,
+         *  not just the visualizer column (which can be short on mobile). */}
         {showSettings && (
           <button
             type="button"
-            className="absolute inset-0 z-10 cursor-default"
+            className="fixed inset-0 z-30 cursor-default"
             onClick={() => setShowSettings(false)}
             aria-label="Close settings"
           />
         )}
 
-        {/* Settings panel */}
+        {/* Settings panel. Fixed positioning lets it escape the
+         *  visualizer column's overflow-hidden clip — on mobile the
+         *  column is short (transport stack sits below), so an
+         *  absolute panel with max-h-[70vh] would be cut off. On mobile
+         *  we anchor top+bottom so the panel is fully scrollable; on
+         *  desktop we fall back to top-anchored with max-h. */}
         {showSettings && (
-          <div className="absolute top-14 right-3 sm:right-4 left-3 sm:left-auto sm:w-72 max-h-[70vh] overflow-y-auto bg-black/90 backdrop-blur-md rounded-lg border border-white/10 p-4 space-y-4 z-20">
+          <div className="fixed top-[calc(env(safe-area-inset-top)+4rem)] right-3 sm:right-4 left-3 sm:left-auto sm:w-72 bottom-[calc(env(safe-area-inset-bottom)+1rem)] sm:bottom-auto sm:max-h-[70vh] overflow-y-auto bg-black/90 backdrop-blur-md rounded-lg border border-white/10 p-4 space-y-4 z-40">
             <div className="flex items-center justify-between">
               <h3 className="text-white font-medium">Settings</h3>
               <Button
