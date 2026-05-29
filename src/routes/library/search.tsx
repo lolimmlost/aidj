@@ -1,5 +1,5 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { search, getArtists } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -367,12 +367,29 @@ function SearchPage() {
 // MusicBrainz artist and offer a one-click "Add to Lidarr" fallback. If Aurral
 // can't resolve it either, fall back to a clear "not available" state.
 function ArtistAddFallback({ query }: { query: string }) {
-  const { data: metadata, isLoading, isError } = useArtistMetadata(query, {
+  const { data: metadata, isLoading, isError, error, refetch, isFetching } = useArtistMetadata(query, {
     enabled: query.length > 0,
   });
   const addArtist = useAddArtistToLibrary();
 
+  // Track elapsed time during loading so we can show a "still searching"
+  // hint when Aurral is slow. Resets when the query changes.
+  const [elapsed, setElapsed] = useState(0);
+  /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect */
+  useEffect(() => {
+    if (!isLoading) {
+      setElapsed(0);
+      return;
+    }
+    const start = Date.now();
+    setElapsed(0);
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 500);
+    return () => clearInterval(id);
+  }, [isLoading, query]);
+  /* eslint-enable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect */
+
   if (isLoading) {
+    const slow = elapsed >= 4;
     return (
       <Card>
         <CardContent className="p-6 sm:p-8 space-y-4">
@@ -386,25 +403,42 @@ function ArtistAddFallback({ query }: { query: string }) {
           </div>
           <p className="text-xs text-muted-foreground text-center">
             Searching MusicBrainz for "{query}"…
+            {elapsed > 0 && <span className="ml-1 tabular-nums">({elapsed}s)</span>}
           </p>
+          {slow && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 text-center">
+              Still searching — the metadata service is slow. Hang tight or try again in a moment.
+            </p>
+          )}
         </CardContent>
       </Card>
     );
   }
 
   // Distinguish "MusicBrainz has no match" from "Aurral service unreachable".
-  // The metadata endpoint returns null for both, but isError flags fetch/timeout failures.
+  // Real errors throw from fetchArtistMetadata; 503 (not configured) and
+  // genuine "no match" both arrive as null with no error.
   if (isError) {
+    const msg = error instanceof Error ? error.message : 'Unknown error';
     return (
-      <Card>
+      <Card className="border-destructive/30">
         <CardContent className="p-8 sm:p-12 text-center space-y-3">
-          <AlertCircle className="h-10 w-10 mx-auto text-destructive opacity-70" />
+          <AlertCircle className="h-10 w-10 mx-auto text-destructive opacity-80" />
           <h3 className="font-semibold text-lg">MusicBrainz lookup unavailable</h3>
           <p className="text-sm text-muted-foreground">
-            Couldn't reach the metadata service. "{query}" isn't in your library, and we
-            can't offer to add it right now.
+            Couldn't reach the metadata service. "{query}" isn't in your library and
+            we can't offer to add it right now.
           </p>
-          <p className="text-xs text-muted-foreground">Try again in a moment.</p>
+          <p className="text-xs text-muted-foreground font-mono break-all">{msg}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="mt-2"
+          >
+            {isFetching ? 'Retrying…' : 'Retry'}
+          </Button>
         </CardContent>
       </Card>
     );
