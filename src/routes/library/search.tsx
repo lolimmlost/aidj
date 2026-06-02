@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { search, getArtists } from '@/lib/services/navidrome';
@@ -251,7 +251,18 @@ function SearchPage() {
                     >
                       <div className="font-semibold truncate">{song.name || song.title || 'Unknown Song'}</div>
                       <div className="text-sm text-muted-foreground truncate">
-                        {song.artist || 'Unknown Artist'}
+                        {(song as { artistId?: string }).artistId ? (
+                          <Link
+                            to="/library/artists/$id"
+                            params={{ id: (song as { artistId: string }).artistId }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:text-foreground hover:underline"
+                          >
+                            {song.artist || 'Unknown Artist'}
+                          </Link>
+                        ) : (
+                          song.artist || 'Unknown Artist'
+                        )}
                         {song.album && ` • ${song.album}`}
                         {' • '}{Math.floor(song.duration / 60)}:{Math.floor(song.duration % 60).toString().padStart(2, '0')}
                       </div>
@@ -308,7 +319,18 @@ function SearchPage() {
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-sm truncate">{song.name || song.title || 'Unknown Song'}</div>
                         <div className="text-xs text-muted-foreground truncate">
-                          {song.artist || 'Unknown Artist'}
+                          {(song as { artistId?: string }).artistId ? (
+                            <Link
+                              to="/library/artists/$id"
+                              params={{ id: (song as { artistId: string }).artistId }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="hover:text-foreground hover:underline"
+                            >
+                              {song.artist || 'Unknown Artist'}
+                            </Link>
+                          ) : (
+                            song.artist || 'Unknown Artist'
+                          )}
                           {' • '}{Math.floor(song.duration / 60)}:{Math.floor(song.duration % 60).toString().padStart(2, '0')}
                         </div>
                       </div>
@@ -375,7 +397,7 @@ function ArtistAddFallback({ query }: { query: string }) {
   // Track elapsed time during loading so we can show a "still searching"
   // hint when Aurral is slow. Resets when the query changes.
   const [elapsed, setElapsed] = useState(0);
-  /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect */
+  /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect, react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!isLoading) {
       setElapsed(0);
@@ -386,7 +408,7 @@ function ArtistAddFallback({ query }: { query: string }) {
     const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 500);
     return () => clearInterval(id);
   }, [isLoading, query]);
-  /* eslint-enable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect */
+  /* eslint-enable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect, react-hooks/set-state-in-effect */
 
   if (isLoading) {
     const slow = elapsed >= 4;

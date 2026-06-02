@@ -134,10 +134,14 @@ export function ArtistCard({ artist, savedImageUrl }: ArtistCardProps) {
             savedImageUrl={savedImageUrl}
           />
         </div>
-        {/* Play Button — always tappable on touch, hover-reveal on desktop */}
+        {/* Play Button — hover-reveal on desktop only. Hidden on mobile so
+         *  the entire card reliably navigates to the artist page; mobile
+         *  users can play from the artist page. (Previously this overlay
+         *  was always visible on mobile and people tapped it by accident
+         *  thinking they were tapping the avatar.) */}
         <Button
           size="icon"
-          className="absolute bottom-1 right-1 w-9 h-9 rounded-full shadow-lg shadow-primary/30 transition-all duration-200 opacity-100 md:opacity-0 md:translate-y-1 md:group-hover:opacity-100 md:group-hover:translate-y-0"
+          className="absolute bottom-1 right-1 w-9 h-9 rounded-full shadow-lg shadow-primary/30 transition-all duration-200 hidden md:flex opacity-0 translate-y-1 md:group-hover:opacity-100 md:group-hover:translate-y-0"
           onClick={handlePlay}
           aria-label={`Play ${artist.name}`}
         >
