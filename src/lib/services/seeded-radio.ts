@@ -20,9 +20,10 @@
  *  - Artist seed → seed artist catalog IS part of output (that's the point).
  */
 
-import { and, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { listeningHistory } from '@/lib/db/schema/listening-history.schema';
+import { userPlaylists, playlistSongs } from '@/lib/db/schema/playlists.schema';
 import {
   getPlaylist,
   getSongs,
@@ -765,14 +766,41 @@ export async function generateSeededRadio(
       let label: string;
 
       if (seed.playlistId === 'liked-songs') {
+        // Literal 'liked-songs' slug — use starred songs
         const creds = await getNavidromeUserCreds(userId);
         const starred = creds ? await getStarredSongs(creds) : await getStarredSongs();
         songs = starred.map(subsonicToSong);
         label = 'Liked Songs Radio';
       } else {
-        const pl = await getPlaylist(seed.playlistId);
-        songs = (pl.entry ?? []).map(subsonicToSong);
-        label = `Playlist Radio — ${pl.name ?? 'Unknown'}`;
+        // Check if this is a DB-stored playlist (UUID from the playlists page)
+        const [dbPlaylist] = await db
+          .select()
+          .from(userPlaylists)
+          .where(and(eq(userPlaylists.id, seed.playlistId), eq(userPlaylists.userId, userId)))
+          .limit(1);
+
+        if (dbPlaylist && dbPlaylist.name === '❤️ Liked Songs') {
+          // DB liked-songs playlist — same as the literal 'liked-songs' path
+          const creds = await getNavidromeUserCreds(userId);
+          const starred = creds ? await getStarredSongs(creds) : await getStarredSongs();
+          songs = starred.map(subsonicToSong);
+          label = 'Liked Songs Radio';
+        } else if (dbPlaylist) {
+          // Other DB playlist — load songs from playlistSongs table
+          const rows = await db
+            .select()
+            .from(playlistSongs)
+            .where(eq(playlistSongs.playlistId, dbPlaylist.id))
+            .orderBy(asc(playlistSongs.position));
+          const songIds = rows.map((r) => r.songId);
+          songs = songIds.length > 0 ? await getSongsByIds(songIds) : [];
+          label = `Playlist Radio — ${dbPlaylist.name}`;
+        } else {
+          // Not in DB — assume Navidrome-native playlist
+          const pl = await getPlaylist(seed.playlistId);
+          songs = (pl.entry ?? []).map(subsonicToSong);
+          label = `Playlist Radio — ${pl.name ?? 'Unknown'}`;
+        }
       }
 
       result = await generateFromCollection(userId, songs, label, size, recent);

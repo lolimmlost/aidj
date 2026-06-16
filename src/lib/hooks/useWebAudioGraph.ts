@@ -70,6 +70,12 @@ export function useWebAudioGraph(): WebAudioGraph {
   // transition and explicitly warn if it changes.
   const lastSampleRateRef = useRef<number | null>(null);
 
+  /** Check if the user intentionally paused within the last `windowMs`. */
+  const recentlyUserPaused = (windowMs = 8000) => {
+    const t = useAudioStore.getState()._userPauseAt;
+    return t > 0 && Date.now() - t < windowMs && !useAudioStore.getState().isPlaying;
+  };
+
   const getGainNode = useCallback((deck: 'A' | 'B'): GainNode | null => {
     return deck === 'A' ? gainARef.current : gainBRef.current;
   }, []);
@@ -263,10 +269,12 @@ export function useWebAudioGraph(): WebAudioGraph {
       const deckB = deckBElementRef.current;
       const eitherDeckPlaying = (deckA && !deckA.paused) || (deckB && !deckB.paused);
 
-      if (isPlaying || eitherDeckPlaying) {
+      if ((isPlaying || eitherDeckPlaying) && !recentlyUserPaused()) {
         console.log(`[WEB AUDIO] Health check: context "${state}" but audio should be playing — resuming`);
         ctx.resume().catch((err) =>
           console.warn('[WEB AUDIO] Health check resume failed:', (err as Error).message));
+      } else if (recentlyUserPaused()) {
+        console.log('[WEB AUDIO] Recovery suppressed — recent user pause');
       }
     }, 5000);
 
@@ -347,7 +355,7 @@ export function useWebAudioGraph(): WebAudioGraph {
         const deckA = deckAElementRef.current;
         const deckB = deckBElementRef.current;
         const eitherPlaying = (deckA && !deckA.paused) || (deckB && !deckB.paused);
-        if (storeState.isPlaying || eitherPlaying) {
+        if ((storeState.isPlaying || eitherPlaying) && !recentlyUserPaused()) {
           wasPlayingBeforeInterruptRef.current = true;
         }
 
@@ -403,7 +411,10 @@ export function useWebAudioGraph(): WebAudioGraph {
           resumeIntervalRef.current = null;
         }
 
-        const shouldResume = wasPlayingBeforeInterruptRef.current || useAudioStore.getState().isPlaying;
+        const shouldResume = (wasPlayingBeforeInterruptRef.current || useAudioStore.getState().isPlaying) && !recentlyUserPaused();
+        if (recentlyUserPaused()) {
+          console.log('[WEB AUDIO] Recovery suppressed — recent user pause');
+        }
         const interruptDuration = interruptedAtRef.current > 0
           ? Date.now() - interruptedAtRef.current : 0;
         interruptedAtRef.current = 0;
@@ -573,7 +584,10 @@ export function useWebAudioGraph(): WebAudioGraph {
         const master = masterGainRef.current;
         const deckA = deckAElementRef.current;
         const deckB = deckBElementRef.current;
-        const shouldBeAudible = wasPlayingBeforeInterruptRef.current || useAudioStore.getState().isPlaying;
+        const shouldBeAudible = (wasPlayingBeforeInterruptRef.current || useAudioStore.getState().isPlaying) && !recentlyUserPaused();
+        if (recentlyUserPaused()) {
+          console.log('[WEB AUDIO] Recovery suppressed — recent user pause');
+        }
 
         // Check if masterGain is disconnected (gain=0 is our signal from interrupted handler)
         const needsReconnect = master && master.gain.value === 0;
@@ -641,9 +655,23 @@ export function useWebAudioGraph(): WebAudioGraph {
 
     ctx.addEventListener('statechange', handleStateChange);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // When the user intentionally pauses, clear the wasPlaying flag so iOS
+    // interrupt recovery doesn't override the pause.
+    const unsubPause = useAudioStore.subscribe((s, prev) => {
+      if (s._userPauseAt !== prev._userPauseAt) {
+        wasPlayingBeforeInterruptRef.current = false;
+        if (clearWasPlayingTimerRef.current) {
+          clearTimeout(clearWasPlayingTimerRef.current);
+          clearWasPlayingTimerRef.current = null;
+        }
+      }
+    });
+
     return () => {
       ctx.removeEventListener('statechange', handleStateChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      unsubPause();
       if (resumeIntervalRef.current) {
         clearInterval(resumeIntervalRef.current);
         resumeIntervalRef.current = null;
