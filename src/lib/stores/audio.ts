@@ -966,8 +966,11 @@ export const useAudioStore = create<AudioState>()(
         // Exclude artists that already appear in upcoming queue
         const upcomingArtists = Array.from(upcomingArtistCounts.keys());
 
-        // Combine all exclusions
-        const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed])];
+        // Include persisted recentlyPlayedIds (survives across sessions, capped at 200)
+        const persistedPlayed = Array.from(state.recentlyPlayedIds ?? []);
+
+        // Combine all exclusions — ephemeral + persisted
+        const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed, ...persistedPlayed])];
 
         // Phase 1.2: Convert artist batch counts to plain object for JSON serialization
         const artistBatchCounts: Record<string, number> = {};
@@ -1265,7 +1268,8 @@ export const useAudioStore = create<AudioState>()(
           .filter(rec => Date.now() - rec.timestamp < 7200000) // 2 hour window
           .map(rec => rec.songId);
 
-        const allExclusions = [...new Set([...recentlyRecommended, ...allPlaylistSongIds])];
+        const persistedPlayed = Array.from(state.recentlyPlayedIds ?? []);
+        const allExclusions = [...new Set([...recentlyRecommended, ...allPlaylistSongIds, ...persistedPlayed])];
 
         // Call API - use larger batch for nudge mode
         const batchSize = Math.max(recommendationSettings.aiDJBatchSize || 3, 5);
@@ -1445,7 +1449,8 @@ export const useAudioStore = create<AudioState>()(
           .filter(rec => Date.now() - rec.timestamp < 7200000)
           .map(rec => rec.songId);
 
-        const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed])];
+        const persistedPlayed = Array.from(state.recentlyPlayedIds ?? []);
+        const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed, ...persistedPlayed])];
 
         // Fetch one recommendation per seed point
         const allRecommendations: { song: Song; insertAfterIndex: number }[] = [];
