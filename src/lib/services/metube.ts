@@ -35,6 +35,12 @@ export interface MeTubeQueueResponse {
   queue: Record<string, MeTubeDownload>;
 }
 
+interface MeTubeHistoryResponse {
+  done: MeTubeHistoryItem[];
+  queue: MeTubeHistoryItem[];
+  pending: MeTubeHistoryItem[];
+}
+
 export interface MeTubeHistoryItem {
   id: string;
   title: string;
@@ -132,35 +138,68 @@ export async function addDownload(request: MeTubeAddRequest): Promise<{ status: 
 }
 
 /**
+ * Get download history from MeTube.
+ * The /history endpoint returns { done: [...], queue: [...], pending: [...] }.
+ */
+async function fetchHistoryResponse(): Promise<MeTubeHistoryResponse> {
+  try {
+    const result = await apiFetch<MeTubeHistoryResponse | MeTubeHistoryItem[] | Record<string, MeTubeHistoryItem>>('/history');
+    if (!result) return { done: [], queue: [], pending: [] };
+
+    // Current MeTube returns { done: [], queue: [], pending: [] }
+    if (typeof result === 'object' && !Array.isArray(result) && 'done' in result) {
+      return result as MeTubeHistoryResponse;
+    }
+
+    // Legacy: plain array — treat all as done
+    if (Array.isArray(result)) {
+      return { done: result, queue: [], pending: [] };
+    }
+
+    // Legacy: flat object keyed by ID
+    if (typeof result === 'object') {
+      const items = Object.entries(result).map(([id, item]) => ({
+        ...(item as MeTubeHistoryItem),
+        id: (item as MeTubeHistoryItem).id || id,
+      }));
+      return { done: items, queue: [], pending: [] };
+    }
+
+    return { done: [], queue: [], pending: [] };
+  } catch (error) {
+    console.error('Error getting history:', error);
+    return { done: [], queue: [], pending: [] };
+  }
+}
+
+/**
  * Get current download queue and completed downloads
  */
 export async function getQueue(): Promise<MeTubeQueueResponse> {
   try {
-    // MeTube uses WebSocket for real-time updates, but we can poll the queue endpoint
-    // Note: MeTube doesn't have a REST endpoint for queue, it uses WebSocket
-    // We'll use the history endpoint and infer queue status
-    const history = await getHistory();
+    const history = await fetchHistoryResponse();
 
-    // Convert history to queue format
     const done: Record<string, MeTubeDownload> = {};
     const queue: Record<string, MeTubeDownload> = {};
 
-    history.forEach((item) => {
-      const download: MeTubeDownload = {
-        id: item.id,
-        title: item.title,
-        url: item.url,
-        status: item.status === 'finished' ? 'finished' : 'error',
-        filename: item.filename,
-        folder: item.folder,
-      };
-
-      if (item.status === 'finished') {
-        done[item.id] = download;
-      } else {
-        queue[item.id] = download;
-      }
+    const toDownload = (item: MeTubeHistoryItem, status: MeTubeDownload['status']): MeTubeDownload => ({
+      id: item.id,
+      title: item.title,
+      url: item.url,
+      status,
+      filename: item.filename,
+      folder: item.folder,
     });
+
+    for (const item of history.done) {
+      done[item.id] = toDownload(item, item.status === 'error' ? 'error' : 'finished');
+    }
+    for (const item of history.queue) {
+      queue[item.id] = toDownload(item, 'downloading');
+    }
+    for (const item of history.pending) {
+      queue[item.id] = toDownload(item, 'pending');
+    }
 
     return { done, queue };
   } catch (error) {
@@ -170,36 +209,11 @@ export async function getQueue(): Promise<MeTubeQueueResponse> {
 }
 
 /**
- * Get download history from MeTube
- * MeTube returns history as an object with IDs as keys, or as an array
+ * Get completed/failed download history from MeTube as a flat array.
  */
 export async function getHistory(): Promise<MeTubeHistoryItem[]> {
-  try {
-    const result = await apiFetch<MeTubeHistoryItem[] | Record<string, MeTubeHistoryItem>>('/history');
-
-    // Handle case where result is null/undefined
-    if (!result) {
-      return [];
-    }
-
-    // If result is already an array, return it
-    if (Array.isArray(result)) {
-      return result;
-    }
-
-    // If result is an object, convert to array
-    if (typeof result === 'object') {
-      return Object.entries(result).map(([id, item]) => ({
-        ...item,
-        id: item.id || id,
-      }));
-    }
-
-    return [];
-  } catch (error) {
-    console.error('Error getting history:', error);
-    return [];
-  }
+  const resp = await fetchHistoryResponse();
+  return resp.done;
 }
 
 /**
