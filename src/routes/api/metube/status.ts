@@ -29,7 +29,7 @@ export const Route = createFileRoute('/api/metube/status')({
             getQueue(),
           ]);
 
-          // Build history array from the done records for the UI
+          // Build history array from the done records, newest first
           const history = Object.values(queue.done || {}).map((d: MeTubeDownload) => ({
             id: d.id,
             title: d.title,
@@ -37,7 +37,7 @@ export const Route = createFileRoute('/api/metube/status')({
             status: d.status as 'finished' | 'error',
             filename: d.filename,
             folder: d.folder,
-          }));
+          })).reverse();
 
           return new Response(
             JSON.stringify({
