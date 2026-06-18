@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Play, Pause, Disc3, TrendingUp, TrendingDown, Shuffle, Library, RefreshCw, Loader2, Radio, Sun, Moon, CloudSun, Sunset } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,13 +8,18 @@ import { formatPercentChange } from '@/lib/utils/period-comparison';
 import { useDynamicColors } from '@/hooks/useDynamicColors';
 import { loadPlaylistIntoQueue } from '@/lib/utils/playlist-helpers';
 
-function getTimeIcon() {
-  const hour = new Date().getHours();
+function getTimeIcon(hour: number) {
   if (hour < 6) return <Moon className="h-7 w-7 sm:h-8 sm:w-8 text-indigo-400" />;
   if (hour < 12) return <Sun className="h-7 w-7 sm:h-8 sm:w-8 text-amber-400" />;
   if (hour < 18) return <CloudSun className="h-7 w-7 sm:h-8 sm:w-8 text-orange-400" />;
   if (hour < 21) return <Sunset className="h-7 w-7 sm:h-8 sm:w-8 text-rose-400" />;
   return <Moon className="h-7 w-7 sm:h-8 sm:w-8 text-indigo-400" />;
+}
+
+function getGreeting(hour: number) {
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
 }
 
 interface DashboardHeroProps {
@@ -65,6 +70,12 @@ export function DashboardHero({
   const setIsPlaying = useAudioStore((s) => s.setIsPlaying);
   const aiDJEnabled = useAudioStore((s) => s.aiDJEnabled);
 
+  // Defer time-based rendering to client to avoid SSR hydration mismatch
+  const [hour, setHour] = useState<number | null>(null);
+  useEffect(() => {
+    setHour(new Date().getHours());
+  }, []);
+
   const { data: stats, isLoading: statsLoading } = useQuery<ListeningStatsResponse>({
     queryKey: ['listening-stats', 'week'],
     queryFn: async () => {
@@ -76,14 +87,8 @@ export function DashboardHero({
     retry: false,
   });
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
-  };
-
-  const timeIcon = getTimeIcon();
+  const timeIcon = hour != null ? getTimeIcon(hour) : <Sun className="h-7 w-7 sm:h-8 sm:w-8 text-amber-400" />;
+  const greeting = hour != null ? getGreeting(hour) : 'Welcome';
 
   return (
     <section className="hero-section p-6 sm:p-8 lg:p-10">
@@ -98,7 +103,7 @@ export function DashboardHero({
           <div className="animate-fade-up">
             {timeIcon}
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mt-2">
-              {getGreeting()},{' '}
+              {greeting},{' '}
               <span className="text-gradient-brand">{userName || 'Music Lover'}</span>
             </h1>
             <p className="text-muted-foreground mt-2 text-sm sm:text-base max-w-lg">

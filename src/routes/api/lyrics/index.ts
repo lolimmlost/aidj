@@ -278,7 +278,7 @@ async function checkCache(
   title: string,
 ): Promise<LyricsResponse | null> {
   try {
-    const now = new Date();
+    const now = new Date().toISOString();
 
     const result = await db
       .select()
