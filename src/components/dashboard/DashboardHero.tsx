@@ -458,7 +458,7 @@ function StartListeningCTA() {
 
       <div className="border-t border-border/50 pt-3">
         <Link
-          to="/library"
+          to="/library/search"
           className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors group"
         >
           <Library className="w-4 h-4" />
@@ -499,7 +499,7 @@ function RadioCTA({ onStartRadio, isLoading }: { onStartRadio: () => void; isLoa
 
       <div className="border-t border-border/50 pt-3">
         <Link
-          to="/library"
+          to="/library/search"
           className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors group"
         >
           <Library className="w-4 h-4" />

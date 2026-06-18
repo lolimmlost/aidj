@@ -463,7 +463,8 @@ function LeftSidebar() {
               {/* Liked Songs - navigates to playlist or syncs if not exists */}
               {likedSongsPlaylist ? (
                 <Link
-                  to={`/playlists/${likedSongsPlaylist.id}`}
+                  to="/playlists/$id"
+                  params={{ id: likedSongsPlaylist.id }}
                   title={isCollapsed ? 'Liked Songs' : undefined}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors",
@@ -591,7 +592,8 @@ function LeftSidebar() {
                 .map((playlist: { id: string; name: string; songCount?: number }) => (
                 <Link
                   key={playlist.id}
-                  to={`/playlists/${playlist.id}`}
+                  to="/playlists/$id"
+                  params={{ id: playlist.id }}
                   title={isCollapsed ? playlist.name : undefined}
                   className={cn(
                     "flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors group/playlist",
@@ -796,7 +798,8 @@ function RightSidebar() {
                 topArtists.slice(0, 5).map((artist: { id: string; name: string; albumCount?: number; songCount?: number; totalPlays?: number }, index: number) => (
                   <Link
                     key={artist.id}
-                    to={`/library/artists/${artist.id}`}
+                    to="/library/artists/$id"
+                    params={{ id: artist.id }}
                     className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors group"
                   >
                     <span className={cn("font-bold text-lg w-5", rankColors[index])}>
