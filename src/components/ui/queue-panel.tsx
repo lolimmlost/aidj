@@ -509,9 +509,9 @@ export function QueuePanel() {
       return;
     }
 
-    // Find indices in upcoming queue
-    const oldIndex = upcomingQueue.findIndex(song => song.id === active.id);
-    const newIndex = upcomingQueue.findIndex(song => song.id === over.id);
+    // Sortable IDs are "${song.id}-${index}" — extract the index suffix
+    const oldIndex = upcomingQueue.findIndex((song, i) => `${song.id}-${i}` === active.id);
+    const newIndex = upcomingQueue.findIndex((song, i) => `${song.id}-${i}` === over.id);
 
     if (oldIndex !== -1 && newIndex !== -1) {
       // Convert to actual playlist indices (offset by currentSongIndex + 1)
