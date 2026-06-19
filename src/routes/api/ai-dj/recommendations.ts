@@ -250,7 +250,7 @@ export async function POST({ request }: { request: Request }) {
 
       // Check if we should use profile-based recommendations (drip-feed model)
       // Profile-based uses ZERO API calls - all from pre-computed database
-      let result: { songs: Song[]; source: string };
+      let result: { songs: Song[]; source: string } | undefined;
 
       if (useProfileBased && userId) {
         // Check if user has profile data
@@ -270,14 +270,19 @@ export async function POST({ request }: { request: Request }) {
             }
           );
 
-          result = {
-            songs: profileSongs,
-            source: 'profile-based',
-          };
+          if (profileSongs.length > 0) {
+            result = {
+              songs: profileSongs,
+              source: 'profile-based',
+            };
+            console.log(`✅ AI DJ: Got ${result.songs.length} recommendations from profile (zero API calls)`);
+          } else {
+            console.log(`⚠️ AI DJ: Profile pool exhausted, falling back to standard recommendations`);
+          }
+        }
 
-          console.log(`✅ AI DJ: Got ${result.songs.length} recommendations from profile (zero API calls)`);
-        } else {
-          console.log(`⚠️ AI DJ: No profile data, falling back to standard recommendations`);
+        if (!result) {
+          console.log(`⚠️ AI DJ: Profile unavailable or exhausted, falling back to standard recommendations`);
           // Fall through to standard recommendations
           result = await getRecommendations({
             mode: 'similar',
