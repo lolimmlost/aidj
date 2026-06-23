@@ -14,6 +14,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -91,14 +92,13 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
       role="listitem"
       aria-label={`${songTitle} by ${songArtist}${getLabel()}`}
     >
-      {/* Drag handle - hidden on mobile */}
       <button
         type="button"
-        className="hidden sm:block text-muted-foreground/70 hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5 flex-shrink-0 touch-none hover:scale-110 transition-transform"
+        className="text-muted-foreground/70 hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5 flex-shrink-0 touch-none hover:scale-110 transition-transform"
         {...attributes}
         {...listeners}
       >
-        <GripVertical className="h-4 w-4" />
+        <GripVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
       </button>
       {/* Index number - smaller on mobile */}
       <div className="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mt-0.5">
@@ -485,7 +485,13 @@ export function QueuePanel() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // 8px movement required before drag starts
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
