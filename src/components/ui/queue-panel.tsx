@@ -623,12 +623,12 @@ export function QueuePanel() {
 
   return (
     <div
-      className="fixed bottom-[calc(4rem+1rem)] right-2 z-50 w-72 sm:w-80 md:w-96 md:right-4 md:bottom-[calc(5rem+1rem)] landscape:max-md:bottom-[calc(3.5rem+0.5rem)] landscape:max-md:w-[min(45vw,20rem)] animate-in slide-in-from-right duration-300"
+      className="fixed z-50 bottom-[calc(4rem)] left-0 right-0 sm:left-auto sm:w-80 sm:right-2 sm:bottom-[calc(4rem+1rem)] md:w-96 md:right-4 md:bottom-[calc(5rem+1rem)] landscape:max-md:bottom-[calc(3.5rem+0.5rem)] landscape:max-md:w-[min(45vw,20rem)] animate-in slide-in-from-bottom sm:slide-in-from-right duration-300"
       role="dialog"
       aria-label="Playback queue"
       aria-modal="false"
     >
-      <Card className="shadow-2xl border-2 border-primary/10 bg-gradient-to-br from-background via-background to-primary/5 backdrop-blur-xl overflow-hidden max-h-[60vh] md:max-h-[calc(100vh-8rem)] landscape:max-md:max-h-[calc(100vh-5rem)] flex flex-col">
+      <Card className="shadow-2xl border-2 border-primary/10 bg-gradient-to-br from-background via-background to-primary/5 backdrop-blur-xl overflow-hidden max-h-[calc(100vh-5rem)] sm:max-h-[60vh] md:max-h-[calc(100vh-8rem)] landscape:max-md:max-h-[calc(100vh-5rem)] flex flex-col rounded-b-none sm:rounded-b-xl">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-purple-500 to-pink-500" />
         <CardHeader className="pb-2 md:pb-3 px-3 md:px-6 pt-3 md:pt-6 bg-gradient-to-br from-primary/5 to-transparent">
           <div className="flex items-center justify-between">
@@ -765,7 +765,7 @@ export function QueuePanel() {
                   items={upcomingQueue.map((s, i) => `${s.id}-${i}`)}
                   strategy={verticalListSortingStrategy}
                 >
-                  <div className="h-[25vh] md:h-[40vh] overflow-y-auto overflow-x-hidden pr-1 md:pr-2 space-y-2">
+                  <div className="h-[calc(100vh-16rem)] sm:h-[25vh] md:h-[40vh] overflow-y-auto overflow-x-hidden pr-1 md:pr-2 space-y-2">
                     {upcomingQueue.map((song, index) => {
                       // If nothing playing (currentSongIndex === -1), actualIndex is just index
                       const actualIndex = currentSongIndex === -1 ? index : currentSongIndex + 1 + index;
