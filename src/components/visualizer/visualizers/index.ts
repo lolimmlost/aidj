@@ -13,6 +13,7 @@ import { TunnelVisualizer } from './TunnelVisualizer';
 import { HelixVisualizer } from './HelixVisualizer';
 import { SpectrogramVisualizer } from './SpectrogramVisualizer';
 import { ConstellationVisualizer } from './ConstellationVisualizer';
+import { AuroraVisualizer } from './AuroraVisualizer';
 
 // Registry of all available visualizers
 export const visualizers: Visualizer[] = [
@@ -30,6 +31,7 @@ export const visualizers: Visualizer[] = [
   HelixVisualizer,
   SpectrogramVisualizer,
   ConstellationVisualizer,
+  AuroraVisualizer,
 ];
 
 // Get visualizer by ID
@@ -66,4 +68,5 @@ export {
   HelixVisualizer,
   SpectrogramVisualizer,
   ConstellationVisualizer,
+  AuroraVisualizer,
 };
