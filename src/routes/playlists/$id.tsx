@@ -31,7 +31,6 @@ import {
 import { Radio } from 'lucide-react';
 import { PageLayout } from '@/components/ui/page-layout';
 import { useAudioStore } from '@/lib/stores/audio';
-import { playPlaylist, loadPlaylistIntoQueue } from '@/lib/utils/playlist-helpers';
 import { cn } from '@/lib/utils';
 import { CollaborativePlaylistPanel } from '@/components/playlists/collaboration';
 import { StartRadioButton } from '@/components/radio/StartRadioButton';
@@ -485,6 +484,25 @@ function PlaylistSongsList({
   );
 }
 
+function playlistSongsToAudio(songs: PlaylistSong[]) {
+  return songs.map((song) => {
+    const parts = song.songArtistTitle.split(' - ');
+    const artist = parts[0] || 'Unknown Artist';
+    const title = parts.slice(1).join(' - ') || song.songArtistTitle;
+    return {
+      id: song.songId,
+      name: title,
+      title,
+      artist,
+      album: song.album || undefined,
+      albumId: song.albumId || '',
+      duration: song.duration || 0,
+      track: song.position,
+      url: `/api/navidrome/stream/${song.songId}`,
+    };
+  });
+}
+
 function PlaylistDetailPage() {
   const { id } = Route.useParams();
   const { user } = Route.useRouteContext();
@@ -630,94 +648,71 @@ function PlaylistDetailPage() {
     }
   };
 
-  const handlePlayAll = async () => {
+  const handlePlayAll = () => {
     if (!playlist || playlist.songs.length === 0) {
       toast.error('This playlist is empty');
       return;
     }
 
-    try {
-      await playPlaylist(id, setPlaylist, playSong);
-      setIsPlaying(true); // Explicitly start playback
-      toast.success('Playing playlist');
-    } catch (error) {
-      console.error('Failed to play playlist:', error);
-      toast.error('Failed to load playlist');
-    }
+    const audioSongs = playlistSongsToAudio(playlist.songs);
+    setPlaylist(audioSongs);
+    playSong(audioSongs[0].id, audioSongs);
+    setIsPlaying(true);
+    toast.success('Playing playlist');
   };
 
-  const handlePlayFromSong = async (startIndex: number) => {
+  const handlePlayFromSong = (startIndex: number) => {
     if (!playlist || playlist.songs.length === 0) {
       toast.error('This playlist is empty');
       return;
     }
 
-    try {
-      // Load playlist with full metadata from Navidrome
-      const audioSongs = await loadPlaylistIntoQueue(id);
+    const audioSongs = playlistSongsToAudio(playlist.songs);
+    setPlaylist(audioSongs);
+    playSong(audioSongs[startIndex].id, audioSongs);
+    setIsPlaying(true);
 
-      if (audioSongs.length === 0) {
-        toast.error('Failed to load playlist songs');
-        return;
-      }
-
-      // Set playlist and start playing from the selected song
-      setPlaylist(audioSongs);
-      playSong(audioSongs[startIndex].id, audioSongs);
-      setIsPlaying(true);
-
-      const songTitle = audioSongs[startIndex].title || audioSongs[startIndex].name;
-      toast.success(`Playing from "${songTitle}"`, {
-        description: `From "${playlist.name}"`,
-      });
-    } catch (error) {
-      console.error('Failed to play playlist:', error);
-      toast.error('Failed to load playlist');
-    }
+    const songTitle = audioSongs[startIndex].title || audioSongs[startIndex].name;
+    toast.success(`Playing from "${songTitle}"`, {
+      description: `From "${playlist.name}"`,
+    });
   };
 
-  const handleAddSongToQueue = async (song: PlaylistSong, position: 'now' | 'next' | 'end') => {
+  const handleAddSongToQueue = (song: PlaylistSong, position: 'now' | 'next' | 'end') => {
+    if (!playlist) return;
+
+    const parts = song.songArtistTitle.split(' - ');
+    const artist = parts[0] || 'Unknown Artist';
+    const title = parts.slice(1).join(' - ') || song.songArtistTitle;
+
     if (position === 'now') {
-      // Load full playlist with metadata and play from this song
-      try {
-        const audioSongs = await loadPlaylistIntoQueue(id);
-        const songIndex = audioSongs.findIndex(s => s.id === song.songId);
-
-        if (songIndex !== -1) {
-          setPlaylist(audioSongs);
-          playSong(song.songId, audioSongs);
-          setIsPlaying(true);
-          const songTitle = audioSongs[songIndex].title || audioSongs[songIndex].name;
-          toast.success(`Now playing "${songTitle}"`);
-        } else {
-          toast.error('Song not found in playlist');
-        }
-      } catch (error) {
-        console.error('Failed to play song:', error);
-        toast.error('Failed to load song');
-      }
+      const audioSongs = playlistSongsToAudio(playlist.songs);
+      setPlaylist(audioSongs);
+      playSong(song.songId, audioSongs);
+      setIsPlaying(true);
+      toast.success(`Now playing "${title}"`);
     } else {
-      // For queue operations, use simple format (will be enhanced later)
       const audioSong = {
         id: song.songId,
-        name: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
-        title: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
-        artist: song.songArtistTitle.split(' - ')[0] || 'Unknown Artist',
-        albumId: '',
-        duration: 0,
-        track: 0,
+        name: title,
+        title,
+        artist,
+        album: song.album || undefined,
+        albumId: song.albumId || '',
+        duration: song.duration || 0,
+        track: song.position,
         url: `/api/navidrome/stream/${song.songId}`,
       };
 
       if (position === 'next') {
         setAIUserActionInProgress(true);
         addToQueueNext([audioSong]);
-        toast.success(`Added "${audioSong.title}" to play next`);
+        toast.success(`Added "${title}" to play next`);
         setTimeout(() => setAIUserActionInProgress(false), 2000);
       } else {
         setAIUserActionInProgress(true);
         addToQueueEnd([audioSong]);
-        toast.success(`Added "${audioSong.title}" to end of queue`);
+        toast.success(`Added "${title}" to end of queue`);
         setTimeout(() => setAIUserActionInProgress(false), 2000);
       }
     }
@@ -784,16 +779,7 @@ function PlaylistDetailPage() {
       return;
     }
 
-    const audioSongs = playlist.songs.map((song) => ({
-      id: song.songId,
-      name: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
-      title: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
-      artist: song.songArtistTitle.split(' - ')[0] || 'Unknown Artist',
-      albumId: '',
-      duration: 0,
-      track: 1,
-      url: `/api/navidrome/stream/${song.songId}`,
-    }));
+    const audioSongs = playlistSongsToAudio(playlist.songs);
 
     if (position === 'next') {
       setAIUserActionInProgress(true);
@@ -812,31 +798,20 @@ function PlaylistDetailPage() {
     }
   };
 
-  const handleShufflePlay = async () => {
+  const handleShufflePlay = () => {
     if (!playlist || playlist.songs.length === 0) {
       toast.error('This playlist is empty');
       return;
     }
 
-    try {
-      const audioSongs = await loadPlaylistIntoQueue(id);
-      if (audioSongs.length === 0) {
-        toast.error('Failed to load playlist songs');
-        return;
-      }
-
-      // Shuffle the songs
-      const shuffled = [...audioSongs].sort(() => Math.random() - 0.5);
-      setPlaylist(shuffled);
-      playSong(shuffled[0].id, shuffled);
-      setIsPlaying(true);
-      toast.success('Shuffling playlist', {
-        description: `Playing ${playlist.name}`,
-      });
-    } catch (error) {
-      console.error('Failed to shuffle play:', error);
-      toast.error('Failed to load playlist');
-    }
+    const audioSongs = playlistSongsToAudio(playlist.songs);
+    const shuffled = [...audioSongs].sort(() => Math.random() - 0.5);
+    setPlaylist(shuffled);
+    playSong(shuffled[0].id, shuffled);
+    setIsPlaying(true);
+    toast.success('Shuffling playlist', {
+      description: `Playing ${playlist.name}`,
+    });
   };
 
   // Determine playlist icon based on type
