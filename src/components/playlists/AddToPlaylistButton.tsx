@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,7 @@ interface AddToPlaylistButtonProps {
   size?: 'default' | 'sm' | 'lg' | 'icon';
   showLabel?: boolean;
   hideCreateNew?: boolean;
+  className?: string;
 }
 
 interface Playlist {
@@ -40,6 +42,7 @@ export function AddToPlaylistButton({
   size = 'sm',
   showLabel = false,
   hideCreateNew = false,
+  className,
 }: AddToPlaylistButtonProps) {
   const [open, setOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -118,7 +121,7 @@ export function AddToPlaylistButton({
           <Button
             variant={variant}
             size={size}
-            className="min-h-[44px]"
+            className={cn('min-h-[44px]', className)}
             aria-label="Add to playlist"
           >
             <Plus className={showLabel ? 'mr-2 h-4 w-4' : 'h-4 w-4'} />

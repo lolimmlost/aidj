@@ -165,6 +165,10 @@ function SongRowContent({
     ? song.songArtistTitle.split(' - ')
     : ['Unknown Artist', song.songArtistTitle];
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const touchStartYRef = useRef(0);
+  const wasScrollingRef = useRef(false);
+
   return (
     <>
       {/* Drag Handle — only rendered on desktop */}
@@ -263,14 +267,29 @@ function SongRowContent({
         <SkipForward className="h-4 w-4" />
       </Button>
 
-      {/* Actions menu */}
-      <DropdownMenu>
+      {/* Actions menu — controlled + scroll-guarded on mobile */}
+      <DropdownMenu open={menuOpen} onOpenChange={(open) => {
+        if (open && wasScrollingRef.current) {
+          wasScrollingRef.current = false;
+          return;
+        }
+        setMenuOpen(open);
+      }}>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
             className="h-9 w-9 p-0 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
             onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => {
+              touchStartYRef.current = e.touches[0].clientY;
+              wasScrollingRef.current = false;
+            }}
+            onTouchMove={(e) => {
+              if (Math.abs(e.touches[0].clientY - touchStartYRef.current) > 8) {
+                wasScrollingRef.current = true;
+              }
+            }}
           >
             <MoreHorizontal className="h-4 w-4" />
           </Button>

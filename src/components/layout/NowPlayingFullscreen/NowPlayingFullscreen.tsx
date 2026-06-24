@@ -30,6 +30,7 @@ import { Slider } from '@/components/ui/slider';
 import { getCoverArtUrl } from '@/components/ui/album-art';
 import { cn } from '@/lib/utils';
 import { AIDJToggle } from '@/components/ai-dj-toggle';
+import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
 import { useAudioStore } from '@/lib/stores/audio';
 import { ArtMode } from './ArtMode';
 import { LyricsMode } from './LyricsMode';
@@ -395,6 +396,14 @@ export function NowPlayingFullscreen({
                 >
                   <Heart className={cn('h-5 w-5', isLiked && 'fill-red-500 text-red-500')} />
                 </Button>
+                <AddToPlaylistButton
+                  songId={currentSong.id}
+                  artistName={songArtist}
+                  songTitle={songTitle}
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10 [&_svg]:h-5 [&_svg]:w-5"
+                />
                 <Button
                   variant="ghost"
                   size="sm"
