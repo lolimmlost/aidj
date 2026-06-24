@@ -2,12 +2,13 @@ import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-ro
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query';
 import { toast } from '@/lib/toast';
-import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
 import {
   ListMusic, Play, Trash2, X, Plus, Shuffle,
   Heart, Sparkles, MoreHorizontal, Music2, Pause, GripVertical,
-  Users, SkipForward
+  Users, SkipForward, Search, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -103,6 +104,104 @@ function formatDuration(seconds?: number | null) {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+type SortField = 'custom' | 'title' | 'artist' | 'album' | 'dateAdded' | 'duration';
+
+const SORT_OPTIONS: Array<{ value: SortField; label: string }> = [
+  { value: 'custom', label: 'Custom Order' },
+  { value: 'title', label: 'Title' },
+  { value: 'artist', label: 'Artist' },
+  { value: 'album', label: 'Album' },
+  { value: 'dateAdded', label: 'Date Added' },
+  { value: 'duration', label: 'Duration' },
+];
+
+function extractArtistTitle(songArtistTitle: string): [string, string] {
+  if (songArtistTitle.includes(' - ')) {
+    const parts = songArtistTitle.split(' - ');
+    return [parts[0], parts.slice(1).join(' - ')];
+  }
+  return ['Unknown Artist', songArtistTitle];
+}
+
+function getSortValue(song: PlaylistSong, field: SortField): string | number {
+  const [artist, title] = extractArtistTitle(song.songArtistTitle);
+  switch (field) {
+    case 'title': return title.toLowerCase();
+    case 'artist': return artist.toLowerCase();
+    case 'album': return (song.album || '').toLowerCase();
+    case 'dateAdded': return new Date(song.addedAt).getTime();
+    case 'duration': return song.duration || 0;
+    default: return song.position;
+  }
+}
+
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
+
+function AlphabetRail({
+  availableLetters,
+  onLetterSelect,
+}: {
+  availableLetters: Set<string>;
+  onLetterSelect: (letter: string) => void;
+}) {
+  const railRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef(false);
+
+  const getLetterFromTouch = useCallback((clientY: number) => {
+    if (!railRef.current) return null;
+    const rect = railRef.current.getBoundingClientRect();
+    const y = clientY - rect.top;
+    const idx = Math.floor((y / rect.height) * ALPHABET.length);
+    return ALPHABET[Math.max(0, Math.min(idx, ALPHABET.length - 1))];
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    activeRef.current = true;
+    const letter = getLetterFromTouch(e.touches[0].clientY);
+    if (letter && availableLetters.has(letter)) onLetterSelect(letter);
+  }, [getLetterFromTouch, availableLetters, onLetterSelect]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!activeRef.current) return;
+    e.preventDefault();
+    const letter = getLetterFromTouch(e.touches[0].clientY);
+    if (letter && availableLetters.has(letter)) onLetterSelect(letter);
+  }, [getLetterFromTouch, availableLetters, onLetterSelect]);
+
+  const handleTouchEnd = useCallback(() => {
+    activeRef.current = false;
+  }, []);
+
+  return (
+    <div
+      ref={railRef}
+      className="fixed right-0.5 flex flex-col items-center justify-center z-30 select-none touch-none py-1"
+      style={{ top: '30%', bottom: '15%' }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {ALPHABET.map((letter) => (
+        <button
+          key={letter}
+          type="button"
+          className={cn(
+            'w-5 text-[9px] font-semibold leading-none py-[2px] rounded-sm transition-colors',
+            availableLetters.has(letter)
+              ? 'text-primary hover:bg-primary/10'
+              : 'text-muted-foreground/30 pointer-events-none'
+          )}
+          onClick={() => {
+            if (availableLetters.has(letter)) onLetterSelect(letter);
+          }}
+        >
+          {letter}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -345,6 +444,7 @@ function SongRowContent({
 function PlainSongRow(props: SongRowProps) {
   return (
     <div
+      data-song-id={props.song.songId}
       className={cn(
         "group flex items-center gap-3 px-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors min-w-0",
         props.isCurrentSong && "bg-accent/30"
@@ -377,6 +477,7 @@ function SortableSongRow(props: SongRowProps) {
     <div
       ref={setNodeRef}
       style={style}
+      data-song-id={props.song.songId}
       className={cn(
         "group flex items-center gap-3 px-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors min-w-0",
         props.isCurrentSong && "bg-accent/30",
@@ -411,6 +512,7 @@ interface VirtualizedPlaylistSongsProps {
   onToggleStar: (songId: string, currentlyStarred: boolean) => void;
   onStartRadioFromSong: (songId: string) => void;
   isRemovePending: boolean;
+  disableDnD?: boolean;
 }
 
 function PlaylistSongsList({
@@ -425,6 +527,7 @@ function PlaylistSongsList({
   onToggleStar,
   onStartRadioFromSong,
   isRemovePending,
+  disableDnD,
 }: VirtualizedPlaylistSongsProps) {
   // Disable DnD on mobile — TouchSensor intercepts taps and wastes space
   const [isDesktop, setIsDesktop] = useState(() =>
@@ -464,7 +567,7 @@ function PlaylistSongsList({
       </div>
 
       <div>
-        {isDesktop ? (
+        {isDesktop && !disableDnD ? (
           /* Desktop: DnD-enabled sortable rows */
           <DndContext
             sensors={sensors}
@@ -487,7 +590,7 @@ function PlaylistSongsList({
             </SortableContext>
           </DndContext>
         ) : (
-          /* Mobile: plain rows — no DnD overhead, no touch interception */
+          /* Plain rows — no DnD (mobile or when filtering/sorting) */
           songs.map((song, index) => (
             <PlainSongRow
               key={song.id}
@@ -531,6 +634,12 @@ function PlaylistDetailPage() {
 
   // Collaboration panel state
   const [isCollaborationPanelOpen, setIsCollaborationPanelOpen] = useState(false);
+
+  // Search and sort state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortField, setSortField] = useState<SortField>('custom');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const songListRef = useRef<HTMLDivElement>(null);
 
   // Check if this is a special playlist type
   const isLikedSongsPlaylist = id === 'liked-songs';
@@ -790,6 +899,75 @@ function PlaylistDetailPage() {
 
   const handleDeletePlaylist = () => {
     deletePlaylistMutation.mutate();
+  };
+
+  // Filter and sort songs
+  const isFiltered = searchQuery.trim().length > 0 || sortField !== 'custom';
+
+  const filteredSongs = useMemo(() => {
+    if (!playlist) return [];
+    let songs = [...playlist.songs];
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      songs = songs.filter(s =>
+        s.songArtistTitle.toLowerCase().includes(q) ||
+        (s.album || '').toLowerCase().includes(q)
+      );
+    }
+
+    if (sortField !== 'custom') {
+      songs.sort((a, b) => {
+        const aVal = getSortValue(a, sortField);
+        const bVal = getSortValue(b, sortField);
+        const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+        return sortDirection === 'asc' ? cmp : -cmp;
+      });
+    }
+
+    return songs;
+  }, [playlist?.songs, searchQuery, sortField, sortDirection]);
+
+  const availableLetters = useMemo(() => {
+    const letters = new Set<string>();
+    const sortByTitle = sortField === 'title' || sortField === 'custom';
+    for (const song of filteredSongs) {
+      const [artist, title] = extractArtistTitle(song.songArtistTitle);
+      const text = sortByTitle ? title : sortField === 'artist' ? artist : (song.album || title);
+      const first = text.trim().charAt(0).toUpperCase();
+      if (first >= 'A' && first <= 'Z') letters.add(first);
+      else if (first) letters.add('#');
+    }
+    return letters;
+  }, [filteredSongs, sortField]);
+
+  const handleLetterSelect = useCallback((letter: string) => {
+    if (!songListRef.current) return;
+    const sortByTitle = sortField === 'title' || sortField === 'custom';
+
+    for (const song of filteredSongs) {
+      const [artist, title] = extractArtistTitle(song.songArtistTitle);
+      const text = sortByTitle ? title : sortField === 'artist' ? artist : (song.album || title);
+      const first = text.trim().charAt(0).toUpperCase();
+      const match = letter === '#' ? (first < 'A' || first > 'Z') : first === letter;
+
+      if (match) {
+        const el = songListRef.current.querySelector(`[data-song-id="${song.songId}"]`);
+        if (el) {
+          el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+          break;
+        }
+      }
+    }
+  }, [filteredSongs, sortField]);
+
+  const handleSortChange = (field: SortField) => {
+    if (field === sortField) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection(field === 'dateAdded' ? 'desc' : 'asc');
+    }
   };
 
   const handleAddToQueue = (position: 'next' | 'end') => {
@@ -1062,19 +1240,106 @@ function PlaylistDetailPage() {
                 </Button>
               </div>
             ) : (
-              <PlaylistSongsList
-                songs={playlist.songs}
-                currentSongId={currentSong?.id}
-                isPlaying={isPlaying}
-                sensors={sensors}
-                onDragEnd={handleDragEnd}
-                onPlayFromSong={handlePlayFromSong}
-                onAddSongToQueue={handleAddSongToQueue}
-                onRemoveSong={handleRemoveSong}
-                onToggleStar={handleToggleStar}
-                onStartRadioFromSong={(songId) => { void startRadio({ kind: 'song', songId }); }}
-                isRemovePending={removeSongMutation.isPending}
-              />
+              <>
+                {/* Search & Sort Bar */}
+                <div className="flex items-center gap-2 py-2 pr-6 sm:pr-0">
+                  <div className="relative flex-1 min-w-0">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <Input
+                      type="search"
+                      placeholder={`Search ${playlist.songs.length} songs…`}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-8 h-9 text-sm"
+                    />
+                    {searchQuery && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
+                        onClick={() => setSearchQuery('')}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9 gap-1.5 shrink-0 text-xs sm:text-sm">
+                        {sortField === 'custom' ? (
+                          <ArrowUpDown className="h-3.5 w-3.5" />
+                        ) : sortDirection === 'asc' ? (
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        )}
+                        <span className="hidden sm:inline">
+                          {SORT_OPTIONS.find(o => o.value === sortField)?.label || 'Sort'}
+                        </span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      {SORT_OPTIONS.map((opt) => (
+                        <DropdownMenuItem
+                          key={opt.value}
+                          onClick={() => handleSortChange(opt.value)}
+                          className={cn(
+                            'min-h-[40px] justify-between',
+                            sortField === opt.value && 'bg-accent'
+                          )}
+                        >
+                          {opt.label}
+                          {sortField === opt.value && (
+                            sortDirection === 'asc'
+                              ? <ArrowUp className="h-3.5 w-3.5 ml-2" />
+                              : <ArrowDown className="h-3.5 w-3.5 ml-2" />
+                          )}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                {/* Filter status */}
+                {searchQuery && (
+                  <p className="text-xs text-muted-foreground px-1 pb-1">
+                    {filteredSongs.length} of {playlist.songs.length} songs
+                  </p>
+                )}
+
+                {/* Song list with alphabet rail */}
+                <div className="relative" ref={songListRef}>
+                  <PlaylistSongsList
+                    songs={filteredSongs}
+                    currentSongId={currentSong?.id}
+                    isPlaying={isPlaying}
+                    sensors={sensors}
+                    onDragEnd={handleDragEnd}
+                    onPlayFromSong={(idx) => {
+                      if (!playlist) return;
+                      const song = filteredSongs[idx];
+                      const originalIdx = playlist.songs.findIndex(s => s.id === song.id);
+                      handlePlayFromSong(originalIdx >= 0 ? originalIdx : idx);
+                    }}
+                    onAddSongToQueue={handleAddSongToQueue}
+                    onRemoveSong={handleRemoveSong}
+                    onToggleStar={handleToggleStar}
+                    onStartRadioFromSong={(songId) => { void startRadio({ kind: 'song', songId }); }}
+                    isRemovePending={removeSongMutation.isPending}
+                    disableDnD={isFiltered}
+                  />
+
+                  {/* Alphabet rail — mobile only, when 20+ songs */}
+                  {filteredSongs.length >= 20 && (
+                    <div className="sm:hidden">
+                      <AlphabetRail
+                        availableLetters={availableLetters}
+                        onLetterSelect={handleLetterSelect}
+                      />
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
