@@ -22,6 +22,8 @@ import {
   Repeat1,
   Share2,
   ListMusic,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -67,6 +69,7 @@ export function NowPlayingFullscreen({
   const [visible, setVisible] = useState(false);
   const [animating, setAnimating] = useState(false);
   const [mode, setMode] = useState<NPMode>(initialMode);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Reset mode on each open so re-opening from a fresh trigger respects
   // the caller's initialMode (e.g. opening from the player-bar lyrics
@@ -126,15 +129,49 @@ export function NowPlayingFullscreen({
     touchOffsetRef.current = 0;
   }, [onClose]);
 
-  // Esc to close.
+  const toggleExpanded = useCallback(() => {
+    setIsExpanded((prev) => {
+      const next = !prev;
+      if (next) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      } else {
+        document.exitFullscreen?.().catch(() => {});
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const onFsChange = () => {
+      if (!document.fullscreenElement) setIsExpanded(false);
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  // Collapse expanded mode when closing the surface.
+  useEffect(() => {
+    if (!isOpen && isExpanded) {
+      setIsExpanded(false);
+      document.exitFullscreen?.().catch(() => {});
+    }
+  }, [isOpen]);
+
+  // Esc to close (or collapse expanded first).
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        if (isExpanded) {
+          toggleExpanded();
+        } else {
+          onClose();
+        }
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose]);
+  }, [isOpen, isExpanded, onClose, toggleExpanded]);
 
   // Closes the surface, then runs an action (used by clickable artist link
   // and song-radio trigger so the navigation/queue change isn't hidden
@@ -183,19 +220,29 @@ export function NowPlayingFullscreen({
         onTouchMove={handleBodyTouchMove}
         onTouchEnd={handleBodyTouchEnd}
       >
-        {/* Persistent header — chevron + mode pill + spacer */}
-        <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] py-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-10 w-10 p-0 text-white/80 hover:text-white hover:bg-white/10"
-            onClick={onClose}
-          >
-            <ChevronDown className="h-6 w-6" />
-          </Button>
-          <ModeSwitcher mode={mode} onModeChange={setMode} />
-          <div className="w-10" /> {/* spacer for centering */}
-        </div>
+        {/* Persistent header — chevron + mode pill + expand */}
+        {!isExpanded && (
+          <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] py-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-10 w-10 p-0 text-white/80 hover:text-white hover:bg-white/10"
+              onClick={onClose}
+            >
+              <ChevronDown className="h-6 w-6" />
+            </Button>
+            <ModeSwitcher mode={mode} onModeChange={setMode} />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-10 w-10 p-0 text-white/80 hover:text-white hover:bg-white/10"
+              onClick={toggleExpanded}
+              title="Expand"
+            >
+              <Maximize2 className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
 
         {/* Mode swap area + persistent metadata/transport (portrait stack on
             mobile, side-by-side on desktop).
@@ -203,177 +250,200 @@ export function NowPlayingFullscreen({
             lyrics/visualizer modes so both columns fill row height — the
             mode column scrolls/renders internally and the metadata column
             centers its own content via justify-center, keeping metadata
-            position stable regardless of mode-column content. */}
+            position stable regardless of mode-column content.
+            When expanded, mode content fills the entire surface. */}
         <div className={cn(
-          "flex-1 flex flex-col lg:flex-row justify-center px-6 sm:px-8 lg:px-16 mx-auto w-full gap-6 sm:gap-8 lg:gap-16 max-w-6xl min-h-0",
-          mode === 'art' ? "items-center" : "items-stretch"
+          "flex-1 flex flex-col lg:flex-row justify-center mx-auto w-full min-h-0",
+          isExpanded
+            ? "items-stretch p-0"
+            : cn(
+                "px-6 sm:px-8 lg:px-16 gap-6 sm:gap-8 lg:gap-16 max-w-6xl",
+                mode === 'art' ? "items-center" : "items-stretch"
+              )
         )}>
 
           {/* === Mode swap area === */}
           {mode === 'art' && (
-            <ArtMode song={currentSong} onPrevious={onPrevious} onNext={onNext} />
+            <ArtMode song={currentSong} onPrevious={onPrevious} onNext={onNext} expanded={isExpanded} />
           )}
           {mode === 'lyrics' && (
-            <div className="w-full lg:flex-1 flex-1 min-h-0 flex">
+            <div className={cn("w-full flex min-h-0", isExpanded ? "flex-1" : "lg:flex-1 flex-1")}>
               <LyricsMode />
             </div>
           )}
           {mode === 'visualizer' && (
-            <div className="w-full lg:flex-1 flex-1 min-h-0 flex">
+            <div className={cn("w-full flex min-h-0", isExpanded ? "flex-1" : "lg:flex-1 flex-1")}>
               <VisualizerMode analyserNode={analyserNode ?? null} />
             </div>
           )}
 
-          {/* === Persistent metadata + transport column === */}
-          <div className={cn(
-            "w-full lg:flex-1 lg:max-w-md flex flex-col items-center gap-6 sm:gap-8",
-            mode !== 'art' && "justify-center"
-          )}>
-            {/* Song info — title links to album page (song info context); artist links to artist page */}
-            <div className="w-full text-center lg:text-left">
-              {artistId && currentSong.albumId ? (
-                <Link
-                  to="/library/artists/$id/albums/$albumId"
-                  params={{ id: artistId, albumId: currentSong.albumId }}
-                  onClick={() => onClose()}
-                  className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate hover:underline focus:outline-none focus:underline block"
-                  title="View album"
-                >
-                  {songTitle}
-                </Link>
-              ) : (
-                <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate">{songTitle}</h2>
-              )}
-              {artistId ? (
-                <Link
-                  to="/library/artists/$id"
-                  params={{ id: artistId }}
-                  onClick={() => onClose()}
-                  className="text-sm sm:text-base text-white/60 mt-1 truncate hover:text-white hover:underline block"
-                >
-                  {songArtist}
-                </Link>
-              ) : (
-                <p className="text-sm sm:text-base text-white/60 mt-1 truncate">{songArtist}</p>
-              )}
-            </div>
-
-            {/* Scrubber */}
-            <div className="w-full space-y-2">
-              <Slider
-                value={[isFinite(currentTime) ? currentTime : 0]}
-                max={isFinite(duration) && duration > 0 ? duration : 100}
-                step={0.1}
-                onValueChange={([v]) => onSeek(v)}
-                className="w-full [&_[data-slot=slider-track]]:bg-white/20 [&_[data-slot=slider-thumb]]:border-white [&_[data-slot=slider-thumb]]:bg-white"
-              />
-              <div className="flex justify-between">
-                <span className="text-xs font-mono text-white/50">{formatTime(currentTime)}</span>
-                <span className="text-xs font-mono text-white/50">-{formatTime(Math.max(0, duration - currentTime))}</span>
-              </div>
-            </div>
-
-            {/* Transport */}
-            <div className="flex items-center justify-center gap-4 sm:gap-6 w-full">
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  'h-10 w-10 sm:h-11 sm:w-11 p-0 hover:bg-white/10',
-                  isShuffled ? 'text-primary' : 'text-white/70'
-                )}
-                onClick={onToggleShuffle}
-              >
-                <Shuffle className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-12 w-12 sm:h-14 sm:w-14 p-0 text-white hover:bg-white/10"
-                onClick={onPrevious}
-              >
-                <SkipBack className="h-6 w-6 sm:h-7 sm:w-7 fill-current" />
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                className="h-16 w-16 sm:h-18 sm:w-18 p-0 rounded-full shadow-lg"
-                onClick={onTogglePlayPause}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-7 w-7 sm:h-8 sm:w-8 animate-spin" />
-                ) : isPlaying ? (
-                  <Pause className="h-7 w-7 sm:h-8 sm:w-8" />
+          {/* === Persistent metadata + transport column (hidden when expanded) === */}
+          {!isExpanded && (
+            <div className={cn(
+              "w-full lg:flex-1 lg:max-w-md flex flex-col items-center gap-6 sm:gap-8",
+              mode !== 'art' && "justify-center"
+            )}>
+              {/* Song info — title links to album page (song info context); artist links to artist page */}
+              <div className="w-full text-center lg:text-left">
+                {artistId && currentSong.albumId ? (
+                  <Link
+                    to="/library/artists/$id/albums/$albumId"
+                    params={{ id: artistId, albumId: currentSong.albumId }}
+                    onClick={() => onClose()}
+                    className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate hover:underline focus:outline-none focus:underline block"
+                    title="View album"
+                  >
+                    {songTitle}
+                  </Link>
                 ) : (
-                  <Play className="h-7 w-7 sm:h-8 sm:w-8 ml-1" />
+                  <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate">{songTitle}</h2>
                 )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-12 w-12 sm:h-14 sm:w-14 p-0 text-white hover:bg-white/10"
-                onClick={onNext}
-              >
-                <SkipForward className="h-6 w-6 sm:h-7 sm:w-7 fill-current" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  'h-10 w-10 sm:h-11 sm:w-11 p-0 hover:bg-white/10',
-                  repeatMode !== 'off' ? 'text-primary' : 'text-white/70'
+                {artistId ? (
+                  <Link
+                    to="/library/artists/$id"
+                    params={{ id: artistId }}
+                    onClick={() => onClose()}
+                    className="text-sm sm:text-base text-white/60 mt-1 truncate hover:text-white hover:underline block"
+                  >
+                    {songArtist}
+                  </Link>
+                ) : (
+                  <p className="text-sm sm:text-base text-white/60 mt-1 truncate">{songArtist}</p>
                 )}
-                onClick={onToggleRepeat}
-              >
-                {repeatMode === 'one' ? <Repeat1 className="h-5 w-5" /> : <Repeat className="h-5 w-5" />}
-              </Button>
-            </div>
-
-            {/* Secondary actions */}
-            <div className="flex items-center justify-center gap-4 sm:gap-6">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
-                onClick={onToggleLike}
-                disabled={isLikePending}
-              >
-                <Heart className={cn('h-5 w-5', isLiked && 'fill-red-500 text-red-500')} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
-                onClick={() => closeAndThen(() => {
-                  useAudioStore.getState().toggleQueuePanel();
-                })}
-              >
-                <ListMusic className="h-5 w-5" />
-              </Button>
-              <div className="[&_label]:text-white/70 [&_[data-state=checked]]:bg-primary">
-                <AIDJToggle compact />
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
-                onClick={() => {
-                  if (navigator.share) {
-                    navigator.share({
-                      title: songTitle,
-                      text: `${songTitle} by ${songArtist}`,
-                    }).catch(() => {});
-                  }
-                }}
-              >
-                <Share2 className="h-5 w-5" />
-              </Button>
+
+              {/* Scrubber */}
+              <div className="w-full space-y-2">
+                <Slider
+                  value={[isFinite(currentTime) ? currentTime : 0]}
+                  max={isFinite(duration) && duration > 0 ? duration : 100}
+                  step={0.1}
+                  onValueChange={([v]) => onSeek(v)}
+                  className="w-full [&_[data-slot=slider-track]]:bg-white/20 [&_[data-slot=slider-thumb]]:border-white [&_[data-slot=slider-thumb]]:bg-white"
+                />
+                <div className="flex justify-between">
+                  <span className="text-xs font-mono text-white/50">{formatTime(currentTime)}</span>
+                  <span className="text-xs font-mono text-white/50">-{formatTime(Math.max(0, duration - currentTime))}</span>
+                </div>
+              </div>
+
+              {/* Transport */}
+              <div className="flex items-center justify-center gap-4 sm:gap-6 w-full">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    'h-10 w-10 sm:h-11 sm:w-11 p-0 hover:bg-white/10',
+                    isShuffled ? 'text-primary' : 'text-white/70'
+                  )}
+                  onClick={onToggleShuffle}
+                >
+                  <Shuffle className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-12 w-12 sm:h-14 sm:w-14 p-0 text-white hover:bg-white/10"
+                  onClick={onPrevious}
+                >
+                  <SkipBack className="h-6 w-6 sm:h-7 sm:w-7 fill-current" />
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="h-16 w-16 sm:h-18 sm:w-18 p-0 rounded-full shadow-lg"
+                  onClick={onTogglePlayPause}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-7 w-7 sm:h-8 sm:w-8 animate-spin" />
+                  ) : isPlaying ? (
+                    <Pause className="h-7 w-7 sm:h-8 sm:w-8" />
+                  ) : (
+                    <Play className="h-7 w-7 sm:h-8 sm:w-8 ml-1" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-12 w-12 sm:h-14 sm:w-14 p-0 text-white hover:bg-white/10"
+                  onClick={onNext}
+                >
+                  <SkipForward className="h-6 w-6 sm:h-7 sm:w-7 fill-current" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    'h-10 w-10 sm:h-11 sm:w-11 p-0 hover:bg-white/10',
+                    repeatMode !== 'off' ? 'text-primary' : 'text-white/70'
+                  )}
+                  onClick={onToggleRepeat}
+                >
+                  {repeatMode === 'one' ? <Repeat1 className="h-5 w-5" /> : <Repeat className="h-5 w-5" />}
+                </Button>
+              </div>
+
+              {/* Secondary actions */}
+              <div className="flex items-center justify-center gap-4 sm:gap-6">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
+                  onClick={onToggleLike}
+                  disabled={isLikePending}
+                >
+                  <Heart className={cn('h-5 w-5', isLiked && 'fill-red-500 text-red-500')} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
+                  onClick={() => closeAndThen(() => {
+                    useAudioStore.getState().toggleQueuePanel();
+                  })}
+                >
+                  <ListMusic className="h-5 w-5" />
+                </Button>
+                <div className="[&_label]:text-white/70 [&_[data-state=checked]]:bg-primary">
+                  <AIDJToggle compact />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
+                  onClick={() => {
+                    if (navigator.share) {
+                      navigator.share({
+                        title: songTitle,
+                        text: `${songTitle} by ${songArtist}`,
+                      }).catch(() => {});
+                    }
+                  }}
+                >
+                  <Share2 className="h-5 w-5" />
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        <div className="h-8 pb-[env(safe-area-inset-bottom)]" />
+        {/* Floating collapse button when expanded */}
+        {isExpanded && (
+          <div className="absolute top-4 right-4 z-20 flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-10 w-10 p-0 text-white/60 hover:text-white bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full"
+              onClick={toggleExpanded}
+              title="Exit fullscreen"
+            >
+              <Minimize2 className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
+
+        {!isExpanded && <div className="h-8 pb-[env(safe-area-inset-bottom)]" />}
       </div>
     </div>,
     document.body
