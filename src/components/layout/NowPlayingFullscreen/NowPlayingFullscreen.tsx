@@ -396,6 +396,7 @@ export function NowPlayingFullscreen({
                 >
                   <Heart className={cn('h-5 w-5', isLiked && 'fill-red-500 text-red-500')} />
                 </Button>
+                {/* TODO: restyle dropdown to match dark fullscreen theme */}
                 <AddToPlaylistButton
                   songId={currentSong.id}
                   artistName={songArtist}
@@ -440,7 +441,7 @@ export function NowPlayingFullscreen({
 
         {/* Floating collapse button when expanded */}
         {isExpanded && (
-          <div className="absolute top-4 right-4 z-20 flex gap-2">
+          <div className="absolute top-[calc(env(safe-area-inset-top)+1rem)] right-[calc(env(safe-area-inset-right)+1rem)] z-20 flex gap-2">
             <Button
               variant="ghost"
               size="sm"
