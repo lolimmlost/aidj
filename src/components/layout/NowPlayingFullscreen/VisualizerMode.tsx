@@ -387,7 +387,7 @@ export function VisualizerMode({ analyserNode }: VisualizerModeProps) {
       {/* Controls overlay */}
       <div className="relative z-10 flex flex-col h-full">
         {/* Top bar — visualizer name + settings toggle */}
-        <div className="flex items-center justify-between p-3 sm:p-4">
+        <div className="flex items-center justify-between p-3 sm:p-4 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
             <span className="text-white/80 text-xs sm:text-sm font-medium bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-sm truncate">
               {currentVisualizer.name}
