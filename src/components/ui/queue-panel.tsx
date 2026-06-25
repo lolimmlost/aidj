@@ -628,7 +628,7 @@ export function QueuePanel() {
       aria-label="Playback queue"
       aria-modal="false"
     >
-      <Card className="shadow-2xl border-2 border-primary/10 bg-gradient-to-br from-background via-background to-primary/5 backdrop-blur-xl overflow-hidden max-h-[calc(100vh-5rem-env(safe-area-inset-top))] sm:max-h-[60vh] md:max-h-[calc(100vh-8rem)] landscape:max-md:max-h-[calc(100vh-5rem-env(safe-area-inset-top))] flex flex-col rounded-b-none sm:rounded-b-xl">
+      <Card className="shadow-2xl border-2 border-primary/10 bg-gradient-to-br from-background via-background to-primary/5 backdrop-blur-xl overflow-hidden max-h-[calc(100vh-7rem-env(safe-area-inset-top))] sm:max-h-[60vh] md:max-h-[calc(100vh-8rem)] landscape:max-md:max-h-[calc(100vh-5rem-env(safe-area-inset-top))] flex flex-col rounded-b-none sm:rounded-b-xl">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-purple-500 to-pink-500" />
         <CardHeader className="pb-2 md:pb-3 px-3 md:px-6 pt-3 md:pt-6 bg-gradient-to-br from-primary/5 to-transparent">
           <div className="flex items-center justify-between">
