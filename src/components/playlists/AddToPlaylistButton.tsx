@@ -23,6 +23,7 @@ interface AddToPlaylistButtonProps {
   showLabel?: boolean;
   hideCreateNew?: boolean;
   className?: string;
+  contentClassName?: string;
 }
 
 interface Playlist {
@@ -43,6 +44,7 @@ export function AddToPlaylistButton({
   showLabel = false,
   hideCreateNew = false,
   className,
+  contentClassName,
 }: AddToPlaylistButtonProps) {
   const [open, setOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -128,7 +130,7 @@ export function AddToPlaylistButton({
             {showLabel && 'Add to Playlist'}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className={cn("w-56", contentClassName)}>
           <DropdownMenuLabel>Add to Playlist</DropdownMenuLabel>
           <DropdownMenuSeparator />
 

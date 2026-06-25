@@ -403,6 +403,7 @@ export function NowPlayingFullscreen({
                   variant="ghost"
                   size="icon"
                   className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10 [&_svg]:h-5 [&_svg]:w-5"
+                  contentClassName="z-[70]"
                 />
                 <Button
                   variant="ghost"
