@@ -123,7 +123,7 @@ const detectChorusLines = (lyrics: LyricLine[]): Set<number> => {
   return chorusIndices;
 };
 
-export function LyricsMode() {
+export function LyricsMode({ expanded }: { expanded?: boolean }) {
   const { playlist, currentSongIndex, currentTime, isPlaying } = useAudioStore();
   const song = playlist[currentSongIndex] || null;
 
@@ -330,7 +330,7 @@ export function LyricsMode() {
   return (
     <div className="w-full h-full flex flex-col min-h-0 lg:flex-1">
       {/* In-mode toolbar — source indicator + edit/search actions */}
-      <div className="flex items-center justify-between gap-2 px-1 pb-3 flex-shrink-0">
+      <div className={cn("flex items-center justify-between gap-2 px-1 pb-3 flex-shrink-0", expanded && "pr-14")}>
         <div className="min-w-0 flex-1">
           {lyricsData && lyricsData.source !== 'none' && !isEditing && !isSearching && (
             <span className="inline-block text-xs text-white/60 px-2 py-1 bg-white/10 rounded whitespace-nowrap">
