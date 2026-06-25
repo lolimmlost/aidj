@@ -268,7 +268,7 @@ export function NowPlayingFullscreen({
             <ArtMode song={currentSong} onPrevious={onPrevious} onNext={onNext} expanded={isExpanded} />
           )}
           {mode === 'lyrics' && (
-            <div className={cn("w-full flex min-h-0", isExpanded ? "flex-1" : "lg:flex-1 flex-1")}>
+            <div className={cn("w-full flex min-h-0", isExpanded ? "flex-1 pt-[env(safe-area-inset-top)]" : "lg:flex-1 flex-1")}>
               <LyricsMode />
             </div>
           )}
