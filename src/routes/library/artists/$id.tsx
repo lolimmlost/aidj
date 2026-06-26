@@ -4,9 +4,9 @@ import { useState, useRef } from 'react';
 import { getAlbums, getArtistDetail, getSongsByArtist } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
 import {
-  Loader2, Music, Disc, ListMusic, Play, Plus, ListPlus, SkipForward,
-  Shuffle, Heart, Share2, MoreHorizontal, ChevronLeft, ChevronRight,
-  Clock, Disc3,
+  Loader2, Music, Disc, ListMusic, Play, Plus, ListPlus, Radio,
+  Shuffle, Share2, ChevronLeft, ChevronRight,
+  Clock,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,9 @@ import { toast } from '@/lib/toast';
 import { useArtistMetadata } from '@/lib/hooks/useArtistMetadata';
 import { ArtistMetadataHero } from '@/components/library/ArtistMetadataHero';
 import { StartRadioButton } from '@/components/radio/StartRadioButton';
-import { HeartButton } from '@/components/library/HeartButton';
+import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
+import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
+import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { cn } from '@/lib/utils';
 import { getArtistGradient } from '@/lib/utils/artist-avatar';
 
@@ -77,7 +79,7 @@ function ArtistDetail() {
   const location = useLocation();
   const isChildRoute = location.pathname.includes('/albums/');
 
-  const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress } = useAudioStore();
+  const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress, startRadio } = useAudioStore();
 
   const { data: artist, isLoading: loadingArtist, error: artistError } = useQuery({
     queryKey: ['artist', id],
@@ -116,6 +118,10 @@ function ArtistDetail() {
     },
     staleTime: 10 * 60 * 1000,
   });
+
+  const songIds = songs.map(s => s.id);
+  const { data: feedbackData } = useSongFeedback(songIds);
+  const feedback = feedbackData?.feedback || {};
 
   const error = artistError || albumsError || songsError;
   const isLoading = loadingArtist || loadingAlbums || loadingSongs;
@@ -185,75 +191,94 @@ function ArtistDetail() {
   const formatDuration = (d: number) =>
     `${Math.floor(d / 60)}:${Math.floor(d % 60).toString().padStart(2, '0')}`;
 
-  const renderSongRow = (song: typeof songs[0], index?: number) => (
-    <div
-      key={song.id}
-      className="group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-200 hover:bg-card/60 cursor-pointer"
-      onMouseEnter={() => setHoveredTrack(song.id)}
-      onMouseLeave={() => setHoveredTrack(null)}
-      onClick={() => handleSongClick(song.id)}
-    >
-      {index !== undefined && (
-        <span className="w-6 text-center text-sm tabular-nums text-muted-foreground">
-          {hoveredTrack === song.id ? (
-            <Play className="h-4 w-4 text-primary mx-auto fill-current" />
-          ) : (
-            index + 1
-          )}
-        </span>
-      )}
-      <div className="hidden sm:block flex-shrink-0 w-10 h-10 rounded-md overflow-hidden bg-muted">
-        <AlbumCoverArt albumId={song.albumId} artwork={undefined} name={song.album || 'Unknown'} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">{song.name || song.title || 'Unknown'}</p>
-        <p className="text-xs text-muted-foreground truncate">{song.album}</p>
-      </div>
-      <span className="text-xs text-muted-foreground tabular-nums flex items-center gap-1">
-        <Clock className="h-3 w-3" /> {formatDuration(song.duration)}
-      </span>
-      {/* Heart — always visible (vs hover-only) so save is one tap on mobile */}
-      <HeartButton
-        songId={song.id}
-        artist={artist?.name}
-        title={song.name || song.title}
-      />
-      {/* Play Next - desktop hover only */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 p-0 shrink-0 opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hidden sm:inline-flex"
-        onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'next'); }}
-        title="Play Next"
+  const renderSongRow = (song: typeof songs[0], index?: number) => {
+    const songName = song.name || song.title || 'Unknown';
+    const isHovered = hoveredTrack === song.id;
+
+    return (
+      <div
+        key={song.id}
+        className="group grid grid-cols-[2rem_2.5rem_1fr_auto] sm:grid-cols-[2rem_2.5rem_1fr_auto] items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-muted/30"
+        onMouseEnter={() => setHoveredTrack(song.id)}
+        onMouseLeave={() => setHoveredTrack(null)}
       >
-        <SkipForward className="h-4 w-4" />
-      </Button>
-      {/* Actions menu - always visible on mobile, hover on desktop */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 w-9 p-0 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-            onClick={(e) => e.stopPropagation()}
+        {/* Index / play button */}
+        <div className="text-right text-sm text-muted-foreground w-6 flex-shrink-0">
+          <button
+            onClick={() => handleSongClick(song.id)}
+            className="w-6 h-6 flex items-center justify-center"
+            aria-label={`Play ${songName}`}
           >
-            <MoreHorizontal className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'now'); }} className="min-h-[44px]">
-            <Play className="mr-2 h-4 w-4" /> Play Now
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'next'); }} className="min-h-[44px]">
-            <ListPlus className="mr-2 h-4 w-4" /> Play Next
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'end'); }} className="min-h-[44px]">
-            <Plus className="mr-2 h-4 w-4" /> Add to End
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
+            {isHovered ? (
+              <Play className="h-3.5 w-3.5 fill-current text-foreground" />
+            ) : (
+              <span className="tabular-nums">{index !== undefined ? index + 1 : ''}</span>
+            )}
+          </button>
+        </div>
+
+        {/* Album art thumbnail */}
+        <div className="hidden sm:block flex-shrink-0 w-10 h-10 rounded-md overflow-hidden bg-muted">
+          <AlbumCoverArt albumId={song.albumId} artwork={undefined} name={song.album || 'Unknown'} />
+        </div>
+
+        {/* Song info */}
+        <div className="min-w-0 cursor-pointer" onClick={() => handleSongClick(song.id)}>
+          <p className="text-sm font-medium truncate">{songName}</p>
+          <p className="text-xs text-muted-foreground truncate">{song.album}</p>
+        </div>
+
+        {/* Actions + duration */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <SongFeedbackButtons
+              songId={song.id}
+              artistName={song.artist || 'Unknown Artist'}
+              songTitle={songName}
+              currentFeedback={(feedback[song.id] as 'thumbs_up' | 'thumbs_down' | undefined) || null}
+              source="library"
+              size="sm"
+            />
+            <AddToPlaylistButton
+              songId={song.id}
+              artistName={song.artist || 'Unknown Artist'}
+              songTitle={songName}
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <ListPlus className="h-4 w-4" />
+                  <span className="sr-only">Add to queue</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'now'); }} className="min-h-[44px]">
+                  <Play className="mr-2 h-4 w-4" /> Play Now
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'next'); }} className="min-h-[44px]">
+                  <Plus className="mr-2 h-4 w-4" /> Play Next
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'end'); }} className="min-h-[44px]">
+                  <Plus className="mr-2 h-4 w-4" /> Add to End
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); void startRadio({ kind: 'song', songId: song.id }); }} className="min-h-[44px]">
+                  <Radio className="mr-2 h-4 w-4" /> Start Radio
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <span className="tabular-nums text-xs text-muted-foreground w-10 text-right ml-1">
+            {formatDuration(song.duration)}
+          </span>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="relative">
@@ -429,15 +454,14 @@ function ArtistDetail() {
                       onClick={() => navigate({ to: '/library/artists/$id/albums/$albumId', params: { id, albumId: album.id } })}
                     >
                       <div className="relative mb-2.5">
-                        <div className="aspect-square rounded-xl overflow-hidden bg-muted transition-all duration-200 group-hover:shadow-lg group-hover:shadow-primary/15 group-hover:-translate-y-0.5">
+                        <div className="aspect-square rounded-xl overflow-hidden ring-1 ring-border/30 shadow-lg transition-transform duration-500 group-hover:scale-[1.03]">
                           <AlbumCoverArt albumId={album.id} artwork={album.artwork} name={album.name} />
                         </div>
-                        <Button
-                          size="icon"
-                          className="absolute bottom-2 right-2 w-9 h-9 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200"
+                        <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                        <span
+                          className="absolute bottom-2 right-2 grid size-10 translate-y-2 place-items-center rounded-full bg-primary text-primary-foreground opacity-0 shadow-lg transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100"
                           onClick={(e) => {
                             e.stopPropagation();
-                            // Play first song from this album
                             const albumSongs = songs.filter(s => s.albumId === album.id).sort((a, b) => (a.track || 0) - (b.track || 0));
                             if (albumSongs.length > 0) {
                               playSong(albumSongs[0].id, albumSongs);
@@ -446,9 +470,9 @@ function ArtistDetail() {
                           }}
                         >
                           <Play className="h-4 w-4 fill-current" />
-                        </Button>
+                        </span>
                       </div>
-                      <h3 className="text-sm font-bold text-foreground truncate">{album.name}</h3>
+                      <h3 className="text-sm font-semibold text-foreground truncate">{album.name}</h3>
                       <p className="text-xs text-muted-foreground">
                         {album.year ? `${album.year} · ` : ''}{album.songCount || '?'} tracks
                       </p>
@@ -484,14 +508,32 @@ function ArtistDetail() {
                     {sortedAlbums.map((album) => (
                       <div
                         key={album.id}
-                        className="group cursor-pointer"
+                        className="group cursor-pointer p-2 -m-2 rounded-xl transition-colors hover:bg-muted/30"
                         onClick={() => navigate({ to: '/library/artists/$id/albums/$albumId', params: { id, albumId: album.id } })}
                       >
-                        <div className="aspect-square rounded-xl overflow-hidden bg-muted mb-2 transition-all duration-200 group-hover:shadow-lg group-hover:-translate-y-0.5">
-                          <AlbumCoverArt albumId={album.id} artwork={album.artwork} name={album.name} />
+                        <div className="relative mb-2.5">
+                          <div className="aspect-square rounded-xl overflow-hidden ring-1 ring-border/30 shadow-lg transition-transform duration-500 group-hover:scale-[1.03]">
+                            <AlbumCoverArt albumId={album.id} artwork={album.artwork} name={album.name} />
+                          </div>
+                          <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                          <span
+                            className="absolute bottom-2 right-2 grid size-10 translate-y-2 place-items-center rounded-full bg-primary text-primary-foreground opacity-0 shadow-lg transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const albumSongs = songs.filter(s => s.albumId === album.id).sort((a, b) => (a.track || 0) - (b.track || 0));
+                              if (albumSongs.length > 0) {
+                                playSong(albumSongs[0].id, albumSongs);
+                                setIsPlaying(true);
+                              }
+                            }}
+                          >
+                            <Play className="h-4 w-4 fill-current" />
+                          </span>
                         </div>
                         <h3 className="text-sm font-semibold truncate">{album.name}</h3>
-                        {album.year ? <p className="text-xs text-muted-foreground">{album.year}</p> : null}
+                        <p className="text-xs text-muted-foreground">
+                          {album.year ? `${album.year} · ` : ''}{album.songCount || '?'} tracks
+                        </p>
                       </div>
                     ))}
                   </div>

@@ -514,7 +514,7 @@ function SongRow({
           onClick={() => onPlay(song.id)}
           aria-label={`Play ${songTitle}`}
         >
-          ▶
+          <Play className="h-4 w-4 fill-current" />
         </button>
       </div>
     </div>
