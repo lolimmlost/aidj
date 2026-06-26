@@ -241,11 +241,14 @@ function AlbumDetail() {
               </div>
               {album?.genres && album.genres.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2 justify-center sm:justify-start">
-                  {album.genres.slice(0, 4).map((genre) => (
-                    <span key={genre} className="text-xs bg-muted/50 px-2 py-0.5 rounded-full text-muted-foreground">
-                      {genre}
-                    </span>
-                  ))}
+                  {album.genres.slice(0, 4).map((genre) => {
+                    const label = typeof genre === 'string' ? genre : (genre as { name: string }).name;
+                    return (
+                      <span key={label} className="text-xs bg-muted/50 px-2 py-0.5 rounded-full text-muted-foreground">
+                        {label}
+                      </span>
+                    );
+                  })}
                 </div>
               )}
 
