@@ -7,12 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NavidromeErrorBoundary } from '@/components/navidrome-error-boundary';
-import { Search as SearchIcon, Plus, Download, CheckCircle2, AlertCircle, X, Clock } from 'lucide-react';
+import { Search as SearchIcon, Plus, Download, CheckCircle2, AlertCircle, X, Clock, Play, Disc3 } from 'lucide-react';
 import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
 import { AddToQueueButton } from '@/components/playlists/AddToQueueButton';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { ArtistCard } from '@/components/library/ArtistsList';
-import { AlbumArt } from '@/components/ui/album-art';
+import { AlbumArt, getCoverArtUrl } from '@/components/ui/album-art';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { useArtistMetadata, useAddArtistToLibrary } from '@/lib/hooks/useArtistMetadata';
 import { toast } from '@/lib/toast';
@@ -37,6 +37,7 @@ const TABS = [
   { id: 'all', label: 'All' },
   { id: 'songs', label: 'Songs' },
   { id: 'artists', label: 'Artists' },
+  { id: 'albums', label: 'Albums' },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 
@@ -141,6 +142,22 @@ function SearchPage() {
     return Array.from(byName.values()).slice(0, 20);
   }, [allArtists, query]);
 
+  const matchedAlbums = useMemo(() => {
+    if (songs.length === 0) return [];
+    const albumMap = new Map<string, { id: string; name: string; artist: string; artistId?: string }>();
+    for (const song of songs) {
+      if (song.albumId && song.album && !albumMap.has(song.albumId)) {
+        albumMap.set(song.albumId, {
+          id: song.albumId,
+          name: song.album,
+          artist: song.artist || 'Unknown Artist',
+          artistId: (song as { artistId?: string }).artistId,
+        });
+      }
+    }
+    return Array.from(albumMap.values());
+  }, [songs]);
+
   const isLoading = isLoadingSongs || (isLoadingAllArtists && allArtists.length === 0);
   const hasQuery = query.trim().length > 0;
 
@@ -161,6 +178,7 @@ function SearchPage() {
 
   const showArtists = tab === 'all' || tab === 'artists';
   const showSongs = tab === 'all' || tab === 'songs';
+  const showAlbums = tab === 'all' || tab === 'albums';
 
   return (
     <NavidromeErrorBoundary>
@@ -231,6 +249,9 @@ function SearchPage() {
                     {t.id === 'artists' && hasQuery && !isLoading && (
                       <span className="ml-1.5 text-xs opacity-70">{matchedArtists.length}</span>
                     )}
+                    {t.id === 'albums' && hasQuery && !isLoading && (
+                      <span className="ml-1.5 text-xs opacity-70">{matchedAlbums.length}</span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -239,7 +260,7 @@ function SearchPage() {
             {/* Result summary */}
             {hasQuery && !isLoading && (
               <p className="mt-2 text-xs text-muted-foreground">
-                {matchedArtists.length} artist{matchedArtists.length !== 1 ? 's' : ''} · {songs.length} song{songs.length !== 1 ? 's' : ''}
+                {matchedArtists.length} artist{matchedArtists.length !== 1 ? 's' : ''} · {matchedAlbums.length} album{matchedAlbums.length !== 1 ? 's' : ''} · {songs.length} song{songs.length !== 1 ? 's' : ''}
               </p>
             )}
           </div>
@@ -269,7 +290,7 @@ function SearchPage() {
                   </div>
                 ))}
               </div>
-            ) : songs.length === 0 && matchedArtists.length === 0 ? (
+            ) : songs.length === 0 && matchedArtists.length === 0 && matchedAlbums.length === 0 ? (
               <ArtistAddFallback query={query.trim()} />
             ) : (
               <div aria-live="polite" className="space-y-8">
@@ -296,6 +317,41 @@ function SearchPage() {
                         />
                       ))}
                     </div>
+                  </section>
+                )}
+
+                {/* Albums section */}
+                {showAlbums && matchedAlbums.length > 0 && (
+                  <section className="space-y-3">
+                    <div className="flex items-baseline justify-between px-1">
+                      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                        Albums
+                      </h2>
+                      {tab === 'all' && matchedAlbums.length > 6 && (
+                        <button
+                          onClick={() => setTab('albums')}
+                          className="text-xs font-semibold text-primary hover:underline"
+                        >
+                          See all
+                        </button>
+                      )}
+                      {tab === 'albums' && (
+                        <span className="text-xs text-muted-foreground">{matchedAlbums.length}</span>
+                      )}
+                    </div>
+                    {tab === 'all' ? (
+                      <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {matchedAlbums.slice(0, 8).map((album, i) => (
+                          <AlbumResultCard key={album.id} album={album} index={i} variant="scroll" />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                        {matchedAlbums.map((album, i) => (
+                          <AlbumResultCard key={album.id} album={album} index={i} />
+                        ))}
+                      </div>
+                    )}
                   </section>
                 )}
 
@@ -462,6 +518,58 @@ function SongRow({
         </button>
       </div>
     </div>
+  );
+}
+
+// --- Album result card ---
+
+function AlbumResultCard({
+  album,
+  index = 0,
+  variant = 'grid',
+}: {
+  album: { id: string; name: string; artist: string; artistId?: string };
+  index?: number;
+  variant?: 'grid' | 'scroll';
+}) {
+  const coverUrl = getCoverArtUrl(album.id, 300) ?? '';
+
+  return (
+    <Link
+      to={album.artistId ? '/library/artists/$id' : '/library/search'}
+      params={album.artistId ? { id: album.artistId } : undefined}
+      className={cn(
+        'group flex flex-col gap-3 text-left rounded-xl p-2 -m-2 transition-colors hover:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
+        variant === 'scroll' && 'w-40 shrink-0 sm:w-44',
+      )}
+    >
+      <div className="relative aspect-square overflow-hidden rounded-md ring-1 ring-border/30 shadow-lg">
+        <img
+          src={coverUrl}
+          alt={`Album cover for ${album.name}`}
+          loading="lazy"
+          className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = 'none';
+            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+          }}
+        />
+        <div className="hidden size-full bg-gradient-to-br from-muted to-muted/50 flex-col items-center justify-center gap-1.5">
+          <Disc3 className="h-8 w-8 text-muted-foreground/60" />
+        </div>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+        <span
+          className="absolute bottom-2 right-2 grid size-10 translate-y-2 place-items-center rounded-full bg-primary text-primary-foreground opacity-0 shadow-lg transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100"
+          aria-hidden
+        >
+          <Play className="size-4 fill-current" />
+        </span>
+      </div>
+      <div className="min-w-0 px-0.5">
+        <p className="truncate text-sm font-semibold">{album.name}</p>
+        <p className="truncate text-xs text-muted-foreground">{album.artist}</p>
+      </div>
+    </Link>
   );
 }
 
