@@ -367,6 +367,8 @@ function AlbumDetail() {
                         songId={song.id}
                         artistName={song.artist || 'Unknown Artist'}
                         songTitle={songName}
+                        size="icon"
+                        className="h-8 w-8"
                       />
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

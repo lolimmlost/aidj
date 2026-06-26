@@ -123,7 +123,7 @@ export function AddToPlaylistButton({
           <Button
             variant={variant}
             size={size}
-            className={cn('min-h-[44px]', className)}
+            className={cn(size !== 'icon' && 'min-h-[44px]', className)}
             aria-label="Add to playlist"
           >
             <Plus className={showLabel ? 'mr-2 h-4 w-4' : 'h-4 w-4'} />
