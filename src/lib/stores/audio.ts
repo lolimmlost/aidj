@@ -1040,12 +1040,12 @@ export const useAudioStore = create<AudioState>()(
         if (!response.ok) {
           // Handle 409 Conflict (duplicate feedback) gracefully
           if (response.status === 409) {
-            await response.json(); // Consume the response body
+            await response.json().catch(() => {}); // Consume the response body
             console.log('✓ Feedback already exists, continuing with recommendations');
             // Don't throw an error for 409, just log and continue
           } else {
-            const error = await response.json();
-            throw new Error(error.message || 'Failed to fetch AI DJ recommendations');
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.message || `Failed to fetch AI DJ recommendations (${response.status})`);
           }
         }
 
@@ -1290,8 +1290,8 @@ export const useAudioStore = create<AudioState>()(
         });
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Failed to get similar songs');
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.message || `Failed to get similar songs (${response.status})`);
         }
 
         const { recommendations } = await response.json();
@@ -1662,8 +1662,8 @@ export const useAudioStore = create<AudioState>()(
         });
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Failed to fetch autoplay recommendations');
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.message || `Failed to fetch autoplay recommendations (${response.status})`);
         }
 
         const { recommendations } = await response.json();

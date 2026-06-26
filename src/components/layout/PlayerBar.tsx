@@ -413,8 +413,8 @@ export function PlayerBar() {
       });
 
       if (!response.ok && response.status !== 409) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update feedback');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to update feedback (${response.status})`);
       }
 
       return liked;
