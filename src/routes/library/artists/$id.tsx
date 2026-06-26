@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams, useNavigate, redirect, Outlet, useLocation } from '@tanstack/react-router';
+import { createFileRoute, Link, useParams, useNavigate, useRouter, redirect, Outlet, useLocation } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useRef } from 'react';
 import { getAlbums, getArtistDetail, getSongsByArtist } from '@/lib/services/navidrome';
@@ -69,6 +69,7 @@ export const Route = createFileRoute('/library/artists/$id')({
 function ArtistDetail() {
   const { id } = useParams({ from: '/library/artists/$id' }) as { id: string };
   const navigate = useNavigate();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'all' | 'albums' | 'songs'>('all');
   const [hoveredTrack, setHoveredTrack] = useState<string | null>(null);
   const discographyRef = useRef<HTMLDivElement>(null);
@@ -275,13 +276,19 @@ function ArtistDetail() {
 
         {/* Content */}
         <div className="relative z-10 h-full flex flex-col justify-end px-4 sm:px-6 lg:px-10 pb-6 sm:pb-8">
-          <Link
-            to="/library/artists"
+          <button
+            onClick={() => {
+              if (router.history.length > 1) {
+                router.history.back();
+              } else {
+                navigate({ to: '/library/artists' });
+              }
+            }}
             className="hidden md:inline-flex group items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 w-fit"
           >
             <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
-            Artists
-          </Link>
+            Back
+          </button>
 
           {isLoading ? (
             <div className="space-y-3">
