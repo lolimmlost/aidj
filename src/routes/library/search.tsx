@@ -81,6 +81,11 @@ function SearchPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
+  // Auto-focus search input on mount
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
   // Reset tab when query clears
   useEffect(() => {
     if (!query.trim()) setTab('all');
@@ -454,7 +459,7 @@ function SongRow({
   feedbackData,
   onPlay,
 }: {
-  song: { id: string; name?: string; title?: string; artist?: string; album?: string; albumId?: string; artistId?: string; duration: number };
+  song: { id: string; name?: string; title?: string; artist?: string; album?: string; albumId?: string; artistId?: string; duration: number; };
   feedbackData: { feedback: Record<string, string | null> } | undefined;
   onPlay: (id: string) => void;
 }) {
@@ -469,17 +474,18 @@ function SongRow({
         artist={artistName}
         size="sm"
       />
-      <div
-        className="flex-1 min-w-0 cursor-pointer"
-        onClick={() => onPlay(song.id)}
-      >
-        <div className="font-semibold text-sm truncate">{songTitle}</div>
+      <div className="flex-1 min-w-0">
+        <div
+          className="font-semibold text-sm truncate cursor-pointer hover:underline"
+          onClick={() => onPlay(song.id)}
+        >
+          {songTitle}
+        </div>
         <div className="text-xs text-muted-foreground truncate">
-          {(song as { artistId?: string }).artistId ? (
+          {song.artistId ? (
             <Link
               to="/library/artists/$id"
-              params={{ id: (song as { artistId: string }).artistId }}
-              onClick={(e) => e.stopPropagation()}
+              params={{ id: song.artistId }}
               className="hover:text-foreground hover:underline"
             >
               {artistName}
@@ -487,7 +493,20 @@ function SongRow({
           ) : (
             artistName
           )}
-          {song.album && ` · ${song.album}`}
+          {song.album && song.albumId && song.artistId ? (
+            <>
+              {' · '}
+              <Link
+                to="/library/artists/$id/albums/$albumId"
+                params={{ id: song.artistId, albumId: song.albumId }}
+                className="hover:text-foreground hover:underline"
+              >
+                {song.album}
+              </Link>
+            </>
+          ) : song.album ? (
+            ` · ${song.album}`
+          ) : null}
           {' · '}{Math.floor(song.duration / 60)}:{Math.floor(song.duration % 60).toString().padStart(2, '0')}
         </div>
       </div>
@@ -503,6 +522,8 @@ function SongRow({
           songId={song.id}
           artistName={artistName}
           songTitle={songTitle}
+          size="icon"
+          className="h-8 w-8"
         />
         <AddToQueueButton
           songId={song.id}
