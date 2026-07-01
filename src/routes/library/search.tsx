@@ -7,9 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NavidromeErrorBoundary } from '@/components/navidrome-error-boundary';
-import { Search as SearchIcon, Plus, Download, CheckCircle2, AlertCircle, X, Clock, Play, Disc3 } from 'lucide-react';
+import { Search as SearchIcon, Plus, Download, CheckCircle2, AlertCircle, X, Clock, Play, Disc3, MoreHorizontal, ListPlus, Radio } from 'lucide-react';
 import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
 import { AddToQueueButton } from '@/components/playlists/AddToQueueButton';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { ArtistCard } from '@/components/library/ArtistsList';
 import { AlbumArt, getCoverArtUrl } from '@/components/ui/album-art';
@@ -465,6 +471,25 @@ function SongRow({
 }) {
   const songTitle = song.name || song.title || 'Unknown Song';
   const artistName = song.artist || 'Unknown Artist';
+  const { addToQueueNext, addToQueueEnd, setAIUserActionInProgress, setIsPlaying, startRadio } = useAudioStore();
+
+  const queueSong = {
+    id: song.id, name: songTitle, title: songTitle,
+    artist: artistName, album: song.album || '', albumId: song.albumId || '',
+    url: `/api/navidrome/stream/${song.id}`, duration: song.duration, track: 0,
+  };
+
+  const handleAddToQueue = (position: 'next' | 'end') => {
+    setAIUserActionInProgress(true);
+    if (position === 'next') {
+      addToQueueNext([queueSong]);
+      toast.success(`Added "${songTitle}" to play next`);
+    } else {
+      addToQueueEnd([queueSong]);
+      toast.success(`Added "${songTitle}" to end of queue`);
+    }
+    setTimeout(() => setAIUserActionInProgress(false), 2000);
+  };
 
   return (
     <div className="group flex items-center gap-3 rounded-xl p-2.5 sm:p-3 transition-all hover:bg-muted/40">
@@ -510,7 +535,36 @@ function SongRow({
           {' · '}{Math.floor(song.duration / 60)}:{Math.floor(song.duration % 60).toString().padStart(2, '0')}
         </div>
       </div>
-      <div className="hidden sm:flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 sm:opacity-100 transition-opacity">
+
+      {/* Mobile: compact ... menu */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="sm:hidden h-9 w-9 flex-shrink-0 text-muted-foreground"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onClick={() => { onPlay(song.id); setIsPlaying(true); }} className="min-h-[44px]">
+            <Play className="mr-2 h-4 w-4" /> Play Now
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => handleAddToQueue('next')} className="min-h-[44px]">
+            <ListPlus className="mr-2 h-4 w-4" /> Play Next
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => handleAddToQueue('end')} className="min-h-[44px]">
+            <Plus className="mr-2 h-4 w-4" /> Add to End
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => void startRadio({ kind: 'song', songId: song.id })} className="min-h-[44px]">
+            <Radio className="mr-2 h-4 w-4" /> Start Radio
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Desktop: inline action buttons */}
+      <div className="hidden sm:flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
         <SongFeedbackButtons
           songId={song.id}
           artistName={artistName}
