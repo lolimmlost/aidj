@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query';
 import { toast } from '@/lib/toast';
 import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
+import { useScrollSafeMenu } from '@/lib/hooks/useScrollSafeMenu';
 import {
   ListMusic, Play, Trash2, X, Plus, Shuffle,
   Heart, Sparkles, MoreHorizontal, Music2, Pause, GripVertical,
@@ -264,9 +265,7 @@ function SongRowContent({
     ? song.songArtistTitle.split(' - ')
     : ['Unknown Artist', song.songArtistTitle];
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const touchStartYRef = useRef(0);
-  const wasScrollingRef = useRef(false);
+  const { open: menuOpen, onOpenChange: onMenuOpenChange, triggerProps: menuTriggerProps } = useScrollSafeMenu();
 
   return (
     <>
@@ -367,28 +366,14 @@ function SongRowContent({
       </Button>
 
       {/* Actions menu — controlled + scroll-guarded on mobile */}
-      <DropdownMenu open={menuOpen} onOpenChange={(open) => {
-        if (open && wasScrollingRef.current) {
-          wasScrollingRef.current = false;
-          return;
-        }
-        setMenuOpen(open);
-      }}>
+      <DropdownMenu open={menuOpen} onOpenChange={onMenuOpenChange}>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
             className="h-9 w-9 p-0 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
             onClick={(e) => e.stopPropagation()}
-            onTouchStart={(e) => {
-              touchStartYRef.current = e.touches[0].clientY;
-              wasScrollingRef.current = false;
-            }}
-            onTouchMove={(e) => {
-              if (Math.abs(e.touches[0].clientY - touchStartYRef.current) > 8) {
-                wasScrollingRef.current = true;
-              }
-            }}
+            {...menuTriggerProps}
           >
             <MoreHorizontal className="h-4 w-4" />
           </Button>

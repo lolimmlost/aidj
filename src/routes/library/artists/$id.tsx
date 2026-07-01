@@ -1,7 +1,10 @@
 import { createFileRoute, Link, useParams, useNavigate, useRouter, redirect, Outlet, useLocation } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useRef } from 'react';
+import { useScrollSafeMenu } from '@/lib/hooks/useScrollSafeMenu';
 import { getAlbums, getArtistDetail, getSongsByArtist } from '@/lib/services/navidrome';
+import type { Song } from '@/lib/services/navidrome/types';
+import type { SeededRadioSeed } from '@/lib/services/seeded-radio';
 import { useAudioStore } from '@/lib/stores/audio';
 import {
   Loader2, Music, Disc, ListMusic, Play, Plus, ListPlus, Radio,
@@ -58,6 +61,135 @@ function AlbumCoverArt({ albumId, artwork, name }: { albumId: string; artwork?: 
         else setProxyError(true);
       }}
     />
+  );
+}
+
+function ArtistSongRow({
+  song, index, isHovered, onHover, onPlay, onAddToQueue, feedback, startRadio,
+}: {
+  song: Song;
+  index?: number;
+  isHovered: boolean;
+  onHover: (id: string | null) => void;
+  onPlay: (id: string) => void;
+  onAddToQueue: (song: Song, position: 'now' | 'next' | 'end') => void;
+  feedback: Record<string, string | null>;
+  startRadio: (seed: SeededRadioSeed) => Promise<void>;
+}) {
+  const songName = song.name || song.title || 'Unknown';
+  const { open: mobileMenuOpen, onOpenChange: onMobileMenuChange, triggerProps: mobileTriggerProps } = useScrollSafeMenu();
+
+  const formatDuration = (d: number) =>
+    `${Math.floor(d / 60)}:${Math.floor(d % 60).toString().padStart(2, '0')}`;
+
+  return (
+    <div
+      className="group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-muted/30"
+      onMouseEnter={() => onHover(song.id)}
+      onMouseLeave={() => onHover(null)}
+    >
+      <div className="text-sm text-muted-foreground w-6 flex-shrink-0 text-center">
+        <button
+          onClick={() => onPlay(song.id)}
+          className="w-6 h-6 flex items-center justify-center mx-auto"
+          aria-label={`Play ${songName}`}
+        >
+          {isHovered ? (
+            <Play className="h-3.5 w-3.5 fill-current text-foreground" />
+          ) : (
+            <span className="tabular-nums">{index !== undefined ? index + 1 : ''}</span>
+          )}
+        </button>
+      </div>
+
+      <div className="hidden sm:block flex-shrink-0 w-10 h-10 rounded-md overflow-hidden bg-muted">
+        <AlbumCoverArt albumId={song.albumId} artwork={undefined} name={song.album || 'Unknown'} />
+      </div>
+
+      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onPlay(song.id)}>
+        <p className="text-sm font-medium truncate">{songName}</p>
+        <p className="text-xs text-muted-foreground truncate">{song.album}</p>
+      </div>
+
+      <span className="tabular-nums text-xs text-muted-foreground flex-shrink-0">
+        {formatDuration(song.duration)}
+      </span>
+
+      {/* Mobile: scroll-safe ... menu */}
+      <DropdownMenu open={mobileMenuOpen} onOpenChange={onMobileMenuChange}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="sm:hidden h-9 w-9 flex-shrink-0 text-muted-foreground"
+            onClick={(e) => e.stopPropagation()}
+            {...mobileTriggerProps}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onClick={() => onAddToQueue(song, 'now')} className="min-h-[44px]">
+            <Play className="mr-2 h-4 w-4" /> Play Now
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onAddToQueue(song, 'next')} className="min-h-[44px]">
+            <ListPlus className="mr-2 h-4 w-4" /> Play Next
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onAddToQueue(song, 'end')} className="min-h-[44px]">
+            <Plus className="mr-2 h-4 w-4" /> Add to End
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => void startRadio({ kind: 'song', songId: song.id })} className="min-h-[44px]">
+            <Radio className="mr-2 h-4 w-4" /> Start Radio
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Desktop: inline action buttons on hover */}
+      <div className="hidden sm:flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <SongFeedbackButtons
+          songId={song.id}
+          artistName={song.artist || 'Unknown Artist'}
+          songTitle={songName}
+          currentFeedback={(feedback[song.id] as 'thumbs_up' | 'thumbs_down' | undefined) || null}
+          source="library"
+          size="sm"
+        />
+        <AddToPlaylistButton
+          songId={song.id}
+          artistName={song.artist || 'Unknown Artist'}
+          songTitle={songName}
+          size="icon"
+          className="h-8 w-8"
+        />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ListPlus className="h-4 w-4" />
+              <span className="sr-only">Add to queue</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddToQueue(song, 'now'); }} className="min-h-[44px]">
+              <Play className="mr-2 h-4 w-4" /> Play Now
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddToQueue(song, 'next'); }} className="min-h-[44px]">
+              <Plus className="mr-2 h-4 w-4" /> Play Next
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddToQueue(song, 'end'); }} className="min-h-[44px]">
+              <Plus className="mr-2 h-4 w-4" /> Add to End
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); void startRadio({ kind: 'song', songId: song.id }); }} className="min-h-[44px]">
+              <Radio className="mr-2 h-4 w-4" /> Start Radio
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
   );
 }
 
@@ -190,125 +322,6 @@ function ArtistDetail() {
 
   const formatDuration = (d: number) =>
     `${Math.floor(d / 60)}:${Math.floor(d % 60).toString().padStart(2, '0')}`;
-
-  const renderSongRow = (song: typeof songs[0], index?: number) => {
-    const songName = song.name || song.title || 'Unknown';
-    const isHovered = hoveredTrack === song.id;
-
-    return (
-      <div
-        key={song.id}
-        className="group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-muted/30"
-        onMouseEnter={() => setHoveredTrack(song.id)}
-        onMouseLeave={() => setHoveredTrack(null)}
-      >
-        {/* Index / play button */}
-        <div className="text-sm text-muted-foreground w-6 flex-shrink-0 text-center">
-          <button
-            onClick={() => handleSongClick(song.id)}
-            className="w-6 h-6 flex items-center justify-center mx-auto"
-            aria-label={`Play ${songName}`}
-          >
-            {isHovered ? (
-              <Play className="h-3.5 w-3.5 fill-current text-foreground" />
-            ) : (
-              <span className="tabular-nums">{index !== undefined ? index + 1 : ''}</span>
-            )}
-          </button>
-        </div>
-
-        {/* Album art thumbnail — desktop only */}
-        <div className="hidden sm:block flex-shrink-0 w-10 h-10 rounded-md overflow-hidden bg-muted">
-          <AlbumCoverArt albumId={song.albumId} artwork={undefined} name={song.album || 'Unknown'} />
-        </div>
-
-        {/* Song info */}
-        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleSongClick(song.id)}>
-          <p className="text-sm font-medium truncate">{songName}</p>
-          <p className="text-xs text-muted-foreground truncate">{song.album}</p>
-        </div>
-
-        {/* Duration — always visible */}
-        <span className="tabular-nums text-xs text-muted-foreground flex-shrink-0">
-          {formatDuration(song.duration)}
-        </span>
-
-        {/* Mobile: compact ... menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="sm:hidden h-9 w-9 flex-shrink-0 text-muted-foreground"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => handleAddToQueue(song, 'now')} className="min-h-[44px]">
-              <Play className="mr-2 h-4 w-4" /> Play Now
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleAddToQueue(song, 'next')} className="min-h-[44px]">
-              <ListPlus className="mr-2 h-4 w-4" /> Play Next
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleAddToQueue(song, 'end')} className="min-h-[44px]">
-              <Plus className="mr-2 h-4 w-4" /> Add to End
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => void startRadio({ kind: 'song', songId: song.id })} className="min-h-[44px]">
-              <Radio className="mr-2 h-4 w-4" /> Start Radio
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Desktop: inline action buttons on hover */}
-        <div className="hidden sm:flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-          <SongFeedbackButtons
-            songId={song.id}
-            artistName={song.artist || 'Unknown Artist'}
-            songTitle={songName}
-            currentFeedback={(feedback[song.id] as 'thumbs_up' | 'thumbs_down' | undefined) || null}
-            source="library"
-            size="sm"
-          />
-          <AddToPlaylistButton
-            songId={song.id}
-            artistName={song.artist || 'Unknown Artist'}
-            songTitle={songName}
-            size="icon"
-            className="h-8 w-8"
-          />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <ListPlus className="h-4 w-4" />
-                <span className="sr-only">Add to queue</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'now'); }} className="min-h-[44px]">
-                <Play className="mr-2 h-4 w-4" /> Play Now
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'next'); }} className="min-h-[44px]">
-                <Plus className="mr-2 h-4 w-4" /> Play Next
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'end'); }} className="min-h-[44px]">
-                <Plus className="mr-2 h-4 w-4" /> Add to End
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); void startRadio({ kind: 'song', songId: song.id }); }} className="min-h-[44px]">
-                <Radio className="mr-2 h-4 w-4" /> Start Radio
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="relative">
@@ -454,7 +467,19 @@ function ArtistDetail() {
                   )}
                 </div>
                 <div className="space-y-0.5">
-                  {topTracks.map((track, i) => renderSongRow(track, i))}
+                  {topTracks.map((track, i) => (
+                    <ArtistSongRow
+                      key={track.id}
+                      song={track}
+                      index={i}
+                      isHovered={hoveredTrack === track.id}
+                      onHover={setHoveredTrack}
+                      onPlay={handleSongClick}
+                      onAddToQueue={handleAddToQueue}
+                      feedback={feedback}
+                      startRadio={startRadio}
+                    />
+                  ))}
                 </div>
               </section>
             )}
@@ -571,7 +596,19 @@ function ArtistDetail() {
 
                 <TabsContent value="songs">
                   <div className="space-y-0.5">
-                    {sortedSongs.map((song, i) => renderSongRow(song, i))}
+                    {sortedSongs.map((song, i) => (
+                      <ArtistSongRow
+                        key={song.id}
+                        song={song}
+                        index={i}
+                        isHovered={hoveredTrack === song.id}
+                        onHover={setHoveredTrack}
+                        onPlay={handleSongClick}
+                        onAddToQueue={handleAddToQueue}
+                        feedback={feedback}
+                        startRadio={startRadio}
+                      />
+                    ))}
                   </div>
                 </TabsContent>
               </Tabs>

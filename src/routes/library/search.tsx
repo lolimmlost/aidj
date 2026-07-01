@@ -1,5 +1,6 @@
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useScrollSafeMenu } from '@/lib/hooks/useScrollSafeMenu';
 import { useQuery } from '@tanstack/react-query';
 import { search, getArtists } from '@/lib/services/navidrome';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -472,6 +473,7 @@ function SongRow({
   const songTitle = song.name || song.title || 'Unknown Song';
   const artistName = song.artist || 'Unknown Artist';
   const { addToQueueNext, addToQueueEnd, setAIUserActionInProgress, setIsPlaying, startRadio } = useAudioStore();
+  const { open: mobileMenuOpen, onOpenChange: onMobileMenuChange, triggerProps: mobileTriggerProps } = useScrollSafeMenu();
 
   const queueSong = {
     id: song.id, name: songTitle, title: songTitle,
@@ -536,13 +538,14 @@ function SongRow({
         </div>
       </div>
 
-      {/* Mobile: compact ... menu */}
-      <DropdownMenu>
+      {/* Mobile: compact ... menu (scroll-safe to prevent accidental opens) */}
+      <DropdownMenu open={mobileMenuOpen} onOpenChange={onMobileMenuChange}>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
             className="sm:hidden h-9 w-9 flex-shrink-0 text-muted-foreground"
+            {...mobileTriggerProps}
           >
             <MoreHorizontal className="h-4 w-4" />
           </Button>
