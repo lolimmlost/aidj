@@ -6,7 +6,7 @@ import { useAudioStore } from '@/lib/stores/audio';
 import {
   Loader2, Music, Disc, ListMusic, Play, Plus, ListPlus, Radio,
   Shuffle, Share2, ChevronLeft, ChevronRight,
-  Clock,
+  Clock, MoreHorizontal,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -198,15 +198,15 @@ function ArtistDetail() {
     return (
       <div
         key={song.id}
-        className="group grid grid-cols-[2rem_2.5rem_1fr_auto] sm:grid-cols-[2rem_2.5rem_1fr_auto] items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-muted/30"
+        className="group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-muted/30"
         onMouseEnter={() => setHoveredTrack(song.id)}
         onMouseLeave={() => setHoveredTrack(null)}
       >
         {/* Index / play button */}
-        <div className="text-right text-sm text-muted-foreground w-6 flex-shrink-0">
+        <div className="text-sm text-muted-foreground w-6 flex-shrink-0 text-center">
           <button
             onClick={() => handleSongClick(song.id)}
-            className="w-6 h-6 flex items-center justify-center"
+            className="w-6 h-6 flex items-center justify-center mx-auto"
             aria-label={`Play ${songName}`}
           >
             {isHovered ? (
@@ -217,66 +217,94 @@ function ArtistDetail() {
           </button>
         </div>
 
-        {/* Album art thumbnail */}
+        {/* Album art thumbnail — desktop only */}
         <div className="hidden sm:block flex-shrink-0 w-10 h-10 rounded-md overflow-hidden bg-muted">
           <AlbumCoverArt albumId={song.albumId} artwork={undefined} name={song.album || 'Unknown'} />
         </div>
 
         {/* Song info */}
-        <div className="min-w-0 cursor-pointer" onClick={() => handleSongClick(song.id)}>
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleSongClick(song.id)}>
           <p className="text-sm font-medium truncate">{songName}</p>
           <p className="text-xs text-muted-foreground truncate">{song.album}</p>
         </div>
 
-        {/* Actions + duration */}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-            <SongFeedbackButtons
-              songId={song.id}
-              artistName={song.artist || 'Unknown Artist'}
-              songTitle={songName}
-              currentFeedback={(feedback[song.id] as 'thumbs_up' | 'thumbs_down' | undefined) || null}
-              source="library"
-              size="sm"
-            />
-            <AddToPlaylistButton
-              songId={song.id}
-              artistName={song.artist || 'Unknown Artist'}
-              songTitle={songName}
+        {/* Duration — always visible */}
+        <span className="tabular-nums text-xs text-muted-foreground flex-shrink-0">
+          {formatDuration(song.duration)}
+        </span>
+
+        {/* Mobile: compact ... menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
               size="icon"
-              className="h-8 w-8"
-            />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <ListPlus className="h-4 w-4" />
-                  <span className="sr-only">Add to queue</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'now'); }} className="min-h-[44px]">
-                  <Play className="mr-2 h-4 w-4" /> Play Now
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'next'); }} className="min-h-[44px]">
-                  <Plus className="mr-2 h-4 w-4" /> Play Next
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'end'); }} className="min-h-[44px]">
-                  <Plus className="mr-2 h-4 w-4" /> Add to End
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); void startRadio({ kind: 'song', songId: song.id }); }} className="min-h-[44px]">
-                  <Radio className="mr-2 h-4 w-4" /> Start Radio
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <span className="tabular-nums text-xs text-muted-foreground w-10 text-right ml-1">
-            {formatDuration(song.duration)}
-          </span>
+              className="sm:hidden h-9 w-9 flex-shrink-0 text-muted-foreground"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => handleAddToQueue(song, 'now')} className="min-h-[44px]">
+              <Play className="mr-2 h-4 w-4" /> Play Now
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleAddToQueue(song, 'next')} className="min-h-[44px]">
+              <ListPlus className="mr-2 h-4 w-4" /> Play Next
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleAddToQueue(song, 'end')} className="min-h-[44px]">
+              <Plus className="mr-2 h-4 w-4" /> Add to End
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void startRadio({ kind: 'song', songId: song.id })} className="min-h-[44px]">
+              <Radio className="mr-2 h-4 w-4" /> Start Radio
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Desktop: inline action buttons on hover */}
+        <div className="hidden sm:flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <SongFeedbackButtons
+            songId={song.id}
+            artistName={song.artist || 'Unknown Artist'}
+            songTitle={songName}
+            currentFeedback={(feedback[song.id] as 'thumbs_up' | 'thumbs_down' | undefined) || null}
+            source="library"
+            size="sm"
+          />
+          <AddToPlaylistButton
+            songId={song.id}
+            artistName={song.artist || 'Unknown Artist'}
+            songTitle={songName}
+            size="icon"
+            className="h-8 w-8"
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ListPlus className="h-4 w-4" />
+                <span className="sr-only">Add to queue</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'now'); }} className="min-h-[44px]">
+                <Play className="mr-2 h-4 w-4" /> Play Now
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'next'); }} className="min-h-[44px]">
+                <Plus className="mr-2 h-4 w-4" /> Play Next
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddToQueue(song, 'end'); }} className="min-h-[44px]">
+                <Plus className="mr-2 h-4 w-4" /> Add to End
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); void startRadio({ kind: 'song', songId: song.id }); }} className="min-h-[44px]">
+                <Radio className="mr-2 h-4 w-4" /> Start Radio
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     );
