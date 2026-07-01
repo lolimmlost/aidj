@@ -17,6 +17,7 @@ import { FeatureTeaser } from '@/components/dashboard/FeatureTeaser';
 import { ProfileNudge } from '@/components/onboarding/ProfileNudge';
 import { Sparkles, Music, ArrowRight } from 'lucide-react';
 import { AurralDiscoverySection } from '@/components/dashboard/AurralDiscoverySection';
+import { RecentlyAddedSection } from '@/components/dashboard/RecentlyAddedSection';
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context }) => {
@@ -262,6 +263,9 @@ function DashboardIndex() {
             </Link>
           </div>
         )}
+
+        {/* Recently Added Albums & Songs */}
+        <RecentlyAddedSection />
 
         {/* Aurral: Artist Discovery & Recently Added */}
         {(tier >= 2 || onboardingCompleted) && (
