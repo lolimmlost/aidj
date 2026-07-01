@@ -510,7 +510,7 @@ function SongRow({
           {' · '}{Math.floor(song.duration / 60)}:{Math.floor(song.duration % 60).toString().padStart(2, '0')}
         </div>
       </div>
-      <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 sm:opacity-100 transition-opacity">
+      <div className="hidden sm:flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 sm:opacity-100 transition-opacity">
         <SongFeedbackButtons
           songId={song.id}
           artistName={artistName}
