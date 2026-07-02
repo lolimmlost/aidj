@@ -57,6 +57,12 @@ export interface SeededRadioOptions {
   targetMinutes?: number;
 }
 
+export interface DiscoveryArtist {
+  name: string;
+  source: 'lastfm' | 'aurral';
+  matchScore: number;
+}
+
 export interface SeededRadioResult {
   songs: Song[];
   seedInfo: {
@@ -64,6 +70,7 @@ export interface SeededRadioResult {
     seedSongIds: string[];
     seedArtists: string[];
   };
+  discoveryArtists?: DiscoveryArtist[];
 }
 
 // ============================================================================
@@ -398,10 +405,10 @@ async function scoreFromSeed(
   limit: number,
   excludeSongIds: string[] = [],
   excludeArtists: string[] = [],
-): Promise<Song[]> {
-  if (!seed.artist || !(seed.title || seed.name)) return [];
+): Promise<{ songs: Song[]; discoveryArtists: DiscoveryArtist[] }> {
+  if (!seed.artist || !(seed.title || seed.name)) return { songs: [], discoveryArtists: [] };
   try {
-    const { songs } = await getBlendedRecommendations(
+    const { songs, metadata } = await getBlendedRecommendations(
       {
         artist: seed.artist,
         title: seed.title ?? seed.name ?? '',
@@ -412,10 +419,10 @@ async function scoreFromSeed(
       },
       { userId, limit, excludeSongIds, excludeArtists },
     );
-    return songs;
+    return { songs, discoveryArtists: metadata.discoveryArtists ?? [] };
   } catch (err) {
     console.warn(`[SeededRadio] Scorer failed for "${seed.artist} - ${seed.title}":`, err);
-    return [];
+    return { songs: [], discoveryArtists: [] };
   }
 }
 
@@ -433,7 +440,7 @@ async function generateFromSong(
   if (!seed) {
     throw new Error(`Seed song not found: ${songId}`);
   }
-  const scored = await scoreFromSeed(seed, userId, size + 10, [seed.id]);
+  const { songs: scored, discoveryArtists } = await scoreFromSeed(seed, userId, size + 10, [seed.id]);
   let merged = dedupe([seed, ...scored]);
   merged = enforceArtistDiversity(merged, seed.artist);
   merged = applyRecencyCap(merged, recent, size, [seed]);
@@ -445,6 +452,7 @@ async function generateFromSong(
       seedSongIds: [seed.id],
       seedArtists: seed.artist ? [seed.artist] : [],
     },
+    discoveryArtists,
   };
 }
 
@@ -475,15 +483,23 @@ async function generateFromCollection(
 
   // Interleave results from each seed so no single seed dominates.
   const merged: Song[] = [];
-  const maxLen = Math.max(...perSeedResults.map((r) => r.length), 0);
+  const allDiscoveryArtists = new Map<string, DiscoveryArtist>();
+  const maxLen = Math.max(...perSeedResults.map((r) => r.songs.length), 0);
   for (let i = 0; i < maxLen; i++) {
     for (const row of perSeedResults) {
-      if (row[i]) merged.push(row[i]);
+      if (row.songs[i]) merged.push(row.songs[i]);
+    }
+  }
+  for (const row of perSeedResults) {
+    for (const da of row.discoveryArtists) {
+      const key = da.name.toLowerCase();
+      if (!allDiscoveryArtists.has(key) || da.matchScore > (allDiscoveryArtists.get(key)?.matchScore ?? 0)) {
+        allDiscoveryArtists.set(key, da);
+      }
     }
   }
 
   let final = dedupe(merged);
-  // Explicitly remove any seed-track IDs that snuck in.
   final = final.filter((s) => !seedIds.has(s.id));
   final = enforceArtistDiversity(final);
   final = applyRecencyCap(final, recent, size);
@@ -498,6 +514,9 @@ async function generateFromCollection(
       seedSongIds: seeds.map((s) => s.id),
       seedArtists,
     },
+    discoveryArtists: [...allDiscoveryArtists.values()]
+      .sort((a, b) => b.matchScore - a.matchScore)
+      .slice(0, 8),
   };
 }
 
@@ -652,10 +671,19 @@ async function generateFromArtist(
   );
 
   const scorerMerged: Song[] = [];
-  const maxLen = Math.max(...perSeedResults.map((r) => r.length), 0);
+  const allDiscoveryArtists = new Map<string, DiscoveryArtist>();
+  const maxLen = Math.max(...perSeedResults.map((r) => r.songs.length), 0);
   for (let i = 0; i < maxLen; i++) {
     for (const row of perSeedResults) {
-      if (row[i]) scorerMerged.push(row[i]);
+      if (row.songs[i]) scorerMerged.push(row.songs[i]);
+    }
+  }
+  for (const row of perSeedResults) {
+    for (const da of row.discoveryArtists) {
+      const key = da.name.toLowerCase();
+      if (!allDiscoveryArtists.has(key) || da.matchScore > (allDiscoveryArtists.get(key)?.matchScore ?? 0)) {
+        allDiscoveryArtists.set(key, da);
+      }
     }
   }
 
@@ -725,6 +753,9 @@ async function generateFromArtist(
       seedSongIds: scorerSeeds.map((s) => s.id),
       seedArtists: [artistName],
     },
+    discoveryArtists: [...allDiscoveryArtists.values()]
+      .sort((a, b) => b.matchScore - a.matchScore)
+      .slice(0, 8),
   };
 }
 

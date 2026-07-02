@@ -150,8 +150,9 @@ export interface BlendedRecommendationOptions extends GatherOptions {
 export async function gatherCandidates(
   seedSong: { artist: string; title: string; genre?: string },
   options: GatherOptions
-): Promise<Map<string, { song: Song; sources: CandidateSource[] }>> {
+): Promise<{ candidates: Map<string, { song: Song; sources: CandidateSource[] }>; discoveryArtists: DiscoveryArtist[] }> {
   const candidates = new Map<string, { song: Song; sources: CandidateSource[] }>();
+  const unmatchedArtists = new Map<string, DiscoveryArtist>();
   const { excludeSongIds = [], excludeArtists = [], queueContext } = options;
 
   const excludeSet = new Set(excludeSongIds.map(id => id.toLowerCase()));
@@ -179,7 +180,7 @@ export async function gatherCandidates(
 
   // 1. Last.fm similar tracks (highest quality - already has library matching)
   if (lastFm) {
-    await gatherLastFmSimilarTracks(lastFm, seedSong, addCandidate).catch(() => {});
+    await gatherLastFmSimilarTracks(lastFm, seedSong, addCandidate, unmatchedArtists).catch(() => {});
   }
 
   // 2. Same artist songs (limited, single search)
@@ -187,13 +188,13 @@ export async function gatherCandidates(
 
   // 3. Similar artists songs (sequential searches)
   if (lastFm) {
-    await gatherSimilarArtistsSongs(lastFm, seedSong, addCandidate, excludeArtistsLower).catch(() => {});
+    await gatherSimilarArtistsSongs(lastFm, seedSong, addCandidate, excludeArtistsLower, unmatchedArtists).catch(() => {});
   }
 
   // 3.5. Aurral similar artists (cache-only, no API calls — complements Last.fm)
   const aurralFlags = getFeatureFlags().aurralRecommendations;
   if (aurralFlags.enabled) {
-    await gatherAurralSimilarArtistsSongs(seedSong, addCandidate, excludeArtistsLower, aurralFlags.similarArtistWeight).catch(() => {});
+    await gatherAurralSimilarArtistsSongs(seedSong, addCandidate, excludeArtistsLower, aurralFlags.similarArtistWeight, unmatchedArtists).catch(() => {});
   }
 
   // 4. Genre-based songs (single call to getRandomSongs)
@@ -227,9 +228,26 @@ export async function gatherCandidates(
     }
   }
   const sourceBreakdown = [...sourceCounts.entries()].map(([k, v]) => `${k}:${v}`).join(', ');
+
+  // Remove unmatched artists that ended up matching via a different source
+  const matchedArtists = new Set<string>();
+  for (const { song } of candidates.values()) {
+    if (song.artist) matchedArtists.add(song.artist.toLowerCase());
+  }
+  for (const key of unmatchedArtists.keys()) {
+    if (matchedArtists.has(key)) unmatchedArtists.delete(key);
+  }
+
+  const discoveryArtists = [...unmatchedArtists.values()]
+    .sort((a, b) => b.matchScore - a.matchScore)
+    .slice(0, 8);
+
+  if (discoveryArtists.length > 0) {
+    console.log(`🔍 [BlendedScorer] ${discoveryArtists.length} discovery artists not in library: ${discoveryArtists.map(a => a.name).join(', ')}`);
+  }
   console.log(`🎯 [BlendedScorer] Gathered ${candidates.size} unique candidates [${sourceBreakdown}]`);
 
-  return candidates;
+  return { candidates, discoveryArtists };
 }
 
 /**
@@ -239,7 +257,8 @@ export async function gatherCandidates(
 async function gatherLastFmSimilarTracks(
   lastFm: LastFmClient,
   seedSong: { artist: string; title: string },
-  addCandidate: (song: Song, source: CandidateSource) => void
+  addCandidate: (song: Song, source: CandidateSource) => void,
+  unmatchedArtists?: Map<string, DiscoveryArtist>
 ): Promise<void> {
   try {
     // Get similar tracks without library enrichment to avoid parallel searches
@@ -249,9 +268,10 @@ async function gatherLastFmSimilarTracks(
       CANDIDATE_LIMITS.lastfm
     );
 
-    // Search for library matches sequentially (max 5 searches to avoid rate limiting)
+    // Search for library matches sequentially
     let count = 0;
-    for (const track of similar.slice(0, 5)) {
+    const matchedArtists = new Set<string>();
+    for (const track of similar.slice(0, 12)) {
       if (count >= CANDIDATE_LIMITS.lastfm) break;
 
       try {
@@ -282,6 +302,12 @@ async function gatherLastFmSimilarTracks(
             matchScore: track.match || 0.5,
           });
           count++;
+          matchedArtists.add(track.artist.toLowerCase());
+        } else if (unmatchedArtists) {
+          const key = track.artist.toLowerCase();
+          if (!matchedArtists.has(key) && !unmatchedArtists.has(key) && key !== seedSong.artist.toLowerCase()) {
+            unmatchedArtists.set(key, { name: track.artist, source: 'lastfm', matchScore: track.match || 0.5 });
+          }
         }
       } catch {
         // Continue with next track
@@ -346,31 +372,30 @@ async function gatherSimilarArtistsSongs(
   lastFm: LastFmClient,
   seedSong: { artist: string },
   addCandidate: (song: Song, source: CandidateSource) => void,
-  excludeArtists: Set<string>
+  excludeArtists: Set<string>,
+  unmatchedArtists?: Map<string, DiscoveryArtist>
 ): Promise<void> {
   try {
     // Get similar artists WITHOUT searching Navidrome (just from Last.fm API)
-    // This avoids the parallel search problem
     const similarArtists = await lastFm.getSimilarArtistsRaw(seedSong.artist, 10);
 
     // Filter to artists not excluded
     const candidateArtists = similarArtists
       .filter(a => !excludeArtists.has(a.name.toLowerCase()))
-      .slice(0, 3); // Only search top 3 to avoid rate limits
+      .slice(0, 5);
 
     let totalCount = 0;
     for (const artist of candidateArtists) {
       if (totalCount >= CANDIDATE_LIMITS.similarArtists) break;
 
       try {
-        // Search sequentially, not in parallel
         const artistSongs = await throttledSearch(artist.name, 0, 3);
+        let foundMatch = false;
         for (const song of artistSongs) {
           if (totalCount >= CANDIDATE_LIMITS.similarArtists) break;
 
           const songArtistLower = (song.artist || '').toLowerCase();
           const artistNameLower = artist.name.toLowerCase();
-          // More strict matching - exact match or song artist starts with artist name
           if (songArtistLower === artistNameLower || songArtistLower.startsWith(artistNameLower)) {
             const songWithUrl: Song = {
               ...song,
@@ -382,6 +407,13 @@ async function gatherSimilarArtistsSongs(
               matchScore: artist.match || 0.5,
             });
             totalCount++;
+            foundMatch = true;
+          }
+        }
+        if (!foundMatch && unmatchedArtists) {
+          const key = artist.name.toLowerCase();
+          if (!unmatchedArtists.has(key) && key !== seedSong.artist.toLowerCase()) {
+            unmatchedArtists.set(key, { name: artist.name, source: 'lastfm', matchScore: artist.match || 0.5 });
           }
         }
       } catch {
@@ -402,16 +434,16 @@ async function gatherAurralSimilarArtistsSongs(
   seedSong: { artist: string },
   addCandidate: (song: Song, source: CandidateSource) => void,
   excludeArtists: Set<string>,
-  weight: number
+  weight: number,
+  unmatchedArtists?: Map<string, DiscoveryArtist>
 ): Promise<void> {
   try {
     const similarArtists = await getCachedSimilarArtistNames(seedSong.artist);
     if (similarArtists.length === 0) return;
 
-    // Filter out excluded artists, take top candidates
     const candidateArtists = similarArtists
       .filter(a => !excludeArtists.has(a.name.toLowerCase()))
-      .slice(0, 4); // Search top 4 to stay within rate limits
+      .slice(0, 6);
 
     let totalCount = 0;
     for (const artist of candidateArtists) {
@@ -419,6 +451,7 @@ async function gatherAurralSimilarArtistsSongs(
 
       try {
         const artistSongs = await throttledSearch(artist.name, 0, 3);
+        let foundMatch = false;
         for (const song of artistSongs) {
           if (totalCount >= CANDIDATE_LIMITS.aurralSimilar) break;
 
@@ -435,6 +468,13 @@ async function gatherAurralSimilarArtistsSongs(
               matchScore: artist.score,
             });
             totalCount++;
+            foundMatch = true;
+          }
+        }
+        if (!foundMatch && unmatchedArtists) {
+          const key = artist.name.toLowerCase();
+          if (!unmatchedArtists.has(key) && key !== seedSong.artist.toLowerCase()) {
+            unmatchedArtists.set(key, { name: artist.name, source: 'aurral', matchScore: artist.score });
           }
         }
       } catch {
@@ -759,7 +799,7 @@ export async function getBlendedRecommendations(
   console.log(`🎯 [BlendedScorer] Starting blended recommendations for "${seedSong.artist} - ${seedSong.title}"`);
 
   // 1. Gather candidates from all sources
-  const candidates = await gatherCandidates(seedSong, {
+  const { candidates, discoveryArtists } = await gatherCandidates(seedSong, {
     excludeSongIds,
     excludeArtists,
     queueContext,
@@ -768,7 +808,7 @@ export async function getBlendedRecommendations(
 
   if (candidates.size === 0) {
     console.log('⚠️ [BlendedScorer] No candidates found from any source');
-    return { songs: [], metadata: { totalCandidates: 0, sourceCounts: {} } };
+    return { songs: [], metadata: { totalCandidates: 0, sourceCounts: {}, discoveryArtists } };
   }
 
   // 2. Build scoring context (pre-fetch all scoring data)
@@ -850,6 +890,7 @@ export async function getBlendedRecommendations(
       sourceCounts,
       avgScores,
       uniqueArtists: new Set(finalResults.map(r => r.song.artist?.toLowerCase())).size,
+      discoveryArtists,
     },
   };
 }
@@ -983,11 +1024,18 @@ function calculateAverageScores(results: ScoredCandidate[]): Record<string, numb
 // Types for Metadata
 // ============================================================================
 
+export interface DiscoveryArtist {
+  name: string;
+  source: 'lastfm' | 'aurral';
+  matchScore: number;
+}
+
 export interface BlendedMetadata {
   totalCandidates: number;
   sourceCounts: Record<string, number>;
   avgScores?: Record<string, number>;
   uniqueArtists?: number;
+  discoveryArtists?: DiscoveryArtist[];
 }
 
 // ============================================================================

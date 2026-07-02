@@ -142,6 +142,32 @@ export async function calculateArtistAffinities(
     return 0;
   }
 
+  // Purge stale onboarding seeds: entries with play_count=0 for artists not
+  // in the current listening window. These were inserted at 0.70 during
+  // onboarding and never decay, outranking real listening-based scores.
+  const heardArtists = new Set(artistStats.map(s => s.artist.toLowerCase()));
+  const staleRows = await db
+    .select({ artist: artistAffinities.artist })
+    .from(artistAffinities)
+    .where(
+      and(
+        eq(artistAffinities.userId, userId),
+        eq(artistAffinities.playCount, 0)
+      )
+    );
+  const toDelete = staleRows.filter(r => !heardArtists.has(r.artist.toLowerCase()));
+  if (toDelete.length > 0) {
+    for (const row of toDelete) {
+      await db.delete(artistAffinities).where(
+        and(
+          eq(artistAffinities.userId, userId),
+          eq(artistAffinities.artist, row.artist)
+        )
+      );
+    }
+    console.log(`🎨 [ArtistAffinity] Purged ${toDelete.length} stale onboarding entries (play_count=0, not in listening history)`);
+  }
+
   console.log(`🎨 [ArtistAffinity] Found ${artistStats.length} artists in listening history`);
 
   // Step 2: Get liked song counts by artist

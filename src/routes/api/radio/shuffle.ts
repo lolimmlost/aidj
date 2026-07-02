@@ -27,10 +27,11 @@ function sample<T>(arr: T[], n: number): T[] {
  *
  * Returns a shuffled list of songs for radio playback.
  * Strategy:
- * - Pull from a wider pool of affinity artists (top 30), randomly pick 10-15
+ * - Pull from a wider pool of affinity artists (top 50), randomly pick 10-15
+ * - Only guarantee top 2 artists (not 5) to reduce repetition
  * - Fetch more songs per artist than needed, then randomly sample
  * - Deduplicate by song ID
- * - Mix in ~20% random library songs for discovery variety
+ * - Mix in ~30% random library songs for discovery variety
  * - Final shuffle for a fresh mix every time
  */
 const GET = withAuthAndErrorHandling(
@@ -68,14 +69,13 @@ const GET = withAuthAndErrorHandling(
         .from(artistAffinities)
         .where(eq(artistAffinities.userId, userId))
         .orderBy(desc(artistAffinities.affinityScore))
-        .limit(30);
+        .limit(50);
 
       if (allAffinities.length > 0) {
-        // Randomly pick 10-15 artists from top 30 affinities (weighted toward top)
-        // Split: top 5 always included, randomly sample 5-10 from remaining
-        const guaranteed = allAffinities.slice(0, Math.min(5, allAffinities.length));
-        const candidates = allAffinities.slice(5);
-        const randomPicks = sample(candidates, Math.min(10, candidates.length));
+        // Only guarantee top 2 to avoid every shuffle feeling the same
+        const guaranteed = allAffinities.slice(0, Math.min(2, allAffinities.length));
+        const candidates = allAffinities.slice(2);
+        const randomPicks = sample(candidates, Math.min(12, candidates.length));
         const selectedArtists = shuffle([...guaranteed, ...randomPicks]);
 
         // Fetch more songs per artist than needed so we can randomly sample
@@ -101,8 +101,8 @@ const GET = withAuthAndErrorHandling(
 
         songs = affinitySongs.map(mapSong);
 
-        // Mix in ~20% random library songs for discovery/variety
-        const discoveryCount = Math.ceil(count * 0.2);
+        // Mix in ~30% random library songs for discovery/variety
+        const discoveryCount = Math.ceil(count * 0.3);
         try {
           const randomSongs = await getRandomSongs(discoveryCount);
           songs.push(...randomSongs.map(mapSong));

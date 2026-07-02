@@ -1,7 +1,7 @@
 import { useAudioStore } from '@/lib/stores/audio';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { X, Music, Trash2, GripVertical, Plus, RotateCcw, ThumbsUp, ThumbsDown, Shuffle, SkipForward, Sparkles, Radio } from 'lucide-react';
+import { X, Music, Trash2, GripVertical, Plus, RotateCcw, ThumbsUp, ThumbsDown, Shuffle, SkipForward, Sparkles, Radio, Download, Loader2 } from 'lucide-react';
 import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { CreatePlaylistDialog } from '@/components/playlists/CreatePlaylistDialog';
 import { useQueryClient } from '@tanstack/react-query';
@@ -343,6 +343,7 @@ export function QueuePanel() {
   const toggleQueuePanel = useAudioStore(s => s.toggleQueuePanel);
   const isRadioSession = useAudioStore(s => s.isRadioSession);
   const saveRadioAsPlaylist = useAudioStore(s => s.saveRadioAsPlaylist);
+  const radioDiscoveryArtists = useAudioStore(s => s.radioDiscoveryArtists);
   const isOpen = queuePanelOpen;
   const setIsOpen = useCallback((open: boolean) => {
     if (open !== queuePanelOpen) toggleQueuePanel();
@@ -587,6 +588,43 @@ export function QueuePanel() {
       });
     }
   };
+
+  const [downloadingArtist, setDownloadingArtist] = useState<string | null>(null);
+  const handleDiscoveryDownload = useCallback(async (artistName: string) => {
+    setDownloadingArtist(artistName);
+    try {
+      const res = await fetch('/api/lidarr/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: artistName }),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (res.ok && data?.artists?.length > 0) {
+        const artist = data.artists[0];
+        if (!artist.inLibrary) {
+          const addRes = await fetch('/api/lidarr/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ song: `${artistName} - Top Songs` }),
+            credentials: 'include',
+          });
+          if (addRes.ok) {
+            toast.success(`Added ${artistName} to Lidarr`, { description: 'Monitoring for downloads' });
+            return;
+          }
+        } else {
+          toast.info(`${artistName} is already in your library`);
+          return;
+        }
+      }
+      window.location.href = `/downloads?search=${encodeURIComponent(artistName)}`;
+    } catch {
+      window.location.href = `/downloads?search=${encodeURIComponent(artistName)}`;
+    } finally {
+      setDownloadingArtist(null);
+    }
+  }, []);
 
   if (!isOpen) {
     // Collapsed state - show count badge
@@ -840,6 +878,34 @@ export function QueuePanel() {
                     <Radio className="mr-1 md:mr-2 h-3.5 w-3.5 md:h-4 md:w-4 group-hover:scale-110 transition-transform" />
                     Save Radio as Playlist
                   </Button>
+                )}
+
+                {/* Expand Library — artists recommended but not in library */}
+                {isRadioSession && radioDiscoveryArtists.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground px-0.5">
+                      <Download className="h-3 w-3" />
+                      <span>Expand your library</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {radioDiscoveryArtists.map((artist) => (
+                        <button
+                          key={artist.name}
+                          onClick={() => handleDiscoveryDownload(artist.name)}
+                          disabled={downloadingArtist === artist.name}
+                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border transition-all duration-200 bg-gradient-to-r from-emerald-500/5 to-teal-500/5 border-emerald-500/20 hover:border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:from-emerald-500/10 hover:to-teal-500/10 disabled:opacity-50"
+                          title={`Search & download ${artist.name} via Lidarr (${artist.source})`}
+                        >
+                          {downloadingArtist === artist.name ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Download className="h-3 w-3" />
+                          )}
+                          {artist.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 {/* More Like This Button */}

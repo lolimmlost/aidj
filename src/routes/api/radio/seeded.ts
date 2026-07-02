@@ -40,6 +40,7 @@ const POST = withAuthAndErrorHandling(
     return successResponse({
       songs: result.songs,
       seedInfo: result.seedInfo,
+      discoveryArtists: result.discoveryArtists ?? [],
     });
   },
   {

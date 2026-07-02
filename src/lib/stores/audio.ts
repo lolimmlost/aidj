@@ -11,11 +11,18 @@ import type { SeededRadioSeed, ArtistVariety } from '@/lib/services/seeded-radio
 
 // Any non-additive queue replacement clears radio-session state. Spread into
 // the `set(...)` call of every action that swaps out the playlist wholesale.
+export interface RadioDiscoveryArtist {
+  name: string;
+  source: 'lastfm' | 'aurral';
+  matchScore: number;
+}
+
 const RADIO_RESET = {
   isRadioSession: false,
   radioSeed: null as SeededRadioSeed | null,
   radioVariety: 'medium' as ArtistVariety,
   radioTargetMinutes: null as number | null,
+  radioDiscoveryArtists: [] as RadioDiscoveryArtist[],
 } as const;
 
 export interface StartRadioOptions {
@@ -125,11 +132,10 @@ interface AudioState {
   // Transient: radio session play counter for profile refresh trigger (Story 9.3)
   radioSessionPlayCount: number;
   isRadioSession: boolean;
-  // Seeded radio (non-persisted): the seed and variety used for the current session
   radioSeed: SeededRadioSeed | null;
   radioVariety: ArtistVariety;
-  // Optional duration constraint (minutes) used for the current session. null = unconstrained.
   radioTargetMinutes: number | null;
+  radioDiscoveryArtists: RadioDiscoveryArtist[];
   // Auto-recompute trigger for AI DJ affinity profile. The profile drives the
   // "profile-based recommendations (zero API calls)" path — without periodic
   // recompute it stays frozen at onboarding values and the AI DJ recommends
@@ -270,6 +276,7 @@ export const useAudioStore = create<AudioState>()(
     radioSeed: null,
     radioVariety: 'medium',
     radioTargetMinutes: null,
+    radioDiscoveryArtists: [],
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -1931,6 +1938,7 @@ export const useAudioStore = create<AudioState>()(
         const json = await res.json();
         const songs: Song[] = json?.data?.songs ?? [];
         const label: string = json?.data?.seedInfo?.label ?? 'Radio';
+        const discoveryArtists: RadioDiscoveryArtist[] = json?.data?.discoveryArtists ?? [];
         if (songs.length === 0) {
           toast.warning('No songs found for this radio seed');
           return;
@@ -1943,6 +1951,7 @@ export const useAudioStore = create<AudioState>()(
           radioVariety: variety,
           radioTargetMinutes: targetMinutes,
           radioSessionPlayCount: 0,
+          radioDiscoveryArtists: discoveryArtists,
         });
         toast.success(`Radio started — ${label}`);
       } catch (err) {
