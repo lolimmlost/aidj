@@ -880,9 +880,9 @@ export function QueuePanel() {
                   </Button>
                 )}
 
-                {/* Expand Library — artists recommended but not in library */}
+                {/* Expand Library — artists recommended but not in library (desktop only) */}
                 {isRadioSession && radioDiscoveryArtists.length > 0 && (
-                  <div className="space-y-2">
+                  <div className="hidden md:block space-y-2">
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground px-0.5">
                       <Download className="h-3 w-3" />
                       <span>Expand your library</span>
