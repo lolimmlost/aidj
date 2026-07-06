@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Clock, Disc, Play, Music } from 'lucide-react';
-import { useState } from 'react';
+import { Clock, Disc, Play, Music, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
 import { cn } from '@/lib/utils';
 
@@ -78,6 +78,59 @@ function useRecentlyAddedSongs(size = 12) {
   });
 }
 
+function useScrollControls(ref: React.RefObject<HTMLDivElement | null>) {
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
+  }, [ref]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    updateScrollState();
+    el.addEventListener('scroll', updateScrollState, { passive: true });
+    const ro = new ResizeObserver(updateScrollState);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', updateScrollState);
+      ro.disconnect();
+    };
+  }, [ref, updateScrollState]);
+
+  const scrollBy = useCallback((direction: 'left' | 'right') => {
+    const el = ref.current;
+    if (!el) return;
+    const pageWidth = el.clientWidth * 0.8;
+    el.scrollBy({ left: direction === 'left' ? -pageWidth : pageWidth, behavior: 'smooth' });
+  }, [ref]);
+
+  return { canScrollLeft, canScrollRight, scrollBy };
+}
+
+function ScrollArrow({ direction, onClick, visible }: { direction: 'left' | 'right'; onClick: () => void; visible: boolean }) {
+  if (!visible) return null;
+  const Icon = direction === 'left' ? ChevronLeft : ChevronRight;
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'hidden md:grid absolute top-1/2 -translate-y-1/2 z-10 size-9 place-items-center rounded-full',
+        'bg-background/90 border shadow-lg backdrop-blur-sm',
+        'hover:bg-accent transition-colors',
+        direction === 'left' ? '-left-3' : '-right-3',
+      )}
+      aria-label={`Scroll ${direction}`}
+    >
+      <Icon className="size-4" />
+    </button>
+  );
+}
+
 function AlbumCard({ album }: { album: RecentAlbum }) {
   const [imgError, setImgError] = useState(false);
   const coverUrl = album.coverArt
@@ -88,7 +141,7 @@ function AlbumCard({ album }: { album: RecentAlbum }) {
     <Link
       to="/library/artists/$id/albums/$albumId"
       params={{ id: album.artistId || '', albumId: album.id }}
-      className="group flex w-36 sm:w-40 shrink-0 flex-col gap-2 rounded-xl p-2 transition-colors hover:bg-muted/40"
+      className="group flex w-36 sm:w-40 shrink-0 snap-start flex-col gap-2 rounded-xl p-2 transition-colors hover:bg-muted/40"
     >
       <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
         {coverUrl && !imgError ? (
@@ -142,7 +195,7 @@ function SongCard({ song }: { song: RecentSong }) {
   return (
     <button
       onClick={handlePlay}
-      className="group flex w-36 sm:w-40 shrink-0 flex-col gap-2 rounded-xl p-2 text-left transition-colors hover:bg-muted/40"
+      className="group flex w-36 sm:w-40 shrink-0 snap-start flex-col gap-2 rounded-xl p-2 text-left transition-colors hover:bg-muted/40"
     >
       <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
         {coverUrl && !imgError ? (
@@ -167,6 +220,25 @@ function SongCard({ song }: { song: RecentSong }) {
         <p className="truncate text-xs text-muted-foreground">{song.artist}</p>
       </div>
     </button>
+  );
+}
+
+function ScrollableRow({ children, label }: { children: React.ReactNode; label: string }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { canScrollLeft, canScrollRight, scrollBy } = useScrollControls(scrollRef);
+
+  return (
+    <div className="relative group/carousel">
+      <ScrollArrow direction="left" onClick={() => scrollBy('left')} visible={canScrollLeft} />
+      <ScrollArrow direction="right" onClick={() => scrollBy('right')} visible={canScrollRight} />
+      <div
+        ref={scrollRef}
+        className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-2 snap-x snap-mandatory md:snap-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        aria-label={label}
+      >
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -206,11 +278,11 @@ export function RecentlyAddedSection() {
             <Disc className="h-4 w-4 text-violet-500" />
             Recently Added Albums
           </h3>
-          <div className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <ScrollableRow label="Recently added albums">
             {albums.map((album) => (
               <AlbumCard key={album.id} album={album} />
             ))}
-          </div>
+          </ScrollableRow>
         </div>
       )}
 
@@ -220,11 +292,11 @@ export function RecentlyAddedSection() {
             <Music className="h-4 w-4 text-cyan-500" />
             Recently Added Songs
           </h3>
-          <div className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <ScrollableRow label="Recently added songs">
             {songs.map((song) => (
               <SongCard key={song.id} song={song} />
             ))}
-          </div>
+          </ScrollableRow>
         </div>
       )}
     </div>
