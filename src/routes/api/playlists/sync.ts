@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../lib/auth/auth';
 import { syncNavidromePlaylists } from '../../../lib/services/playlist-sync';
+import { syncLikedSongsToFeedback } from '../../../lib/services/liked-songs-sync';
 
 export const Route = createFileRoute("/api/playlists/sync")({
   server: {
@@ -25,6 +26,14 @@ export const Route = createFileRoute("/api/playlists/sync")({
       console.log(`🔄 Starting Navidrome playlist sync for user ${session.user.id}`);
 
       const result = await syncNavidromePlaylists(session.user.id);
+
+      // Also sync liked songs (starred) — the Liked Songs playlist has
+      // navidromeId: null so syncNavidromePlaylists skips it.
+      try {
+        await syncLikedSongsToFeedback(session.user.id);
+      } catch (e) {
+        console.error('Liked songs feedback sync failed (non-blocking):', e);
+      }
 
       return new Response(JSON.stringify({
         data: {

@@ -443,6 +443,7 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['playlists'] });
+      queryClient.invalidateQueries({ queryKey: ['feedback'] });
       const summary = data.data.summary;
       toast.success('Playlists synced', {
         description: `Added: ${summary.added}, Updated: ${summary.updated}, Deleted: ${summary.deleted}`,

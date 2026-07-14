@@ -398,6 +398,7 @@ function StartListeningCTA() {
       });
       if (!response.ok) throw new Error('Sync failed');
       queryClient.invalidateQueries({ queryKey: ['playlists'] });
+      queryClient.invalidateQueries({ queryKey: ['feedback'] });
     } catch (error) {
       console.error('Failed to sync liked songs:', error);
     } finally {

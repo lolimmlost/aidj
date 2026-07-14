@@ -354,8 +354,9 @@ function LeftSidebar() {
       if (!response.ok) throw new Error('Sync failed');
       const data = await response.json();
       toast.success(`Synced ${data.data?.songCount || 0} liked songs`);
-      // Refresh playlists
+      // Refresh playlists and feedback (heart icons) so unlikes propagate
       queryClient.invalidateQueries({ queryKey: ['playlists'] });
+      queryClient.invalidateQueries({ queryKey: ['feedback'] });
       // Navigate to the liked songs playlist if it exists
       if (data.data?.playlist?.id) {
         navigate({ to: `/playlists/${data.data.playlist.id}` });
