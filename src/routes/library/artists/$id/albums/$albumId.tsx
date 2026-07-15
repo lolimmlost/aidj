@@ -354,7 +354,7 @@ function AlbumDetail() {
 
                   {/* Actions + duration */}
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <SongFeedbackButtons
                         songId={song.id}
                         artistName={song.artist || 'Unknown Artist'}
