@@ -486,18 +486,19 @@ export async function ensureArtistMonitored(artistId: number): Promise<boolean> 
       rootFolderPath: string;
     };
 
-    // If already monitored, nothing to do
-    if (artist.monitored) {
+    // Ensure monitored=true and monitorNewItems='none'
+    const needsUpdate = !artist.monitored || (artist as unknown as Record<string, unknown>).monitorNewItems !== 'none';
+    if (!needsUpdate) {
       return true;
     }
 
-    // Update to monitored
-    console.log(`🎯 Enabling monitoring for artist "${artist.artistName}"`);
+    console.log(`🎯 Updating artist "${artist.artistName}": monitored=true, monitorNewItems=none`);
     await apiFetch(`/artist/${artistId}`, {
       method: 'PUT',
       body: JSON.stringify({
         ...artist,
         monitored: true,
+        monitorNewItems: 'none',
       }),
     });
 
@@ -533,6 +534,29 @@ export async function monitorAlbum(albumId: number, monitor: boolean = true): Pr
   } catch (error) {
     console.error('Error monitoring album:', error);
     return false;
+  }
+}
+
+/**
+ * Unmonitor all albums for an artist except the target album
+ */
+export async function unmonitorOtherAlbums(artistId: number, targetAlbumId: number): Promise<void> {
+  try {
+    const albums = await apiFetch(`/album?artistId=${artistId}`) as Array<{ id: number; monitored: boolean }>;
+    const toUnmonitor = albums.filter(a => a.id !== targetAlbumId && a.monitored);
+
+    for (const album of toUnmonitor) {
+      await apiFetch(`/album/${album.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ ...album, monitored: false }),
+      });
+    }
+
+    if (toUnmonitor.length > 0) {
+      console.log(`🎯 Unmonitored ${toUnmonitor.length} other albums for artist ${artistId}`);
+    }
+  } catch (error) {
+    console.error('Error unmonitoring other albums:', error);
   }
 }
 
