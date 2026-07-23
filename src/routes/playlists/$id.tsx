@@ -644,7 +644,8 @@ function PlaylistDetailPage() {
   const { user } = Route.useRouteContext();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { setPlaylist, playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress, currentSong, isPlaying, startRadio } = useAudioStore();
+  const { setPlaylist, playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress, playlist: audioPlaylist, currentSongIndex, isPlaying, startRadio } = useAudioStore();
+  const currentSong = useMemo(() => audioPlaylist[currentSongIndex] || null, [audioPlaylist, currentSongIndex]);
 
   // Collaboration panel state
   const [isCollaborationPanelOpen, setIsCollaborationPanelOpen] = useState(false);
