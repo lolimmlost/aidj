@@ -305,11 +305,11 @@ function SongRowContent({
         )}
         {isCurrentSong && isPlaying && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded">
-            <div className="flex gap-[2px]">
-              <div className="w-[2px] h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" />
-              <div className="w-[2px] h-2.5 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.15s' }} />
-              <div className="w-[2px] h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.3s' }} />
-            </div>
+            <span className="audio-wave !h-3">
+              <span className="audio-wave-bar !w-[2px] !bg-primary" />
+              <span className="audio-wave-bar !w-[2px] !bg-primary" />
+              <span className="audio-wave-bar !w-[2px] !bg-primary" />
+            </span>
           </div>
         )}
       </div>

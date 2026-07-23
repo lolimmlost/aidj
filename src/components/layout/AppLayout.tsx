@@ -133,11 +133,13 @@ const SidebarAlbumArt = ({
       {isPlaying && (
         <>
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1">
-            <div className="w-1 h-4 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0s' }} />
-            <div className="w-1 h-6 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.15s' }} />
-            <div className="w-1 h-4 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.3s' }} />
-            <div className="w-1 h-5 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.45s' }} />
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
+            <span className="audio-wave !h-5">
+              <span className="audio-wave-bar !w-1 !bg-primary" />
+              <span className="audio-wave-bar !w-1 !bg-primary" />
+              <span className="audio-wave-bar !w-1 !bg-primary" />
+              <span className="audio-wave-bar !w-1 !bg-primary" />
+            </span>
           </div>
         </>
       )}
@@ -922,11 +924,12 @@ function RightSidebar() {
                       <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
                     </div>
                     {index === currentSongIndex && isPlaying ? (
-                      <div className="flex gap-0.5">
-                        <div className="w-0.5 h-3 bg-primary animate-[wave_1s_ease-in-out_infinite]" />
-                        <div className="w-0.5 h-4 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
-                        <div className="w-0.5 h-3 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
-                      </div>
+                      <span className="audio-wave !h-3.5">
+                        <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
+                        <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
+                        <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
+                        <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
+                      </span>
                     ) : (
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); playNow(song.id, song); }} title="Play now">
