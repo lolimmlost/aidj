@@ -272,31 +272,47 @@ function SongRowContent({
       {/* Drag Handle — only rendered on desktop */}
       {dragHandle}
 
-      {/* Track Number */}
+      {/* Track Number / Equalizer */}
       <span className={cn(
-        "w-8 text-sm tabular-nums text-right shrink-0",
+        "w-8 text-sm tabular-nums text-right shrink-0 flex items-center justify-end",
         isCurrentSong ? "text-primary" : "text-muted-foreground"
       )}>
         {isCurrentSong && isPlaying ? (
-          <Music2 className="h-4 w-4 text-primary animate-pulse" />
+          <span className="audio-wave !h-3.5">
+            <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
+            <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
+            <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
+            <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
+          </span>
         ) : (
           index + 1
         )}
       </span>
 
       {/* Album Art Thumbnail */}
-      {song.albumId ? (
-        <img
-          src={`/api/navidrome/rest/getCoverArt?id=${song.albumId}&size=80`}
-          alt=""
-          className="w-8 h-8 rounded shrink-0 object-cover bg-muted"
-          loading="lazy"
-        />
-      ) : (
-        <div className="w-8 h-8 rounded shrink-0 bg-muted flex items-center justify-center">
-          <Music2 className="h-3.5 w-3.5 text-muted-foreground/50" />
-        </div>
-      )}
+      <div className="relative w-8 h-8 shrink-0">
+        {song.albumId ? (
+          <img
+            src={`/api/navidrome/rest/getCoverArt?id=${song.albumId}&size=80`}
+            alt=""
+            className="w-8 h-8 rounded shrink-0 object-cover bg-muted"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded shrink-0 bg-muted flex items-center justify-center">
+            <Music2 className="h-3.5 w-3.5 text-muted-foreground/50" />
+          </div>
+        )}
+        {isCurrentSong && isPlaying && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded">
+            <div className="flex gap-[2px]">
+              <div className="w-[2px] h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" />
+              <div className="w-[2px] h-2.5 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.15s' }} />
+              <div className="w-[2px] h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.3s' }} />
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Song Info - clickable with proper touch target */}
       <button
@@ -432,7 +448,7 @@ function PlainSongRow(props: SongRowProps) {
       data-song-id={props.song.songId}
       className={cn(
         "group flex items-center gap-3 px-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors min-w-0",
-        props.isCurrentSong && "bg-accent/30"
+        props.isCurrentSong && "bg-primary/10 border-l-2 border-l-primary"
       )}
     >
       <SongRowContent {...props} />
@@ -465,7 +481,7 @@ function SortableSongRow(props: SongRowProps) {
       data-song-id={props.song.songId}
       className={cn(
         "group flex items-center gap-3 px-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors min-w-0",
-        props.isCurrentSong && "bg-accent/30",
+        props.isCurrentSong && "bg-primary/10 border-l-2 border-l-primary",
         isDragging && "opacity-50 bg-accent shadow-lg"
       )}
     >
@@ -525,6 +541,19 @@ function PlaylistSongsList({
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
+
+  // Auto-scroll to now-playing song on mount
+  const scrolledRef = useRef(false);
+  useEffect(() => {
+    if (scrolledRef.current || !currentSongId) return;
+    const el = document.querySelector(`[data-song-id="${globalThis.CSS.escape(currentSongId)}"]`);
+    if (el) {
+      scrolledRef.current = true;
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      });
+    }
+  }, [currentSongId, songs]);
 
   const sharedRowProps = {
     isPlaying,
