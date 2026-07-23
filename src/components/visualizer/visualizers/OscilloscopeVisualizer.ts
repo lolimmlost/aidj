@@ -1,9 +1,10 @@
 import type { Visualizer, VisualizerContext } from '../types';
 
-// Cached gradient
 let cachedGradient: CanvasGradient | null = null;
-let cachedColors: string = '';
-let cachedWidth: number = 0;
+let cachedColors = '';
+let cachedWidth = 0;
+let shock = 0;
+let smoothBass = 0;
 
 export const OscilloscopeVisualizer: Visualizer = {
   name: 'Oscilloscope',
@@ -11,6 +12,8 @@ export const OscilloscopeVisualizer: Visualizer = {
 
   init: () => {
     cachedGradient = null;
+    shock = 0;
+    smoothBass = 0;
   },
 
   cleanup: () => {
@@ -18,43 +21,48 @@ export const OscilloscopeVisualizer: Visualizer = {
   },
 
   render: (ctx: VisualizerContext) => {
-    const { ctx: c, width, height, audioData, colors, quality } = ctx;
+    const { ctx: c, width, height, audioData, colors, deltaTime, quality } = ctx;
     const { waveformData, bass, mid, treble, volume, isBeat } = audioData;
 
-    // Clear with slight fade for phosphor effect
+    const dt = Math.min(deltaTime, 0.05);
+
+    // Beat envelope
+    if (isBeat) shock = Math.min(1, shock + 0.7);
+    shock = Math.max(0, shock - dt * 2.2);
+    smoothBass += (bass - smoothBass) * Math.min(1, dt * 8);
+
+    // Phosphor trail — longer trail on loud passages
     c.fillStyle = colors.background;
-    c.globalAlpha = 0.3;
+    c.globalAlpha = 0.2 + (1 - volume) * 0.2;
     c.fillRect(0, 0, width, height);
     c.globalAlpha = 1;
 
     const centerY = height / 2;
-    const amplitude = height * 0.4;
+    const amplitude = height * 0.4 * (1 + shock * 0.15);
     const hasWaveform = waveformData.length > 0;
 
-    // Draw grid (oscilloscope style)
+    // Grid
     c.strokeStyle = colors.primary;
     c.lineWidth = 1;
-    c.globalAlpha = 0.15;
+    c.globalAlpha = 0.1 + shock * 0.05;
 
     c.beginPath();
-    // Vertical divisions
     for (let i = 0; i <= 10; i++) {
       const x = (width / 10) * i;
       c.moveTo(x, 0);
       c.lineTo(x, height);
     }
-    // Horizontal divisions
     for (let i = 0; i <= 8; i++) {
       const y = (height / 8) * i;
       c.moveTo(0, y);
       c.lineTo(width, y);
     }
     c.stroke();
-    c.globalAlpha = 1;
 
-    // Draw center line
+    // Center line
     c.strokeStyle = colors.secondary;
-    c.globalAlpha = 0.3;
+    c.globalAlpha = 0.2 + smoothBass * 0.2;
+    c.lineWidth = 1 + smoothBass * 2;
     c.beginPath();
     c.moveTo(0, centerY);
     c.lineTo(width, centerY);
@@ -72,77 +80,77 @@ export const OscilloscopeVisualizer: Visualizer = {
       cachedWidth = width;
     }
 
-    // Draw main waveform (Lissajous-style with thickness based on audio)
     const step = quality === 'low' ? 6 : quality === 'medium' ? 4 : 2;
-    const lineWidth = 2 + volume * 4;
+    const lineWidth = 2 + volume * 4 + shock * 3;
 
-    c.strokeStyle = cachedGradient;
-    c.lineWidth = lineWidth;
-    c.lineCap = 'round';
-    c.lineJoin = 'round';
-
+    // Build waveform path once
     c.beginPath();
     if (hasWaveform) {
       for (let i = 0; i < waveformData.length; i += step) {
         const x = (i / waveformData.length) * width;
-        const y = centerY + waveformData[i] * amplitude * (1 + bass * 0.5);
-
-        if (i === 0) {
-          c.moveTo(x, y);
-        } else {
-          c.lineTo(x, y);
-        }
+        const y = centerY + waveformData[i] * amplitude * (1 + smoothBass * 0.5);
+        if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
       }
     } else {
-      // Draw flat line if no waveform
       c.moveTo(0, centerY);
       c.lineTo(width, centerY);
     }
+
+    // Additive glow layers
+    c.globalCompositeOperation = 'lighter';
+
+    // Wide glow
+    c.strokeStyle = cachedGradient;
+    c.lineWidth = lineWidth * 4;
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+    c.globalAlpha = 0.08 + shock * 0.08;
     c.stroke();
 
-    // Glow effect (draw again with larger width and transparency)
-    c.globalAlpha = 0.3;
-    c.lineWidth = lineWidth * 3;
+    // Medium glow
+    c.lineWidth = lineWidth * 2;
+    c.globalAlpha = 0.2 + shock * 0.1;
     c.stroke();
-    c.globalAlpha = 1;
 
-    // Draw frequency indicators at corners
+    // Core line
+    c.lineWidth = lineWidth;
+    c.globalAlpha = 0.85 + shock * 0.15;
+    c.stroke();
+
+    // Beat shock — bright re-stroke in accent
+    if (shock > 0.1) {
+      c.strokeStyle = colors.accent;
+      c.lineWidth = lineWidth * 1.5;
+      c.globalAlpha = (shock - 0.1) * 0.4;
+      c.stroke();
+    }
+
+    // Band indicators — reactive
+    c.globalCompositeOperation = 'source-over';
     const indicatorSize = 60;
     const padding = 20;
+    const bandValues = [smoothBass, mid, treble];
+    const bandColors = [colors.primary, colors.secondary, colors.accent];
 
-    // Bass indicator (bottom left)
-    c.fillStyle = colors.primary;
-    c.globalAlpha = 0.8;
-    c.fillRect(padding, height - padding - indicatorSize * bass, 8, indicatorSize * bass);
-    c.globalAlpha = 0.3;
-    c.strokeStyle = colors.primary;
-    c.strokeRect(padding, height - padding - indicatorSize, 8, indicatorSize);
-
-    // Mid indicator (bottom center-left)
-    c.fillStyle = colors.secondary;
-    c.globalAlpha = 0.8;
-    c.fillRect(padding + 20, height - padding - indicatorSize * mid, 8, indicatorSize * mid);
-    c.globalAlpha = 0.3;
-    c.strokeStyle = colors.secondary;
-    c.strokeRect(padding + 20, height - padding - indicatorSize, 8, indicatorSize);
-
-    // Treble indicator (bottom center-right)
-    c.fillStyle = colors.accent;
-    c.globalAlpha = 0.8;
-    c.fillRect(padding + 40, height - padding - indicatorSize * treble, 8, indicatorSize * treble);
-    c.globalAlpha = 0.3;
-    c.strokeStyle = colors.accent;
-    c.strokeRect(padding + 40, height - padding - indicatorSize, 8, indicatorSize);
-
-    c.globalAlpha = 1;
-
-    // Beat flash - screen flash effect
-    if (isBeat) {
-      c.strokeStyle = colors.accent;
-      c.lineWidth = 4;
-      c.globalAlpha = 0.6;
-      c.strokeRect(2, 2, width - 4, height - 4);
-      c.globalAlpha = 1;
+    for (let b = 0; b < 3; b++) {
+      const x = padding + b * 20;
+      c.fillStyle = bandColors[b];
+      c.globalAlpha = 0.2;
+      c.fillRect(x, height - padding - indicatorSize, 8, indicatorSize);
+      c.globalAlpha = 0.7 + bandValues[b] * 0.3;
+      c.fillRect(x, height - padding - indicatorSize * bandValues[b], 8, indicatorSize * bandValues[b]);
     }
+
+    // Beat flash border
+    if (shock > 0.2) {
+      c.globalCompositeOperation = 'lighter';
+      c.strokeStyle = colors.accent;
+      c.lineWidth = 2 + shock * 4;
+      c.globalAlpha = (shock - 0.2) * 0.4;
+      c.strokeRect(2, 2, width - 4, height - 4);
+    }
+
+    c.globalCompositeOperation = 'source-over';
+    c.globalAlpha = 1;
   },
 };
