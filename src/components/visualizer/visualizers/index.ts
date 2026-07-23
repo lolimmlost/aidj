@@ -9,13 +9,7 @@ import { GridVisualizer } from './GridVisualizer';
 import { OscilloscopeVisualizer } from './OscilloscopeVisualizer';
 import { StarfieldVisualizer } from './StarfieldVisualizer';
 import { PulseRingsVisualizer } from './PulseRingsVisualizer';
-import { TunnelVisualizer } from './TunnelVisualizer';
-import { HelixVisualizer } from './HelixVisualizer';
-import { SpectrogramVisualizer } from './SpectrogramVisualizer';
-import { ConstellationVisualizer } from './ConstellationVisualizer';
 import { AuroraVisualizer } from './AuroraVisualizer';
-import { CosmosVisualizer } from './CosmosVisualizer';
-import { BroadcastVisualizer } from './BroadcastVisualizer';
 
 // Registry of all available visualizers
 export const visualizers: Visualizer[] = [
@@ -29,13 +23,7 @@ export const visualizers: Visualizer[] = [
   OscilloscopeVisualizer,
   StarfieldVisualizer,
   PulseRingsVisualizer,
-  TunnelVisualizer,
-  HelixVisualizer,
-  SpectrogramVisualizer,
-  ConstellationVisualizer,
   AuroraVisualizer,
-  CosmosVisualizer,
-  BroadcastVisualizer,
 ];
 
 // Get visualizer by ID
@@ -68,11 +56,5 @@ export {
   OscilloscopeVisualizer,
   StarfieldVisualizer,
   PulseRingsVisualizer,
-  TunnelVisualizer,
-  HelixVisualizer,
-  SpectrogramVisualizer,
-  ConstellationVisualizer,
   AuroraVisualizer,
-  CosmosVisualizer,
-  BroadcastVisualizer,
 };
