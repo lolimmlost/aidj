@@ -164,7 +164,8 @@ export function NowPlayingFullscreen({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (isExpanded) {
-          toggleExpanded();
+          setIsExpanded(false);
+          document.exitFullscreen?.().catch(() => {});
         } else {
           onClose();
         }

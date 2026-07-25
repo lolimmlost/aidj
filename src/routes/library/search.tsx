@@ -430,7 +430,7 @@ function SearchPage() {
                               saveRecent(recent.filter((r) => r !== term));
                             }
                           }}
-                          className="ml-0.5 rounded-full p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground transition-all"
+                          className="ml-0.5 rounded-full p-0.5 text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 hover:text-foreground transition-all"
                           aria-label={`Remove ${term}`}
                         >
                           <X className="h-3 w-3" />
@@ -614,8 +614,8 @@ function AlbumResultCard({
 
   return (
     <Link
-      to={album.artistId ? '/library/artists/$id' : '/library/search'}
-      params={album.artistId ? { id: album.artistId } : undefined}
+      to={album.artistId ? '/library/artists/$id/albums/$albumId' : '/library/search'}
+      params={album.artistId ? { id: album.artistId, albumId: album.id } : undefined}
       className={cn(
         'group flex flex-col gap-3 text-left rounded-xl p-2 -m-2 transition-colors hover:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
         variant === 'scroll' && 'w-40 shrink-0 sm:w-44',
@@ -632,7 +632,7 @@ function AlbumResultCard({
             (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
           }}
         />
-        <div className="hidden size-full bg-gradient-to-br from-muted to-muted/50 flex-col items-center justify-center gap-1.5">
+        <div className="hidden size-full bg-gradient-to-br from-muted to-muted/50 flex flex-col items-center justify-center gap-1.5">
           <Disc3 className="h-8 w-8 text-muted-foreground/60" />
         </div>
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />

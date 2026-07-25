@@ -189,7 +189,7 @@ function AlbumDetail() {
         {/* Back navigation */}
         <button
           onClick={handleGoBack}
-          className="hidden md:inline-flex group items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
+          className="inline-flex group items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
         >
           <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
           Back
@@ -344,7 +344,10 @@ function AlbumDetail() {
                   {/* Song info */}
                   <div
                     className="min-w-0 cursor-pointer"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => handleSongClick(song.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSongClick(song.id); } }}
                   >
                     <p className="text-sm font-medium truncate">{songName}</p>
                     {song.artist && song.artist !== artistName && (
