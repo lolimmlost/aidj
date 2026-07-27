@@ -13,6 +13,7 @@ export type SyncSong = {
   duration: number;
   track: number;
   artist?: string;
+  artistId?: string;
   genre?: string;
   bpm?: number;
   key?: string;

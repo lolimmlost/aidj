@@ -74,6 +74,7 @@ interface PlaylistSong {
   duration?: number | null;
   album?: string | null;
   albumId?: string | null;
+  artistId?: string | null;
   starred?: boolean;
 }
 
@@ -630,6 +631,7 @@ function playlistSongsToAudio(songs: PlaylistSong[]) {
       name: title,
       title,
       artist,
+      artistId: song.artistId || undefined,
       album: song.album || undefined,
       albumId: song.albumId || '',
       duration: song.duration || 0,
@@ -840,6 +842,7 @@ function PlaylistDetailPage() {
         name: title,
         title,
         artist,
+        artistId: song.artistId || undefined,
         album: song.album || undefined,
         albumId: song.albumId || '',
         duration: song.duration || 0,

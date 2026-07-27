@@ -120,6 +120,7 @@ function AlbumDetail() {
       name: songName,
       title: songName,
       artist: song.artist,
+      artistId: song.artistId,
       album: song.album,
       albumId: song.albumId,
       url: `/api/navidrome/stream/${song.id}`,

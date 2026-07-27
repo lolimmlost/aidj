@@ -65,6 +65,7 @@ export const Route = createFileRoute("/api/playlists/$id")({
         duration: null as number | null,
         album: null as string | null,
         albumId: null as string | null,
+        artistId: null as string | null,
         starred: isLikedSongsPlaylist, // All songs in Liked Songs playlist are starred by definition
       }));
 
@@ -102,6 +103,7 @@ export const Route = createFileRoute("/api/playlists/$id")({
               duration: details?.duration ?? null,
               album: details?.album ?? null,
               albumId: details?.albumId ?? null,
+              artistId: (details as { artistId?: string })?.artistId ?? null,
               starred: likedSet.has(s.songId),
             };
           });

@@ -887,10 +887,10 @@ export function PlayerBar() {
             {/* Song Info — single-line: Title · Artist. Inline children flow as one text run, so `truncate` on the parent yields a single clean ellipsis instead of two stacked rows. */}
             <div className="min-w-0 flex-1">
               <div className={cn("text-sm truncate", showRemoteTime && "text-green-500")}>
-                {(currentSong as { artistId?: string }).artistId && currentSong.albumId ? (
+                {currentSong.artistId && currentSong.albumId ? (
                   <Link
                     to="/library/artists/$id/albums/$albumId"
-                    params={{ id: (currentSong as { artistId?: string }).artistId!, albumId: currentSong.albumId }}
+                    params={{ id: currentSong.artistId!, albumId: currentSong.albumId }}
                     className="font-display font-semibold active:text-primary transition-colors"
                     onClick={(e) => e.stopPropagation()}
                     title="View album"
@@ -906,10 +906,10 @@ export function PlayerBar() {
                   </span>
                 )}
                 <span className={cn("mx-1.5", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>·</span>
-                {(currentSong as { artistId?: string }).artistId ? (
+                {currentSong.artistId ? (
                   <Link
                     to="/library/artists/$id"
-                    params={{ id: (currentSong as { artistId?: string }).artistId! }}
+                    params={{ id: currentSong.artistId! }}
                     className={cn("active:text-primary transition-colors", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -1012,10 +1012,10 @@ export function PlayerBar() {
             />
           </div>
           <div className="min-w-0">
-            {(currentSong as { artistId?: string }).artistId && currentSong.albumId ? (
+            {currentSong.artistId && currentSong.albumId ? (
               <Link
                 to="/library/artists/$id/albums/$albumId"
-                params={{ id: (currentSong as { artistId?: string }).artistId!, albumId: currentSong.albumId }}
+                params={{ id: currentSong.artistId!, albumId: currentSong.albumId }}
                 className={cn("font-display font-semibold truncate text-sm block hover:underline", showRemoteTime && "text-green-500")}
                 title="View album"
               >
@@ -1026,10 +1026,10 @@ export function PlayerBar() {
                 {currentSong.name || currentSong.title}
               </p>
             )}
-            {(currentSong as { artistId?: string }).artistId ? (
+            {currentSong.artistId ? (
               <Link
                 to="/library/artists/$id"
-                params={{ id: (currentSong as { artistId?: string }).artistId! }}
+                params={{ id: currentSong.artistId! }}
                 className={cn("text-xs truncate block hover:underline", showRemoteTime ? "text-green-500/70" : "text-muted-foreground hover:text-foreground")}
               >
                 {currentSong.artist || 'Unknown'}

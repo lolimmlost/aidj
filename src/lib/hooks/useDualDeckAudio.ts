@@ -9,6 +9,7 @@ export interface Song {
   name?: string;
   title?: string;
   artist?: string;
+  artistId?: string;
   album?: string;
   albumId?: string;
   genre?: string;

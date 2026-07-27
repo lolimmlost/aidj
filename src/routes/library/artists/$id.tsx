@@ -275,7 +275,7 @@ function ArtistDetail() {
     const songName = song.name || song.title || 'Unknown';
     const audioSong = {
       id: song.id, name: songName, title: songName,
-      artist: song.artist, album: song.album, albumId: song.albumId,
+      artist: song.artist, artistId: song.artistId, album: song.album, albumId: song.albumId,
       url: `/api/navidrome/stream/${song.id}`, duration: song.duration, track: song.track,
     };
     if (position === 'now') {

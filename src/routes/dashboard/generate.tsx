@@ -357,6 +357,7 @@ function GeneratePage() {
           id: realSong.id,
           name: realSong.name || realSong.title || song,
           albumId: realSong.albumId || '',
+          artistId: realSong.artistId,
           duration: realSong.duration || 0,
           track: realSong.track || realSong.trackNumber || 1,
           url: realSong.url || '',
