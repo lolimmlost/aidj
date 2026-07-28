@@ -48,7 +48,7 @@ export interface RawSong {
  * All Subsonic API responses are wrapped in 'subsonic-response' with dynamic properties
  * Uses index signature with permissive value type to allow deep property access on API responses
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+
 export interface SubsonicApiResponse extends Record<string, SubsonicApiValue> {
   'subsonic-response'?: SubsonicApiObject & {
     status?: string;

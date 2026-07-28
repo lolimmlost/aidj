@@ -216,9 +216,9 @@ export function getWebAudioTransitionParams(
     wetLevel: number;
   } | null;
 } {
-  // Default exponential curves for smoother transitions
-  let fadeOutCurve: 'linear' | 'exponential' = 'exponential';
-  let fadeInCurve: 'linear' | 'exponential' = 'exponential';
+  // Curves are assigned per transition type below (default: exponential)
+  let fadeOutCurve: 'linear' | 'exponential';
+  let fadeInCurve: 'linear' | 'exponential';
   let reverbParams: { roomSize: number; damping: number; wetLevel: number } | null = null;
 
   switch (transitionResult.transitionType) {

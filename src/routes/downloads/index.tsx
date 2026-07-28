@@ -315,7 +315,7 @@ function DownloadsPage() {
                               by {item.artist}
                             </p>
                           )}
-                          {item.year && (
+                          {(item.year ?? 0) > 0 && (
                             <p className="text-sm text-muted-foreground">
                               {item.year}
                             </p>

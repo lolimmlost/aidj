@@ -364,7 +364,6 @@ export class LastFmClient {
       artists.map(async (a) => {
         let inLibrary = false;
         let navidromeId: string | undefined;
-        let trackCount: number | undefined;
 
         try {
           const results = await searchNavidrome(a.name, 0, 1);
@@ -384,7 +383,6 @@ export class LastFmClient {
           image: getLargestImage(a.image),
           inLibrary,
           navidromeId,
-          trackCount,
         };
       })
     );

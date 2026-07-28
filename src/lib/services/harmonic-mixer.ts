@@ -7,7 +7,7 @@ import { ServiceError } from '../utils';
 import { analyzeAudioFeatures, calculateKeyCompatibility } from './audio-analysis';
 
 // Harmonic mixing modes
-export type HarmonicMode = 
+export type HarmonicMode =
   | 'perfect_match'      // Same key
   | 'relative_minor'     // Relative minor/major
   | 'dominant'          // Perfect fifth up/down
@@ -28,23 +28,23 @@ export interface EnhancedKeyAnalysis extends AudioAnalysis {
   rootNote: string; // C, D, E, etc.
   mode: 'major' | 'minor';
   keySignature: string; // e.g., "C major", "A minor"
-  
+
   // Harmonic relationships
   dominantKey: MusicalKey; // Perfect fifth
   subdominantKey: MusicalKey; // Perfect fourth
   relativeKey: MusicalKey; // Relative minor/major
   parallelKey: MusicalKey; // Same root, different mode
-  
+
   // Circle of Fifths position
   circlePosition: number; // 0-11 position in Circle of Fifths
   circleDistance: Record<MusicalKey, number>; // Distance to all other keys
-  
+
   // Harmonic features
   chordProgression: string[]; // Detected chord progression
   harmonicRhythm: number; // How often chords change (0-1)
   modulationCount: number; // Number of key changes in song
   tonalCenter: number; // Strength of tonal center (0-1)
-  
+
   // Advanced features
   melodicContour: 'rising' | 'falling' | 'stable' | 'complex';
   harmonicComplexity: 'simple' | 'moderate' | 'complex';
@@ -134,49 +134,49 @@ export async function analyzeKeyForHarmonicMixing(song: Song): Promise<EnhancedK
   try {
     // Get basic audio analysis
     const basicAnalysis = await analyzeAudioFeatures(song);
-    
+
     // Extract key components
     const { rootNote, mode } = parseKey(basicAnalysis.key);
     const keySignature = `${rootNote} ${mode}`;
-    
+
     // Get Circle of Fifths position
     const circlePosition = CIRCLE_OF_FIFTHS_POSITIONS[basicAnalysis.key];
-    
+
     // Calculate distances to all other keys
     const circleDistance = calculateCircleDistances(basicAnalysis.key);
-    
+
     // Get harmonic relationships
     const relationships = HARMONIC_RELATIONSHIPS[basicAnalysis.key];
-    
+
     // Detect chord progression (simplified)
     const chordProgression = detectChordProgression(basicAnalysis);
-    
+
     // Calculate harmonic rhythm
     const harmonicRhythm = calculateHarmonicRhythm(basicAnalysis);
-    
+
     // Detect modulations
     const { modulationCount, modulationPoints } = detectModulations(basicAnalysis);
-    
+
     // Calculate tonal center strength
     const tonalCenter = calculateTonalCenter(basicAnalysis);
-    
+
     // Determine melodic contour
     const melodicContour = determineMelodicContour(basicAnalysis);
-    
+
     // Calculate harmonic complexity
     const harmonicComplexity = calculateHarmonicComplexity(
       chordProgression,
       modulationCount,
       harmonicRhythm
     );
-    
+
     // Calculate tonal stability
     const tonalStability = calculateTonalStability(
       tonalCenter,
       modulationCount,
       basicAnalysis.keyConfidence
     );
-    
+
     return {
       ...basicAnalysis,
       rootNote,
@@ -212,7 +212,7 @@ function parseKey(key: MusicalKey): { rootNote: string; mode: 'major' | 'minor' 
   const isMinor = key.endsWith('m');
   const rootNote = key.replace('m', '');
   const mode = isMinor ? 'minor' : 'major';
-  
+
   return { rootNote, mode };
 }
 
@@ -222,12 +222,12 @@ function parseKey(key: MusicalKey): { rootNote: string; mode: 'major' | 'minor' 
 function calculateCircleDistances(fromKey: MusicalKey): Record<MusicalKey, number> {
   const distances: Record<string, number> = {};
   const fromPosition = CIRCLE_OF_FIFTHS_POSITIONS[fromKey];
-  
+
   const keys: MusicalKey[] = [
     'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
     'Cm', 'C#m', 'Dm', 'D#m', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'A#m', 'Bm'
   ];
-  
+
   for (const key of keys) {
     const toPosition = CIRCLE_OF_FIFTHS_POSITIONS[key];
     const distance = Math.min(
@@ -236,7 +236,7 @@ function calculateCircleDistances(fromKey: MusicalKey): Record<MusicalKey, numbe
     );
     distances[key] = distance;
   }
-  
+
   return distances as Record<MusicalKey, number>;
 }
 
@@ -246,7 +246,7 @@ function calculateCircleDistances(fromKey: MusicalKey): Record<MusicalKey, numbe
 function detectChordProgression(analysis: AudioAnalysis): string[] {
   // In a real implementation, this would analyze the harmonic content
   // For now, we'll return a plausible progression based on the key
-  
+
   const key = analysis.key;
   const isMinor = key.endsWith('m');
   const _rootNote = key.replace('m', '');
@@ -259,7 +259,7 @@ function detectChordProgression(analysis: AudioAnalysis): string[] {
     ['vi', 'IV', 'I', 'V'],
     ['I', 'iii', 'vi', 'IV']
   ];
-  
+
   // Common progressions for minor keys
   const minorProgressions = [
     ['i', 'iv', 'v', 'i'],
@@ -268,10 +268,10 @@ function detectChordProgression(analysis: AudioAnalysis): string[] {
     ['VI', 'iv', 'i', 'V'],
     ['i', 'III', 'VI', 'iv']
   ];
-  
+
   const progressions = isMinor ? minorProgressions : majorProgressions;
   const selectedProgression = progressions[Math.floor(Math.random() * progressions.length)];
-  
+
   // Convert to actual chord names
   return selectedProgression.map(roman => {
     // This is simplified - in reality, we'd map Roman numerals to actual chords
@@ -285,26 +285,26 @@ function detectChordProgression(analysis: AudioAnalysis): string[] {
 function calculateHarmonicRhythm(analysis: AudioAnalysis): number {
   // In a real implementation, this would analyze chord change frequency
   // For now, we'll estimate based on genre and tempo
-  
+
   const genreHints = extractGenreHints(analysis);
   const tempo = analysis.bpm;
-  
+
   let baseRhythm = 0.5; // Default moderate rhythm
-  
+
   // Adjust based on tempo
   if (tempo > 140) {
     baseRhythm += 0.2; // Faster tempo = faster harmonic rhythm
   } else if (tempo < 100) {
     baseRhythm -= 0.2; // Slower tempo = slower harmonic rhythm
   }
-  
+
   // Adjust based on genre
   if (genreHints.includes('classical') || genreHints.includes('jazz')) {
     baseRhythm += 0.3; // Complex harmonic rhythm
   } else if (genreHints.includes('pop') || genreHints.includes('electronic')) {
     baseRhythm -= 0.1; // Simpler harmonic rhythm
   }
-  
+
   return Math.max(0, Math.min(1, baseRhythm));
 }
 
@@ -314,13 +314,13 @@ function calculateHarmonicRhythm(analysis: AudioAnalysis): number {
 function detectModulations(analysis: AudioAnalysis): { modulationCount: number; modulationPoints: number[] } {
   // In a real implementation, this would analyze key changes throughout the song
   // For now, we'll simulate based on genre and complexity
-  
+
   const genreHints = extractGenreHints(analysis);
   const _complexity = analysis.instrumentalness; // Higher instrumental = more complex
-  
-  let modulationCount = 0;
+
+  let modulationCount: number;
   const modulationPoints: number[] = [];
-  
+
   // Base modulation count on genre
   if (genreHints.includes('classical') || genreHints.includes('jazz')) {
     modulationCount = Math.floor(Math.random() * 4) + 1; // 1-4 modulations
@@ -329,13 +329,13 @@ function detectModulations(analysis: AudioAnalysis): { modulationCount: number; 
   } else {
     modulationCount = Math.random() > 0.8 ? 1 : 0; // 20% chance of 1 modulation
   }
-  
+
   // Generate modulation points (as percentages through the song)
   for (let i = 0; i < modulationCount; i++) {
     const point = 0.3 + (Math.random() * 0.5); // Between 30% and 80% through
     modulationPoints.push(point);
   }
-  
+
   return { modulationCount, modulationPoints };
 }
 
@@ -347,12 +347,12 @@ function calculateTonalCenter(analysis: AudioAnalysis): number {
   const keyConfidence = analysis.keyConfidence;
   const instrumentalness = analysis.instrumentalness;
   const acousticness = analysis.acousticness;
-  
+
   // Higher key confidence and instrumentalness = stronger tonal center
   let tonalCenter = keyConfidence * 0.6;
   tonalCenter += instrumentalness * 0.3;
   tonalCenter += acousticness * 0.1;
-  
+
   return Math.max(0, Math.min(1, tonalCenter));
 }
 
@@ -362,10 +362,10 @@ function calculateTonalCenter(analysis: AudioAnalysis): number {
 function determineMelodicContour(analysis: AudioAnalysis): 'rising' | 'falling' | 'stable' | 'complex' {
   // In a real implementation, this would analyze pitch contours
   // For now, we'll estimate based on energy and valence
-  
+
   const energy = analysis.energy;
   const valence = analysis.valence;
-  
+
   if (energy > 0.7 && valence > 0.7) {
     return 'rising';
   } else if (energy < 0.3 && valence < 0.3) {
@@ -386,17 +386,17 @@ function calculateHarmonicComplexity(
   harmonicRhythm: number
 ): 'simple' | 'moderate' | 'complex' {
   let complexityScore = 0;
-  
+
   // Chord progression complexity
   if (chordProgression.length > 4) complexityScore += 1;
   if (chordProgression.length > 6) complexityScore += 1;
-  
+
   // Modulation complexity
   complexityScore += modulationCount;
-  
+
   // Harmonic rhythm complexity
   if (harmonicRhythm > 0.7) complexityScore += 1;
-  
+
   if (complexityScore <= 2) return 'simple';
   if (complexityScore <= 4) return 'moderate';
   return 'complex';
@@ -413,7 +413,7 @@ function calculateTonalStability(
   let stability = tonalCenter * 0.5;
   stability += (1 - modulationCount / 4) * 0.3; // Fewer modulations = more stable
   stability += keyConfidence * 0.2;
-  
+
   return Math.max(0, Math.min(1, stability));
 }
 
@@ -438,16 +438,16 @@ export async function getHarmonicMixingRecommendations(
     allowKeyChanges = true,
     prioritizeEnergy = false
   } = options;
-  
+
   try {
     // Analyze current song
     const currentAnalysis = await analyzeKeyForHarmonicMixing(currentSong);
-    
+
     // Analyze candidate songs
     const candidates = await Promise.all(
       candidateSongs.map(async (song) => {
         const analysis = await analyzeKeyForHarmonicMixing(song);
-        
+
         // Get compatibility for all harmonic modes
         const modeCompatibilities = await Promise.all(
           (Object.keys(HARMONIC_RELATIONSHIPS) as HarmonicMode[]).map(async (mode) => {
@@ -456,47 +456,47 @@ export async function getHarmonicMixingRecommendations(
               analysis,
               mode
             );
-            
+
             return { mode, compatibility };
           })
         );
-        
+
         // Find best mode
-        const bestMode = modeCompatibilities.reduce((best, current) => 
+        const bestMode = modeCompatibilities.reduce((best, current) =>
           current.compatibility > best.compatibility ? current : best
         );
-        
+
         // Use preferred mode if specified and compatible
         const selectedMode = preferredMode && allowKeyChanges
           ? modeCompatibilities.find(m => m.mode === preferredMode) || bestMode
           : bestMode;
-        
+
         // Calculate energy change
         const energyChange: 'rising' | 'falling' | 'stable' =
           currentAnalysis.energy < analysis.energy ? 'rising' :
           currentAnalysis.energy > analysis.energy ? 'falling' : 'stable';
-        
+
         // Determine transition difficulty
         const transitionDifficulty = determineTransitionDifficulty(
           selectedMode.compatibility,
           currentAnalysis.harmonicComplexity,
           analysis.harmonicComplexity
         );
-        
+
         // Get recommended transition
         const recommendedTransition = getRecommendedTransition(
           selectedMode.mode,
           energyChange,
           transitionDifficulty
         );
-        
+
         // Generate harmonic rationale
         const harmonicRationale = generateHarmonicRationale(
           currentAnalysis,
           analysis,
           selectedMode.mode
         );
-        
+
         // Get alternative keys
         const alternativeKeys = modeCompatibilities
           .filter(m => m.mode !== selectedMode.mode && m.compatibility >= minCompatibility)
@@ -507,7 +507,7 @@ export async function getHarmonicMixingRecommendations(
             compatibility: m.compatibility,
             reason: getModeReason(m.mode)
           }));
-        
+
         return {
           targetKey: analysis.key,
           mode: selectedMode.mode,
@@ -520,19 +520,19 @@ export async function getHarmonicMixingRecommendations(
         };
       })
     );
-    
+
     // Filter and sort candidates
     return candidates
       .filter(candidate => candidate.compatibility >= minCompatibility)
       .sort((a, b) => {
         // Prioritize by compatibility, then by energy if requested
-        const scoreA = prioritizeEnergy 
+        const scoreA = prioritizeEnergy
           ? a.compatibility * 0.7 + (a.energyChange === 'rising' ? 0.3 : 0)
           : a.compatibility;
-        const scoreB = prioritizeEnergy 
+        const scoreB = prioritizeEnergy
           ? b.compatibility * 0.7 + (b.energyChange === 'rising' ? 0.3 : 0)
           : b.compatibility;
-        
+
         return scoreB - scoreA;
       })
       .slice(0, maxResults);
@@ -554,23 +554,23 @@ async function calculateModeCompatibility(
 ): Promise<number> {
   const currentKey = currentAnalysis.key;
   const targetKey = targetAnalysis.key;
-  
+
   switch (mode) {
     case 'perfect_match':
       return currentKey === targetKey ? 1.0 : 0.0;
-      
+
     case 'relative_minor':
       return currentAnalysis.relativeKey === targetKey ? 0.9 : 0.0;
-      
+
     case 'dominant':
       return currentAnalysis.dominantKey === targetKey ? 0.8 : 0.0;
-      
+
     case 'subdominant':
       return currentAnalysis.subdominantKey === targetKey ? 0.8 : 0.0;
-      
+
     case 'parallel_minor':
       return currentAnalysis.parallelKey === targetKey ? 0.8 : 0.0;
-      
+
     case 'energy_boost':
       // Up a semitone - check if target is one semitone up
       {
@@ -578,7 +578,7 @@ async function calculateModeCompatibility(
         const targetPos = CIRCLE_OF_FIFTHS_POSITIONS[targetKey];
         return (targetPos - currentPos + 12) % 12 === 1 ? 0.7 : 0.0;
       }
-      
+
     case 'energy_drop':
       // Down a semitone - check if target is one semitone down
       {
@@ -586,7 +586,7 @@ async function calculateModeCompatibility(
         const targetPos = CIRCLE_OF_FIFTHS_POSITIONS[targetKey];
         return (currentPos - targetPos + 12) % 12 === 1 ? 0.7 : 0.0;
       }
-      
+
     case 'circle_progression':
       // Move around Circle of Fifths (1-2 steps)
       {
@@ -598,7 +598,7 @@ async function calculateModeCompatibility(
         );
         return circleDistance <= 2 ? 0.7 - (circleDistance * 0.1) : 0.0;
       }
-      
+
     case 'diatonic_progression':
       // Move within diatonic scale
       {
@@ -607,11 +607,11 @@ async function calculateModeCompatibility(
         const diatonicDistance = Math.abs(targetPos - currentPos);
         return diatonicDistance <= 4 ? 0.6 : 0.0;
       }
-      
+
     case 'chromatic_medley':
       // Any chromatic movement
       return 0.5; // Moderate compatibility for any chromatic movement
-      
+
     case 'modal_interchange':
       // Borrow from parallel modes
       {
@@ -619,18 +619,18 @@ async function calculateModeCompatibility(
         const targetRoot = targetAnalysis.rootNote;
         return currentRoot === targetRoot && currentAnalysis.mode !== targetAnalysis.mode ? 0.6 : 0.0;
       }
-      
+
     case 'key_change':
       // Any key change
       return currentKey !== targetKey ? 0.4 : 0.0;
-      
+
     case 'compatible':
       // Any compatible key (use existing compatibility calculation)
       {
         const compatibility = calculateKeyCompatibility(currentKey, targetKey);
         return compatibility.compatibility;
       }
-      
+
     default:
       return 0.0;
   }
@@ -645,24 +645,24 @@ function determineTransitionDifficulty(
   targetComplexity: 'simple' | 'moderate' | 'complex'
 ): 'easy' | 'medium' | 'hard' | 'expert' {
   let difficulty: 'easy' | 'medium' | 'hard' | 'expert' = 'medium';
-  
+
   // Base difficulty on compatibility
   if (compatibility > 0.8) {
     difficulty = 'easy';
   } else if (compatibility < 0.5) {
     difficulty = 'hard';
   }
-  
+
   // Adjust for complexity
   const complexityScore = (currentComplexity === 'simple' ? 1 : currentComplexity === 'moderate' ? 2 : 3) +
                          (targetComplexity === 'simple' ? 1 : targetComplexity === 'moderate' ? 2 : 3);
-  
+
   if (complexityScore > 5) {
     if (difficulty === 'easy') difficulty = 'medium';
     else if (difficulty === 'medium') difficulty = 'hard';
     else if (difficulty === 'hard') difficulty = 'expert';
   }
-  
+
   return difficulty;
 }
 
@@ -716,7 +716,7 @@ function generateHarmonicRationale(
 ): string {
   const currentKey = currentAnalysis.keySignature;
   const targetKey = targetAnalysis.keySignature;
-  
+
   switch (mode) {
     case 'perfect_match':
       return `Same key (${currentKey}) provides perfect harmonic compatibility for seamless mixing.`;
@@ -792,14 +792,14 @@ function extractGenreHints(analysis: AudioAnalysis): string[] {
   // This is a simplified implementation
   // In reality, this would analyze the audio or metadata
   const hints: string[] = [];
-  
+
   if (analysis.acousticness > 0.7) hints.push('acoustic');
   if (analysis.instrumentalness > 0.7) hints.push('instrumental');
   if (analysis.energy > 0.8) hints.push('electronic');
   if (analysis.danceability > 0.8) hints.push('dance');
   if (analysis.valence > 0.8) hints.push('happy');
   if (analysis.valence < 0.2) hints.push('sad');
-  
+
   return hints;
 }
 
@@ -821,12 +821,12 @@ export async function planHarmonicSet(
     energyProfile: _energyProfile = 'wave',
     maxKeyChanges: _maxKeyChanges = 5
   } = options;
-  
+
   try {
     if (songs.length === 0) {
       throw new Error('No songs provided for harmonic set planning');
     }
-    
+
     // Analyze all songs
     const analyzedSongs = await Promise.all(
       songs.map(async (song) => ({
@@ -834,23 +834,23 @@ export async function planHarmonicSet(
         analysis: await analyzeKeyForHarmonicMixing(song)
       }))
     );
-    
+
     // Select starting song
-    const startIndex = startKey 
+    const startIndex = startKey
       ? analyzedSongs.findIndex(s => s.analysis.key === startKey)
       : Math.floor(Math.random() * analyzedSongs.length);
-    
+
     if (startIndex === -1 && startKey) {
       throw new Error(`No song found with key ${startKey}`);
     }
-    
+
     const selectedSongs: typeof analyzedSongs = [analyzedSongs[startIndex >= 0 ? startIndex : 0]];
     const remainingSongs = analyzedSongs.filter((_, index) => index !== (startIndex >= 0 ? startIndex : 0));
-    
+
     // Build harmonic progression
     while (selectedSongs.length < Math.min(songs.length, 10) && remainingSongs.length > 0) {
       const currentSong = selectedSongs[selectedSongs.length - 1];
-      
+
       // Find best harmonic match
       const recommendations = await getHarmonicMixingRecommendations(
         currentSong.song,
@@ -861,13 +861,13 @@ export async function planHarmonicSet(
           minCompatibility: 0.4
         }
       );
-      
+
       if (recommendations.length === 0) break;
-      
+
       // Add the best match
       const bestMatch = recommendations[0];
       const nextSong = remainingSongs.find(s => s.analysis.key === bestMatch.targetKey);
-      
+
       if (nextSong) {
         selectedSongs.push(nextSong);
         remainingSongs.splice(remainingSongs.indexOf(nextSong), 1);
@@ -875,31 +875,31 @@ export async function planHarmonicSet(
         break;
       }
     }
-    
+
     // Calculate set statistics
     const keyProgression = selectedSongs.map(s => s.analysis.key);
     const harmonicModes = selectedSongs.slice(1).map((s, i) => {
       const prevKey = selectedSongs[i].analysis.key;
       const currKey = s.analysis.key;
-      
+
       // Determine the harmonic mode used
       if (prevKey === currKey) return 'perfect_match';
       if (selectedSongs[i].analysis.relativeKey === currKey) return 'relative_minor';
       if (selectedSongs[i].analysis.dominantKey === currKey) return 'dominant';
       if (selectedSongs[i].analysis.subdominantKey === currKey) return 'subdominant';
       if (selectedSongs[i].analysis.parallelKey === currKey) return 'parallel_minor';
-      
+
       return 'compatible';
     });
-    
+
     const energyFlow = selectedSongs.map(s => s.analysis.energy);
     const keyChanges = harmonicModes.filter(m => m !== 'perfect_match').length;
-    
+
     // Calculate transitions
     const transitions = selectedSongs.slice(1).map((s, i) => {
       const prevSong = selectedSongs[i];
       const compatibility = calculateKeyCompatibility(prevSong.analysis.key, s.analysis.key);
-      
+
       return {
         fromKey: prevSong.analysis.key,
         toKey: s.analysis.key,
@@ -912,14 +912,14 @@ export async function planHarmonicSet(
         )
       };
     });
-    
+
     // Calculate overall harmony
     const overallHarmony = transitions.reduce((sum, t) => sum + t.compatibility, 0) / transitions.length;
-    
+
     // Determine harmonic complexity
     const harmonicComplexity = keyChanges <= 2 ? 'simple' :
                              keyChanges <= 4 ? 'moderate' : 'complex';
-    
+
     return {
       keyProgression,
       harmonicModes,

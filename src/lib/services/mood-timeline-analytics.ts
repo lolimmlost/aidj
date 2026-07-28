@@ -913,7 +913,7 @@ export async function createTasteSnapshot(
     return snapshot;
   } catch (dbError) {
     console.error('Database error creating taste snapshot:', dbError);
-    throw new Error(`Failed to save snapshot to database: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`);
+    throw new Error(`Failed to save snapshot to database: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`, { cause: dbError });
   }
 }
 

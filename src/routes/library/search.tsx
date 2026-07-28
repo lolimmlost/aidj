@@ -659,7 +659,7 @@ function ArtistAddFallback({ query }: { query: string }) {
   const addArtist = useAddArtistToLibrary();
 
   const [elapsed, setElapsed] = useState(0);
-  /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect, react-hooks/set-state-in-effect */
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!isLoading) {
       setElapsed(0);
@@ -670,7 +670,7 @@ function ArtistAddFallback({ query }: { query: string }) {
     const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 500);
     return () => clearInterval(id);
   }, [isLoading, query]);
-  /* eslint-enable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect, react-hooks/set-state-in-effect */
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (isLoading) {
     const slow = elapsed >= 4;

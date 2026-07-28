@@ -560,14 +560,14 @@ export function MoodTimeline({
 
   // Fetch timeline data
   const { data: timeline, isLoading, error } = useQuery({
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps
+
     queryKey: ['mood-timeline', dateRange.start.toISOString(), dateRange.end.toISOString(), granularity],
     queryFn: () => fetchMoodTimeline(dateRange.start, dateRange.end, granularity),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   // Transform data for chart
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+
   const chartData = useMemo(() => {
     if (!timeline?.dataPoints) return [];
 

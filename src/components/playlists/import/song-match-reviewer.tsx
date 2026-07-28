@@ -295,7 +295,7 @@ export function SongMatchReviewer({
                           <Badge variant="outline" className="text-[9px] h-4 px-1">
                             {Math.round(match.matchScore)}%
                           </Badge>
-                          {match.duration && (
+                          {match.duration != null && match.duration > 0 && (
                             <span className="text-[10px] text-muted-foreground">
                               {Math.floor(match.duration / 60)}:{String(match.duration % 60).padStart(2, '0')}
                             </span>

@@ -13,9 +13,9 @@ interface FeedbackResponse {
 export function useSongFeedback(songIds: string[]) {
   const { data: session } = authClient.useSession();
 
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps -- key factory omits session id; feedback is per-user by cookie
   return useQuery({
     // Use query key factory for consistent cache management
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: queryKeys.feedback.songs(songIds),
     queryFn: async (): Promise<FeedbackResponse> => {
       if (!session?.user?.id || songIds.length === 0) {

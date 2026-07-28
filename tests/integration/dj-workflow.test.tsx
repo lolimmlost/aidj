@@ -76,12 +76,13 @@ describe('DJ Workflow Integration Tests', () => {
     vi.clearAllMocks()
     vi.useFakeTimers()
     setupWebAudioMocks()
-    
+
     // Mock router
     vi.mock('@tanstack/react-router', () => ({
       useNavigate: () => mockNavigate,
       useLocation: () => ({ pathname: '/dj' }),
       useParams: () => ({ id: '1' }),
+      // eslint-disable-next-line @eslint-react/no-nested-component-definitions -- test mock factory
       Link: ({ children, to, ...props }) => <a href={to} {...props}>{children}</a>
     }))
   })
@@ -419,7 +420,7 @@ describe('DJ Workflow Integration Tests', () => {
 
   describe('DJ Auto-Mix Integration', () => {
     it('should generate playlists based on current song', async () => {
-      const mockGenerateAIDJRecommendations = vi.fn(() => 
+      const mockGenerateAIDJRecommendations = vi.fn(() =>
         Promise.resolve(mockSongs.slice(1, 3))
       )
       mockUseAudioStore.mockReturnValue({
@@ -469,7 +470,7 @@ describe('DJ Workflow Integration Tests', () => {
     })
 
     it('should respect harmonic mixing settings', async () => {
-      const mockGenerateAIDJRecommendations = vi.fn(() => 
+      const mockGenerateAIDJRecommendations = vi.fn(() =>
         Promise.resolve(mockSongs.slice(1, 3))
       )
       mockUseAudioStore.mockReturnValue({
@@ -671,15 +672,15 @@ describe('DJ Workflow Integration Tests', () => {
       // Test rapid DJ control changes
       const playButton = screen.getByLabelText('Play')
       const startTime = performance.now()
-      
+
       for (let i = 0; i < 10; i++) {
         await userEvent.click(playButton)
         await new Promise(resolve => setTimeout(resolve, 1))
       }
-      
+
       const endTime = performance.now()
       const totalTime = endTime - startTime
-      
+
       // Should handle 10 rapid clicks within 100ms
       expect(totalTime).toBeLessThan(100)
     })
@@ -723,17 +724,17 @@ describe('DJ Workflow Integration Tests', () => {
       const playButton = screen.getByLabelText('Play')
       const volumeSlider = screen.getByLabelText('Volume')
       const nextButton = screen.getByLabelText('Next')
-      
+
       const operations = [
         () => userEvent.click(playButton),
         () => userEvent.change(volumeSlider, { target: { value: '0.9' } }),
         () => userEvent.click(nextButton)
       ]
-      
+
       const startTime = performance.now()
       await Promise.all(operations.map(op => op()))
       const endTime = performance.now()
-      
+
       expect(endTime - startTime).toBeLessThan(50) // Should complete within 50ms
     })
   })

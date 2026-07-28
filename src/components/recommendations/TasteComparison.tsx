@@ -287,8 +287,8 @@ export function TasteComparison({ pastPeriod, currentPeriod }: TasteComparisonPr
     current: currentPeriod || defaultPeriods.current,
   });
 
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps -- key uses the ISO strings derived from periods
   const { data: comparison, isLoading, error } = useQuery({
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: [
       'taste-comparison',
       periods.past.start.toISOString(),

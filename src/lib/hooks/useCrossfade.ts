@@ -83,7 +83,7 @@ export function useCrossfade({
   }, []);
 
   // Reset crossfade state for a new song
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+
   const resetCrossfadeState = useCallback(() => {
     crossfadeInProgressRef.current = false;
     crossfadeCanPlayFiredRef.current = false;

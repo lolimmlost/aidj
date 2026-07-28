@@ -819,7 +819,7 @@ export async function voteOnSuggestion(input: VoteOnSuggestionInput): Promise<{
   // Calculate vote change
   let upvoteChange = 0;
   let downvoteChange = 0;
-  let scoreChange = 0;
+  let scoreChange: number;
 
   if (existingVote) {
     if (existingVote.vote === input.vote) {

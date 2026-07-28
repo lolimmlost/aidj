@@ -245,7 +245,7 @@ function SetBuilderPage() {
                     <Badge variant="outline">
                       {template.options.energyProfile}
                     </Badge>
-                    {template.options.targetBpm && (
+                    {(template.options.targetBpm ?? 0) > 0 && (
                       <Badge variant="outline">
                         {template.options.targetBpm} BPM
                       </Badge>

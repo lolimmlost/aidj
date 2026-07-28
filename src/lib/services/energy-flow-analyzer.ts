@@ -61,38 +61,38 @@ export async function analyzeEnergyFlow(
   try {
     // Get basic audio analysis
     const basicAnalysis = await analyzeAudioFeatures(song);
-    
+
     // Extract energy levels from the song
     const energyLevels = extractEnergyLevels(basicAnalysis, config);
-    
+
     // Identify energy patterns
     const patternAnalysis = identifyEnergyPatterns(energyLevels, config);
     const patterns = patternAnalysis.patterns;
-    
+
     // Calculate energy gradient
     const energyGradient = calculateEnergyGradient(energyLevels);
-    
+
     // Determine flow complexity
     const flowComplexity = determineFlowComplexity(patterns, energyGradient);
-    
+
     // Calculate dance floor impact
     const danceFloorImpact = calculateDanceFloorImpact(energyLevels, patterns);
-    
+
     // Calculate crowd control potential
     const crowdControlPotential = calculateCrowdControlPotential(energyLevels, patterns);
-    
+
     // Determine transition difficulty
     const transitionDifficulty = determineTransitionDifficulty(flowComplexity, patterns);
-    
+
     // Get recommended transition type
     const recommendedTransitionType = getRecommendedTransitionType(patterns, flowComplexity);
-    
+
     // Generate energy profile
     const energyProfile = generateEnergyProfile(energyLevels);
-    
+
     // Identify peaks and valleys
     const { energyPeaks, energyValleys } = identifyPeaksAndValleys(energyLevels, config);
-    
+
     return {
       ...basicAnalysis,
       energyPattern: patternAnalysis.dominantPattern,
@@ -120,37 +120,37 @@ export async function analyzeEnergyFlow(
 function extractEnergyLevels(analysis: AudioAnalysis, config: EnergyFlowConfig): number[] {
   const energyLevels: number[] = [];
   const _windowSize = config.analysisWindow;
-  
+
   // For now, we'll use the overall energy as a proxy for detailed levels
   // In a real implementation, this would analyze the audio buffer
   const baseEnergy = analysis.energy;
-  
+
   // Generate energy levels throughout the song
   for (let i = 0; i < 100; i++) {
     const position = i / 99; // Evenly distribute positions
-    
+
     // Add some variation based on position
     let energy = baseEnergy;
-    
+
     // Add rhythmic variation
     const rhythmicVariation = Math.sin(position * Math.PI * 2) * 0.1;
     energy += rhythmicVariation * config.sensitivity;
-    
+
     // Add structural variation (verse/chorus)
     if (position < 0.3 || position > 0.7) {
       energy += 0.1; // Chorus sections
     } else {
       energy += -0.05; // Verse sections
     }
-    
+
     // Add micro-variations for realism
     const microVariation = (Math.random() - 0.5) * 0.05;
     energy += microVariation;
-    
+
     // Smooth the energy levels
     energyLevels.push(Math.max(0, Math.min(1, energy)));
   }
-  
+
   return energyLevels;
 }
 
@@ -162,19 +162,19 @@ function identifyEnergyPatterns(energyLevels: number[], config: EnergyFlowConfig
   patterns: EnergyPattern[];
 } {
   const patterns: EnergyPattern[] = [];
-  
+
   // Pattern types to detect
   const patternTypes: EnergyPattern['type'][] = [
     'rising', 'falling', 'plateau', 'peak', 'valley', 'wave', 'random'
   ];
-  
+
   for (const patternType of patternTypes) {
     const pattern = detectPatternType(energyLevels, patternType, config);
     if (pattern) {
       patterns.push(pattern);
     }
   }
-  
+
   // Sort patterns by confidence and duration
   patterns.sort((a, b) => {
     // Prioritize longer patterns and higher confidence
@@ -183,7 +183,7 @@ function identifyEnergyPatterns(energyLevels: number[], config: EnergyFlowConfig
     }
     return b.confidence - a.confidence;
   });
-  
+
   // Return dominant pattern
   return {
     dominantPattern: patterns[0] || { type: 'random', duration: 0, intensity: 0, startBeat: 0, confidence: 0 },
@@ -201,35 +201,35 @@ function detectPatternType(
 ): EnergyPattern | null {
   const minLength = config.minPatternDuration;
   const maxLength = config.maxPatternDuration;
-  
+
   // Find continuous segments matching the pattern type
   const segments = findContinuousSegments(energyLevels, patternType, config);
-  
+
   if (segments.length === 0) {
     return null;
   }
-  
+
   // Analyze segments
   let totalDuration = 0;
   let totalIntensity = 0;
   let confidence = 0;
-  
+
   for (const segment of segments) {
     totalDuration += segment.duration;
     totalIntensity += segment.averageIntensity * segment.duration;
-    
+
     // Calculate confidence based on how well the segment matches the pattern
     let segmentConfidence = 0;
     if (segment.duration >= minLength && segment.duration <= maxLength) {
       segmentConfidence = Math.min(1.0, segment.duration / maxLength);
     }
-    
+
     confidence += segmentConfidence;
   }
-  
+
   // Calculate average intensity
   const averageIntensity = totalDuration > 0 ? totalIntensity / totalDuration : 0;
-  
+
   return {
     type: patternType,
     duration: Math.min(totalDuration, maxLength),
@@ -250,14 +250,14 @@ function findContinuousSegments(
   const segments: Array<{ duration: number; averageIntensity: number; startBeat: number; endBeat: number }> = [];
   const minLength = config.minPatternDuration;
   const maxLength = config.maxPatternDuration;
-  
+
   for (let i = 0; i < energyLevels.length - 1; i++) {
     const segment = analyzeSegment(energyLevels, i, patternType, minLength, maxLength, config);
     if (segment) {
       segments.push(segment);
     }
   }
-  
+
   return segments;
 }
 
@@ -273,8 +273,8 @@ function analyzeSegment(
   config: EnergyFlowConfig
 ): { duration: number; averageIntensity: number; startBeat: number; endBeat: number } | null {
   const segmentLevels: number[] = [];
-  let endIndex = startIndex;
-  
+  let endIndex: number;
+
   // Determine segment boundaries based on pattern type
   switch (patternType) {
     case 'rising':
@@ -302,23 +302,23 @@ function analyzeSegment(
       endIndex = Math.min(startIndex + minLength, energyLevels.length - 1);
       break;
   }
-  
+
   // Ensure minimum segment length
   if (endIndex - startIndex < minLength) {
     endIndex = startIndex + minLength;
   }
-  
+
   // Extract segment levels
   for (let i = startIndex; i < endIndex; i++) {
     segmentLevels.push(energyLevels[i]);
   }
-  
+
   // Calculate segment statistics
   const duration = endIndex - startIndex;
   const averageIntensity = segmentLevels.reduce((sum, level) => sum + level, 0) / segmentLevels.length;
   const startBeat = startIndex;
   const endBeat = endIndex - 1;
-  
+
   return {
     duration,
     averageIntensity,
@@ -352,21 +352,21 @@ function findPeakSegmentEnd(energyLevels: number[], startIndex: number, config: 
   const _threshold = config.peakThreshold;
   let peakIndex = startIndex;
   let peakValue = energyLevels[startIndex];
-  
+
   for (let i = startIndex + 1; i < energyLevels.length; i++) {
     if (energyLevels[i] > peakValue) {
       peakValue = energyLevels[i];
       peakIndex = i;
     }
   }
-  
+
   // Find the end of the peak (where energy starts falling)
   for (let i = peakIndex; i < energyLevels.length; i++) {
     if (energyLevels[i] < peakValue * 0.8) {
       return Math.min(i + config.maxPatternDuration, energyLevels.length - 1);
     }
   }
-  
+
   return Math.min(startIndex + config.maxPatternDuration, energyLevels.length - 1);
 }
 
@@ -374,21 +374,21 @@ function findValleySegmentEnd(energyLevels: number[], startIndex: number, config
   const _threshold = config.valleyThreshold;
   let valleyIndex = startIndex;
   let valleyValue = energyLevels[startIndex];
-  
+
   for (let i = startIndex + 1; i < energyLevels.length; i++) {
     if (energyLevels[i] < valleyValue) {
       valleyValue = energyLevels[i];
       valleyIndex = i;
     }
   }
-  
+
   // Find the end of the valley (where energy starts rising)
   for (let i = valleyIndex; i < energyLevels.length; i++) {
     if (energyLevels[i] > valleyValue * 1.2) {
       return Math.min(i + config.maxPatternDuration, energyLevels.length - 1);
     }
   }
-  
+
   return Math.min(startIndex + config.maxPatternDuration, energyLevels.length - 1);
 }
 
@@ -396,25 +396,25 @@ function findPlateauSegmentEnd(energyLevels: number[], startIndex: number, confi
   const threshold = config.sensitivity;
   let plateauStart = startIndex;
   let _plateauEnd = startIndex;
-  
+
   // Find the start of plateau (stable energy)
   for (let i = startIndex; i < energyLevels.length; i++) {
-    if (Math.abs(energyLevels[i] - energyLevels[i - 1]) < threshold && 
+    if (Math.abs(energyLevels[i] - energyLevels[i - 1]) < threshold &&
         Math.abs(energyLevels[i + 1] - energyLevels[i]) < threshold) {
       plateauStart = i;
       break;
     }
   }
-  
+
   // Find the end of plateau
   for (let i = plateauStart; i < energyLevels.length; i++) {
-    if (Math.abs(energyLevels[i] - energyLevels[i - 1]) > threshold || 
+    if (Math.abs(energyLevels[i] - energyLevels[i - 1]) > threshold ||
         Math.abs(energyLevels[i + 1] - energyLevels[i]) > threshold) {
       _plateauEnd = i;
       break;
     }
   }
-  
+
   return Math.min(startIndex + config.maxPatternDuration, energyLevels.length - 1);
 }
 
@@ -431,7 +431,7 @@ function findWaveSegmentEnd(energyLevels: number[], startIndex: number, config: 
       _waveEnd = i + wavelength;
     }
   }
-  
+
   return Math.min(startIndex + config.maxPatternDuration, energyLevels.length - 1);
 }
 
@@ -440,25 +440,25 @@ function findWaveSegmentEnd(energyLevels: number[], startIndex: number, config: 
  */
 function calculateEnergyGradient(energyLevels: number[]): number {
   if (energyLevels.length < 2) return 0;
-  
+
   let totalChange = 0;
   let positiveChanges = 0;
   let negativeChanges = 0;
-  
+
   for (let i = 1; i < energyLevels.length; i++) {
     const change = energyLevels[i] - energyLevels[i - 1];
     totalChange += Math.abs(change);
-    
+
     if (change > 0) {
       positiveChanges += change;
     } else {
       negativeChanges += Math.abs(change);
     }
   }
-  
+
   const netChange = positiveChanges - negativeChanges;
   const gradient = totalChange > 0 ? netChange / totalChange : 0;
-  
+
   return Math.max(-1.0, Math.min(1.0, gradient));
 }
 
@@ -472,10 +472,10 @@ function determineFlowComplexity(
   // Count different pattern types
   const uniquePatternTypes = new Set(patterns.map(p => p.type));
   const patternDiversity = uniquePatternTypes.size;
-  
+
   // Consider energy gradient magnitude
   const gradientMagnitude = Math.abs(energyGradient);
-  
+
   // Determine complexity
   if (patternDiversity <= 2 && gradientMagnitude < 0.3) {
     return 'simple';
@@ -493,14 +493,14 @@ function calculateDanceFloorImpact(energyLevels: number[], patterns: EnergyPatte
   // Count high-energy sections suitable for dancing
   let highEnergySections = 0;
   let totalSections = 0;
-  
+
   for (let i = 1; i < energyLevels.length; i++) {
     totalSections++;
     if (energyLevels[i] > 0.7) {
       highEnergySections++;
     }
   }
-  
+
   // Calculate impact based on pattern types
   let patternBonus = 0;
   for (const pattern of patterns) {
@@ -522,10 +522,10 @@ function calculateDanceFloorImpact(energyLevels: number[], patterns: EnergyPatte
         break;
     }
   }
-  
+
   const baseImpact = highEnergySections / totalSections;
   const adjustedImpact = Math.max(0, Math.min(1, baseImpact + patternBonus));
-  
+
   return Math.max(0, Math.min(1, adjustedImpact));
 }
 
@@ -533,21 +533,17 @@ function calculateDanceFloorImpact(energyLevels: number[], patterns: EnergyPatte
  * Calculate crowd control potential based on energy patterns
  */
 function calculateCrowdControlPotential(energyLevels: number[], patterns: EnergyPattern[]): number {
-  // Analyze energy stability and predictability
-  let stabilityScore = 0;
-  let predictabilityScore = 0;
-  
   // Calculate energy variance
   const meanEnergy = energyLevels.reduce((sum, energy) => sum + energy, 0) / energyLevels.length;
   const variance = energyLevels.reduce((sum, energy) => {
     const diff = energy - meanEnergy;
     return sum + (diff * diff);
   }, 0) / energyLevels.length;
-  
+
   // Lower variance = more predictable (better for crowd control)
-  stabilityScore = Math.max(0, 1.0 - (variance * 2));
-  predictabilityScore = Math.max(0, 1.0 - (variance * 3));
-  
+  let stabilityScore = Math.max(0, 1.0 - (variance * 2));
+  let predictabilityScore = Math.max(0, 1.0 - (variance * 3));
+
   // Consider pattern types
   for (const pattern of patterns) {
     switch (pattern.type) {
@@ -564,7 +560,7 @@ function calculateCrowdControlPotential(energyLevels: number[], patterns: Energy
         break;
     }
   }
-  
+
   return Math.max(0, Math.min(1, (stabilityScore + predictabilityScore) / 2));
 }
 
@@ -577,7 +573,7 @@ function determineTransitionDifficulty(
 ): 'easy' | 'medium' | 'hard' | 'expert' {
   // Base difficulty on flow complexity
   let difficulty: 'easy' | 'medium' | 'hard' | 'expert' = 'medium';
-  
+
   switch (flowComplexity) {
     case 'simple':
       difficulty = 'easy';
@@ -589,7 +585,7 @@ function determineTransitionDifficulty(
       difficulty = 'hard';
       break;
   }
-  
+
   // Adjust difficulty based on pattern types
   for (const pattern of patterns) {
     switch (pattern.type) {
@@ -604,7 +600,7 @@ function determineTransitionDifficulty(
         break;
     }
   }
-  
+
   return difficulty;
 }
 
@@ -617,7 +613,7 @@ function getRecommendedTransitionType(
 ): string {
   // Analyze dominant pattern
   const dominantPattern = patterns[0] || { type: 'random' };
-  
+
   switch (dominantPattern.type) {
     case 'rising':
       return 'energy_buildup'; // Build energy for rising pattern
@@ -645,14 +641,14 @@ function generateEnergyProfile(energyLevels: number[]): number[] {
   return energyLevels.map((energy, index) => {
     // Normalize energy to 0-1 range with some quantization
     const normalizedEnergy = Math.max(0, Math.min(1, Math.round(energy * 10) / 10));
-    
+
     // Add some smoothing
     if (index > 0) {
       const prevEnergy = energyLevels[index - 1];
       const smoothedEnergy = (prevEnergy * 0.3) + (normalizedEnergy * 0.7);
       return Math.round(smoothedEnergy * 10) / 10;
     }
-    
+
     return normalizedEnergy;
   });
 }
@@ -668,22 +664,22 @@ function identifyPeaksAndValleys(
   const valleys: number[] = [];
   const peakThreshold = config.peakThreshold;
   const valleyThreshold = config.valleyThreshold;
-  
+
   for (let i = 1; i < energyLevels.length - 1; i++) {
     const current = energyLevels[i];
     const prev = energyLevels[i - 1];
     const next = energyLevels[i + 1];
-    
+
     // Check for peak (local maximum)
     if (current > prev && current > next && current > peakThreshold) {
       peaks.push(i);
     }
-    
+
     // Check for valley (local minimum)
     if (current < prev && current < next && current < valleyThreshold) {
       valleys.push(i);
     }
   }
-  
+
   return { energyPeaks: peaks, energyValleys: valleys };
 }

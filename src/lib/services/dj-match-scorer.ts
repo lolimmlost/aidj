@@ -291,7 +291,7 @@ export function calculateDJScore(
     bpmResult.score >= 0.5; // BPM is a hard requirement
 
   // Generate summary
-  let summary = '';
+  let summary: string;
   if (totalScore >= 0.85) {
     summary = 'Excellent DJ transition';
   } else if (totalScore >= 0.70) {

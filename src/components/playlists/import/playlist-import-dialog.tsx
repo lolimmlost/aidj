@@ -625,7 +625,7 @@ export function PlaylistImportDialog({
           ref={globalFileInputRef}
           type="file"
           accept=".m3u,.m3u8,.xspf,.json,.csv"
-          // eslint-disable-next-line react-hooks/immutability
+
           onChange={handleGlobalFileChange}
           style={{ position: 'fixed', left: '-9999px', opacity: 0 }}
         />,

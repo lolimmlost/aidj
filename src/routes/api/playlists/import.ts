@@ -584,7 +584,7 @@ const PUT = withAuthAndErrorHandling(
       return songsToAdd;
     };
 
-    let songsAdded = 0;
+    let songsAdded: number;
 
     // Check if playlist already exists
     if (importJob.createdPlaylistId) {

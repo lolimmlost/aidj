@@ -235,7 +235,7 @@ function AlbumDetail() {
                 >
                   {artistName}
                 </Link>
-                {album?.year && <span>· {album.year}</span>}
+                {(album?.year ?? 0) > 0 && <span>· {album?.year}</span>}
                 <span>· {songs.length} {songs.length === 1 ? 'song' : 'songs'}</span>
                 {durationText && <span>· {durationText}</span>}
               </div>

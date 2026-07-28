@@ -86,7 +86,7 @@ export function MusicTasteDebugPanel({ onClose }: MusicTasteDebugPanelProps) {
   const explorationLevel = (preferences?.recommendationSettings as unknown as Record<string, unknown>)?.aiDJGenreExploration as number ?? 50;
 
   // Compute derived state
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+
   const queueGenres = useMemo(
     () => computeQueueGenres(playlist, currentSongIndex),
     [playlist, currentSongIndex]

@@ -191,7 +191,7 @@ export function usePlaybackStateSync({
       const deckB = deckBRef.current;
       if (!deckA || !deckB) return;
 
-      // eslint-disable-next-line @eslint-react/web-api/no-leaked-timeout -- one-shot delay inside event handler, no cleanup needed
+      // eslint-disable-next-line @eslint-react/web-api-no-leaked-timeout -- one-shot delay inside event handler, no cleanup needed
       setTimeout(() => {
         // Use currentTime > 0 as the PRIMARY signal for which deck was playing
         const deckAHasProgress = deckA.currentTime > 0 && hasRealSong(deckA);

@@ -72,7 +72,7 @@ export function useSongLoader({
   // usually mean the library/network is slow, not that songs are unavailable —
   // so we pause playback rather than nuking the queue.
   const consecutiveTimeoutsRef = useRef(0);
-  /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- loading state is set during async song load/recovery */
+
   useEffect(() => {
     if (playlist.length > 0 && currentSongIndex >= 0 && currentSongIndex < playlist.length) {
       const song = playlist[currentSongIndex] as Song;
@@ -149,12 +149,12 @@ export function useSongLoader({
           canPlayHandlerRef.current = recoveryCanPlay;
           errorHandlerRef.current = recoveryError;
           // Listeners are cleaned up via refs in the unmount effect
-          // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
+          // eslint-disable-next-line @eslint-react/web-api-no-leaked-event-listener
           audio.addEventListener('canplay', recoveryCanPlay);
-          // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
+          // eslint-disable-next-line @eslint-react/web-api-no-leaked-event-listener
           audio.addEventListener('error', recoveryError);
           setIsLoading(true);
-          // eslint-disable-next-line react-hooks/immutability -- DOM element property, not React state
+
           audio.src = song.url;
           audio.load();
           return;
@@ -237,9 +237,9 @@ export function useSongLoader({
 
           canPlayHandlerRef.current = rehydrationCanPlay;
           errorHandlerRef.current = rehydrationError;
-          // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
+          // eslint-disable-next-line @eslint-react/web-api-no-leaked-event-listener
           audio.addEventListener('canplay', rehydrationCanPlay);
-          // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
+          // eslint-disable-next-line @eslint-react/web-api-no-leaked-event-listener
           audio.addEventListener('error', rehydrationError);
 
           // Initialize refs with the recovered position
@@ -252,7 +252,7 @@ export function useSongLoader({
           // Load audio directly (skip loadSong which would setCurrentTime(0))
           setIsLoading(true);
           clearCrossfade();
-          // eslint-disable-next-line -- audio.src is a DOM property assignment, not hook state mutation
+
           audio.src = song.url;
           audio.load();
           return;
@@ -332,9 +332,9 @@ export function useSongLoader({
         errorHandlerRef.current = handleError;
 
         // Listeners are cleaned up via refs in the unmount effect below
-        // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
+        // eslint-disable-next-line @eslint-react/web-api-no-leaked-event-listener
         audio.addEventListener('canplay', handleCanPlay);
-        // eslint-disable-next-line @eslint-react/web-api/no-leaked-event-listener
+        // eslint-disable-next-line @eslint-react/web-api-no-leaked-event-listener
         audio.addEventListener('error', handleError);
         setIsLoading(true);
         loadSong(song);
@@ -375,5 +375,5 @@ export function useSongLoader({
       }
     }
   }, [currentSongIndex, playlist, loadSong, getActiveDeck, setIsPlaying, setCurrentTime, clearCrossfade, crossfadeInProgressRef, crossfadeJustCompletedRef, deckARef, deckBRef, activeDeckRef, lastProgressTimeRef, lastProgressValueRef, setActiveDeck, currentSongIdRef, playbackSnapshotRef, hasScrobbledRef, scrobbleThresholdReachedRef, canPlayHandlerRef, errorHandlerRef, ensureGraphInitializedRef, consecutiveFailuresRef, setIsLoading]);
-  /* eslint-enable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect */
+
 }

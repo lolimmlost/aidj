@@ -40,7 +40,7 @@ export const audioTokens = {
       subtle: 'hsl(217, 91%, 60%/0.1)', // blue-600/10
     },
   },
-  
+
   // Spacing
   spacing: {
     xs: '0.25rem', // 4px
@@ -50,7 +50,7 @@ export const audioTokens = {
     xl: '1.5rem',  // 24px
     xxl: '2rem',   // 32px
   },
-  
+
   // Border radius
   radius: {
     sm: '0.25rem',  // 4px
@@ -58,7 +58,7 @@ export const audioTokens = {
     lg: '0.5rem',   // 8px
     full: '9999px',
   },
-  
+
   // Typography
   typography: {
     xs: '0.75rem',   // 12px
@@ -67,14 +67,14 @@ export const audioTokens = {
     lg: '1.125rem',  // 18px
     xl: '1.25rem',   // 20px
   },
-  
+
   // Transitions
   transitions: {
     fast: '150ms ease-in-out',
     normal: '200ms ease-in-out',
     slow: '300ms ease-in-out',
   },
-  
+
   // Shadows
   shadows: {
     sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
@@ -111,13 +111,13 @@ export const AudioButton = ({
   ...props
 }: AudioButtonProps) => {
   const baseClasses = 'inline-flex items-center justify-center font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
-  
+
   const sizeClasses = {
     sm: 'h-8 w-8 text-xs',
     md: 'h-10 w-10 text-sm',
     lg: 'h-12 w-12 text-base',
   };
-  
+
   const variantClasses = {
     primary: 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm',
     secondary: 'bg-accent text-accent-foreground hover:bg-accent/80',
@@ -125,9 +125,9 @@ export const AudioButton = ({
     playing: `bg-${audioTokens.colors.playing.background} text-${audioTokens.colors.playing.foreground} hover:bg-green-800 shadow-sm`,
     ai: `bg-${audioTokens.colors.ai.background} text-${audioTokens.colors.ai.foreground} hover:bg-purple-700 shadow-sm`,
   };
-  
+
   const activeClasses = isActive ? 'ring-2 ring-primary ring-offset-2' : '';
-  
+
   return (
     <Button
       className={cn(
@@ -146,8 +146,8 @@ export const AudioButton = ({
         <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
       ) : (
         <>
-          {icon && <span className="flex-shrink-0">{icon}</span>}
-          {children && <span className="ml-2">{children}</span>}
+          {icon != null && <span className="flex-shrink-0">{icon}</span>}
+          {children != null && <span className="ml-2">{children}</span>}
         </>
       )}
     </Button>
@@ -182,11 +182,11 @@ export const AudioProgressBar = ({
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
-  
+
   const containerClasses = compact
     ? 'flex items-center gap-2'
     : 'flex flex-col space-y-1 min-w-[180px]';
-  
+
   return (
     <div className={cn(containerClasses, className)}>
       {showTime && !compact && (
@@ -307,11 +307,11 @@ export const AudioSongInfo = ({
   const sizeClasses = compact
     ? "w-12 h-12 text-sm sm:w-10 sm:h-10"
     : "w-14 h-14 text-base";
-    
+
   const textSizeClasses = compact
     ? "text-base sm:text-sm"
     : "text-lg";
-    
+
   const artistSizeClasses = compact
     ? "text-sm sm:text-xs"
     : "text-sm";
@@ -424,9 +424,9 @@ export const AudioStatusBadge = ({
       icon: '🤖',
     },
   };
-  
+
   const config = statusConfig[status];
-  
+
   return (
     <Badge className={cn(config.className, className)}>
       <span className="mr-1">{config.icon}</span>
@@ -455,7 +455,7 @@ export const AudioContainer = ({
     panel: 'bg-card text-card-foreground rounded-lg shadow-lg border',
     card: 'bg-card text-card-foreground rounded-lg shadow-md border',
   };
-  
+
   return (
     <div className={cn(variantClasses[variant], className)}>
       {children}

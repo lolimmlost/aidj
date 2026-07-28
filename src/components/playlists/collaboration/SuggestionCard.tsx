@@ -143,7 +143,7 @@ export function SuggestionCard({
             <span>•</span>
             <Clock className="h-3 w-3" />
             <span>{formatTimeAgo(suggestion.suggestedAt)}</span>
-            {suggestion.songDuration && (
+            {(suggestion.songDuration ?? 0) > 0 && (
               <>
                 <span>•</span>
                 <span>{formatDuration(suggestion.songDuration)}</span>
@@ -215,7 +215,7 @@ export function SuggestionCard({
             </Badge>
 
             {/* Auto-approval progress */}
-            {autoApproveThreshold && suggestion.score > 0 && (
+            {autoApproveThreshold != null && suggestion.score > 0 && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
                   <div
