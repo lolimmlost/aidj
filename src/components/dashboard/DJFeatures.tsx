@@ -10,11 +10,11 @@ export function DJFeatures() {
       {/* Section Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg">
-            <Disc3 className="h-5 w-5 text-white" />
+          <div className="p-2 bg-gradient-to-br from-primary to-(--aidj-violet) rounded-lg">
+            <Disc3 className="h-5 w-5 text-primary-foreground" />
           </div>
           <div>
-            <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+            <h2 className="text-xl font-bold text-gradient-brand">
               DJ Features
             </h2>
             <p className="text-xs text-muted-foreground">
@@ -22,7 +22,7 @@ export function DJFeatures() {
             </p>
           </div>
         </div>
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400">
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-primary/10 to-(--aidj-violet)/10 border border-primary/20 text-primary">
           Pro
         </span>
       </div>
@@ -31,18 +31,18 @@ export function DJFeatures() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* DJ Settings - Quick Access */}
         <Link to="/dj/settings" className="group md:col-span-2">
-          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-600/10 via-indigo-600/5 to-purple-600/10 border-2 border-blue-500/20 hover:border-blue-500/40 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-0.5 p-5 sm:p-6">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-full blur-2xl -z-10" />
+          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-primary/10 via-(--aidj-violet)/5 to-(--aidj-magenta)/10 border-2 border-primary/20 hover:border-primary/40 transition-all duration-200 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-0.5 p-5 sm:p-6">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-primary/10 to-(--aidj-violet)/10 rounded-full blur-2xl -z-10" />
 
             <div className="flex flex-col sm:flex-row gap-4 items-start">
-              <div className="flex-shrink-0 p-3 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg group-hover:scale-105 transition-transform">
-                <Settings className="h-6 w-6 text-white" />
+              <div className="flex-shrink-0 p-3 bg-gradient-to-br from-primary to-(--aidj-violet) rounded-xl shadow-lg group-hover:scale-105 transition-transform">
+                <Settings className="h-6 w-6 text-primary-foreground" />
               </div>
 
               <div className="flex-1 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-xl font-bold">DJ Settings</h3>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-blue-400 to-indigo-500 text-white">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-primary to-(--aidj-violet) text-primary-foreground">
                     Quick Access
                   </span>
                 </div>
@@ -69,19 +69,19 @@ export function DJFeatures() {
 
         {/* DJ Mixer - Featured */}
         <Link to="/dj/mixer" className="group md:col-span-2">
-          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-600/10 via-purple-600/5 to-pink-600/10 border-2 border-blue-500/20 hover:border-blue-500/40 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-0.5 p-5 sm:p-6">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full blur-2xl -z-10" />
+          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-primary/10 via-(--aidj-violet)/5 to-(--aidj-magenta)/10 border-2 border-primary/20 hover:border-primary/40 transition-all duration-200 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-0.5 p-5 sm:p-6">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-primary/10 to-(--aidj-violet)/10 rounded-full blur-2xl -z-10" />
 
             <div className="flex flex-col sm:flex-row gap-4 items-start">
-              <div className="flex-shrink-0 p-3 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl shadow-lg group-hover:scale-105 transition-transform">
-                <Disc3 className="h-6 w-6 text-white" />
+              <div className="flex-shrink-0 p-3 bg-gradient-to-br from-primary to-(--aidj-violet) rounded-xl shadow-lg group-hover:scale-105 transition-transform">
+                <Disc3 className="h-6 w-6 text-primary-foreground" />
               </div>
 
               <div className="flex-1 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-xl font-bold">DJ Mixer</h3>
                   <span className="badge-info">NEW</span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-400 to-orange-500 text-white">
+                  <span className="badge-warning">
                     Pro
                   </span>
                 </div>
@@ -152,10 +152,10 @@ export function DJFeatures() {
       </div>
 
       {/* Pro Tip */}
-      <div className="p-4 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 border border-blue-500/10 rounded-xl">
+      <div className="p-4 bg-gradient-to-r from-primary/5 via-(--aidj-violet)/5 to-(--aidj-magenta)/5 border border-primary/10 rounded-xl">
         <div className="flex items-start gap-3">
-          <div className="p-2 bg-blue-500/10 rounded-lg flex-shrink-0">
-            <Sparkles className="h-4 w-4 text-blue-600" />
+          <div className="p-2 bg-primary/10 rounded-lg flex-shrink-0">
+            <Sparkles className="h-4 w-4 text-primary" />
           </div>
           <div>
             <h3 className="font-medium text-sm mb-0.5">Pro Tip</h3>
@@ -181,20 +181,20 @@ interface FeatureLinkProps {
 
 function FeatureLink({ to, icon, title, description, color, badge, badges }: FeatureLinkProps) {
   const colorClasses = {
-    green: 'from-green-500/10 to-emerald-600/5 border-green-500/20 hover:border-green-500/40 hover:shadow-green-500/10',
-    purple: 'from-purple-500/10 to-pink-600/5 border-purple-500/20 hover:border-purple-500/40 hover:shadow-purple-500/10',
-    orange: 'from-orange-500/10 to-red-600/5 border-orange-500/20 hover:border-orange-500/40 hover:shadow-orange-500/10',
+    green: 'from-(--aidj-emerald)/10 to-transparent border-(--aidj-emerald)/20 hover:border-(--aidj-emerald)/40 hover:shadow-(color:--aidj-emerald)/10',
+    purple: 'from-(--aidj-violet)/10 to-(--aidj-magenta)/5 border-(--aidj-violet)/20 hover:border-(--aidj-violet)/40 hover:shadow-(color:--aidj-violet)/10',
+    orange: 'from-warning/10 to-transparent border-warning/20 hover:border-warning/40 hover:shadow-warning/10',
   };
 
   const iconClasses = {
-    green: 'from-green-600 to-emerald-600',
-    purple: 'from-purple-600 to-pink-600',
-    orange: 'from-orange-600 to-red-600',
+    green: 'from-(--aidj-emerald) to-(--aidj-cyan)',
+    purple: 'from-(--aidj-violet) to-(--aidj-magenta)',
+    orange: 'from-(--aidj-amber) to-warning',
   };
 
   const badgeClasses = {
     green: 'badge-success',
-    purple: 'badge-purple',
+    purple: 'badge-violet',
     orange: 'badge-warning',
   };
 
@@ -205,7 +205,7 @@ function FeatureLink({ to, icon, title, description, color, badge, badges }: Fea
       <div className={`h-full p-5 rounded-xl bg-gradient-to-br border-2 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${colorClasses[color]}`}>
         <div className="flex items-start justify-between mb-3">
           <div className={`p-2.5 bg-gradient-to-br rounded-xl shadow-md group-hover:scale-105 transition-transform ${iconClasses[color]}`}>
-            <div className="text-white">{icon}</div>
+            <div className="text-primary-foreground">{icon}</div>
           </div>
           {allBadges.length > 0 && (
             <div className="flex gap-1.5">

@@ -213,31 +213,31 @@ function DownloadStatusPage() {
       <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-yellow-600">{status.stats.totalQueued}</div>
+            <div className="text-2xl font-bold text-(--aidj-amber)">{status.stats.totalQueued}</div>
             <p className="text-sm text-muted-foreground">Queued</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">{status.stats.totalDownloading}</div>
+            <div className="text-2xl font-bold text-info">{status.stats.totalDownloading}</div>
             <p className="text-sm text-muted-foreground">Downloading</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-orange-600">{status.stats.totalWanted}</div>
+            <div className="text-2xl font-bold text-warning">{status.stats.totalWanted}</div>
             <p className="text-sm text-muted-foreground">Searching</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">{status.stats.totalCompleted}</div>
+            <div className="text-2xl font-bold text-success">{status.stats.totalCompleted}</div>
             <p className="text-sm text-muted-foreground">Completed</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-red-600">{status.stats.totalFailed}</div>
+            <div className="text-2xl font-bold text-destructive">{status.stats.totalFailed}</div>
             <p className="text-sm text-muted-foreground">Failed</p>
           </CardContent>
         </Card>
@@ -296,7 +296,7 @@ function DownloadStatusPage() {
                     </p>
 
                     {item.errorMessage && (
-                      <p className="text-xs text-red-500 dark:text-red-400">
+                      <p className="text-xs text-destructive">
                         Error: {item.errorMessage}
                       </p>
                     )}
@@ -308,7 +308,7 @@ function DownloadStatusPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleRetryDownload(item.id, item.artistName)}
-                        className="border-orange-500/50 text-orange-600 hover:bg-orange-500/10 dark:text-orange-400"
+                        className="border-warning/50 text-warning hover:bg-warning/10"
                       >
                         Retry
                       </Button>
@@ -356,11 +356,11 @@ function DownloadStatusPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <span>Searching for Albums</span>
-              <span className="text-xs px-2 py-1 rounded bg-orange-500/10 text-orange-600 dark:text-orange-400">
+              <span className="text-xs px-2 py-1 rounded bg-warning/10 text-warning">
                 {status.wanted.length} missing
               </span>
               {status.wanted.some(a => a.searchStatus === 'searching') && (
-                <span className="text-xs px-2 py-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 animate-pulse">
+                <span className="text-xs px-2 py-1 rounded bg-info/10 text-info animate-pulse">
                   Active searches
                 </span>
               )}
@@ -376,15 +376,15 @@ function DownloadStatusPage() {
                 const isSearching = album.searchStatus === 'searching';
                 const wasSearchedRecently = album.searchStatus === 'searched_recently';
                 const borderClass = isSearching
-                  ? 'border-blue-300 dark:border-blue-700'
+                  ? 'border-info/40'
                   : wasSearchedRecently
-                    ? 'border-green-200 dark:border-green-900/50'
-                    : 'border-orange-200 dark:border-orange-900/50';
+                    ? 'border-success/30'
+                    : 'border-warning/30';
                 const bgClass = isSearching
-                  ? 'bg-blue-50/50 dark:bg-blue-900/10'
+                  ? 'bg-info/5'
                   : wasSearchedRecently
-                    ? 'bg-green-50/50 dark:bg-green-900/10'
-                    : 'bg-orange-50/50 dark:bg-orange-900/10';
+                    ? 'bg-success/5'
+                    : 'bg-warning/5';
 
                 return (
                   <div key={album.id} className={`flex flex-col gap-3 p-4 border rounded-lg ${borderClass} ${bgClass}`}>
@@ -393,23 +393,23 @@ function DownloadStatusPage() {
                         <h3 className="font-medium">{album.title}</h3>
                         {/* Search Status Badge */}
                         {isSearching && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                            <span className="animate-spin h-3 w-3 border border-blue-600 border-t-transparent rounded-full"></span>
+                          <span className="text-xs px-2 py-0.5 rounded bg-info/10 text-info flex items-center gap-1">
+                            <span className="animate-spin h-3 w-3 border border-info border-t-transparent rounded-full"></span>
                             Searching...
                           </span>
                         )}
                         {wasSearchedRecently && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-green-500/10 text-green-600 dark:text-green-400">
+                          <span className="text-xs px-2 py-0.5 rounded bg-success/10 text-success">
                             Searched - Awaiting Results
                           </span>
                         )}
                         {!isSearching && !wasSearchedRecently && album.monitored && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-orange-500/10 text-orange-600 dark:text-orange-400">
+                          <span className="text-xs px-2 py-0.5 rounded bg-warning/10 text-warning">
                             Waiting
                           </span>
                         )}
                         {album.grabbed && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                          <span className="text-xs px-2 py-0.5 rounded bg-(--aidj-violet)/10 text-(--aidj-violet)">
                             Grabbed
                           </span>
                         )}
@@ -434,7 +434,7 @@ function DownloadStatusPage() {
                         disabled={isSearching}
                         className={isSearching
                           ? 'opacity-50 cursor-not-allowed'
-                          : 'border-orange-500/50 text-orange-600 hover:bg-orange-500/10'
+                          : 'border-warning/50 text-warning hover:bg-warning/10'
                         }
                       >
                         {isSearching ? 'Searching...' : 'Search Again'}
@@ -443,7 +443,7 @@ function DownloadStatusPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleUnmonitorAlbum(album.id, album.title)}
-                        className="border-red-500/50 text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                        className="border-destructive/50 text-destructive hover:bg-destructive/10"
                       >
                         Unmonitor
                       </Button>

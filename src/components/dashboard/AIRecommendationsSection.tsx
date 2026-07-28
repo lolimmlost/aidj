@@ -74,7 +74,7 @@ export function AIRecommendationsSection({
             <div>
               <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
                 <span className="text-gradient-brand">AI Recommendations</span>
-                <span className="badge-purple text-[10px]">AI</span>
+                <span className="badge-violet text-[10px]">AI</span>
               </h2>
               <p className="text-xs text-muted-foreground">
                 Personalized picks based on your taste

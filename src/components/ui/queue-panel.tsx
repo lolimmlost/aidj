@@ -70,10 +70,10 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
   // Determine styling based on queue source
   const getItemStyle = () => {
     if (isAutoplayQueued) {
-      return 'bg-gradient-to-r from-indigo-50/50 to-cyan-50/50 dark:from-indigo-950/30 dark:to-cyan-950/30 border border-indigo-200/30 dark:border-indigo-800/30 shadow-sm';
+      return 'bg-gradient-to-r from-(--aidj-cyan)/10 to-transparent border border-(--aidj-cyan)/25 shadow-sm';
     }
     if (isAIQueued) {
-      return 'bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-950/30 dark:to-purple-950/30 border border-blue-200/30 dark:border-blue-800/30 shadow-sm';
+      return 'bg-gradient-to-r from-(--aidj-violet)/10 to-transparent border border-(--aidj-violet)/25 shadow-sm';
     }
     return 'bg-gradient-to-r from-background to-muted/20 hover:from-muted/10 hover:to-muted/30 border border-border/30 hover:border-border/50 shadow-sm';
   };
@@ -121,11 +121,11 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
         <div className="flex items-center gap-1">
           <p className="font-semibold text-xs sm:text-sm truncate">{songTitle}</p>
           {isAutoplayQueued && (
-            <span className="text-[10px] sm:text-xs text-indigo-600 dark:text-indigo-300 flex-shrink-0" title="Added by Autoplay">🎶</span>
+            <span className="text-[10px] sm:text-xs text-(--aidj-cyan) flex-shrink-0" title="Added by Autoplay">🎶</span>
           )}
           {isAIQueued && !isAutoplayQueued && (
             <span className="flex-shrink-0" title={aiDJReason || 'AI DJ recommendation'}>
-              <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 text-purple-500" />
+              <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 text-(--aidj-violet)" />
             </span>
           )}
         </div>
@@ -144,8 +144,8 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
             }}
             className={`h-8 w-8 min-h-[32px] min-w-[32px] p-0 rounded-full transition-all ${
               isLiked
-                ? 'text-green-600 bg-green-500/20 hover:bg-green-500/30'
-                : 'hover:bg-green-500/10 hover:text-green-600'
+                ? 'text-success bg-success/20 hover:bg-success/30'
+                : 'hover:bg-success/10 hover:text-success'
             }`}
             aria-label={isLiked ? 'Marked as a good pick' : 'Good pick — like this suggestion'}
             aria-pressed={isLiked}
@@ -162,8 +162,8 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
             }}
             className={`h-8 w-8 min-h-[32px] min-w-[32px] p-0 rounded-full transition-all ${
               isDisliked
-                ? 'text-red-600 bg-red-500/20 hover:bg-red-500/30'
-                : 'hover:bg-red-500/10 hover:text-red-600'
+                ? 'text-destructive bg-destructive/20 hover:bg-destructive/30'
+                : 'hover:bg-destructive/10 hover:text-destructive'
             }`}
             aria-label={isDisliked ? 'Marked as a bad suggestion' : 'Bad suggestion — don\'t recommend like this'}
             aria-pressed={isDisliked}
@@ -180,7 +180,7 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
                 e.stopPropagation();
                 onSkipAutoplay(song.id);
               }}
-              className="h-8 w-8 min-h-[32px] min-w-[32px] p-0 rounded-full transition-all hover:bg-orange-500/10 hover:text-orange-600"
+              className="h-8 w-8 min-h-[32px] min-w-[32px] p-0 rounded-full transition-all hover:bg-warning/10 hover:text-warning"
               aria-label="Skip this autoplay recommendation"
               title="Skip and remove"
             >
@@ -198,7 +198,7 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
           e.stopPropagation();
           onRemove(actualIndex);
         }}
-        className="h-8 w-8 min-h-[32px] min-w-[32px] p-0 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 flex-shrink-0 hover:bg-red-500/10 hover:text-red-600 hover:scale-110 rounded-full"
+        className="h-8 w-8 min-h-[32px] min-w-[32px] p-0 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 flex-shrink-0 hover:bg-destructive/10 hover:text-destructive hover:scale-110 rounded-full"
         aria-label={`Remove ${songTitle} from queue`}
       >
         <X className="h-3.5 w-3.5" />
@@ -640,12 +640,12 @@ export function QueuePanel() {
           title="Show queue"
           aria-label={`Show queue${upcomingQueue.length > 0 ? ` - ${upcomingQueue.length} songs` : ''}`}
         >
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-full" />
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-(--aidj-violet)/5 to-(--aidj-magenta)/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-full" />
           <Music className="h-5 w-5 md:h-6 md:w-6 text-primary group-hover:scale-110 transition-transform relative z-10" />
         </Button>
         {upcomingQueue.length > 0 && (
           <span
-            className="absolute -top-0.5 -right-0.5 md:-top-1 md:-right-1 bg-gradient-to-br from-primary via-purple-500 to-pink-500 text-primary-foreground rounded-full h-5 w-5 md:h-6 md:w-6 text-[10px] md:text-xs font-bold flex items-center justify-center shadow-lg shadow-primary/40 ring-2 ring-background animate-in zoom-in duration-300 z-20"
+            className="absolute -top-0.5 -right-0.5 md:-top-1 md:-right-1 bg-gradient-to-br from-primary via-(--aidj-violet) to-(--aidj-magenta) text-primary-foreground rounded-full h-5 w-5 md:h-6 md:w-6 text-[10px] md:text-xs font-bold flex items-center justify-center shadow-lg shadow-primary/40 ring-2 ring-background animate-in zoom-in duration-300 z-20"
             aria-hidden="true"
           >
             {upcomingQueue.length > 99 ? '99+' : upcomingQueue.length}
@@ -653,7 +653,7 @@ export function QueuePanel() {
         )}
         {/* Pulse animation when AI DJ adds new songs */}
         {aiQueuedSongIds.size > 0 && aiDJLastQueueTime > Date.now() - 5000 && (
-          <span className="absolute inset-0 rounded-full bg-purple-500/30 animate-ping pointer-events-none" />
+          <span className="absolute inset-0 rounded-full bg-(--aidj-violet)/30 animate-ping pointer-events-none" />
         )}
       </div>
     );
@@ -667,11 +667,11 @@ export function QueuePanel() {
       aria-modal="false"
     >
       <Card className="shadow-2xl border-2 border-primary/10 bg-gradient-to-br from-background via-background to-primary/5 backdrop-blur-xl overflow-hidden max-h-[calc(100vh-7rem-env(safe-area-inset-top))] sm:max-h-[60vh] md:max-h-[calc(100vh-8rem)] landscape:max-md:max-h-[calc(100vh-5rem-env(safe-area-inset-top))] flex flex-col rounded-b-none sm:rounded-b-xl">
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-purple-500 to-pink-500" />
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-(--aidj-violet) to-(--aidj-magenta)" />
         <CardHeader className="pb-2 md:pb-3 px-3 md:px-6 pt-3 md:pt-6 bg-gradient-to-br from-primary/5 to-transparent">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 md:p-2 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-lg">
+              <div className="p-1.5 md:p-2 bg-gradient-to-br from-primary/20 to-(--aidj-violet)/20 rounded-lg">
                 <Music className="h-3.5 w-3.5 md:h-4 md:w-4 text-primary" />
               </div>
               <div>
@@ -687,7 +687,7 @@ export function QueuePanel() {
               variant="ghost"
               size="sm"
               onClick={() => setIsOpen(false)}
-              className="h-10 w-10 min-h-[44px] min-w-[44px] p-0 rounded-full hover:bg-red-500/10 hover:text-red-600 transition-all duration-200 hover:scale-110 touch-target"
+              className="h-10 w-10 min-h-[44px] min-w-[44px] p-0 rounded-full hover:bg-destructive/10 hover:text-destructive transition-all duration-200 hover:scale-110 touch-target"
               aria-label="Close queue panel"
             >
               <X className="h-4 w-4" />
@@ -698,15 +698,15 @@ export function QueuePanel() {
           {aiDJEnabled && (
             <div className="mt-3 pt-3 border-t border-border/50">
               {aiDJIsLoading ? (
-                <div className="flex items-center gap-2 text-xs font-medium text-yellow-700 dark:text-yellow-300 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 px-3 py-2 rounded-lg border border-yellow-200/50 dark:border-yellow-800/50 shadow-sm">
-                  <div className="p-1 bg-yellow-100 dark:bg-yellow-900/40 rounded animate-pulse">
+                <div className="flex items-center gap-2 text-xs font-medium text-warning bg-gradient-to-r from-warning/10 to-transparent px-3 py-2 rounded-lg border border-warning/25 shadow-sm">
+                  <div className="p-1 bg-warning/15 rounded animate-pulse">
                     <span className="block h-3 w-3 animate-spin">⏳</span>
                   </div>
                   <span>AI DJ generating recommendations...</span>
                 </div>
               ) : aiQueuedSongIds.size > 0 ? (
-                <div className="flex items-center gap-2 text-xs font-medium text-blue-700 dark:text-blue-300 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 px-3 py-2 rounded-lg border border-blue-200/50 dark:border-blue-800/50 shadow-sm">
-                  <div className="p-1 bg-blue-100 dark:bg-blue-900/40 rounded">
+                <div className="flex items-center gap-2 text-xs font-medium text-(--aidj-violet) bg-gradient-to-r from-(--aidj-violet)/10 to-transparent px-3 py-2 rounded-lg border border-(--aidj-violet)/25 shadow-sm">
+                  <div className="p-1 bg-(--aidj-violet)/15 rounded">
                     <span className="block h-3 w-3">✨</span>
                   </div>
                   <span>
@@ -717,8 +717,8 @@ export function QueuePanel() {
                   </span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 text-xs font-medium text-green-700 dark:text-green-300 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 px-3 py-2 rounded-lg border border-green-200/50 dark:border-green-800/50 shadow-sm">
-                  <div className="p-1 bg-green-100 dark:bg-green-900/40 rounded animate-pulse">
+                <div className="flex items-center gap-2 text-xs font-medium text-success bg-gradient-to-r from-success/10 to-transparent px-3 py-2 rounded-lg border border-success/25 shadow-sm">
+                  <div className="p-1 bg-success/15 rounded animate-pulse">
                     <span className="block h-3 w-3">✨</span>
                   </div>
                   <span>AI DJ actively monitoring your queue</span>
@@ -731,15 +731,15 @@ export function QueuePanel() {
           {autoplayEnabled && (
             <div className="mt-3 pt-3 border-t border-border/50">
               {autoplayIsLoading ? (
-                <div className="flex items-center gap-2 text-xs font-medium text-yellow-700 dark:text-yellow-300 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 px-3 py-2 rounded-lg border border-yellow-200/50 dark:border-yellow-800/50 shadow-sm">
-                  <div className="p-1 bg-yellow-100 dark:bg-yellow-900/40 rounded animate-pulse">
+                <div className="flex items-center gap-2 text-xs font-medium text-warning bg-gradient-to-r from-warning/10 to-transparent px-3 py-2 rounded-lg border border-warning/25 shadow-sm">
+                  <div className="p-1 bg-warning/15 rounded animate-pulse">
                     <span className="block h-3 w-3 animate-spin">⏳</span>
                   </div>
                   <span>Autoplay finding recommendations...</span>
                 </div>
               ) : autoplayQueuedSongIds.size > 0 ? (
-                <div className="flex items-center gap-2 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-gradient-to-r from-indigo-50 to-cyan-50 dark:from-indigo-900/20 dark:to-cyan-900/20 px-3 py-2 rounded-lg border border-indigo-200/50 dark:border-indigo-800/50 shadow-sm">
-                  <div className="p-1 bg-indigo-100 dark:bg-indigo-900/40 rounded">
+                <div className="flex items-center gap-2 text-xs font-medium text-(--aidj-cyan) bg-gradient-to-r from-(--aidj-cyan)/10 to-transparent px-3 py-2 rounded-lg border border-(--aidj-cyan)/25 shadow-sm">
+                  <div className="p-1 bg-(--aidj-cyan)/15 rounded">
                     <span className="block h-3 w-3">🎶</span>
                   </div>
                   <span>
@@ -750,8 +750,8 @@ export function QueuePanel() {
                   </span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-gradient-to-r from-indigo-50 to-cyan-50 dark:from-indigo-900/20 dark:to-cyan-900/20 px-3 py-2 rounded-lg border border-indigo-200/50 dark:border-indigo-800/50 shadow-sm">
-                  <div className="p-1 bg-indigo-100 dark:bg-indigo-900/40 rounded">
+                <div className="flex items-center gap-2 text-xs font-medium text-(--aidj-cyan) bg-gradient-to-r from-(--aidj-cyan)/10 to-transparent px-3 py-2 rounded-lg border border-(--aidj-cyan)/25 shadow-sm">
+                  <div className="p-1 bg-(--aidj-cyan)/15 rounded">
                     <span className="block h-3 w-3">🎶</span>
                   </div>
                   <span>Autoplay ready for when playlist ends</span>
@@ -844,7 +844,7 @@ export function QueuePanel() {
                     onClick={toggleShuffle}
                     className={`flex-1 h-8 md:h-9 text-xs md:text-sm transition-all duration-200 group ${
                       isShuffled
-                        ? 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20 border-purple-500/30 hover:border-purple-500/40 text-purple-600 dark:text-purple-400'
+                        ? 'bg-gradient-to-r from-(--aidj-violet)/10 to-(--aidj-magenta)/10 hover:from-(--aidj-violet)/20 hover:to-(--aidj-magenta)/20 border-(--aidj-violet)/30 hover:border-(--aidj-violet)/40 text-(--aidj-violet)'
                         : 'bg-gradient-to-r from-muted/5 to-transparent hover:from-muted/10 hover:to-transparent border-border/50 hover:border-border text-muted-foreground hover:text-foreground'
                     }`}
                     title={isShuffled ? 'Turn off shuffle' : 'Shuffle queue'}
@@ -873,7 +873,7 @@ export function QueuePanel() {
                     variant="outline"
                     size="sm"
                     onClick={() => setSaveRadioDialogOpen(true)}
-                    className="w-full h-8 md:h-9 text-xs md:text-sm bg-gradient-to-r from-orange-500/5 to-amber-500/5 hover:from-orange-500/10 hover:to-amber-500/10 border-orange-500/20 hover:border-orange-500/30 text-orange-600/80 dark:text-orange-400/80 hover:text-orange-600 dark:hover:text-orange-400 transition-all duration-200 group"
+                    className="w-full h-8 md:h-9 text-xs md:text-sm bg-gradient-to-r from-warning/5 to-transparent hover:from-warning/10 hover:to-transparent border-warning/20 hover:border-warning/30 text-warning/80 hover:text-warning transition-all duration-200 group"
                   >
                     <Radio className="mr-1 md:mr-2 h-3.5 w-3.5 md:h-4 md:w-4 group-hover:scale-110 transition-transform" />
                     Save Radio as Playlist
@@ -893,7 +893,7 @@ export function QueuePanel() {
                           key={artist.name}
                           onClick={() => handleDiscoveryDownload(artist.name)}
                           disabled={downloadingArtist === artist.name}
-                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border transition-all duration-200 bg-gradient-to-r from-emerald-500/5 to-teal-500/5 border-emerald-500/20 hover:border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:from-emerald-500/10 hover:to-teal-500/10 disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border transition-all duration-200 bg-gradient-to-r from-(--aidj-emerald)/5 to-transparent border-(--aidj-emerald)/20 hover:border-(--aidj-emerald)/40 text-(--aidj-emerald) hover:from-(--aidj-emerald)/10 hover:to-transparent disabled:opacity-50"
                           title={`Search & download ${artist.name} via Lidarr (${artist.source})`}
                         >
                           {downloadingArtist === artist.name ? (
@@ -917,7 +917,7 @@ export function QueuePanel() {
                       nudgeMoreLikeThis();
                       toast.success(`Finding more songs like "${currentSong.title || currentSong.name}"...`);
                     }}
-                    className="w-full h-8 md:h-9 text-xs md:text-sm bg-gradient-to-r from-purple-500/5 to-pink-500/5 hover:from-purple-500/10 hover:to-pink-500/10 border-purple-500/20 hover:border-purple-500/30 text-purple-600/80 dark:text-purple-400/80 hover:text-purple-600 dark:hover:text-purple-400 transition-all duration-200 group"
+                    className="w-full h-8 md:h-9 text-xs md:text-sm bg-gradient-to-r from-(--aidj-violet)/5 to-(--aidj-magenta)/5 hover:from-(--aidj-violet)/10 hover:to-(--aidj-magenta)/10 border-(--aidj-violet)/20 hover:border-(--aidj-violet)/30 text-(--aidj-violet)/80 hover:text-(--aidj-violet) transition-all duration-200 group"
                   >
                     <Sparkles className="mr-1 md:mr-2 h-3.5 w-3.5 md:h-4 md:w-4 group-hover:scale-110 transition-transform" />
                     More Like This
@@ -929,11 +929,11 @@ export function QueuePanel() {
                     variant="outline"
                     size="sm"
                     onClick={undoClearQueue}
-                    className="w-full h-8 md:h-9 text-xs md:text-sm bg-gradient-to-r from-blue-500/5 to-transparent hover:from-blue-500/10 hover:to-transparent border-blue-500/20 hover:border-blue-500/30 text-blue-600/80 hover:text-blue-600 transition-all duration-200 group"
+                    className="w-full h-8 md:h-9 text-xs md:text-sm bg-gradient-to-r from-info/5 to-transparent hover:from-info/10 hover:to-transparent border-info/20 hover:border-info/30 text-info/80 hover:text-info transition-all duration-200 group"
                   >
                     <RotateCcw className="mr-1 md:mr-2 h-3.5 w-3.5 md:h-4 md:w-4 group-hover:scale-110 transition-transform" />
                     Undo Clear
-                    <span className="ml-auto text-[10px] md:text-xs text-blue-500/60">
+                    <span className="ml-auto text-[10px] md:text-xs text-info/60">
                       {undoTimeRemaining >= 60000
                         ? `${Math.floor(undoTimeRemaining / 60000)}m`
                         : `${Math.floor(undoTimeRemaining / 1000)}s`}

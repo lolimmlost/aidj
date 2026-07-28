@@ -27,13 +27,13 @@ function StatusBadge({ status }: { status?: TestStatus }) {
     <span
       className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
         isOk
-          ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+          ? 'bg-success/10 text-success'
           : isWarn
-          ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400'
+          ? 'bg-warning/10 text-warning'
           : 'bg-destructive/10 text-destructive'
       }`}
     >
-      <span className={`inline-block w-1.5 h-1.5 rounded-full ${isOk ? 'bg-green-500' : isWarn ? 'bg-yellow-500' : 'bg-destructive'}`} />
+      <span className={`inline-block w-1.5 h-1.5 rounded-full ${isOk ? 'bg-success' : isWarn ? 'bg-warning' : 'bg-destructive'}`} />
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
   );
@@ -491,7 +491,7 @@ export function ServicesSettings() {
                       href="https://openrouter.ai/keys"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 dark:text-blue-400 hover:underline"
+                      className="text-info hover:underline"
                     >
                       openrouter.ai/keys
                     </a>
@@ -541,7 +541,7 @@ export function ServicesSettings() {
                       href="https://open.bigmodel.cn"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 dark:text-blue-400 hover:underline"
+                      className="text-info hover:underline"
                     >
                       open.bigmodel.cn
                     </a>
@@ -736,7 +736,7 @@ export function ServicesSettings() {
                   href="https://github.com/alexta69/metube"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-info hover:underline"
                 >
                   MeTube
                 </a>
@@ -745,9 +745,9 @@ export function ServicesSettings() {
           </div>
 
           {/* Discovery Services Section */}
-          <div className="p-4 border rounded-lg space-y-4 bg-purple-50 dark:bg-purple-900/10">
+          <div className="p-4 border rounded-lg space-y-4 bg-(--aidj-violet)/5">
             <h3 className="text-lg font-semibold flex items-center gap-2">
-              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-(--aidj-violet)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               Discovery Services
@@ -785,7 +785,7 @@ export function ServicesSettings() {
                   href="https://www.last.fm/api/account/create"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-purple-600 dark:text-purple-400 hover:underline"
+                  className="text-(--aidj-violet) hover:underline"
                 >
                   last.fm/api
                 </a>
@@ -800,9 +800,9 @@ export function ServicesSettings() {
           </div>
 
           {/* Last.fm Scrobble Backfill Section */}
-          <div className="p-4 border rounded-lg space-y-4 bg-indigo-50 dark:bg-indigo-900/10">
+          <div className="p-4 border rounded-lg space-y-4 bg-(--aidj-cyan)/5">
             <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Download className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              <Download className="w-5 h-5 text-(--aidj-cyan)" />
               Last.fm Scrobble Backfill
             </h3>
             <p className="text-sm text-muted-foreground">
@@ -838,7 +838,7 @@ export function ServicesSettings() {
             </div>
 
             {backfillProgress && (
-              <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-400">
+              <div className="flex items-center gap-2 p-3 rounded-md text-sm bg-(--aidj-cyan)/12 text-(--aidj-cyan)">
                 <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                 <div>{backfillProgress.detail}</div>
               </div>
@@ -848,7 +848,7 @@ export function ServicesSettings() {
               <div
                 className={`flex items-start gap-2 p-3 rounded-md text-sm ${
                   backfillResult.success
-                    ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                    ? 'bg-success/10 text-success'
                     : 'bg-destructive/10 text-destructive'
                 }`}
               >
@@ -885,7 +885,7 @@ export function ServicesSettings() {
           <div
             className={`p-4 rounded-md ${
               status.includes('success')
-                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                ? 'bg-success/10 text-success'
                 : 'bg-destructive/10 text-destructive'
             }`}
           >

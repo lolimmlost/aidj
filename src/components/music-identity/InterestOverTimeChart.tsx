@@ -30,11 +30,11 @@ interface InterestOverTimeChartProps {
 }
 
 const ARTIST_COLORS = [
-  '#8b5cf6', // violet
-  '#3b82f6', // blue
-  '#10b981', // emerald
-  '#f59e0b', // amber
-  '#ec4899', // pink
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+  'var(--chart-1)',
 ];
 
 const trendIcons = {

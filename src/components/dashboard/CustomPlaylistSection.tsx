@@ -111,12 +111,12 @@ export function CustomPlaylistSection({
             onClick={onToggleCollapse}
             className="flex items-center gap-3 text-left group"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center">
-              <Music className="w-5 h-5 text-cyan-500" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-(--aidj-cyan)/20 to-(--aidj-violet)/20 flex items-center justify-center">
+              <Music className="w-5 h-5 text-(--aidj-cyan)" />
             </div>
             <div>
               <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-                <span className="bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-(--aidj-cyan) to-(--aidj-violet) bg-clip-text text-transparent">
                   Custom Playlist
                 </span>
                 <span className="badge-info text-[10px]">AI</span>
@@ -251,10 +251,10 @@ export function CustomPlaylistSection({
             {playlistData && (
               <div className="space-y-4">
                 {/* Stats banner */}
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 border border-blue-500/10 rounded-xl">
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-(--aidj-cyan)/5 to-transparent border border-(--aidj-cyan)/10 rounded-xl">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-500/10 rounded-lg">
-                      <Music className="w-5 h-5 text-blue-600" />
+                    <div className="p-2 bg-(--aidj-cyan)/10 rounded-lg">
+                      <Music className="w-5 h-5 text-(--aidj-cyan)" />
                     </div>
                     <div>
                       <p className="text-sm font-medium">
@@ -281,7 +281,7 @@ export function CustomPlaylistSection({
                       <DropdownMenuTrigger asChild>
                         <Button
                           size="sm"
-                          className="bg-green-600 hover:bg-green-700 text-white shadow-sm"
+                          className="bg-success hover:bg-success/90 text-primary-foreground shadow-sm"
                           aria-label="Add playlist to queue"
                         >
                           <ListPlus className="mr-1 h-4 w-4" />
@@ -331,12 +331,12 @@ export function CustomPlaylistSection({
                     const isDiscovery = item.isDiscovery || false;
                     const isLastFm = item.discoverySource === 'lastfm';
                     const cardStyle = hasSong
-                      ? 'border-green-500/30 bg-gradient-to-br from-green-500/5 to-green-600/5 hover:border-green-500/50'
+                      ? 'border-success/30 bg-gradient-to-br from-success/5 to-transparent hover:border-success/50'
                       : isDiscovery
                         ? isLastFm
-                          ? 'border-red-500/30 bg-gradient-to-br from-red-500/5 to-pink-500/5 hover:border-red-500/50'
-                          : 'border-purple-500/30 bg-gradient-to-br from-purple-500/5 to-pink-500/5 hover:border-purple-500/50'
-                        : 'border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-red-500/5 hover:border-orange-500/50';
+                          ? 'border-destructive/30 bg-gradient-to-br from-destructive/5 to-(--aidj-magenta)/5 hover:border-destructive/50'
+                          : 'border-(--aidj-violet)/30 bg-gradient-to-br from-(--aidj-violet)/5 to-(--aidj-magenta)/5 hover:border-(--aidj-violet)/50'
+                        : 'border-warning/30 bg-gradient-to-br from-warning/5 to-transparent hover:border-warning/50';
 
                     return (
                       <div
@@ -359,7 +359,7 @@ export function CustomPlaylistSection({
                                   discoverySource={item.discoverySource}
                                 />
                                 {!hasSong && !isDiscovery && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                                  <span className="badge-warning">
                                     Not Found
                                   </span>
                                 )}
@@ -390,7 +390,7 @@ export function CustomPlaylistSection({
                               {/* Discovery info */}
                               {isDiscovery && !hasSong && (
                                 <p
-                                  className={`text-xs ${isLastFm ? 'text-red-600 dark:text-red-400' : 'text-purple-600 dark:text-purple-400'}`}
+                                  className={`text-xs ${isLastFm ? 'text-destructive' : 'text-(--aidj-violet)'}`}
                                 >
                                   {isLastFm
                                     ? 'From Last.fm - similar to artists in your library'
@@ -420,7 +420,7 @@ export function CustomPlaylistSection({
                                     <Button
                                       variant="default"
                                       size="sm"
-                                      className="bg-green-600 hover:bg-green-700 text-white shadow-sm"
+                                      className="bg-success hover:bg-success/90 text-primary-foreground shadow-sm"
                                     >
                                       <ListPlus className="mr-1 h-4 w-4" />
                                       Queue
@@ -466,7 +466,7 @@ export function CustomPlaylistSection({
                                   onClick={() =>
                                     onDiscoveryAdd(item, index)
                                   }
-                                  className="border-purple-500/30 hover:bg-purple-500/10 text-purple-700 dark:text-purple-300"
+                                  className="border-(--aidj-violet)/30 hover:bg-(--aidj-violet)/10 text-(--aidj-violet)"
                                 >
                                   <Download className="mr-1 h-4 w-4" />
                                   Find & Download
@@ -482,7 +482,7 @@ export function CustomPlaylistSection({
                                       onSearchSimilar(artistPart.trim());
                                     }
                                   }}
-                                  className="border-orange-500/30 hover:bg-orange-500/10"
+                                  className="border-warning/30 hover:bg-warning/10"
                                 >
                                   <Search className="mr-1 h-4 w-4" />
                                   Search Similar

@@ -29,17 +29,17 @@ interface AlbumAgeChartProps {
 }
 
 const DECADE_COLORS: Record<string, string> = {
-  '1960s': '#94a3b8',
-  '1970s': '#f59e0b',
-  '1980s': '#ec4899',
-  '1990s': '#8b5cf6',
-  '2000s': '#3b82f6',
-  '2010s': '#10b981',
-  '2020s': '#f97316',
+  '1960s': 'var(--muted-foreground)',
+  '1970s': 'var(--aidj-amber)',
+  '1980s': 'var(--chart-1)',
+  '1990s': 'var(--chart-2)',
+  '2000s': 'var(--chart-3)',
+  '2010s': 'var(--chart-4)',
+  '2020s': 'var(--chart-5)',
 };
 
 function getDecadeColor(decade: string): string {
-  return DECADE_COLORS[decade] || '#6b7280';
+  return DECADE_COLORS[decade] || 'var(--muted-foreground)';
 }
 
 export const AlbumAgeChart = memo(function AlbumAgeChart({

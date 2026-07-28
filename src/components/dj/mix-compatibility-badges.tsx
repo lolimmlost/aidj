@@ -106,7 +106,7 @@ export function BpmBadge({
     return (
       <span className={cn(
         'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium',
-        'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+        'bg-muted text-muted-foreground',
         compact && 'px-1.5 py-0'
       )}>
         {showLabel && <span className="opacity-60">BPM</span>}
@@ -120,10 +120,10 @@ export function BpmBadge({
 
   // Color based on compatibility
   const colorClasses = score >= 0.8
-    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+    ? 'bg-success/12 text-success'
     : score >= 0.5
-    ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
-    : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
+    ? 'bg-warning/12 text-warning'
+    : 'bg-destructive/12 text-destructive';
 
   return (
     <span
@@ -178,7 +178,7 @@ export function KeyBadge({
     return (
       <span className={cn(
         'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium',
-        'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+        'bg-(--aidj-violet)/12 text-(--aidj-violet)',
         compact && 'px-1.5 py-0'
       )}>
         {showLabel && <span className="opacity-60">Key</span>}
@@ -191,10 +191,10 @@ export function KeyBadge({
 
   // Color based on compatibility
   const colorClasses = score >= 0.85
-    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+    ? 'bg-success/12 text-success'
     : score >= 0.6
-    ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
-    : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
+    ? 'bg-warning/12 text-warning'
+    : 'bg-destructive/12 text-destructive';
 
   return (
     <span
@@ -240,10 +240,10 @@ export function MixScoreBadge({
 
   // Color based on score
   const colorClasses = displayScore >= 80
-    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+    ? 'bg-success/12 text-success'
     : displayScore >= 60
-    ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
-    : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
+    ? 'bg-warning/12 text-warning'
+    : 'bg-destructive/12 text-destructive';
 
   return (
     <span
