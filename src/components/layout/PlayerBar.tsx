@@ -241,6 +241,15 @@ export function PlayerBar() {
     const outgoingPlayDuration = snapshot.songId === outgoingSongId ? snapshot.currentTime : activeDeck?.currentTime;
     const outgoingSongDuration = snapshot.songId === outgoingSongId ? snapshot.duration : activeDeck?.duration;
     if (outgoingSong && outgoingSongId && !hasScrobbledRef.current) {
+      if (scrobbleThresholdReachedRef.current) {
+        hasScrobbledRef.current = true;
+        scrobbleSong(outgoingSongId, true)
+          .then(() => {
+            queryClient.invalidateQueries({ queryKey: ['most-played-songs'] });
+            queryClient.invalidateQueries({ queryKey: ['top-artists'] });
+          })
+          .catch(console.error);
+      }
       recordListeningHistory(
         outgoingSong,
         outgoingSongId,
@@ -252,7 +261,7 @@ export function PlayerBar() {
     hasScrobbledRef.current = false;
     scrobbleThresholdReachedRef.current = false;
     nextSong(true); // userSkip — bypass repeat-one lock
-  }, [currentSong, getActiveDeck, nextSong, recordListeningHistory]);
+  }, [currentSong, getActiveDeck, nextSong, recordListeningHistory, queryClient]);
 
   // Shared crossfade state ref - created here so it can be passed to both hooks
   const crossfadeInProgressRef = useRef<boolean>(false);
