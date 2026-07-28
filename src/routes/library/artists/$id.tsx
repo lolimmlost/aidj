@@ -9,7 +9,7 @@ import { useAudioStore } from '@/lib/stores/audio';
 import {
   Loader2, Music, Disc, ListMusic, Play, Plus, ListPlus, Radio,
   Shuffle, Share2, ChevronLeft, ChevronRight,
-  Clock, MoreHorizontal,
+  MoreHorizontal,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -319,9 +319,6 @@ function ArtistDetail() {
   const sortedSongs = [...songs].sort((a, b) => (a.name || a.title || '').localeCompare(b.name || b.title || ''));
   // Top tracks by play count (or just first 5 if no play count)
   const topTracks = [...songs].sort((a, b) => (b.playCount || 0) - (a.playCount || 0)).slice(0, 5);
-
-  const formatDuration = (d: number) =>
-    `${Math.floor(d / 60)}:${Math.floor(d % 60).toString().padStart(2, '0')}`;
 
   return (
     <div className="relative">

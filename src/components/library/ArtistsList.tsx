@@ -15,7 +15,6 @@ import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar'
 const PAGE_SIZE = 60;
 
 export function LazyArtistAvatar({
-  artistId,
   name,
   savedImageUrl,
 }: {

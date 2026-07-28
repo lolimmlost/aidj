@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { ServiceError } from '../../../lib/utils';
-import { checkConnection, getHistory, getQueue } from '../../../lib/services/metube';
+import { checkConnection, getQueue } from '../../../lib/services/metube';
 import type { MeTubeDownload } from '../../../lib/services/metube';
 
 export const Route = createFileRoute('/api/metube/status')({

@@ -97,6 +97,7 @@ export function PlayerBar() {
   // Stable helper: ensures Web Audio graph is initialized before play().
   // Uses a ref so it can be called from effects without adding deps that cause re-runs.
   const ensureGraphInitializedRef = useRef<() => void>(() => {});
+  // eslint-disable-next-line react-hooks/refs -- latest-ref pattern: keep the closure fresh each render
   ensureGraphInitializedRef.current = () => {
     if (!webAudioInitialized && deckARef.current && deckBRef.current) {
       initializeGraph(deckARef.current, deckBRef.current);
@@ -827,8 +828,6 @@ export function PlayerBar() {
     const stateInterval = setInterval(() => {
       const active = getActiveDeck();
       const activeDeckLabel = activeDeckRef.current;
-      const inactive = activeDeckLabel === 'A' ? deckB : deckA;
-      const inactiveDeckLabel = activeDeckLabel === 'A' ? 'B' : 'A';
 
       if (active) {
         console.log(`📊 [STATE] Deck ${activeDeckLabel} | playing=${!active.paused} time=${active.currentTime.toFixed(1)}/${active.duration?.toFixed(1) || '?'}`);
@@ -1228,7 +1227,10 @@ export function PlayerBar() {
         isLikePending={isLikePending}
         isShuffled={isShuffled}
         repeatMode={repeatMode}
-        analyserNode={webAudioAnalyserRef.current}
+        analyserNode={
+          // eslint-disable-next-line react-hooks/refs -- analyser node identity is stable once created
+          webAudioAnalyserRef.current
+        }
         onTogglePlayPause={remoteAwareTogglePlayPause}
         onPrevious={remoteAwarePrevious}
         onNext={remoteAwareNext}

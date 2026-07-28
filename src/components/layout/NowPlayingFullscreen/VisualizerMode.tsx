@@ -222,6 +222,7 @@ export function VisualizerMode({ analyserNode }: VisualizerModeProps) {
       const minFrameTime = 1000 / fpsLimit;
       const elapsed = now - lastFrameTimeRef.current;
       if (elapsed < minFrameTime) {
+        // eslint-disable-next-line react-hooks/immutability
         animationFrameRef.current = requestAnimationFrame(animate);
         return;
       }

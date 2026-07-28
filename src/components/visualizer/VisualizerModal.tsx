@@ -239,6 +239,7 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
       const elapsed = now - lastFrameTimeRef.current;
       if (elapsed < minFrameTime) {
         // Schedule next frame and skip this one
+        // eslint-disable-next-line react-hooks/immutability
         animationFrameRef.current = requestAnimationFrame(animate);
         return;
       }

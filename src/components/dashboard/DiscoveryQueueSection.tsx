@@ -11,6 +11,7 @@ const DiscoveryQueuePanel = lazy(() =>
 export function DiscoveryQueueSection() {
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional client-only init after hydration
     if (window.innerWidth < 768) setCollapsed(true);
   }, []);
   const shouldRender = useDeferredRender(500);

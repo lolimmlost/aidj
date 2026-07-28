@@ -224,6 +224,7 @@ function MarqueeText({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- measures DOM layout, must run post-render
     measure();
     const ro = new ResizeObserver(measure);
     if (outerRef.current) ro.observe(outerRef.current);
@@ -935,7 +936,7 @@ function PlaylistDetailPage() {
     }
 
     return songs;
-  }, [playlist?.songs, searchQuery, sortField, sortDirection]);
+  }, [playlist, searchQuery, sortField, sortDirection]);
 
   const availableLetters = useMemo(() => {
     const letters = new Set<string>();

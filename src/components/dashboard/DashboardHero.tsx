@@ -73,6 +73,7 @@ export function DashboardHero({
   // Defer time-based rendering to client to avoid SSR hydration mismatch
   const [hour, setHour] = useState<number | null>(null);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional client-only init after hydration
     setHour(new Date().getHours());
   }, []);
 

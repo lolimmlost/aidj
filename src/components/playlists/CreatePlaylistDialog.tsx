@@ -49,6 +49,7 @@ export function CreatePlaylistDialog({
   // When the dialog opens with a new defaultName, seed the input.
   useEffect(() => {
     if (open && defaultName !== undefined) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- seed input from prop when dialog opens
       setName(defaultName);
     }
   }, [open, defaultName]);

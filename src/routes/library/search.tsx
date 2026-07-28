@@ -603,7 +603,6 @@ function SongRow({
 
 function AlbumResultCard({
   album,
-  index = 0,
   variant = 'grid',
 }: {
   album: { id: string; name: string; artist: string; artistId?: string };

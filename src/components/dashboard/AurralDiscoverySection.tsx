@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Compass, Clock, Plus, Loader2, Check, Music, TrendingUp } from 'lucide-react';
+import { Compass, Clock, Plus, Loader2, Check, TrendingUp } from 'lucide-react';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar';
@@ -29,12 +29,12 @@ function useArtistImages() {
  * This avoids CORS issues with direct Deezer API calls from the browser.
  */
 function useDeezerArtistImages(artistNames: string[], cachedImages: Record<string, string>) {
-  const missing = artistNames.filter(n => n && !cachedImages[n.toLowerCase()]);
-  // Stable sorted key to avoid refetches when array order changes between renders
-  const queryKey = [...missing].sort().join(',');
+  // Stable sorted list so the query key doesn't churn when array order
+  // changes between renders
+  const missing = artistNames.filter(n => n && !cachedImages[n.toLowerCase()]).sort();
 
   return useQuery({
-    queryKey: ['deezer-artist-images', queryKey],
+    queryKey: ['deezer-artist-images', missing],
     queryFn: async () => {
       const res = await fetch('/api/cover-art/batch-artist-images', {
         method: 'POST',

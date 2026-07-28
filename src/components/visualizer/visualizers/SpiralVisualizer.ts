@@ -43,7 +43,7 @@ export const SpiralVisualizer: Visualizer = {
 
   render: (ctx: VisualizerContext) => {
     const { ctx: c, width, height, centerX, centerY, audioData, colors, time, deltaTime, quality } = ctx;
-    const { bars, bass, mid, treble, volume, isBeat } = audioData;
+    const { bars, bass, mid, volume, isBeat } = audioData;
 
     const dt = Math.min(deltaTime, 0.05);
     initSpiral();

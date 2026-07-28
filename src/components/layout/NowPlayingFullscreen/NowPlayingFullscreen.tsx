@@ -153,6 +153,7 @@ export function NowPlayingFullscreen({
   // Collapse expanded mode when closing the surface.
   useEffect(() => {
     if (!isOpen && isExpanded) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset transient UI state on close
       setIsExpanded(false);
       document.exitFullscreen?.().catch(() => {});
     }
