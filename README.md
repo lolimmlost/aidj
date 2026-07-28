@@ -168,7 +168,7 @@
 | [PostgreSQL](https://www.postgresql.org/) | Application database | Yes |
 | [Aurral](https://aurral.com/) | Artist metadata enrichment & similar artist discovery (MusicBrainz) | Optional |
 | [Ollama](https://ollama.com/) / [Anthropic](https://www.anthropic.com/) / [OpenRouter](https://openrouter.ai/) | AI DJ, mood translation, playlist generation | Optional |
-| [Last.fm](https://www.last.fm/) | Similar tracks/artists, scrobbling metadata | Optional |
+| [Last.fm](https://www.last.fm/) | Similar tracks/artists, scrobble forwarding | Optional |
 | [Lidarr](https://lidarr.audio/) | Music acquisition & monitoring | Optional |
 | [MeTube](https://github.com/alexta69/MeTube) | YouTube audio downloads | Optional |
 | [Spotify](https://developer.spotify.com/) | Metadata lookup (no streaming) | Optional |
@@ -199,6 +199,23 @@ npm run dev
 The dev server starts at [http://localhost:3003](http://localhost:3003).
 
 Optional services (Last.fm, Lidarr, MeTube, Ollama, Aurral) can be configured later in Settings.
+
+### Last.fm Scrobbling
+
+AIDJ scrobbles plays through Navidrome, which forwards them to Last.fm. To enable:
+
+1. **Navidrome server** — add these environment variables and restart:
+   ```
+   ND_LASTFM_APIKEY=<your Last.fm API key>
+   ND_LASTFM_SECRET=<your Last.fm shared secret>
+   ```
+   Get both from [last.fm/api/account/create](https://www.last.fm/api/account/create).
+
+2. **Link your account** — log into Navidrome's web UI, go to Personal Settings, and click "Link to Last.fm". This authorizes Navidrome to scrobble on your behalf via OAuth.
+
+3. **AIDJ (optional)** — set `LASTFM_API_KEY` in your `.env` to enable Last.fm-powered features (similar tracks, similar artists, discovery recommendations). This is a read-only key and is not required for scrobbling.
+
+AIDJ sends both "now playing" updates (when a song starts) and scrobble submissions (after 50% played). Each AIDJ user scrobbles through their own per-user Navidrome account.
 
 ### Environment Variables
 
