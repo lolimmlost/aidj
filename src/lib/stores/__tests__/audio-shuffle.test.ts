@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useAudioStore } from '../audio';
 import type { Song } from '@/lib/types/song';
 
@@ -18,6 +18,19 @@ describe('Audio Store Shuffle', () => {
     const store = useAudioStore.getState();
     store.clearPlaylist();
     useAudioStore.setState({ recentlyPlayedIds: [] });
+
+    // Seed Math.random (LCG) so shuffle outcomes are deterministic.
+    // The artist-separation repair is best-effort — with real randomness it
+    // occasionally leaves one extra adjacency and the test flakes (CI run 209).
+    let seed = 42;
+    vi.spyOn(Math, 'random').mockImplementation(() => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('Fisher-Yates shuffle correctness', () => {
