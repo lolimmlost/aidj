@@ -103,12 +103,12 @@ async function fetchAnalytics(period: string): Promise<EnhancedAnalyticsResponse
 // ============================================================================
 
 const COLORS = {
-  primary: '#8b5cf6',
-  secondary: '#ec4899',
-  success: '#10b981',
-  warning: '#f59e0b',
-  danger: '#ef4444',
-  info: '#3b82f6',
+  primary: 'var(--chart-2)',
+  secondary: 'var(--chart-1)',
+  success: 'var(--success)',
+  warning: 'var(--warning)',
+  danger: 'var(--destructive)',
+  info: 'var(--info)',
 };
 
 // Use the AIDJ design-system chart palette (chart-1..5 CSS vars) so theme

@@ -2,10 +2,9 @@
 
 @import "tw-animate-css";
 
-@import "./themes.css";
-
-/* Display fonts — swap font-display below to try alternatives */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Sora:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Unbounded:wght@700;800;900&family=Syne:ital,wght@0,700;1,800&display=swap');
+/* App fonts: Inter (body), Plus Jakarta Sans (display), JetBrains Mono (stats),
+   Unbounded + Syne (brand marks). Only load families that are actually used. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Unbounded:wght@700;800;900&family=Syne:ital,wght@0,700;1,800&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant landscape (@media (orientation: landscape));
@@ -46,6 +45,9 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -81,6 +83,9 @@
   --accent: oklch(0.92 0.03 280);
   --accent-foreground: oklch(0.2 0.01 270);
   --destructive: oklch(0.6 0.25 25);
+  --success: oklch(0.55 0.15 160);
+  --warning: oklch(0.6 0.15 70);
+  --info: oklch(0.55 0.15 250);
   --border: oklch(0.9 0.01 270);
   --input: oklch(0.92 0.01 270);
   --ring: oklch(0.55 0.25 280);
@@ -147,6 +152,9 @@
   --accent: oklch(0.25 0.04 285);
   --accent-foreground: oklch(0.95 0.01 270);
   --destructive: oklch(0.65 0.22 25);
+  --success: oklch(0.7 0.17 160);
+  --warning: oklch(0.75 0.15 80);
+  --info: oklch(0.7 0.15 250);
   --border: oklch(1 0 0 / 0.1);
   --input: oklch(1 0 0 / 0.12);
   --ring: oklch(0.7 0.22 285);
@@ -223,9 +231,6 @@
   .card {
     @apply bg-card text-card-foreground rounded-lg border shadow-sm;
   }
-  .card-hover {
-    @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
-  }
   .fade-in {
     @apply opacity-0 animate-in fade-in-0 duration-300;
   }
@@ -254,18 +259,9 @@
       scroll-behavior: auto !important;
     }
 
-    .card-hover {
-      @apply hover:shadow-md hover:translate-y-0;
-    }
-
     .fade-in {
       @apply opacity-100;
     }
-  }
-
-  /* Smooth transitions for animations */
-  .transition-smooth {
-    @apply transition-all duration-300 ease-in-out;
   }
 }
 
@@ -275,21 +271,6 @@
    =========================================== */
 
 @layer components {
-  /* Consistent section spacing */
-  .section-spacing {
-    @apply space-y-6 sm:space-y-8;
-  }
-
-  /* Glass morphism effect for cards */
-  .glass-card {
-    @apply bg-background/80 backdrop-blur-sm border border-border/50 shadow-sm;
-  }
-
-  /* Gradient text utility */
-  .gradient-text {
-    @apply bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent;
-  }
-
   /* Interactive card base */
   .interactive-card {
     @apply rounded-xl border border-border bg-card p-4 sm:p-5
@@ -297,97 +278,28 @@
            hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5;
   }
 
-  /* Status badges */
+  /* Status badges — semantic tokens, themed per visual theme */
   .badge-success {
-    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-           bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300;
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+    background: oklch(from var(--success) l c h / 0.12);
+    color: var(--success);
   }
 
   .badge-warning {
-    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-           bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300;
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+    background: oklch(from var(--warning) l c h / 0.12);
+    color: var(--warning);
   }
 
   .badge-info {
-    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-           bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300;
-  }
-
-  .badge-purple {
-    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-           bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300;
-  }
-
-  /* Icon containers */
-  .icon-container {
-    @apply flex items-center justify-center w-10 h-10 rounded-lg;
-  }
-
-  .icon-container-sm {
-    @apply flex items-center justify-center w-8 h-8 rounded-lg;
-  }
-
-  .icon-container-lg {
-    @apply flex items-center justify-center w-12 h-12 rounded-xl;
-  }
-
-  /* Audio player specific */
-  .audio-player-bar {
-    @apply fixed bottom-0 left-0 right-0 z-50
-           bg-background/95 backdrop-blur-md
-           border-t border-border/50
-           shadow-lg shadow-black/5;
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+    background: oklch(from var(--info) l c h / 0.12);
+    color: var(--info);
   }
 
   /* Touch-friendly minimum sizes */
   .touch-target {
     @apply min-h-[44px] min-w-[44px];
-  }
-
-  /* Consistent input styling */
-  .input-enhanced {
-    @apply min-h-[44px] bg-background/50 border-border/50
-           focus:border-primary/50 transition-all;
-  }
-
-  /* Feature card variants */
-  .feature-card-blue {
-    @apply bg-blue-500/5 border-blue-500/20 hover:border-blue-500/40;
-  }
-
-  .feature-card-purple {
-    @apply bg-purple-500/5 border-purple-500/20 hover:border-purple-500/40;
-  }
-
-  .feature-card-green {
-    @apply bg-green-500/5 border-green-500/20 hover:border-green-500/40;
-  }
-
-  .feature-card-orange {
-    @apply bg-orange-500/5 border-orange-500/20 hover:border-orange-500/40;
-  }
-
-  /* Loading shimmer effect */
-  .shimmer {
-    @apply relative overflow-hidden;
-  }
-
-  .shimmer::after {
-    content: '';
-    @apply absolute inset-0 -translate-x-full;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.1),
-      transparent
-    );
-    animation: shimmer 2s infinite;
-  }
-
-  @keyframes shimmer {
-    100% {
-      transform: translateX(100%);
-    }
   }
 
   /* Slow spin animation for disc icon */
@@ -597,23 +509,6 @@
       inset 0 1px 0 oklch(1 0 0 / 0.1);
   }
 
-  /* Stat Card */
-  .stat-card {
-    @apply relative overflow-hidden rounded-xl p-4 bg-card/50 border border-border/50
-           transition-all duration-200 hover:bg-card/80 hover:border-primary/30;
-  }
-
-  .stat-card::before {
-    content: '';
-    @apply absolute top-0 left-0 right-0 h-0.5;
-    background: var(--gradient-brand);
-    @apply opacity-0 transition-opacity;
-  }
-
-  .stat-card:hover::before {
-    @apply opacity-100;
-  }
-
   /* Action Button */
   .action-button {
     @apply relative inline-flex items-center gap-2 overflow-hidden rounded-xl px-6 py-3 font-semibold
@@ -671,71 +566,12 @@
      Optimized for touch interfaces and small screens
      =========================================== */
 
-  /* Mobile touch-friendly button base - ensures 44px minimum */
-  .mobile-touch-btn {
-    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
-  }
-
-  /* Mobile-optimized action bar buttons */
-  .mobile-action-bar {
-    @apply flex border-t border-border/50;
-  }
-
-  .mobile-action-bar > * {
-    @apply flex-1 flex items-center justify-center gap-2 min-h-[48px] py-3
-           text-sm font-medium transition-colors active:bg-accent/80;
-  }
-
-  /* Mobile-visible utility (visible on mobile, hidden on desktop until hover) */
-  .mobile-visible {
-    @apply opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity;
-  }
-
-  /* Safe area padding for devices with notches */
-  .safe-area-inset {
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  /* Mobile card with appropriate padding */
-  .mobile-card {
-    @apply p-3 sm:p-4 rounded-lg;
-  }
-
-  /* Mobile text sizes */
-  .mobile-text-sm {
-    @apply text-sm sm:text-base;
-  }
-
-  .mobile-text-base {
-    @apply text-base sm:text-lg;
-  }
-
-  .mobile-text-lg {
-    @apply text-lg sm:text-xl;
-  }
-
-  /* Active state for touch devices */
+  /* Increase touch target size on touch devices */
   @media (hover: none) and (pointer: coarse) {
-    .touch-active:active {
-      @apply bg-accent/80 scale-[0.98];
-    }
-
-    /* Increase touch target size on touch devices */
     button:not([class*="h-"]):not([class*="w-"]),
     a:not([class*="h-"]):not([class*="w-"]) {
       min-height: 44px;
     }
-  }
-
-  /* Mobile-first grid layouts */
-  .mobile-grid-1 {
-    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4;
-  }
-
-  .mobile-grid-2 {
-    @apply grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4;
   }
 
   /* Scrolling text for long playlist names on hover */
@@ -790,22 +626,6 @@
     }
   }
 
-  /* ── Text Gradient Subtle ── */
-  .text-gradient-subtle {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, var(--foreground), var(--muted-foreground));
-  }
-
-  /* ── Collapsible Section Header ── */
-  .collapsible-header {
-    @apply flex items-center justify-between w-full p-4 rounded-xl
-           cursor-pointer transition-colors duration-200;
-  }
-
-  .collapsible-header:hover {
-    @apply bg-muted/50;
-  }
-
   /* ── Integration Cards ── */
   .integration-card {
     @apply relative rounded-2xl border border-border/50 p-5 backdrop-blur-sm
@@ -850,17 +670,6 @@
   .stat-pill-emerald {
     @apply bg-emerald-500/10 border-emerald-500/20 text-emerald-600
            dark:text-emerald-400;
-  }
-
-  .stat-pill-cyan {
-    @apply bg-cyan-500/10 border-cyan-500/20 text-cyan-600
-           dark:text-cyan-400;
-  }
-
-  /* ── Badge Destructive ── */
-  .badge-destructive {
-    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-           bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300;
   }
 
   /* ─────────────────────────────────────────────────────────────────────
@@ -927,16 +736,6 @@
     @apply absolute w-80 h-80 rounded-full blur-3xl opacity-25 pointer-events-none;
     background: var(--gradient-focus);
     animation: float 12s ease-in-out infinite;
-  }
-
-  /* ── Grid Pattern Overlay ── */
-  .grid-pattern {
-    @apply absolute inset-0 pointer-events-none;
-    background-image:
-      linear-gradient(var(--border) 1px, transparent 1px),
-      linear-gradient(90deg, var(--border) 1px, transparent 1px);
-    background-size: 60px 60px;
-    opacity: 0.4;
   }
 
   /* ── Dot Pattern Overlay ── */

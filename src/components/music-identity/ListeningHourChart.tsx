@@ -57,10 +57,10 @@ function getTimeOfDayLabel(hour: number): string {
 }
 
 const TIME_COLORS: Record<string, string> = {
-  Morning: '#f59e0b',   // amber
-  Afternoon: '#f97316',  // orange
-  Evening: '#8b5cf6',   // purple
-  Night: '#3b82f6',     // blue
+  Morning: 'var(--aidj-amber)',
+  Afternoon: 'var(--chart-5)',
+  Evening: 'var(--chart-2)',
+  Night: 'var(--chart-3)',
 };
 
 // ============================================================================

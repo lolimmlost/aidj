@@ -96,14 +96,14 @@ type TimeGranularity = 'day' | 'week' | 'month' | 'year';
 // ============================================================================
 
 const MOOD_COLORS: Record<keyof MoodDistribution, string> = {
-  chill: '#8b5cf6',      // Violet
-  energetic: '#f59e0b',  // Amber
-  melancholic: '#3b82f6', // Blue
-  happy: '#10b981',      // Emerald
-  focused: '#6366f1',    // Indigo
-  romantic: '#ec4899',   // Pink
-  aggressive: '#ef4444', // Red
-  neutral: '#9ca3af',    // Gray
+  chill: 'var(--chart-2)',
+  energetic: 'var(--chart-5)',
+  melancholic: 'var(--chart-3)',
+  happy: 'var(--chart-4)',
+  focused: 'var(--aidj-violet)',
+  romantic: 'var(--chart-1)',
+  aggressive: 'var(--destructive)',
+  neutral: 'var(--muted-foreground)',
 };
 
 const MOOD_LABELS: Record<keyof MoodDistribution, string> = {
@@ -842,12 +842,12 @@ export function MoodTimeline({
                   <ReferenceLine
                     key={`milestone-${i}`}
                     x={dp.name as string}
-                    stroke="#f59e0b"
+                    stroke="var(--aidj-amber)"
                     strokeDasharray="3 3"
                     label={{
                       value: '✨',
                       position: 'top',
-                      fill: '#f59e0b',
+                      fill: 'var(--aidj-amber)',
                     }}
                   />
                 ))}
@@ -856,7 +856,7 @@ export function MoodTimeline({
               <Brush
                 dataKey="name"
                 height={30}
-                stroke="#8b5cf6"
+                stroke="var(--chart-2)"
                 fill="var(--muted)"
                 onChange={handleBrushChange}
               />

@@ -76,9 +76,8 @@ export const chartAxisTick = { fontSize: 11 } as const;
 
 /**
  * Canonical AIDJ chart palette. Maps to the `--chart-1` … `--chart-5` CSS
- * variables defined in styles.css and themed in themes.css. Use these for
- * recharts `fill` / `stroke` props so a theme switch (Midnight Club, Vinyl
- * Lounge, etc.) repaints the charts automatically.
+ * variables defined in styles.css. Use these for recharts `fill` / `stroke`
+ * props so a light/dark switch repaints the charts automatically.
  *
  * Slot 1 (magenta in the default dark theme) is the "now playing / featured"
  * accent. Slot 2 is violet, 3 is cyan, 4 is emerald, 5 is amber.

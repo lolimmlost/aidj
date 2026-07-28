@@ -174,14 +174,14 @@ export function AIDJSettings() {
   }
 
   return (
-    <Card className="p-6 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 border-purple-200 dark:border-purple-800">
+    <Card className="p-6 bg-gradient-to-br from-(--aidj-violet)/8 to-transparent border-(--aidj-violet)/25">
       <div className="flex items-center gap-2 mb-4">
         <span className="text-2xl">✨</span>
         <h3 className="text-xl font-bold">AI DJ Configuration</h3>
       </div>
 
       {isAIDJDisabled && (
-        <div className="mb-4 p-3 rounded-md bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-sm">
+        <div className="mb-4 p-3 rounded-md bg-warning/10 text-warning text-sm">
           AI DJ is currently disabled. Enable it in the Audio Player to use these settings.
         </div>
       )}
@@ -193,7 +193,7 @@ export function AIDJSettings() {
             <Label htmlFor="ai-dj-drip" className="text-sm font-medium">
               Recommendation Frequency
             </Label>
-            <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
+            <span className="text-sm font-semibold text-(--aidj-violet)">
               Every {dripInterval} songs
             </span>
           </div>
@@ -208,7 +208,7 @@ export function AIDJSettings() {
             disabled={isAIDJDisabled}
             aria-label="Recommendation frequency"
           />
-          <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+          <p className="text-xs text-muted-foreground mt-2">
             Add 1 AI recommendation every {dripInterval} songs you play
           </p>
         </div>
@@ -219,7 +219,7 @@ export function AIDJSettings() {
             <Label htmlFor="ai-dj-context" className="text-sm font-medium">
               Use Current Context
             </Label>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
+            <p className="text-xs text-muted-foreground">
               Base recommendations on currently playing song
             </p>
           </div>
@@ -233,10 +233,10 @@ export function AIDJSettings() {
         </div>
 
         {/* DJ Matching Section */}
-        <div className="pt-4 border-t border-purple-200 dark:border-purple-700">
+        <div className="pt-4 border-t border-(--aidj-violet)/25">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-lg">🎧</span>
-            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <h4 className="text-sm font-semibold text-foreground">
               DJ Mixing Features
             </h4>
           </div>
@@ -247,7 +247,7 @@ export function AIDJSettings() {
               <Label htmlFor="dj-matching" className="text-sm font-medium">
                 BPM/Energy/Key Matching
               </Label>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+              <p className="text-xs text-muted-foreground">
                 Score recommendations by tempo and musical key for smoother transitions
               </p>
             </div>
@@ -266,11 +266,11 @@ export function AIDJSettings() {
               <Label htmlFor="bpm-analysis" className="text-sm font-medium">
                 Auto BPM Analysis
               </Label>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+              <p className="text-xs text-muted-foreground">
                 Detect BPM during playback using audio analysis
               </p>
               {bpmAnalysisEnabled && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                <p className="text-xs text-warning mt-1">
                   May use extra CPU during playback
                 </p>
               )}
@@ -286,10 +286,10 @@ export function AIDJSettings() {
         </div>
 
         {/* Queue Seeding Section */}
-        <div className="pt-4 border-t border-purple-200 dark:border-purple-700">
+        <div className="pt-4 border-t border-(--aidj-violet)/25">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-lg">🌱</span>
-            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <h4 className="text-sm font-semibold text-foreground">
               Queue Seeding
             </h4>
           </div>
@@ -300,7 +300,7 @@ export function AIDJSettings() {
               <Label htmlFor="seed-queue" className="text-sm font-medium">
                 Seed Recommendations Throughout Queue
               </Label>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+              <p className="text-xs text-muted-foreground">
                 Inject AI picks throughout your queue, not just at the end
               </p>
             </div>
@@ -320,7 +320,7 @@ export function AIDJSettings() {
                 <Label htmlFor="seed-density" className="text-sm font-medium">
                   Seed Density
                 </Label>
-                <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
+                <span className="text-sm font-semibold text-(--aidj-violet)">
                   {seedDensity} per 10 songs
                 </span>
               </div>
@@ -335,7 +335,7 @@ export function AIDJSettings() {
                 disabled={isAIDJDisabled}
                 aria-label="Seed density"
               />
-              <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+              <p className="text-xs text-muted-foreground mt-2">
                 Insert {seedDensity} AI recommendation{seedDensity > 1 ? 's' : ''} for every 10 songs
               </p>
             </div>
@@ -362,19 +362,19 @@ export function AIDJSettings() {
         </div>
 
         {/* Advanced Settings (Collapsible) */}
-        <div className="pt-4 border-t border-purple-200 dark:border-purple-700">
+        <div className="pt-4 border-t border-(--aidj-violet)/25">
           <button
             type="button"
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex items-center justify-between w-full text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+            className="flex items-center justify-between w-full text-sm font-medium text-muted-foreground hover:text-foreground"
           >
             <span>Advanced Settings</span>
             {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
 
           {showAdvanced && (
-            <div className="mt-4 space-y-4 pl-2 border-l-2 border-purple-200 dark:border-purple-700">
-              <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+            <div className="mt-4 space-y-4 pl-2 border-l-2 border-(--aidj-violet)/25">
+              <p className="text-xs text-muted-foreground italic">
                 These settings control fallback behavior when queue runs low
               </p>
 
@@ -384,7 +384,7 @@ export function AIDJSettings() {
                   <Label htmlFor="ai-dj-threshold" className="text-sm font-medium">
                     Queue Threshold (Fallback)
                   </Label>
-                  <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
+                  <span className="text-sm font-semibold text-(--aidj-violet)">
                     {threshold} {threshold === 1 ? 'song' : 'songs'}
                   </span>
                 </div>
@@ -399,7 +399,7 @@ export function AIDJSettings() {
                   disabled={isAIDJDisabled}
                   aria-label="Queue threshold"
                 />
-                <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+                <p className="text-xs text-muted-foreground mt-2">
                   Add batch when queue has {threshold} {threshold === 1 ? 'song' : 'songs'} left
                 </p>
               </div>
@@ -410,7 +410,7 @@ export function AIDJSettings() {
                   <Label htmlFor="ai-dj-batch" className="text-sm font-medium">
                     Batch Size (Fallback)
                   </Label>
-                  <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
+                  <span className="text-sm font-semibold text-(--aidj-violet)">
                     {batchSize} {batchSize === 1 ? 'song' : 'songs'}
                   </span>
                 </div>
@@ -425,7 +425,7 @@ export function AIDJSettings() {
                   disabled={isAIDJDisabled}
                   aria-label="Batch size"
                 />
-                <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+                <p className="text-xs text-muted-foreground mt-2">
                   Add {batchSize} {batchSize === 1 ? 'song' : 'songs'} at a time when queue is low
                 </p>
               </div>
@@ -434,20 +434,20 @@ export function AIDJSettings() {
         </div>
 
         {/* Preview Summary */}
-        <div className="mt-6 p-4 rounded-lg bg-white/50 dark:bg-black/20 border border-purple-200 dark:border-purple-800">
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <div className="mt-6 p-4 rounded-lg bg-card/50 border border-(--aidj-violet)/25">
+          <p className="text-sm font-medium text-foreground mb-2">
             How it works:
           </p>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            AI DJ adds <span className="font-semibold text-purple-600 dark:text-purple-400">1 song</span> every{' '}
-            <span className="font-semibold text-purple-600 dark:text-purple-400">{dripInterval} songs</span> you play
+          <p className="text-sm text-muted-foreground">
+            AI DJ adds <span className="font-semibold text-(--aidj-violet)">1 song</span> every{' '}
+            <span className="font-semibold text-(--aidj-violet)">{dripInterval} songs</span> you play
             {useContext ? ', based on what you\'re listening to' : ''}.
             {threshold <= 2 && ` If queue runs low, adds ${batchSize} songs at once.`}
           </p>
         </div>
 
         {/* Note about saving */}
-        <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+        <p className="text-xs text-muted-foreground italic">
           Changes are saved automatically.
         </p>
       </div>

@@ -155,15 +155,15 @@ const MoodRadarChart = memo(function MoodRadarChart({
         <Radar
           name="Past"
           dataKey="past"
-          stroke="#8b5cf6"
-          fill="#8b5cf6"
+          stroke="var(--chart-2)"
+          fill="var(--chart-2)"
           fillOpacity={0.3}
         />
         <Radar
           name="Current"
           dataKey="current"
-          stroke="#10b981"
-          fill="#10b981"
+          stroke="var(--chart-4)"
+          fill="var(--chart-4)"
           fillOpacity={0.3}
         />
         <Legend />

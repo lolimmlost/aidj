@@ -156,16 +156,16 @@ async function fetchDiscoveryAnalytics(
 // ============================================================================
 
 const COLORS = {
-  primary: '#8b5cf6',
-  secondary: '#ec4899',
-  success: '#10b981',
-  warning: '#f59e0b',
-  danger: '#ef4444',
-  info: '#3b82f6',
-  purple: '#a855f7',
-  indigo: '#6366f1',
-  cyan: '#06b6d4',
-  emerald: '#34d399',
+  primary: 'var(--chart-2)',
+  secondary: 'var(--chart-1)',
+  success: 'var(--success)',
+  warning: 'var(--warning)',
+  danger: 'var(--destructive)',
+  info: 'var(--info)',
+  purple: 'var(--aidj-purple)',
+  indigo: 'var(--aidj-violet)',
+  cyan: 'var(--chart-3)',
+  emerald: 'var(--chart-4)',
 };
 
 const MODE_COLORS: Record<string, string> = {
@@ -509,7 +509,7 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
                   `${(percent * 100).toFixed(0)}%`
                 }
                 outerRadius={70}
-                fill="#8884d8"
+                fill="var(--chart-2)"
                 dataKey="value"
               >
                 {pieData.map((entry, index) => (

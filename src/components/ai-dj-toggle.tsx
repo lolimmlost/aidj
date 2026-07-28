@@ -112,41 +112,41 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
   const getStatusIndicator = () => {
     if (!aiDJEnabled) {
       return {
-        color: 'text-gray-500 dark:text-gray-400',
+        color: 'text-muted-foreground',
         text: 'AI DJ Off',
-        bgColor: 'bg-gray-100 dark:bg-gray-800',
+        bgColor: 'bg-muted',
       };
     }
 
     if (aiDJIsLoading) {
       return {
-        color: 'text-yellow-600 dark:text-yellow-400',
+        color: 'text-warning',
         text: 'AI DJ fetching songs...',
-        bgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
+        bgColor: 'bg-warning/10',
       };
     }
 
     if (aiDJError) {
       return {
-        color: 'text-red-600 dark:text-red-400',
+        color: 'text-destructive',
         text: `AI DJ failed: ${aiDJError}`,
-        bgColor: 'bg-red-50 dark:bg-red-900/20',
+        bgColor: 'bg-destructive/10',
       };
     }
 
     if (aiDJLastQueueTime > 0) {
       const timeSince = getTimeSinceLastQueue();
       return {
-        color: 'text-green-600 dark:text-green-400',
+        color: 'text-success',
         text: `AI DJ queued ${aiQueuedSongIds.size} songs • ${timeSince}`,
-        bgColor: 'bg-green-50 dark:bg-green-900/20',
+        bgColor: 'bg-success/10',
       };
     }
 
     return {
-      color: 'text-green-600 dark:text-green-400',
+      color: 'text-success',
       text: 'AI DJ Active • Watching queue',
-      bgColor: 'bg-green-50 dark:bg-green-900/20',
+      bgColor: 'bg-success/10',
     };
   };
 
@@ -184,9 +184,9 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
           // On state - subtle glow
           aiDJEnabled && !showLoading && !hasError && 'bg-primary/10 text-primary hover:bg-primary/20',
           // Loading state
-          showLoading && 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+          showLoading && 'bg-warning/10 text-warning',
           // Error state
-          hasError && 'bg-red-500/10 text-red-600 dark:text-red-400',
+          hasError && 'bg-destructive/10 text-destructive',
           // Disabled
           isDisabled && 'opacity-50 cursor-not-allowed',
         )}
@@ -207,7 +207,7 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
 
         {/* AI DJ enabled indicator - small dot */}
         {aiDJEnabled && !showLoading && (
-          <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+          <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-success animate-pulse" />
         )}
 
         {/* Queue count badge */}
@@ -234,7 +234,7 @@ export function AIDJToggle({ compact = false }: AIDJToggleProps) {
             AI DJ Mode
           </Label>
           {showLoading && (
-            <Loader2 className="w-4 h-4 animate-spin text-yellow-600 dark:text-yellow-400" />
+            <Loader2 className="w-4 h-4 animate-spin text-warning" />
           )}
         </div>
         <Switch

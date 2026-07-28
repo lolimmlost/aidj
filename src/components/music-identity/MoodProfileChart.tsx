@@ -30,14 +30,14 @@ interface MoodProfileChartProps {
 // ============================================================================
 
 const MOOD_COLORS: Record<string, string> = {
-  chill: '#06b6d4',      // cyan
-  energetic: '#f97316',  // orange
-  melancholic: '#8b5cf6', // purple
-  happy: '#eab308',      // yellow
-  focused: '#10b981',    // emerald
-  romantic: '#ec4899',   // pink
-  aggressive: '#ef4444', // red
-  neutral: '#6b7280',    // gray
+  chill: 'var(--chart-3)',
+  energetic: 'var(--chart-5)',
+  melancholic: 'var(--chart-2)',
+  happy: 'var(--aidj-amber)',
+  focused: 'var(--chart-4)',
+  romantic: 'var(--chart-1)',
+  aggressive: 'var(--destructive)',
+  neutral: 'var(--muted-foreground)',
 };
 
 const MOOD_ICONS: Record<string, React.ReactNode> = {
@@ -79,7 +79,7 @@ export const MoodProfileChart = memo(function MoodProfileChart({
       .map(([mood, value]) => ({
         name: MOOD_LABELS[mood] || mood,
         value: Number((value * 100).toFixed(1)),
-        color: MOOD_COLORS[mood] || '#6b7280',
+        color: MOOD_COLORS[mood] || 'var(--muted-foreground)',
       }))
       .sort((a, b) => b.value - a.value);
   }, [distribution]);
@@ -125,11 +125,11 @@ export const MoodProfileChart = memo(function MoodProfileChart({
               <div
                 key={mood.mood}
                 className="flex items-center gap-3 p-4 rounded-lg border"
-                style={{ borderColor: `${MOOD_COLORS[mood.mood]}40` }}
+                style={{ borderColor: `color-mix(in oklab, ${MOOD_COLORS[mood.mood]} 25%, transparent)` }}
               >
                 <div
                   className="w-12 h-12 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: `${MOOD_COLORS[mood.mood]}20`, color: MOOD_COLORS[mood.mood] }}
+                  style={{ backgroundColor: `color-mix(in oklab, ${MOOD_COLORS[mood.mood]} 12%, transparent)`, color: MOOD_COLORS[mood.mood] }}
                 >
                   {MOOD_ICONS[mood.mood]}
                 </div>
@@ -179,7 +179,7 @@ export const MoodProfileChart = memo(function MoodProfileChart({
                   labelLine={false}
                   label={({ name, value }) => value > 5 ? `${name} (${value}%)` : ''}
                   outerRadius={80}
-                  fill="#8884d8"
+                  fill="var(--chart-2)"
                   dataKey="value"
                 >
                   {pieData.map((entry) => (
@@ -225,7 +225,7 @@ export const MoodProfileChart = memo(function MoodProfileChart({
                     <div className="flex-1">
                       <div
                         className="h-8 rounded-lg flex items-center px-3"
-                        style={{ backgroundColor: `${item.color}20` }}
+                        style={{ backgroundColor: `color-mix(in oklab, ${item.color} 12%, transparent)` }}
                       >
                         <div
                           className="w-3 h-3 rounded-full mr-2"
@@ -270,7 +270,7 @@ export const MoodProfileChart = memo(function MoodProfileChart({
                 <div key={mood} className="text-center p-4 rounded-lg bg-muted/30">
                   <div
                     className="w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center"
-                    style={{ backgroundColor: `${MOOD_COLORS[mood]}20`, color: MOOD_COLORS[mood] }}
+                    style={{ backgroundColor: `color-mix(in oklab, ${MOOD_COLORS[mood]} 12%, transparent)`, color: MOOD_COLORS[mood] }}
                   >
                     {MOOD_ICONS[mood]}
                   </div>
