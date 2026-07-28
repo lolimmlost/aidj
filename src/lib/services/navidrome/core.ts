@@ -162,6 +162,9 @@ let subsonicToken: string | null = null;
 export { subsonicToken };
 let subsonicSalt: string | null = null;
 export { subsonicSalt };
+/** Username the current token was issued for (from the login response). */
+let authUsername: string | null = null;
+export { authUsername };
 let tokenExpiry = 0;
 export { tokenExpiry };
 
@@ -220,6 +223,7 @@ export function resetAuthState() {
   clientId = null;
   subsonicToken = null;
   subsonicSalt = null;
+  authUsername = null;
   tokenExpiry = 0;
   pendingAuth = null;
 }
@@ -231,7 +235,7 @@ export function resetAuthState() {
 export function buildSubsonicUrl(endpoint: string, creds?: SubsonicCreds): URL {
   const config = getConfig();
   const url = new URL(`${config.navidromeUrl}/rest/${endpoint}`);
-  url.searchParams.set('u', creds?.username || config.navidromeUsername || '');
+  url.searchParams.set('u', creds?.username || authUsername || config.navidromeUsername || '');
   url.searchParams.set('t', creds?.token || subsonicToken || '');
   url.searchParams.set('s', creds?.salt || subsonicSalt || '');
   url.searchParams.set('v', '1.16.1');
@@ -270,7 +274,10 @@ export async function getAuthToken(): Promise<string> {
 
   const username = config.navidromeUsername;
   const password = config.navidromePassword;
-  if (!username || !password) {
+  // In the browser the login proxy authenticates with the server's own env
+  // credentials, so missing client-side credentials are expected (they were
+  // stripped from defaults.json). Only the server-side direct path needs them.
+  if (!isBrowser() && (!username || !password)) {
     throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome credentials incomplete');
   }
 
@@ -322,11 +329,22 @@ async function performAuth(navidromeUrl: string, username: string, password: str
     }
     token = data.token as string;
     clientId = data.id as string;
+    authUsername = (data.username as string) || username || null;
 
-    const salt = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    const md5Token = md5Pure(password + salt);
-    subsonicToken = md5Token;
-    subsonicSalt = salt;
+    // Navidrome's login response includes ready-made Subsonic credentials —
+    // prefer those so the client never needs the raw password. Fall back to
+    // computing them locally only when we do hold the password (server path).
+    if (data.subsonicToken && data.subsonicSalt) {
+      subsonicToken = data.subsonicToken as string;
+      subsonicSalt = data.subsonicSalt as string;
+    } else if (password) {
+      const salt = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      subsonicToken = md5Pure(password + salt);
+      subsonicSalt = salt;
+    } else {
+      subsonicToken = null;
+      subsonicSalt = null;
+    }
 
     tokenExpiry = Date.now() + 3600 * 1000;
     return token as string;
@@ -405,7 +423,7 @@ export async function apiFetch<T = unknown>(endpoint: string, options: RequestIn
 
             if (endpoint.startsWith('/rest/')) {
               const params = new URLSearchParams({
-                u: config.navidromeUsername || ndId,
+                u: authUsername || config.navidromeUsername || ndId,
                 t: subsonicToken || '',
                 s: subsonicSalt || '',
                 v: '1.16.1',
