@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
+import { scrobbleSong } from '@/lib/services/navidrome';
 import { Song, type SetActiveDeckOptions } from './useDualDeckAudio';
 
 export interface UseCrossfadeOptions {
@@ -325,6 +326,11 @@ export function useCrossfade({
 
       // Notify callback
       onCrossfadeCompleteRef.current(song);
+
+      // Send "now playing" for the new song (forwarded to Last.fm)
+      if (song.id) {
+        scrobbleSong(song.id, false).catch(console.error);
+      }
 
       // Reset the "just completed" flag after a short delay
       setTimeout(() => {

@@ -313,6 +313,10 @@ export function useSongLoader({
             ensureGraphInitializedRef.current();
             audio.play().catch(console.error);
           }
+          // Send "now playing" to Navidrome (forwarded to Last.fm)
+          if (song.id) {
+            scrobbleSong(song.id, false).catch(console.error);
+          }
         };
 
         const handleError = (e: Event) => {

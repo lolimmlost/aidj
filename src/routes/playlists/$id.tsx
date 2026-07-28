@@ -278,16 +278,7 @@ function SongRowContent({
         "w-8 text-sm tabular-nums text-right shrink-0 flex items-center justify-end",
         isCurrentSong ? "text-primary" : "text-muted-foreground"
       )}>
-        {isCurrentSong && isPlaying ? (
-          <span className="audio-wave !h-3.5">
-            <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
-            <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
-            <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
-            <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
-          </span>
-        ) : (
-          index + 1
-        )}
+        {index + 1}
       </span>
 
       {/* Album Art Thumbnail */}
