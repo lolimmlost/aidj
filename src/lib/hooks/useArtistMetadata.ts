@@ -15,8 +15,13 @@ async function fetchArtistMetadata(name: string, navidromeId?: string): Promise<
   if (navidromeId) params.set('navidromeId', navidromeId);
 
   const res = await fetch(`/api/aurral/metadata?${params}`);
-  if (res.status === 503) return null; // Aurral not configured
-  if (!res.ok) return null;
+  // 503 = Aurral intentionally not configured. Treat as "service gracefully
+  // unavailable" → null so we can render a clean "no results" state without
+  // an error flash. Any other non-OK status (timeout, 500, network) is a
+  // real failure — throw so useQuery's isError fires and the UI can tell
+  // the user the service is down vs. just "no match".
+  if (res.status === 503) return null;
+  if (!res.ok) throw new Error(`Metadata lookup failed (HTTP ${res.status})`);
 
   const json = await res.json() as MetadataResponse;
   return json.data?.metadata ?? null;
@@ -25,6 +30,7 @@ async function fetchArtistMetadata(name: string, navidromeId?: string): Promise<
 /**
  * Fetch enriched artist metadata from Aurral/MusicBrainz (cached server-side).
  * Returns null gracefully if Aurral is not configured or artist not found.
+ * Throws on real errors so the UI can distinguish "no match" from "service down".
  */
 export function useArtistMetadata(artistName: string | undefined, options?: {
   navidromeId?: string;
@@ -37,7 +43,10 @@ export function useArtistMetadata(artistName: string | undefined, options?: {
     staleTime: 30 * 60 * 1000, // 30 min client-side
     gcTime: 60 * 60 * 1000, // 1 hour garbage collection
     refetchOnWindowFocus: false,
-    retry: 1,
+    // No retry: Aurral already retries once on the server with a 10s timeout.
+    // A second client retry just doubles the time the user stares at a
+    // skeleton when Aurral is hung. Fail fast → show error card.
+    retry: 0,
   });
 }
 

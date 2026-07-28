@@ -1,8 +1,8 @@
 import { ServiceError } from '../../utils';
 import { apiFetch } from './core';
 import {
-  getArtists, getArtistDetail, getArtistsWithDetails,
-  getSongs, getSongsByIds, getSongsGlobal, search,
+  getArtistDetail, getArtistsWithDetails,
+  getSongs, getSongsGlobal, search,
 } from './library';
 import { getStarredSongs } from './user-features';
 import type { SubsonicApiResponse, SubsonicSong, ArtistWithDetails } from './types';

@@ -201,8 +201,25 @@ export async function syncLikedSongsToFeedback(userId: string): Promise<SyncResu
           )
         );
 
+      // Remove stale thumbs_up from recommendation_feedback so the heart icon
+      // reflects the un-star. The GET endpoint reads this table first, so a
+      // leftover thumbs_up would mask the isActive=0 we just set above.
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < unstarredIds.length; i += BATCH_SIZE) {
+        const batch = unstarredIds.slice(i, i + BATCH_SIZE);
+        await db
+          .delete(recommendationFeedback)
+          .where(
+            and(
+              eq(recommendationFeedback.userId, userId),
+              inArray(recommendationFeedback.songId, batch),
+              eq(recommendationFeedback.source, 'library')
+            )
+          );
+      }
+
       result.unstarred = unstarredIds.length;
-      console.log(`💜 [LikedSongsSync] Marked ${unstarredIds.length} songs as un-starred`);
+      console.log(`💜 [LikedSongsSync] Marked ${unstarredIds.length} songs as un-starred and removed stale feedback`);
     }
 
     console.log(`💜 [LikedSongsSync] Sync complete: ${result.synced} synced, ${result.unstarred} un-starred, ${result.unchanged} unchanged, ${result.errors} errors`);

@@ -133,11 +133,13 @@ const SidebarAlbumArt = ({
       {isPlaying && (
         <>
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1">
-            <div className="w-1 h-4 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0s' }} />
-            <div className="w-1 h-6 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.15s' }} />
-            <div className="w-1 h-4 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.3s' }} />
-            <div className="w-1 h-5 bg-white/80 rounded-full animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.45s' }} />
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
+            <span className="audio-wave !h-5">
+              <span className="audio-wave-bar !w-1 !bg-primary" />
+              <span className="audio-wave-bar !w-1 !bg-primary" />
+              <span className="audio-wave-bar !w-1 !bg-primary" />
+              <span className="audio-wave-bar !w-1 !bg-primary" />
+            </span>
           </div>
         </>
       )}
@@ -354,8 +356,9 @@ function LeftSidebar() {
       if (!response.ok) throw new Error('Sync failed');
       const data = await response.json();
       toast.success(`Synced ${data.data?.songCount || 0} liked songs`);
-      // Refresh playlists
+      // Refresh playlists and feedback (heart icons) so unlikes propagate
       queryClient.invalidateQueries({ queryKey: ['playlists'] });
+      queryClient.invalidateQueries({ queryKey: ['feedback'] });
       // Navigate to the liked songs playlist if it exists
       if (data.data?.playlist?.id) {
         navigate({ to: `/playlists/${data.data.playlist.id}` });
@@ -463,7 +466,8 @@ function LeftSidebar() {
               {/* Liked Songs - navigates to playlist or syncs if not exists */}
               {likedSongsPlaylist ? (
                 <Link
-                  to={`/playlists/${likedSongsPlaylist.id}`}
+                  to="/playlists/$id"
+                  params={{ id: likedSongsPlaylist.id }}
                   title={isCollapsed ? 'Liked Songs' : undefined}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors",
@@ -591,7 +595,8 @@ function LeftSidebar() {
                 .map((playlist: { id: string; name: string; songCount?: number }) => (
                 <Link
                   key={playlist.id}
-                  to={`/playlists/${playlist.id}`}
+                  to="/playlists/$id"
+                  params={{ id: playlist.id }}
                   title={isCollapsed ? playlist.name : undefined}
                   className={cn(
                     "flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors group/playlist",
@@ -796,7 +801,8 @@ function RightSidebar() {
                 topArtists.slice(0, 5).map((artist: { id: string; name: string; albumCount?: number; songCount?: number; totalPlays?: number }, index: number) => (
                   <Link
                     key={artist.id}
-                    to={`/library/artists/${artist.id}`}
+                    to="/library/artists/$id"
+                    params={{ id: artist.id }}
                     className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors group"
                   >
                     <span className={cn("font-bold text-lg w-5", rankColors[index])}>
@@ -918,11 +924,12 @@ function RightSidebar() {
                       <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
                     </div>
                     {index === currentSongIndex && isPlaying ? (
-                      <div className="flex gap-0.5">
-                        <div className="w-0.5 h-3 bg-primary animate-[wave_1s_ease-in-out_infinite]" />
-                        <div className="w-0.5 h-4 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
-                        <div className="w-0.5 h-3 bg-primary animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
-                      </div>
+                      <span className="audio-wave !h-3.5">
+                        <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
+                        <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
+                        <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
+                        <span className="audio-wave-bar !w-[2.5px] !bg-primary" />
+                      </span>
                     ) : (
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); playNow(song.id, song); }} title="Play now">

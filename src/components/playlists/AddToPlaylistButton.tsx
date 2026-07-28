@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,8 @@ interface AddToPlaylistButtonProps {
   size?: 'default' | 'sm' | 'lg' | 'icon';
   showLabel?: boolean;
   hideCreateNew?: boolean;
+  className?: string;
+  contentClassName?: string;
 }
 
 interface Playlist {
@@ -40,6 +43,8 @@ export function AddToPlaylistButton({
   size = 'sm',
   showLabel = false,
   hideCreateNew = false,
+  className,
+  contentClassName,
 }: AddToPlaylistButtonProps) {
   const [open, setOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -118,14 +123,14 @@ export function AddToPlaylistButton({
           <Button
             variant={variant}
             size={size}
-            className="min-h-[44px]"
+            className={cn(size !== 'icon' && 'min-h-[44px]', className)}
             aria-label="Add to playlist"
           >
             <Plus className={showLabel ? 'mr-2 h-4 w-4' : 'h-4 w-4'} />
             {showLabel && 'Add to Playlist'}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className={cn("w-56", contentClassName)}>
           <DropdownMenuLabel>Add to Playlist</DropdownMenuLabel>
           <DropdownMenuSeparator />
 

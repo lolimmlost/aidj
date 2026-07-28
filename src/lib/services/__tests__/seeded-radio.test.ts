@@ -56,7 +56,7 @@ vi.mock('@/lib/services/navidrome-users', () => ({
 }));
 
 vi.mock('@/lib/services/blended-recommendation-scorer', () => ({
-  getBlendedRecommendations: vi.fn().mockResolvedValue({ songs: [], metadata: {} }),
+  getBlendedRecommendations: vi.fn().mockResolvedValue({ songs: [], metadata: { totalCandidates: 0, sourceCounts: {} } }),
 }));
 
 vi.mock('@/lib/services/artist-cooccurrence', () => ({
@@ -375,7 +375,7 @@ describe('generateSeededRadio', () => {
       makeSong({ id: `o${i}`, artist: `A${i}`, title: `t${i}` }),
     );
     vi.mocked(getSongsByIds).mockResolvedValue([seed]);
-    vi.mocked(getBlendedRecommendations).mockResolvedValue({ songs: others, metadata: {} });
+    vi.mocked(getBlendedRecommendations).mockResolvedValue({ songs: others, metadata: { totalCandidates: 0, sourceCounts: {} } });
 
     const result = await generateSeededRadio('user-1', { kind: 'song', songId: 'seed-1' });
 
@@ -397,7 +397,7 @@ describe('generateSeededRadio', () => {
     // Also sneak an album track into the scorer output to verify we strip it.
     rec.push(album[0]);
     vi.mocked(getSongs).mockResolvedValue(album);
-    vi.mocked(getBlendedRecommendations).mockResolvedValue({ songs: rec, metadata: {} });
+    vi.mocked(getBlendedRecommendations).mockResolvedValue({ songs: rec, metadata: { totalCandidates: 0, sourceCounts: {} } });
 
     const result = await generateSeededRadio('user-1', { kind: 'album', albumId: 'album-1' });
 
@@ -432,7 +432,7 @@ describe('generateSeededRadio', () => {
       songs: Array.from({ length: 10 }, (_, i) =>
         makeSong({ id: `r-${i}`, artist: `RA${i}`, title: `rt${i}` }),
       ),
-      metadata: {},
+      metadata: { totalCandidates: 0, sourceCounts: {} },
     });
 
     const result = await generateSeededRadio('user-1', {
@@ -455,7 +455,7 @@ describe('generateSeededRadio', () => {
       makeSong({ id: `adj-${i}`, artist: `Other${i}`, title: `adj${i}` }),
     );
     vi.mocked(getSongsByArtist).mockResolvedValue(catalog);
-    vi.mocked(getBlendedRecommendations).mockResolvedValue({ songs: adjacent, metadata: {} });
+    vi.mocked(getBlendedRecommendations).mockResolvedValue({ songs: adjacent, metadata: { totalCandidates: 0, sourceCounts: {} } });
 
     const result = await generateSeededRadio(
       'user-1',
@@ -483,7 +483,7 @@ describe('generateSeededRadio', () => {
         makeSong({ id: 'cooc-2', artist: 'CoocArtist', title: 'c2' }),
       ];
     });
-    vi.mocked(getBlendedRecommendations).mockResolvedValue({ songs: [], metadata: {} });
+    vi.mocked(getBlendedRecommendations).mockResolvedValue({ songs: [], metadata: { totalCandidates: 0, sourceCounts: {} } });
     vi.mocked(getRelatedArtists).mockResolvedValue([
       { artist: 'coocartist', score: 0.8, coplayCount: 5 },
     ]);

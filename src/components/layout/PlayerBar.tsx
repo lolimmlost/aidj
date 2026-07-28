@@ -17,7 +17,6 @@ import {
   Repeat1,
 } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
-import { VisualizerModal } from '@/components/visualizer';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { AlbumArt } from '@/components/ui/album-art';
@@ -98,6 +97,7 @@ export function PlayerBar() {
   // Stable helper: ensures Web Audio graph is initialized before play().
   // Uses a ref so it can be called from effects without adding deps that cause re-runs.
   const ensureGraphInitializedRef = useRef<() => void>(() => {});
+  // eslint-disable-next-line react-hooks/refs -- latest-ref pattern: keep the closure fresh each render
   ensureGraphInitializedRef.current = () => {
     if (!webAudioInitialized && deckARef.current && deckBRef.current) {
       initializeGraph(deckARef.current, deckBRef.current);
@@ -118,9 +118,8 @@ export function PlayerBar() {
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);
-  const [showVisualizer, setShowVisualizer] = useState(false);
   const [showFullscreen, setShowFullscreen] = useState(false);
-  const [fullscreenInitialMode, setFullscreenInitialMode] = useState<'art' | 'lyrics'>('art');
+  const [fullscreenInitialMode, setFullscreenInitialMode] = useState<'art' | 'lyrics' | 'visualizer'>('art');
 
   // Track canplay/error handlers for cleanup
   const canPlayHandlerRef = useRef<(() => void) | null>(null);
@@ -243,6 +242,15 @@ export function PlayerBar() {
     const outgoingPlayDuration = snapshot.songId === outgoingSongId ? snapshot.currentTime : activeDeck?.currentTime;
     const outgoingSongDuration = snapshot.songId === outgoingSongId ? snapshot.duration : activeDeck?.duration;
     if (outgoingSong && outgoingSongId && !hasScrobbledRef.current) {
+      if (scrobbleThresholdReachedRef.current) {
+        hasScrobbledRef.current = true;
+        scrobbleSong(outgoingSongId, true)
+          .then(() => {
+            queryClient.invalidateQueries({ queryKey: ['most-played-songs'] });
+            queryClient.invalidateQueries({ queryKey: ['top-artists'] });
+          })
+          .catch(console.error);
+      }
       recordListeningHistory(
         outgoingSong,
         outgoingSongId,
@@ -254,7 +262,7 @@ export function PlayerBar() {
     hasScrobbledRef.current = false;
     scrobbleThresholdReachedRef.current = false;
     nextSong(true); // userSkip — bypass repeat-one lock
-  }, [currentSong, getActiveDeck, nextSong, recordListeningHistory]);
+  }, [currentSong, getActiveDeck, nextSong, recordListeningHistory, queryClient]);
 
   // Shared crossfade state ref - created here so it can be passed to both hooks
   const crossfadeInProgressRef = useRef<boolean>(false);
@@ -415,8 +423,8 @@ export function PlayerBar() {
       });
 
       if (!response.ok && response.status !== 409) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update feedback');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to update feedback (${response.status})`);
       }
 
       return liked;
@@ -820,8 +828,6 @@ export function PlayerBar() {
     const stateInterval = setInterval(() => {
       const active = getActiveDeck();
       const activeDeckLabel = activeDeckRef.current;
-      const inactive = activeDeckLabel === 'A' ? deckB : deckA;
-      const inactiveDeckLabel = activeDeckLabel === 'A' ? 'B' : 'A';
 
       if (active) {
         console.log(`📊 [STATE] Deck ${activeDeckLabel} | playing=${!active.paused} time=${active.currentTime.toFixed(1)}/${active.duration?.toFixed(1) || '?'}`);
@@ -889,10 +895,10 @@ export function PlayerBar() {
             {/* Song Info — single-line: Title · Artist. Inline children flow as one text run, so `truncate` on the parent yields a single clean ellipsis instead of two stacked rows. */}
             <div className="min-w-0 flex-1">
               <div className={cn("text-sm truncate", showRemoteTime && "text-green-500")}>
-                {(currentSong as { artistId?: string }).artistId && currentSong.albumId ? (
+                {currentSong.artistId && currentSong.albumId ? (
                   <Link
                     to="/library/artists/$id/albums/$albumId"
-                    params={{ id: (currentSong as { artistId?: string }).artistId!, albumId: currentSong.albumId }}
+                    params={{ id: currentSong.artistId!, albumId: currentSong.albumId }}
                     className="font-display font-semibold active:text-primary transition-colors"
                     onClick={(e) => e.stopPropagation()}
                     title="View album"
@@ -908,10 +914,10 @@ export function PlayerBar() {
                   </span>
                 )}
                 <span className={cn("mx-1.5", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>·</span>
-                {(currentSong as { artistId?: string }).artistId ? (
+                {currentSong.artistId ? (
                   <Link
                     to="/library/artists/$id"
-                    params={{ id: (currentSong as { artistId?: string }).artistId! }}
+                    params={{ id: currentSong.artistId! }}
                     className={cn("active:text-primary transition-colors", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -1014,10 +1020,10 @@ export function PlayerBar() {
             />
           </div>
           <div className="min-w-0">
-            {(currentSong as { artistId?: string }).artistId && currentSong.albumId ? (
+            {currentSong.artistId && currentSong.albumId ? (
               <Link
                 to="/library/artists/$id/albums/$albumId"
-                params={{ id: (currentSong as { artistId?: string }).artistId!, albumId: currentSong.albumId }}
+                params={{ id: currentSong.artistId!, albumId: currentSong.albumId }}
                 className={cn("font-display font-semibold truncate text-sm block hover:underline", showRemoteTime && "text-green-500")}
                 title="View album"
               >
@@ -1028,10 +1034,10 @@ export function PlayerBar() {
                 {currentSong.name || currentSong.title}
               </p>
             )}
-            {(currentSong as { artistId?: string }).artistId ? (
+            {currentSong.artistId ? (
               <Link
                 to="/library/artists/$id"
-                params={{ id: (currentSong as { artistId?: string }).artistId! }}
+                params={{ id: currentSong.artistId! }}
                 className={cn("text-xs truncate block hover:underline", showRemoteTime ? "text-green-500/70" : "text-muted-foreground hover:text-foreground")}
               >
                 {currentSong.artist || 'Unknown'}
@@ -1159,7 +1165,10 @@ export function PlayerBar() {
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
-            onClick={() => setShowVisualizer(true)}
+            onClick={() => {
+              setFullscreenInitialMode('visualizer');
+              setShowFullscreen(true);
+            }}
             title="Show visualizer"
           >
             <AudioWaveform className="h-4 w-4" />
@@ -1201,14 +1210,7 @@ export function PlayerBar() {
       <audio ref={deckARef} preload="metadata" crossOrigin="anonymous" className="hidden" />
       <audio ref={deckBRef} preload="metadata" crossOrigin="anonymous" className="hidden" />
 
-      {/* Visualizer Modal */}
-      <VisualizerModal
-        isOpen={showVisualizer}
-        onClose={() => setShowVisualizer(false)}
-        analyserNode={webAudioAnalyserRef.current}
-      />
-
-      {/* Fullscreen Now Playing — unified chassis (Phase B: art + lyrics modes) */}
+      {/* Fullscreen Now Playing — unified chassis (Phase C: art + lyrics + visualizer modes) */}
       <NowPlayingFullscreen
         isOpen={showFullscreen}
         onClose={() => {
@@ -1225,6 +1227,10 @@ export function PlayerBar() {
         isLikePending={isLikePending}
         isShuffled={isShuffled}
         repeatMode={repeatMode}
+        analyserNode={
+          // eslint-disable-next-line react-hooks/refs -- analyser node identity is stable once created
+          webAudioAnalyserRef.current
+        }
         onTogglePlayPause={remoteAwareTogglePlayPause}
         onPrevious={remoteAwarePrevious}
         onNext={remoteAwareNext}

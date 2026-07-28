@@ -215,6 +215,9 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
     return result;
   }
 
+  // Unmonitor any albums that have already finished downloading
+  await unmonitorCompletedAlbums(lidarrUrl, lidarrApiKey);
+
   // Get root folder, quality profile, and metadata profile once
   let rootFolder = '/music';
   let qualityProfileId = 1;
@@ -336,8 +339,10 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
           console.log(`[Lidarr Queue] Artist already in library (ID: ${libraryArtistId})`);
 
           // Ensure artist is monitored (required for Slskd to pick it up)
-          if (!existingArtist.monitored) {
-            console.log(`[Lidarr Queue] Enabling monitoring for artist ${existingArtist.artistName}`);
+          // Also force monitorNewItems to 'none' so RefreshArtist doesn't
+          // auto-monitor all discovered albums
+          if (!existingArtist.monitored || existingArtist.monitorNewItems !== 'none') {
+            console.log(`[Lidarr Queue] Updating artist ${existingArtist.artistName}: monitored=true, monitorNewItems=none`);
             await fetch(`${lidarrUrl}/api/v1/artist/${libraryArtistId}`, {
               method: 'PUT',
               headers: {
@@ -347,6 +352,7 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
               body: JSON.stringify({
                 ...existingArtist,
                 monitored: true,
+                monitorNewItems: 'none',
               }),
             });
           }
@@ -460,6 +466,9 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
           }),
         });
 
+        // Unmonitor all other albums to prevent full discography downloads
+        await unmonitorOtherAlbums(lidarrUrl, lidarrApiKey, libraryArtistId!, targetLibraryAlbum.id);
+
         // Trigger album search
         await fetch(`${lidarrUrl}/api/v1/command`, {
           method: 'POST',
@@ -525,6 +534,9 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
               }),
             });
 
+            // Unmonitor all other albums to prevent full discography downloads
+            await unmonitorOtherAlbums(lidarrUrl, lidarrApiKey, libraryArtistId!, foundAlbum.id);
+
             // Trigger album search
             await fetch(`${lidarrUrl}/api/v1/command`, {
               method: 'POST',
@@ -559,6 +571,72 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
   }
 
   return result;
+}
+
+// Unmonitor albums that are fully downloaded (100% tracks) so Lidarr stops searching
+async function unmonitorCompletedAlbums(lidarrUrl: string, lidarrApiKey: string) {
+  try {
+    const response = await fetch(
+      `${lidarrUrl}/api/v1/album`,
+      { headers: { 'X-Api-Key': lidarrApiKey } }
+    );
+    if (!response.ok) return;
+
+    const albums = await response.json();
+    const completed = albums.filter(
+      (a: { monitored: boolean; statistics?: { percentOfTracks: number } }) =>
+        a.monitored && a.statistics && a.statistics.percentOfTracks >= 100
+    );
+
+    for (const album of completed) {
+      await fetch(`${lidarrUrl}/api/v1/album/${album.id}`, {
+        method: 'PUT',
+        headers: { 'X-Api-Key': lidarrApiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...album, monitored: false }),
+      });
+    }
+
+    if (completed.length > 0) {
+      console.log(`[Lidarr Queue] Unmonitored ${completed.length} completed albums`);
+    }
+  } catch (error) {
+    console.error('[Lidarr Queue] Error unmonitoring completed albums:', error);
+  }
+}
+
+// Unmonitor all albums for an artist except the target album
+async function unmonitorOtherAlbums(
+  lidarrUrl: string,
+  lidarrApiKey: string,
+  artistId: number,
+  targetAlbumId: number
+) {
+  try {
+    const response = await fetch(
+      `${lidarrUrl}/api/v1/album?artistId=${artistId}`,
+      { headers: { 'X-Api-Key': lidarrApiKey } }
+    );
+    if (!response.ok) return;
+
+    const albums = await response.json();
+    const toUnmonitor = albums.filter(
+      (a: { id: number; monitored: boolean }) => a.id !== targetAlbumId && a.monitored
+    );
+
+    for (const album of toUnmonitor) {
+      await fetch(`${lidarrUrl}/api/v1/album/${album.id}`, {
+        method: 'PUT',
+        headers: { 'X-Api-Key': lidarrApiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...album, monitored: false }),
+      });
+    }
+
+    if (toUnmonitor.length > 0) {
+      console.log(`[Lidarr Queue] Unmonitored ${toUnmonitor.length} other albums for artist ${artistId}`);
+    }
+  } catch (error) {
+    console.error('[Lidarr Queue] Error unmonitoring other albums:', error);
+  }
 }
 
 // Helper function to find the best matching album for a song

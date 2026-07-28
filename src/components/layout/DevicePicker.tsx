@@ -115,7 +115,10 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
 
   if (typeof document === 'undefined') return null;
 
-  // Position above the trigger — use bottom-anchored so it grows upward
+  // Position above the trigger — use bottom-anchored so it grows upward.
+  // Reads layout from the trigger ref during render by design: the picker
+  // is portaled and must be positioned before first paint to avoid a jump.
+  /* eslint-disable react-hooks/refs */
   const initialStyle: React.CSSProperties = (() => {
     if (triggerRef?.current) {
       const r = triggerRef.current.getBoundingClientRect();
@@ -126,6 +129,7 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
     }
     return { bottom: '80px', left: '16px', maxHeight: 'calc(100vh - 100px)' };
   })();
+  /* eslint-enable react-hooks/refs */
 
   const dropdown = (
     <div

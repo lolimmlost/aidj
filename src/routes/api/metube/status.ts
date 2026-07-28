@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { ServiceError } from '../../../lib/utils';
-import { checkConnection, getHistory, getQueue } from '../../../lib/services/metube';
+import { checkConnection, getQueue } from '../../../lib/services/metube';
+import type { MeTubeDownload } from '../../../lib/services/metube';
 
 export const Route = createFileRoute('/api/metube/status')({
   server: {
@@ -23,14 +24,20 @@ export const Route = createFileRoute('/api/metube/status')({
         }
 
         try {
-          const [connectionStatus, historyResult, queue] = await Promise.all([
+          const [connectionStatus, queue] = await Promise.all([
             checkConnection(),
-            getHistory(),
             getQueue(),
           ]);
 
-          // Ensure history is always an array
-          const history = Array.isArray(historyResult) ? historyResult : [];
+          // Build history array from the done records, newest first
+          const history = Object.values(queue.done || {}).map((d: MeTubeDownload) => ({
+            id: d.id,
+            title: d.title,
+            url: d.url,
+            status: d.status as 'finished' | 'error',
+            filename: d.filename,
+            folder: d.folder,
+          })).reverse();
 
           return new Response(
             JSON.stringify({

@@ -213,12 +213,15 @@ export async function waitForRateLimit(key: string, maxWaitMs: number = 5000): P
 
 // --- Auth ---
 
+let pendingAuth: Promise<string> | null = null;
+
 export function resetAuthState() {
   token = null;
   clientId = null;
   subsonicToken = null;
   subsonicSalt = null;
   tokenExpiry = 0;
+  pendingAuth = null;
 }
 
 /**
@@ -276,13 +279,26 @@ export async function getAuthToken(): Promise<string> {
     return token;
   }
 
+  // Dedup concurrent auth requests — all callers await the same promise
+  if (pendingAuth) {
+    return pendingAuth;
+  }
+
+  pendingAuth = performAuth(config.navidromeUrl, username, password).finally(() => {
+    pendingAuth = null;
+  });
+
+  return pendingAuth;
+}
+
+async function performAuth(navidromeUrl: string, username: string, password: string): Promise<string> {
   const adaptiveTimeout = mobileOptimization.getAdaptiveTimeout();
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), adaptiveTimeout);
 
   const authUrl = isBrowser()
     ? '/api/navidrome/auth/login'
-    : `${config.navidromeUrl}/auth/login`;
+    : `${navidromeUrl}/auth/login`;
 
   try {
     const response = await fetch(authUrl, {
@@ -312,7 +328,7 @@ export async function getAuthToken(): Promise<string> {
     subsonicToken = md5Token;
     subsonicSalt = salt;
 
-    tokenExpiry = now + 3600 * 1000;
+    tokenExpiry = Date.now() + 3600 * 1000;
     return token as string;
   } catch (error: unknown) {
     clearTimeout(timeoutId);

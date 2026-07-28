@@ -1,6 +1,6 @@
 import { getConfig } from '@/lib/config/config';
 import { ServiceError } from '../../utils';
-import { apiFetch, getAuthToken, buildSubsonicUrl } from './core';
+import { apiFetch, buildSubsonicUrl } from './core';
 import type { SubsonicCreds, SubsonicApiResponse, NavidromePlaylist, NavidromePlaylistWithSongs } from './types';
 
 /**

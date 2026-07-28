@@ -12,9 +12,10 @@ interface ArtModeProps {
   song: NowPlayingSong;
   onPrevious: () => void;
   onNext: () => void;
+  expanded?: boolean;
 }
 
-export function ArtMode({ song, onPrevious, onNext }: ArtModeProps) {
+export function ArtMode({ song, onPrevious, onNext, expanded }: ArtModeProps) {
   const [imgError, setImgError] = useState(false);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
 
@@ -77,7 +78,12 @@ export function ArtMode({ song, onPrevious, onNext }: ArtModeProps) {
 
   return (
     <div
-      className="w-[75vw] sm:w-[60vw] md:w-[50vw] lg:w-auto lg:flex-1 max-w-[500px] aspect-square relative mx-auto lg:mx-0 overflow-visible touch-pan-y flex-shrink-0"
+      className={cn(
+        "relative overflow-visible touch-pan-y",
+        expanded
+          ? "flex-1 flex items-center justify-center"
+          : "w-[75vw] sm:w-[60vw] md:w-[50vw] lg:w-auto lg:flex-1 max-w-[500px] aspect-square mx-auto lg:mx-0 flex-shrink-0"
+      )}
       onTouchStart={handleArtTouchStart}
       onTouchMove={handleArtTouchMove}
       onTouchEnd={handleArtTouchEnd}
@@ -85,7 +91,7 @@ export function ArtMode({ song, onPrevious, onNext }: ArtModeProps) {
       <div
         ref={artContainerRef}
         className={cn(
-          'w-full h-full',
+          expanded ? 'max-h-full max-w-full aspect-square' : 'w-full h-full',
           swipeDirection === 'left' && 'animate-[slideInRight_250ms_ease-out]',
           swipeDirection === 'right' && 'animate-[slideInLeft_250ms_ease-out]',
         )}

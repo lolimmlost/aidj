@@ -23,7 +23,7 @@ import {
   Cell,
 } from 'recharts';
 import { Skeleton } from '../ui/skeleton';
-import { LayoutDashboard, Target, Activity, Compass, Headphones, TrendingUp, TrendingDown, Minus, BarChart3, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Target, Activity, Compass, Headphones, TrendingUp, BarChart3, Sparkles } from 'lucide-react';
 import { StatCard, type MetricTrend } from './StatCard';
 import { cn } from '@/lib/utils';
 import {

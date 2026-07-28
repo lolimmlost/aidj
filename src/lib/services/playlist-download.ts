@@ -172,6 +172,7 @@ export async function queueLidarrDownload(
 
       // Check if artist is already added
       const isAdded = await lidarr.isArtistAdded(foreignArtistId);
+      let resolvedArtistId: number | undefined;
 
       if (!isAdded) {
         // Search for artist to get full data
@@ -181,17 +182,19 @@ export async function queueLidarrDownload(
         if (artistData) {
           // addArtist now explicitly ensures monitoring after add
           await lidarr.addArtist(artistData, { monitorAll: false });
+          const added = await lidarr.findArtistByName(song.artist);
+          resolvedArtistId = added?.id;
         }
       } else {
         // Artist exists - ensure it's monitored (required for Slskd)
         // Try searchResult.artistId first, fall back to finding by foreignArtistId
-        let artistIdToMonitor = searchResult.artistId;
-        if (!artistIdToMonitor) {
+        resolvedArtistId = searchResult.artistId;
+        if (!resolvedArtistId) {
           const existingArtist = await lidarr.findArtistByName(song.artist);
-          artistIdToMonitor = existingArtist?.id;
+          resolvedArtistId = existingArtist?.id;
         }
-        if (artistIdToMonitor) {
-          await lidarr.ensureArtistMonitored(artistIdToMonitor);
+        if (resolvedArtistId) {
+          await lidarr.ensureArtistMonitored(resolvedArtistId);
         }
       }
 
@@ -199,6 +202,9 @@ export async function queueLidarrDownload(
       if (searchResult.albumId || options?.monitorAlbum) {
         if (searchResult.albumId) {
           await lidarr.monitorAlbum(searchResult.albumId, true);
+          if (resolvedArtistId) {
+            await lidarr.unmonitorOtherAlbums(resolvedArtistId, searchResult.albumId);
+          }
           await lidarr.searchForAlbum(searchResult.albumId);
         }
       }

@@ -11,8 +11,8 @@ import { getSongsByIds } from '@/lib/services/navidrome';
 import type { Song } from '@/lib/types/song';
 import { auth } from '@/lib/auth/auth';
 import { db } from '@/lib/db';
-import { userPreferences } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { userPreferences, listeningHistory } from '@/lib/db/schema';
+import { eq, and, gte } from 'drizzle-orm';
 
 // Types for queue context
 export interface QueueContext {
@@ -221,9 +221,36 @@ export async function POST({ request }: { request: Request }) {
         }
       }
 
+      // Server-side: pull songs played in the last 24 hours from listening_history
+      // so exclusions survive across sessions (client ephemeral state expires)
+      let recentHistoryIds: string[] = [];
+      if (userId) {
+        try {
+          const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          const rows = await db
+            .select({ songId: listeningHistory.songId })
+            .from(listeningHistory)
+            .where(
+              and(
+                eq(listeningHistory.userId, userId),
+                gte(listeningHistory.playedAt, cutoff),
+              ),
+            );
+          recentHistoryIds = rows.map(r => r.songId).filter(Boolean);
+          if (recentHistoryIds.length > 0) {
+            console.log(`📊 AI DJ: Excluding ${recentHistoryIds.length} songs from last 24h listening history`);
+          }
+        } catch (err) {
+          console.warn('⚠️ AI DJ: Failed to load listening history for exclusions:', err);
+        }
+      }
+
+      // Merge client exclusions with server-side listening history
+      const mergedExcludeSongIds = [...new Set([...(excludeSongIds || []), ...recentHistoryIds])];
+
       // Check if we should use profile-based recommendations (drip-feed model)
       // Profile-based uses ZERO API calls - all from pre-computed database
-      let result: { songs: Song[]; source: string };
+      let result: { songs: Song[]; source: string } | undefined;
 
       if (useProfileBased && userId) {
         // Check if user has profile data
@@ -237,20 +264,25 @@ export async function POST({ request }: { request: Request }) {
             currentSong,
             {
               limit: batchSize || 1,
-              excludeSongIds: excludeSongIds || [],
+              excludeSongIds: mergedExcludeSongIds,
               excludeArtists: excludeArtists || [],
               enforceDiversity: true,
             }
           );
 
-          result = {
-            songs: profileSongs,
-            source: 'profile-based',
-          };
+          if (profileSongs.length > 0) {
+            result = {
+              songs: profileSongs,
+              source: 'profile-based',
+            };
+            console.log(`✅ AI DJ: Got ${result.songs.length} recommendations from profile (zero API calls)`);
+          } else {
+            console.log(`⚠️ AI DJ: Profile pool exhausted, falling back to standard recommendations`);
+          }
+        }
 
-          console.log(`✅ AI DJ: Got ${result.songs.length} recommendations from profile (zero API calls)`);
-        } else {
-          console.log(`⚠️ AI DJ: No profile data, falling back to standard recommendations`);
+        if (!result) {
+          console.log(`⚠️ AI DJ: Profile unavailable or exhausted, falling back to standard recommendations`);
           // Fall through to standard recommendations
           result = await getRecommendations({
             mode: 'similar',
@@ -263,7 +295,7 @@ export async function POST({ request }: { request: Request }) {
               energy: currentSong.energy,
             },
             limit: batchSize || 3,
-            excludeSongIds: excludeSongIds || [],
+            excludeSongIds: mergedExcludeSongIds,
             excludeArtists: excludeArtists || [],
             queueContext,
             userId,
@@ -292,7 +324,7 @@ export async function POST({ request }: { request: Request }) {
             energy: currentSong.energy,
           },
           limit: batchSize || 3,
-          excludeSongIds: excludeSongIds || [],
+          excludeSongIds: mergedExcludeSongIds,
           excludeArtists: excludeArtists || [],
           queueContext, // Pass queue context for smarter fallback (includes artistBatchCounts)
           userId, // Phase 3.3: Pass userId for skip-based scoring

@@ -1,16 +1,29 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { createPortal } from 'react-dom';
-import { X, ChevronLeft, ChevronRight, Settings, Type } from 'lucide-react';
+/**
+ * VisualizerMode — chassis-hosted audio visualizer. Ported from the
+ * standalone VisualizerModal: same canvas render loop, visualizer
+ * picker, color themes, settings overlay, and lyric overlay, but
+ * without the portal/full-screen chrome since the chassis provides
+ * those. analyserNode is threaded down from PlayerBar through the
+ * chassis.
+ */
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { ChevronLeft, ChevronRight, Settings, Type, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useAudioAnalyzer } from './useAudioAnalyzer';
-import { visualizers, getNextVisualizer, getPreviousVisualizer } from './visualizers';
-import { COLOR_THEMES, DEFAULT_SETTINGS, type Visualizer, type ColorTheme, type VisualizerSettings, type VisualizerContext } from './types';
-import { getQualityLevel, type QualityLevel } from './perf-utils';
+import { useAudioAnalyzer } from '@/components/visualizer/useAudioAnalyzer';
+import { visualizers, getNextVisualizer, getPreviousVisualizer } from '@/components/visualizer/visualizers';
+import {
+  COLOR_THEMES,
+  DEFAULT_SETTINGS,
+  type Visualizer,
+  type ColorTheme,
+  type VisualizerSettings,
+  type VisualizerContext,
+} from '@/components/visualizer/types';
+import { getQualityLevel, type QualityLevel } from '@/components/visualizer/perf-utils';
 import { useAudioStore } from '@/lib/stores/audio';
 import { getLyrics, getCurrentLineIndex, type LyricsResponse } from '@/lib/services/lyrics';
 
-// Throttle helper - returns value that only updates every N ms
 function useThrottledValue<T>(value: T, ms: number): T {
   const [throttledValue, setThrottledValue] = useState(value);
   const lastUpdateRef = useRef(0);
@@ -24,11 +37,9 @@ function useThrottledValue<T>(value: T, ms: number): T {
     const timeSinceLastUpdate = now - lastUpdateRef.current;
 
     if (timeSinceLastUpdate >= ms) {
-      // Enough time has passed, update immediately
       lastUpdateRef.current = now;
       setThrottledValue(value);
     } else if (!timeoutRef.current) {
-      // Schedule an update for when the throttle period ends
       timeoutRef.current = setTimeout(() => {
         lastUpdateRef.current = Date.now();
         setThrottledValue(pendingValueRef.current);
@@ -48,19 +59,16 @@ function useThrottledValue<T>(value: T, ms: number): T {
   return throttledValue;
 }
 
-interface VisualizerModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+interface VisualizerModeProps {
   analyserNode: AnalyserNode | null;
 }
 
-export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerModalProps) {
+export function VisualizerMode({ analyserNode }: VisualizerModeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
 
-  // Visualizer state
   const [currentVisualizer, setCurrentVisualizer] = useState<Visualizer>(visualizers[0]);
   const [settings, setSettings] = useState<VisualizerSettings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
@@ -68,33 +76,25 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
     COLOR_THEMES.find((t) => t.name === DEFAULT_SETTINGS.colorTheme) || COLOR_THEMES[0]
   );
 
-  // Audio analyzer hook
-  const { audioData, connectAnalyser, disconnect, isActive: _isActive } = useAudioAnalyzer({
+  const { audioData, connectAnalyser, disconnect } = useAudioAnalyzer({
     sensitivity: settings.sensitivity,
     smoothingTimeConstant: settings.smoothing,
   });
 
-  // Lyrics state
   const { playlist, currentSongIndex, currentTime } = useAudioStore();
   const currentSong = playlist[currentSongIndex] || null;
   const [lyricsData, setLyricsData] = useState<LyricsResponse | null>(null);
   const lastSongIdRef = useRef<string | null>(null);
 
-  // Throttle currentTime updates for lyrics (100ms is plenty for lyrics sync)
   const throttledTime = useThrottledValue(currentTime, 100);
 
-  // Cache for resize check (avoid getBoundingClientRect every frame)
   const lastResizeCheckRef = useRef(0);
   const cachedDimensionsRef = useRef({ width: 0, height: 0 });
-
-  // Reusable context object to avoid object creation every frame
   const vizCtxRef = useRef<VisualizerContext | null>(null);
 
-  // Fetch lyrics when song changes
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!currentSong || !isOpen) return;
-
-    // Don't refetch for same song
+    if (!currentSong) return;
     if (lastSongIdRef.current === currentSong.id && lyricsData) return;
     lastSongIdRef.current = currentSong.id;
 
@@ -105,8 +105,8 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
           currentSong.name || currentSong.title || 'Unknown',
           {
             songId: currentSong.id,
-            album: currentSong.album,
-            duration: currentSong.duration,
+            album: (currentSong as { album?: string }).album,
+            duration: (currentSong as { duration?: number }).duration,
           }
         );
         setLyricsData(result);
@@ -117,16 +117,15 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
     };
 
     fetchLyrics();
-  }, [currentSong?.id, isOpen]);
+  }, [currentSong?.id]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Calculate lyric index once with throttled time (memoized)
   const lyricIndex = useMemo(() => {
     if (!settings.showLyrics || !lyricsData?.syncedLyrics) return -1;
     const adjustedTime = throttledTime + settings.lyricsOffset;
     return getCurrentLineIndex(lyricsData.syncedLyrics, adjustedTime);
   }, [settings.showLyrics, settings.lyricsOffset, lyricsData?.syncedLyrics, throttledTime]);
 
-  // Get current lyric line with offset (uses cached index)
   const currentLyricLine = useMemo(() => {
     if (!lyricsData?.syncedLyrics || lyricIndex < 0 || lyricIndex >= lyricsData.syncedLyrics.length) {
       return null;
@@ -134,7 +133,6 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
     return lyricsData.syncedLyrics[lyricIndex].text;
   }, [lyricsData?.syncedLyrics, lyricIndex]);
 
-  // Get next lyric line for preview (uses cached index)
   const nextLyricLine = useMemo(() => {
     if (!lyricsData?.syncedLyrics || lyricIndex < 0 || lyricIndex + 1 >= lyricsData.syncedLyrics.length) {
       return null;
@@ -142,26 +140,20 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
     return lyricsData.syncedLyrics[lyricIndex + 1].text;
   }, [lyricsData?.syncedLyrics, lyricIndex]);
 
-  // Auto-rotate timer
   const autoRotateRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Connect to shared AnalyserNode when modal opens
-  // The AnalyserNode is permanent (shared from useWebAudioGraph) and sees
-  // both decks, so no reconnect needed on song change.
   useEffect(() => {
-    if (isOpen && analyserNode) {
+    if (analyserNode) {
       connectAnalyser(analyserNode);
       startTimeRef.current = performance.now();
     } else {
       disconnect();
     }
-
     return () => {
       disconnect();
     };
-  }, [isOpen, analyserNode, connectAnalyser, disconnect]);
+  }, [analyserNode, connectAnalyser, disconnect]);
 
-  // Initialize visualizer
   useEffect(() => {
     if (currentVisualizer.init && canvasRef.current) {
       const canvas = canvasRef.current;
@@ -182,63 +174,54 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
         });
       }
     }
-
     return () => {
       currentVisualizer.cleanup?.();
     };
   }, [currentVisualizer, currentTheme]);
 
-  // Auto-rotate visualizers
   useEffect(() => {
-    if (settings.autoRotate && isOpen) {
+    if (settings.autoRotate) {
       autoRotateRef.current = setInterval(() => {
         setCurrentVisualizer((prev) => getNextVisualizer(prev.id));
       }, settings.autoRotateInterval * 1000);
     }
-
     return () => {
       if (autoRotateRef.current) {
         clearInterval(autoRotateRef.current);
         autoRotateRef.current = null;
       }
     };
-  }, [settings.autoRotate, settings.autoRotateInterval, isOpen]);
+  }, [settings.autoRotate, settings.autoRotateInterval]);
 
-  // Refs for animation state (avoid re-creating callback)
   const audioDataRef = useRef(audioData);
   const currentThemeRef = useRef(currentTheme);
   const currentVisualizerRef = useRef(currentVisualizer);
-  const isOpenRef = useRef(isOpen);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const fpsLimitRef = useRef(settings.fpsLimit);
   const lastFrameTimeRef = useRef(0);
   const qualityRef = useRef<QualityLevel>(settings.quality === 'auto' ? getQualityLevel() : settings.quality);
+  const mountedRef = useRef(true);
 
-  // Keep refs in sync
   useEffect(() => { audioDataRef.current = audioData; }, [audioData]);
   useEffect(() => { currentThemeRef.current = currentTheme; }, [currentTheme]);
   useEffect(() => { currentVisualizerRef.current = currentVisualizer; }, [currentVisualizer]);
-  useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
   /* eslint-disable react-hooks/immutability */
   useEffect(() => { fpsLimitRef.current = settings.fpsLimit; }, [settings.fpsLimit]);
   useEffect(() => { qualityRef.current = settings.quality === 'auto' ? getQualityLevel() : settings.quality; }, [settings.quality]);
   /* eslint-enable react-hooks/immutability */
 
-  // Animation loop - stable callback, no dependencies
   /* eslint-disable react-hooks/purity */
   const animate = useCallback(() => {
-    if (!canvasRef.current || !isOpenRef.current) return;
+    if (!canvasRef.current || !mountedRef.current) return;
 
     const canvas = canvasRef.current;
     const now = performance.now();
 
-    // Frame rate limiting (skip frames if needed)
     const fpsLimit = fpsLimitRef.current;
     if (fpsLimit > 0) {
       const minFrameTime = 1000 / fpsLimit;
       const elapsed = now - lastFrameTimeRef.current;
       if (elapsed < minFrameTime) {
-        // Schedule next frame and skip this one
         // eslint-disable-next-line react-hooks/immutability
         animationFrameRef.current = requestAnimationFrame(animate);
         return;
@@ -246,11 +229,10 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
       lastFrameTimeRef.current = now;
     }
 
-    // Get context once and cache it
     if (!ctxRef.current) {
       ctxRef.current = canvas.getContext('2d', {
-        alpha: false, // No transparency needed - faster
-        desynchronized: true, // Reduce latency on supported browsers
+        alpha: false,
+        desynchronized: true,
       });
     }
     const ctx = ctxRef.current;
@@ -260,7 +242,6 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
     const time = (now - startTimeRef.current) / 1000;
     lastTimeRef.current = now;
 
-    // Resize canvas only every 200ms (not every frame)
     const timeSinceResize = now - lastResizeCheckRef.current;
     if (timeSinceResize > 200 || cachedDimensionsRef.current.width === 0) {
       lastResizeCheckRef.current = now;
@@ -279,7 +260,6 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
     const width = cachedDimensionsRef.current.width || canvas.width;
     const height = cachedDimensionsRef.current.height || canvas.height;
 
-    // Reuse or create visualizer context object
     if (!vizCtxRef.current) {
       vizCtxRef.current = {
         canvas,
@@ -295,7 +275,6 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
         quality: qualityRef.current,
       };
     } else {
-      // Update existing object (avoid creating new object every frame)
       const vizCtx = vizCtxRef.current;
       vizCtx.canvas = canvas;
       vizCtx.ctx = ctx;
@@ -310,44 +289,39 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
       vizCtx.quality = qualityRef.current;
     }
 
-    // Render current visualizer
     currentVisualizerRef.current.render(vizCtxRef.current);
 
-    // Continue animation loop
     animationFrameRef.current = requestAnimationFrame(animate);
-  }, []); // Empty deps - uses refs
+  }, []);
   /* eslint-enable react-hooks/purity */
 
-  // Start/stop animation loop
   useEffect(() => {
-    if (isOpen) {
-      lastTimeRef.current = performance.now();
-      ctxRef.current = null; // Reset cached context on open
-      vizCtxRef.current = null; // Reset reusable context object
-      cachedDimensionsRef.current = { width: 0, height: 0 }; // Force dimension recalc
-      lastResizeCheckRef.current = 0;
-      animationFrameRef.current = requestAnimationFrame(animate);
-    }
+    mountedRef.current = true;
+    lastTimeRef.current = performance.now();
+    ctxRef.current = null;
+    vizCtxRef.current = null;
+    cachedDimensionsRef.current = { width: 0, height: 0 };
+    lastResizeCheckRef.current = 0;
+    animationFrameRef.current = requestAnimationFrame(animate);
 
     return () => {
+      mountedRef.current = false;
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
       }
-      ctxRef.current = null; // Clear cached context on close
+      ctxRef.current = null;
       vizCtxRef.current = null;
     };
-  }, [isOpen, animate]);
+  }, [animate]);
 
-  // Keyboard shortcuts
   useEffect(() => {
-    if (!isOpen) return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if focus is in an input/textarea so the settings sliders work normally
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+
       switch (e.key) {
-        case 'Escape':
-          onClose();
-          break;
         case ']':
         case '.':
           e.preventDefault();
@@ -379,9 +353,8 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, []);
 
-  // Handle next/previous visualizer
   const handleNext = () => {
     currentVisualizer.cleanup?.();
     setCurrentVisualizer(getNextVisualizer(currentVisualizer.id));
@@ -392,22 +365,20 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
     setCurrentVisualizer(getPreviousVisualizer(currentVisualizer.id));
   };
 
-  // Handle theme change
   const handleThemeChange = (theme: ColorTheme) => {
     setCurrentTheme(theme);
     setSettings((prev) => ({ ...prev, colorTheme: theme.name }));
   };
 
-  // Toggle auto-rotate
   const toggleAutoRotate = () => {
     setSettings((prev) => ({ ...prev, autoRotate: !prev.autoRotate }));
   };
 
-  if (!isOpen || typeof document === 'undefined') return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-[9998] flex flex-col" style={{ bottom: '80px' }}>
-      {/* Canvas background */}
+  return (
+    <div className="w-full h-full relative overflow-hidden">
+      {/* Canvas background — fills the visualizer column. No rounded
+       *  corners so the GPU doesn't re-clip the animating canvas each
+       *  frame. */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"
@@ -416,52 +387,48 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
 
       {/* Controls overlay */}
       <div className="relative z-10 flex flex-col h-full">
-        {/* Top bar */}
-        <div className="flex items-center justify-between p-4">
-          {/* Visualizer name */}
-          <div className="flex items-center gap-4">
-            <span className="text-white/80 text-sm font-medium bg-black/30 px-3 py-1.5 rounded-full backdrop-blur-sm">
+        {/* Top bar — visualizer name + settings toggle */}
+        <div className="flex items-center justify-between p-3 sm:p-4 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <span className="text-white/80 text-xs sm:text-sm font-medium bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-sm truncate">
               {currentVisualizer.name}
             </span>
             {settings.autoRotate && (
-              <span className="text-white/60 text-xs bg-black/20 px-2 py-1 rounded-full">
+              <span className="text-white/60 text-xs bg-black/30 px-2 py-1 rounded-full whitespace-nowrap">
                 Auto-rotating
               </span>
             )}
           </div>
 
-          {/* Action buttons */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowSettings(!showSettings)}
-              className="text-white/80 hover:text-white hover:bg-white/10"
-            >
-              <Settings className="h-5 w-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="text-white/80 hover:text-white hover:bg-white/10"
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowSettings(!showSettings)}
+            className="text-white/80 hover:text-white hover:bg-white/10 flex-shrink-0"
+          >
+            <Settings className="h-5 w-5" />
+          </Button>
         </div>
 
-        {/* Settings backdrop - click to close */}
+        {/* Settings backdrop. Fixed so it covers the whole chassis,
+         *  not just the visualizer column (which can be short on mobile). */}
         {showSettings && (
-          <div
-            className="absolute inset-0 z-10"
+          <button
+            type="button"
+            className="fixed inset-0 z-30 cursor-default"
             onClick={() => setShowSettings(false)}
+            aria-label="Close settings"
           />
         )}
 
-        {/* Settings panel */}
+        {/* Settings panel. Fixed positioning lets it escape the
+         *  visualizer column's overflow-hidden clip — on mobile the
+         *  column is short (transport stack sits below), so an
+         *  absolute panel with max-h-[70vh] would be cut off. On mobile
+         *  we anchor top+bottom so the panel is fully scrollable; on
+         *  desktop we fall back to top-anchored with max-h. */}
         {showSettings && (
-          <div className="absolute top-16 left-4 right-4 md:left-auto md:right-4 md:w-72 max-h-[70vh] overflow-y-auto bg-black/90 backdrop-blur-md rounded-lg border border-white/10 p-4 space-y-4 z-20">
+          <div className="fixed top-[calc(env(safe-area-inset-top)+4rem)] right-3 sm:right-4 left-3 sm:left-auto sm:w-72 bottom-[calc(env(safe-area-inset-bottom)+1rem)] sm:bottom-auto sm:max-h-[70vh] overflow-y-auto bg-black/90 backdrop-blur-md rounded-lg border border-white/10 p-4 space-y-4 z-40">
             <div className="flex items-center justify-between">
               <h3 className="text-white font-medium">Settings</h3>
               <Button
@@ -508,9 +475,7 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
                 max="2"
                 step="0.1"
                 value={settings.sensitivity}
-                onChange={(e) =>
-                  setSettings((prev) => ({ ...prev, sensitivity: parseFloat(e.target.value) }))
-                }
+                onChange={(e) => setSettings((prev) => ({ ...prev, sensitivity: parseFloat(e.target.value) }))}
                 className="w-full accent-white"
               />
             </div>
@@ -526,9 +491,7 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
                 max="0.95"
                 step="0.05"
                 value={settings.smoothing}
-                onChange={(e) =>
-                  setSettings((prev) => ({ ...prev, smoothing: parseFloat(e.target.value) }))
-                }
+                onChange={(e) => setSettings((prev) => ({ ...prev, smoothing: parseFloat(e.target.value) }))}
                 className="w-full accent-white"
               />
             </div>
@@ -554,7 +517,6 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
                   </button>
                 ))}
               </div>
-              <p className="text-white/40 text-xs mt-1">Lower FPS saves battery</p>
             </div>
 
             {/* Quality */}
@@ -578,7 +540,6 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
                   </button>
                 ))}
               </div>
-              <p className="text-white/40 text-xs mt-1">Reduces particles and effects on lower settings</p>
             </div>
 
             {/* Auto-rotate */}
@@ -676,7 +637,6 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
               </div>
             )}
 
-            {/* Lyrics status */}
             {settings.showLyrics && (
               <div className="text-xs text-white/40">
                 {!lyricsData ? 'Loading lyrics...' :
@@ -690,8 +650,7 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
 
         {/* Lyrics overlay */}
         {settings.showLyrics && currentLyricLine && (
-          <div className="flex-1 flex flex-col items-center justify-center px-8 pointer-events-none">
-            {/* Current lyric line */}
+          <div className="flex-1 flex flex-col items-center justify-center px-6 pointer-events-none">
             <div
               className="text-center transition-all duration-300"
               style={{
@@ -699,22 +658,16 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
               }}
             >
               <p
-                className="text-3xl md:text-4xl lg:text-5xl font-bold text-white leading-tight"
-                style={{
-                  color: currentTheme.primary,
-                }}
+                className="text-2xl sm:text-3xl md:text-4xl font-bold text-white leading-tight"
+                style={{ color: currentTheme.primary }}
               >
                 {currentLyricLine}
               </p>
             </div>
-
-            {/* Next lyric preview */}
             {nextLyricLine && (
               <p
-                className="text-lg md:text-xl text-white/40 mt-4 text-center max-w-3xl"
-                style={{
-                  textShadow: `0 0 10px ${currentTheme.background}`,
-                }}
+                className="text-base sm:text-lg text-white/40 mt-3 text-center max-w-3xl"
+                style={{ textShadow: `0 0 10px ${currentTheme.background}` }}
               >
                 {nextLyricLine}
               </p>
@@ -722,22 +675,20 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
           </div>
         )}
 
-        {/* Spacer when no lyrics */}
         {(!settings.showLyrics || !currentLyricLine) && <div className="flex-1" />}
 
-        {/* Bottom navigation */}
-        <div className="flex items-center justify-center gap-4 p-4">
+        {/* Bottom navigation — prev / dots / next */}
+        <div className="flex items-center justify-center gap-3 p-3 sm:p-4">
           <Button
             variant="ghost"
             size="icon"
             onClick={handlePrevious}
-            className="text-white/80 hover:text-white hover:bg-white/10 h-12 w-12"
+            className="text-white/80 hover:text-white hover:bg-white/10 h-10 w-10"
           >
-            <ChevronLeft className="h-6 w-6" />
+            <ChevronLeft className="h-5 w-5" />
           </Button>
 
-          {/* Visualizer dots */}
-          <div className="flex items-center gap-1.5 px-4">
+          <div className="flex items-center gap-1.5 px-3 max-w-full overflow-x-auto">
             {visualizers.map((v) => (
               <button
                 key={v.id}
@@ -746,7 +697,7 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
                   setCurrentVisualizer(v);
                 }}
                 className={cn(
-                  'h-2 rounded-full transition-all',
+                  'h-2 rounded-full transition-all flex-shrink-0',
                   v.id === currentVisualizer.id
                     ? 'bg-white w-4'
                     : 'bg-white/40 hover:bg-white/60 w-2'
@@ -760,22 +711,12 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
             variant="ghost"
             size="icon"
             onClick={handleNext}
-            className="text-white/80 hover:text-white hover:bg-white/10 h-12 w-12"
+            className="text-white/80 hover:text-white hover:bg-white/10 h-10 w-10"
           >
-            <ChevronRight className="h-6 w-6" />
+            <ChevronRight className="h-5 w-5" />
           </Button>
         </div>
-
-        {/* Keyboard hints - hidden on mobile */}
-        <div className="hidden md:block absolute bottom-20 left-4 text-white/40 text-xs space-y-1">
-          <p>[ ] or , . Switch visualizer</p>
-          <p>L Toggle lyrics</p>
-          <p>S Settings</p>
-          <p>R Auto-rotate</p>
-          <p>ESC Close</p>
-        </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 }

@@ -120,11 +120,11 @@ export const AlbumArt = ({
       {/* Playing animation overlay */}
       {isPlaying && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-          <div className="flex gap-0.5">
-            <div className="w-0.5 h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" />
-            <div className="w-0.5 h-3 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
-            <div className="w-0.5 h-2 bg-white/80 animate-[wave_1s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
-          </div>
+          <span className="audio-wave !h-3">
+            <span className="audio-wave-bar !w-[2px] !bg-primary" />
+            <span className="audio-wave-bar !w-[2px] !bg-primary" />
+            <span className="audio-wave-bar !w-[2px] !bg-primary" />
+          </span>
         </div>
       )}
     </div>

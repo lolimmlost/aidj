@@ -142,7 +142,7 @@ describe('Aurral Integration in Blended Scorer', () => {
         return [];
       });
 
-      const candidates = await gatherCandidates(
+      const { candidates } = await gatherCandidates(
         { artist: 'Radiohead', title: 'Creep', genre: 'rock' },
         {}
       );
@@ -206,7 +206,7 @@ describe('Aurral Integration in Blended Scorer', () => {
         return [];
       });
 
-      const candidates = await gatherCandidates(
+      const { candidates } = await gatherCandidates(
         { artist: 'Radiohead', title: 'Creep', genre: 'rock' },
         { excludeArtists: ['Excluded Artist'] }
       );

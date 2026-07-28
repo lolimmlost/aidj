@@ -74,25 +74,76 @@ export function StartRadioButton({
     }
   };
 
-  // Icon-only callsites (per-song context menus) stay one-tap with defaults.
-  if (size === 'icon') {
-    return (
-      <Button
-        size="icon"
-        variant={variant}
-        disabled={busy}
-        onClick={() => void run('medium', null)}
-        aria-label={label}
-        title={label}
-        className={className}
-      >
-        <Radio className="size-4" />
-      </Button>
-    );
-  }
-
   const showVariety = seed.kind === 'artist';
   const lengthTag = LENGTH_OPTIONS.find((o) => o.value === length)?.tag ?? 'auto';
+
+  const menuContent = (
+    <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuLabel>Length</DropdownMenuLabel>
+      <DropdownMenuRadioGroup
+        value={lengthTag}
+        onValueChange={(t) => {
+          const found = LENGTH_OPTIONS.find((o) => o.tag === t);
+          if (found) setLength(found.value);
+        }}
+      >
+        {LENGTH_OPTIONS.map((o) => (
+          <DropdownMenuRadioItem
+            key={o.tag}
+            value={o.tag}
+            onSelect={(e) => e.preventDefault()}
+          >
+            {o.label}
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+      {showVariety ? (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Artist Variety</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={variety}
+            onValueChange={(v) => setVariety(v as ArtistVariety)}
+          >
+            <DropdownMenuRadioItem value="low" onSelect={(e) => e.preventDefault()}>
+              Low — mostly this artist
+            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="medium" onSelect={(e) => e.preventDefault()}>
+              Medium — balanced mix
+            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="high" onSelect={(e) => e.preventDefault()}>
+              High — adventurous
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </>
+      ) : null}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={() => void run()} disabled={busy}>
+        <Radio className="size-4" />
+        {busy ? 'Starting…' : 'Start Radio'}
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  );
+
+  if (size === 'icon') {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="icon"
+            variant={variant}
+            disabled={busy}
+            aria-label={label}
+            title={label}
+            className={className}
+          >
+            <Radio className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        {menuContent}
+      </DropdownMenu>
+    );
+  }
 
   return (
     <DropdownMenu>
@@ -107,60 +158,7 @@ export function StartRadioButton({
           {label}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        {/*
-          Radix's DropdownMenuRadioItem closes the menu on select by default.
-          That made it impossible to pick a Length and then a Variety without
-          re-opening the dropdown — and impossible to confirm with "Start
-          Radio" after picking either. Calling e.preventDefault() in onSelect
-          on each option keeps the menu open. The final "Start Radio"
-          DropdownMenuItem deliberately does NOT preventDefault so it closes
-          the menu when the user commits.
-        */}
-        <DropdownMenuLabel>Length</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={lengthTag}
-          onValueChange={(t) => {
-            const found = LENGTH_OPTIONS.find((o) => o.tag === t);
-            if (found) setLength(found.value);
-          }}
-        >
-          {LENGTH_OPTIONS.map((o) => (
-            <DropdownMenuRadioItem
-              key={o.tag}
-              value={o.tag}
-              onSelect={(e) => e.preventDefault()}
-            >
-              {o.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-        {showVariety ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Artist Variety</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={variety}
-              onValueChange={(v) => setVariety(v as ArtistVariety)}
-            >
-              <DropdownMenuRadioItem value="low" onSelect={(e) => e.preventDefault()}>
-                Low — mostly this artist
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="medium" onSelect={(e) => e.preventDefault()}>
-                Medium — balanced mix
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="high" onSelect={(e) => e.preventDefault()}>
-                High — adventurous
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </>
-        ) : null}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => void run()} disabled={busy}>
-          <Radio className="size-4" />
-          {busy ? 'Starting…' : 'Start Radio'}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
+      {menuContent}
     </DropdownMenu>
   );
 }

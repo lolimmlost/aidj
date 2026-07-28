@@ -1,4 +1,4 @@
-import { useState, Suspense, lazy } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import { ChevronDown, ChevronUp, Compass } from 'lucide-react';
 import { useDeferredRender } from '@/lib/utils/lazy-components';
 
@@ -9,10 +9,11 @@ const DiscoveryQueuePanel = lazy(() =>
 );
 
 export function DiscoveryQueueSection() {
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window !== 'undefined') return window.innerWidth < 768;
-    return false;
-  });
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional client-only init after hydration
+    if (window.innerWidth < 768) setCollapsed(true);
+  }, []);
   const shouldRender = useDeferredRender(500);
 
   if (!shouldRender) return null;

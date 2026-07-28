@@ -211,7 +211,7 @@ export function SongMatchReviewer({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100%-2rem)] sm:w-auto sm:max-w-[400px] p-3 gap-2">
+      <DialogContent className="w-[calc(100%-2rem)] sm:w-auto sm:max-w-[400px] max-h-[calc(100dvh-2rem)] flex flex-col p-3 gap-2">
         <DialogHeader className="space-y-0.5 pb-1">
           <DialogTitle className="text-sm">Review Song Matches</DialogTitle>
           <DialogDescription className="text-[11px]">
@@ -256,9 +256,9 @@ export function SongMatchReviewer({
         </div>
 
         {/* Matches */}
-        <div className="space-y-1">
-          <Label className="text-[11px]">Select Best Match</Label>
-          <div className="rounded-md border max-h-[200px] overflow-y-auto">
+        <div className="min-h-0 flex-1 flex flex-col space-y-1">
+          <Label className="text-[11px] shrink-0">Select Best Match</Label>
+          <div className="rounded-md border min-h-0 flex-1 overflow-y-auto">
             <RadioGroup
               value={selectedMatch?.platformId || ''}
               onValueChange={(value) => {
@@ -324,7 +324,7 @@ export function SongMatchReviewer({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-between pt-2 border-t">
+        <div className="flex justify-between pt-2 border-t shrink-0">
           <Button
             variant="outline"
             size="sm"

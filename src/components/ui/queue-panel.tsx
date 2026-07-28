@@ -1,7 +1,7 @@
 import { useAudioStore } from '@/lib/stores/audio';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { X, Music, Trash2, GripVertical, Plus, RotateCcw, ThumbsUp, ThumbsDown, Shuffle, SkipForward, Sparkles, Radio } from 'lucide-react';
+import { X, Music, Trash2, GripVertical, Plus, RotateCcw, ThumbsUp, ThumbsDown, Shuffle, SkipForward, Sparkles, Radio, Download, Loader2 } from 'lucide-react';
 import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { CreatePlaylistDialog } from '@/components/playlists/CreatePlaylistDialog';
 import { useQueryClient } from '@tanstack/react-query';
@@ -14,6 +14,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -91,14 +92,13 @@ const SortableQueueItem = memo(function SortableQueueItem({ song, index, actualI
       role="listitem"
       aria-label={`${songTitle} by ${songArtist}${getLabel()}`}
     >
-      {/* Drag handle - hidden on mobile */}
       <button
         type="button"
-        className="hidden sm:block text-muted-foreground/70 hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5 flex-shrink-0 touch-none hover:scale-110 transition-transform"
+        className="text-muted-foreground/70 hover:text-foreground cursor-grab active:cursor-grabbing mt-0.5 flex-shrink-0 touch-none hover:scale-110 transition-transform"
         {...attributes}
         {...listeners}
       >
-        <GripVertical className="h-4 w-4" />
+        <GripVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
       </button>
       {/* Index number - smaller on mobile */}
       <div className="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mt-0.5">
@@ -343,6 +343,7 @@ export function QueuePanel() {
   const toggleQueuePanel = useAudioStore(s => s.toggleQueuePanel);
   const isRadioSession = useAudioStore(s => s.isRadioSession);
   const saveRadioAsPlaylist = useAudioStore(s => s.saveRadioAsPlaylist);
+  const radioDiscoveryArtists = useAudioStore(s => s.radioDiscoveryArtists);
   const isOpen = queuePanelOpen;
   const setIsOpen = useCallback((open: boolean) => {
     if (open !== queuePanelOpen) toggleQueuePanel();
@@ -485,7 +486,13 @@ export function QueuePanel() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // 8px movement required before drag starts
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -509,9 +516,9 @@ export function QueuePanel() {
       return;
     }
 
-    // Find indices in upcoming queue
-    const oldIndex = upcomingQueue.findIndex(song => song.id === active.id);
-    const newIndex = upcomingQueue.findIndex(song => song.id === over.id);
+    // Sortable IDs are "${song.id}-${index}" — extract the index suffix
+    const oldIndex = upcomingQueue.findIndex((song, i) => `${song.id}-${i}` === active.id);
+    const newIndex = upcomingQueue.findIndex((song, i) => `${song.id}-${i}` === over.id);
 
     if (oldIndex !== -1 && newIndex !== -1) {
       // Convert to actual playlist indices (offset by currentSongIndex + 1)
@@ -582,6 +589,43 @@ export function QueuePanel() {
     }
   };
 
+  const [downloadingArtist, setDownloadingArtist] = useState<string | null>(null);
+  const handleDiscoveryDownload = useCallback(async (artistName: string) => {
+    setDownloadingArtist(artistName);
+    try {
+      const res = await fetch('/api/lidarr/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: artistName }),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (res.ok && data?.artists?.length > 0) {
+        const artist = data.artists[0];
+        if (!artist.inLibrary) {
+          const addRes = await fetch('/api/lidarr/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ song: `${artistName} - Top Songs` }),
+            credentials: 'include',
+          });
+          if (addRes.ok) {
+            toast.success(`Added ${artistName} to Lidarr`, { description: 'Monitoring for downloads' });
+            return;
+          }
+        } else {
+          toast.info(`${artistName} is already in your library`);
+          return;
+        }
+      }
+      window.location.href = `/downloads?search=${encodeURIComponent(artistName)}`;
+    } catch {
+      window.location.href = `/downloads?search=${encodeURIComponent(artistName)}`;
+    } finally {
+      setDownloadingArtist(null);
+    }
+  }, []);
+
   if (!isOpen) {
     // Collapsed state - show count badge
     // Positioned above player bar with safe margins
@@ -617,12 +661,12 @@ export function QueuePanel() {
 
   return (
     <div
-      className="fixed bottom-[calc(4rem+1rem)] right-2 z-50 w-72 sm:w-80 md:w-96 md:right-4 md:bottom-[calc(5rem+1rem)] landscape:max-md:bottom-[calc(3.5rem+0.5rem)] landscape:max-md:w-[min(45vw,20rem)] animate-in slide-in-from-right duration-300"
+      className="fixed z-50 bottom-[calc(4rem)] left-0 right-0 sm:left-auto sm:w-80 sm:right-2 sm:bottom-[calc(4rem+1rem)] md:w-96 md:right-4 md:bottom-[calc(5rem+1rem)] landscape:max-md:bottom-[calc(3.5rem+0.5rem)] landscape:max-md:w-[min(45vw,20rem)] animate-in slide-in-from-bottom sm:slide-in-from-right duration-300"
       role="dialog"
       aria-label="Playback queue"
       aria-modal="false"
     >
-      <Card className="shadow-2xl border-2 border-primary/10 bg-gradient-to-br from-background via-background to-primary/5 backdrop-blur-xl overflow-hidden max-h-[60vh] md:max-h-[calc(100vh-8rem)] landscape:max-md:max-h-[calc(100vh-5rem)] flex flex-col">
+      <Card className="shadow-2xl border-2 border-primary/10 bg-gradient-to-br from-background via-background to-primary/5 backdrop-blur-xl overflow-hidden max-h-[calc(100vh-7rem-env(safe-area-inset-top))] sm:max-h-[60vh] md:max-h-[calc(100vh-8rem)] landscape:max-md:max-h-[calc(100vh-5rem-env(safe-area-inset-top))] flex flex-col rounded-b-none sm:rounded-b-xl">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-purple-500 to-pink-500" />
         <CardHeader className="pb-2 md:pb-3 px-3 md:px-6 pt-3 md:pt-6 bg-gradient-to-br from-primary/5 to-transparent">
           <div className="flex items-center justify-between">
@@ -759,7 +803,7 @@ export function QueuePanel() {
                   items={upcomingQueue.map((s, i) => `${s.id}-${i}`)}
                   strategy={verticalListSortingStrategy}
                 >
-                  <div className="h-[25vh] md:h-[40vh] overflow-y-auto overflow-x-hidden pr-1 md:pr-2 space-y-2">
+                  <div className="h-[calc(100vh-16rem)] sm:h-[25vh] md:h-[40vh] overflow-y-auto overflow-x-hidden pr-1 md:pr-2 space-y-2">
                     {upcomingQueue.map((song, index) => {
                       // If nothing playing (currentSongIndex === -1), actualIndex is just index
                       const actualIndex = currentSongIndex === -1 ? index : currentSongIndex + 1 + index;
@@ -834,6 +878,34 @@ export function QueuePanel() {
                     <Radio className="mr-1 md:mr-2 h-3.5 w-3.5 md:h-4 md:w-4 group-hover:scale-110 transition-transform" />
                     Save Radio as Playlist
                   </Button>
+                )}
+
+                {/* Expand Library — artists recommended but not in library (desktop only) */}
+                {isRadioSession && radioDiscoveryArtists.length > 0 && (
+                  <div className="hidden md:block space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground px-0.5">
+                      <Download className="h-3 w-3" />
+                      <span>Expand your library</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {radioDiscoveryArtists.map((artist) => (
+                        <button
+                          key={artist.name}
+                          onClick={() => handleDiscoveryDownload(artist.name)}
+                          disabled={downloadingArtist === artist.name}
+                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border transition-all duration-200 bg-gradient-to-r from-emerald-500/5 to-teal-500/5 border-emerald-500/20 hover:border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:from-emerald-500/10 hover:to-teal-500/10 disabled:opacity-50"
+                          title={`Search & download ${artist.name} via Lidarr (${artist.source})`}
+                        >
+                          {downloadingArtist === artist.name ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Download className="h-3 w-3" />
+                          )}
+                          {artist.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 {/* More Like This Button */}

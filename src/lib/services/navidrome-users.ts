@@ -11,7 +11,7 @@
 
 import { eq } from 'drizzle-orm';
 import { db } from '../db';
-import { navidromeUsers } from '../db/schema';
+import { navidromeUsers, user } from '../db/schema';
 import { getConfig } from '../config/config';
 import { md5Pure, getAuthToken } from './navidrome';
 import { ServiceError } from '../utils';
@@ -46,6 +46,39 @@ function getCachedCreds(userId: string): SubsonicCreds | null {
 
 function setCachedCreds(userId: string, creds: SubsonicCreds): void {
   credsCache.set(userId, { creds, expiresAt: Date.now() + CACHE_TTL });
+}
+
+// ============================================================================
+// Admin account sharing
+// ============================================================================
+
+/**
+ * Build Subsonic creds for the shared Navidrome admin account (NAVIDROME_USERNAME).
+ * Subsonic auth accepts any client-chosen salt, so we compute a fresh token+salt
+ * from the configured admin password on demand.
+ */
+function getAdminSubsonicCreds(): SubsonicCreds {
+  const config = getConfig();
+  if (!config.navidromeUsername || !config.navidromePassword) {
+    throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome admin credentials incomplete');
+  }
+  const salt = crypto.randomUUID().replace(/-/g, '');
+  return {
+    username: config.navidromeUsername,
+    token: md5Pure(config.navidromePassword + salt),
+    salt,
+  };
+}
+
+/** Whether the AIDJ user is an admin (better-auth `role` column). */
+async function isAdminUser(appUserId: string): Promise<boolean> {
+  const row = await db
+    .select({ role: user.role })
+    .from(user)
+    .where(eq(user.id, appUserId))
+    .limit(1)
+    .then(rows => rows[0]);
+  return row?.role === 'admin';
 }
 
 // ============================================================================
@@ -172,6 +205,16 @@ export async function getNavidromeUserCreds(appUserId: string): Promise<Subsonic
   // Check cache first
   const cached = getCachedCreds(appUserId);
   if (cached) return cached;
+
+  // Admin users share the existing Navidrome admin account (NAVIDROME_USERNAME)
+  // rather than getting an isolated `*_aidj` shadow account — otherwise their
+  // AIDJ stars/playlists/scrobbles land on an account they never log into,
+  // diverging from the library they manage directly in Navidrome.
+  if (await isAdminUser(appUserId)) {
+    const adminCreds = getAdminSubsonicCreds();
+    setCachedCreds(appUserId, adminCreds);
+    return adminCreds;
+  }
 
   // Query DB
   const record = await db

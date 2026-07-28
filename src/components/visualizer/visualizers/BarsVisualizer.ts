@@ -1,12 +1,14 @@
 import type { Visualizer, VisualizerContext } from '../types';
 import { getAdaptiveCount } from '../perf-utils';
 
-// Store peak values for decay effect
 let peakBars: number[] = [];
 let peakDecay: number[] = [];
+let smoothBars: number[] = [];
 let cachedGradient: CanvasGradient | null = null;
 let cachedColors: string = '';
 let cachedHeight: number = 0;
+let shock = 0;
+let flash = 0;
 
 export const BarsVisualizer: Visualizer = {
   name: 'Frequency Bars',
@@ -15,22 +17,38 @@ export const BarsVisualizer: Visualizer = {
   init: () => {
     peakBars = [];
     peakDecay = [];
+    smoothBars = [];
     cachedGradient = null;
+    shock = 0;
+    flash = 0;
   },
 
   cleanup: () => {
     peakBars = [];
     peakDecay = [];
+    smoothBars = [];
     cachedGradient = null;
   },
 
   render: (ctx: VisualizerContext) => {
-    const { ctx: c, width, height, audioData, colors, quality } = ctx;
-    const { bars, bass } = audioData;
+    const { ctx: c, width, height, audioData, colors, deltaTime, quality } = ctx;
+    const { bars, bass, volume, isBeat } = audioData;
 
-    // Clear canvas
+    const dt = Math.min(deltaTime, 0.05);
+
+    // Beat envelopes
+    if (isBeat) {
+      shock = Math.min(1, shock + 0.7);
+      flash = 1;
+    }
+    shock = Math.max(0, shock - dt * 2.0);
+    flash = Math.max(0, flash - dt * 3.5);
+
+    // Motion trail
     c.fillStyle = colors.background;
+    c.globalAlpha = 0.35 + (1 - volume) * 0.4;
     c.fillRect(0, 0, width, height);
+    c.globalAlpha = 1;
 
     if (bars.length === 0) return;
 
@@ -38,16 +56,16 @@ export const BarsVisualizer: Visualizer = {
     const barWidth = width / numBars;
     const gap = Math.max(1, barWidth * 0.12);
     const actualBarWidth = barWidth - gap;
-    const maxHeight = height * 0.42;
+    const maxHeight = height * 0.42 * (1 + shock * 0.15);
     const centerY = height / 2;
 
-    // Initialize peak arrays
     if (peakBars.length !== numBars) {
       peakBars = new Array(numBars).fill(0);
       peakDecay = new Array(numBars).fill(0);
+      smoothBars = new Array(numBars).fill(0);
     }
 
-    // Cache gradient (only recreate if colors or height change)
+    // Cache gradient
     const colorKey = colors.primary + colors.secondary + colors.accent;
     if (!cachedGradient || cachedColors !== colorKey || cachedHeight !== height) {
       cachedGradient = c.createLinearGradient(0, height, 0, 0);
@@ -58,36 +76,49 @@ export const BarsVisualizer: Visualizer = {
       cachedHeight = height;
     }
 
-    // Batch all bars into single path for top and bottom
+    // Additive glow pass
+    c.globalCompositeOperation = 'lighter';
+
+    // Glow layer (wider, dimmer)
     c.fillStyle = cachedGradient;
+    c.globalAlpha = 0.15 + shock * 0.2;
     c.beginPath();
-
     for (let i = 0; i < numBars; i++) {
-      const barValue = bars[Math.floor(i * bars.length / numBars)] || 0;
-      const barHeight = barValue * maxHeight;
+      const rawValue = bars[Math.floor(i * bars.length / numBars)] || 0;
+      smoothBars[i] += (rawValue - smoothBars[i]) * Math.min(1, dt * 12);
+      const barHeight = smoothBars[i] * maxHeight;
       const x = i * barWidth + gap / 2;
-
       if (barHeight > 1) {
-        // Top bar (simple rect, no rounded corners for perf)
-        c.rect(x, centerY - barHeight, actualBarWidth, barHeight);
-        // Bottom bar (mirrored)
-        c.rect(x, centerY, actualBarWidth, barHeight);
-      }
-
-      // Update peak
-      if (barValue > peakBars[i]) {
-        peakBars[i] = barValue;
-        peakDecay[i] = 0;
-      } else {
-        peakDecay[i] += 0.015;
-        peakBars[i] = Math.max(0, peakBars[i] - peakDecay[i] * 0.04);
+        c.rect(x - 1, centerY - barHeight - 2, actualBarWidth + 2, barHeight + 2);
+        c.rect(x - 1, centerY, actualBarWidth + 2, barHeight + 2);
       }
     }
     c.fill();
 
-    // Draw all peak indicators in one batch
+    // Main bars
+    c.globalAlpha = 0.85 + shock * 0.15;
+    c.beginPath();
+    for (let i = 0; i < numBars; i++) {
+      const barHeight = smoothBars[i] * maxHeight;
+      const x = i * barWidth + gap / 2;
+      if (barHeight > 1) {
+        c.rect(x, centerY - barHeight, actualBarWidth, barHeight);
+        c.rect(x, centerY, actualBarWidth, barHeight);
+      }
+
+      if (smoothBars[i] > peakBars[i]) {
+        peakBars[i] = smoothBars[i];
+        peakDecay[i] = 0;
+      } else {
+        peakDecay[i] += dt * 0.8;
+        peakBars[i] = Math.max(0, peakBars[i] - peakDecay[i] * dt * 2);
+      }
+    }
+    c.fill();
+
+    // Peak indicators
     c.fillStyle = colors.accent;
-    c.globalAlpha = 0.7;
+    c.globalAlpha = 0.8;
     c.beginPath();
     for (let i = 0; i < numBars; i++) {
       const peakHeight = peakBars[i] * maxHeight;
@@ -98,16 +129,26 @@ export const BarsVisualizer: Visualizer = {
       }
     }
     c.fill();
-    c.globalAlpha = 1;
 
-    // Draw center line (no shadow for performance)
+    // Center line pulses with bass
+    c.globalCompositeOperation = 'source-over';
     c.strokeStyle = colors.primary;
-    c.lineWidth = 2;
-    c.globalAlpha = 0.5 + bass * 0.3;
+    c.lineWidth = 2 + bass * 3 + shock * 4;
+    c.globalAlpha = 0.5 + bass * 0.3 + shock * 0.2;
     c.beginPath();
     c.moveTo(0, centerY);
     c.lineTo(width, centerY);
     c.stroke();
+
+    // Beat flash vignette
+    if (flash > 0.02) {
+      c.globalCompositeOperation = 'lighter';
+      c.globalAlpha = flash * 0.12;
+      c.fillStyle = colors.accent;
+      c.fillRect(0, 0, width, height);
+    }
+
+    c.globalCompositeOperation = 'source-over';
     c.globalAlpha = 1;
   },
 };

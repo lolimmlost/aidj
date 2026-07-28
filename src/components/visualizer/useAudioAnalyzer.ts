@@ -187,6 +187,7 @@ export function useAudioAnalyzer(options: UseAudioAnalyzerOptions = {}): UseAudi
 
     setAudioData(audioDataObj);
 
+    // eslint-disable-next-line react-hooks/immutability
     animationFrameRef.current = requestAnimationFrame(analyze);
   }, [sensitivity]);
 

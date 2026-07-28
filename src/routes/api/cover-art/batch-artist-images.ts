@@ -27,7 +27,7 @@ const POST = withAuthAndErrorHandling(
     const artists = body.artists.slice(0, 10);
     const images: Record<string, string> = {};
 
-    const results = await Promise.allSettled(
+    await Promise.allSettled(
       artists.map(async (name) => {
         const imageUrl = await getDeezerArtistImage(name);
         if (imageUrl) {

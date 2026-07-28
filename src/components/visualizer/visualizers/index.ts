@@ -9,6 +9,7 @@ import { GridVisualizer } from './GridVisualizer';
 import { OscilloscopeVisualizer } from './OscilloscopeVisualizer';
 import { StarfieldVisualizer } from './StarfieldVisualizer';
 import { PulseRingsVisualizer } from './PulseRingsVisualizer';
+import { AuroraVisualizer } from './AuroraVisualizer';
 
 // Registry of all available visualizers
 export const visualizers: Visualizer[] = [
@@ -22,6 +23,7 @@ export const visualizers: Visualizer[] = [
   OscilloscopeVisualizer,
   StarfieldVisualizer,
   PulseRingsVisualizer,
+  AuroraVisualizer,
 ];
 
 // Get visualizer by ID
@@ -54,4 +56,5 @@ export {
   OscilloscopeVisualizer,
   StarfieldVisualizer,
   PulseRingsVisualizer,
+  AuroraVisualizer,
 };

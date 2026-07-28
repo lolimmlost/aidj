@@ -11,11 +11,18 @@ import type { SeededRadioSeed, ArtistVariety } from '@/lib/services/seeded-radio
 
 // Any non-additive queue replacement clears radio-session state. Spread into
 // the `set(...)` call of every action that swaps out the playlist wholesale.
+export interface RadioDiscoveryArtist {
+  name: string;
+  source: 'lastfm' | 'aurral';
+  matchScore: number;
+}
+
 const RADIO_RESET = {
   isRadioSession: false,
   radioSeed: null as SeededRadioSeed | null,
   radioVariety: 'medium' as ArtistVariety,
   radioTargetMinutes: null as number | null,
+  radioDiscoveryArtists: [] as RadioDiscoveryArtist[],
 } as const;
 
 export interface StartRadioOptions {
@@ -125,11 +132,10 @@ interface AudioState {
   // Transient: radio session play counter for profile refresh trigger (Story 9.3)
   radioSessionPlayCount: number;
   isRadioSession: boolean;
-  // Seeded radio (non-persisted): the seed and variety used for the current session
   radioSeed: SeededRadioSeed | null;
   radioVariety: ArtistVariety;
-  // Optional duration constraint (minutes) used for the current session. null = unconstrained.
   radioTargetMinutes: number | null;
+  radioDiscoveryArtists: RadioDiscoveryArtist[];
   // Auto-recompute trigger for AI DJ affinity profile. The profile drives the
   // "profile-based recommendations (zero API calls)" path — without periodic
   // recompute it stays frozen at onboarding values and the AI DJ recommends
@@ -270,6 +276,7 @@ export const useAudioStore = create<AudioState>()(
     radioSeed: null,
     radioVariety: 'medium',
     radioTargetMinutes: null,
+    radioDiscoveryArtists: [],
 
     setAIUserActionInProgress: (inProgress: boolean) => set({ aiDJUserActionInProgress: inProgress }),
 
@@ -966,8 +973,11 @@ export const useAudioStore = create<AudioState>()(
         // Exclude artists that already appear in upcoming queue
         const upcomingArtists = Array.from(upcomingArtistCounts.keys());
 
-        // Combine all exclusions
-        const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed])];
+        // Include persisted recentlyPlayedIds (survives across sessions, capped at 200)
+        const persistedPlayed = Array.from(state.recentlyPlayedIds ?? []);
+
+        // Combine all exclusions — ephemeral + persisted
+        const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed, ...persistedPlayed])];
 
         // Phase 1.2: Convert artist batch counts to plain object for JSON serialization
         const artistBatchCounts: Record<string, number> = {};
@@ -1037,12 +1047,12 @@ export const useAudioStore = create<AudioState>()(
         if (!response.ok) {
           // Handle 409 Conflict (duplicate feedback) gracefully
           if (response.status === 409) {
-            await response.json(); // Consume the response body
+            await response.json().catch(() => {}); // Consume the response body
             console.log('✓ Feedback already exists, continuing with recommendations');
             // Don't throw an error for 409, just log and continue
           } else {
-            const error = await response.json();
-            throw new Error(error.message || 'Failed to fetch AI DJ recommendations');
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.message || `Failed to fetch AI DJ recommendations (${response.status})`);
           }
         }
 
@@ -1265,7 +1275,8 @@ export const useAudioStore = create<AudioState>()(
           .filter(rec => Date.now() - rec.timestamp < 7200000) // 2 hour window
           .map(rec => rec.songId);
 
-        const allExclusions = [...new Set([...recentlyRecommended, ...allPlaylistSongIds])];
+        const persistedPlayed = Array.from(state.recentlyPlayedIds ?? []);
+        const allExclusions = [...new Set([...recentlyRecommended, ...allPlaylistSongIds, ...persistedPlayed])];
 
         // Call API - use larger batch for nudge mode
         const batchSize = Math.max(recommendationSettings.aiDJBatchSize || 3, 5);
@@ -1286,8 +1297,8 @@ export const useAudioStore = create<AudioState>()(
         });
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Failed to get similar songs');
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.message || `Failed to get similar songs (${response.status})`);
         }
 
         const { recommendations } = await response.json();
@@ -1445,7 +1456,8 @@ export const useAudioStore = create<AudioState>()(
           .filter(rec => Date.now() - rec.timestamp < 7200000)
           .map(rec => rec.songId);
 
-        const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed])];
+        const persistedPlayed = Array.from(state.recentlyPlayedIds ?? []);
+        const allExclusions = [...new Set([...recentlyRecommended, ...recentlyPlayed, ...persistedPlayed])];
 
         // Fetch one recommendation per seed point
         const allRecommendations: { song: Song; insertAfterIndex: number }[] = [];
@@ -1657,8 +1669,8 @@ export const useAudioStore = create<AudioState>()(
         });
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Failed to fetch autoplay recommendations');
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.message || `Failed to fetch autoplay recommendations (${response.status})`);
         }
 
         const { recommendations } = await response.json();
@@ -1926,6 +1938,7 @@ export const useAudioStore = create<AudioState>()(
         const json = await res.json();
         const songs: Song[] = json?.data?.songs ?? [];
         const label: string = json?.data?.seedInfo?.label ?? 'Radio';
+        const discoveryArtists: RadioDiscoveryArtist[] = json?.data?.discoveryArtists ?? [];
         if (songs.length === 0) {
           toast.warning('No songs found for this radio seed');
           return;
@@ -1938,6 +1951,7 @@ export const useAudioStore = create<AudioState>()(
           radioVariety: variety,
           radioTargetMinutes: targetMinutes,
           radioSessionPlayCount: 0,
+          radioDiscoveryArtists: discoveryArtists,
         });
         toast.success(`Radio started — ${label}`);
       } catch (err) {

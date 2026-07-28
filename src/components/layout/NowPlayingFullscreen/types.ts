@@ -39,4 +39,8 @@ export interface NowPlayingFullscreenProps {
   onToggleLike: () => void;
   onToggleShuffle: () => void;
   onToggleRepeat: () => void;
+  /** Web Audio AnalyserNode from the player's audio graph. Required for
+   *  Visualizer mode; if null, visualizer renders without live audio
+   *  data. */
+  analyserNode?: AnalyserNode | null;
 }
