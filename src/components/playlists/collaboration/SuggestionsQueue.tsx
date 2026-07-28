@@ -160,7 +160,7 @@ export function SuggestionsQueue({
       </div>
 
       {/* Auto-approval info */}
-      {status === "pending" && autoApproveThreshold && (
+      {status === "pending" && autoApproveThreshold != null && (
         <div className="text-xs text-muted-foreground text-center py-2 border-t">
           Songs are automatically approved when they reach +{autoApproveThreshold} votes
         </div>

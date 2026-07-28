@@ -215,7 +215,7 @@ async function aurralFetch<T>(path: string, options?: RequestInit & { retries?: 
         continue;
       }
       if (isAbort) {
-        throw new Error(`Aurral request timed out after ${timeoutMs}ms: ${path}`);
+        throw new Error(`Aurral request timed out after ${timeoutMs}ms: ${path}`, { cause: err });
       }
       throw err;
     }

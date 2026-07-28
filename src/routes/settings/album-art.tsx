@@ -160,7 +160,7 @@ function useNavidromeArtProbe(albums: AlbumEntry[]) {
     // Reset state for new album list — intentional synchronous setState at effect start
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHasArt({});
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     setProbesDone(0);
 
     // Probe in batches to avoid hammering the server

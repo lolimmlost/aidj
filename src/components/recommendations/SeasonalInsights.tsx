@@ -32,6 +32,7 @@ export function SeasonalInsights() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability -- function declaration below is hoisted
     loadInsights();
   }, []);
 

@@ -17,7 +17,7 @@ function useThrottledValue<T>(value: T, ms: number): T {
   const pendingValueRef = useRef(value);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
+
   useEffect(() => {
     pendingValueRef.current = value;
     const now = Date.now();
@@ -43,7 +43,7 @@ function useThrottledValue<T>(value: T, ms: number): T {
       }
     };
   }, [value, ms]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+
 
   return throttledValue;
 }
@@ -225,7 +225,7 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
   /* eslint-enable react-hooks/immutability */
 
   // Animation loop - stable callback, no dependencies
-  /* eslint-disable react-hooks/purity */
+
   const animate = useCallback(() => {
     if (!canvasRef.current || !isOpenRef.current) return;
 
@@ -316,7 +316,7 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
     // Continue animation loop
     animationFrameRef.current = requestAnimationFrame(animate);
   }, []); // Empty deps - uses refs
-  /* eslint-enable react-hooks/purity */
+
 
   // Start/stop animation loop
   useEffect(() => {
@@ -366,7 +366,7 @@ export function VisualizerModal({ isOpen, onClose, analyserNode }: VisualizerMod
         case 'r':
         case 'R':
           e.preventDefault();
-          // eslint-disable-next-line react-hooks/immutability
+
           setSettings((prev) => ({ ...prev, autoRotate: !prev.autoRotate }));
           break;
         case 'l':

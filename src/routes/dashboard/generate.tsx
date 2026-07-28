@@ -164,6 +164,7 @@ function GeneratePage() {
   }, [trimmedStyle]);
 
   // === AI Recommendations Query ===
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps -- recs are keyed per user+type; currentSong seeds the prompt but must not trigger refetches
   const { data: recommendations, isLoading, error, refetch: refetchRecommendations } = useQuery({
     queryKey: queryKeys.recommendations.list(session?.user.id || '', type),
     queryFn: async () => {
@@ -405,8 +406,8 @@ function GeneratePage() {
   };
 
   // === Custom Playlist Query ===
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps -- abortControllerRef is a ref, not reactive state
   const { data: playlistData, isLoading: playlistLoading, error: playlistError, refetch: refetchPlaylist } = useQuery({
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: queryKeys.playlists.generatedByStyle(debouncedStyle, sourceMode, mixRatio),
     queryFn: async () => {
       abortControllerRef.current = new AbortController();

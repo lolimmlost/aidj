@@ -30,7 +30,7 @@ function useThrottledValue<T>(value: T, ms: number): T {
   const pendingValueRef = useRef(value);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
+
   useEffect(() => {
     pendingValueRef.current = value;
     const now = Date.now();
@@ -54,7 +54,7 @@ function useThrottledValue<T>(value: T, ms: number): T {
       }
     };
   }, [value, ms]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+
 
   return throttledValue;
 }
@@ -92,7 +92,7 @@ export function VisualizerMode({ analyserNode }: VisualizerModeProps) {
   const cachedDimensionsRef = useRef({ width: 0, height: 0 });
   const vizCtxRef = useRef<VisualizerContext | null>(null);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
+
   useEffect(() => {
     if (!currentSong) return;
     if (lastSongIdRef.current === currentSong.id && lyricsData) return;
@@ -118,7 +118,7 @@ export function VisualizerMode({ analyserNode }: VisualizerModeProps) {
 
     fetchLyrics();
   }, [currentSong?.id]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+
 
   const lyricIndex = useMemo(() => {
     if (!settings.showLyrics || !lyricsData?.syncedLyrics) return -1;
@@ -210,7 +210,7 @@ export function VisualizerMode({ analyserNode }: VisualizerModeProps) {
   useEffect(() => { qualityRef.current = settings.quality === 'auto' ? getQualityLevel() : settings.quality; }, [settings.quality]);
   /* eslint-enable react-hooks/immutability */
 
-  /* eslint-disable react-hooks/purity */
+
   const animate = useCallback(() => {
     if (!canvasRef.current || !mountedRef.current) return;
 
@@ -293,7 +293,7 @@ export function VisualizerMode({ analyserNode }: VisualizerModeProps) {
 
     animationFrameRef.current = requestAnimationFrame(animate);
   }, []);
-  /* eslint-enable react-hooks/purity */
+
 
   useEffect(() => {
     mountedRef.current = true;
@@ -340,7 +340,7 @@ export function VisualizerMode({ analyserNode }: VisualizerModeProps) {
         case 'r':
         case 'R':
           e.preventDefault();
-          // eslint-disable-next-line react-hooks/immutability
+
           setSettings((prev) => ({ ...prev, autoRotate: !prev.autoRotate }));
           break;
         case 'l':

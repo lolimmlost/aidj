@@ -959,7 +959,7 @@ const TopArtistsChart = memo(function TopArtistsChart({ artists }: { artists: Ar
 
 const TasteProfileCard = memo(function TasteProfileCard({ analytics }: { analytics: EnhancedAnalyticsResponse }) {
   // Memoize derived data
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+
   const { topArtists, diversityScore } = useMemo(() => ({
     topArtists: analytics.profile.likedArtists.slice(0, 3),
     diversityScore: analytics.discovery?.genreDiversityScore || 0,

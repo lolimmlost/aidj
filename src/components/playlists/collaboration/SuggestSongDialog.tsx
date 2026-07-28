@@ -126,7 +126,7 @@ export function SuggestSongDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
+      {trigger != null && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -172,7 +172,7 @@ export function SuggestSongDialog({
                       <p className="text-sm text-muted-foreground truncate">
                         {song.artist}
                         {song.album && ` • ${song.album}`}
-                        {song.duration && ` • ${formatDuration(song.duration)}`}
+                        {song.duration ? ` • ${formatDuration(song.duration)}` : null}
                       </p>
                     </div>
                     <Button

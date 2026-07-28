@@ -368,8 +368,8 @@ export function CustomPlaylistSection({
                                 {item.explanation}
                               </p>
                               {/* Harmonic mixing badges */}
-                              {currentSong &&
-                                (item.bpm || item.key) && (
+                              {currentSong != null &&
+                                (item.bpm || item.key) != null && (
                                   <div className="mt-1">
                                     <Suspense
                                       fallback={

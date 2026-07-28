@@ -48,7 +48,7 @@ const GET = withAuthAndErrorHandling(
       album: string;
       albumArt?: string;
       duration: number;
-    }> = [];
+    }>;
 
     if (artistIdsParam) {
       // Seed artists provided (e.g., from onboarding selections)

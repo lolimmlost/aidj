@@ -89,7 +89,7 @@ export function useStallRecovery({
         // Attempt 2: Seek back a few seconds and play
         const seekTarget = Math.max(0, savedTime - 3);
         console.log(`🔧 [RECOVERY] Strategy 2: seek back to ${seekTarget.toFixed(1)}s`);
-        // eslint-disable-next-line react-hooks/immutability -- DOM element property, not React state
+
         audio.currentTime = seekTarget;
         await playWithTimeout(audio);
         console.log('🔧 [RECOVERY] Attempt 2 succeeded');

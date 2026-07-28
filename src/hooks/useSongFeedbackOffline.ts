@@ -39,8 +39,8 @@ interface SubmitFeedbackParams {
 export function useSongFeedbackOffline(songIds: string[]) {
   const { data: session } = authClient.useSession();
 
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps -- key factory omits session id; feedback is per-user by cookie
   return useQuery({
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: [...queryKeys.feedback.songs(songIds), 'offline'],
     queryFn: async (): Promise<FeedbackResponse> => {
       if (!session?.user?.id || songIds.length === 0) {

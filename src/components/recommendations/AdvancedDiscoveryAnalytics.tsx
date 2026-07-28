@@ -402,13 +402,13 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
 }) {
   console.log('🎯 RecommendationModesTab - modeMetrics:', modeMetrics);
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+
   const totalFeedback = useMemo(
     () => modeMetrics.reduce((sum, m) => sum + m.totalRecommendations, 0),
     [modeMetrics]
   );
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+
   const chartData = useMemo(() => {
     return modeMetrics.map((m) => ({
       name: MODE_LABELS[m.mode] || m.mode,
@@ -421,7 +421,7 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
     }));
   }, [modeMetrics, totalFeedback]);
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+
   const pieData = useMemo(() => {
     return modeMetrics.map((m, i) => ({
       name: MODE_LABELS[m.mode] || m.mode,

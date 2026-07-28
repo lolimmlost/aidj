@@ -107,6 +107,8 @@ export function useLocalListeningHistory(limit: number = 50) {
  */
 export function usePlaybackTracking() {
   const recordMutation = useRecordPlayOffline();
+  // mutateAsync is referentially stable; the mutation object itself is not
+  const { mutateAsync: recordPlay } = recordMutation;
   const trackingRef = useRef<{
     song: RecordPlayParams | null;
     startTime: number;
@@ -152,7 +154,7 @@ export function usePlaybackTracking() {
 
     // Record the play if we have meaningful playtime (> 5 seconds)
     if (tracking.playedDuration >= 5) {
-      await recordMutation.mutateAsync({
+      await recordPlay({
         ...tracking.song,
         playDuration: Math.floor(tracking.playedDuration),
       });
@@ -167,7 +169,7 @@ export function usePlaybackTracking() {
       lastUpdateTime: 0,
       playedDuration: 0,
     };
-  }, [recordMutation]);
+  }, [recordPlay]);
 
   const getCurrentPlayDuration = useCallback(() => {
     return trackingRef.current.playedDuration;

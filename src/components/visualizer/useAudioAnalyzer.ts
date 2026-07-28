@@ -73,7 +73,7 @@ export function useAudioAnalyzer(options: UseAudioAnalyzerOptions = {}): UseAudi
     isBeat: false,
   });
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+
   const analyze = useCallback(() => {
     if (!analyserRef.current) return;
 

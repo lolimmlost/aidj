@@ -233,6 +233,7 @@ export function CollaborativePlaylistPanel({
               ) : activityData?.activity && activityData.activity.length > 0 ? (
                 <div className="space-y-3">
                   {activityData.activity.map((item) => {
+                    // eslint-disable-next-line @eslint-react/static-components -- selects an existing lucide icon component, does not define one
                     const Icon = getActivityIcon(item.activityType);
                     const metadata = item.metadata
                       ? JSON.parse(item.metadata)
@@ -243,6 +244,7 @@ export function CollaborativePlaylistPanel({
                         className="flex items-start gap-3 p-3 rounded-lg bg-muted/50"
                       >
                         <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center">
+                          {/* eslint-disable-next-line @eslint-react/static-components -- Icon is a pre-existing lucide component selected above */}
                           <Icon className="h-4 w-4 text-muted-foreground" />
                         </div>
                         <div className="flex-1 min-w-0">
