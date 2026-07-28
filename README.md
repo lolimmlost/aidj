@@ -202,7 +202,11 @@ Optional services (Last.fm, Lidarr, MeTube, Ollama, Aurral) can be configured la
 
 ### Last.fm Scrobbling
 
-AIDJ scrobbles plays through Navidrome, which forwards them to Last.fm. To enable:
+AIDJ scrobbles plays through Navidrome, which forwards them to Last.fm.
+
+#### Live Scrobbling
+
+Happens automatically during playback — AIDJ sends "now playing" when a song starts and a scrobble submission after 50% is played. Each user scrobbles through their own per-user Navidrome account. To enable:
 
 1. **Navidrome server** — add these environment variables and restart:
    ```
@@ -215,7 +219,16 @@ AIDJ scrobbles plays through Navidrome, which forwards them to Last.fm. To enabl
 
 3. **AIDJ (optional)** — set `LASTFM_API_KEY` in your `.env` to enable Last.fm-powered features (similar tracks, similar artists, discovery recommendations). This is a read-only key and is not required for scrobbling.
 
-AIDJ sends both "now playing" updates (when a song starts) and scrobble submissions (after 50% played). Each AIDJ user scrobbles through their own per-user Navidrome account.
+#### Backfilling Historical Scrobbles
+
+If you have listening history in AIDJ from before Last.fm was linked, you can backfill it:
+
+```bash
+# Scrobble all completed native plays to Navidrome (which forwards to Last.fm)
+npx tsx scripts/backfill-lastfm.ts
+```
+
+The script reads from the `listening_history` table and replays each play through Navidrome's Subsonic scrobble endpoint with the original timestamp. Only plays with real Navidrome song IDs are included (previously imported Last.fm entries are skipped). Keep the rate under 1 scrobble/second to avoid Last.fm rate limiting.
 
 ### Environment Variables
 
