@@ -1,6 +1,6 @@
 import { test, chromium } from '@playwright/test';
 
-const BASE = 'https://aidj.appahouse.com';
+const BASE = process.env.SCREENSHOT_BASE_URL ?? 'http://localhost:3003';
 
 async function login(page: import('@playwright/test').Page) {
   await page.goto(`${BASE}/login`);
@@ -8,8 +8,8 @@ async function login(page: import('@playwright/test').Page) {
   const emailInput = await page.$('input[type="email"], input[name="email"], input[placeholder*="email" i], input[placeholder*="user" i]');
   const passwordInput = await page.$('input[type="password"]');
   if (emailInput && passwordInput) {
-    await emailInput.fill('juan@appahouse.com');
-    await passwordInput.fill('GoldSoul40');
+    await emailInput.fill(process.env.SCREENSHOT_EMAIL ?? '');
+    await passwordInput.fill(process.env.SCREENSHOT_PASSWORD ?? '');
     const submitBtn = await page.$('button[type="submit"]');
     if (submitBtn) await submitBtn.click();
     await page.waitForTimeout(4000);
