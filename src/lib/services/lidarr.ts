@@ -552,9 +552,7 @@ export async function unmonitorOtherAlbums(artistId: number, targetAlbumId: numb
       });
     }
 
-    if (toUnmonitor.length > 0) {
-      console.log(`🎯 Unmonitored ${toUnmonitor.length} other albums for artist ${artistId}`);
-    }
+    console.log(`🎯 Unmonitor check: ${albums.length} albums, ${toUnmonitor.length} unmonitored for artist ${artistId}`);
   } catch (error) {
     console.error('Error unmonitoring other albums:', error);
   }

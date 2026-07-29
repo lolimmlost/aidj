@@ -10,6 +10,7 @@ import {
   ensureArtistMonitored,
   searchForAlbum,
   searchAlbumByTitle,
+  unmonitorOtherAlbums,
   type LidarrAlbum,
 } from '../../../lib/services/lidarr';
 import { search as searchNavidrome } from '../../../lib/services/navidrome';
@@ -128,6 +129,7 @@ export const Route = createFileRoute("/api/lidarr/add")({
       }
 
       const artistName = match[1].trim();
+      const primaryArtist = artistName.split(/[,;]/)[0].trim();
       const songTitle = match[2].trim();
 
       // Check if the specific song is already available in Navidrome
@@ -139,7 +141,7 @@ export const Route = createFileRoute("/api/lidarr/add")({
         });
       }
 
-      const results = await searchArtistsFull(artistName);
+      const results = await searchArtistsFull(primaryArtist);
       if (results.length === 0) {
         return new Response(JSON.stringify({ error: `Artist "${artistName}" not found in Lidarr search` }), {
           status: 404,
@@ -218,6 +220,7 @@ export const Route = createFileRoute("/api/lidarr/add")({
             if (localAlbum && localAlbum.id) {
               console.log(`✅ Monitoring artist "${artist.artistName}" and album "${localAlbum.title}" for "${songTitle}"`);
               await monitorAlbum(localAlbum.id, true);
+              await unmonitorOtherAlbums(existingArtist.id, localAlbum.id);
               await searchForAlbum(localAlbum.id);
               return new Response(JSON.stringify({
                 success: true,
@@ -323,6 +326,9 @@ export const Route = createFileRoute("/api/lidarr/add")({
           if (localAlbum && localAlbum.id) {
             console.log(`✅ Found and monitoring album "${localAlbum.title}" for "${songTitle}"`);
             await monitorAlbum(localAlbum.id, true);
+            if (newArtist) {
+              await unmonitorOtherAlbums(newArtist.id, localAlbum.id);
+            }
             await searchForAlbum(localAlbum.id);
             return new Response(JSON.stringify({
               success: true,
