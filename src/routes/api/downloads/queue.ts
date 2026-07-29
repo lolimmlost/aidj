@@ -250,10 +250,11 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
     try {
       console.log(`[Lidarr Queue] Processing: ${song.artist} - ${song.title}${song.album ? ` (Album: ${song.album})` : ''}`);
 
-      // Step 1: Extract primary artist (handle collaborations like "Artist1, Artist2")
-      // Take the first artist from comma-separated list
-      const primaryArtist = song.artist.split(',')[0].trim();
-      console.log(`[Lidarr Queue] Primary artist: ${primaryArtist}`);
+      // Step 1: Extract primary artist (handle collaborations like "Artist1, Artist2" or "Artist1;Artist2")
+      const primaryArtist = song.artist.split(/[,;]/)[0].trim();
+      if (primaryArtist !== song.artist) {
+        console.log(`[Lidarr Queue] Primary artist: ${primaryArtist} (from "${song.artist}")`);
+      }
 
       // Search for the artist using artist lookup
       const artistSearchQuery = encodeURIComponent(primaryArtist);
@@ -631,9 +632,7 @@ async function unmonitorOtherAlbums(
       });
     }
 
-    if (toUnmonitor.length > 0) {
-      console.log(`[Lidarr Queue] Unmonitored ${toUnmonitor.length} other albums for artist ${artistId}`);
-    }
+    console.log(`[Lidarr Queue] Unmonitor check: ${albums.length} albums, ${toUnmonitor.length} unmonitored for artist ${artistId}`);
   } catch (error) {
     console.error('[Lidarr Queue] Error unmonitoring other albums:', error);
   }
@@ -655,7 +654,7 @@ function findBestAlbumMatch(
   const songTitle = song.title.toLowerCase();
   const songAlbum = song.album?.toLowerCase();
   // Extract primary artist from collaborations for better matching
-  const primaryArtist = song.artist.split(',')[0].trim().toLowerCase();
+  const primaryArtist = song.artist.split(/[,;]/)[0].trim().toLowerCase();
 
   // Score each album
   const scored = albums.map(album => {
