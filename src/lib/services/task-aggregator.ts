@@ -15,7 +15,7 @@ export interface UnifiedTask {
   id: string;
   name: string;
   description: string;
-  type: 'library-sync' | 'discovery' | 'lastfm-backfill' | 'aurral-warming' | 'library-reconciliation';
+  type: 'library-sync' | 'discovery' | 'lastfm-backfill' | 'aurral-warming' | 'library-reconciliation' | 'session-materializer';
   status: 'idle' | 'running' | 'completed' | 'error';
   progress?: {
     current: number;
@@ -306,6 +306,21 @@ export async function getAllTaskStatuses(userId: string): Promise<UnifiedTask[]>
       canCancel: false,
     });
   }
+
+  // 6. Session Materializer
+  tasks.push({
+    id: 'session-materializer',
+    name: 'Session Materializer',
+    description: 'Groups listening history into sessions for rating and analysis',
+    type: 'session-materializer',
+    status: 'idle',
+    lastRunAt: null,
+    nextRunAt: null,
+    interval: 'on-demand',
+    lastDuration: null,
+    canTrigger: true,
+    canCancel: false,
+  });
 
   return tasks;
 }

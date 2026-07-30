@@ -21,3 +21,4 @@ export * from "./explicit-content.schema";
 export * from "./navidrome-users.schema";
 export * from "./artist-metadata.schema";
 export * from "./artist-cooccurrence.schema";
+export * from "./listening-sessions.schema";

@@ -78,6 +78,16 @@ const POST = withAuthAndErrorHandling(
       }
     }
 
+    if (taskId === 'session-materializer') {
+      if (action === 'trigger') {
+        const { materializeSessions } = await import('../../../lib/services/session-materializer');
+        const userId = (await import('../../../lib/auth/auth').then(m => m.auth.api.getSession({ headers: request.headers })))?.user?.id;
+        if (!userId) return errorResponse('UNAUTHORIZED', 'Not authenticated', { status: 401 });
+        const result = await materializeSessions(userId);
+        return successResponse({ triggered: true, taskId, result });
+      }
+    }
+
     return errorResponse('UNKNOWN_TASK', `Unknown task: ${taskId}`, { status: 400 });
   },
   {
