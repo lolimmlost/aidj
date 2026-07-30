@@ -27,7 +27,7 @@ const GET = withAuthAndErrorHandling(
 );
 
 const POST = withAuthAndErrorHandling(
-  async ({ request }) => {
+  async ({ request, session }) => {
     const body = await request.json();
     const { taskId, action } = body as { taskId: string; action: 'trigger' | 'cancel' };
 
@@ -81,9 +81,7 @@ const POST = withAuthAndErrorHandling(
     if (taskId === 'session-materializer') {
       if (action === 'trigger') {
         const { materializeSessions } = await import('../../../lib/services/session-materializer');
-        const userId = (await import('../../../lib/auth/auth').then(m => m.auth.api.getSession({ headers: request.headers })))?.user?.id;
-        if (!userId) return errorResponse('UNAUTHORIZED', 'Not authenticated', { status: 401 });
-        const result = await materializeSessions(userId);
+        const result = await materializeSessions(session.user.id);
         return successResponse({ triggered: true, taskId, result });
       }
     }
