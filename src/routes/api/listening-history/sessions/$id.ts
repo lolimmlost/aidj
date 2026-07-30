@@ -4,17 +4,14 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/utils/api-response';
+
 import { getSessionById, rateSession } from '@/lib/services/session-materializer';
 
 const GET = withAuthAndErrorHandling(
-  async ({ request, session }) => {
-    const url = new URL(request.url);
-    const sessionId = url.pathname.split('/').pop();
-    if (!sessionId) {
-      return errorResponse('MISSING_ID', 'Session ID required', { status: 400 });
-    }
+  async ({ params, session }) => {
+    const { id } = params;
 
-    const result = await getSessionById(sessionId, session.user.id);
+    const result = await getSessionById(id, session.user.id);
     if (!result) {
       return errorResponse('NOT_FOUND', 'Session not found', { status: 404 });
     }
@@ -52,12 +49,8 @@ const GET = withAuthAndErrorHandling(
 );
 
 const POST = withAuthAndErrorHandling(
-  async ({ request, session }) => {
-    const url = new URL(request.url);
-    const sessionId = url.pathname.split('/').pop();
-    if (!sessionId) {
-      return errorResponse('MISSING_ID', 'Session ID required', { status: 400 });
-    }
+  async ({ request, params, session }) => {
+    const { id } = params;
 
     const body = await request.json();
     const { rating } = body as { rating: number | null };
@@ -66,12 +59,12 @@ const POST = withAuthAndErrorHandling(
       return errorResponse('INVALID_RATING', 'Rating must be 1 (liked) or null (unrate)', { status: 400 });
     }
 
-    const updated = await rateSession(sessionId, session.user.id, rating);
+    const updated = await rateSession(id, session.user.id, rating);
     if (!updated) {
       return errorResponse('NOT_FOUND', 'Session not found', { status: 404 });
     }
 
-    return successResponse({ sessionId, rating });
+    return successResponse({ sessionId: id, rating });
   },
   {
     service: 'listening-history',
