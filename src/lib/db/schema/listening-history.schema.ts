@@ -1,5 +1,6 @@
 import { pgTable, text, timestamp, integer, real, index, unique } from "drizzle-orm/pg-core";
 import { user } from "./auth.schema";
+import { listeningSessions } from "./listening-sessions.schema";
 
 /**
  * Listening History Schema
@@ -60,6 +61,8 @@ export const listeningHistory = pgTable("listening_history", {
   // analytics page tell true listening-history slices apart (e.g. how much
   // of the user's listening came from AI DJ vs manual clicks).
   source: text("source"),
+
+  sessionId: text("session_id").references(() => listeningSessions.id, { onDelete: "set null" }),
 }, (table) => ({
   // Index for user's listening history
   userIdIdx: index("listening_history_user_id_idx").on(table.userId),
@@ -78,6 +81,8 @@ export const listeningHistory = pgTable("listening_history", {
 
   // Phase 3.1: Index for skip tracking queries
   skipIdx: index("listening_history_skip_idx").on(table.userId, table.skipDetected, table.playedAt),
+
+  sessionIdIdx: index("listening_history_session_id_idx").on(table.sessionId),
 }));
 
 /**
