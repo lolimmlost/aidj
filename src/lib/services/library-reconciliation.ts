@@ -220,6 +220,18 @@ function isTitleMatch(a: string, b: string): boolean {
   return false;
 }
 
+async function isStreamable(songId: string): Promise<boolean> {
+  try {
+    const streamUrl = buildSubsonicUrl('stream');
+    streamUrl.searchParams.set('id', songId);
+    const resp = await fetch(streamUrl.toString(), { method: 'HEAD' });
+    const ct = resp.headers.get('content-type') || '';
+    return ct.includes('audio');
+  } catch {
+    return true; // Assume streamable on network error
+  }
+}
+
 async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
   const startMs = Date.now();
   const details: RemapDetail[] = [];
@@ -334,7 +346,6 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
         }
       }
     } catch {
-      // If batch lookup fails, check individually
       for (const id of batch) {
         try {
           const songs = await getSongsByIds([id]);
@@ -348,6 +359,30 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
         }
       }
     }
+  }
+
+  // Navidrome keeps metadata for songs whose files were moved/deleted.
+  // getSong succeeds but the stream returns XML error instead of audio.
+  // HEAD-check the stream for IDs that passed the metadata check.
+  const liveIds = allIds.filter((id) => !deadIds.has(id));
+  for (let i = 0; i < liveIds.length; i += BATCH) {
+    const batch = liveIds.slice(i, i + BATCH);
+    await Promise.all(
+      batch.map(async (id) => {
+        try {
+          const streamUrl = buildSubsonicUrl('stream');
+          streamUrl.searchParams.set('id', id);
+          const resp = await fetch(streamUrl.toString(), { method: 'HEAD' });
+          const ct = resp.headers.get('content-type') || '';
+          if (!ct.includes('audio')) {
+            const meta = idMeta.get(id);
+            if (meta) deadIds.set(id, meta);
+          }
+        } catch {
+          // Network error — don't flag as dead, might be transient
+        }
+      })
+    );
   }
 
   console.log(
@@ -413,20 +448,29 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
       const results = await navidromeSearch(query, 0, 15);
       const nonDead = results.filter((r) => r.id !== deadId);
 
-      const found = nonDead.find(
-        (r) =>
+      for (const r of nonDead) {
+        if (
           isArtistMatch(r.artist || '', meta.artist) &&
-          isTitleMatch(r.title || r.name || '', meta.title)
-      );
-      if (found) match = toMatch(found);
+          isTitleMatch(r.title || r.name || '', meta.title) &&
+          (await isStreamable(r.id))
+        ) {
+          match = toMatch(r);
+          break;
+        }
+      }
 
       // Fallback: title-only search
       if (!match && meta.title) {
         const titleResults = await navidromeSearch(meta.title, 0, 15);
-        const titleFound = titleResults
-          .filter((r) => r.id !== deadId)
-          .find((r) => isArtistMatch(r.artist || '', meta.artist));
-        if (titleFound) match = toMatch(titleFound);
+        for (const r of titleResults.filter((r) => r.id !== deadId)) {
+          if (
+            isArtistMatch(r.artist || '', meta.artist) &&
+            (await isStreamable(r.id))
+          ) {
+            match = toMatch(r);
+            break;
+          }
+        }
       }
     } catch (err) {
       console.warn(
@@ -450,7 +494,7 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
 
     const tablesUpdated: string[] = [];
 
-    // Update liked_songs_sync
+    // Update liked_songs_sync (delete old if new ID already exists)
     if (meta.sources.has('liked_songs_sync')) {
       try {
         await db
@@ -468,11 +512,23 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
             )
           );
         tablesUpdated.push('liked_songs_sync');
-      } catch (err) {
-        console.warn(
-          `[LibraryReconciliation] Failed to update liked_songs_sync for ${deadId}:`,
-          err
-        );
+      } catch (err: any) {
+        if (err?.code === '23505') {
+          await db
+            .delete(likedSongsSync)
+            .where(
+              and(
+                eq(likedSongsSync.userId, userId),
+                eq(likedSongsSync.songId, deadId)
+              )
+            );
+          tablesUpdated.push('liked_songs_sync(dedup)');
+        } else {
+          console.warn(
+            `[LibraryReconciliation] Failed to update liked_songs_sync for ${deadId}:`,
+            err
+          );
+        }
       }
     }
 
@@ -492,31 +548,55 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
             )
           );
         tablesUpdated.push('recommendation_feedback');
-      } catch (err) {
-        console.warn(
-          `[LibraryReconciliation] Failed to update recommendation_feedback for ${deadId}:`,
-          err
-        );
+      } catch (err: any) {
+        if (err?.code === '23505') {
+          await db
+            .delete(recommendationFeedback)
+            .where(
+              and(
+                eq(recommendationFeedback.userId, userId),
+                eq(recommendationFeedback.songId, deadId)
+              )
+            );
+          tablesUpdated.push('recommendation_feedback(dedup)');
+        } else {
+          console.warn(
+            `[LibraryReconciliation] Failed to update recommendation_feedback for ${deadId}:`,
+            err
+          );
+        }
       }
     }
 
     // Update playlist_songs
     if (meta.sources.has('playlist_songs')) {
       try {
-        // Get playlist IDs containing this song for this user
         const affectedPlaylists = playlistRows.filter(
           (r) => r.songId === deadId
         );
         for (const pl of affectedPlaylists) {
-          await db
-            .update(playlistSongs)
-            .set({ songId: match.id })
-            .where(
-              and(
-                eq(playlistSongs.playlistId, pl.playlistId),
-                eq(playlistSongs.songId, deadId)
-              )
-            );
+          try {
+            await db
+              .update(playlistSongs)
+              .set({ songId: match.id })
+              .where(
+                and(
+                  eq(playlistSongs.playlistId, pl.playlistId),
+                  eq(playlistSongs.songId, deadId)
+                )
+              );
+          } catch (dupErr: any) {
+            if (dupErr?.code === '23505') {
+              await db
+                .delete(playlistSongs)
+                .where(
+                  and(
+                    eq(playlistSongs.playlistId, pl.playlistId),
+                    eq(playlistSongs.songId, deadId)
+                  )
+                );
+            } else throw dupErr;
+          }
         }
         tablesUpdated.push('playlist_songs');
       } catch (err) {
