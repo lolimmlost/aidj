@@ -247,7 +247,7 @@ async function isStreamable(songId: string): Promise<boolean> {
     const ct = resp.headers.get('content-type') || '';
     return ct.includes('audio');
   } catch {
-    return true; // Assume streamable on network error
+    return true;
   }
 }
 
@@ -388,17 +388,9 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
     const batch = liveIds.slice(i, i + BATCH);
     await Promise.all(
       batch.map(async (id) => {
-        try {
-          const streamUrl = buildSubsonicUrl('stream');
-          streamUrl.searchParams.set('id', id);
-          const resp = await fetch(streamUrl.toString(), { method: 'HEAD' });
-          const ct = resp.headers.get('content-type') || '';
-          if (!ct.includes('audio')) {
-            const meta = idMeta.get(id);
-            if (meta) deadIds.set(id, meta);
-          }
-        } catch {
-          // Network error — don't flag as dead, might be transient
+        if (!(await isStreamable(id))) {
+          const meta = idMeta.get(id);
+          if (meta) deadIds.set(id, meta);
         }
       })
     );

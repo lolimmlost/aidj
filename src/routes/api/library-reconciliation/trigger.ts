@@ -14,12 +14,13 @@ const POST = withAuthAndErrorHandling(
       await initializeReconciliation(userId);
     }
 
-    const result = await manager.triggerNow();
+    if (manager.getStatus().isRunning) {
+      return successResponse({ message: 'Reconciliation already running', started: false });
+    }
 
-    return successResponse({
-      message: `Reconciliation complete: ${result.checkedIds} checked, ${result.remapped} remapped, ${result.notFound} not found`,
-      ...result,
-    });
+    manager.triggerNow().catch(() => {});
+
+    return successResponse({ message: 'Reconciliation started', started: true });
   },
   {
     service: 'library-reconciliation',
