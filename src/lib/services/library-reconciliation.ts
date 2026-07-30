@@ -220,6 +220,25 @@ function isTitleMatch(a: string, b: string): boolean {
   return false;
 }
 
+// MeTube downloads often have "Channel Name" as the artist and
+// "Real Artist - Real Title [Official Audio]" as the title.
+function parseRealArtistTitle(artist: string, title: string): {
+  artist: string;
+  title: string;
+} {
+  let clean = title
+    .replace(/\s*\[Official (?:Audio|Video|Music Video)\]/gi, '')
+    .replace(/\s*\(Official (?:Audio|Video)\)/gi, '')
+    .replace(/\s*\(Lyrics?\)/gi, '')
+    .replace(/\s*\|.*$/g, '')
+    .trim();
+  const parts = clean.split(/\s+-\s+/);
+  if (parts.length >= 2) {
+    return { artist: parts[0].trim(), title: parts.slice(1).join(' - ').trim() };
+  }
+  return { artist, title: clean };
+}
+
 async function isStreamable(songId: string): Promise<boolean> {
   try {
     const streamUrl = buildSubsonicUrl('stream');
@@ -469,6 +488,25 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
           ) {
             match = toMatch(r);
             break;
+          }
+        }
+      }
+
+      // Fallback: MeTube titles often embed "Real Artist - Real Title"
+      if (!match && meta.title.includes(' - ')) {
+        const parsed = parseRealArtistTitle(meta.artist, meta.title);
+        if (parsed.artist !== meta.artist || parsed.title !== meta.title) {
+          const parsedQuery = `${parsed.artist} ${parsed.title}`;
+          const parsedResults = await navidromeSearch(parsedQuery, 0, 15);
+          for (const r of parsedResults.filter((r) => r.id !== deadId)) {
+            if (
+              isArtistMatch(r.artist || '', parsed.artist) &&
+              isTitleMatch(r.title || r.name || '', parsed.title) &&
+              (await isStreamable(r.id))
+            ) {
+              match = toMatch(r);
+              break;
+            }
           }
         }
       }
