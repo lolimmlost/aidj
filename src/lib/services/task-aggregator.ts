@@ -9,12 +9,13 @@ import { getBackgroundSyncManager } from './library-sync/background-sync';
 import { getBackgroundDiscoveryManager } from './background-discovery';
 import { getActiveBackfill } from './lastfm-backfill';
 import { getAurralCacheWarmingManager, initializeAurralCacheWarming } from './aurral-cache-warming';
+import { getReconciliationManager } from './library-reconciliation';
 
 export interface UnifiedTask {
   id: string;
   name: string;
   description: string;
-  type: 'library-sync' | 'discovery' | 'lastfm-backfill' | 'aurral-warming';
+  type: 'library-sync' | 'discovery' | 'lastfm-backfill' | 'aurral-warming' | 'library-reconciliation';
   status: 'idle' | 'running' | 'completed' | 'error';
   progress?: {
     current: number;
@@ -256,6 +257,52 @@ export async function getAllTaskStatuses(userId: string): Promise<UnifiedTask[]>
       interval: '24 hours',
       lastDuration: null,
       canTrigger: false,
+      canCancel: false,
+    });
+  }
+
+  // 5. Library Reconciliation
+  try {
+    const reconManager = getReconciliationManager();
+    const reconStatus = reconManager.getStatus();
+
+    tasks.push({
+      id: 'library-reconciliation',
+      name: 'Library Reconciliation',
+      description: 'Detects and remaps ghost song IDs after Picard retags or Lidarr moves files',
+      type: 'library-reconciliation',
+      status: reconStatus.isRunning
+        ? 'running'
+        : reconStatus.lastError
+          ? 'error'
+          : 'idle',
+      lastRunAt: reconStatus.lastRunAt?.toISOString() ?? null,
+      nextRunAt: reconStatus.nextRunAt?.toISOString() ?? null,
+      interval: `${reconStatus.frequencyHours} hours`,
+      lastDuration: reconStatus.lastResult?.durationMs != null
+        ? formatDurationMs(reconStatus.lastResult.durationMs) : null,
+      error: reconStatus.lastError ?? undefined,
+      canTrigger: !reconStatus.isRunning,
+      canCancel: false,
+      stats: reconStatus.lastResult ? {
+        checked: reconStatus.lastResult.checkedIds,
+        dead: reconStatus.lastResult.deadIds,
+        remapped: reconStatus.lastResult.remapped,
+        notFound: reconStatus.lastResult.notFound,
+      } : undefined,
+    });
+  } catch {
+    tasks.push({
+      id: 'library-reconciliation',
+      name: 'Library Reconciliation',
+      description: 'Detects and remaps ghost song IDs after Picard retags or Lidarr moves files',
+      type: 'library-reconciliation',
+      status: 'idle',
+      lastRunAt: null,
+      nextRunAt: null,
+      interval: '6 hours',
+      lastDuration: null,
+      canTrigger: true,
       canCancel: false,
     });
   }
