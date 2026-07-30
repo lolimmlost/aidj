@@ -146,8 +146,6 @@ class LibraryReconciliationManager {
     }
 
     this.isRunning = true;
-    const startMs = Date.now();
-
     try {
       const result = await reconcileLibrary(this.userId);
       this.lastResult = result;
@@ -226,7 +224,7 @@ function parseRealArtistTitle(artist: string, title: string): {
   artist: string;
   title: string;
 } {
-  let clean = title
+  const clean = title
     .replace(/\s*\[Official (?:Audio|Video|Music Video)\]/gi, '')
     .replace(/\s*\(Official (?:Audio|Video)\)/gi, '')
     .replace(/\s*\(Lyrics?\)/gi, '')
@@ -542,8 +540,8 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
             )
           );
         tablesUpdated.push('liked_songs_sync');
-      } catch (err: any) {
-        if (err?.code === '23505') {
+      } catch (err: unknown) {
+        if (err instanceof Error && (err as Error & { code?: string }).code === '23505') {
           await db
             .delete(likedSongsSync)
             .where(
@@ -578,8 +576,8 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
             )
           );
         tablesUpdated.push('recommendation_feedback');
-      } catch (err: any) {
-        if (err?.code === '23505') {
+      } catch (err: unknown) {
+        if (err instanceof Error && (err as Error & { code?: string }).code === '23505') {
           await db
             .delete(recommendationFeedback)
             .where(
@@ -615,8 +613,8 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
                   eq(playlistSongs.songId, deadId)
                 )
               );
-          } catch (dupErr: any) {
-            if (dupErr?.code === '23505') {
+          } catch (dupErr: unknown) {
+            if (dupErr instanceof Error && (dupErr as Error & { code?: string }).code === '23505') {
               await db
                 .delete(playlistSongs)
                 .where(
