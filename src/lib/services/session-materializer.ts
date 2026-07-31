@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { listeningHistory, listeningSessions } from '@/lib/db/schema';
-import { eq, and, gte, lte, isNull, sql, desc } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, desc } from 'drizzle-orm';
 import { getSeason } from '@/lib/utils/temporal';
 import type { TopSessionItem, ListeningSessionInsert } from '@/lib/db/schema/listening-sessions.schema';
 
