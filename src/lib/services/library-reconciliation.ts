@@ -443,7 +443,12 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
       continue;
     }
 
-    const query = `${meta.artist} ${meta.title}`;
+    const cleanTitle = meta.title
+      .replace(/\s*\((?:remaster|remastered|deluxe|anniversary|expanded|bonus|\d{4})[^)]*\)/gi, '')
+      .replace(/\s*\[(?:remaster|remastered|deluxe|anniversary|expanded|bonus|\d{4})[^\]]*\]/gi, '')
+      .replace(/\s*-\s*(?:.*\b(?:remaster|remastered)\b.*)$/gi, '')
+      .trim() || meta.title;
+    const query = `${meta.artist} ${cleanTitle}`;
     let match: { id: string; artist: string; title: string } | null = null;
 
     try {
@@ -509,6 +514,7 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
 
     if (!match) {
       notFound++;
+      console.log(`[LibraryReconciliation] Missing: "${meta.artist} - ${meta.title}" (${deadId})`);
       missingFromLibrary.push({
         oldId: deadId,
         artist: meta.artist,
