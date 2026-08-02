@@ -449,7 +449,8 @@ export function PlaylistImportDialog({
       }
 
       toast.success('Import complete', {
-        description: `${matched} songs matched, ${noMatch} not found`,
+        description: `${matched} matched, ${pendingReview > 0 ? `${pendingReview} to review, ` : ''}${noMatch} not in library`,
+        duration: 6000,
       });
     } else if (job.status === 'failed') {
       setIsProcessingInBackground(false);
@@ -587,8 +588,12 @@ export function PlaylistImportDialog({
   const handleComplete = () => {
     if (importResult?.createdPlaylistId) {
       onSuccess?.(importResult.createdPlaylistId);
-      toast.success('Playlist imported successfully!', {
-        description: `${importResult.matchReport.summary.matched} songs added to your library`,
+      const { matched, noMatch } = importResult.matchReport.summary;
+      toast.success('Playlist imported!', {
+        description: noMatch > 0
+          ? `${matched} songs added. ${noMatch} not in library — download them from the import results.`
+          : `${matched} songs added to your playlist.`,
+        duration: 6000,
       });
     }
     handleClose();

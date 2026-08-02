@@ -167,26 +167,16 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
         return;
       }
 
-      toast.success('Downloads queued!', {
-        description: `${result.queued} songs sent to Lidarr`,
-        duration: 5000,
-      });
-
-      setTimeout(() => {
-        toast.info('Next steps', {
-          description: 'Once downloaded, rescan your library and add the new songs to your playlist.',
+      if (result.failed > 0) {
+        toast.warning(`${result.queued} queued, ${result.failed} failed`, {
+          description: result.errors?.slice(0, 2).join('; ') || 'Some songs were not found in Lidarr',
           duration: 8000,
         });
-      }, 1000);
-
-      // Show partial failure warning
-      if (result.failed > 0) {
-        setTimeout(() => {
-          toast.warning(`${result.failed} songs couldn't be queued`, {
-            description: result.errors?.slice(0, 2).join('; ') || 'Some songs failed to queue',
-            duration: 6000,
-          });
-        }, 4000);
+      } else {
+        toast.success(`${result.queued} songs queued for download`, {
+          description: 'Rescan your library after downloads finish, then re-import to match the new songs.',
+          duration: 8000,
+        });
       }
 
       // Mark downloads as queued
