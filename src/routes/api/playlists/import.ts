@@ -81,30 +81,57 @@ function createNavidromeSearcher() {
     },
 
     async searchByTitleArtist(title: string, artist: string) {
-      // Clean up Spotify-style multi-artist (semicolons) — use primary artist only
       const primaryArtist = artist.split(/[;,]/)[0].trim();
-      // Strip parenthetical suffixes like "(with X)", "- Y Remix" from title
       const cleanTitle = title
         .replace(/\s*\((?:with|feat\.?|ft\.?|featuring)\s+[^)]+\)/gi, '')
-        .replace(/\s*-\s*(?:.*\b(?:remix|edit|mix|version)\b.*)$/gi, '')
+        .replace(/\s*\((?:remaster|remastered|deluxe|anniversary|expanded|bonus)[^)]*\)/gi, '')
+        .replace(/\s*\[(?:remaster|remastered|deluxe|anniversary|expanded|bonus)[^\]]*\]/gi, '')
+        .replace(/\s*-\s*(?:.*\b(?:remix|edit|mix|version|remaster|remastered)\b.*)$/gi, '')
+        .replace(/\s+\d{2,4}[kK]?\s*$/, '')
         .trim();
 
-      const query = `${primaryArtist} ${cleanTitle}`;
-      let results = await navidromeSearch(query);
+      // Navidrome search3 requires ALL words to match, so extra words
+      // (remaster tags, year suffixes, etc.) kill results. Try multiple
+      // queries in order of specificity and merge candidates.
+      const seen = new Set<string>();
+      const all: Array<{
+        platform: PlaylistPlatform;
+        platformId: string;
+        title: string;
+        artist: string;
+        album?: string;
+        duration?: number;
+      }> = [];
 
-      // Fallback: try title-only search if combined query returned nothing
-      if (results.length === 0 && cleanTitle.length > 3) {
-        results = await navidromeSearch(cleanTitle);
-      }
-
-      return results.map(song => ({
+      const addResults = (songs: typeof all) => {
+        for (const s of songs) if (!seen.has(s.platformId)) { seen.add(s.platformId); all.push(s); }
+      };
+      const toCandidate = (song: { id: string; title?: string; name?: string; artist?: string; album?: string; duration?: number }) => ({
         platform: 'navidrome' as PlaylistPlatform,
         platformId: song.id,
         title: song.title || song.name || 'Unknown',
         artist: song.artist || 'Unknown Artist',
         album: song.album,
         duration: song.duration,
-      }));
+      });
+
+      // 1. Artist + full cleaned title
+      const r1 = await navidromeSearch(`${primaryArtist} ${cleanTitle}`);
+      addResults(r1.map(toCandidate));
+
+      // 2. Artist-only search (catches title mismatches like "Overload 2K" vs "Overload")
+      if (all.length < 3 && primaryArtist.length > 2) {
+        const r2 = await navidromeSearch(primaryArtist);
+        addResults(r2.map(toCandidate));
+      }
+
+      // 3. Title-only search (catches artist name mismatches)
+      if (all.length < 3 && cleanTitle.length > 3) {
+        const r3 = await navidromeSearch(cleanTitle);
+        addResults(r3.map(toCandidate));
+      }
+
+      return all;
     },
   };
 }

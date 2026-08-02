@@ -11,11 +11,27 @@ import {
   searchForAlbum,
   searchAlbumByTitle,
   unmonitorOtherAlbums,
+  type LidarrArtist,
   type LidarrAlbum,
 } from '../../../lib/services/lidarr';
 import { search as searchNavidrome } from '../../../lib/services/navidrome';
 import { getLastFmClient } from '../../../lib/services/lastfm';
 import { getConfigAsync } from '../../../lib/config/config';
+import { normalizeArtist, stringSimilarity } from '../../../lib/services/song-matcher';
+
+/**
+ * Pick the best-matching artist from Lidarr search results.
+ * MusicBrainz often returns partial-name matches before exact ones.
+ */
+function pickBestArtist(results: LidarrArtist[], query: string): LidarrArtist {
+  if (results.length <= 1) return results[0];
+  const q = normalizeArtist(query);
+  return results.reduce((best, cur) => {
+    const bestSim = stringSimilarity(normalizeArtist(best.artistName), q);
+    const curSim = stringSimilarity(normalizeArtist(cur.artistName), q);
+    return curSim > bestSim ? cur : best;
+  });
+}
 
 /**
  * Get album info from Last.fm for a specific track
@@ -149,7 +165,7 @@ export const Route = createFileRoute("/api/lidarr/add")({
         });
       }
 
-      const artist = results[0];
+      const artist = pickBestArtist(results, primaryArtist);
 
       // Check if already in Lidarr
       const isAdded = await isArtistAdded(artist.foreignArtistId);

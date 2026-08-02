@@ -280,30 +280,27 @@ async function queueToLidarr(songs: { title: string; artist: string; album?: str
         continue;
       }
 
-      // Find best artist match (don't just take first result)
-      // Score artists by how well they match the primary artist name
+      // Find best artist match using fuzzy string similarity
       const scoredArtists = artists.map((artist: { artistName: string }) => {
-        const artistNameLower = artist.artistName.toLowerCase();
-        const primaryLower = primaryArtist.toLowerCase();
-
-        // Exact match gets highest score
-        if (artistNameLower === primaryLower) return { artist, score: 100 };
-
-        // Starts with gets high score
-        if (artistNameLower.startsWith(primaryLower)) return { artist, score: 90 };
-
-        // Contains as whole word gets medium score
-        const regex = new RegExp(`\\b${primaryLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-        if (regex.test(artistNameLower)) return { artist, score: 70 };
-
-        // Contains anywhere gets low score
-        if (artistNameLower.includes(primaryLower)) return { artist, score: 50 };
-
-        // Doesn't match - very low score
-        return { artist, score: 0 };
+        const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+        const a = norm(artist.artistName);
+        const b = norm(primaryArtist);
+        if (a === b) return { artist, score: 100 };
+        // Levenshtein-based similarity
+        const maxLen = Math.max(a.length, b.length);
+        if (maxLen === 0) return { artist, score: 0 };
+        const matrix: number[][] = [];
+        for (let i = 0; i <= b.length; i++) { matrix[i] = [i]; }
+        for (let j = 0; j <= a.length; j++) { matrix[0][j] = j; }
+        for (let i = 1; i <= b.length; i++) {
+          for (let j = 1; j <= a.length; j++) {
+            matrix[i][j] = b[i-1] === a[j-1]
+              ? matrix[i-1][j-1]
+              : Math.min(matrix[i-1][j-1]+1, matrix[i][j-1]+1, matrix[i-1][j]+1);
+          }
+        }
+        return { artist, score: Math.round((1 - matrix[b.length][a.length] / maxLen) * 100) };
       });
-
-      // Sort by score descending
       scoredArtists.sort((a: { score: number }, b: { score: number }) => b.score - a.score);
 
       // Log top 3 matches for debugging
