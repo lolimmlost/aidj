@@ -31,6 +31,7 @@ import {
   starSong,
   getStarredSongs,
   buildSubsonicUrl,
+  apiFetch,
 } from './navidrome';
 import { getNavidromeUserCreds } from './navidrome-users';
 import type { SubsonicCreds } from './navidrome-users';
@@ -503,6 +504,27 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
               break;
             }
           }
+        }
+      }
+
+      // Fallback: native API title search (bypasses search3 AND-matching)
+      if (!match && cleanTitle) {
+        try {
+          const nativeSongs = await apiFetch<Array<{ id: string; title: string; artist: string }>>(
+            `/api/song?_start=0&_end=10&_order=ASC&_sort=title&title=${encodeURIComponent(cleanTitle)}`
+          );
+          for (const r of nativeSongs.filter((r) => r.id !== deadId)) {
+            if (
+              isArtistMatch(r.artist || '', meta.artist) &&
+              isTitleMatch(r.title || '', meta.title) &&
+              (await isStreamable(r.id))
+            ) {
+              match = { id: r.id, artist: r.artist, title: r.title };
+              break;
+            }
+          }
+        } catch {
+          // native API not available, skip
         }
       }
     } catch (err) {
