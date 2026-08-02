@@ -781,16 +781,6 @@
     border-width: 1px;
   }
 
-  [data-sonner-toast] [data-close-button] {
-    @apply border-border/50 bg-background/80 text-muted-foreground;
-    top: 4px;
-    right: 4px;
-    left: auto;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    opacity: 1;
-  }
 
   .dark [data-sonner-toast] {
     box-shadow:
