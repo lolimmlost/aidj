@@ -16,10 +16,13 @@ import { db } from '../db';
 import {
   recommendationFeedback,
   likedSongsSync,
+  userPlaylists,
+  playlistSongs,
   type LikedSongsSyncInsert,
 } from '../db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { getStarredSongs } from './navidrome';
+import type { SubsonicSong } from './navidrome';
 import { getNavidromeUserCreds } from './navidrome-users';
 
 // ============================================================================
@@ -333,4 +336,76 @@ export async function getLikedSongsCount(userId: string): Promise<number> {
     );
 
   return result.length;
+}
+
+// ============================================================================
+// Liked Songs Playlist Rebuild
+// ============================================================================
+
+const LIKED_SONGS_NAME = '❤️ Liked Songs';
+
+export async function rebuildLikedSongsPlaylist(
+  userId: string,
+  starredSongs: SubsonicSong[]
+): Promise<{ playlistId: string; songCount: number }> {
+  let likedPlaylist = await db
+    .select()
+    .from(userPlaylists)
+    .where(
+      and(
+        eq(userPlaylists.userId, userId),
+        eq(userPlaylists.name, LIKED_SONGS_NAME)
+      )
+    )
+    .limit(1)
+    .then(rows => rows[0]);
+
+  if (!likedPlaylist) {
+    const [newPlaylist] = await db
+      .insert(userPlaylists)
+      .values({
+        id: crypto.randomUUID(),
+        userId,
+        name: LIKED_SONGS_NAME,
+        description: 'Auto-synced from your starred songs in Navidrome',
+        navidromeId: null,
+        lastSynced: new Date(),
+        songCount: starredSongs.length,
+        totalDuration: starredSongs.reduce((sum, s) => sum + parseInt(s.duration || '0'), 0),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    likedPlaylist = newPlaylist;
+  } else {
+    await db
+      .update(userPlaylists)
+      .set({
+        lastSynced: new Date(),
+        songCount: starredSongs.length,
+        totalDuration: starredSongs.reduce((sum, s) => sum + parseInt(s.duration || '0'), 0),
+        updatedAt: new Date(),
+      })
+      .where(eq(userPlaylists.id, likedPlaylist.id));
+  }
+
+  await db
+    .delete(playlistSongs)
+    .where(eq(playlistSongs.playlistId, likedPlaylist.id));
+
+  if (starredSongs.length > 0) {
+    await db.insert(playlistSongs).values(
+      starredSongs.map((song, index) => ({
+        id: crypto.randomUUID(),
+        playlistId: likedPlaylist.id,
+        songId: song.id,
+        songArtistTitle: `${song.artist} - ${song.title}`,
+        position: index + 1,
+        addedAt: new Date(),
+      }))
+    );
+  }
+
+  console.log(`✅ Rebuilt Liked Songs playlist: ${starredSongs.length} songs`);
+  return { playlistId: likedPlaylist.id, songCount: starredSongs.length };
 }

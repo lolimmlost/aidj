@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../lib/auth/auth';
 import { syncNavidromePlaylists } from '../../../lib/services/playlist-sync';
-import { syncLikedSongsToFeedback } from '../../../lib/services/liked-songs-sync';
+import { syncLikedSongsToFeedback, rebuildLikedSongsPlaylist } from '../../../lib/services/liked-songs-sync';
+import { getStarredSongs } from '../../../lib/services/navidrome';
+import { ensureNavidromeUser } from '../../../lib/services/navidrome-users';
 
 export const Route = createFileRoute("/api/playlists/sync")({
   server: {
@@ -27,12 +29,15 @@ export const Route = createFileRoute("/api/playlists/sync")({
 
       const result = await syncNavidromePlaylists(session.user.id);
 
-      // Also sync liked songs (starred) — the Liked Songs playlist has
-      // navidromeId: null so syncNavidromePlaylists skips it.
+      // Also rebuild the Liked Songs playlist and sync feedback — the Liked
+      // Songs playlist has navidromeId: null so syncNavidromePlaylists skips it.
       try {
+        const creds = await ensureNavidromeUser(session.user.id, session.user.name, session.user.email);
+        const starredSongs = await getStarredSongs(creds);
+        await rebuildLikedSongsPlaylist(session.user.id, starredSongs);
         await syncLikedSongsToFeedback(session.user.id);
       } catch (e) {
-        console.error('Liked songs feedback sync failed (non-blocking):', e);
+        console.error('Liked songs sync failed (non-blocking):', e);
       }
 
       return new Response(JSON.stringify({
