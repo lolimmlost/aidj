@@ -349,14 +349,19 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
   const BATCH = 50;
   const deadIds = new Map<
     string,
-    { artist: string; title: string; sources: Set<string> }
+    { artist: string; title: string; sources: Set<string>; duration?: number }
   >();
+  // Cache duration from getSongsByIds for songs that pass metadata but fail stream
+  const songDurations = new Map<string, number>();
 
   for (let i = 0; i < allIds.length; i += BATCH) {
     const batch = allIds.slice(i, i + BATCH);
     try {
       const songs = await getSongsByIds(batch);
       const foundIds = new Set(songs.map((s) => s.id));
+      for (const s of songs) {
+        if (s.duration) songDurations.set(s.id, s.duration);
+      }
       for (const id of batch) {
         if (!foundIds.has(id)) {
           const meta = idMeta.get(id);
@@ -370,6 +375,8 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
           if (songs.length === 0) {
             const meta = idMeta.get(id);
             if (meta) deadIds.set(id, meta);
+          } else if (songs[0].duration) {
+            songDurations.set(id, songs[0].duration);
           }
         } catch {
           const meta = idMeta.get(id);
@@ -389,7 +396,9 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
       batch.map(async (id) => {
         if (!(await isStreamable(id))) {
           const meta = idMeta.get(id);
-          if (meta) deadIds.set(id, meta);
+          if (meta) {
+            deadIds.set(id, { ...meta, duration: songDurations.get(id) });
+          }
         }
       })
     );
@@ -510,7 +519,7 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
       // Fallback: native API title search (bypasses search3 AND-matching)
       if (!match && cleanTitle) {
         try {
-          const nativeSongs = await apiFetch<Array<{ id: string; title: string; artist: string }>>(
+          const nativeSongs = await apiFetch<Array<{ id: string; title: string; artist: string; duration: number }>>(
             `/api/song?_start=0&_end=10&_order=ASC&_sort=title&title=${encodeURIComponent(cleanTitle)}`
           );
           for (const r of nativeSongs.filter((r) => r.id !== deadId)) {
@@ -521,6 +530,21 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
             ) {
               match = { id: r.id, artist: r.artist, title: r.title };
               break;
+            }
+          }
+          // Picard/MusicBrainz can retag with a completely wrong artist.
+          // If title matches and duration is within 3s, accept despite artist mismatch.
+          if (!match && meta.duration) {
+            for (const r of nativeSongs.filter((r) => r.id !== deadId)) {
+              if (
+                isTitleMatch(r.title || '', meta.title) &&
+                r.duration && Math.abs(r.duration - meta.duration) < 3 &&
+                (await isStreamable(r.id))
+              ) {
+                console.log(`[LibraryReconciliation] Duration match: "${meta.artist} - ${meta.title}" → "${r.artist} - ${r.title}" (${meta.duration}s ≈ ${r.duration}s)`);
+                match = { id: r.id, artist: r.artist, title: r.title };
+                break;
+              }
             }
           }
         } catch {
