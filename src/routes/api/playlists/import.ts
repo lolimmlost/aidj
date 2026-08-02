@@ -81,8 +81,21 @@ function createNavidromeSearcher() {
     },
 
     async searchByTitleArtist(title: string, artist: string) {
-      const query = `${artist} ${title}`;
-      const results = await navidromeSearch(query);
+      // Clean up Spotify-style multi-artist (semicolons) — use primary artist only
+      const primaryArtist = artist.split(/[;,]/)[0].trim();
+      // Strip parenthetical suffixes like "(with X)", "- Y Remix" from title
+      const cleanTitle = title
+        .replace(/\s*\((?:with|feat\.?|ft\.?|featuring)\s+[^)]+\)/gi, '')
+        .replace(/\s*-\s*(?:.*\b(?:remix|edit|mix|version)\b.*)$/gi, '')
+        .trim();
+
+      const query = `${primaryArtist} ${cleanTitle}`;
+      let results = await navidromeSearch(query);
+
+      // Fallback: try title-only search if combined query returned nothing
+      if (results.length === 0 && cleanTitle.length > 3) {
+        results = await navidromeSearch(cleanTitle);
+      }
 
       return results.map(song => ({
         platform: 'navidrome' as PlaylistPlatform,
