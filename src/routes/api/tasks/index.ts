@@ -68,6 +68,16 @@ const POST = withAuthAndErrorHandling(
       }
     }
 
+    if (taskId === 'library-reconciliation') {
+      const { getReconciliationManager } = await import('../../../lib/services/library-reconciliation');
+      const manager = getReconciliationManager();
+
+      if (action === 'trigger') {
+        const result = await manager.triggerNow();
+        return successResponse({ triggered: true, taskId, result });
+      }
+    }
+
     return errorResponse('UNKNOWN_TASK', `Unknown task: ${taskId}`, { status: 400 });
   },
   {
