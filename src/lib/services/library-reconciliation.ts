@@ -517,38 +517,53 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
       }
 
       // Fallback: native API title search (bypasses search3 AND-matching)
-      if (!match && cleanTitle) {
-        try {
-          const nativeSongs = await apiFetch<Array<{ id: string; title: string; artist: string; duration: number }>>(
-            `/api/song?_start=0&_end=10&_order=ASC&_sort=title&title=${encodeURIComponent(cleanTitle)}`
-          );
-          for (const r of nativeSongs.filter((r) => r.id !== deadId)) {
-            if (
-              isArtistMatch(r.artist || '', meta.artist) &&
-              isTitleMatch(r.title || '', meta.title) &&
-              (await isStreamable(r.id))
-            ) {
-              match = { id: r.id, artist: r.artist, title: r.title };
-              break;
-            }
-          }
-          // Picard/MusicBrainz can retag with a completely wrong artist.
-          // If title matches and duration is within 3s, accept despite artist mismatch.
-          if (!match && meta.duration) {
-            for (const r of nativeSongs.filter((r) => r.id !== deadId)) {
+      // Build candidate title variants: the cleanTitle, plus MeTube-parsed title
+      // (strips embedded "Artist - " prefix and parenthetical tags like "(Chillsynth)")
+      if (!match) {
+        const titleVariants = new Set<string>();
+        if (cleanTitle) titleVariants.add(cleanTitle);
+        if (meta.title.includes(' - ')) {
+          const parsed = parseRealArtistTitle(meta.artist, meta.title);
+          const stripped = parsed.title.replace(/\s*\([^)]+\)\s*$/g, '').trim();
+          if (stripped.length > 2) titleVariants.add(stripped);
+          if (parsed.title !== stripped && parsed.title.length > 2) titleVariants.add(parsed.title);
+        }
+
+        for (const searchTitle of titleVariants) {
+          if (match) break;
+          try {
+            const nativeSongs = await apiFetch<Array<{ id: string; title: string; artist: string; duration: number }>>(
+              `/api/song?_start=0&_end=10&_order=ASC&_sort=title&title=${encodeURIComponent(searchTitle)}`
+            );
+            const candidates = nativeSongs.filter((r) => r.id !== deadId);
+            for (const r of candidates) {
               if (
+                isArtistMatch(r.artist || '', meta.artist) &&
                 isTitleMatch(r.title || '', meta.title) &&
-                r.duration && Math.abs(r.duration - meta.duration) < 3 &&
                 (await isStreamable(r.id))
               ) {
-                console.log(`[LibraryReconciliation] Duration match: "${meta.artist} - ${meta.title}" → "${r.artist} - ${r.title}" (${meta.duration}s ≈ ${r.duration}s)`);
                 match = { id: r.id, artist: r.artist, title: r.title };
                 break;
               }
             }
+            // Picard/MusicBrainz can retag with a completely wrong artist.
+            // If title matches and duration is within 3s, accept despite artist mismatch.
+            if (!match && meta.duration) {
+              for (const r of candidates) {
+                if (
+                  isTitleMatch(r.title || '', searchTitle) &&
+                  r.duration && Math.abs(r.duration - meta.duration) < 3 &&
+                  (await isStreamable(r.id))
+                ) {
+                  console.log(`[LibraryReconciliation] Duration match: "${meta.artist} - ${meta.title}" → "${r.artist} - ${r.title}" (${meta.duration}s ≈ ${r.duration}s)`);
+                  match = { id: r.id, artist: r.artist, title: r.title };
+                  break;
+                }
+              }
+            }
+          } catch {
+            // native API not available, skip
           }
-        } catch {
-          // native API not available, skip
         }
       }
     } catch (err) {
