@@ -1,6 +1,6 @@
 import { getConfig } from '@/lib/config/config';
 import { ServiceError } from '../../utils';
-import { getAuthToken, buildSubsonicUrl, subsonicToken, subsonicSalt } from './core';
+import { getAuthToken, buildSubsonicUrl, subsonicToken, subsonicSalt, isBrowser, apiFetch } from './core';
 import type { SubsonicCreds, SubsonicSong } from './types';
 
 /**
@@ -89,6 +89,17 @@ export async function getStarredSongs(creds?: SubsonicCreds): Promise<SubsonicSo
     throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
   }
 
+  // Server-side with admin creds (or no creds): use native API which has no
+  // result cap. Navidrome's Subsonic getStarred2 silently truncates at ~334.
+  const isAdmin = !creds || creds.username === config.navidromeUsername;
+  if (!isBrowser() && isAdmin) {
+    try {
+      return await fetchStarredSongsNative();
+    } catch (error) {
+      console.warn('⭐ Native API starred fetch failed, falling back to Subsonic:', error);
+    }
+  }
+
   if (!creds && (!subsonicToken || !subsonicSalt)) {
     await getAuthToken();
   }
@@ -110,7 +121,7 @@ export async function getStarredSongs(creds?: SubsonicCreds): Promise<SubsonicSo
     }
 
     const starredSongs = data['subsonic-response']?.starred2?.song || [];
-    console.log(`⭐ Fetched ${starredSongs.length} starred songs from Navidrome`);
+    console.log(`⭐ Fetched ${starredSongs.length} starred songs from Navidrome (Subsonic)`);
 
     return starredSongs.map((song: { id: string; title?: string; name?: string; artist?: string; album?: string; albumId?: string; duration?: number; track?: number }) => ({
       id: song.id,
@@ -125,6 +136,46 @@ export async function getStarredSongs(creds?: SubsonicCreds): Promise<SubsonicSo
     console.error('Failed to fetch starred songs from Navidrome:', error);
     throw error instanceof ServiceError ? error : new ServiceError('NAVIDROME_API_ERROR', `Failed to fetch starred songs: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+}
+
+interface NativeSong {
+  id: string;
+  title?: string;
+  artist?: string;
+  album?: string;
+  albumId?: string;
+  duration?: number;
+  trackNumber?: number;
+}
+
+async function fetchStarredSongsNative(): Promise<SubsonicSong[]> {
+  const PAGE_SIZE = 500;
+  const all: SubsonicSong[] = [];
+  let start = 0;
+
+  while (true) {
+    const songs = await apiFetch<NativeSong[]>(
+      `/api/song?_start=${start}&_end=${start + PAGE_SIZE}&_order=DESC&_sort=starred_at&starred=true`
+    );
+
+    for (const song of songs) {
+      all.push({
+        id: song.id,
+        title: song.title || '',
+        artist: song.artist || '',
+        album: song.album || '',
+        albumId: song.albumId || '',
+        duration: song.duration?.toString() || '0',
+        track: song.trackNumber?.toString() || '0',
+      });
+    }
+
+    if (songs.length < PAGE_SIZE) break;
+    start += PAGE_SIZE;
+  }
+
+  console.log(`⭐ Fetched ${all.length} starred songs from Navidrome (native API)`);
+  return all;
 }
 
 /**
