@@ -608,7 +608,8 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
           );
         tablesUpdated.push('liked_songs_sync');
       } catch (err: unknown) {
-        if (err instanceof Error && (err as Error & { code?: string }).code === '23505') {
+        const pgCode = (err as any)?.code || (err as any)?.cause?.code;
+        if (pgCode === '23505') {
           await db
             .delete(likedSongsSync)
             .where(
@@ -644,7 +645,8 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
           );
         tablesUpdated.push('recommendation_feedback');
       } catch (err: unknown) {
-        if (err instanceof Error && (err as Error & { code?: string }).code === '23505') {
+        const pgCode2 = (err as any)?.code || (err as any)?.cause?.code;
+        if (pgCode2 === '23505') {
           await db
             .delete(recommendationFeedback)
             .where(
@@ -681,7 +683,8 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
                 )
               );
           } catch (dupErr: unknown) {
-            if (dupErr instanceof Error && (dupErr as Error & { code?: string }).code === '23505') {
+            const pgCode3 = (dupErr as any)?.code || (dupErr as any)?.cause?.code;
+            if (pgCode3 === '23505') {
               await db
                 .delete(playlistSongs)
                 .where(
