@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { db } from '../../../lib/db';
 import { recommendationFeedback, recommendationsCache, userPreferences, likedSongsSync } from '../../../lib/db/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, sql, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { starSong, unstarSong, getStarredSongs } from '../../../lib/services/navidrome';
 import { ensureNavidromeUser } from '../../../lib/services/navidrome-users';
@@ -244,9 +244,10 @@ export const POST = withAuthAndErrorHandling(
               .where(
                 and(
                   eq(userPlaylists.userId, session.user.id),
-                  eq(userPlaylists.name, LIKED_SONGS_NAME)
+                  sql`${userPlaylists.name} ILIKE '%liked%'`
                 )
               )
+              .orderBy(desc(userPlaylists.updatedAt))
               .limit(1)
               .then(rows => rows[0]);
 
@@ -273,6 +274,7 @@ export const POST = withAuthAndErrorHandling(
             await db
               .update(userPlaylists)
               .set({
+                name: LIKED_SONGS_NAME,
                 lastSynced: new Date(),
                 songCount: starredSongs.length,
                 totalDuration: starredSongs.reduce((sum, s) => sum + parseInt(s.duration || '0'), 0),

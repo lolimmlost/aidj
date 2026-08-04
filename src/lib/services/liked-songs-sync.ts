@@ -20,7 +20,7 @@ import {
   playlistSongs,
   type LikedSongsSyncInsert,
 } from '../db/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, sql, desc } from 'drizzle-orm';
 import { getStarredSongs } from './navidrome';
 import type { SubsonicSong } from './navidrome';
 import { getNavidromeUserCreds } from './navidrome-users';
@@ -354,9 +354,10 @@ export async function rebuildLikedSongsPlaylist(
     .where(
       and(
         eq(userPlaylists.userId, userId),
-        eq(userPlaylists.name, LIKED_SONGS_NAME)
+        sql`${userPlaylists.name} ILIKE '%liked%'`
       )
     )
+    .orderBy(desc(userPlaylists.updatedAt))
     .limit(1)
     .then(rows => rows[0]);
 
@@ -381,6 +382,7 @@ export async function rebuildLikedSongsPlaylist(
     await db
       .update(userPlaylists)
       .set({
+        name: LIKED_SONGS_NAME,
         lastSynced: new Date(),
         songCount: starredSongs.length,
         totalDuration: starredSongs.reduce((sum, s) => sum + parseInt(s.duration || '0'), 0),
