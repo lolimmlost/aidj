@@ -13,7 +13,7 @@ import { starSong, unstarSong, getSongsByIds } from '../../../lib/services/navid
 import { ensureNavidromeUser } from '../../../lib/services/navidrome-users';
 import { db } from '../../../lib/db';
 import { recommendationFeedback, likedSongsSync, userPlaylists, playlistSongs } from '../../../lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import { extractTemporalMetadata } from '../../../lib/utils/temporal';
 import {
   withAuthAndErrorHandling,
@@ -126,16 +126,16 @@ const DELETE = withAuthAndErrorHandling(
         );
 
       // Remove from the Liked Songs playlist so it disappears on refresh
-      const LIKED_SONGS_NAME = '❤️ Liked Songs';
       const likedPlaylist = await db
         .select({ id: userPlaylists.id })
         .from(userPlaylists)
         .where(
           and(
             eq(userPlaylists.userId, session.user.id),
-            eq(userPlaylists.name, LIKED_SONGS_NAME)
+            sql`${userPlaylists.name} ILIKE '%liked%'`
           )
         )
+        .orderBy(desc(userPlaylists.updatedAt))
         .limit(1)
         .then(rows => rows[0]);
 
