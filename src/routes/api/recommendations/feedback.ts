@@ -244,7 +244,7 @@ export const POST = withAuthAndErrorHandling(
               .where(
                 and(
                   eq(userPlaylists.userId, session.user.id),
-                  sql`(${userPlaylists.name} ILIKE '%liked%' OR ${userPlaylists.name} ILIKE '%loved%')`
+                  sql`${userPlaylists.name} ILIKE '%liked%'`
                 )
               )
               .orderBy(desc(userPlaylists.updatedAt))

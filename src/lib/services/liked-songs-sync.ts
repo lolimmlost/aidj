@@ -354,7 +354,7 @@ export async function rebuildLikedSongsPlaylist(
     .where(
       and(
         eq(userPlaylists.userId, userId),
-        sql`${userPlaylists.name} ILIKE '%liked%' OR ${userPlaylists.name} ILIKE '%loved%'`
+        sql`${userPlaylists.name} ILIKE '%liked%'`
       )
     )
     .orderBy(desc(userPlaylists.updatedAt))
