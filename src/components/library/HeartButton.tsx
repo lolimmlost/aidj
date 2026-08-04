@@ -45,7 +45,16 @@ export function HeartButton({ songId, artist, title, className, size = 'sm' }: H
       if (!res.ok) throw new Error(newLiked ? 'Failed to like song' : 'Failed to unlike song');
       return res.json();
     },
-    onMutate: (newLiked) => setOptimisticLiked(newLiked),
+    onMutate: async (newLiked) => {
+      setOptimisticLiked(newLiked);
+      const feedbackQueryKey = queryKeys.feedback.songs([songId]);
+      await queryClient.cancelQueries({ queryKey: feedbackQueryKey });
+      const previous = queryClient.getQueryData(feedbackQueryKey);
+      queryClient.setQueryData(feedbackQueryKey, {
+        feedback: { [songId]: newLiked ? 'thumbs_up' : 'thumbs_down' },
+      });
+      return { previous, feedbackQueryKey };
+    },
     onSuccess: (_data, newLiked) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
       if (artist && title) {
@@ -55,8 +64,11 @@ export function HeartButton({ songId, artist, title, className, size = 'sm' }: H
         });
       }
     },
-    onError: () => {
+    onError: (_err, _newLiked, context) => {
       setOptimisticLiked(null);
+      if (context?.feedbackQueryKey) {
+        queryClient.setQueryData(context.feedbackQueryKey, context.previous);
+      }
       toast.error('Could not update like');
     },
   });
