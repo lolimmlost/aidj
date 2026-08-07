@@ -115,19 +115,21 @@ function createNavidromeSearcher() {
         duration: song.duration,
       });
 
+      const rlOpts = { rateLimitKey: 'import-search', rateLimitMaxWaitMs: 60000 };
+
       // 1. Artist + full cleaned title
-      const r1 = await navidromeSearch(`${primaryArtist} ${cleanTitle}`);
+      const r1 = await navidromeSearch(`${primaryArtist} ${cleanTitle}`, 0, 50, rlOpts);
       addResults(r1.map(toCandidate));
 
       // 2. Artist-only search (catches title mismatches like "Overload 2K" vs "Overload")
       if (all.length < 3 && primaryArtist.length > 2) {
-        const r2 = await navidromeSearch(primaryArtist);
+        const r2 = await navidromeSearch(primaryArtist, 0, 50, rlOpts);
         addResults(r2.map(toCandidate));
       }
 
       // 3. Title-only search (catches artist name mismatches)
       if (all.length < 3 && cleanTitle.length > 3) {
-        const r3 = await navidromeSearch(cleanTitle);
+        const r3 = await navidromeSearch(cleanTitle, 0, 50, rlOpts);
         addResults(r3.map(toCandidate));
       }
 
