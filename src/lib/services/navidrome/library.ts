@@ -278,14 +278,14 @@ export async function getTopSongs(artistId: string, count: number = 10): Promise
  * 5. If no artists, fallback to Subsonic song search
  * 6. If Subsonic fails, fallback to native song search
  */
-export async function search(query: string, start: number = 0, limit: number = 50): Promise<Song[]> {
+export async function search(query: string, start: number = 0, limit: number = 50, options?: { rateLimitKey?: string; rateLimitMaxWaitMs?: number }): Promise<Song[]> {
   try {
     const config = getConfig();
     if (!config.navidromeUrl) {
       return [];
     }
 
-    const waitTime = await waitForRateLimit('search', 10000);
+    const waitTime = await waitForRateLimit(options?.rateLimitKey ?? 'search', options?.rateLimitMaxWaitMs ?? 10000);
     if (waitTime > 0) {
       console.log(`⏳ Rate limit: waited ${waitTime}ms before search`);
     }
