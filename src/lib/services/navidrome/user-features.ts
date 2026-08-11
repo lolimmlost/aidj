@@ -148,14 +148,30 @@ interface NativeSong {
   trackNumber?: number;
 }
 
-async function fetchStarredSongsNative(): Promise<SubsonicSong[]> {
+/**
+ * Fetch starred songs via Navidrome's native REST API (no result cap, unlike
+ * Subsonic getStarred2 which truncates at ~334).
+ *
+ * @param missing - Controls the `missing` file filter:
+ *   - `false` (default): exclude songs whose backing file is gone. This matches
+ *     Subsonic getStarred2's behavior — it silently hides missing-file songs.
+ *     Without this filter the native API returns "ghost stars" (DB rows for
+ *     files deleted/moved by a Lidarr/Picard reorg), which the liked-songs sync
+ *     would then re-merge into Liked Songs and queue for playback (dead IDs →
+ *     skips). See GH #130.
+ *   - `true`: return ONLY the ghost stars (missing files) — used by library
+ *     reconciliation to find and clean them up.
+ *   - `undefined`: no filter (both live and missing).
+ */
+async function fetchStarredSongsNative(missing: boolean | undefined = false): Promise<SubsonicSong[]> {
   const PAGE_SIZE = 500;
   const all: SubsonicSong[] = [];
   let start = 0;
+  const missingParam = missing === undefined ? '' : `&missing=${missing}`;
 
   while (true) {
     const songs = await apiFetch<NativeSong[]>(
-      `/api/song?_start=${start}&_end=${start + PAGE_SIZE}&_order=DESC&_sort=starred_at&starred=true`
+      `/api/song?_start=${start}&_end=${start + PAGE_SIZE}&_order=DESC&_sort=starred_at&starred=true${missingParam}`
     );
 
     for (const song of songs) {
@@ -174,8 +190,24 @@ async function fetchStarredSongsNative(): Promise<SubsonicSong[]> {
     start += PAGE_SIZE;
   }
 
-  console.log(`⭐ Fetched ${all.length} starred songs from Navidrome (native API)`);
+  const label = missing === true ? 'ghost/missing ' : '';
+  console.log(`⭐ Fetched ${all.length} ${label}starred songs from Navidrome (native API)`);
   return all;
+}
+
+/**
+ * Fetch "ghost stars" — starred songs whose backing file is missing (deleted or
+ * moved by a Lidarr/Picard reorg). These stream an XML error instead of audio
+ * and are hidden by Subsonic getStarred2, so the normal star fetch never sees
+ * them. Library reconciliation uses this to unstar/remap them. See GH #130.
+ *
+ * Server-side / admin only — the native API always authenticates as the admin
+ * account, so callers must ensure the target account IS the admin account.
+ * Returns [] in the browser.
+ */
+export async function getMissingStarredSongs(): Promise<SubsonicSong[]> {
+  if (isBrowser()) return [];
+  return fetchStarredSongsNative(true);
 }
 
 /**

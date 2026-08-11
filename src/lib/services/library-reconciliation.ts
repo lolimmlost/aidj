@@ -29,12 +29,15 @@ import {
   getSongsByIds,
   search as navidromeSearch,
   starSong,
+  unstarSong,
   getStarredSongs,
+  getMissingStarredSongs,
   buildSubsonicUrl,
   apiFetch,
 } from './navidrome';
 import { getNavidromeUserCreds } from './navidrome-users';
 import type { SubsonicCreds } from './navidrome-users';
+import { getConfig } from '@/lib/config/config';
 
 // ============================================================================
 // Types
@@ -434,11 +437,22 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
     // Will fall back to admin creds for star operations
   }
 
-  // Get currently starred songs to know if we need to re-star
-  const starredSongs = userCreds
-    ? await getStarredSongs(userCreds)
-    : await getStarredSongs();
-  const starredIds = new Set(starredSongs.map((s) => s.id));
+  // Get currently starred songs to know if we need to re-star.
+  //
+  // getStarredSongs now filters out missing-file "ghost stars" (GH #130), but a
+  // starred song whose file was moved becomes exactly such a ghost — and it's
+  // precisely the dead ID we're remapping. If we only looked at the filtered
+  // list we'd fail to re-star the remapped (now-playable) song and silently
+  // drop the user's like. So union the filtered list with the unfiltered ghost
+  // list to recover those stars. Ghosts are admin-native only, so only fetch
+  // them when this user IS the admin account.
+  const isAdminUser = !userCreds || userCreds.username === getConfig().navidromeUsername;
+  const [liveStarred, ghostStarred] = await Promise.all([
+    userCreds ? getStarredSongs(userCreds) : getStarredSongs(),
+    isAdminUser ? getMissingStarredSongs().catch(() => []) : Promise.resolve([]),
+  ]);
+  const starredIds = new Set([...liveStarred, ...ghostStarred].map((s) => s.id));
+  const ghostStarredIds = new Set(ghostStarred.map((s) => s.id));
 
   for (const [deadId, meta] of deadIds) {
     // Skip if we don't have artist+title to search with
@@ -713,6 +727,22 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
       } catch (err) {
         console.warn(
           `[LibraryReconciliation] Failed to re-star ${match.id}:`,
+          err
+        );
+      }
+    }
+
+    // If the dead ID was a ghost star (missing file), unstar it now that the
+    // star has moved to the live match — otherwise it lingers in Navidrome as
+    // an unplayable star. Only ghosts are safe to unstar here: a live star on
+    // deadId would already be covered by the remap above (GH #130).
+    if (ghostStarredIds.has(deadId)) {
+      try {
+        await unstarSong(deadId, userCreds || undefined);
+        tablesUpdated.push('navidrome_unstar_ghost');
+      } catch (err) {
+        console.warn(
+          `[LibraryReconciliation] Failed to unstar ghost ${deadId}:`,
           err
         );
       }
