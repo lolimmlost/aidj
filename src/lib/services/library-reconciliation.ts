@@ -191,6 +191,12 @@ class LibraryReconciliationManager {
 // Core Reconciliation Logic
 // ============================================================================
 
+/** Extract a Postgres error code from an unknown thrown value (direct or wrapped in `.cause`). */
+function pgErrorCode(err: unknown): string | undefined {
+  const e = err as { code?: string; cause?: { code?: string } } | null;
+  return e?.code ?? e?.cause?.code;
+}
+
 function normalizeForMatch(s: string): string {
   return s
     .toLowerCase()
@@ -622,7 +628,7 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
           );
         tablesUpdated.push('liked_songs_sync');
       } catch (err: unknown) {
-        const pgCode = (err as any)?.code || (err as any)?.cause?.code;
+        const pgCode = pgErrorCode(err);
         if (pgCode === '23505') {
           await db
             .delete(likedSongsSync)
@@ -659,7 +665,7 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
           );
         tablesUpdated.push('recommendation_feedback');
       } catch (err: unknown) {
-        const pgCode2 = (err as any)?.code || (err as any)?.cause?.code;
+        const pgCode2 = pgErrorCode(err);
         if (pgCode2 === '23505') {
           await db
             .delete(recommendationFeedback)
@@ -697,7 +703,7 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
                 )
               );
           } catch (dupErr: unknown) {
-            const pgCode3 = (dupErr as any)?.code || (dupErr as any)?.cause?.code;
+            const pgCode3 = pgErrorCode(dupErr);
             if (pgCode3 === '23505') {
               await db
                 .delete(playlistSongs)
