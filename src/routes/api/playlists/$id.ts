@@ -6,6 +6,7 @@ import { likedSongsSync } from '../../../lib/db/schema';
 import { eq, and, asc, inArray } from 'drizzle-orm';
 import { getSongsByIds } from '../../../lib/services/navidrome';
 import { deleteSmartPlaylist } from '../../../lib/services/navidrome-smart-playlists';
+import { isCanonicalLikedPlaylist } from '../../../lib/services/liked-songs-sync';
 
 export const Route = createFileRoute("/api/playlists/$id")({
   server: {
@@ -58,7 +59,7 @@ export const Route = createFileRoute("/api/playlists/$id")({
         .orderBy(asc(playlistSongs.position));
 
       // Try to enrich songs with Navidrome metadata (duration, album, albumId, starred, etc.)
-      const isLikedSongsPlaylist = playlist.name === '❤️ Liked Songs';
+      const isLikedSongsPlaylist = isCanonicalLikedPlaylist(playlist);
 
       let enrichedSongs = songs.map(s => ({
         ...s,
