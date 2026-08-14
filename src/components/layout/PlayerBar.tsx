@@ -446,10 +446,11 @@ export function PlayerBar() {
     onSuccess: (liked) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
       toast.success(liked ? '❤️ Liked' : '💔 Unliked', { duration: 1500 });
-      // Notify other devices so their like state updates
+      // Notify other devices so their like state updates. Star/like is now
+      // decoupled from thumbs (#136), so send an explicit `liked` boolean. See #138.
       sendPlaybackMessage('feedback_update', {
         songId: currentSong?.id,
-        feedbackType: liked ? 'thumbs_up' : 'thumbs_down',
+        liked,
       });
     },
     onError: (error: Error, _liked, context) => {
