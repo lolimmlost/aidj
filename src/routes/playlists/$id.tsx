@@ -85,6 +85,8 @@ interface PlaylistDetail {
   songs: PlaylistSong[];
   createdAt: Date;
   updatedAt: Date;
+  // True when this is the canonical ❤️ Liked Songs playlist (server-computed).
+  isLikedSongs?: boolean;
 }
 
 interface SongRowProps {
@@ -665,6 +667,29 @@ function PlaylistDetailPage() {
       return json.data as PlaylistDetail;
     },
   });
+
+  // Reconcile-on-open backstop for Liked Songs: when the canonical Liked Songs
+  // playlist is opened, rebuild it once from Navidrome stars so the view
+  // self-heals from out-of-band changes (e.g. unstarring directly in the
+  // Navidrome client), which the app's own write-through can't observe.
+  // Fires once per playlist id; silent + non-blocking (the cached list renders
+  // immediately, then refreshes when the rebuild lands).
+  const reconciledIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!playlist?.isLikedSongs) return;
+    if (reconciledIdRef.current === id) return;
+    reconciledIdRef.current = id;
+    void (async () => {
+      try {
+        const res = await fetch('/api/playlists/liked-songs/sync', { method: 'POST' });
+        if (!res.ok) return;
+        queryClient.invalidateQueries({ queryKey: ['playlist', id] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
+      } catch {
+        // Non-blocking: the cached view stays usable if the reconcile fails.
+      }
+    })();
+  }, [playlist?.isLikedSongs, id, queryClient]);
 
   const removeSongMutation = useMutation({
     mutationFn: async (songId: string) => {

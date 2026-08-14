@@ -117,6 +117,10 @@ export const Route = createFileRoute("/api/playlists/$id")({
       return new Response(JSON.stringify({
         data: {
           ...playlist,
+          // Lets the client reliably detect the canonical Liked Songs playlist
+          // (its id is a UUID, so a literal id check can't) and trigger the
+          // reconcile-on-open backstop.
+          isLikedSongs: isLikedSongsPlaylist,
           songs: enrichedSongs,
         }
       }), {
