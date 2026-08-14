@@ -10,7 +10,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Heart, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
-import { sendPlaybackMessage } from '@/lib/hooks/usePlaybackSync';
 import { queryKeys } from '@/lib/query';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
@@ -60,9 +59,8 @@ export function HeartButton({ songId, artist, title, className, size = 'sm' }: H
     },
     onSuccess: (_data, newLiked) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
-      // Propagate the star change to the user's other devices so their hearts
-      // update live (not just on Sync/refocus). See #138.
-      sendPlaybackMessage('feedback_update', { songId, liked: newLiked });
+      // Cross-device propagation is now server-authoritative: /api/navidrome/star
+      // → setSongLiked broadcasts feedback_update to all devices. No client emit.
       if (artist && title) {
         toast.success(`${newLiked ? 'Liked' : 'Unliked'} "${title}"`, {
           description: artist,
