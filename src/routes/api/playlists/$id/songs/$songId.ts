@@ -4,6 +4,8 @@ import { db } from '../../../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../../../lib/db/schema/playlists.schema';
 import { eq, and, gt } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
+import { ensureNavidromeUser } from '../../../../../lib/services/navidrome-users';
+import { setSongLiked, isCanonicalLikedPlaylist } from '../../../../../lib/services/liked-songs-sync';
 
 export const Route = createFileRoute("/api/playlists/$id/songs/$songId")({
   server: {
@@ -44,6 +46,20 @@ export const Route = createFileRoute("/api/playlists/$id/songs/$songId")({
           code: 'PLAYLIST_NOT_FOUND'
         }), {
           status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // The ❤️ Liked Songs playlist is a mirror of Navidrome stars, not a
+      // free-standing list. "Removing" a song from it must UNSTAR it — otherwise
+      // the song stays starred and the next rebuild re-adds it. Delegate to the
+      // single write-through so Navidrome + feedback + ledger + playlist stay
+      // in lockstep.
+      if (isCanonicalLikedPlaylist(playlist)) {
+        const creds = await ensureNavidromeUser(session.user.id, session.user.name, session.user.email);
+        await setSongLiked(session.user.id, songId, false, creds);
+        return new Response(JSON.stringify({ data: { success: true, unstarred: true } }), {
+          status: 200,
           headers: { 'Content-Type': 'application/json' }
         });
       }

@@ -21,9 +21,10 @@ import {
   type LikedSongsSyncInsert,
 } from '../db/schema';
 import { eq, and, inArray, sql, desc } from 'drizzle-orm';
-import { getStarredSongs } from './navidrome';
+import { getStarredSongs, starSong, unstarSong, getSongsByIds } from './navidrome';
 import type { SubsonicSong } from './navidrome';
 import { getNavidromeUserCreds } from './navidrome-users';
+import type { SubsonicCreds } from './navidrome-users';
 
 // ============================================================================
 // Types
@@ -344,22 +345,200 @@ export async function getLikedSongsCount(userId: string): Promise<number> {
 
 const LIKED_SONGS_NAME = '❤️ Liked Songs';
 
-export async function rebuildLikedSongsPlaylist(
-  userId: string,
-  starredSongs: SubsonicSong[]
-): Promise<{ playlistId: string; songCount: number }> {
-  let likedPlaylist = await db
+type LikedPlaylistRow = typeof userPlaylists.$inferSelect;
+
+/**
+ * Resolve the canonical app-managed "Liked Songs" playlist for a user.
+ *
+ * NOTE: selection is still by `name ILIKE '%liked%'` (most-recently-updated),
+ * which is fragile — a follow-up (plan PR B) replaces this with a stable marker
+ * column. It is centralised here so there is exactly one place to change.
+ * Navidrome-backed playlists (e.g. "Loved Songs", which has a navidromeId) are
+ * intentionally excluded so we never treat a real Navidrome playlist as the
+ * auto-synced star mirror.
+ */
+export async function findLikedPlaylist(userId: string): Promise<LikedPlaylistRow | undefined> {
+  return db
     .select()
     .from(userPlaylists)
     .where(
       and(
         eq(userPlaylists.userId, userId),
+        sql`${userPlaylists.navidromeId} IS NULL`,
         sql`${userPlaylists.name} ILIKE '%liked%'`
       )
     )
     .orderBy(desc(userPlaylists.updatedAt))
     .limit(1)
     .then(rows => rows[0]);
+}
+
+/** True if a playlist row is the canonical app-managed Liked Songs mirror. */
+export function isCanonicalLikedPlaylist(p: Pick<LikedPlaylistRow, 'name' | 'navidromeId'>): boolean {
+  return p.navidromeId == null && /liked/i.test(p.name);
+}
+
+/**
+ * Single source of truth for toggling a song's "liked" (starred) state.
+ *
+ * Keeps every derived store in lockstep in ONE place:
+ *   Navidrome star  ↔  recommendation_feedback (source='library')
+ *                   ↔  liked_songs_sync.is_active
+ *                   ↔  playlist_songs (the ❤️ Liked Songs mirror)
+ *
+ * Use this everywhere a like is set/cleared (heart button, feedback endpoint,
+ * "remove from Liked Songs") so the playlist can never drift from the stars.
+ */
+export async function setSongLiked(
+  userId: string,
+  songId: string,
+  liked: boolean,
+  creds?: SubsonicCreds,
+  meta?: { artist?: string; title?: string }
+): Promise<void> {
+  // 1. Navidrome is the source of truth — (un)star first.
+  if (liked) {
+    await starSong(songId, creds);
+  } else {
+    await unstarSong(songId, creds);
+  }
+
+  // 2. Resolve metadata (needed for inserts). Best-effort; never fatal.
+  let artist = meta?.artist;
+  let title = meta?.title;
+  if (liked && (!artist || !title)) {
+    try {
+      const [song] = await getSongsByIds([songId]);
+      if (song) {
+        artist = artist || song.artist || 'Unknown';
+        title = title || song.title || song.name || songId;
+      }
+    } catch {
+      // metadata lookup failed — fall through to placeholders
+    }
+  }
+  artist = artist || 'Unknown';
+  title = title || songId;
+  const songArtistTitle = `${artist} - ${title}`;
+
+  // 3. recommendation_feedback (source='library' — mirrors the star)
+  if (liked) {
+    const temporal = getTemporalMetadata();
+    await db
+      .insert(recommendationFeedback)
+      .values({
+        userId,
+        songId,
+        songArtistTitle,
+        feedbackType: 'thumbs_up',
+        source: 'library',
+        month: temporal.month,
+        season: temporal.season,
+        dayOfWeek: temporal.dayOfWeek,
+        hourOfDay: temporal.hourOfDay,
+      })
+      .onConflictDoUpdate({
+        target: [recommendationFeedback.userId, recommendationFeedback.songId],
+        set: { feedbackType: 'thumbs_up', timestamp: new Date() },
+      });
+  } else {
+    await db
+      .delete(recommendationFeedback)
+      .where(
+        and(
+          eq(recommendationFeedback.userId, userId),
+          eq(recommendationFeedback.songId, songId),
+          eq(recommendationFeedback.source, 'library')
+        )
+      );
+  }
+
+  // 4. liked_songs_sync ledger
+  if (liked) {
+    await db
+      .insert(likedSongsSync)
+      .values({ userId, songId, artist, title, isActive: 1 })
+      .onConflictDoUpdate({
+        target: [likedSongsSync.userId, likedSongsSync.songId],
+        set: { isActive: 1, syncedAt: new Date() },
+      });
+  } else {
+    await db
+      .update(likedSongsSync)
+      .set({ isActive: 0 })
+      .where(and(eq(likedSongsSync.userId, userId), eq(likedSongsSync.songId, songId)));
+  }
+
+  // 5. playlist_songs — surgical single-row add/remove in the ❤️ mirror.
+  if (liked) {
+    // Create the mirror playlist on first like if it doesn't exist yet.
+    let likedPlaylist = await findLikedPlaylist(userId);
+    if (!likedPlaylist) {
+      const [created] = await db
+        .insert(userPlaylists)
+        .values({
+          id: crypto.randomUUID(),
+          userId,
+          name: LIKED_SONGS_NAME,
+          description: 'Auto-synced from your starred songs in Navidrome',
+          navidromeId: null,
+          lastSynced: new Date(),
+          songCount: 0,
+          totalDuration: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+      likedPlaylist = created;
+    }
+
+    const existing = await db
+      .select({ id: playlistSongs.id })
+      .from(playlistSongs)
+      .where(and(eq(playlistSongs.playlistId, likedPlaylist.id), eq(playlistSongs.songId, songId)))
+      .limit(1);
+
+    if (existing.length === 0) {
+      const rows = await db
+        .select({ songId: playlistSongs.songId })
+        .from(playlistSongs)
+        .where(eq(playlistSongs.playlistId, likedPlaylist.id));
+      await db.insert(playlistSongs).values({
+        id: crypto.randomUUID(),
+        playlistId: likedPlaylist.id,
+        songId,
+        songArtistTitle,
+        position: rows.length + 1,
+        addedAt: new Date(),
+      });
+      await db
+        .update(userPlaylists)
+        .set({ songCount: rows.length + 1, updatedAt: new Date() })
+        .where(eq(userPlaylists.id, likedPlaylist.id));
+    }
+  } else {
+    const likedPlaylist = await findLikedPlaylist(userId);
+    if (likedPlaylist) {
+      await db
+        .delete(playlistSongs)
+        .where(and(eq(playlistSongs.playlistId, likedPlaylist.id), eq(playlistSongs.songId, songId)));
+      const remaining = await db
+        .select({ songId: playlistSongs.songId })
+        .from(playlistSongs)
+        .where(eq(playlistSongs.playlistId, likedPlaylist.id));
+      await db
+        .update(userPlaylists)
+        .set({ songCount: remaining.length, updatedAt: new Date() })
+        .where(eq(userPlaylists.id, likedPlaylist.id));
+    }
+  }
+}
+
+export async function rebuildLikedSongsPlaylist(
+  userId: string,
+  starredSongs: SubsonicSong[]
+): Promise<{ playlistId: string; songCount: number }> {
+  let likedPlaylist = await findLikedPlaylist(userId);
 
   if (!likedPlaylist) {
     const [newPlaylist] = await db
