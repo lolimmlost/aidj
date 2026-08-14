@@ -25,15 +25,15 @@ interface HeartButtonProps {
 export function HeartButton({ songId, artist, title, className, size = 'sm' }: HeartButtonProps) {
   const queryClient = useQueryClient();
   const { data: feedbackData } = useSongFeedback([songId]);
-  // The PlayerBar treats thumbs_up as "liked" — use the same source of truth.
-  const serverLiked = feedbackData?.feedback?.[songId] === 'thumbs_up';
+  // Liked = the library star signal, kept SEPARATE from thumbs feedback.
+  const serverLiked = feedbackData?.liked?.includes(songId) ?? false;
   const [optimisticLiked, setOptimisticLiked] = useState<boolean | null>(null);
   const liked = optimisticLiked ?? serverLiked;
 
   // Reset optimistic state once the server confirms.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (feedbackData?.feedback) setOptimisticLiked(null);
+    if (feedbackData) setOptimisticLiked(null);
   }, [feedbackData]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -50,9 +50,11 @@ export function HeartButton({ songId, artist, title, className, size = 'sm' }: H
       const feedbackQueryKey = queryKeys.feedback.songs([songId]);
       await queryClient.cancelQueries({ queryKey: feedbackQueryKey });
       const previous = queryClient.getQueryData(feedbackQueryKey);
-      queryClient.setQueryData(feedbackQueryKey, {
-        feedback: { [songId]: newLiked ? 'thumbs_up' : 'thumbs_down' },
-      });
+      // Optimistically update the `liked` (star) set — the heart's source of truth.
+      queryClient.setQueryData(feedbackQueryKey, (old: { feedback?: Record<string, string>; liked?: string[] } | undefined) => ({
+        feedback: old?.feedback ?? {},
+        liked: newLiked ? [songId] : [],
+      }));
       return { previous, feedbackQueryKey };
     },
     onSuccess: (_data, newLiked) => {

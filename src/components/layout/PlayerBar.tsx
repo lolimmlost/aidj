@@ -397,8 +397,9 @@ export function PlayerBar() {
   // Determine if song is liked based on server state
   const isLiked = useMemo(() => {
     if (!currentSong?.id) return false;
-    return feedbackData?.feedback?.[currentSong.id] === 'thumbs_up';
-  }, [feedbackData?.feedback, currentSong?.id]);
+    // Heart reflects the library star signal (`liked`), not thumbs feedback.
+    return feedbackData?.liked?.includes(currentSong.id) ?? false;
+  }, [feedbackData?.liked, currentSong?.id]);
 
   // Like/unlike mutation with optimistic cache update
   const { mutate: likeMutate, isPending: isLikePending } = useMutation({
@@ -435,9 +436,11 @@ export function PlayerBar() {
       const feedbackQueryKey = queryKeys.feedback.songs([currentSong.id]);
       await queryClient.cancelQueries({ queryKey: feedbackQueryKey });
       const previous = queryClient.getQueryData(feedbackQueryKey);
-      queryClient.setQueryData(feedbackQueryKey, {
-        feedback: { [currentSong.id]: liked ? 'thumbs_up' : 'thumbs_down' },
-      });
+      // Optimistically update the `liked` (star) set so the heart fills immediately.
+      queryClient.setQueryData(feedbackQueryKey, (old: { feedback?: Record<string, string>; liked?: string[] } | undefined) => ({
+        feedback: old?.feedback ?? {},
+        liked: liked ? [currentSong.id] : [],
+      }));
       return { previous, feedbackQueryKey };
     },
     onSuccess: (liked) => {

@@ -3,7 +3,10 @@ import authClient from '@/lib/auth/auth-client';
 import { queryKeys, queryPresets } from '@/lib/query';
 
 interface FeedbackResponse {
+  // Thumbs signal (recommendation quality).
   feedback: Record<string, 'thumbs_up' | 'thumbs_down'>;
+  // Library star state (the heart) — decoupled from thumbs. See the feedback route.
+  liked: string[];
 }
 
 /**
@@ -19,7 +22,7 @@ export function useSongFeedback(songIds: string[]) {
     queryKey: queryKeys.feedback.songs(songIds),
     queryFn: async (): Promise<FeedbackResponse> => {
       if (!session?.user?.id || songIds.length === 0) {
-        return { feedback: {} };
+        return { feedback: {}, liked: [] };
       }
 
       const response = await fetch(`/api/recommendations/feedback?songIds=${encodeURIComponent(songIds.join(','))}`);

@@ -69,26 +69,24 @@ export const GET = withAuthAndErrorHandling(
       }
     }
 
-    // Check liked_songs_sync for songs that are starred in Navidrome but don't
-    // have a feedback record yet (e.g. starred before AIDJ, or sync hasn't run)
-    const missingIds = songIds.filter(id => !(id in feedbackMap));
-    if (missingIds.length > 0) {
-      const likedRecords = await db
-        .select({ songId: likedSongsSync.songId })
-        .from(likedSongsSync)
-        .where(
-          and(
-            eq(likedSongsSync.userId, session.user.id),
-            eq(likedSongsSync.isActive, 1),
-            inArray(likedSongsSync.songId, missingIds)
-          )
-        );
-      for (const record of likedRecords) {
-        feedbackMap[record.songId] = 'thumbs_up';
-      }
-    }
+    // Library "liked" state (Navidrome stars, mirrored into liked_songs_sync) is
+    // a SEPARATE signal from thumbs feedback: the heart reads `liked`, the thumbs
+    // UI reads `feedback`. We deliberately do NOT fold stars into the thumbs map —
+    // being starred no longer implies you thumbs-up'd a recommendation, and a
+    // thumbs-down no longer clears the heart (Plan PR C: decouple thumbs/stars).
+    const likedRecords = await db
+      .select({ songId: likedSongsSync.songId })
+      .from(likedSongsSync)
+      .where(
+        and(
+          eq(likedSongsSync.userId, session.user.id),
+          eq(likedSongsSync.isActive, 1),
+          inArray(likedSongsSync.songId, songIds)
+        )
+      );
+    const liked = likedRecords.map(r => r.songId);
 
-    return jsonResponse({ feedback: feedbackMap });
+    return jsonResponse({ feedback: feedbackMap, liked });
   },
   {
     service: 'feedback',
@@ -177,8 +175,16 @@ export const POST = withAuthAndErrorHandling(
     clearPreferenceCache(session.user.id);
     clearAnalyticsCache(session.user.id);
 
-    // Sync to Navidrome (star/unstar) if enabled and songId provided
-    if (validatedData.songId) {
+    // Mirror to the library "like" (Navidrome star) ONLY for explicit library
+    // like actions — i.e. the heart button (source='library'), where thumbs_up
+    // means "add to Liked Songs" and thumbs_down means "unlike/remove".
+    //
+    // Recommendation / AI-DJ / autoplay / search thumbs are a pure
+    // recommendation-quality signal: they update recommendationFeedback (above)
+    // but must NOT star/unstar or touch the ❤️ Liked Songs playlist. Coupling
+    // them was silently repopulating Liked Songs and inflating thumbs_up vs the
+    // real star count (Plan PR C: decouple thumbs from stars).
+    if (validatedData.songId && validatedData.source === 'library') {
       try {
         // Check user preferences for Navidrome sync setting
         const prefs = await db
@@ -194,14 +200,9 @@ export const POST = withAuthAndErrorHandling(
         if (syncEnabled) {
           const creds = await ensureNavidromeUser(session.user.id, session.user.name, session.user.email);
 
-          // Mirror the feedback to the library "like" (star) through the single
-          // write-through, which keeps Navidrome + feedback + liked_songs_sync +
+          // Single write-through keeps Navidrome + feedback + liked_songs_sync +
           // the ❤️ Liked Songs playlist in lockstep (surgical single-row update,
           // no full rebuild).
-          //
-          // NOTE: thumbs feedback is still COUPLED to stars here — a thumbs_up
-          // stars/likes the song, thumbs_down unstars it. Plan PR C decouples
-          // these two signals; this PR only centralises the write.
           const parts = validatedData.songArtistTitle.split(' - ');
           const artist = parts[0] || 'Unknown';
           const title = parts.slice(1).join(' - ') || validatedData.songArtistTitle;
