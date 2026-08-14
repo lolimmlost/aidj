@@ -1,14 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { db } from '../../../lib/db';
 import { recommendationFeedback, recommendationsCache, userPreferences, likedSongsSync } from '../../../lib/db/schema';
-import { eq, and, inArray, sql, desc } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { z } from 'zod';
-import { starSong, unstarSong, getStarredSongs } from '../../../lib/services/navidrome';
+import { setSongLiked } from '../../../lib/services/liked-songs-sync';
 import { ensureNavidromeUser } from '../../../lib/services/navidrome-users';
 import { clearPreferenceCache } from '../../../lib/services/preferences';
 import { clearAnalyticsCache } from '../../../lib/services/recommendation-analytics';
 import { extractTemporalMetadata } from '../../../lib/utils/temporal';
-import { userPlaylists, playlistSongs } from '../../../lib/db/schema';
 import {
   withAuthAndErrorHandling,
   errorResponse,
@@ -195,113 +194,24 @@ export const POST = withAuthAndErrorHandling(
         if (syncEnabled) {
           const creds = await ensureNavidromeUser(session.user.id, session.user.name, session.user.email);
 
-          if (validatedData.feedbackType === 'thumbs_up') {
-            await starSong(validatedData.songId, creds);
-            console.log(`✅ Starred song ${validatedData.songId} in Navidrome`);
-
-            // Sync to likedSongsSync so heart icon shows in playlist views
-            const parts = validatedData.songArtistTitle.split(' - ');
-            const artist = parts[0] || 'Unknown';
-            const title = parts.slice(1).join(' - ') || validatedData.songArtistTitle;
-            await db
-              .insert(likedSongsSync)
-              .values({
-                userId: session.user.id,
-                songId: validatedData.songId,
-                artist,
-                title,
-                isActive: 1,
-              })
-              .onConflictDoUpdate({
-                target: [likedSongsSync.userId, likedSongsSync.songId],
-                set: { isActive: 1, syncedAt: new Date() },
-              });
-          } else if (validatedData.feedbackType === 'thumbs_down') {
-            await unstarSong(validatedData.songId, creds);
-            console.log(`❌ Unstarred song ${validatedData.songId} in Navidrome`);
-
-            // Mark as inactive in likedSongsSync
-            await db
-              .update(likedSongsSync)
-              .set({ isActive: 0 })
-              .where(
-                and(
-                  eq(likedSongsSync.userId, session.user.id),
-                  eq(likedSongsSync.songId, validatedData.songId)
-                )
-              );
-          }
-
-          // Auto-sync Liked Songs playlist after starring/unstarring
-          try {
-            const LIKED_SONGS_NAME = '❤️ Liked Songs';
-            const starredSongs = await getStarredSongs(creds);
-
-            // Find or create Liked Songs playlist
-            let likedPlaylist = await db
-              .select()
-              .from(userPlaylists)
-              .where(
-                and(
-                  eq(userPlaylists.userId, session.user.id),
-                  sql`${userPlaylists.name} ILIKE '%liked%'`
-                )
-              )
-              .orderBy(desc(userPlaylists.updatedAt))
-              .limit(1)
-              .then(rows => rows[0]);
-
-            if (!likedPlaylist) {
-              const [newPlaylist] = await db
-                .insert(userPlaylists)
-                .values({
-                  id: crypto.randomUUID(),
-                  userId: session.user.id,
-                  name: LIKED_SONGS_NAME,
-                  description: 'Auto-synced from your starred songs in Navidrome',
-                  navidromeId: null,
-                  lastSynced: new Date(),
-                  songCount: starredSongs.length,
-                  totalDuration: starredSongs.reduce((sum, s) => sum + parseInt(s.duration || '0'), 0),
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                })
-                .returning();
-              likedPlaylist = newPlaylist;
-            }
-
-            // Update playlist metadata
-            await db
-              .update(userPlaylists)
-              .set({
-                name: LIKED_SONGS_NAME,
-                lastSynced: new Date(),
-                songCount: starredSongs.length,
-                totalDuration: starredSongs.reduce((sum, s) => sum + parseInt(s.duration || '0'), 0),
-                updatedAt: new Date(),
-              })
-              .where(eq(userPlaylists.id, likedPlaylist.id));
-
-            // Clear and re-insert songs
-            await db.delete(playlistSongs).where(eq(playlistSongs.playlistId, likedPlaylist.id));
-
-            if (starredSongs.length > 0) {
-              await db.insert(playlistSongs).values(
-                starredSongs.map((song, index) => ({
-                  id: crypto.randomUUID(),
-                  playlistId: likedPlaylist.id,
-                  songId: song.id,
-                  songArtistTitle: `${song.artist} - ${song.title}`,
-                  position: index + 1,
-                  addedAt: new Date(),
-                }))
-              );
-            }
-
-            console.log(`💖 Auto-synced Liked Songs playlist: ${starredSongs.length} songs`);
-          } catch (syncError) {
-            console.error('Failed to auto-sync Liked Songs playlist (non-blocking):', syncError);
-          }
+          // Mirror the feedback to the library "like" (star) through the single
+          // write-through, which keeps Navidrome + feedback + liked_songs_sync +
+          // the ❤️ Liked Songs playlist in lockstep (surgical single-row update,
+          // no full rebuild).
+          //
+          // NOTE: thumbs feedback is still COUPLED to stars here — a thumbs_up
+          // stars/likes the song, thumbs_down unstars it. Plan PR C decouples
+          // these two signals; this PR only centralises the write.
+          const parts = validatedData.songArtistTitle.split(' - ');
+          const artist = parts[0] || 'Unknown';
+          const title = parts.slice(1).join(' - ') || validatedData.songArtistTitle;
+          await setSongLiked(
+            session.user.id,
+            validatedData.songId,
+            validatedData.feedbackType === 'thumbs_up',
+            creds,
+            { artist, title }
+          );
         } else {
           console.log(`🔒 Navidrome sync disabled by user preference`);
         }
