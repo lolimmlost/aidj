@@ -33,7 +33,6 @@ import {
 import { Radio } from 'lucide-react';
 import { PageLayout } from '@/components/ui/page-layout';
 import { useAudioStore } from '@/lib/stores/audio';
-import { sendPlaybackMessage } from '@/lib/hooks/usePlaybackSync';
 import { cn } from '@/lib/utils';
 import { CollaborativePlaylistPanel } from '@/components/playlists/collaboration';
 import { StartRadioButton } from '@/components/radio/StartRadioButton';
@@ -907,11 +906,11 @@ function PlaylistDetailPage() {
       });
       return { previousPlaylist };
     },
-    onSuccess: (_data, { songId, star }) => {
+    onSuccess: (_data, { star }) => {
       // Invalidate feedback cache so PlayerBar heart icon updates
       queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
-      // Propagate the star change to the user's other devices. See #138.
-      sendPlaybackMessage('feedback_update', { songId, liked: star });
+      // Cross-device propagation is server-authoritative now (setSongLiked
+      // broadcasts feedback_update); no client emit needed.
       // When unstarring, the server removes the song from the liked songs playlist.
       // Refetch so the song disappears from the list without a full page refresh.
       if (!star) {

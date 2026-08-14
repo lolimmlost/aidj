@@ -29,7 +29,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/query';
-import { usePlaybackSync, sendPlaybackMessage, sendRemoteCommand } from '@/lib/hooks/usePlaybackSync';
+import { usePlaybackSync, sendRemoteCommand } from '@/lib/hooks/usePlaybackSync';
 import { ResumePlaybackPrompt } from './ResumePlaybackPrompt';
 import { NowPlayingFullscreen } from './NowPlayingFullscreen';
 
@@ -446,12 +446,8 @@ export function PlayerBar() {
     onSuccess: (liked) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
       toast.success(liked ? '❤️ Liked' : '💔 Unliked', { duration: 1500 });
-      // Notify other devices so their like state updates. Star/like is now
-      // decoupled from thumbs (#136), so send an explicit `liked` boolean. See #138.
-      sendPlaybackMessage('feedback_update', {
-        songId: currentSong?.id,
-        liked,
-      });
+      // Cross-device propagation is server-authoritative now: the like endpoint
+      // (setSongLiked) broadcasts feedback_update to all devices. No client emit.
     },
     onError: (error: Error, _liked, context) => {
       // Revert optimistic update on error
