@@ -61,7 +61,11 @@ describe('setSongLiked write-through', () => {
 });
 
 describe('isCanonicalLikedPlaylist', () => {
-  it('matches the app-managed ❤️ Liked Songs playlist', () => {
+  it('matches by the is_liked_songs marker regardless of name', () => {
+    expect(isCanonicalLikedPlaylist({ name: 'anything', navidromeId: null, isLikedSongs: true })).toBe(true);
+  });
+
+  it('matches the app-managed ❤️ Liked Songs playlist (name fallback)', () => {
     expect(isCanonicalLikedPlaylist({ name: '❤️ Liked Songs', navidromeId: null })).toBe(true);
   });
 

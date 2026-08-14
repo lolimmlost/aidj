@@ -350,15 +350,24 @@ type LikedPlaylistRow = typeof userPlaylists.$inferSelect;
 /**
  * Resolve the canonical app-managed "Liked Songs" playlist for a user.
  *
- * NOTE: selection is still by `name ILIKE '%liked%'` (most-recently-updated),
- * which is fragile — a follow-up (plan PR B) replaces this with a stable marker
- * column. It is centralised here so there is exactly one place to change.
- * Navidrome-backed playlists (e.g. "Loved Songs", which has a navidromeId) are
- * intentionally excluded so we never treat a real Navidrome playlist as the
+ * Prefers the explicit `is_liked_songs` marker (deterministic). Falls back to
+ * the legacy `name ILIKE '%liked%'` heuristic for rows created before the
+ * marker existed, and self-heals by flagging the match so later lookups are
+ * deterministic. Navidrome-backed playlists (with a navidromeId, e.g. "Loved
+ * Songs") are excluded so a real Navidrome playlist is never treated as the
  * auto-synced star mirror.
  */
 export async function findLikedPlaylist(userId: string): Promise<LikedPlaylistRow | undefined> {
-  return db
+  const flagged = await db
+    .select()
+    .from(userPlaylists)
+    .where(and(eq(userPlaylists.userId, userId), eq(userPlaylists.isLikedSongs, true)))
+    .limit(1)
+    .then(rows => rows[0]);
+  if (flagged) return flagged;
+
+  // Fallback + self-heal for pre-marker / legacy-named rows.
+  const legacy = await db
     .select()
     .from(userPlaylists)
     .where(
@@ -371,10 +380,26 @@ export async function findLikedPlaylist(userId: string): Promise<LikedPlaylistRo
     .orderBy(desc(userPlaylists.updatedAt))
     .limit(1)
     .then(rows => rows[0]);
+  if (legacy) {
+    try {
+      await db
+        .update(userPlaylists)
+        .set({ isLikedSongs: true })
+        .where(eq(userPlaylists.id, legacy.id));
+      legacy.isLikedSongs = true;
+    } catch {
+      // A concurrent flag already claimed the partial-unique slot — ignore.
+    }
+  }
+  return legacy;
 }
 
 /** True if a playlist row is the canonical app-managed Liked Songs mirror. */
-export function isCanonicalLikedPlaylist(p: Pick<LikedPlaylistRow, 'name' | 'navidromeId'>): boolean {
+export function isCanonicalLikedPlaylist(
+  p: Pick<LikedPlaylistRow, 'name' | 'navidromeId'> & Partial<Pick<LikedPlaylistRow, 'isLikedSongs'>>
+): boolean {
+  if (p.isLikedSongs) return true;
+  // Transition fallback for rows read before the backfill ran.
   return p.navidromeId == null && /liked/i.test(p.name);
 }
 
@@ -482,6 +507,7 @@ export async function setSongLiked(
           name: LIKED_SONGS_NAME,
           description: 'Auto-synced from your starred songs in Navidrome',
           navidromeId: null,
+          isLikedSongs: true,
           lastSynced: new Date(),
           songCount: 0,
           totalDuration: 0,
@@ -549,6 +575,7 @@ export async function rebuildLikedSongsPlaylist(
         name: LIKED_SONGS_NAME,
         description: 'Auto-synced from your starred songs in Navidrome',
         navidromeId: null,
+        isLikedSongs: true,
         lastSynced: new Date(),
         songCount: starredSongs.length,
         totalDuration: starredSongs.reduce((sum, s) => sum + parseInt(s.duration || '0'), 0),

@@ -33,6 +33,7 @@ import {
   searchArtistsByName,
 } from '@/lib/services/navidrome';
 import { getNavidromeUserCreds } from '@/lib/services/navidrome-users';
+import { isCanonicalLikedPlaylist } from '@/lib/services/liked-songs-sync';
 import type { SubsonicSong } from '@/lib/services/navidrome/types';
 import type { Song } from '@/lib/types/song';
 import { getBlendedRecommendations } from '@/lib/services/blended-recommendation-scorer';
@@ -810,7 +811,7 @@ export async function generateSeededRadio(
           .where(and(eq(userPlaylists.id, seed.playlistId), eq(userPlaylists.userId, userId)))
           .limit(1);
 
-        if (dbPlaylist && dbPlaylist.name === '❤️ Liked Songs') {
+        if (dbPlaylist && isCanonicalLikedPlaylist(dbPlaylist)) {
           // DB liked-songs playlist — same as the literal 'liked-songs' path
           const creds = await getNavidromeUserCreds(userId);
           const starred = creds ? await getStarredSongs(creds) : await getStarredSongs();

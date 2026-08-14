@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, integer, unique, index, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, boolean, unique, uniqueIndex, index, jsonb } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { user } from "./auth.schema";
 
 export const userPlaylists = pgTable("user_playlists", {
@@ -10,6 +11,9 @@ export const userPlaylists = pgTable("user_playlists", {
   description: text("description"),
   // Navidrome sync fields
   navidromeId: text("navidrome_id"), // Nullable - only set for synced playlists
+  // Marks the canonical app-managed "❤️ Liked Songs" playlist — the mirror of
+  // Navidrome stars. Selected by this flag instead of a fragile name ILIKE match.
+  isLikedSongs: boolean("is_liked_songs").notNull().default(false),
   lastSynced: timestamp("last_synced"), // When playlist was last synced with Navidrome
   songCount: integer("song_count"), // Cached song count for performance
   totalDuration: integer("total_duration"), // Total duration in seconds
@@ -32,6 +36,11 @@ export const userPlaylists = pgTable("user_playlists", {
   createdAtIdx: index("user_playlists_created_at_idx").on(table.createdAt.desc()),
   navidromeIdIdx: index("user_playlists_navidrome_id_idx").on(table.navidromeId), // Index for fast sync lookups
   uniqueUserPlaylistName: unique("unique_user_playlist_name").on(table.userId, table.name),
+  // At most one canonical Liked Songs playlist per user (prevents dup liked
+  // playlists — see #124). Partial unique index over the flagged rows only.
+  oneLikedPerUser: uniqueIndex("user_playlists_one_liked_per_user")
+    .on(table.userId)
+    .where(sql`${table.isLikedSongs}`),
 }));
 
 export const playlistSongs = pgTable("playlist_songs", {
