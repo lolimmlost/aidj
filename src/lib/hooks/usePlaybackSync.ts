@@ -214,6 +214,18 @@ function broadcastStateViaWS(ws: WebSocket | null): void {
 }
 
 /**
+ * Ask any mounted feedback consumers (PlayerBar, hearts) to re-pull like/star
+ * state. Reuses the cross-device `playback-feedback-update` event, whose handler
+ * invalidates `queryKeys.feedback.all()`. Used on tab focus and WS reconnect to
+ * catch out-of-band changes — e.g. a song unstarred directly in the Navidrome
+ * client while we were away, which emits no WS message of its own. See #139.
+ */
+function refreshFeedbackCache(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('playback-feedback-update'));
+}
+
+/**
  * Handle incoming WS messages from other devices
  */
 function handleIncomingMessage(
@@ -449,6 +461,9 @@ export function usePlaybackSync(): void {
       } else {
         // Coming back — check for updates from other devices
         fetchAndReconcileState();
+        // Also re-pull like/star state: it may have changed out-of-band (e.g.
+        // unstarred in the Navidrome client) while the tab was hidden. See #139.
+        refreshFeedbackCache();
       }
     };
 
@@ -472,6 +487,9 @@ export function usePlaybackSync(): void {
         }));
         // Also fetch from DB in case no other device is online to respond
         fetchAndReconcileState();
+        // A (re)connect can span an out-of-band star change we missed while
+        // disconnected — re-pull feedback so hearts reflect truth. See #139.
+        refreshFeedbackCache();
       },
       onMessage: (event: MessageEvent) => {
         try {
