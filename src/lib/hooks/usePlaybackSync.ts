@@ -413,9 +413,12 @@ function handleIncomingMessage(
       break;
     }
 
-    case 'feedback_update': {
-      // Another device liked/unliked a song — dispatch a custom event
-      // so React Query caches can be invalidated
+    case 'feedback_update':
+    case 'feedback_refresh': {
+      // A like/star changed elsewhere — either a single-song update from another
+      // device or the server (feedback_update), or a coalesced bulk refresh after
+      // a reconcile/sync (feedback_refresh). Dispatch a custom event so mounted
+      // hearts invalidate their React Query feedback cache and refetch truth.
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('playback-feedback-update', {
           detail: msg.payload,
