@@ -13,7 +13,7 @@ export function useSongFeedback(songIds: string[]) {
     queryKey: queryKeys.feedback.songs(songIds),
     queryFn: async () => {
       if (songIds.length === 0) {
-        return { feedback: {} };
+        return { feedback: {}, liked: [] };
       }
 
       const response = await fetch(`/api/recommendations/feedback?songIds=${songIds.join(',')}`);
@@ -26,7 +26,12 @@ export function useSongFeedback(songIds: string[]) {
       }
 
       const data = await response.json();
-      return data as { feedback: Record<string, 'thumbs_up' | 'thumbs_down'> };
+      // `feedback` = thumbs signal (recommendation quality); `liked` = library
+      // star state (the heart). These are decoupled — see /api/recommendations/feedback.
+      return data as {
+        feedback: Record<string, 'thumbs_up' | 'thumbs_down'>;
+        liked: string[];
+      };
     },
     enabled: songIds.length > 0,
     ...queryPresets.feedback,
