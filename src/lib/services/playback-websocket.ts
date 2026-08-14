@@ -18,7 +18,7 @@ const wsDeviceIds = new WeakMap<WebSocket, string>();
 
 // Message types
 interface PlaybackMessage {
-  type: 'state_update' | 'transfer' | 'command' | 'sync_request' | 'heartbeat' | 'feedback_update';
+  type: 'state_update' | 'transfer' | 'command' | 'sync_request' | 'heartbeat' | 'feedback_update' | 'feedback_refresh';
   payload?: Record<string, unknown>;
   deviceId: string;
 }
@@ -48,6 +48,12 @@ export function setupPlaybackWebSocket(
   getUserId: GetUserIdFromRequest,
   clearActiveDevice?: ClearActiveDevice,
 ) {
+  // Expose a server-side broadcast entry point for API routes / services that
+  // aren't part of this module's instance (see feedback-broadcast.ts for why
+  // the globalThis indirection is required in production).
+  globalThis.__aidjBroadcastToUser = (userId, message, logType) =>
+    broadcastToAllDevices(userId, message, logType);
+
   // Heartbeat check - terminate dead connections
   const HEARTBEAT_TIMEOUT = 60000; // 60 seconds
   const heartbeatInterval = setInterval(() => {

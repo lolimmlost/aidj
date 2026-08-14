@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as navidrome from '../navidrome';
 
 // Configurable resolve value for any awaited/`.then`ed db chain.
@@ -37,9 +37,16 @@ import { setSongLiked, isCanonicalLikedPlaylist } from '../liked-songs-sync';
 const CREDS = { username: 'u', token: 't', salt: 's' } as unknown as Parameters<typeof setSongLiked>[3];
 
 describe('setSongLiked write-through', () => {
+  const broadcast = vi.fn();
   beforeEach(() => {
     vi.clearAllMocks();
     resolveValue = [];
+    // Simulate the WS server having installed the broadcast bridge on globalThis.
+    globalThis.__aidjBroadcastToUser = broadcast;
+    broadcast.mockClear();
+  });
+  afterEach(() => {
+    globalThis.__aidjBroadcastToUser = undefined;
   });
 
   it('liking a song stars it in Navidrome (source of truth)', async () => {
@@ -57,6 +64,28 @@ describe('setSongLiked write-through', () => {
 
     expect(navidrome.unstarSong).toHaveBeenCalledWith('song-1', CREDS);
     expect(navidrome.starSong).not.toHaveBeenCalled();
+  });
+
+  it('broadcasts a single-song feedback_update to the user after a like', async () => {
+    resolveValue = [{ id: 'pl1', name: '❤️ Liked Songs', navidromeId: null }];
+    await setSongLiked('user-1', 'song-1', true, CREDS, { artist: 'A', title: 'T' });
+
+    expect(broadcast).toHaveBeenCalledWith(
+      'user-1',
+      { type: 'feedback_update', payload: { songId: 'song-1', liked: true } },
+      'feedback_update',
+    );
+  });
+
+  it('broadcasts liked:false after an unlike', async () => {
+    resolveValue = [];
+    await setSongLiked('user-1', 'song-1', false, CREDS);
+
+    expect(broadcast).toHaveBeenCalledWith(
+      'user-1',
+      { type: 'feedback_update', payload: { songId: 'song-1', liked: false } },
+      'feedback_update',
+    );
   });
 });
 

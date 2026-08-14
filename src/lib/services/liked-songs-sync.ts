@@ -25,6 +25,7 @@ import { getStarredSongs, starSong, unstarSong, getSongsByIds } from './navidrom
 import type { SubsonicSong } from './navidrome';
 import { getNavidromeUserCreds } from './navidrome-users';
 import type { SubsonicCreds } from './navidrome-users';
+import { broadcastFeedbackChange, broadcastFeedbackRefresh } from './feedback-broadcast';
 
 // ============================================================================
 // Types
@@ -227,6 +228,11 @@ export async function syncLikedSongsToFeedback(userId: string): Promise<SyncResu
     }
 
     console.log(`💜 [LikedSongsSync] Sync complete: ${result.synced} synced, ${result.unstarred} un-starred, ${result.unchanged} unchanged, ${result.errors} errors`);
+
+    // One coalesced refresh (not per-song) when the ledger actually changed.
+    if (result.synced > 0 || result.unstarred > 0) {
+      broadcastFeedbackRefresh(userId);
+    }
 
     return result;
   } catch (error) {
@@ -558,6 +564,10 @@ export async function setSongLiked(
         .where(eq(userPlaylists.id, likedPlaylist.id));
     }
   }
+
+  // 5. Push the change to the user's other connected devices so their hearts
+  // update live (server-authoritative; no-ops if no WS server in this process).
+  broadcastFeedbackChange(userId, songId, liked);
 }
 
 export async function rebuildLikedSongsPlaylist(
@@ -615,5 +625,7 @@ export async function rebuildLikedSongsPlaylist(
   }
 
   console.log(`✅ Rebuilt Liked Songs playlist: ${starredSongs.length} songs`);
+  // Coalesced refresh so any device viewing hearts re-pulls from the rebuilt set.
+  broadcastFeedbackRefresh(userId);
   return { playlistId: likedPlaylist.id, songCount: starredSongs.length };
 }
