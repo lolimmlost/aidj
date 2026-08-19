@@ -36,7 +36,8 @@ export type FallbackTrackStatus =
   | 'searching' // queued to MeTube, waiting for the download to land
   | 'downloaded' // finished; verification passed (or verification disabled)
   | 'mismatch' // finished, but verification thinks it's likely the wrong track
-  | 'failed'; // MeTube reported an error, or we timed out waiting
+  | 'downloading' // still fetching in MeTube when our window closed (not confirmed, not failed)
+  | 'failed'; // MeTube reported an error, after exhausting retries
 
 export interface FallbackVerification {
   matched: boolean;
@@ -83,8 +84,10 @@ export interface StartFallbackOptions {
 
 /** Poll MeTube this often while waiting for a single download. */
 const POLL_INTERVAL_MS = 3000;
-/** Give up on a single track after this long. */
-const DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1000;
+/** Confirmation window for a single track. These downloads can take 5–10 min
+ *  under yt-dlp throttling, so this is generous; a slow one that's still fetching
+ *  when it closes is reported `downloading`, not failed. */
+const DOWNLOAD_TIMEOUT_MS = 12 * 60 * 1000;
 /** Small breather between tracks so each is attributable in MeTube/logs. */
 const BETWEEN_TRACKS_MS = 750;
 /** Wait between retry attempts for a track that failed to download. */
@@ -198,13 +201,41 @@ interface DownloadOutcome {
   item?: MeTubeDownload;
   errored?: boolean;
   timedOut?: boolean;
+  stillDownloading?: boolean; // timed out, but MeTube was still actively fetching it
   error?: string;
 }
 
 /**
- * Snapshot MeTube's current ids, queue a single `ytsearch1:` download, then poll
- * until a *new* item reaches a terminal (finished/error) state or we time out.
- * One-at-a-time makes the "new id" detection unambiguous.
+ * Loose "is this MeTube item our track?" check for DETECTION (not verification).
+ * We can't know the resolved video id in advance and MeTube keys by video id, so
+ * matching a *previously downloaded* video would never appear as a "new id".
+ * Instead we match on content: decent title-token overlap plus the primary artist
+ * present. Deliberately looser than `verifyDownload` — a loose-matched item that
+ * turns out to be wrong is still surfaced later as `mismatch` by verification.
+ */
+export function itemLikelyMatchesTrack(
+  track: FallbackTrack,
+  item: Partial<Pick<MeTubeDownload, 'title' | 'filename'>>
+): boolean {
+  const got = normalizeForCompare(item.title || item.filename || '');
+  if (!got) return false;
+  const wantTitle = normalizeForCompare(track.title);
+  const wantArtist = normalizeForCompare((track.artist || '').split(/[;,]/)[0]);
+  if (!wantTitle) return false;
+
+  const titleOverlap = got.includes(wantTitle) ? 1 : tokenOverlap(wantTitle, got);
+  const artistOk =
+    wantArtist.length < 3 || got.includes(wantArtist) || tokenOverlap(wantArtist, got) >= 0.5;
+
+  return titleOverlap >= 0.5 && artistOk;
+}
+
+/**
+ * Queue a single `ytsearch1:` download and wait for the matching item to reach a
+ * terminal state. Detection is content-based (see `itemLikelyMatchesTrack`) so it
+ * survives MeTube's id-dedup of already-downloaded videos and never gives up on a
+ * download that is simply slow — on timeout it reports `stillDownloading` rather
+ * than a false failure, and never deletes an in-flight item.
  */
 async function queueAndAwaitDownload(
   track: FallbackTrack,
@@ -217,12 +248,24 @@ async function queueAndAwaitDownload(
   } catch {
     before = { done: {}, queue: {} };
   }
-  const knownIds = new Set([...Object.keys(before.done), ...Object.keys(before.queue)]);
+
+  // Ignore a pre-existing *errored* entry for this track (a stale prior failure);
+  // but a pre-existing *finished* match means it's already downloaded — done.
+  const staleErrorIds = new Set(
+    Object.values(before.done)
+      .filter((d) => d.status === 'error' && itemLikelyMatchesTrack(track, d))
+      .map((d) => d.id)
+  );
+  const preFinished = Object.values(before.done).find(
+    (d) => d.status === 'finished' && itemLikelyMatchesTrack(track, d)
+  );
+  if (preFinished) {
+    return { metubeId: preFinished.id, item: preFinished };
+  }
 
   try {
     // No custom_name_prefix: yt-dlp's own title (usually "Artist - Title …")
-    // already carries the naming, and prefixing it doubled the string
-    // ("Sun Room - Insincere.Sun Room - Insincere [Official Audio]"). Picard
+    // already carries the naming, and prefixing it doubled the string. Picard
     // retags from the audio fingerprint anyway, so the raw title filename is fine.
     await metube.addDownload({
       url: buildYouTubeSearchUrl(query),
@@ -236,7 +279,7 @@ async function queueAndAwaitDownload(
   }
 
   const deadline = Date.now() + DOWNLOAD_TIMEOUT_MS;
-  let seenId: string | undefined;
+  let sawInFlight = false;
 
   while (Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS);
@@ -248,42 +291,53 @@ async function queueAndAwaitDownload(
       continue;
     }
 
-    // Terminal first: a new item in `done` is finished or errored.
-    const doneNew = Object.values(q.done).find((d) => !knownIds.has(d.id));
-    if (doneNew) {
-      if (doneNew.status === 'error') {
-        return { metubeId: doneNew.id, item: doneNew, errored: true, error: doneNew.msg || 'MeTube reported error' };
-      }
-      return { metubeId: doneNew.id, item: doneNew };
+    const finished = Object.values(q.done).find(
+      (d) => d.status === 'finished' && itemLikelyMatchesTrack(track, d)
+    );
+    if (finished) return { metubeId: finished.id, item: finished };
+
+    const errored = Object.values(q.done).find(
+      (d) => d.status === 'error' && !staleErrorIds.has(d.id) && itemLikelyMatchesTrack(track, d)
+    );
+    if (errored) {
+      return { metubeId: errored.id, item: errored, errored: true, error: errored.msg || 'MeTube reported error' };
     }
 
-    // Still in flight — remember the id so a timeout can still report it.
-    const queueNew = Object.values(q.queue).find((d) => !knownIds.has(d.id));
-    if (queueNew) seenId = queueNew.id;
+    // Actively fetching? These downloads can take 5–10 min, so this matters.
+    if (Object.values(q.queue).some((d) => itemLikelyMatchesTrack(track, d))) {
+      sawInFlight = true;
+    }
   }
 
-  return { metubeId: seenId, timedOut: true, error: 'timed out waiting for download to finish' };
+  // Timed out. If MeTube was still fetching it, it will very likely finish shortly
+  // — report as still-downloading (NOT failed) and never delete it.
+  return {
+    timedOut: true,
+    stillDownloading: sawInFlight,
+    error: sawInFlight
+      ? 'still downloading when the confirmation window closed'
+      : 'no matching download appeared before timeout',
+  };
 }
 
 /**
- * Remove a failed/stuck MeTube entry so a retry can re-add the same id cleanly
- * (MeTube keys downloads by id, and `ytsearch1:` re-resolves to the same video).
+ * Remove a genuinely errored MeTube entry so a retry can re-add the same video
+ * cleanly. Only ever called for confirmed errors — never for in-flight downloads.
  */
-async function cleanupFailedDownload(metubeId?: string): Promise<void> {
+async function cleanupErroredDownload(metubeId?: string): Promise<void> {
   if (!metubeId) return;
-  for (const where of ['done', 'queue'] as const) {
-    try {
-      await metube.deleteDownloads([metubeId], where);
-    } catch {
-      /* best-effort */
-    }
+  try {
+    await metube.deleteDownloads([metubeId], 'done');
+  } catch {
+    /* best-effort */
   }
 }
 
 /**
- * Queue a track and, if it fails or times out, retry up to `maxAttempts` total.
- * YouTube 403 / PO-token errors are frequently transient, so a couple of retries
- * meaningfully lift the success rate. Returns the final outcome plus the attempt count.
+ * Queue a track and, on a *confirmed error*, retry up to `maxAttempts` (YouTube
+ * 403 / PO-token errors are often transient). A slow download that merely timed
+ * out while still fetching is NOT retried — retrying would re-queue a video that
+ * is already downloading. Returns the final outcome plus the attempt count.
  */
 async function queueWithRetries(
   track: FallbackTrack,
@@ -296,12 +350,13 @@ async function queueWithRetries(
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     outcome = await queueAndAwaitDownload(track, query, folder);
 
-    if (!outcome.errored && !outcome.timedOut) {
+    // Success, or a timeout on a still-in-flight download — don't retry either.
+    if ((!outcome.errored && !outcome.timedOut) || outcome.stillDownloading) {
       return { ...outcome, attempts: attempt };
     }
 
-    // Failed — clean up so the next attempt can re-queue the same id.
-    await cleanupFailedDownload(outcome.metubeId);
+    // Confirmed error (or nothing ever appeared) — clean up and retry.
+    if (outcome.errored) await cleanupErroredDownload(outcome.metubeId);
 
     if (attempt < maxAttempts) {
       console.warn(
@@ -350,7 +405,12 @@ async function runJob(job: FallbackJob): Promise<void> {
       entry.filename = outcome.item.filename;
     }
 
-    if (outcome.errored || outcome.timedOut) {
+    if (outcome.stillDownloading) {
+      // Slow download still fetching when our window closed — not a failure.
+      entry.status = 'downloading';
+      entry.error = outcome.error;
+      console.log(`[YouTubeFallback] STILL DOWNLOADING ${label} (unconfirmed): ${entry.error}`);
+    } else if (outcome.errored || outcome.timedOut) {
       entry.status = 'failed';
       entry.error = outcome.error;
       console.warn(
@@ -378,7 +438,7 @@ async function runJob(job: FallbackJob): Promise<void> {
 
   const summary = summarizeJob(job);
   console.log(
-    `[YouTubeFallback] Job ${job.id} complete: ${summary.downloaded} downloaded, ${summary.mismatch} mismatch, ${summary.failed} failed (of ${summary.total})`
+    `[YouTubeFallback] Job ${job.id} complete: ${summary.downloaded} downloaded, ${summary.mismatch} mismatch, ${summary.downloading} still-downloading, ${summary.failed} failed (of ${summary.total})`
   );
 }
 
@@ -388,9 +448,10 @@ export function summarizeJob(job: FallbackJob): {
   searching: number;
   downloaded: number;
   mismatch: number;
+  downloading: number;
   failed: number;
 } {
-  const summary = { total: job.results.length, pending: 0, searching: 0, downloaded: 0, mismatch: 0, failed: 0 };
+  const summary = { total: job.results.length, pending: 0, searching: 0, downloaded: 0, mismatch: 0, downloading: 0, failed: 0 };
   for (const r of job.results) summary[r.status]++;
   return summary;
 }
