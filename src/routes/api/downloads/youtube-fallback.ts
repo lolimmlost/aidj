@@ -42,6 +42,7 @@ const StartSchema = z
     statuses: z.array(z.enum(['no_match', 'pending_review', 'matched', 'skipped'])).optional(),
     verify: z.boolean().optional(),
     folder: z.string().optional(),
+    maxAttempts: z.number().int().min(1).max(5).optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.tracks?.length && !data.importJobId) {
@@ -104,6 +105,7 @@ const POST = withAuthAndErrorHandling(
       job = startYouTubeFallbackJob(session.user.id, tracks, {
         verify: data.verify,
         folder: data.folder,
+        maxAttempts: data.maxAttempts,
       });
     } catch (err) {
       return errorResponse('INVALID_TRACKS', err instanceof Error ? err.message : 'Invalid tracks', {
@@ -152,6 +154,7 @@ const GET = withAuthAndErrorHandling(
       jobId: job.id,
       status: job.status,
       verify: job.verify,
+      maxAttempts: job.maxAttempts,
       currentIndex: job.currentIndex,
       summary: summarizeJob(job),
       results: job.results.map((r) => ({
@@ -161,6 +164,7 @@ const GET = withAuthAndErrorHandling(
         status: r.status,
         resultTitle: r.resultTitle,
         verification: r.verification,
+        attempts: r.attempts,
         error: r.error,
       })),
       createdAt: job.createdAt,
