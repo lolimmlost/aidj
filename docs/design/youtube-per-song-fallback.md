@@ -112,11 +112,18 @@ non-URL `url` (it does not go through `/api/metube/add`, which whitelists real
 site URLs; this path calls the MeTube service directly). If MeTube rejects it,
 fall back to resolving a video id via `youtube-music.ts` search first.
 
+## UI (added)
+
+The import wizard's **Confirmation step** "Download Missing Songs" dialog now has a
+**Lidarr / YouTube** toggle. Picking **YouTube** POSTs the selected `no_match`
+tracks (plus the `importJobId`) to `/api/downloads/youtube-fallback` instead of the
+Lidarr queue — so "after review, send the misses to MeTube" is a one-click action.
+`src/components/playlists/import/steps/confirmation-step.tsx`.
+
 ## Not built (follow-ups)
 
-- **UI.** No button yet — API only. The existing `/downloads/youtube` page is a
-  manual URL paste; a "download import misses" action could live there or in the
-  import review UI.
+- **Live per-track status in the UI.** The button starts the job and toasts; it
+  doesn't yet poll `GET ?jobId=` to show downloaded/mismatch/failed per track.
 - **Persistence.** Job state is in-memory (lost on redeploy). Fine for a testing
   tool; if this becomes a durable auto-fallback, fold it into the Import Manager (#132).
 - **Auto-trigger.** Currently manual. Wiring "Lidarr 0-albums → auto YouTube
