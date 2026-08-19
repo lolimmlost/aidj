@@ -9,6 +9,7 @@ import {
   normalizeSearchQuery,
   buildYouTubeSearchUrl,
   verifyDownload,
+  itemLikelyMatchesTrack,
 } from '../youtube-fallback';
 
 describe('normalizeSearchQuery', () => {
@@ -72,5 +73,49 @@ describe('verifyDownload', () => {
     const v = verifyDownload(track, {});
     expect(v.matched).toBe(false);
     expect(v.score).toBe(0);
+  });
+});
+
+describe('itemLikelyMatchesTrack (detection)', () => {
+  // Real cases that the strict id-based detection got wrong: MeTube's resolved
+  // title differs from the request but is clearly the same track.
+  it('matches a multi-artist request against MeTube’s resolved title', () => {
+    expect(
+      itemLikelyMatchesTrack(
+        { artist: 'Wax Motif;Taiki Nulight;Scrufizzer', title: 'Skank N Flex (with Scrufizzer)' },
+        { title: 'Wax Motif & Taiki Nulight - Skank n Flex ft. Scrufizzer' }
+      )
+    ).toBe(true);
+  });
+
+  it('matches "Got Bounce" by primary artist + title tokens', () => {
+    expect(
+      itemLikelyMatchesTrack(
+        { artist: 'Kumarion;STUCA', title: 'Got Bounce' },
+        { title: 'Kumarion & STUCA - Got Bounce' }
+      )
+    ).toBe(true);
+  });
+
+  it('does not match an unrelated download in a large history', () => {
+    expect(
+      itemLikelyMatchesTrack(
+        { artist: 'Kumarion', title: 'Got Bounce' },
+        { title: 'Some Other Artist - A Totally Different Song' }
+      )
+    ).toBe(false);
+  });
+
+  it('falls back to filename', () => {
+    expect(
+      itemLikelyMatchesTrack(
+        { artist: 'Sun Room', title: 'Insincere' },
+        { filename: 'Sun Room - Insincere [Official Audio].mp3' }
+      )
+    ).toBe(true);
+  });
+
+  it('returns false with no title or filename', () => {
+    expect(itemLikelyMatchesTrack({ artist: 'A', title: 'B' }, {})).toBe(false);
   });
 });

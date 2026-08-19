@@ -52,6 +52,28 @@ video ID available" — this fills exactly that gap.
 - `mismatch` — finished, but the result title doesn't look like the request (review before trusting).
 - `failed` — MeTube error or 5-min timeout, after exhausting retries.
 
+## Detection fix (after the first real batch, 2026-08-18)
+
+The first 16-track batch **false-failed** tracks that actually downloaded fine.
+Root cause: detection matched a *new MeTube id not in a pre-snapshot*, and the
+5-min per-attempt timeout fired **seconds before** these slow (5–10 min) downloads
+landed — then retried, re-adding a video already downloading, and could delete the
+in-flight item. Proof: Skank N Flex finished 11 s after the timeout; Got Bounce /
+HeadRush 6 s after.
+
+Fixes:
+- **Content-based detection** (`itemLikelyMatchesTrack`): match MeTube items by
+  title-token overlap + primary artist, not id-novelty. Survives MeTube's id-dedup
+  of already-downloaded videos and finds the item whenever it lands. A pre-existing
+  `finished` match returns immediately (idempotent re-sends).
+- **Patient window** raised to 12 min; a track still actively fetching when the
+  window closes is reported **`downloading`** (new status), *not* `failed`, and is
+  never deleted or retried.
+- **Retries only on confirmed errors** (403/PO-token), never on a slow-but-in-flight
+  download.
+
+Status model gains `downloading` (submitted, still fetching, unconfirmed).
+
 ## Retries (added after the first prod test)
 
 YouTube download failures are frequently transient — see the PO-token finding
