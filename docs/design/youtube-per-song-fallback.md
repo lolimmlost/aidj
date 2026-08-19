@@ -50,7 +50,35 @@ video ID available" — this fills exactly that gap.
 
 - `downloaded` — finished + verification passed (or verify disabled).
 - `mismatch` — finished, but the result title doesn't look like the request (review before trusting).
-- `failed` — MeTube error or 5-min timeout.
+- `failed` — MeTube error or 5-min timeout, after exhausting retries.
+
+## Retries (added after the first prod test)
+
+YouTube download failures are frequently transient — see the PO-token finding
+below — so each track is retried up to `maxAttempts` (default 3, ceiling 5,
+overridable per request). Between attempts the failed MeTube entry is deleted so
+the same `ytsearch1:`-resolved id can be re-queued cleanly. The per-track
+`attempts` count is surfaced in the GET status.
+
+## Prod finding: MeTube PO-token / 403 (2026-08-18 first live test)
+
+First live test track (`ytsearch1:Sun Room Insincere`) confirmed the search
+resolves to the correct video ("Sun Room - Insincere [Official Audio]"), but the
+download itself errored:
+
+```
+[youtube] [pot:bgutil:http] Error reaching GET http://127.0.0.1:4416/ping …
+ERROR: unable to download video data: HTTP Error 403: Forbidden
+```
+
+yt-dlp wants a PO token from a bgutil provider at `127.0.0.1:4416` that is
+unreachable, so token-gated videos 403. **This is a MeTube/yt-dlp ops issue,
+independent of this feature**, but it caps the fallback's real-world success rate
+until the POT provider is running/reachable (or yt-dlp is pointed at a client
+that doesn't require the token). Retries help ride out the transient cases.
+
+Also fixed from that test: dropped `custom_name_prefix`, which had doubled the
+title (`"Sun Room - Insincere.Sun Room - Insincere [Official Audio]"`).
 
 ## How to test (Juan)
 

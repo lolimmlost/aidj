@@ -53,6 +53,7 @@ export interface FallbackTrackResult {
   filename?: string;
   verification?: FallbackVerification;
   error?: string;
+  attempts?: number; // how many download attempts were made (>=1 once started)
   startedAt?: number;
   finishedAt?: number;
 }
@@ -65,6 +66,7 @@ export interface FallbackJob {
   updatedAt: number;
   verify: boolean;
   folder?: string;
+  maxAttempts: number;
   currentIndex: number;
   results: FallbackTrackResult[];
 }
@@ -72,6 +74,7 @@ export interface FallbackJob {
 export interface StartFallbackOptions {
   verify?: boolean; // default true
   folder?: string; // MeTube subfolder; default = MeTube's configured folder
+  maxAttempts?: number; // download attempts per track before giving up (default 3)
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +87,13 @@ const POLL_INTERVAL_MS = 3000;
 const DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 /** Small breather between tracks so each is attributable in MeTube/logs. */
 const BETWEEN_TRACKS_MS = 750;
+/** Wait between retry attempts for a track that failed to download. */
+const RETRY_DELAY_MS = 5000;
+/** Default download attempts per track. YouTube 403 / PO-token errors are often
+ *  transient, so we re-queue a few times before declaring a track failed. */
+export const DEFAULT_MAX_ATTEMPTS = 3;
+/** Ceiling on attempts, whatever the caller asks for. */
+export const MAX_ATTEMPTS_LIMIT = 5;
 /** Hard cap on tracks per job to avoid runaway batches. */
 export const MAX_TRACKS_PER_JOB = 50;
 
@@ -210,12 +220,15 @@ async function queueAndAwaitDownload(
   const knownIds = new Set([...Object.keys(before.done), ...Object.keys(before.queue)]);
 
   try {
+    // No custom_name_prefix: yt-dlp's own title (usually "Artist - Title …")
+    // already carries the naming, and prefixing it doubled the string
+    // ("Sun Room - Insincere.Sun Room - Insincere [Official Audio]"). Picard
+    // retags from the audio fingerprint anyway, so the raw title filename is fine.
     await metube.addDownload({
       url: buildYouTubeSearchUrl(query),
       format: 'mp3',
       quality: 'best',
       folder,
-      custom_name_prefix: `${track.artist} - ${track.title}`,
       auto_start: true,
     });
   } catch (err) {
@@ -252,6 +265,54 @@ async function queueAndAwaitDownload(
   return { metubeId: seenId, timedOut: true, error: 'timed out waiting for download to finish' };
 }
 
+/**
+ * Remove a failed/stuck MeTube entry so a retry can re-add the same id cleanly
+ * (MeTube keys downloads by id, and `ytsearch1:` re-resolves to the same video).
+ */
+async function cleanupFailedDownload(metubeId?: string): Promise<void> {
+  if (!metubeId) return;
+  for (const where of ['done', 'queue'] as const) {
+    try {
+      await metube.deleteDownloads([metubeId], where);
+    } catch {
+      /* best-effort */
+    }
+  }
+}
+
+/**
+ * Queue a track and, if it fails or times out, retry up to `maxAttempts` total.
+ * YouTube 403 / PO-token errors are frequently transient, so a couple of retries
+ * meaningfully lift the success rate. Returns the final outcome plus the attempt count.
+ */
+async function queueWithRetries(
+  track: FallbackTrack,
+  query: string,
+  folder: string | undefined,
+  maxAttempts: number,
+  label: string
+): Promise<DownloadOutcome & { attempts: number }> {
+  let outcome: DownloadOutcome = {};
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    outcome = await queueAndAwaitDownload(track, query, folder);
+
+    if (!outcome.errored && !outcome.timedOut) {
+      return { ...outcome, attempts: attempt };
+    }
+
+    // Failed — clean up so the next attempt can re-queue the same id.
+    await cleanupFailedDownload(outcome.metubeId);
+
+    if (attempt < maxAttempts) {
+      console.warn(
+        `[YouTubeFallback] attempt ${attempt}/${maxAttempts} failed for ${label}: ${outcome.error}; retrying in ${RETRY_DELAY_MS}ms`
+      );
+      await sleep(RETRY_DELAY_MS);
+    }
+  }
+  return { ...outcome, attempts: maxAttempts };
+}
+
 // ---------------------------------------------------------------------------
 // In-process job registry + batch runner
 // ---------------------------------------------------------------------------
@@ -276,10 +337,12 @@ async function runJob(job: FallbackJob): Promise<void> {
     entry.startedAt = Date.now();
     job.updatedAt = Date.now();
 
+    const label = `"${entry.track.artist} - ${entry.track.title}"`;
     console.log(`[YouTubeFallback] (${i + 1}/${job.results.length}) searching: ${entry.query}`);
 
-    const outcome = await queueAndAwaitDownload(entry.track, entry.query, job.folder);
+    const outcome = await queueWithRetries(entry.track, entry.query, job.folder, job.maxAttempts, label);
     entry.metubeId = outcome.metubeId;
+    entry.attempts = outcome.attempts;
     entry.finishedAt = Date.now();
 
     if (outcome.item) {
@@ -290,7 +353,9 @@ async function runJob(job: FallbackJob): Promise<void> {
     if (outcome.errored || outcome.timedOut) {
       entry.status = 'failed';
       entry.error = outcome.error;
-      console.warn(`[YouTubeFallback] FAILED "${entry.track.artist} - ${entry.track.title}": ${entry.error}`);
+      console.warn(
+        `[YouTubeFallback] FAILED ${label} after ${outcome.attempts} attempt(s): ${entry.error}`
+      );
     } else if (job.verify && outcome.item) {
       const verification = verifyDownload(entry.track, outcome.item);
       entry.verification = verification;
@@ -349,6 +414,11 @@ export function startYouTubeFallbackJob(
     throw new Error('No valid tracks to download (each needs an artist and title)');
   }
 
+  const maxAttempts = Math.min(
+    MAX_ATTEMPTS_LIMIT,
+    Math.max(1, options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS)
+  );
+
   const now = Date.now();
   const job: FallbackJob = {
     id: crypto.randomUUID(),
@@ -358,6 +428,7 @@ export function startYouTubeFallbackJob(
     updatedAt: now,
     verify: options.verify ?? true,
     folder: options.folder,
+    maxAttempts,
     currentIndex: 0,
     results: cleaned.map((track) => ({
       track,
