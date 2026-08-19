@@ -78,6 +78,7 @@ import { Route as ApiDiscoveryFeedIndexRouteImport } from './routes/api/discover
 import { Route as ApiDiscoveryFeedAnalyticsRouteImport } from './routes/api/discovery-feed/analytics'
 import { Route as ApiDiscoveryFeedInteractionsRouteImport } from './routes/api/discovery-feed/interactions'
 import { Route as ApiDownloadsQueueRouteImport } from './routes/api/downloads/queue'
+import { Route as ApiDownloadsYoutubeFallbackRouteImport } from './routes/api/downloads/youtube-fallback'
 import { Route as ApiLastfmBackfillRouteImport } from './routes/api/lastfm/backfill'
 import { Route as ApiLastfmSearchRouteImport } from './routes/api/lastfm/search'
 import { Route as ApiLastfmSimilarArtistsRouteImport } from './routes/api/lastfm/similar-artists'
@@ -549,6 +550,12 @@ const ApiDownloadsQueueRoute = ApiDownloadsQueueRouteImport.update({
   path: '/api/downloads/queue',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDownloadsYoutubeFallbackRoute =
+  ApiDownloadsYoutubeFallbackRouteImport.update({
+    id: '/api/downloads/youtube-fallback',
+    path: '/api/downloads/youtube-fallback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiLastfmBackfillRoute = ApiLastfmBackfillRouteImport.update({
   id: '/api/lastfm/backfill',
   path: '/api/lastfm/backfill',
@@ -1237,6 +1244,7 @@ export interface FileRoutesByFullPath {
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
+  '/api/downloads/youtube-fallback': typeof ApiDownloadsYoutubeFallbackRoute
   '/api/lastfm/backfill': typeof ApiLastfmBackfillRoute
   '/api/lastfm/search': typeof ApiLastfmSearchRoute
   '/api/lastfm/similar-artists': typeof ApiLastfmSimilarArtistsRoute
@@ -1420,6 +1428,7 @@ export interface FileRoutesByTo {
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
+  '/api/downloads/youtube-fallback': typeof ApiDownloadsYoutubeFallbackRoute
   '/api/lastfm/backfill': typeof ApiLastfmBackfillRoute
   '/api/lastfm/search': typeof ApiLastfmSearchRoute
   '/api/lastfm/similar-artists': typeof ApiLastfmSimilarArtistsRoute
@@ -1607,6 +1616,7 @@ export interface FileRoutesById {
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
+  '/api/downloads/youtube-fallback': typeof ApiDownloadsYoutubeFallbackRoute
   '/api/lastfm/backfill': typeof ApiLastfmBackfillRoute
   '/api/lastfm/search': typeof ApiLastfmSearchRoute
   '/api/lastfm/similar-artists': typeof ApiLastfmSimilarArtistsRoute
@@ -1794,6 +1804,7 @@ export interface FileRouteTypes {
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
     | '/api/downloads/queue'
+    | '/api/downloads/youtube-fallback'
     | '/api/lastfm/backfill'
     | '/api/lastfm/search'
     | '/api/lastfm/similar-artists'
@@ -1977,6 +1988,7 @@ export interface FileRouteTypes {
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
     | '/api/downloads/queue'
+    | '/api/downloads/youtube-fallback'
     | '/api/lastfm/backfill'
     | '/api/lastfm/search'
     | '/api/lastfm/similar-artists'
@@ -2163,6 +2175,7 @@ export interface FileRouteTypes {
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
     | '/api/downloads/queue'
+    | '/api/downloads/youtube-fallback'
     | '/api/lastfm/backfill'
     | '/api/lastfm/search'
     | '/api/lastfm/similar-artists'
@@ -2338,6 +2351,7 @@ export interface RootRouteChildren {
   ApiDiscoveryFeedAnalyticsRoute: typeof ApiDiscoveryFeedAnalyticsRoute
   ApiDiscoveryFeedInteractionsRoute: typeof ApiDiscoveryFeedInteractionsRoute
   ApiDownloadsQueueRoute: typeof ApiDownloadsQueueRoute
+  ApiDownloadsYoutubeFallbackRoute: typeof ApiDownloadsYoutubeFallbackRoute
   ApiLastfmBackfillRoute: typeof ApiLastfmBackfillRoute
   ApiLastfmSearchRoute: typeof ApiLastfmSearchRoute
   ApiLastfmSimilarArtistsRoute: typeof ApiLastfmSimilarArtistsRoute
@@ -2914,6 +2928,13 @@ declare module '@tanstack/react-router' {
       path: '/api/downloads/queue'
       fullPath: '/api/downloads/queue'
       preLoaderRoute: typeof ApiDownloadsQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/downloads/youtube-fallback': {
+      id: '/api/downloads/youtube-fallback'
+      path: '/api/downloads/youtube-fallback'
+      fullPath: '/api/downloads/youtube-fallback'
+      preLoaderRoute: typeof ApiDownloadsYoutubeFallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/lastfm/backfill': {
@@ -3960,6 +3981,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDiscoveryFeedAnalyticsRoute: ApiDiscoveryFeedAnalyticsRoute,
   ApiDiscoveryFeedInteractionsRoute: ApiDiscoveryFeedInteractionsRoute,
   ApiDownloadsQueueRoute: ApiDownloadsQueueRoute,
+  ApiDownloadsYoutubeFallbackRoute: ApiDownloadsYoutubeFallbackRoute,
   ApiLastfmBackfillRoute: ApiLastfmBackfillRoute,
   ApiLastfmSearchRoute: ApiLastfmSearchRoute,
   ApiLastfmSimilarArtistsRoute: ApiLastfmSimilarArtistsRoute,
