@@ -43,6 +43,7 @@ const StartSchema = z
     verify: z.boolean().optional(),
     folder: z.string().optional(),
     maxAttempts: z.number().int().min(1).max(5).optional(),
+    skipInLibrary: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.tracks?.length && !data.importJobId) {
@@ -106,6 +107,7 @@ const POST = withAuthAndErrorHandling(
         verify: data.verify,
         folder: data.folder,
         maxAttempts: data.maxAttempts,
+        skipInLibrary: data.skipInLibrary,
       });
     } catch (err) {
       return errorResponse('INVALID_TRACKS', err instanceof Error ? err.message : 'Invalid tracks', {
