@@ -10,6 +10,7 @@ import {
   buildYouTubeSearchUrl,
   verifyDownload,
   itemLikelyMatchesTrack,
+  libraryMatch,
 } from '../youtube-fallback';
 
 describe('normalizeSearchQuery', () => {
@@ -117,5 +118,38 @@ describe('itemLikelyMatchesTrack (detection)', () => {
 
   it('returns false with no title or filename', () => {
     expect(itemLikelyMatchesTrack({ artist: 'A', title: 'B' }, {})).toBe(false);
+  });
+});
+
+describe('libraryMatch (dedup guard vs Navidrome songs)', () => {
+  it('matches a CLEANLY-stored track (artist in a separate field)', () => {
+    // The bug case: Navidrome title="Calling You", artist="Valexus" (not in title).
+    expect(
+      libraryMatch({ artist: 'Valexus', title: 'Calling You' }, { title: 'Calling You', artist: 'Valexus' })
+    ).toBe(true);
+    expect(
+      libraryMatch({ artist: 'Valexus;Beehav3', title: 'Calling You' }, { title: 'Calling You', artist: 'Valexus & Beehav3' })
+    ).toBe(true);
+  });
+
+  it('matches a JUNK-titled copy (whole video title in the title field)', () => {
+    expect(
+      libraryMatch(
+        { artist: 'Wax Motif;Taiki Nulight;Scrufizzer', title: 'Skank N Flex (with Scrufizzer)' },
+        { title: 'Wax Motif & Taiki Nulight - Skank n Flex ft. Scrufizzer', artist: 'Wax Motif' }
+      )
+    ).toBe(true);
+  });
+
+  it('does NOT match a same-title track by a different artist', () => {
+    expect(
+      libraryMatch({ artist: 'Valexus', title: 'Calling You' }, { title: 'Calling for You', artist: 'Drake' })
+    ).toBe(false);
+  });
+
+  it('does NOT match an unrelated song', () => {
+    expect(
+      libraryMatch({ artist: 'Valexus', title: 'Calling You' }, { title: 'When Did Your Heart Go Missing?', artist: 'Rooney' })
+    ).toBe(false);
   });
 });
