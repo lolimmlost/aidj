@@ -330,21 +330,50 @@ async function queueAndAwaitDownload(
  * causes the same track to be re-downloaded. Navidrome import is lazy so this
  * module stays importable in tests without pulling in the service graph.
  */
+type LibSong = { title?: string; name?: string; artist?: string };
+
+/**
+ * Does a Navidrome song correspond to the requested track? Unlike a MeTube item
+ * (whose title is the full "Artist - Title" video title), a Navidrome song keeps
+ * artist and title in separate fields — AND a junk-titled copy may carry the whole
+ * video title in `title`. So we accept a match on either shape:
+ *  - clean: title matches by containment/overlap AND the artist field matches, or
+ *  - junk:  the stored title contains both the requested title and artist tokens.
+ */
+export function libraryMatch(track: FallbackTrack, song: LibSong): boolean {
+  const gotTitle = normalizeForCompare(song.title || song.name || '');
+  const wantTitle = normalizeForCompare(track.title);
+  if (!gotTitle || !wantTitle) return false;
+  const wantArtist = normalizeForCompare((track.artist || '').split(/[;,]/)[0]);
+
+  const titleOk =
+    gotTitle.includes(wantTitle) || wantTitle.includes(gotTitle) || tokenOverlap(wantTitle, gotTitle) >= 0.6;
+  if (!titleOk) return false;
+
+  const gotArtist = normalizeForCompare(song.artist || '');
+  const artistOk =
+    wantArtist.length < 3 ||
+    gotArtist.includes(wantArtist) ||
+    wantArtist.includes(gotArtist) ||
+    tokenOverlap(wantArtist, gotArtist) >= 0.5 ||
+    // junk copy: artist is baked into the title string
+    gotTitle.includes(wantArtist) ||
+    tokenOverlap(wantArtist, gotTitle) >= 0.5;
+  return artistOk;
+}
+
 async function findInLibrary(track: FallbackTrack): Promise<{ title: string } | null> {
   try {
     const { search } = await import('./navidrome');
     const primaryArtist = (track.artist || '').split(/[;,]/)[0].trim();
     const query = normalizeSearchQuery(track); // "<primary artist> <clean title>"
-    const results = await search(query).catch(() => [] as Array<{ title?: string; name?: string }>);
-    const hit = results.find((s) =>
-      itemLikelyMatchesTrack(track, { title: s.title || s.name || '' })
-    );
+    const results = (await search(query).catch(() => [])) as LibSong[];
+    const hit = results.find((s) => libraryMatch(track, s));
     if (hit) return { title: hit.title || hit.name || '' };
-    // Fallback: an artist-only search catches copies whose stored title is the
-    // full "Artist - Title (ft…)" video title (loose match handles the rest).
+    // Fallback: artist-only search (catches title-mismatch / junk-title copies).
     if (primaryArtist.length > 2) {
-      const r2 = await search(primaryArtist).catch(() => [] as Array<{ title?: string; name?: string }>);
-      const hit2 = r2.find((s) => itemLikelyMatchesTrack(track, { title: s.title || s.name || '' }));
+      const r2 = (await search(primaryArtist).catch(() => [])) as LibSong[];
+      const hit2 = r2.find((s) => libraryMatch(track, s));
       if (hit2) return { title: hit2.title || hit2.name || '' };
     }
     return null;
