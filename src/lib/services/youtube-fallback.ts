@@ -33,6 +33,7 @@ export interface FallbackTrack {
 
 export type FallbackTrackStatus =
   | 'pending' // not yet started
+  | 'skipped' // already in the library (dedup guard) — not downloaded
   | 'searching' // queued to MeTube, waiting for the download to land
   | 'downloaded' // finished; verification passed (or verification disabled)
   | 'mismatch' // finished, but verification thinks it's likely the wrong track
@@ -68,6 +69,7 @@ export interface FallbackJob {
   verify: boolean;
   folder?: string;
   maxAttempts: number;
+  skipInLibrary: boolean;
   currentIndex: number;
   results: FallbackTrackResult[];
 }
@@ -76,6 +78,7 @@ export interface StartFallbackOptions {
   verify?: boolean; // default true
   folder?: string; // MeTube subfolder; default = MeTube's configured folder
   maxAttempts?: number; // download attempts per track before giving up (default 3)
+  skipInLibrary?: boolean; // dedup guard: skip tracks already in Navidrome (default true)
 }
 
 // ---------------------------------------------------------------------------
@@ -321,6 +324,36 @@ async function queueAndAwaitDownload(
 }
 
 /**
+ * Dedup guard: is this track already in the Navidrome library? Uses a loose
+ * content match (same as detection) so it catches copies stored under a polluted
+ * YouTube-rip title that the import matcher scored too low — the exact case that
+ * causes the same track to be re-downloaded. Navidrome import is lazy so this
+ * module stays importable in tests without pulling in the service graph.
+ */
+async function findInLibrary(track: FallbackTrack): Promise<{ title: string } | null> {
+  try {
+    const { search } = await import('./navidrome');
+    const primaryArtist = (track.artist || '').split(/[;,]/)[0].trim();
+    const query = normalizeSearchQuery(track); // "<primary artist> <clean title>"
+    const results = await search(query).catch(() => [] as Array<{ title?: string; name?: string }>);
+    const hit = results.find((s) =>
+      itemLikelyMatchesTrack(track, { title: s.title || s.name || '' })
+    );
+    if (hit) return { title: hit.title || hit.name || '' };
+    // Fallback: an artist-only search catches copies whose stored title is the
+    // full "Artist - Title (ft…)" video title (loose match handles the rest).
+    if (primaryArtist.length > 2) {
+      const r2 = await search(primaryArtist).catch(() => [] as Array<{ title?: string; name?: string }>);
+      const hit2 = r2.find((s) => itemLikelyMatchesTrack(track, { title: s.title || s.name || '' }));
+      if (hit2) return { title: hit2.title || hit2.name || '' };
+    }
+    return null;
+  } catch {
+    return null; // never let a library-check failure block a download
+  }
+}
+
+/**
  * Remove a genuinely errored MeTube entry so a retry can re-add the same video
  * cleanly. Only ever called for confirmed errors — never for in-flight downloads.
  */
@@ -393,6 +426,22 @@ async function runJob(job: FallbackJob): Promise<void> {
     job.updatedAt = Date.now();
 
     const label = `"${entry.track.artist} - ${entry.track.title}"`;
+
+    // Dedup guard: don't re-download something already in the library (even if it
+    // was stored under a junk title the import matcher missed).
+    if (job.skipInLibrary) {
+      const existing = await findInLibrary(entry.track);
+      if (existing) {
+        entry.status = 'skipped';
+        entry.resultTitle = existing.title;
+        entry.finishedAt = Date.now();
+        job.updatedAt = Date.now();
+        console.log(`[YouTubeFallback] SKIP (already in library) ${label} -> "${existing.title}"`);
+        if (i < job.results.length - 1) await sleep(BETWEEN_TRACKS_MS);
+        continue;
+      }
+    }
+
     console.log(`[YouTubeFallback] (${i + 1}/${job.results.length}) searching: ${entry.query}`);
 
     const outcome = await queueWithRetries(entry.track, entry.query, job.folder, job.maxAttempts, label);
@@ -438,20 +487,21 @@ async function runJob(job: FallbackJob): Promise<void> {
 
   const summary = summarizeJob(job);
   console.log(
-    `[YouTubeFallback] Job ${job.id} complete: ${summary.downloaded} downloaded, ${summary.mismatch} mismatch, ${summary.downloading} still-downloading, ${summary.failed} failed (of ${summary.total})`
+    `[YouTubeFallback] Job ${job.id} complete: ${summary.downloaded} downloaded, ${summary.skipped} skipped, ${summary.mismatch} mismatch, ${summary.downloading} still-downloading, ${summary.failed} failed (of ${summary.total})`
   );
 }
 
 export function summarizeJob(job: FallbackJob): {
   total: number;
   pending: number;
+  skipped: number;
   searching: number;
   downloaded: number;
   mismatch: number;
   downloading: number;
   failed: number;
 } {
-  const summary = { total: job.results.length, pending: 0, searching: 0, downloaded: 0, mismatch: 0, downloading: 0, failed: 0 };
+  const summary = { total: job.results.length, pending: 0, skipped: 0, searching: 0, downloaded: 0, mismatch: 0, downloading: 0, failed: 0 };
   for (const r of job.results) summary[r.status]++;
   return summary;
 }
@@ -490,6 +540,7 @@ export function startYouTubeFallbackJob(
     verify: options.verify ?? true,
     folder: options.folder,
     maxAttempts,
+    skipInLibrary: options.skipInLibrary ?? true,
     currentIndex: 0,
     results: cleaned.map((track) => ({
       track,

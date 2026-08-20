@@ -128,6 +128,24 @@ export function normalizeTitle(title: string): string {
 }
 
 /**
+ * Strip a leading "Artist - " prefix from a title when it overlaps the given
+ * artist. YouTube-rip imports frequently store the whole video title as the track
+ * title (e.g. "Cloonee & Prospa - Good Girl (ft. Tristan Henry)"), which tanks the
+ * title-similarity score against the real title ("Good Girl"). Only strips when the
+ * prefix shares a token with the artist, so genuine "A - B" titles are left alone.
+ */
+export function stripLeadingArtistPrefix(title: string, artist: string): string {
+  const m = title.match(/^(.{1,60}?)\s[-—–]\s(.+)$/);
+  if (!m) return title;
+  const prefix = normalizeArtist(m[1]);
+  const art = normalizeArtist(artist);
+  if (!prefix || !art) return title;
+  const artistTokens = new Set(art.split(' ').filter(Boolean));
+  const overlaps = prefix.split(' ').filter(Boolean).some((t) => artistTokens.has(t));
+  return overlaps ? m[2] : title;
+}
+
+/**
  * Calculate match score between two songs
  */
 export function calculateMatchScore(
@@ -142,11 +160,23 @@ export function calculateMatchScore(
     return { score: 100, confidence: 'exact', reason: 'ISRC code match' };
   }
 
-  // Title similarity (40% weight)
-  const titleSimilarity = stringSimilarity(
+  // Title similarity (40% weight). Also try the candidate title with a leading
+  // "Artist - " prefix stripped, so a polluted YouTube-rip title still matches.
+  // Feat/version info is only dropped on THIS recovery path (a candidate that had
+  // an artist prefix) — normal titles keep it, so remix/feat versions stay distinct.
+  const candidateStripped = stripLeadingArtistPrefix(candidate.title, candidate.artist);
+  let titleSimilarity = stringSimilarity(
     normalizeTitle(source.title),
     normalizeTitle(candidate.title)
   );
+  if (candidateStripped !== candidate.title) {
+    const dropFeat = (t: string) =>
+      t.replace(/\s*[([]\s*(feat|ft|featuring|with)\.?\s[^)\]]*[)\]]/gi, '');
+    titleSimilarity = Math.max(
+      titleSimilarity,
+      stringSimilarity(normalizeTitle(dropFeat(source.title)), normalizeTitle(dropFeat(candidateStripped)))
+    );
+  }
   score += titleSimilarity * 40;
   if (titleSimilarity > 0.9) reasons.push('Title matches closely');
   else if (titleSimilarity > 0.7) reasons.push('Title similar');
