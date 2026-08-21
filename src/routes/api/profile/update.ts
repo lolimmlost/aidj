@@ -55,6 +55,7 @@ export async function POST({ request }: { request: Request }) {
           artistAffinities: result.artistAffinities,
           temporalPreferences: result.temporalPreferences,
           artistCooccurrenceRows: result.artistCooccurrenceRows,
+          transitionRows: result.transitionRows,
           likedSongsSynced: result.likedSongsSync.synced,
           likedSongsUnstarred: result.likedSongsSync.unstarred,
         },

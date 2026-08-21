@@ -21,6 +21,7 @@ import {
 } from '../db/schema';
 import { eq, and, gte, desc, sql, inArray } from 'drizzle-orm';
 import type { Song } from '@/lib/types/song';
+import { getFeatureFlags } from '@/lib/config/features';
 
 // ============================================================================
 // Constants
@@ -437,6 +438,7 @@ export async function calculateFullUserProfile(
   artistAffinities: number;
   temporalPreferences: number;
   artistCooccurrenceRows: number;
+  transitionRows: number;
   likedSongsSync: { synced: number; unstarred: number };
 }> {
   console.log(`👤 [Profile] Starting full profile calculation for user ${userId}`);
@@ -489,14 +491,30 @@ export async function calculateFullUserProfile(
     console.error(`👤 [Profile] Failed to compute artist co-occurrence:`, error);
   }
 
+  // Step 6: Rebuild directed transition graph (flag-gated — see transition-learning-plan.md).
+  // Inert when the flag is off: no read, no write, no cost.
+  let transitionRows = 0;
+  if (getFeatureFlags().transitionLearning.enabled) {
+    console.log(`👤 [Profile] Step 6: Computing transition graph...`);
+    try {
+      const { computeForUser: computeTransitions } = await import('./transition-scoring');
+      transitionRows = await computeTransitions(userId, {
+        halfLifeDays: getFeatureFlags().transitionLearning.halfLifeDays,
+      });
+    } catch (error) {
+      console.error(`👤 [Profile] Failed to compute transition graph:`, error);
+    }
+  }
+
   const elapsed = Date.now() - startTime;
-  console.log(`👤 [Profile] Complete in ${elapsed}ms: ${compoundCount} compound scores, ${artistCount} artist affinities, ${temporalCount} temporal prefs, ${cooccurrenceRows} co-occurrence rows, ${likedResult.synced} liked songs synced`);
+  console.log(`👤 [Profile] Complete in ${elapsed}ms: ${compoundCount} compound scores, ${artistCount} artist affinities, ${temporalCount} temporal prefs, ${cooccurrenceRows} co-occurrence rows, ${transitionRows} transition edges, ${likedResult.synced} liked songs synced`);
 
   return {
     compoundScores: compoundCount,
     artistAffinities: artistCount,
     temporalPreferences: temporalCount,
     artistCooccurrenceRows: cooccurrenceRows,
+    transitionRows,
     likedSongsSync: likedResult,
   };
 }

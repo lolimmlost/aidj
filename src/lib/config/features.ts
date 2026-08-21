@@ -31,6 +31,14 @@ export interface FeatureFlags {
     similarArtistWeight: number; // Weight for Aurral similar-artist candidates (0-1)
     genreBoostWeight: number;    // Weight for Aurral genre/tag scoring boost (0-1)
   };
+
+  // Phase 5: Transition-learning re-ranking (directed A→B transition graph)
+  transitionLearning: {
+    enabled: boolean;      // OFF by default — mining + scorer signal both gate on this
+    weight: number;        // scorer weight when enabled (Step 4)
+    minSupport: number;    // raw totalCount gate: below this an edge is treated as noise
+    halfLifeDays: number;  // recency decay half-life used when mining the graph
+  };
 }
 
 const defaultFlags: FeatureFlags = {
@@ -51,6 +59,12 @@ const defaultFlags: FeatureFlags = {
     enabled: true, // Enabled by default — uses cached data only, no API overhead
     similarArtistWeight: 0.9,
     genreBoostWeight: 0.15,
+  },
+  transitionLearning: {
+    enabled: false, // OFF until validated for a user (see docs/design/transition-learning-plan.md)
+    weight: 0.10,
+    minSupport: 3,
+    halfLifeDays: 120,
   },
 };
 
@@ -85,6 +99,9 @@ function loadFeatureFlags(): FeatureFlags {
     }
     if (process.env.FEATURE_AURRAL_RECOMMENDATIONS === 'false') {
       flags.aurralRecommendations.enabled = false;
+    }
+    if (process.env.FEATURE_TRANSITION_LEARNING === 'true') {
+      flags.transitionLearning.enabled = true;
     }
   }
 
@@ -126,7 +143,7 @@ export function getFeatureFlags(): FeatureFlags {
  * Check if a specific feature is enabled
  */
 export function isFeatureEnabled(
-  feature: 'hlsStreaming' | 'serverPlaybackState' | 'jukeboxMode' | 'aurralRecommendations'
+  feature: 'hlsStreaming' | 'serverPlaybackState' | 'jukeboxMode' | 'aurralRecommendations' | 'transitionLearning'
 ): boolean {
   return getFeatureFlags()[feature].enabled;
 }
