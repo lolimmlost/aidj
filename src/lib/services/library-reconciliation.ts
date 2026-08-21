@@ -23,6 +23,7 @@ import {
   recommendationFeedback,
   playlistSongs,
   userPlaylists,
+  libraryReconciliationState,
 } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import {
@@ -35,9 +36,18 @@ import {
   buildSubsonicUrl,
   apiFetch,
 } from './navidrome';
+import type { LibraryReconciliationState } from '@/lib/db/schema';
 import { getNavidromeUserCreds } from './navidrome-users';
 import type { SubsonicCreds } from './navidrome-users';
 import { getConfig } from '@/lib/config/config';
+
+/**
+ * Delay before the first run after (re)initialization. Kept short so a fresh
+ * deploy reconciles soon after boot rather than only after a full frequency
+ * window — and so an overdue persisted schedule fires promptly without a
+ * thundering-herd at the exact moment of boot.
+ */
+const FIRST_RUN_DELAY_MS = 3 * 60 * 1000; // 3 minutes
 
 // ============================================================================
 // Types
@@ -105,19 +115,101 @@ class LibraryReconciliationManager {
   }
 
   async initialize(userId: string, frequencyHours?: number): Promise<void> {
+    // Idempotent: repeated calls (boot hook + status/trigger routes) must not
+    // stack timers or reset the cadence.
+    if (this.userId === userId && this.scheduledTimeoutId) {
+      return;
+    }
+
     this.userId = userId;
     if (frequencyHours !== undefined) this.frequencyHours = frequencyHours;
-    if (this.enabled) {
-      this.scheduleNextRun();
+
+    // Resume cadence from persisted state so it survives restarts/redeploys.
+    const state = await this.loadState();
+    if (state) {
+      this.enabled = state.enabled;
+      this.frequencyHours = frequencyHours ?? state.frequencyHours;
+      this.lastRunAt = state.lastRunAt ?? null;
+      this.lastError = state.lastError ?? null;
+      this.lastResult = (state.lastResult as ReconciliationResult | null) ?? null;
     }
+
+    if (this.enabled) {
+      // If we have a persisted next-run in the future, resume from it.
+      // If it's overdue (or we've never run), kick a first run soon rather
+      // than waiting a full frequency window — this also means a fresh deploy
+      // reconciles shortly after boot instead of only `frequencyHours` later.
+      let delay = FIRST_RUN_DELAY_MS;
+      if (state?.nextRunAt) {
+        const remaining = state.nextRunAt.getTime() - Date.now();
+        delay = remaining > 0 ? remaining : FIRST_RUN_DELAY_MS;
+      }
+      this.scheduleNextRun(delay);
+    }
+
+    // Persist (creates the row on first ever init).
+    await this.saveState();
+
     console.log(
-      `[LibraryReconciliation] Initialized for user ${userId}, every ${this.frequencyHours}h`
+      `[LibraryReconciliation] Initialized for user ${userId}, every ${this.frequencyHours}h` +
+        (this.nextRunAt ? `, next run ${this.nextRunAt.toISOString()}` : ', disabled')
     );
+  }
+
+  private async loadState(): Promise<LibraryReconciliationState | null> {
+    if (!this.userId) return null;
+    try {
+      const rows = await db
+        .select()
+        .from(libraryReconciliationState)
+        .where(eq(libraryReconciliationState.userId, this.userId))
+        .limit(1);
+      return rows[0] ?? null;
+    } catch (err) {
+      console.error('[LibraryReconciliation] loadState failed:', err);
+      return null;
+    }
+  }
+
+  private async saveState(): Promise<void> {
+    if (!this.userId) return;
+    try {
+      const values = {
+        userId: this.userId,
+        enabled: this.enabled,
+        frequencyHours: this.frequencyHours,
+        lastRunAt: this.lastRunAt,
+        nextRunAt: this.nextRunAt,
+        isRunning: this.isRunning,
+        lastError: this.lastError,
+        lastResult: this.lastResult,
+        updatedAt: new Date(),
+      };
+      await db
+        .insert(libraryReconciliationState)
+        .values(values)
+        .onConflictDoUpdate({
+          target: libraryReconciliationState.userId,
+          set: {
+            enabled: values.enabled,
+            frequencyHours: values.frequencyHours,
+            lastRunAt: values.lastRunAt,
+            nextRunAt: values.nextRunAt,
+            isRunning: values.isRunning,
+            lastError: values.lastError,
+            lastResult: values.lastResult,
+            updatedAt: values.updatedAt,
+          },
+        });
+    } catch (err) {
+      console.error('[LibraryReconciliation] saveState failed:', err);
+    }
   }
 
   start(): void {
     this.enabled = true;
     this.scheduleNextRun();
+    void this.saveState();
   }
 
   stop(): void {
@@ -127,6 +219,7 @@ class LibraryReconciliationManager {
       this.scheduledTimeoutId = null;
     }
     this.nextRunAt = null;
+    void this.saveState();
   }
 
   getStatus(): ReconciliationStatus {
@@ -150,6 +243,7 @@ class LibraryReconciliationManager {
     }
 
     this.isRunning = true;
+    void this.saveState();
     try {
       const result = await reconcileLibrary(this.userId);
       this.lastResult = result;
@@ -168,6 +262,9 @@ class LibraryReconciliationManager {
     } finally {
       this.isRunning = false;
       if (this.enabled) this.scheduleNextRun();
+      // Persist run outcome + the freshly computed nextRunAt so cadence and
+      // status survive a restart.
+      await this.saveState();
     }
   }
 
