@@ -115,8 +115,9 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
         const response = await fetch('/api/downloads/youtube-fallback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          // Send the explicit selected tracks; the route prefers `tracks` over
+          // `importJobId` anyway, so passing the job id here would be dead weight.
           body: JSON.stringify({
-            importJobId: importResult.importJobId,
             tracks: songsToDownload,
           }),
         });

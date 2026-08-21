@@ -243,7 +243,8 @@ export function itemLikelyMatchesTrack(
 async function queueAndAwaitDownload(
   track: FallbackTrack,
   query: string,
-  folder?: string
+  folder: string | undefined,
+  claimedIds: Set<string>
 ): Promise<DownloadOutcome> {
   let before: metube.MeTubeQueueResponse;
   try {
@@ -252,15 +253,21 @@ async function queueAndAwaitDownload(
     before = { done: {}, queue: {} };
   }
 
+  // Content detection can't tell "the item I just queued" from some other item
+  // that loosely matches this track — including one already claimed by an earlier
+  // track in the same batch (e.g. "Song" vs "Song (Remix)"). Exclude claimed ids so
+  // each MeTube item is attributed to at most one track.
+  const matches = (d: MeTubeDownload) => !claimedIds.has(d.id) && itemLikelyMatchesTrack(track, d);
+
   // Ignore a pre-existing *errored* entry for this track (a stale prior failure);
   // but a pre-existing *finished* match means it's already downloaded — done.
   const staleErrorIds = new Set(
     Object.values(before.done)
-      .filter((d) => d.status === 'error' && itemLikelyMatchesTrack(track, d))
+      .filter((d) => d.status === 'error' && matches(d))
       .map((d) => d.id)
   );
   const preFinished = Object.values(before.done).find(
-    (d) => d.status === 'finished' && itemLikelyMatchesTrack(track, d)
+    (d) => d.status === 'finished' && matches(d)
   );
   if (preFinished) {
     return { metubeId: preFinished.id, item: preFinished };
@@ -295,19 +302,19 @@ async function queueAndAwaitDownload(
     }
 
     const finished = Object.values(q.done).find(
-      (d) => d.status === 'finished' && itemLikelyMatchesTrack(track, d)
+      (d) => d.status === 'finished' && matches(d)
     );
     if (finished) return { metubeId: finished.id, item: finished };
 
     const errored = Object.values(q.done).find(
-      (d) => d.status === 'error' && !staleErrorIds.has(d.id) && itemLikelyMatchesTrack(track, d)
+      (d) => d.status === 'error' && !staleErrorIds.has(d.id) && matches(d)
     );
     if (errored) {
       return { metubeId: errored.id, item: errored, errored: true, error: errored.msg || 'MeTube reported error' };
     }
 
     // Actively fetching? These downloads can take 5–10 min, so this matters.
-    if (Object.values(q.queue).some((d) => itemLikelyMatchesTrack(track, d))) {
+    if (Object.values(q.queue).some((d) => matches(d))) {
       sawInFlight = true;
     }
   }
@@ -397,28 +404,33 @@ async function cleanupErroredDownload(metubeId?: string): Promise<void> {
 
 /**
  * Queue a track and, on a *confirmed error*, retry up to `maxAttempts` (YouTube
- * 403 / PO-token errors are often transient). A slow download that merely timed
- * out while still fetching is NOT retried — retrying would re-queue a video that
- * is already downloading. Returns the final outcome plus the attempt count.
+ * 403 / PO-token errors are often transient). We retry ONLY confirmed errors:
+ * a bare timeout (nothing matching ever appeared) means the same `ytsearch1:`
+ * query would just re-resolve to the same video our content detection couldn't
+ * see — re-queuing it risks a duplicate/orphan file, not a better outcome. A
+ * still-in-flight timeout is likewise left alone (it's probably about to finish).
+ * Returns the final outcome plus the attempt count.
  */
 async function queueWithRetries(
   track: FallbackTrack,
   query: string,
   folder: string | undefined,
   maxAttempts: number,
-  label: string
+  label: string,
+  claimedIds: Set<string>
 ): Promise<DownloadOutcome & { attempts: number }> {
   let outcome: DownloadOutcome = {};
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    outcome = await queueAndAwaitDownload(track, query, folder);
+    outcome = await queueAndAwaitDownload(track, query, folder, claimedIds);
 
-    // Success, or a timeout on a still-in-flight download — don't retry either.
-    if ((!outcome.errored && !outcome.timedOut) || outcome.stillDownloading) {
+    // Anything but a confirmed error is terminal — success, mismatch-to-verify,
+    // still-downloading, or a bare timeout all stop here (see docstring).
+    if (!outcome.errored) {
       return { ...outcome, attempts: attempt };
     }
 
-    // Confirmed error (or nothing ever appeared) — clean up and retry.
-    if (outcome.errored) await cleanupErroredDownload(outcome.metubeId);
+    // Confirmed error — clean up the failed entry and retry.
+    await cleanupErroredDownload(outcome.metubeId);
 
     if (attempt < maxAttempts) {
       console.warn(
@@ -447,6 +459,9 @@ function pruneOldJobs() {
 }
 
 async function runJob(job: FallbackJob): Promise<void> {
+  // MeTube ids already attributed to an earlier track in this batch, so a shared
+  // loose-match (e.g. near-duplicate titles) can't be counted twice. See #2.
+  const claimedIds = new Set<string>();
   for (let i = 0; i < job.results.length; i++) {
     job.currentIndex = i;
     const entry = job.results[i];
@@ -473,10 +488,12 @@ async function runJob(job: FallbackJob): Promise<void> {
 
     console.log(`[YouTubeFallback] (${i + 1}/${job.results.length}) searching: ${entry.query}`);
 
-    const outcome = await queueWithRetries(entry.track, entry.query, job.folder, job.maxAttempts, label);
+    const outcome = await queueWithRetries(entry.track, entry.query, job.folder, job.maxAttempts, label, claimedIds);
     entry.metubeId = outcome.metubeId;
     entry.attempts = outcome.attempts;
     entry.finishedAt = Date.now();
+    // Claim this MeTube item so a later, similarly-titled track can't reuse it.
+    if (outcome.metubeId) claimedIds.add(outcome.metubeId);
 
     if (outcome.item) {
       entry.resultTitle = outcome.item.title;
