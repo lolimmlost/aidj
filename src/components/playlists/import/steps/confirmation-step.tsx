@@ -65,6 +65,9 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
   const [queuedCount, setQueuedCount] = useState(0);
   const [downloadFailed, setDownloadFailed] = useState(false);
   const [downloadErrorMessage, setDownloadErrorMessage] = useState<string | null>(null);
+  // Lidarr = album-based acquisition; YouTube = per-song MeTube fallback (#145),
+  // for the misses Lidarr can't get (e.g. "artist has 0 albums").
+  const [downloadService, setDownloadService] = useState<'lidarr' | 'youtube'>('lidarr');
 
   // Mock unmatched songs list (in real implementation, this would come from importResult)
   const unmatchedSongs: UnmatchedSong[] = importResult.unmatchedSongs || [
@@ -105,6 +108,44 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
 
     try {
       const songsToDownload = Array.from(selectedSongs).map(i => unmatchedSongs[i]);
+
+      // YouTube path: per-song MeTube fallback (#145). Fire-and-poll happens
+      // server-side; here we just start the job and report it.
+      if (downloadService === 'youtube') {
+        const response = await fetch('/api/downloads/youtube-fallback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // Send the explicit selected tracks; the route prefers `tracks` over
+          // `importJobId` anyway, so passing the job id here would be dead weight.
+          body: JSON.stringify({
+            tracks: songsToDownload,
+          }),
+        });
+
+        if (!response.ok) {
+          let errorMessage = 'Failed to start YouTube downloads';
+          try {
+            const error = await response.json();
+            errorMessage = error.message || error.error || errorMessage;
+          } catch {
+            /* non-JSON */
+          }
+          throw new Error(errorMessage);
+        }
+
+        const data = await response.json();
+        const started = data.data?.total ?? songsToDownload.length;
+
+        toast.success(`Sent ${started} song${started !== 1 ? 's' : ''} to YouTube`, {
+          description: 'Downloading one at a time via MeTube. Landed files flow through Picard → library rescan.',
+          duration: 8000,
+        });
+
+        setHasQueuedDownloads(true);
+        setQueuedCount(started);
+        setDownloadDialogOpen(false);
+        return;
+      }
 
       const response = await fetch('/api/downloads/queue', {
         method: 'POST',
@@ -381,9 +422,37 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
           <DialogHeader className="flex-shrink-0 space-y-0 md:space-y-1">
             <DialogTitle className="text-sm md:text-base">Download Missing Songs</DialogTitle>
             <DialogDescription className="hidden md:block text-xs">
-              Select which songs to download via Lidarr.
+              {downloadService === 'lidarr'
+                ? 'Find full albums via Lidarr.'
+                : 'Grab each song straight from YouTube via MeTube — for tracks Lidarr can’t get.'}
             </DialogDescription>
           </DialogHeader>
+
+          {/* Service selector: Lidarr (albums) vs YouTube (per-song fallback) */}
+          <div className="flex-shrink-0 grid grid-cols-2 gap-1 rounded-md border p-0.5">
+            <button
+              type="button"
+              onClick={() => setDownloadService('lidarr')}
+              className={`h-6 md:h-7 rounded text-[10px] md:text-xs font-medium transition-colors ${
+                downloadService === 'lidarr'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              Lidarr
+            </button>
+            <button
+              type="button"
+              onClick={() => setDownloadService('youtube')}
+              className={`h-6 md:h-7 rounded text-[10px] md:text-xs font-medium transition-colors ${
+                downloadService === 'youtube'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              YouTube
+            </button>
+          </div>
 
           {/* Song Selection */}
           {unmatchedSongs.length > 0 && (
@@ -417,7 +486,9 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
           )}
 
           <div className="flex-shrink-0 text-[9px] md:text-xs text-muted-foreground text-center px-2">
-            Note: Downloaded songs must be added to playlist manually after library rescan.
+            {downloadService === 'youtube'
+              ? 'Note: Downloads one at a time and verifies each match. Retag in Picard, then rescan the library to add them.'
+              : 'Note: Downloaded songs must be added to playlist manually after library rescan.'}
           </div>
 
           <DialogFooter className="flex-shrink-0 border-t pt-2 md:pt-3 gap-2">
@@ -428,12 +499,12 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
               {isDownloading ? (
                 <>
                   <Loader2 className="mr-1 h-3 w-3 md:h-4 md:w-4 animate-spin" />
-                  Queueing...
+                  {downloadService === 'youtube' ? 'Starting...' : 'Queueing...'}
                 </>
               ) : (
                 <>
                   <Download className="mr-1 h-3 w-3 md:h-4 md:w-4" />
-                  Queue {selectedSongs.size}
+                  {downloadService === 'youtube' ? `Send ${selectedSongs.size}` : `Queue ${selectedSongs.size}`}
                 </>
               )}
             </Button>
