@@ -17,9 +17,55 @@ import sirv from 'sirv';
 import { setupPlaybackWebSocket } from './src/lib/services/playback-websocket';
 import { getUserIdFromRequest } from './src/lib/auth/ws-session';
 import { clearActiveDeviceIfMatches } from './src/lib/auth/ws-playback-ops';
+import { db } from './src/lib/db';
+import { user } from './src/lib/db/schema';
+import { eq, asc } from 'drizzle-orm';
+import { initializeReconciliation } from './src/lib/services/library-reconciliation';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
+
+/**
+ * Bootstrap server-lifetime background jobs. This is the ONLY prod boot hook —
+ * `vite-ws-plugin.ts` is dev-only, so without this the reconciliation scheduler
+ * is never initialized on prod and its 6-hour timer is never armed.
+ *
+ * Reconciliation is a single-user singleton, so we run it for the owner: the
+ * `RECONCILIATION_USER_ID` env override, else the earliest `admin` user, else
+ * the earliest user. Failures never block server startup.
+ */
+async function bootstrapBackgroundJobs() {
+  try {
+    let userId: string | undefined = process.env.RECONCILIATION_USER_ID?.trim() || undefined;
+
+    if (!userId) {
+      const admins = await db
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.role, 'admin'))
+        .orderBy(asc(user.createdAt))
+        .limit(1);
+      userId = admins[0]?.id;
+    }
+    if (!userId) {
+      const anyUser = await db
+        .select({ id: user.id })
+        .from(user)
+        .orderBy(asc(user.createdAt))
+        .limit(1);
+      userId = anyUser[0]?.id;
+    }
+    if (!userId) {
+      console.warn('[Server] No user found — skipping library reconciliation bootstrap');
+      return;
+    }
+
+    await initializeReconciliation(userId);
+    console.log(`[Server] Library reconciliation bootstrapped for user ${userId}`);
+  } catch (err) {
+    console.error('[Server] Failed to bootstrap background jobs:', err);
+  }
+}
 
 async function start() {
   // Import the built handler and convert to a proper Node handler
@@ -78,6 +124,8 @@ async function start() {
   server.listen(PORT, HOST, () => {
     console.log(`[Server] Listening on http://${HOST}:${PORT}`);
     console.log(`[Server] WebSocket available at ws://${HOST}:${PORT}/ws/playback`);
+    // Fire-and-forget: never let background bootstrap block/kill the listener.
+    void bootstrapBackgroundJobs();
   });
 
   // Graceful shutdown
