@@ -26,6 +26,7 @@ import { getLastFmClient } from './lastfm';
 import { getConfigAsync } from '@/lib/config/config';
 import { search, getRandomSongs } from './navidrome';
 import { getCompoundScoreBoosts } from './compound-scoring';
+import { getTransitionScores } from './transition-scoring';
 import { calculateSkipScores } from './skip-scoring';
 import { calculateDJScore, enrichSongsWithDJMetadata, type SongWithDJMetadata } from './dj-match-scorer';
 import { getCurrentTimeContext, type TimeContext } from './time-based-discovery';
@@ -46,7 +47,23 @@ export const SCORE_WEIGHTS = {
   skip: 0.10,          // Avoid frequently skipped
   temporal: 0.05,      // Time-of-day bonus
   diversity: 0.05,     // Artist variety bonus
+  transition: 0,       // Directed A→B transition fit (0 unless transitionLearning flag on)
 };
+
+/**
+ * Carve the transition weight out of the two lowest-signal weights (dj, temporal)
+ * proportionally, so the full vector still sums to 1.0. Per the design doc, w=0.10
+ * gives dj 0.20→0.12 and temporal 0.05→0.03. Only applied when the flag is on.
+ */
+function redistributeTransitionWeight(weight: number): Partial<typeof SCORE_WEIGHTS> {
+  const donors = SCORE_WEIGHTS.dj + SCORE_WEIGHTS.temporal; // 0.25
+  const w = Math.max(0, Math.min(weight, donors));         // clamp so donors can't go negative
+  return {
+    dj: SCORE_WEIGHTS.dj - w * (SCORE_WEIGHTS.dj / donors),
+    temporal: SCORE_WEIGHTS.temporal - w * (SCORE_WEIGHTS.temporal / donors),
+    transition: w,
+  };
+}
 
 // Delay between searches to avoid rate limiting (ms)
 const SEARCH_THROTTLE_MS = 100;
@@ -97,6 +114,7 @@ export interface ScoredCandidate {
     skip: number;
     temporal: number;
     diversity: number;
+    transition: number;
   };
   finalScore: number;
 }
@@ -128,6 +146,8 @@ export interface ScoringContext {
   skipPenalties: Map<string, number>;
   /** Map of songId -> compound boost (0-1) */
   compoundBoosts: Map<string, number>;
+  /** Map of songId -> transition score (0-1, 0.5 = neutral); empty when flag off */
+  transitionScores: Map<string, number>;
   /** Artists already in queue for diversity calculation */
   queuedArtists: Set<string>;
 }
@@ -556,7 +576,8 @@ async function buildScoringContext(
   seedSong: Song & { bpm?: number; key?: string; energy?: number },
   songIds: string[],
   userId?: string,
-  queuedArtists?: string[]
+  queuedArtists?: string[],
+  transitionScores: Map<string, number> = new Map()
 ): Promise<ScoringContext> {
   const timeContext = getCurrentTimeContext();
 
@@ -589,6 +610,7 @@ async function buildScoringContext(
     feedbackScores,
     skipPenalties,
     compoundBoosts,
+    transitionScores,
     queuedArtists: new Set((queuedArtists || []).map(a => a.toLowerCase())),
   };
 }
@@ -683,6 +705,7 @@ function scoreCandidate(
     feedbackScores,
     skipPenalties,
     compoundBoosts,
+    transitionScores,
     queuedArtists,
   } = context;
 
@@ -743,6 +766,11 @@ function scoreCandidate(
   const artistLower = song.artist?.toLowerCase() || '';
   const diversityScore = queuedArtists.has(artistLower) ? 0.3 : 1.0;
 
+  // 8. Transition score - does this song follow the seed well for this user?
+  // Neutral 0.5 when there's no usable transition data (or the flag is off →
+  // empty map + weight 0, so this term contributes nothing).
+  const transitionScore = transitionScores.get(song.id) ?? 0.5;
+
   // Calculate final weighted score
   const finalScore =
     (lastFmScore * weights.lastFm) +
@@ -751,7 +779,8 @@ function scoreCandidate(
     (feedbackScore * weights.feedback) +
     (skipScore * weights.skip) +
     (temporalScore * weights.temporal) +
-    (diversityScore * weights.diversity);
+    (diversityScore * weights.diversity) +
+    (transitionScore * weights.transition);
 
   return {
     song,
@@ -764,6 +793,7 @@ function scoreCandidate(
       skip: skipScore,
       temporal: temporalScore,
       diversity: diversityScore,
+      transition: transitionScore,
     },
     finalScore,
   };
@@ -793,7 +823,7 @@ export async function getBlendedRecommendations(
     excludeArtists = [],
     queueContext,
     djMatching,
-    weights = SCORE_WEIGHTS,
+    weights,
   } = options;
 
   console.log(`🎯 [BlendedScorer] Starting blended recommendations for "${seedSong.artist} - ${seedSong.title}"`);
@@ -831,11 +861,31 @@ export async function getBlendedRecommendations(
     energy: djMatching?.currentEnergy || seedSong.energy,
   };
 
+  // Transition re-ranking (flag-gated). Flag-off is a true no-op: empty score map
+  // + transition weight 0, so no term is added and the other weights are untouched.
+  let transitionScores = new Map<string, number>();
+  let transitionWeightOverride: Partial<typeof SCORE_WEIGHTS> = {};
+  const transitionFlag = getFeatureFlags().transitionLearning;
+  if (transitionFlag.enabled && userId) {
+    try {
+      transitionScores = await getTransitionScores(
+        userId,
+        { artist: seedSong.artist, genre: seedSong.genre },
+        songs,
+        { minSupport: transitionFlag.minSupport }
+      );
+      transitionWeightOverride = redistributeTransitionWeight(transitionFlag.weight);
+    } catch (error) {
+      console.warn('⚠️ [BlendedScorer] Transition scoring failed:', error);
+    }
+  }
+
   const scoringContext = await buildScoringContext(
     seedSongFull,
     songIds,
     userId,
-    queueContext?.artists
+    queueContext?.artists,
+    transitionScores
   );
 
   // 3. Enrich songs with DJ metadata if DJ matching is enabled
@@ -853,8 +903,10 @@ export async function getBlendedRecommendations(
     }
   }
 
-  // 4. Score all candidates
-  const mergedWeights = { ...SCORE_WEIGHTS, ...weights };
+  // 4. Score all candidates.
+  // Precedence: base weights < flag-driven transition override < explicit caller
+  // weights (a caller overriding weights opts out of the flag-based rebalance).
+  const mergedWeights = { ...SCORE_WEIGHTS, ...transitionWeightOverride, ...(weights ?? {}) };
   const scoredCandidates: ScoredCandidate[] = [];
 
   for (const [songId, candidate] of candidates) {
@@ -881,7 +933,7 @@ export async function getBlendedRecommendations(
 
   console.log(`✅ [BlendedScorer] Returning ${finalResults.length} recommendations from ${candidates.size} candidates`);
   console.log(`📊 [BlendedScorer] Source distribution: ${JSON.stringify(sourceCounts)}`);
-  console.log(`📊 [BlendedScorer] Avg scores - lastFm: ${avgScores.lastFm.toFixed(2)}, compound: ${avgScores.compound.toFixed(2)}, dj: ${avgScores.dj.toFixed(2)}, feedback: ${avgScores.feedback.toFixed(2)}`);
+  console.log(`📊 [BlendedScorer] Avg scores - lastFm: ${avgScores.lastFm.toFixed(2)}, compound: ${avgScores.compound.toFixed(2)}, dj: ${avgScores.dj.toFixed(2)}, feedback: ${avgScores.feedback.toFixed(2)}, transition: ${avgScores.transition.toFixed(2)}`);
 
   return {
     songs: finalResults.map(r => r.song),
@@ -993,10 +1045,10 @@ function buildTargetGenres(seedGenre?: string, queueGenres?: string[]): string[]
 
 function calculateAverageScores(results: ScoredCandidate[]): Record<string, number> {
   if (results.length === 0) {
-    return { lastFm: 0, compound: 0, dj: 0, feedback: 0, skip: 0, temporal: 0, diversity: 0 };
+    return { lastFm: 0, compound: 0, dj: 0, feedback: 0, skip: 0, temporal: 0, diversity: 0, transition: 0 };
   }
 
-  const totals = { lastFm: 0, compound: 0, dj: 0, feedback: 0, skip: 0, temporal: 0, diversity: 0 };
+  const totals = { lastFm: 0, compound: 0, dj: 0, feedback: 0, skip: 0, temporal: 0, diversity: 0, transition: 0 };
 
   for (const r of results) {
     totals.lastFm += r.scores.lastFm;
@@ -1006,6 +1058,7 @@ function calculateAverageScores(results: ScoredCandidate[]): Record<string, numb
     totals.skip += r.scores.skip;
     totals.temporal += r.scores.temporal;
     totals.diversity += r.scores.diversity;
+    totals.transition += r.scores.transition;
   }
 
   const count = results.length;
@@ -1017,6 +1070,7 @@ function calculateAverageScores(results: ScoredCandidate[]): Record<string, numb
     skip: totals.skip / count,
     temporal: totals.temporal / count,
     diversity: totals.diversity / count,
+    transition: totals.transition / count,
   };
 }
 
@@ -1046,4 +1100,5 @@ export {
   CANDIDATE_LIMITS,
   MAX_SONGS_PER_ARTIST,
   MIN_UNIQUE_ARTISTS,
+  redistributeTransitionWeight,
 };
