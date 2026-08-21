@@ -276,7 +276,14 @@ if (getFeatureFlags().transitionLearning.enabled) {
 Add `transitionRows` to the returned object + the completion log line. No new scheduler — this rides the
 existing `POST /api/profile/update` cadence (startup / 10+ plays / manual refresh).
 
-### Step 4 — Scorer signal (flag-gated) in `blended-recommendation-scorer.ts`
+### Step 4 — Scorer signal (flag-gated) in `blended-recommendation-scorer.ts` ✅ implemented
+Done as specified below. `transition: 0` added to `SCORE_WEIGHTS` (flag-off no-op); when the flag is
+on, `redistributeTransitionWeight(flag.weight)` carves the weight proportionally out of `dj`+`temporal`
+so the vector still sums to 1.0 (invariant covered by `__tests__/blended-transition-weights.test.ts`).
+`getTransitionScores` is fetched only when the flag is on (seed = the currently-playing song), passed
+through `buildScoringContext` into `scoreCandidate` as signal #8, and surfaced in the avg-scores log
+line for Step 6 observation. `profile-recommendations.ts` remains untouched (NG-5).
+
 - Add `transition` to `SCORE_WEIGHTS` at **0** by default so flag-off is a true no-op. When the flag is
   on, apply an override that keeps the sum at 1.0 by pulling from the two lowest-signal weights:
   `{ dj: 0.12, temporal: 0.03, transition: flag.weight /*0.10*/ }` (was dj 0.20 / temporal 0.05).
