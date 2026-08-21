@@ -4,14 +4,24 @@
  * No network / MeTube interaction is exercised here.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   normalizeSearchQuery,
   buildYouTubeSearchUrl,
   verifyDownload,
   itemLikelyMatchesTrack,
   libraryMatch,
+  startYouTubeFallbackJob,
+  getYouTubeFallbackJob,
 } from '../youtube-fallback';
+
+// The batch-runner tests below drive real MeTube interaction, so stub the client.
+vi.mock('../metube', () => ({
+  getQueue: vi.fn(),
+  addDownload: vi.fn().mockResolvedValue({ status: 'ok' }),
+  deleteDownloads: vi.fn().mockResolvedValue({ status: 'ok' }),
+}));
+import * as metube from '../metube';
 
 describe('normalizeSearchQuery', () => {
   it('uses the primary artist and drops collaborators', () => {
@@ -151,5 +161,66 @@ describe('libraryMatch (dedup guard vs Navidrome songs)', () => {
     expect(
       libraryMatch({ artist: 'Valexus', title: 'Calling You' }, { title: 'When Did Your Heart Go Missing?', artist: 'Rooney' })
     ).toBe(false);
+  });
+});
+
+describe('batch runner attribution + retry policy', () => {
+  const finishedItem = {
+    id: 'vid1',
+    title: 'Cloonee - Good Girl',
+    url: 'ytsearch1:Cloonee Good Girl',
+    status: 'finished' as const,
+    filename: 'Cloonee - Good Girl.mp3',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    // Every poll sees exactly the one finished item.
+    (metube.getQueue as ReturnType<typeof vi.fn>).mockResolvedValue({
+      done: { vid1: finishedItem },
+      queue: {},
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // #2: a single MeTube item that loosely matches two near-identical tracks must be
+  // attributed to only the first — the second must not be re-counted as the same file.
+  it('does not attribute one MeTube item to two tracks in a batch', async () => {
+    const track = { artist: 'Cloonee', title: 'Good Girl' };
+    const job = startYouTubeFallbackJob('user-1', [track, { ...track }], {
+      skipInLibrary: false, // don't touch Navidrome in this test
+    });
+
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    expect(finished?.status).toBe('completed');
+    // First track claims vid1; the second can't reuse it, so it never resolves.
+    expect(finished?.results[0].status).toBe('downloaded');
+    expect(finished?.results[0].metubeId).toBe('vid1');
+    expect(finished?.results[1].status).toBe('failed');
+    expect(finished?.results[1].metubeId).toBeUndefined();
+  });
+
+  // #3: a bare timeout (nothing matching ever appeared) must NOT be retried — the
+  // same query would just re-resolve to the same undetectable video.
+  it('does not retry a track that merely timed out', async () => {
+    const track = { artist: 'Cloonee', title: 'Good Girl' };
+    // Two identical tracks: the first claims vid1, the second times out with nothing
+    // left to match. addDownload is only reachable on the second (the first is served
+    // from the pre-finished item) and must be called exactly once — no retries.
+    const job = startYouTubeFallbackJob('user-1', [track, { ...track }], {
+      skipInLibrary: false,
+      maxAttempts: 3,
+    });
+
+    await vi.runAllTimersAsync();
+
+    expect(getYouTubeFallbackJob(job.id, 'user-1')?.status).toBe('completed');
+    expect(metube.addDownload as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
   });
 });
