@@ -23,3 +23,4 @@ export * from "./artist-metadata.schema";
 export * from "./artist-cooccurrence.schema";
 export * from "./listening-sessions.schema";
 export * from "./library-reconciliation.schema";
+export * from "./track-transitions.schema";
