@@ -216,7 +216,10 @@ export async function deleteSmartPlaylist(playlistId: string): Promise<void> {
     },
   });
 
-  if (!response.ok) {
+  // Treat "already gone" as success — deleting a playlist that no longer exists
+  // on Navidrome is the desired end state, and must not block the local delete
+  // (see the authoritative-delete handling in playlists/$id.ts, #160).
+  if (!response.ok && response.status !== 404) {
     const errorText = await response.text();
     throw new ServiceError(
       'NAVIDROME_API_ERROR',
