@@ -177,16 +177,21 @@ export function verifyDownload(
   const wantArtist = normalizeForCompare((track.artist || '').split(/[;,]/)[0]);
 
   const titleScore = got.includes(wantTitle) && wantTitle.length > 0 ? 1 : tokenOverlap(wantTitle, got);
-  const artistScore =
-    wantArtist.length < 3 // too short to be a reliable signal
+  const artistReliable = wantArtist.length >= 3; // too short to be a reliable signal
+  const artistScore = !artistReliable
+    ? 1
+    : got.includes(wantArtist)
       ? 1
-      : got.includes(wantArtist)
-        ? 1
-        : tokenOverlap(wantArtist, got);
+      : tokenOverlap(wantArtist, got);
 
   // Title carries most of the weight; a strong title + present artist passes.
   const score = titleScore * 0.65 + artistScore * 0.35;
-  const matched = titleScore >= 0.6 && score >= 0.6;
+  // A confident title is NOT enough on its own: `ytsearch1:` routinely returns a
+  // same-titled song by the WRONG artist (e.g. "Phil Odd - ur lovin" resolving to
+  // "Phil Collins - Some Of Your Lovin'", which shares only the "phil" token →
+  // artist 50%). When the artist is a usable signal, require it to genuinely
+  // corroborate rather than letting a perfect title drag a bad artist over the line.
+  const matched = titleScore >= 0.6 && score >= 0.6 && (!artistReliable || artistScore >= 0.6);
 
   return {
     matched,
@@ -357,16 +362,29 @@ export function libraryMatch(track: FallbackTrack, song: LibSong): boolean {
     gotTitle.includes(wantTitle) || wantTitle.includes(gotTitle) || tokenOverlap(wantTitle, gotTitle) >= 0.6;
   if (!titleOk) return false;
 
+  // A same TITLE is not enough — the library holds plenty of distinct songs that
+  // share a title ("Wasting Time", "Forever", …). Skipping on title alone falsely
+  // marks a genuinely-missing track as "already in library" and drops its download
+  // (the eric404 - Wasting Time case). The artist MUST corroborate. And since the
+  // import matcher already searched the library and returned no_match, a short or
+  // absent artist can't override that verdict — don't skip.
+  if (wantArtist.length < 3) return false;
+
   const gotArtist = normalizeForCompare(song.artist || '');
-  const artistOk =
-    wantArtist.length < 3 ||
-    gotArtist.includes(wantArtist) ||
-    wantArtist.includes(gotArtist) ||
-    tokenOverlap(wantArtist, gotArtist) >= 0.5 ||
-    // junk copy: artist is baked into the title string
-    gotTitle.includes(wantArtist) ||
-    tokenOverlap(wantArtist, gotTitle) >= 0.5;
-  return artistOk;
+
+  // Clean case: the library song's own ARTIST field matches the request.
+  const artistFieldOk =
+    !!gotArtist &&
+    (gotArtist.includes(wantArtist) ||
+      wantArtist.includes(gotArtist) ||
+      tokenOverlap(wantArtist, gotArtist) >= 0.6);
+
+  // Junk-title copy: a YouTube rip stored with the whole "Artist - Title" video
+  // string in the title field and no usable artist field. Only then do we accept
+  // the artist appearing inside the title — and it must appear in full.
+  const junkCopyOk = !gotArtist && gotTitle.includes(wantArtist);
+
+  return artistFieldOk || junkCopyOk;
 }
 
 async function findInLibrary(track: FallbackTrack): Promise<{ title: string } | null> {

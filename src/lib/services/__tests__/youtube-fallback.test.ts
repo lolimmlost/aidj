@@ -75,6 +75,17 @@ describe('verifyDownload', () => {
     expect(v.matched).toBe(false);
   });
 
+  it('rejects a same-title result by the WRONG artist (Phil Collins regression)', () => {
+    // Real #145 miss: "Phil Odd - ur lovin" ytsearch1-resolved to Phil Collins,
+    // which shares only the "phil" token (artist 50%). A perfect title must not
+    // drag that over the line.
+    const v = verifyDownload(
+      { artist: 'Phil Odd', title: 'ur lovin' },
+      { title: "Phil Collins - Some Of Your Lovin' (Official Audio)" }
+    );
+    expect(v.matched).toBe(false);
+  });
+
   it('falls back to filename when title is missing', () => {
     const v = verifyDownload(track, { filename: 'Sun Room - Insincere.mp3' });
     expect(v.matched).toBe(true);
@@ -160,6 +171,21 @@ describe('libraryMatch (dedup guard vs Navidrome songs)', () => {
   it('does NOT match an unrelated song', () => {
     expect(
       libraryMatch({ artist: 'Valexus', title: 'Calling You' }, { title: 'When Did Your Heart Go Missing?', artist: 'Rooney' })
+    ).toBe(false);
+  });
+
+  it('does NOT false-skip a genuinely-missing track sharing a title (eric404 regression)', () => {
+    // Real #145 bug: "eric404 - Wasting Time" (no_match, not in library) was
+    // SKIPPED as "already in library" because some OTHER "Wasting Time" exists.
+    // A same title with a different artist must never count as in-library.
+    expect(
+      libraryMatch({ artist: 'eric404', title: 'Wasting Time' }, { title: 'Wasting Time', artist: 'Some Other Artist' })
+    ).toBe(false);
+  });
+
+  it('does NOT skip when the library song has no corroborating artist field', () => {
+    expect(
+      libraryMatch({ artist: 'eric404', title: 'Wasting Time' }, { title: 'Wasting Time' })
     ).toBe(false);
   });
 });
