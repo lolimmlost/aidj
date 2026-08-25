@@ -40,6 +40,7 @@ import { MobileNav } from '@/components/ui/mobile-nav';
 import { toast } from '@/lib/toast';
 import { useDeferredRender } from '@/lib/utils/lazy-components';
 import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar';
+import { useDebugTapToggle } from '@/lib/hooks/useDebugTapToggle';
 
 // Helper to get cover art URL from Navidrome
 const getCoverArtUrl = (albumId: string | undefined, size: number = 300) => {
@@ -304,6 +305,8 @@ function LeftSidebar() {
   // DS rule: vinyl-disc icon spins when audio is playing. The sidebar's brand
   // mark is the most visible Disc3 in the app — wire its spin to playback.
   const isAudioPlaying = useAudioStore((s) => s.isPlaying);
+  // Tap the brand mark 5× rapidly to toggle on-device debug logging (PWA-safe).
+  const debugTap = useDebugTapToggle();
 
   // Sidebar collapsed state with localStorage persistence
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -382,7 +385,7 @@ function LeftSidebar() {
         isCollapsed ? "justify-center px-2" : "justify-between px-5"
       )}>
         {!isCollapsed && (
-          <Link to="/dashboard" className="flex items-center gap-2 group">
+          <Link to="/dashboard" className="flex items-center gap-2 group" onClick={debugTap}>
             <div className="p-1.5 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
               <Disc3 className={cn('h-5 w-5 text-primary', isAudioPlaying && 'animate-spin-slow')} />
             </div>

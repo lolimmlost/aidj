@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import authClient from '@/lib/auth/auth-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAudioStore } from '@/lib/stores/audio';
+import { useDebugTapToggle } from '@/lib/hooks/useDebugTapToggle';
 
 /** Derive a page title from the current route path */
 function getPageTitle(path: string): string {
@@ -53,6 +54,9 @@ export function MobileNav() {
 
   const pageTitle = getPageTitle(currentPath);
 
+  // Tap the title bar 5× rapidly to toggle on-device debug logging (PWA-safe).
+  const debugTap = useDebugTapToggle();
+
   const handleSignOut = async () => {
     closeMenu();
     await authClient.signOut();
@@ -76,7 +80,11 @@ export function MobileNav() {
         >
           {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
-        <span className="flex-1 text-center text-sm font-bold text-foreground truncate pr-9" style={{ fontFamily: 'var(--font-display), Inter, sans-serif' }}>
+        <span
+          className="flex-1 text-center text-sm font-bold text-foreground truncate pr-9 select-none"
+          style={{ fontFamily: 'var(--font-display), Inter, sans-serif' }}
+          onClick={debugTap}
+        >
           {pageTitle}
         </span>
       </div>
