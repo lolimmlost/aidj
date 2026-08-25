@@ -12,6 +12,9 @@ function d(isoMinutesAgo: number, base = new Date('2026-04-01T12:00:00Z')): Date
   return new Date(base.getTime() - isoMinutesAgo * 60 * 1000);
 }
 
+// Mirrors the internal pair-map key encoding (JSON.stringify([A, B]), A < B).
+const k = (a: string, b: string) => JSON.stringify([a, b]);
+
 describe('splitIntoSessions', () => {
   it('returns empty array when there are no plays', () => {
     expect(splitIntoSessions([])).toEqual([]);
@@ -78,7 +81,7 @@ describe('accumulatePairs', () => {
     expect(acc.coplayCount).toBe(1);
   });
 
-  it('keys pairs with lexicographic ordering (a|b, never b|a)', () => {
+  it('orders pair artists lexicographically (apple before zebra) regardless of play order', () => {
     const sessions = [
       [
         { artist: 'zebra', playedAt: d(5) },
@@ -86,7 +89,33 @@ describe('accumulatePairs', () => {
       ],
     ];
     const pairs = accumulatePairs(sessions);
-    expect([...pairs.keys()]).toEqual(['apple|zebra']);
+    expect([...pairs.keys()]).toEqual([k('apple', 'zebra')]);
+    const acc = [...pairs.values()][0];
+    expect(acc.artistA).toBe('apple');
+    expect(acc.artistB).toBe('zebra');
+  });
+
+  it('handles artist names containing the delimiter without collapsing distinct pairs', () => {
+    // Regression: "Click | Click" (a real library artist) once corrupted the
+    // "A|B" key on decode, collapsing every pair it led into onto the same
+    // (artist_a, artist_b) and tripping ON CONFLICT DO UPDATE on upsert.
+    const seed = 'click | click';
+    const sessions = [
+      [
+        { artist: seed, playedAt: d(9) },
+        { artist: 'daft punk', playedAt: d(8) }, // sorts after seed
+        { artist: 'zaytoven', playedAt: d(7) },  // also sorts after seed
+      ],
+    ];
+    const pairs = accumulatePairs(sessions);
+    // Three distinct unordered pairs, each preserved separately.
+    expect(pairs.size).toBe(3);
+    const ordered = [...pairs.values()].map((p) => [p.artistA, p.artistB]);
+    expect(ordered).toContainEqual([seed, 'daft punk']);
+    expect(ordered).toContainEqual([seed, 'zaytoven']);
+    expect(ordered).toContainEqual(['daft punk', 'zaytoven']);
+    // Names round-trip intact — no truncation at the delimiter.
+    expect(pairs.get(k(seed, 'daft punk'))!.artistA).toBe(seed);
   });
 
   it('accumulates weight across sessions and counts coplays', () => {
@@ -103,7 +132,7 @@ describe('accumulatePairs', () => {
     ];
     const pairs = accumulatePairs(sessions, now);
     expect(pairs.size).toBe(1);
-    const acc = pairs.get('a|b')!;
+    const acc = pairs.get(k('a', 'b'))!;
     expect(acc.coplayCount).toBe(2);
     expect(acc.weight).toBeGreaterThan(1.5); // two near-instant plays → weight close to 2
     expect(acc.weight).toBeLessThanOrEqual(2);
@@ -123,8 +152,8 @@ describe('accumulatePairs', () => {
         { artist: 'b', playedAt: new Date(now.getTime() - 60 * 1000) },
       ],
     ];
-    const stale = accumulatePairs(staleSession, now).get('a|b')!;
-    const fresh = accumulatePairs(freshSession, now).get('a|b')!;
+    const stale = accumulatePairs(staleSession, now).get(k('a', 'b'))!;
+    const fresh = accumulatePairs(freshSession, now).get(k('a', 'b'))!;
     expect(fresh.weight).toBeGreaterThan(stale.weight);
     expect(stale.weight).toBeLessThan(0.1); // exp(-0.05 * 60) ≈ 0.05
     expect(fresh.weight).toBeGreaterThan(0.99);
@@ -139,7 +168,9 @@ describe('accumulatePairs', () => {
       ],
     ];
     const pairs = accumulatePairs(sessions);
-    expect(new Set(pairs.keys())).toEqual(new Set(['a|b', 'a|c', 'b|c']));
+    expect(new Set(pairs.keys())).toEqual(
+      new Set([k('a', 'b'), k('a', 'c'), k('b', 'c')]),
+    );
   });
 
   it('tracks lastCoplayedAt as the most recent artist appearance in a pair', () => {
@@ -151,7 +182,7 @@ describe('accumulatePairs', () => {
         { artist: 'b', playedAt: tLate },
       ],
     ];
-    const acc = accumulatePairs(sessions, tLate).get('a|b')!;
+    const acc = accumulatePairs(sessions, tLate).get(k('a', 'b'))!;
     expect(acc.lastCoplayedAt.getTime()).toBe(tLate.getTime());
   });
 });

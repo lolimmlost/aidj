@@ -65,6 +65,13 @@ export function splitIntoSessions(plays: PlayRow[], gapMs = SESSION_GAP_MS): Pla
 }
 
 interface PairAccumulator {
+  // The ordered artist names (A < B) are carried on the accumulator rather than
+  // re-parsed from the map key: an artist name may itself contain the key
+  // separator, and splitting the key back apart would corrupt such names and
+  // collapse distinct pairs onto the same (artist_a, artist_b) — which then
+  // trips ON CONFLICT DO UPDATE ("cannot affect row a second time") on upsert.
+  artistA: string;
+  artistB: string;
   weight: number;
   coplayCount: number;
   lastCoplayedAt: Date;
@@ -75,8 +82,10 @@ interface PairAccumulator {
  *
  * For each session, emit every unordered distinct-artist pair once
  * (sessions with many plays of the same artist don't inflate self-pairs).
- * Pairs are keyed by `"A|B"` with A < B alphabetically for dedupe, then
- * expanded bidirectionally at upsert time.
+ * Pairs are keyed by `JSON.stringify([A, B])` with A < B alphabetically for
+ * dedupe — an unambiguous encoding even when an artist name contains the
+ * delimiter. The ordered names are stored on the accumulator and expanded
+ * bidirectionally at upsert time.
  */
 export function accumulatePairs(
   sessions: PlayRow[][],
@@ -104,7 +113,7 @@ export function accumulatePairs(
         const daysAgo = Math.max(0, (now.getTime() - mostRecent.getTime()) / MS_PER_DAY);
         const weight = Math.exp(-RECENCY_DECAY_RATE * daysAgo);
 
-        const key = `${a}|${b}`;
+        const key = JSON.stringify([a, b]);
         const acc = pairs.get(key);
         if (acc) {
           acc.weight += weight;
@@ -112,6 +121,8 @@ export function accumulatePairs(
           if (mostRecent > acc.lastCoplayedAt) acc.lastCoplayedAt = mostRecent;
         } else {
           pairs.set(key, {
+            artistA: a,
+            artistB: b,
             weight,
             coplayCount: 1,
             lastCoplayedAt: mostRecent,
@@ -177,8 +188,8 @@ export async function computeForUser(
   }
 
   const insertRows: ArtistCoOccurrenceInsert[] = [];
-  for (const [key, acc] of pairs) {
-    const [a, b] = key.split('|');
+  for (const acc of pairs.values()) {
+    const { artistA: a, artistB: b } = acc;
     const playsA = playsPerArtist.get(a) ?? 1;
     const playsB = playsPerArtist.get(b) ?? 1;
     const normalized = acc.weight / Math.sqrt(playsA * playsB);
