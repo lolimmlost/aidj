@@ -38,9 +38,15 @@
     "deploy:production": "npm run build:cloudflare && wrangler pages deploy .output/public --branch=main",
     "deploy:preview": "npm run build:cloudflare && wrangler pages deploy .output/public --branch=preview",
     "readme:screenshots": "npx tsx scripts/capture-readme-screenshots.ts",
-    "readme:update": "npx tsx scripts/update-readme-with-screenshots.ts"
+    "readme:update": "npx tsx scripts/update-readme-with-screenshots.ts",
+    "cap:sync": "cap sync ios",
+    "cap:open": "cap open ios",
+    "cap:add:ios": "cap add ios"
   },
   "dependencies": {
+    "@capacitor/cli": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
+    "@capacitor/ios": "^6.2.1",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
