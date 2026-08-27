@@ -38,6 +38,10 @@ export function useStallRecovery({
   const lastProgressTimeRef = useRef<number>(Date.now());
   const lastProgressValueRef = useRef<number>(0);
   const stallWatchdogIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Reactive so the watchdog effect (re)creates its interval when playback
+  // starts/stops. Reading isPlaying via getState() alone left it out of the
+  // effect deps, so the interval could fail to start for a whole session.
+  const isPlaying = useAudioStore((s) => s.isPlaying);
 
   // Helper to play with timeout - iOS play() can hang
   const playWithTimeout = useCallback(async (audio: HTMLAudioElement, timeoutMs: number = 3000): Promise<void> => {
@@ -154,8 +158,6 @@ export function useStallRecovery({
 
   // Stall watchdog effect - monitors playback progress
   useEffect(() => {
-    const isPlaying = useAudioStore.getState().isPlaying;
-
     const STALL_THRESHOLD_MS = 5000; // 5 seconds no progress = stall
     const CHECK_INTERVAL_MS = 2000;  // Check every 2 seconds
     const MIN_PROGRESS_DELTA = 0.5;  // Minimum progress to consider "advancing"
@@ -180,14 +182,23 @@ export function useStallRecovery({
       // Skip during crossfade
       if (crossfadeInProgressRef.current) return;
 
-      // Skip when page is hidden
-      if (document.visibilityState === 'hidden') return;
+      // NOTE: we intentionally do NOT bail out wholesale when the page is
+      // hidden. The "unpaused but frozen clock" deadlock (#170) happens while
+      // the screen is locked/backgrounded, so the no-progress check below must
+      // run even when hidden. We only avoid issuing an *unsolicited* play() in
+      // the paused-desync branch while hidden (iOS rejects play() without a
+      // user gesture in the background), deferring that to the visibility handler.
+      const pageHidden = document.visibilityState === 'hidden';
 
       const storeIsPlaying = useAudioStore.getState().isPlaying;
 
       // DESYNC DETECTION: store says playing but audio is paused
       if (audio.paused) {
         if (audio.duration > 0 && audio.currentTime >= audio.duration - 0.5) return;
+
+        // Backgrounded: don't attempt an unsolicited resume here — wait for the
+        // visibility handler when the user returns.
+        if (pageHidden) return;
 
         if (storeIsPlaying && hasRealSong(audio)) {
           if (audio.readyState >= 2) {
@@ -249,7 +260,7 @@ export function useStallRecovery({
         console.log('🐕 [WATCHDOG] Stopped stall watchdog');
       }
     };
-  }, [getActiveDeck, crossfadeInProgressRef, attemptStallRecovery]);
+  }, [getActiveDeck, crossfadeInProgressRef, attemptStallRecovery, isPlaying]);
 
   return {
     recoveryAttemptRef,
