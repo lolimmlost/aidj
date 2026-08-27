@@ -22,6 +22,7 @@ import { Slider } from '@/components/ui/slider';
 import { AlbumArt } from '@/components/ui/album-art';
 import { DevicePicker } from '@/components/layout/DevicePicker';
 import { useAudioStore } from '@/lib/stores/audio';
+import { useSleepTimer } from '@/lib/stores/sleep-timer';
 import { AIDJToggle } from '@/components/ai-dj-toggle';
 import { scrobbleSong } from '@/lib/services/navidrome';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
@@ -152,6 +153,8 @@ export function PlayerBar() {
 
   // Remote device state for cross-device sync indicator
   const remoteDevice = useAudioStore((s) => s.remoteDevice);
+  const sleepExpiresAt = useSleepTimer((s) => s.expiresAt);
+  const clearSleepTimer = useSleepTimer((s) => s.clear);
   const isRemotePlaying = !!remoteDevice?.isPlaying;
   const [remoteEstimatedPositionMs, setRemoteEstimatedPositionMs] = useState(0);
 
@@ -579,6 +582,29 @@ export function PlayerBar() {
       setIsPlaying(!isPlaying);
     }
   }, [isPlaying, setIsPlaying, getActiveDeck, getInactiveDeck, webAudioInitialized, deckARef, deckBRef, initializeGraph, setMasterVolume, volume, resumeContext]);
+
+  // Sleep timer (#171): pause when the armed timer expires. Uses an absolute
+  // timestamp (survives backgrounding/lock) and re-checks on visibility so a
+  // throttled background interval can't overshoot. Reuses togglePlayPause so
+  // the pause goes through the exact same path as tapping pause.
+  useEffect(() => {
+    if (sleepExpiresAt == null) return;
+    const check = () => {
+      if (Date.now() < sleepExpiresAt) return;
+      if (useAudioStore.getState().isPlaying) togglePlayPause();
+      clearSleepTimer();
+    };
+    const id = setInterval(check, 1000);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') check();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    check(); // handle the case where we resumed already past expiry
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [sleepExpiresAt, togglePlayPause, clearSleepTimer]);
 
   const seek = useCallback((time: number) => {
     const audio = getActiveDeck();

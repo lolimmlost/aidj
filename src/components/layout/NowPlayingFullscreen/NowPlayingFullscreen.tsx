@@ -20,7 +20,6 @@ import {
   Shuffle,
   Repeat,
   Repeat1,
-  Share2,
   ListMusic,
   Maximize2,
   Minimize2,
@@ -30,6 +29,7 @@ import { Slider } from '@/components/ui/slider';
 import { getCoverArtUrl } from '@/components/ui/album-art';
 import { cn } from '@/lib/utils';
 import { AIDJToggle } from '@/components/ai-dj-toggle';
+import { SleepTimerButton } from '@/components/player/SleepTimerButton';
 import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
 import { useAudioStore } from '@/lib/stores/audio';
 import { ArtMode } from './ArtMode';
@@ -421,21 +421,10 @@ export function NowPlayingFullscreen({
                 <div className="[&_label]:text-white/70 [&_[data-state=checked]]:bg-primary">
                   <AIDJToggle compact />
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
-                  onClick={() => {
-                    if (navigator.share) {
-                      navigator.share({
-                        title: songTitle,
-                        text: `${songTitle} by ${songArtist}`,
-                      }).catch(() => {});
-                    }
-                  }}
-                >
-                  <Share2 className="h-5 w-5" />
-                </Button>
+                <SleepTimerButton
+                  className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10 [&_svg]:h-5 [&_svg]:w-5"
+                  contentClassName="z-[70]"
+                />
               </div>
             </div>
           )}
