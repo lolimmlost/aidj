@@ -238,15 +238,35 @@ export function usePlaybackStateSync({
           return 0;
         };
         const bufferedEnd = getBufferedEnd(activeDeck);
-        const isStalled = audioHadProgress && activeDeck.currentTime >= bufferedEnd - 0.5;
+        const bufferStalled = audioHadProgress && activeDeck.currentTime >= bufferedEnd - 0.5;
 
-        console.log(`👁️ [VISIBILITY] State check: store=${storeIsPlaying}, audio=${audioIsActuallyPlaying ? 'playing' : 'paused'}, progress=${activeDeck.currentTime.toFixed(1)}s, stalled=${isStalled}`);
+        console.log(`👁️ [VISIBILITY] State check: store=${storeIsPlaying}, audio=${audioIsActuallyPlaying ? 'playing' : 'paused'}, progress=${activeDeck.currentTime.toFixed(1)}s, bufferStalled=${bufferStalled}`);
 
-        // STALL RECOVERY
-        if (isStalled && storeIsPlaying) {
-          console.log('👁️ [VISIBILITY] Audio stalled - delegating to recovery system');
+        // STALL RECOVERY — buffer exhausted (playhead caught up to buffered data)
+        if (bufferStalled && storeIsPlaying) {
+          console.log('👁️ [VISIBILITY] Audio buffer-stalled - delegating to recovery system');
           attemptStallRecovery(activeDeck, 'visibility-stall');
           return;
+        }
+
+        // FROZEN-CLOCK PROBE (#170): the element can report paused=false +
+        // readyState ENOUGH yet have a dead playback clock (currentTime frozen)
+        // after an OS audio-focus blip. A buffer check can't see this (the buffer
+        // is full), which is why the old buffer-only check logged stalled=false on
+        // a clock frozen for minutes. Re-sample currentTime shortly after resume:
+        // if it hasn't advanced while "playing", the clock is frozen — delegate to
+        // recovery (seek/reload restarts it where a bare play() cannot).
+        if (storeIsPlaying && audioIsActuallyPlaying && audioHadProgress && activeDeck.readyState >= 2) {
+          const probeStart = activeDeck.currentTime;
+          // eslint-disable-next-line @eslint-react/web-api-no-leaked-timeout -- one-shot probe, no cleanup needed
+          setTimeout(() => {
+            const d = activeDeckRef.current === 'A' ? deckA : deckB;
+            if (!d) return;
+            if (useAudioStore.getState().isPlaying && !d.paused && d.currentTime <= probeStart + 0.1) {
+              console.log(`👁️ [VISIBILITY] Frozen clock: currentTime stuck at ${probeStart.toFixed(1)}s while playing — delegating to recovery`);
+              attemptStallRecovery(d, 'visibility-frozen-clock');
+            }
+          }, 1200);
         }
 
         // OPTION B: next song stuck loading. If the active deck has a real
