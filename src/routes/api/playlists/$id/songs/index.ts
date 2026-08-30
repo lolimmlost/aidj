@@ -4,6 +4,7 @@ import { db } from '../../../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../../../lib/db/schema/playlists.schema';
 import { eq, and, max } from 'drizzle-orm';
 import { z } from 'zod';
+import { mirrorAddSong } from '../../../../../lib/services/playlist-navidrome-mirror';
 
 // Zod schema for adding song
 const AddSongSchema = z.object({
@@ -104,6 +105,10 @@ export const Route = createFileRoute("/api/playlists/$id/songs/")({
         .update(userPlaylists)
         .set({ updatedAt: new Date() })
         .where(eq(userPlaylists.id, playlistId));
+
+      // Mirror the add to Navidrome (back-fills the playlist if it was still
+      // local-only). Best-effort — never fails the local add.
+      await mirrorAddSong(playlistId, session.user.id, validatedData.songId);
 
       return new Response(JSON.stringify({
         data: {

@@ -4,8 +4,9 @@ import { db } from '../../../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../../../lib/db/schema/playlists.schema';
 import { eq, and, gt } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
-import { ensureNavidromeUser } from '../../../../../lib/services/navidrome-users';
+import { ensureNavidromeUser, getNavidromeUserCreds } from '../../../../../lib/services/navidrome-users';
 import { setSongLiked, isCanonicalLikedPlaylist } from '../../../../../lib/services/liked-songs-sync';
+import { mirrorRemoveSong } from '../../../../../lib/services/playlist-navidrome-mirror';
 
 export const Route = createFileRoute("/api/playlists/$id/songs/$songId")({
   server: {
@@ -107,6 +108,15 @@ export const Route = createFileRoute("/api/playlists/$id/songs/$songId")({
         .update(userPlaylists)
         .set({ updatedAt: new Date() })
         .where(eq(userPlaylists.id, playlistId));
+
+      // Mirror the removal to Navidrome so the server copy doesn't keep the song
+      // (which would re-appear locally on the next sync). Best-effort.
+      if (playlist.navidromeId) {
+        const creds = await getNavidromeUserCreds(session.user.id);
+        if (creds) {
+          await mirrorRemoveSong(playlist.navidromeId, songId, creds);
+        }
+      }
 
       return new Response(JSON.stringify({ data: { success: true } }), {
         status: 200,

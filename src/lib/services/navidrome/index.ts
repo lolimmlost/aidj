@@ -37,6 +37,7 @@ export {
 // Playlists
 export {
   getPlaylists, getPlaylist, createPlaylist, updatePlaylist, deletePlaylist, addSongsToPlaylist,
+  removeSongsFromPlaylistByIndex,
 } from './playlists';
 
 // Discovery & recommendations

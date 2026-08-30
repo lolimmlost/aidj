@@ -259,3 +259,44 @@ export async function addSongsToPlaylist(playlistId: string, songIds: string[], 
     throw new ServiceError('NAVIDROME_API_ERROR', `Failed to add songs to playlist: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
+
+/**
+ * Remove songs from a playlist by their 0-based positions (Subsonic
+ * `songIndexToRemove`). Indices are sent in DESCENDING order so removing an
+ * earlier item never shifts the position of a later one within the same request.
+ */
+export async function removeSongsFromPlaylistByIndex(playlistId: string, indices: number[], creds?: SubsonicCreds): Promise<void> {
+  if (indices.length === 0) return;
+  const ordered = [...new Set(indices)].sort((a, b) => b - a); // desc, de-duped
+  try {
+    if (creds) {
+      const config = getConfig();
+      if (!config.navidromeUrl) {
+        throw new ServiceError('NAVIDROME_CONFIG_ERROR', 'Navidrome URL not configured');
+      }
+      const url = buildSubsonicUrl('updatePlaylist', creds);
+      url.searchParams.set('playlistId', playlistId);
+      ordered.forEach(i => url.searchParams.append('songIndexToRemove', String(i)));
+      const response = await fetch(url.toString(), { method: 'POST' });
+      if (!response.ok) {
+        throw new ServiceError('NAVIDROME_API_ERROR', `Failed to remove songs from playlist: ${response.statusText}`);
+      }
+      const data = await response.json() as SubsonicApiResponse;
+      if (data['subsonic-response']?.status !== 'ok') {
+        throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+      }
+      console.log(`➖ Removed ${ordered.length} songs from playlist ${playlistId} (per-user)`);
+      return;
+    }
+
+    let endpoint = `/rest/updatePlaylist?playlistId=${encodeURIComponent(playlistId)}`;
+    ordered.forEach(i => { endpoint += `&songIndexToRemove=${i}`; });
+    const data = await apiFetch(endpoint, { method: 'POST' }) as SubsonicApiResponse;
+    if (data['subsonic-response']?.status !== 'ok') {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+    }
+    console.log(`➖ Removed ${ordered.length} songs from playlist ${playlistId}`);
+  } catch (error) {
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to remove songs from playlist: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
