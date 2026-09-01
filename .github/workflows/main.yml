@@ -62,7 +62,13 @@ jobs:
         
       - name: Fail on high/critical vulnerabilities
         run: |
-          if npm audit --json --audit-level high | jq -e '.auditReport.vulnerabilities.high > 0 or .auditReport.vulnerabilities.critical > 0' > /dev/null 2>&1; then
+          # npm audit exits non-zero when vulns are present, so `|| true`
+          # lets us capture the JSON and parse the counts ourselves.
+          audit_json=$(npm audit --json || true)
+          high=$(echo "$audit_json" | jq '.metadata.vulnerabilities.high // 0')
+          crit=$(echo "$audit_json" | jq '.metadata.vulnerabilities.critical // 0')
+          echo "npm audit: high=$high critical=$crit"
+          if [ "$high" -gt 0 ] || [ "$crit" -gt 0 ]; then
             echo "High or critical vulnerabilities found!"
             exit 1
           fi
