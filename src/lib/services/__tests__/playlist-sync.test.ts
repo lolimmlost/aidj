@@ -152,6 +152,72 @@ describe('Playlist Sync Service', () => {
       expect(result.errors).toHaveLength(0);
     });
 
+    it('should re-link by name instead of inserting when the Navidrome id changed (#127)', async () => {
+      const userId = 'user-123';
+      // Navidrome returns "Short Tracks" under a NEW id (playlist was recreated).
+      const mockNavidromePlaylists = [
+        {
+          id: 'nav-pl-NEW',
+          name: 'Short Tracks',
+          songCount: 12,
+          duration: 720,
+          owner: 'testuser',
+          public: false,
+          created: '2024-01-01T00:00:00Z',
+          changed: '2024-01-02T00:00:00Z',
+        },
+      ];
+
+      // Local row for "Short Tracks" is soft-deleted (navidromeId nulled by a
+      // prior sync) — so it is NOT matched by id and would otherwise be inserted,
+      // colliding on the unique (user_id, name) constraint.
+      const mockLocalPlaylists = [
+        {
+          id: 'local-short',
+          userId,
+          name: 'Short Tracks',
+          navidromeId: null,
+          songCount: 10,
+          totalDuration: 600,
+          description: '[Deleted from Navidrome] short songs',
+          lastSynced: new Date('2024-01-01T00:00:00Z'),
+        },
+      ];
+
+      vi.mocked(navidrome.getPlaylists).mockResolvedValue(mockNavidromePlaylists);
+      vi.mocked(navidrome.getPlaylist).mockResolvedValue({
+        ...mockNavidromePlaylists[0],
+        entry: [{ id: 's1', title: 'Song 1', artist: 'Artist 1', albumId: 'a1', duration: '60', track: '1' }],
+      });
+
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue(mockLocalPlaylists),
+        }),
+      });
+
+      const setWhere = vi.fn().mockResolvedValue(undefined);
+      const updateSet = vi.fn().mockReturnValue({ where: setWhere });
+      (db.update as ReturnType<typeof vi.fn>).mockReturnValue({ set: updateSet });
+      (db.delete as ReturnType<typeof vi.fn>).mockReturnValue({
+        where: vi.fn().mockResolvedValue(undefined),
+      });
+      (db.insert as ReturnType<typeof vi.fn>).mockReturnValue({
+        values: vi.fn().mockResolvedValue(undefined),
+      });
+
+      const result = await syncNavidromePlaylists(userId);
+
+      // Re-linked, not inserted → counts as an update, no crash on the name constraint.
+      expect(result.updated).toBe(1);
+      expect(result.added).toBe(0);
+      expect(result.errors).toHaveLength(0);
+      // The re-link update adopts the new Navidrome id and strips the deleted marker.
+      expect(updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ navidromeId: 'nav-pl-NEW', description: 'short songs' }),
+      );
+    });
+
     it('should mark playlists as deleted when removed from Navidrome', async () => {
       const userId = 'user-123';
       const mockNavidromePlaylists: never[] = []; // No playlists in Navidrome

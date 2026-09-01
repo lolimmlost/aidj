@@ -736,7 +736,8 @@ function PlaylistDetailPage() {
         method: 'DELETE',
       });
       if (!response.ok) {
-        throw new Error('Failed to delete playlist');
+        const err = await response.json().catch(() => null);
+        throw new Error(err?.message || 'Failed to delete playlist');
       }
       return response.json();
     },

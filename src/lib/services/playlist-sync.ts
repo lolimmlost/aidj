@@ -46,12 +46,22 @@ export async function syncNavidromePlaylists(userId: string): Promise<SyncResult
         .map(p => [p.navidromeId!, p])
     );
 
+    // Name-keyed index used as a fallback match. A local playlist can exist under
+    // a name whose Navidrome id no longer matches — because the Navidrome playlist
+    // was deleted+recreated (new id) or was previously soft-deleted here (its
+    // navidromeId nulled by step 4 below). Inserting in that case would violate the
+    // unique (user_id, name) constraint on every sync (#127), so we re-link instead.
+    const localPlaylistsByName = new Map(localPlaylists.map(p => [p.name, p]));
+    // Local rows already handled this run, so a name-match can't re-claim them.
+    const claimedLocalIds = new Set<string>();
+
     // 3. Process each Navidrome playlist
     for (const navidromePlaylist of navidromePlaylists) {
       try {
         const localPlaylist = localPlaylistsByNavidromeId.get(navidromePlaylist.id);
 
         if (localPlaylist) {
+          claimedLocalIds.add(localPlaylist.id);
           // Playlist exists locally - check if it needs updating
           if (
             localPlaylist.songCount !== navidromePlaylist.songCount ||
@@ -84,12 +94,43 @@ export async function syncNavidromePlaylists(userId: string): Promise<SyncResult
               .where(eq(userPlaylists.id, localPlaylist.id));
           }
         } else {
-          // New playlist - add to local database
-          const newPlaylistId = await addNavidromePlaylist(userId, navidromePlaylist);
-          if (newPlaylistId) {
-            await syncPlaylistSongs(newPlaylistId, navidromePlaylist.id, userCreds ?? undefined);
-            result.added++;
-            console.log(`➕ Added new playlist "${navidromePlaylist.name}"`);
+          // No match by Navidrome id. Fall back to a name match before inserting,
+          // so a recreated/soft-deleted playlist re-links to its existing local row
+          // instead of colliding on the unique (user_id, name) constraint (#127).
+          const existingByName = localPlaylistsByName.get(navidromePlaylist.name);
+
+          if (existingByName && !claimedLocalIds.has(existingByName.id)) {
+            // Re-link: adopt the new Navidrome id, refresh metadata, and clear any
+            // stale "[Deleted from Navidrome]" marker left by a prior soft delete.
+            if (existingByName.navidromeId) {
+              // Drop the stale id so step 4 doesn't then treat this row as deleted.
+              localPlaylistsByNavidromeId.delete(existingByName.navidromeId);
+            }
+            await db
+              .update(userPlaylists)
+              .set({
+                navidromeId: navidromePlaylist.id,
+                name: navidromePlaylist.name,
+                songCount: navidromePlaylist.songCount,
+                totalDuration: navidromePlaylist.duration,
+                description: stripDeletedMarker(existingByName.description),
+                lastSynced: new Date(),
+                updatedAt: new Date(),
+              })
+              .where(eq(userPlaylists.id, existingByName.id));
+
+            await syncPlaylistSongs(existingByName.id, navidromePlaylist.id, userCreds ?? undefined);
+            claimedLocalIds.add(existingByName.id);
+            result.updated++;
+            console.log(`🔗 Re-linked playlist "${navidromePlaylist.name}" to Navidrome id ${navidromePlaylist.id}`);
+          } else {
+            // Genuinely new playlist - add to local database
+            const newPlaylistId = await addNavidromePlaylist(userId, navidromePlaylist);
+            if (newPlaylistId) {
+              await syncPlaylistSongs(newPlaylistId, navidromePlaylist.id, userCreds ?? undefined);
+              result.added++;
+              console.log(`➕ Added new playlist "${navidromePlaylist.name}"`);
+            }
           }
         }
 
@@ -132,6 +173,13 @@ export async function syncNavidromePlaylists(userId: string): Promise<SyncResult
     console.error(errorMsg);
     throw new ServiceError('PLAYLIST_SYNC_ERROR', errorMsg);
   }
+}
+
+/** Strip the "[Deleted from Navidrome] " prefix a prior soft delete may have added. */
+function stripDeletedMarker(description: string | null): string | null {
+  if (!description) return description;
+  const cleaned = description.replace(/^\[Deleted from Navidrome\]\s*/, '');
+  return cleaned.length > 0 ? cleaned : null;
 }
 
 /**
