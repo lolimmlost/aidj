@@ -42,7 +42,7 @@ export function useDebugTapToggle(): () => void {
 
     taps.current = [];
 
-    let enabling = true;
+    let enabling: boolean;
     try {
       enabling = localStorage.getItem('debug') !== 'true';
       if (enabling) {
