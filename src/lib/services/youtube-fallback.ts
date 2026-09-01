@@ -242,6 +242,7 @@ interface DownloadOutcome {
   errored?: boolean;
   timedOut?: boolean;
   stillDownloading?: boolean; // timed out, but MeTube was still actively fetching it
+  preExisting?: boolean; // matched an item already finished before this job queued anything
   error?: string;
 }
 
@@ -307,7 +308,9 @@ async function queueAndAwaitDownload(
     (d) => d.status === 'finished' && matches(d)
   );
   if (preFinished) {
-    return { metubeId: preFinished.id, item: preFinished };
+    // Not ours: it was on disk before this job started, so it must never be
+    // deleted on a failed verification (see runJob).
+    return { metubeId: preFinished.id, item: preFinished, preExisting: true };
   }
 
   try {
@@ -403,18 +406,28 @@ export function libraryMatch(track: FallbackTrack, song: LibSong): boolean {
   if (wantArtist.length < 3) return false;
 
   const gotArtist = normalizeForCompare(song.artist || '');
+  // Navidrome never reports an empty artist: the library mapper substitutes a
+  // placeholder (`artist: song.artist || 'Unknown Artist'`, navidrome/library.ts).
+  // An untagged rip therefore arrives with a non-empty artist that carries no
+  // information, so it has to be treated as absent — otherwise the junk path
+  // below is unreachable for the exact copies it exists to catch.
+  const artistFieldPresent = !!gotArtist && gotArtist !== 'unknown artist';
 
   // Clean case: the library song's own ARTIST field matches the request.
   const artistFieldOk =
-    !!gotArtist &&
+    artistFieldPresent &&
     (gotArtist.includes(wantArtist) ||
       wantArtist.includes(gotArtist) ||
       tokenOverlap(wantArtist, gotArtist) >= 0.6);
 
   // Junk-title copy: a YouTube rip stored with the whole "Artist - Title" video
-  // string in the title field and no usable artist field. Only then do we accept
-  // the artist appearing inside the title — and it must appear in full.
-  const junkCopyOk = !gotArtist && gotTitle.includes(wantArtist);
+  // string in the title field, whose artist field failed to corroborate — either
+  // missing/placeholder (MeTube writes no tags; Picard retags later from the
+  // fingerprint) or mis-tagged. Gate on "the artist field didn't corroborate"
+  // rather than "there is no artist field", and only accept the requested artist
+  // appearing IN FULL inside the stored title, which a same-title-different-artist
+  // song (the eric404 case) never does.
+  const junkCopyOk = !artistFieldOk && gotTitle.includes(wantArtist);
 
   return artistFieldOk || junkCopyOk;
 }
@@ -440,15 +453,25 @@ async function findInLibrary(track: FallbackTrack): Promise<{ title: string } | 
 }
 
 /**
- * Remove a genuinely errored MeTube entry so a retry can re-add the same video
- * cleanly. Only ever called for confirmed errors — never for in-flight downloads.
+ * Remove a finished/errored MeTube entry — so a retry can re-add the same video
+ * cleanly, or so a wrong-track rip doesn't sit in the download folder waiting to
+ * be indexed. Only ever called for terminal items, never for in-flight downloads.
+ *
+ * MeTube's `/delete` keys `done` entries by the **full resolved URL**; a bare
+ * video id is accepted with `200 ok` and silently no-ops. So send the item's url
+ * and keep its id as a fallback for entries we only know by id.
+ *
+ * Whether the *file* goes with the entry is MeTube's call (`DELETE_FILE_ON_TRASHCAN`);
+ * either way the entry is gone, and the caller records `filename` for manual cleanup.
  */
-async function cleanupErroredDownload(metubeId?: string): Promise<void> {
-  if (!metubeId) return;
+async function deleteMeTubeItem(item?: MeTubeDownload, metubeId?: string): Promise<boolean> {
+  const ids = [...new Set([item?.url, item?.id ?? metubeId].filter((v): v is string => !!v))];
+  if (ids.length === 0) return false;
   try {
-    await metube.deleteDownloads([metubeId], 'done');
+    await metube.deleteDownloads(ids, 'done');
+    return true;
   } catch {
-    /* best-effort */
+    return false; // best-effort
   }
 }
 
@@ -480,7 +503,7 @@ async function queueWithRetries(
     }
 
     // Confirmed error — clean up the failed entry and retry.
-    await cleanupErroredDownload(outcome.metubeId);
+    await deleteMeTubeItem(outcome.item, outcome.metubeId);
 
     if (attempt < maxAttempts) {
       console.warn(
@@ -565,8 +588,24 @@ async function runJob(job: FallbackJob): Promise<void> {
       const verification = verifyDownload(entry.track, outcome.item);
       entry.verification = verification;
       entry.status = verification.matched ? 'downloaded' : 'mismatch';
+      if (!verification.matched) {
+        // A mismatch means `ytsearch1:` resolved to the WRONG track. Flagging it
+        // isn't enough: the rip is already in MeTube's download folder, so the
+        // next Picard/Navidrome pass indexes it and the library is polluted
+        // anyway — which is the whole thing verification exists to prevent. So
+        // remove it. Only ever a file THIS job fetched: a pre-existing finished
+        // entry may belong to another flow and isn't ours to delete.
+        if (outcome.preExisting) {
+          entry.error = 'wrong track; pre-existing MeTube entry left for manual cleanup';
+        } else {
+          const removed = await deleteMeTubeItem(outcome.item, outcome.metubeId);
+          entry.error = removed
+            ? 'wrong track; removed from MeTube'
+            : 'wrong track; MeTube cleanup failed — remove manually';
+        }
+      }
       console.log(
-        `[YouTubeFallback] ${entry.status.toUpperCase()} "${entry.track.artist} - ${entry.track.title}" (${verification.reason})`
+        `[YouTubeFallback] ${entry.status.toUpperCase()} "${entry.track.artist} - ${entry.track.title}" (${verification.reason})${entry.error ? ` — ${entry.error}` : ''}`
       );
     } else {
       entry.status = 'downloaded';

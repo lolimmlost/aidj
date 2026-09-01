@@ -226,6 +226,40 @@ describe('libraryMatch (dedup guard vs Navidrome songs)', () => {
       libraryMatch({ artist: 'eric404', title: 'Wasting Time' }, { title: 'Wasting Time' })
     ).toBe(false);
   });
+
+  it('matches an UNTAGGED rip whose artist field is Navidrome’s placeholder', () => {
+    // Navidrome never returns an empty artist — library.ts substitutes
+    // 'Unknown Artist'. MeTube writes no tags, so a rip that Picard hasn't
+    // retagged yet is indexed as title="<Artist> - <Title>", artist=placeholder.
+    // Treating the placeholder as a real artist made the junk path unreachable
+    // and re-downloaded a track already on disk.
+    expect(
+      libraryMatch(
+        { artist: 'eric404', title: 'Wasting Time' },
+        { title: 'eric404 - Wasting Time', artist: 'Unknown Artist' }
+      )
+    ).toBe(true);
+  });
+
+  it('matches a MIS-TAGGED junk copy when the artist is in full in the title', () => {
+    expect(
+      libraryMatch(
+        { artist: 'eric404', title: 'Wasting Time' },
+        { title: 'eric404 - Wasting Time (Official Audio)', artist: 'Various Artists' }
+      )
+    ).toBe(true);
+  });
+
+  it('still does NOT match when the placeholder artist comes with a foreign title', () => {
+    // The placeholder must not become a free pass: with no artist anywhere, a
+    // same-title-different-track song stays a non-match.
+    expect(
+      libraryMatch(
+        { artist: 'eric404', title: 'Wasting Time' },
+        { title: 'Wasting Time', artist: 'Unknown Artist' }
+      )
+    ).toBe(false);
+  });
 });
 
 describe('batch runner attribution + retry policy', () => {
@@ -286,5 +320,50 @@ describe('batch runner attribution + retry policy', () => {
 
     expect(getYouTubeFallbackJob(job.id, 'user-1')?.status).toBe('completed');
     expect(metube.addDownload as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
+  });
+
+  // A `mismatch` that only relabels the entry still leaves the wrong-track rip in
+  // MeTube's folder for the next Navidrome scan to index — verification has to
+  // actually remove it, keyed by the full URL (a bare video id no-ops in MeTube).
+  const wrongItem = {
+    id: 'vid2',
+    title: "Phil Collins - Some Of Your Lovin' (Official Audio)",
+    url: 'https://www.youtube.com/watch?v=vid2',
+    status: 'finished' as const,
+    filename: 'Phil Collins - Some Of Your Lovin.mp3',
+  };
+  const wrongTrack = { artist: 'Phil Odd', title: 'ur lovin' };
+
+  it('deletes a mismatched download it just fetched', async () => {
+    (metube.getQueue as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ done: {}, queue: {} }) // pre-add snapshot: nothing yet
+      .mockResolvedValue({ done: { vid2: wrongItem }, queue: {} });
+
+    const job = startYouTubeFallbackJob('user-1', [wrongTrack], { skipInLibrary: false });
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    expect(finished?.results[0].status).toBe('mismatch');
+    expect(metube.deleteDownloads).toHaveBeenCalledWith(
+      expect.arrayContaining([wrongItem.url]),
+      'done'
+    );
+  });
+
+  it('does NOT delete a PRE-EXISTING entry that fails verification', async () => {
+    // Already finished before this job queued anything — it may belong to another
+    // flow, so it is flagged for manual cleanup instead of deleted.
+    (metube.getQueue as ReturnType<typeof vi.fn>).mockResolvedValue({
+      done: { vid2: wrongItem },
+      queue: {},
+    });
+
+    const job = startYouTubeFallbackJob('user-1', [wrongTrack], { skipInLibrary: false });
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    expect(finished?.results[0].status).toBe('mismatch');
+    expect(finished?.results[0].error).toMatch(/manual cleanup/);
+    expect(metube.deleteDownloads).not.toHaveBeenCalled();
   });
 });
