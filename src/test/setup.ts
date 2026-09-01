@@ -26,9 +26,11 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
 }
 
+// Mock react-dom (hoisted; must be top-level in vitest 4+)
+vi.mock('react-dom')
+
 // Run tests using JSDOM
 beforeAll(() => {
-  vi.mock('react-dom')
   // Setup Web Audio API mocks for DJ testing
   setupWebAudioMocks()
 })
