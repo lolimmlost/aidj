@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { db } from '../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../lib/db/schema/playlists.schema';
-import { eq, sql, desc } from 'drizzle-orm';
+import { and, eq, sql, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { checkNavidromeConnectivity } from '../../../lib/services/navidrome';
 import { ensurePlaylistOnNavidrome } from '../../../lib/services/playlist-navidrome-mirror';
@@ -25,12 +25,18 @@ const POST = withAuthAndErrorHandling(
     const body = await request.json();
     const validatedData = CreatePlaylistSchema.parse(body);
 
-    // Check for duplicate playlist name
+    // Check for duplicate playlist name (scoped to this user). Must be a single
+    // combined predicate: chaining `.where().where()` makes drizzle keep only the
+    // last clause, which would drop the userId filter and match any user's name.
     const existingPlaylist = await db
       .select()
       .from(userPlaylists)
-      .where(eq(userPlaylists.userId, session.user.id))
-      .where(eq(userPlaylists.name, validatedData.name))
+      .where(
+        and(
+          eq(userPlaylists.userId, session.user.id),
+          eq(userPlaylists.name, validatedData.name),
+        ),
+      )
       .limit(1)
       .then(rows => rows[0]);
 
@@ -54,12 +60,14 @@ const POST = withAuthAndErrorHandling(
     console.log(`✅ Playlist "${newPlaylist.name}" created (empty)`);
 
     // Mirror to Navidrome so it becomes a real (syncable) playlist, not a
-    // local-only row. Best-effort: if it can't be created now (offline, no
-    // creds), the row stays local and is back-filled on the next edit / by the
-    // back-fill script.
-    const navidromeId = await ensurePlaylistOnNavidrome(newPlaylist.id, session.user.id);
+    // local-only row. Fire-and-forget: the local write is the source of truth,
+    // so we don't block the response on a best-effort Navidrome round-trip. The
+    // row's navidromeId is populated in the background (and by the next edit /
+    // the back-fill script if this attempt fails). ensurePlaylistOnNavidrome
+    // never throws, but guard anyway so the promise can't reject unhandled.
+    void ensurePlaylistOnNavidrome(newPlaylist.id, session.user.id).catch(() => {});
 
-    return successResponse({ ...newPlaylist, navidromeId }, 201);
+    return successResponse({ ...newPlaylist, navidromeId: null }, 201);
   },
   {
     service: 'playlists',

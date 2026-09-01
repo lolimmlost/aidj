@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { userPlaylists, playlistSongs } from '@/lib/db/schema/playlists.schema';
 import { getPlaylists, getPlaylist, type NavidromePlaylist, type NavidromePlaylistWithSongs } from './navidrome';
 import { getNavidromeUserCreds } from './navidrome-users';
+import { DELETED_FROM_NAVIDROME_PREFIX, stripDeletedMarker } from './playlist-deleted-marker';
 import { ServiceError } from '../utils';
 
 /**
@@ -152,7 +153,7 @@ export async function syncNavidromePlaylists(userId: string): Promise<SyncResult
           .set({
             navidromeId: null,
             lastSynced: new Date(),
-            description: `[Deleted from Navidrome] ${localPlaylist.description || ''}`,
+            description: `${DELETED_FROM_NAVIDROME_PREFIX} ${localPlaylist.description || ''}`,
             updatedAt: new Date(),
           })
           .where(eq(userPlaylists.id, localPlaylist.id));
@@ -173,13 +174,6 @@ export async function syncNavidromePlaylists(userId: string): Promise<SyncResult
     console.error(errorMsg);
     throw new ServiceError('PLAYLIST_SYNC_ERROR', errorMsg);
   }
-}
-
-/** Strip the "[Deleted from Navidrome] " prefix a prior soft delete may have added. */
-function stripDeletedMarker(description: string | null): string | null {
-  if (!description) return description;
-  const cleaned = description.replace(/^\[Deleted from Navidrome\]\s*/, '');
-  return cleaned.length > 0 ? cleaned : null;
 }
 
 /**

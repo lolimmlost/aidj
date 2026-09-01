@@ -23,10 +23,11 @@ import {
   createPlaylist,
   addSongsToPlaylist,
   getPlaylist,
+  getPlaylists,
   removeSongsFromPlaylistByIndex,
 } from './navidrome';
 import { getNavidromeUserCreds, type SubsonicCreds } from './navidrome-users';
-import { isCanonicalLikedPlaylist } from './liked-songs-sync';
+import { hasDeletedFromNavidromeMarker } from './playlist-deleted-marker';
 
 type PlaylistRow = typeof userPlaylists.$inferSelect;
 
@@ -34,11 +35,39 @@ type PlaylistRow = typeof userPlaylists.$inferSelect;
  * Basic playlists only. Skip smart playlists (their own path) and the canonical
  * Liked Songs list (a mirror of Navidrome stars — intentionally navidromeId=null
  * and must never be pushed as a standalone Navidrome playlist).
+ *
+ * The canonical-liked check uses the explicit `isLikedSongs` flag, NOT a name
+ * match: a name fallback (e.g. /liked/i) would misclassify ordinary user
+ * playlists like "Songs I Liked in 2020" and silently never mirror them.
  */
 function isMirrorable(pl: PlaylistRow): boolean {
   if (pl.smartPlaylistCriteria) return false;
-  if (isCanonicalLikedPlaylist(pl)) return false;
+  if (pl.isLikedSongs) return false;
   return true;
+}
+
+/**
+ * Serializes `ensurePlaylistOnNavidrome` calls per playlist within this process.
+ * Two concurrent edits to a still-local-only playlist would otherwise each run
+ * the create path and produce a duplicate Navidrome playlist with the same name.
+ *
+ * NOTE (multi-instance deploys): this map is in-memory and per process, so it
+ * only dedups within one instance. The `findRemotePlaylistIdByName` adopt guard
+ * below narrows the cross-process window but does not close it — two instances
+ * can both read "no remote playlist" before either `createPlaylist` returns and
+ * still produce a duplicate (TOCTOU). Safe while we run a single instance; if we
+ * ever scale out, move this serialization to a shared lock (e.g. a Postgres
+ * advisory lock keyed on playlistId) or a unique constraint on the remote side.
+ */
+const ensureInFlight = new Map<string, Promise<string | null>>();
+
+/** Find an existing Navidrome playlist id with this exact name, or null. */
+async function findRemotePlaylistIdByName(
+  name: string,
+  creds: SubsonicCreds,
+): Promise<string | null> {
+  const remote = await getPlaylists(creds);
+  return remote.find((p) => p.name === name)?.id ?? null;
 }
 
 async function orderedSongIds(playlistId: string): Promise<string[]> {
@@ -61,9 +90,33 @@ async function resolveCreds(
  * Ensure a local basic playlist exists on Navidrome. If it has no navidromeId
  * yet, create it there with its current songs (in local order) and persist the
  * returned id back onto the row. Returns the navidromeId, or null if it could
- * not be created (no creds, smart playlist, or a Navidrome error). Never throws.
+ * not be created (no creds, smart playlist, deliberately deleted, or a Navidrome
+ * error). Never throws.
+ *
+ * Guards:
+ *  - Deleted playlists are NOT resurrected. A row soft-deleted by sync (navidromeId
+ *    nulled + "[Deleted from Navidrome]" marker) is left alone — healing it forward
+ *    would recreate a list the user intentionally deleted (PR #175 / #160).
+ *  - Duplicates are avoided. Before creating, we adopt any existing same-name
+ *    Navidrome playlist (the unique-name dedup that #127/#163 enforce in sync),
+ *    and concurrent calls for one playlist are serialized so they can't both create.
  */
 export async function ensurePlaylistOnNavidrome(
+  playlistId: string,
+  userId: string,
+  creds?: SubsonicCreds | null,
+): Promise<string | null> {
+  const inFlight = ensureInFlight.get(playlistId);
+  if (inFlight) return inFlight;
+
+  const run = ensurePlaylistOnNavidromeInner(playlistId, userId, creds).finally(() => {
+    ensureInFlight.delete(playlistId);
+  });
+  ensureInFlight.set(playlistId, run);
+  return run;
+}
+
+async function ensurePlaylistOnNavidromeInner(
   playlistId: string,
   userId: string,
   creds?: SubsonicCreds | null,
@@ -78,6 +131,14 @@ export async function ensurePlaylistOnNavidrome(
     if (!pl || !isMirrorable(pl)) return null;
     if (pl.navidromeId) return pl.navidromeId;
 
+    // Do not resurrect a deliberately-deleted playlist. Sync soft-deletes such
+    // rows (navidromeId=null + marker); both a deleted list and a never-synced
+    // local-only list have navidromeId=null, so the marker is the only signal.
+    if (hasDeletedFromNavidromeMarker(pl.description)) {
+      console.log(`[playlist-mirror] "${pl.name}" was deleted on Navidrome; not resurrecting`);
+      return null;
+    }
+
     const c = await resolveCreds(userId, creds);
     if (!c) {
       console.warn(`[playlist-mirror] no Navidrome creds for user ${userId}; leaving "${pl.name}" local-only (will back-fill later)`);
@@ -85,15 +146,31 @@ export async function ensurePlaylistOnNavidrome(
     }
 
     const songIds = await orderedSongIds(playlistId);
-    const created = await createPlaylist(pl.name, songIds.length ? songIds : undefined, c);
+
+    // Dedup: adopt an existing same-name Navidrome playlist rather than creating
+    // a second one. Push only the local songs it is missing (Subsonic appends
+    // songIdToAdd unconditionally, so blindly re-adding would duplicate entries).
+    let navidromeId = await findRemotePlaylistIdByName(pl.name, c);
+    if (navidromeId) {
+      if (songIds.length) {
+        const remote = await getPlaylist(navidromeId, c);
+        const present = new Set((remote.entry ?? []).map((s) => s.id));
+        const missing = songIds.filter((id) => !present.has(id));
+        if (missing.length) await addSongsToPlaylist(navidromeId, missing, c);
+      }
+      console.log(`🔗 [playlist-mirror] adopted existing Navidrome playlist "${pl.name}" (${navidromeId})`);
+    } else {
+      const created = await createPlaylist(pl.name, songIds.length ? songIds : undefined, c);
+      navidromeId = created.id;
+      console.log(`✅ [playlist-mirror] created "${pl.name}" on Navidrome (${navidromeId}) with ${songIds.length} songs`);
+    }
 
     await db
       .update(userPlaylists)
-      .set({ navidromeId: created.id, lastSynced: new Date(), updatedAt: new Date() })
+      .set({ navidromeId, lastSynced: new Date(), updatedAt: new Date() })
       .where(eq(userPlaylists.id, playlistId));
 
-    console.log(`✅ [playlist-mirror] created "${pl.name}" on Navidrome (${created.id}) with ${songIds.length} songs`);
-    return created.id;
+    return navidromeId;
   } catch (err) {
     console.warn(`[playlist-mirror] ensurePlaylistOnNavidrome failed for ${playlistId}:`, err instanceof Error ? err.message : err);
     return null;
@@ -149,7 +226,9 @@ export async function mirrorRemoveSong(
 ): Promise<void> {
   try {
     const remote = await getPlaylist(navidromeId, creds);
-    const indices = remote.entry
+    // Subsonic omits `entry` for an empty playlist (the type declares it
+    // non-optional but the wire format leaves it out), so default to [].
+    const indices = (remote.entry ?? [])
       .map((s, i) => (s.id === songId ? i : -1))
       .filter((i) => i >= 0);
     if (indices.length === 0) return; // not on server = already consistent
