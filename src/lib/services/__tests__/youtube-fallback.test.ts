@@ -86,6 +86,44 @@ describe('verifyDownload', () => {
     expect(v.matched).toBe(false);
   });
 
+  it('accepts a correct download whose title ABBREVIATES a multi-word artist', () => {
+    // Real chosic-pass regression: a legitimate top result often carries only part
+    // of a stylized multi-word artist ("bad tuner" → "tuner - all my feelings").
+    // Field-level containment must treat a dropped word as corroboration, not a
+    // mismatch — otherwise ~44% of indie downloads get wrongly flagged.
+    const v = verifyDownload(
+      { artist: 'bad tuner', title: 'all my feelings' },
+      { title: 'tuner - all my feelings' }
+    );
+    expect(v.matched).toBe(true);
+  });
+
+  it('accepts a correct download when a leading artist word is dropped (Cream Soda)', () => {
+    const v = verifyDownload(
+      { artist: 'CREAM SODA', title: 'VIBY' },
+      { title: 'soda - VIBY (Official Video)' }
+    );
+    expect(v.matched).toBe(true);
+  });
+
+  it('still rejects a same-title result whose artist merely OVERLAPS one token', () => {
+    // The containment fix must not reopen the Phil Collins hole: "phil odd" vs
+    // "phil collins" share a token but neither is a subset of the other.
+    const v = verifyDownload(
+      { artist: 'Phil Odd', title: 'ur lovin' },
+      { title: 'Phil Collins - ur lovin' }
+    );
+    expect(v.matched).toBe(false);
+  });
+
+  it('still rejects a same-title result by a completely different artist', () => {
+    const v = verifyDownload(
+      { artist: 'Nick Howe', title: 'Touch' },
+      { title: 'Little Mix - Touch' }
+    );
+    expect(v.matched).toBe(false);
+  });
+
   it('falls back to filename when title is missing', () => {
     const v = verifyDownload(track, { filename: 'Sun Room - Insincere.mp3' });
     expect(v.matched).toBe(true);

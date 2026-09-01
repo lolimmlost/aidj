@@ -158,6 +158,30 @@ function tokenOverlap(want: string, got: string): number {
   return hits / wantTokens.length;
 }
 
+/** True when every token of `sub` also appears in `sup` (order-independent). */
+function tokensSubsetOf(sub: string, sup: string): boolean {
+  const subTokens = sub.split(' ').filter(Boolean);
+  if (subTokens.length === 0) return false;
+  const supSet = new Set(sup.split(' ').filter(Boolean));
+  return subTokens.every((t) => supSet.has(t));
+}
+
+/**
+ * Isolate the artist portion of a resolved video title. yt-dlp / YouTube titles
+ * are overwhelmingly "Artist - Title …", so the left of the first spaced
+ * delimiter is the artist. Comparing artist FIELD-to-FIELD (as MusicBrainz Picard
+ * and beets do) — rather than matching the artist against the whole title string
+ * — is what lets us tell a *dropped* artist word ("bad tuner" → "tuner", benign)
+ * from a *substituted* one ("Phil Odd" → "Phil Collins", a real mismatch): both
+ * share exactly one token against the whole string, but only the dropped case is
+ * a clean subset of the artist field. Falls back to the whole (normalized) string
+ * when there's no separator — no worse than matching against the full title.
+ */
+function artistFieldOfTitle(resultTitle: string): string {
+  const idx = resultTitle.search(/\s[-–—:|]\s/); // spaced hyphen/dash/colon/pipe only
+  return normalizeForCompare(idx > 0 ? resultTitle.slice(0, idx) : resultTitle);
+}
+
 /**
  * Verify a completed MeTube item is plausibly the requested track. Because
  * `ytsearch1:` returns whatever YouTube ranks first, this guards against live
@@ -173,25 +197,33 @@ export function verifyDownload(
   }
 
   const got = normalizeForCompare(resultTitle);
+  const gotArtist = artistFieldOfTitle(resultTitle); // artist portion only, when present
   const wantTitle = normalizeForCompare(track.title);
   const wantArtist = normalizeForCompare((track.artist || '').split(/[;,]/)[0]);
 
   const titleScore = got.includes(wantTitle) && wantTitle.length > 0 ? 1 : tokenOverlap(wantTitle, got);
   const artistReliable = wantArtist.length >= 3; // too short to be a reliable signal
+  // Containment-aware artist corroboration (field-to-field; see artistFieldOfTitle).
+  // A dropped artist word — one field is a clean subset of the other — still fully
+  // corroborates; only a genuine token *conflict* (competing words on each side,
+  // the "Phil Odd" → "Phil Collins" case) falls through to the low overlap score.
   const artistScore = !artistReliable
     ? 1
-    : got.includes(wantArtist)
+    : got.includes(wantArtist) // full artist present anywhere in the title
       ? 1
-      : tokenOverlap(wantArtist, got);
+      : tokensSubsetOf(wantArtist, gotArtist) || tokensSubsetOf(gotArtist, wantArtist)
+        ? 1
+        : Math.max(tokenOverlap(wantArtist, gotArtist), tokenOverlap(wantArtist, got));
 
-  // Title carries most of the weight; a strong title + present artist passes.
+  // Title carries most of the weight; a strong title + corroborating artist passes.
   const score = titleScore * 0.65 + artistScore * 0.35;
   // A confident title is NOT enough on its own: `ytsearch1:` routinely returns a
-  // same-titled song by the WRONG artist (e.g. "Phil Odd - ur lovin" resolving to
-  // "Phil Collins - Some Of Your Lovin'", which shares only the "phil" token →
-  // artist 50%). When the artist is a usable signal, require it to genuinely
-  // corroborate rather than letting a perfect title drag a bad artist over the line.
-  const matched = titleScore >= 0.6 && score >= 0.6 && (!artistReliable || artistScore >= 0.6);
+  // same-titled song by the WRONG artist. When the artist is a usable signal it
+  // must genuinely corroborate — but "corroborate" means field-level containment,
+  // not exact token match, so we don't reject legitimate downloads whose YouTube
+  // title merely abbreviates a multi-word artist. (score >= 0.6 is implied by both
+  // sub-scores clearing 0.6, so it's not a separate gate.)
+  const matched = titleScore >= 0.6 && (!artistReliable || artistScore >= 0.6);
 
   return {
     matched,
