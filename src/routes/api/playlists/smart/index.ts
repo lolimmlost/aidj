@@ -147,7 +147,7 @@ export const Route = createFileRoute("/api/playlists/smart/")({
         return new Response(JSON.stringify({
           code: 'VALIDATION_ERROR',
           message: 'Invalid smart playlist data',
-          errors: error.errors,
+          errors: error.issues,
         }), {
           status: 400,
           headers: { 'Content-Type': 'application/json' }
