@@ -4,6 +4,7 @@ import { userPlaylists, playlistSongs } from '../../../lib/db/schema/playlists.s
 import { eq, sql, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { checkNavidromeConnectivity } from '../../../lib/services/navidrome';
+import { ensurePlaylistOnNavidrome } from '../../../lib/services/playlist-navidrome-mirror';
 import {
   withAuthAndErrorHandling,
   successResponse,
@@ -52,7 +53,13 @@ const POST = withAuthAndErrorHandling(
 
     console.log(`✅ Playlist "${newPlaylist.name}" created (empty)`);
 
-    return successResponse(newPlaylist, 201);
+    // Mirror to Navidrome so it becomes a real (syncable) playlist, not a
+    // local-only row. Best-effort: if it can't be created now (offline, no
+    // creds), the row stays local and is back-filled on the next edit / by the
+    // back-fill script.
+    const navidromeId = await ensurePlaylistOnNavidrome(newPlaylist.id, session.user.id);
+
+    return successResponse({ ...newPlaylist, navidromeId }, 201);
   },
   {
     service: 'playlists',
