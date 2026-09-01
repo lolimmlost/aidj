@@ -18,13 +18,25 @@ export const userPlaylists = pgTable("user_playlists", {
   songCount: integer("song_count"), // Cached song count for performance
   totalDuration: integer("total_duration"), // Total duration in seconds
   smartPlaylistCriteria: jsonb("smart_playlist_criteria").$type<{
+    // Legacy filter shape (rows created before the Navidrome-native rules path).
     genre?: string[];
     yearFrom?: number;
     yearTo?: number;
     artists?: string[];
     rating?: number;
     recentlyAdded?: '7d' | '30d' | '90d';
-  }>(), // Filter rules for smart playlists
+    // Navidrome-native smart-playlist rules (current shape, see
+    // navidrome-smart-playlists.ts `SmartPlaylistRules`). Conditions are kept as
+    // `unknown[]` here to stay independent of the service layer; the rules module
+    // owns their precise recursive type.
+    name?: string;
+    comment?: string;
+    all?: unknown[];
+    any?: unknown[];
+    sort?: string;
+    order?: 'asc' | 'desc';
+    limit?: number;
+  }>(), // Filter rules for smart playlists (legacy filters or Navidrome rules)
   createdAt: timestamp("created_at")
     .$defaultFn(() => new Date())
     .notNull(),

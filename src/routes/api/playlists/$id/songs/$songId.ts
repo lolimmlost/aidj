@@ -110,12 +110,15 @@ export const Route = createFileRoute("/api/playlists/$id/songs/$songId")({
         .where(eq(userPlaylists.id, playlistId));
 
       // Mirror the removal to Navidrome so the server copy doesn't keep the song
-      // (which would re-appear locally on the next sync). Best-effort.
+      // (which would re-appear locally on the next sync). Fire-and-forget: the
+      // local delete is the source of truth, so we don't block the response on
+      // the creds lookup + Navidrome round-trips whose result we discard.
       if (playlist.navidromeId) {
-        const creds = await getNavidromeUserCreds(session.user.id);
-        if (creds) {
-          await mirrorRemoveSong(playlist.navidromeId, songId, creds);
-        }
+        const navidromeId = playlist.navidromeId;
+        void (async () => {
+          const creds = await getNavidromeUserCreds(session.user.id);
+          if (creds) await mirrorRemoveSong(navidromeId, songId, creds);
+        })().catch(() => {});
       }
 
       return new Response(JSON.stringify({ data: { success: true } }), {

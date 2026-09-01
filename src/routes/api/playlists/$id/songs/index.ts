@@ -107,8 +107,10 @@ export const Route = createFileRoute("/api/playlists/$id/songs/")({
         .where(eq(userPlaylists.id, playlistId));
 
       // Mirror the add to Navidrome (back-fills the playlist if it was still
-      // local-only). Best-effort — never fails the local add.
-      await mirrorAddSong(playlistId, session.user.id, validatedData.songId);
+      // local-only). Fire-and-forget — the local add is the source of truth, so
+      // we don't block the response on a best-effort Navidrome round-trip whose
+      // result we discard. mirrorAddSong never throws; guard anyway.
+      void mirrorAddSong(playlistId, session.user.id, validatedData.songId).catch(() => {});
 
       return new Response(JSON.stringify({
         data: {

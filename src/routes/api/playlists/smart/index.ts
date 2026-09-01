@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { auth } from '../../../../lib/auth/auth';
 import { db } from '../../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../../lib/db/schema/playlists.schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import {
   createSmartPlaylist,
   listSmartPlaylists,
@@ -60,8 +60,12 @@ export const Route = createFileRoute("/api/playlists/smart/")({
       const existingPlaylist = await db
         .select()
         .from(userPlaylists)
-        .where(eq(userPlaylists.userId, session.user.id))
-        .where(eq(userPlaylists.name, validatedData.name))
+        .where(
+          and(
+            eq(userPlaylists.userId, session.user.id),
+            eq(userPlaylists.name, validatedData.name),
+          ),
+        )
         .limit(1)
         .then(rows => rows[0]);
 
@@ -143,7 +147,7 @@ export const Route = createFileRoute("/api/playlists/smart/")({
         return new Response(JSON.stringify({
           code: 'VALIDATION_ERROR',
           message: 'Invalid smart playlist data',
-          errors: error.errors,
+          errors: error.issues,
         }), {
           status: 400,
           headers: { 'Content-Type': 'application/json' }
