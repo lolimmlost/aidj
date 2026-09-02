@@ -344,6 +344,48 @@ function parseRealArtistTitle(artist: string, title: string): {
   return { artist, title: clean };
 }
 
+/**
+ * Split a cached `"Artist - Title"` string — `playlist_songs.song_artist_title` or
+ * `recommendation_feedback.song_artist_title` — into a searchable artist/title pair.
+ *
+ * This cached string is the ONLY metadata available for a dead Navidrome id: the
+ * id no longer resolves via `getSong`, so there is nothing else to search the
+ * library with. `playlist_songs` rows previously arrived here with empty
+ * artist/title because the query never selected the column, which meant every
+ * playlist-only dead id failed the "no artist+title to search with" guard and was
+ * reported `notFound` without a single lookup being attempted.
+ *
+ * Returns EMPTY strings (not the literal `"Unknown"`) when nothing is usable —
+ * that guard tests truthiness, so `"Unknown"` would send the library searching for
+ * a song by an artist named Unknown instead of skipping the id.
+ *
+ * Delegates to `parseRealArtistTitle` because MeTube rips are cached doubled
+ * ("Blair Muir - Blair Muir - Divine (Official Lyric Video)"): the raw video title
+ * already leads with the artist, so a naive split leaves it stuck to the title.
+ */
+export function splitArtistTitle(cached: string | null | undefined): {
+  artist: string;
+  title: string;
+} {
+  const raw = (cached || '').trim();
+  if (!raw) return { artist: '', title: '' };
+  const parts = raw.split(' - ');
+  if (parts.length < 2) return { artist: '', title: raw };
+
+  const artist = parts[0].trim();
+  const title = parts.slice(1).join(' - ').trim();
+
+  // Only undouble when the title genuinely REPEATS the artist. `parseRealArtistTitle`
+  // re-splits the title and promotes its first segment to artist, which is right for
+  // "Blair Muir - Blair Muir - Divine" but destructive for an ordinary title that
+  // merely contains " - ": "Artist - Song - Live at Wembley" would come back as
+  // artist "Song", losing the real artist and the search with it.
+  if (artist && title.toLowerCase().startsWith(artist.toLowerCase())) {
+    return parseRealArtistTitle(artist, title);
+  }
+  return { artist, title };
+}
+
 async function isStreamable(songId: string): Promise<boolean> {
   try {
     const streamUrl = buildSubsonicUrl('stream');
@@ -392,6 +434,11 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
       .select({
         songId: playlistSongs.songId,
         playlistId: playlistSongs.playlistId,
+        // Needed to remap: a dead Navidrome id can't be resolved via getSong, so
+        // the cached "Artist - Title" on the row is the ONLY metadata we have to
+        // search the library with. Omitting it made every playlist-only dead id
+        // unremappable (see the loop below).
+        songArtistTitle: playlistSongs.songArtistTitle,
       })
       .from(playlistSongs)
       .innerJoin(userPlaylists, eq(playlistSongs.playlistId, userPlaylists.id))
@@ -423,12 +470,8 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
     if (existing) {
       existing.sources.add('recommendation_feedback');
     } else {
-      const parts = (row.songArtistTitle || '').split(' - ');
-      idMeta.set(row.songId, {
-        artist: parts[0] || 'Unknown',
-        title: parts.slice(1).join(' - ') || 'Unknown',
-        sources: new Set(['recommendation_feedback']),
-      });
+      const { artist, title } = splitArtistTitle(row.songArtistTitle);
+      idMeta.set(row.songId, { artist, title, sources: new Set(['recommendation_feedback']) });
     }
   }
 
@@ -436,10 +479,23 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
     const existing = idMeta.get(row.songId);
     if (existing) {
       existing.sources.add('playlist_songs');
+      // A feedback row may have registered this id first with empty metadata
+      // (its own songArtistTitle was null); fill it in if the playlist row has it.
+      if (!existing.artist && !existing.title) {
+        const { artist, title } = splitArtistTitle(row.songArtistTitle);
+        existing.artist = artist;
+        existing.title = title;
+      }
     } else {
+      // Parse the cached "Artist - Title" exactly as the feedback branch does.
+      // Leaving these empty made every playlist-only dead id fail the
+      // "no artist+title to search with" guard below, so it was recorded as
+      // notFound without a single library lookup ever being attempted — which is
+      // why a real prod run reported 7 deadIds / 7 notFound / 0 remapped.
+      const { artist, title } = splitArtistTitle(row.songArtistTitle);
       idMeta.set(row.songId, {
-        artist: '',
-        title: '',
+        artist,
+        title,
         sources: new Set(['playlist_songs']),
       });
     }
