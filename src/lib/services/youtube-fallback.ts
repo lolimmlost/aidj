@@ -187,24 +187,74 @@ function tokensSubsetOf(sub: string, sup: string): boolean {
 
 const ARTIST_SEPARATOR_RE = /\s[-–—:|]\s/; // spaced hyphen/dash/colon/pipe only
 
+/** Writing systems we can tell apart well enough to say "these can never overlap". */
+const SCRIPT_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
+  ['latin', /\p{Script=Latin}/u],
+  ['cyrillic', /\p{Script=Cyrillic}/u],
+  ['greek', /\p{Script=Greek}/u],
+  ['han', /\p{Script=Han}/u],
+  ['hiragana', /\p{Script=Hiragana}/u],
+  ['katakana', /\p{Script=Katakana}/u],
+  ['hangul', /\p{Script=Hangul}/u],
+  ['arabic', /\p{Script=Arabic}/u],
+  ['hebrew', /\p{Script=Hebrew}/u],
+  ['devanagari', /\p{Script=Devanagari}/u],
+  ['thai', /\p{Script=Thai}/u],
+];
+
+function scriptsOf(s: string): Set<string> {
+  const found = new Set<string>();
+  for (const [name, re] of SCRIPT_PATTERNS) if (re.test(s)) found.add(name);
+  return found;
+}
+
 /**
- * Whether the resolved title, normalized, is EXACTLY the wanted title and nothing
- * else — a bare single / topic-channel upload ("Нормальная музыка (Single Version)"
- * for "Нормальная музыка"), which asserts no artist at all. That is the only shape
- * where a missing artist is safely ignorable: there's no artist claim to
- * corroborate OR contradict, and on a cross-script title a Latin artist name can
- * never token-overlap a Cyrillic/CJK song title anyway (a script mismatch, not an
- * artist mismatch).
- *
- * Testing instead for an absent "Artist - Title" *separator* is NOT enough, and
- * reopened the #145 wrong-artist hole: YouTube asserts the artist with plenty of
- * other punctuation ("Little Mix • Touch") or none at all ("Little Mix Touch"),
- * and every one of those carries a contradicting artist claim that still has to be
- * checked. Requiring full equality routes any residual token beyond the title —
- * exactly where an artist would live — back to the strict artist path.
+ * True when `a` and `b` share no writing system at all, so no token of one can
+ * ever appear in the other. Digits and punctuation are script-neutral and don't
+ * count either way; a string with no recognized letters is never "disjoint"
+ * (we can't conclude anything from it).
  */
-function isBareTitleMatch(got: string, wantTitle: string): boolean {
-  return wantTitle.length > 0 && got === wantTitle;
+function scriptsDisjoint(a: string, b: string): boolean {
+  const sa = scriptsOf(a);
+  const sb = scriptsOf(b);
+  if (sa.size === 0 || sb.size === 0) return false;
+  for (const s of sa) if (sb.has(s)) return false;
+  return true;
+}
+
+/**
+ * The narrow case where a missing artist must not veto the match: the resolved
+ * title, normalized, is EXACTLY the wanted title and nothing else (a bare single /
+ * topic-channel upload), AND the wanted artist is written in a script that cannot
+ * possibly appear in that title. This is the real #206 miss — "UBEL - Нормальная
+ * музыка" resolving to "Нормальная музыка (Single Version)", where a Latin artist
+ * name can never token-overlap a Cyrillic title, so the artist check is not
+ * *failing*, it is *inapplicable*.
+ *
+ * Both halves are load-bearing:
+ *
+ * - Exact equality, not containment. A title merely *containing* the wanted one
+ *   has residual tokens, and that is exactly where a wrong artist hides
+ *   ("Little Mix Touch", "Top 100 Pop Hits Toxic …"). Testing instead for an
+ *   absent "Artist - Title" *separator* is far too weak — YouTube asserts the
+ *   artist with plenty of other punctuation ("Little Mix • Touch") or none at all.
+ *
+ * - Script disjointness. Without it, `normalizeForCompare` — which strips
+ *   bracketed qualifiers and the words official/music/video/audio/lyrics/hd/4k —
+ *   collapses the single most common YouTube title shape, "Touch (Official
+ *   Video)", to exactly "touch". Every same-titled song by the WRONG artist would
+ *   then be accepted with the artist never checked, which is the #145 hole, and
+ *   because it verifies as `matched` the wrong rip is *kept* rather than deleted
+ *   (the very thing #164's deletion path exists to prevent).
+ *
+ * Same-script bare uploads ("Touch" for Nick Howe's "Touch") still go down the
+ * strict artist path and can still fail there. That is deliberate and matches
+ * pre-#206 behaviour: from the title alone there is genuinely nothing to tell a
+ * topic-channel upload of our song from a different artist's same-titled song,
+ * and a false failure is cheap next to a wrong file indexed into the library.
+ */
+function isUncheckableBareTitle(got: string, wantTitle: string, wantArtist: string): boolean {
+  return wantTitle.length > 0 && got === wantTitle && scriptsDisjoint(wantArtist, got);
 }
 
 /**
@@ -243,17 +293,17 @@ export function verifyDownload(
   const wantArtist = normalizeForCompare((track.artist || '').split(/[;,]/)[0]);
   const titleScore = got.includes(wantTitle) && wantTitle.length > 0 ? 1 : tokenOverlap(wantTitle, got);
 
-  // The resolved title is nothing BUT the wanted title (see `isBareTitleMatch`),
-  // so there is no artist claim in it to corroborate or contradict and an absent
-  // artist must not veto the match — this is what accepts cross-script titles
-  // (e.g. Cyrillic song title, Latin artist name). Note this is full equality, not
-  // containment: a title that merely *contains* the wanted one has extra tokens,
-  // which is precisely where a wrong artist hides, so it falls through below.
-  if (isBareTitleMatch(got, wantTitle)) {
+  // The resolved title is nothing BUT the wanted title AND the artist is written
+  // in a script that could never appear in it (see `isUncheckableBareTitle`), so
+  // the artist check is inapplicable rather than failing and must not veto the
+  // match. Everything else — including a same-script bare title, where a wrong
+  // artist is indistinguishable from a topic-channel upload — falls through to
+  // the strict artist path below.
+  if (isUncheckableBareTitle(got, wantTitle, wantArtist)) {
     return {
       matched: true,
       score: 1,
-      reason: `exact title match, no artist field in "${resultTitle}"`,
+      reason: `exact title match, artist unverifiable across scripts in "${resultTitle}"`,
     };
   }
 
@@ -322,10 +372,12 @@ export function itemLikelyMatchesTrack(
 
   const titleOverlap = got.includes(wantTitle) ? 1 : tokenOverlap(wantTitle, got);
 
-  // Bare title asserting no artist (see `isBareTitleMatch`) — trust it on its own
-  // rather than stalling detection on an artist check that can never pass (e.g.
-  // cross-script titles). A title with extra tokens around ours is NOT this case.
-  if (isBareTitleMatch(got, wantTitle)) return true;
+  // Exact bare title whose artist can't be checked at all across scripts (see
+  // `isUncheckableBareTitle`) — trust it on its own rather than stalling detection
+  // on a check that can never pass. A title with extra tokens around ours, or one
+  // in the same script as the artist, is NOT this case: it must corroborate below,
+  // or a worker claims — and under concurrency steals — another track's item.
+  if (isUncheckableBareTitle(got, wantTitle, wantArtist)) return true;
 
   const artistOk =
     wantArtist.length < 3 || got.includes(wantArtist) || tokenOverlap(wantArtist, got) >= 0.5;

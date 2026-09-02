@@ -203,6 +203,44 @@ describe('verifyDownload', () => {
     );
     expect(v.matched).toBe(false);
   });
+
+  // The bare-title escape hatch must ALSO require that the artist is unverifiable
+  // across scripts, not merely absent from the title. `normalizeForCompare` drops
+  // bracketed qualifiers and the words official/music/video/audio/lyrics/hd/4k, so
+  // every one of these collapses to exactly "touch" — the most common YouTube
+  // title shape there is. Accepting them on the title alone is the #145 hole, and
+  // worse than a plain false accept: a `matched` result is KEPT rather than
+  // deleted, so the wrong rip lands in the library on the next Picard pass.
+  it.each([
+    'Touch (Official Video)',
+    'Touch - Official Music Video',
+    'Touch [Official Audio]',
+    'Touch (Lyrics)',
+    'Touch',
+  ])('rejects a same-script bare title by the wrong artist: %s', (resolved) => {
+    const v = verifyDownload({ artist: 'Nick Howe', title: 'Touch' }, { title: resolved });
+    expect(v.matched).toBe(false);
+  });
+
+  it('still accepts a same-script bare title when the artist IS corroborated', () => {
+    // Sanity check that the script gate didn't cost us the ordinary good case:
+    // the artist is present in the title, so the strict path passes on its own.
+    const v = verifyDownload(
+      { artist: 'Little Mix', title: 'Touch' },
+      { title: 'Little Mix - Touch (Official Video)' }
+    );
+    expect(v.matched).toBe(true);
+  });
+
+  it('does not take the cross-script hatch when the title mixes in the artist script', () => {
+    // A Latin artist name CAN appear in a title that carries Latin tokens, so the
+    // artist is verifiable and must actually be verified.
+    const v = verifyDownload(
+      { artist: 'UBEL', title: 'Нормальная музыка' },
+      { title: 'Нормальная музыка feat Someone Else' }
+    );
+    expect(v.matched).toBe(false);
+  });
 });
 
 describe('itemLikelyMatchesTrack (detection)', () => {
@@ -272,6 +310,15 @@ describe('itemLikelyMatchesTrack (detection)', () => {
   it('does not detect a wrong artist asserted without a dash separator', () => {
     expect(
       itemLikelyMatchesTrack({ artist: 'Nick Howe', title: 'Touch' }, { title: 'Little Mix • Touch' })
+    ).toBe(false);
+  });
+
+  // Detection takes the same hatch as verification, so it needs the same script
+  // gate — otherwise a worker claims another track's item on a bare same-script
+  // title, and under concurrency that item is stolen for good.
+  it('does not detect a same-script bare title by the wrong artist', () => {
+    expect(
+      itemLikelyMatchesTrack({ artist: 'Nick Howe', title: 'Touch' }, { title: 'Touch (Official Video)' })
     ).toBe(false);
   });
 });
