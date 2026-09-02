@@ -140,6 +140,36 @@ describe('verifyDownload', () => {
     expect(v.matched).toBe(false);
     expect(v.score).toBe(0);
   });
+
+  it('accepts an exact cross-script title match with no artist field at all (#206 regression)', () => {
+    // Real #206 miss: "UBEL - Нормальная музыка" resolved to a YouTube upload
+    // titled just "Нормальная музыка (Single Version)" — no "Artist - Title"
+    // separator, and a Latin artist name can never token-overlap a Cyrillic
+    // title. The artist check must not veto a title that matches exactly.
+    const v = verifyDownload(
+      { artist: 'UBEL', title: 'Нормальная музыка' },
+      { title: 'Нормальная музыка (Single Version)' }
+    );
+    expect(v.matched).toBe(true);
+  });
+
+  it('still rejects an unrelated video with no artist field (no free pass on a weak title)', () => {
+    const v = verifyDownload(
+      { artist: 'UBEL', title: 'Нормальная музыка' },
+      { title: 'Совершенно другая песня' }
+    );
+    expect(v.matched).toBe(false);
+  });
+
+  it('requires an EXACT (not just high-overlap) title match when there is no artist field', () => {
+    // Partial title overlap with no artist signal at all is too weak to accept —
+    // unlike the dash-separated path, there's nothing else corroborating it.
+    const v = verifyDownload(
+      { artist: 'UBEL', title: 'Нормальная музыка целиком' },
+      { title: 'Нормальная музыка' }
+    );
+    expect(v.matched).toBe(false);
+  });
 });
 
 describe('itemLikelyMatchesTrack (detection)', () => {
@@ -183,6 +213,24 @@ describe('itemLikelyMatchesTrack (detection)', () => {
 
   it('returns false with no title or filename', () => {
     expect(itemLikelyMatchesTrack({ artist: 'A', title: 'B' }, {})).toBe(false);
+  });
+
+  it('detects an exact cross-script title match with no artist field (#206 regression)', () => {
+    expect(
+      itemLikelyMatchesTrack(
+        { artist: 'UBEL', title: 'Нормальная музыка' },
+        { title: 'Нормальная музыка (Single Version)' }
+      )
+    ).toBe(true);
+  });
+
+  it('does not detect a merely-similar title with no artist field to corroborate', () => {
+    expect(
+      itemLikelyMatchesTrack(
+        { artist: 'UBEL', title: 'Нормальная музыка целиком' },
+        { title: 'Нормальная музыка' }
+      )
+    ).toBe(false);
   });
 });
 

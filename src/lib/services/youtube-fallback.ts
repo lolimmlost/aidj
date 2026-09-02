@@ -172,6 +172,21 @@ function tokensSubsetOf(sub: string, sup: string): boolean {
   return subTokens.every((t) => supSet.has(t));
 }
 
+const ARTIST_SEPARATOR_RE = /\s[-–—:|]\s/; // spaced hyphen/dash/colon/pipe only
+
+/**
+ * Whether a resolved title asserts an artist at all — an "Artist - Title" style
+ * prefix. Absent on plenty of legitimate uploads (topic channels, bare singles)
+ * and on virtually every cross-script title (a Latin artist name can never
+ * token-overlap a Cyrillic/CJK/etc. song title — that's a script mismatch, not
+ * an artist mismatch). When absent there's no artist claim to corroborate OR
+ * contradict, so callers fall back to trusting an exact title match alone
+ * rather than rejecting for a "missing" artist that was never there to check.
+ */
+function titleAssertsArtist(resultTitle: string): boolean {
+  return ARTIST_SEPARATOR_RE.test(resultTitle);
+}
+
 /**
  * Isolate the artist portion of a resolved video title. yt-dlp / YouTube titles
  * are overwhelmingly "Artist - Title …", so the left of the first spaced
@@ -180,11 +195,11 @@ function tokensSubsetOf(sub: string, sup: string): boolean {
  * — is what lets us tell a *dropped* artist word ("bad tuner" → "tuner", benign)
  * from a *substituted* one ("Phil Odd" → "Phil Collins", a real mismatch): both
  * share exactly one token against the whole string, but only the dropped case is
- * a clean subset of the artist field. Falls back to the whole (normalized) string
- * when there's no separator — no worse than matching against the full title.
+ * a clean subset of the artist field. Only called once `titleAssertsArtist` has
+ * confirmed a separator exists.
  */
 function artistFieldOfTitle(resultTitle: string): string {
-  const idx = resultTitle.search(/\s[-–—:|]\s/); // spaced hyphen/dash/colon/pipe only
+  const idx = resultTitle.search(ARTIST_SEPARATOR_RE);
   return normalizeForCompare(idx > 0 ? resultTitle.slice(0, idx) : resultTitle);
 }
 
@@ -203,11 +218,27 @@ export function verifyDownload(
   }
 
   const got = normalizeForCompare(resultTitle);
-  const gotArtist = artistFieldOfTitle(resultTitle); // artist portion only, when present
   const wantTitle = normalizeForCompare(track.title);
   const wantArtist = normalizeForCompare((track.artist || '').split(/[;,]/)[0]);
-
   const titleScore = got.includes(wantTitle) && wantTitle.length > 0 ? 1 : tokenOverlap(wantTitle, got);
+
+  // No "Artist - Title" separator in the resolved title — no artist field to
+  // corroborate or contradict (see `titleAssertsArtist`). Require an EXACT title
+  // match (not just high overlap) since there's no artist signal to lean on; this
+  // is what catches cross-script titles (e.g. Cyrillic song title, Latin artist
+  // name) without reopening the wrong-artist hole — a same-titled wrong-artist
+  // result always resolves with an asserted artist prefix, so it still hits the
+  // strict path below.
+  if (!titleAssertsArtist(resultTitle)) {
+    const matched = titleScore === 1;
+    return {
+      matched,
+      score: titleScore,
+      reason: `title ${(titleScore * 100) | 0}% (no artist field in "${resultTitle}")`,
+    };
+  }
+
+  const gotArtist = artistFieldOfTitle(resultTitle); // artist portion only, when present
   const artistReliable = wantArtist.length >= 3; // too short to be a reliable signal
   // Containment-aware artist corroboration (field-to-field; see artistFieldOfTitle).
   // A dropped artist word — one field is a clean subset of the other — still fully
@@ -264,13 +295,20 @@ export function itemLikelyMatchesTrack(
   track: FallbackTrack,
   item: Partial<Pick<MeTubeDownload, 'title' | 'filename'>>
 ): boolean {
-  const got = normalizeForCompare(item.title || item.filename || '');
+  const resultTitle = item.title || item.filename || '';
+  const got = normalizeForCompare(resultTitle);
   if (!got) return false;
   const wantTitle = normalizeForCompare(track.title);
   const wantArtist = normalizeForCompare((track.artist || '').split(/[;,]/)[0]);
   if (!wantTitle) return false;
 
   const titleOverlap = got.includes(wantTitle) ? 1 : tokenOverlap(wantTitle, got);
+
+  // No artist field to corroborate against (see `titleAssertsArtist`) — trust an
+  // exact title match on its own rather than stalling detection on an artist
+  // check that can never pass (e.g. cross-script titles).
+  if (!titleAssertsArtist(resultTitle)) return titleOverlap === 1;
+
   const artistOk =
     wantArtist.length < 3 || got.includes(wantArtist) || tokenOverlap(wantArtist, got) >= 0.5;
 
