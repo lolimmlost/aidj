@@ -11,8 +11,10 @@ import {
   verifyDownload,
   itemLikelyMatchesTrack,
   libraryMatch,
+  qualifierAmbiguity,
   startYouTubeFallbackJob,
   getYouTubeFallbackJob,
+  summarizeJob,
 } from '../youtube-fallback';
 
 // The batch-runner tests below drive real MeTube interaction, so stub the client.
@@ -22,6 +24,10 @@ vi.mock('../metube', () => ({
   deleteDownloads: vi.fn().mockResolvedValue({ status: 'ok' }),
 }));
 import * as metube from '../metube';
+
+// findInLibrary dynamic-imports the Navidrome service; only `search` is used.
+vi.mock('../navidrome', () => ({ search: vi.fn().mockResolvedValue([]) }));
+import * as navidrome from '../navidrome';
 
 describe('normalizeSearchQuery', () => {
   it('uses the primary artist and drops collaborators', () => {
@@ -72,6 +78,55 @@ describe('verifyDownload', () => {
 
   it('flags a wrong-title result from the same artist', () => {
     const v = verifyDownload(track, { title: 'Sun Room - Cadillac (Live)' });
+    expect(v.matched).toBe(false);
+  });
+
+  it('rejects a same-title result by the WRONG artist (Phil Collins regression)', () => {
+    // Real #145 miss: "Phil Odd - ur lovin" ytsearch1-resolved to Phil Collins,
+    // which shares only the "phil" token (artist 50%). A perfect title must not
+    // drag that over the line.
+    const v = verifyDownload(
+      { artist: 'Phil Odd', title: 'ur lovin' },
+      { title: "Phil Collins - Some Of Your Lovin' (Official Audio)" }
+    );
+    expect(v.matched).toBe(false);
+  });
+
+  it('accepts a correct download whose title ABBREVIATES a multi-word artist', () => {
+    // Real chosic-pass regression: a legitimate top result often carries only part
+    // of a stylized multi-word artist ("bad tuner" → "tuner - all my feelings").
+    // Field-level containment must treat a dropped word as corroboration, not a
+    // mismatch — otherwise ~44% of indie downloads get wrongly flagged.
+    const v = verifyDownload(
+      { artist: 'bad tuner', title: 'all my feelings' },
+      { title: 'tuner - all my feelings' }
+    );
+    expect(v.matched).toBe(true);
+  });
+
+  it('accepts a correct download when a leading artist word is dropped (Cream Soda)', () => {
+    const v = verifyDownload(
+      { artist: 'CREAM SODA', title: 'VIBY' },
+      { title: 'soda - VIBY (Official Video)' }
+    );
+    expect(v.matched).toBe(true);
+  });
+
+  it('still rejects a same-title result whose artist merely OVERLAPS one token', () => {
+    // The containment fix must not reopen the Phil Collins hole: "phil odd" vs
+    // "phil collins" share a token but neither is a subset of the other.
+    const v = verifyDownload(
+      { artist: 'Phil Odd', title: 'ur lovin' },
+      { title: 'Phil Collins - ur lovin' }
+    );
+    expect(v.matched).toBe(false);
+  });
+
+  it('still rejects a same-title result by a completely different artist', () => {
+    const v = verifyDownload(
+      { artist: 'Nick Howe', title: 'Touch' },
+      { title: 'Little Mix - Touch' }
+    );
     expect(v.matched).toBe(false);
   });
 
@@ -162,6 +217,140 @@ describe('libraryMatch (dedup guard vs Navidrome songs)', () => {
       libraryMatch({ artist: 'Valexus', title: 'Calling You' }, { title: 'When Did Your Heart Go Missing?', artist: 'Rooney' })
     ).toBe(false);
   });
+
+  it('does NOT false-skip a genuinely-missing track sharing a title (eric404 regression)', () => {
+    // Real #145 bug: "eric404 - Wasting Time" (no_match, not in library) was
+    // SKIPPED as "already in library" because some OTHER "Wasting Time" exists.
+    // A same title with a different artist must never count as in-library.
+    expect(
+      libraryMatch({ artist: 'eric404', title: 'Wasting Time' }, { title: 'Wasting Time', artist: 'Some Other Artist' })
+    ).toBe(false);
+  });
+
+  it('does NOT skip when the library song has no corroborating artist field', () => {
+    expect(
+      libraryMatch({ artist: 'eric404', title: 'Wasting Time' }, { title: 'Wasting Time' })
+    ).toBe(false);
+  });
+
+  it('still dedups a SHORT artist name on an exact artist-field match', () => {
+    // Regression: a blanket `wantArtist.length < 3 → false` disabled the dedup
+    // guard outright for U2/AJ-style names, so every one of their tracks
+    // re-downloaded as a duplicate even when plainly present.
+    expect(libraryMatch({ artist: 'U2', title: 'One' }, { title: 'One', artist: 'U2' })).toBe(true);
+    expect(
+      libraryMatch({ artist: 'U2', title: 'One' }, { title: 'One', artist: 'U2, Green Day' })
+    ).toBe(true);
+  });
+
+  it('does NOT let a short artist name match loosely', () => {
+    // The name must stand as a whole token in the artist FIELD — no substring
+    // accidents, no title containment, no junk-copy path.
+    expect(libraryMatch({ artist: 'U2', title: 'One' }, { title: 'One', artist: 'U2000' })).toBe(false);
+    expect(libraryMatch({ artist: 'U2', title: 'One' }, { title: 'One', artist: 'Metallica' })).toBe(false);
+    expect(libraryMatch({ artist: 'U2', title: 'U2 - One' }, { title: 'U2 - One' })).toBe(false);
+    expect(
+      libraryMatch({ artist: 'U2', title: 'One' }, { title: 'One', artist: 'Unknown Artist' })
+    ).toBe(false);
+  });
+
+  it('matches an UNTAGGED rip whose artist field is Navidrome’s placeholder', () => {
+    // Navidrome never returns an empty artist — library.ts substitutes
+    // 'Unknown Artist'. MeTube writes no tags, so a rip that Picard hasn't
+    // retagged yet is indexed as title="<Artist> - <Title>", artist=placeholder.
+    // Treating the placeholder as a real artist made the junk path unreachable
+    // and re-downloaded a track already on disk.
+    expect(
+      libraryMatch(
+        { artist: 'eric404', title: 'Wasting Time' },
+        { title: 'eric404 - Wasting Time', artist: 'Unknown Artist' }
+      )
+    ).toBe(true);
+  });
+
+  it('matches a MIS-TAGGED junk copy when the artist is in full in the title', () => {
+    expect(
+      libraryMatch(
+        { artist: 'eric404', title: 'Wasting Time' },
+        { title: 'eric404 - Wasting Time (Official Audio)', artist: 'Various Artists' }
+      )
+    ).toBe(true);
+  });
+
+  it('still does NOT match when the placeholder artist comes with a foreign title', () => {
+    // The placeholder must not become a free pass: with no artist anywhere, a
+    // same-title-different-track song stays a non-match.
+    expect(
+      libraryMatch(
+        { artist: 'eric404', title: 'Wasting Time' },
+        { title: 'Wasting Time', artist: 'Unknown Artist' }
+      )
+    ).toBe(false);
+  });
+});
+
+describe('qualifierAmbiguity (hand the call back to the user)', () => {
+  // Real false skip caught by the 100-track dry run: the library holds
+  // "I Choose You (Night)" by Small Town Kid and no "(Day)". Both titles
+  // normalize to "i choose you" and the artist corroborates, so the dedup guard
+  // skips a track that genuinely isn't there. No heuristic can settle it.
+  it('flags a differing meaningful qualifier (Day vs Night)', () => {
+    const a = qualifierAmbiguity(
+      { artist: 'Small Town Kid', title: 'I Choose You (Day)' },
+      { title: 'I Choose You (Night)', artist: 'Small Town Kid' }
+    );
+    expect(a).toEqual({ wanted: 'day', found: 'night' });
+  });
+
+  it('flags Live vs studio', () => {
+    expect(
+      qualifierAmbiguity(
+        { artist: 'DEVORA', title: 'What Doesn’t Kill Me (Live from Numbers)' },
+        { title: 'What Doesn’t Kill Me (Radio Edit)', artist: 'DEVORA' }
+      )
+    ).not.toBeNull();
+  });
+
+  it('does NOT flag the same qualifier on both sides', () => {
+    expect(
+      qualifierAmbiguity(
+        { artist: 'Bloom Phase', title: "I'll Dance With You (Feel Safe)" },
+        { title: "I'll Dance With You (Feel Safe)", artist: 'Bloom Phase' }
+      )
+    ).toBeNull();
+  });
+
+  it('does NOT flag packaging noise on one side only', () => {
+    // The overwhelmingly common junk-title shape — flagging it would bury the
+    // real cases in false alarms.
+    expect(
+      qualifierAmbiguity(
+        { artist: 'Small Town Kid', title: 'Something Good' },
+        { title: 'Small Town Kid - Something Good (Lyrics)', artist: 'House Muse' }
+      )
+    ).toBeNull();
+    expect(
+      qualifierAmbiguity(
+        { artist: 'GW Harrison', title: 'Big Bad City' },
+        { title: 'GW Harrison - Big Bad City (Official Audio)', artist: 'Sink Or Swim' }
+      )
+    ).toBeNull();
+  });
+
+  it('does NOT flag collaborator or reissue qualifiers', () => {
+    expect(
+      qualifierAmbiguity(
+        { artist: 'Wax Motif', title: 'Skank N Flex (with Scrufizzer)' },
+        { title: 'Skank n Flex (feat. Scrufizzer)', artist: 'Wax Motif' }
+      )
+    ).toBeNull();
+    expect(
+      qualifierAmbiguity(
+        { artist: 'Some Artist', title: 'A Song (2011 Remaster)' },
+        { title: 'A Song (Deluxe Edition)', artist: 'Some Artist' }
+      )
+    ).toBeNull();
+  });
 });
 
 describe('batch runner attribution + retry policy', () => {
@@ -222,5 +411,93 @@ describe('batch runner attribution + retry policy', () => {
 
     expect(getYouTubeFallbackJob(job.id, 'user-1')?.status).toBe('completed');
     expect(metube.addDownload as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
+  });
+
+  // A `mismatch` that only relabels the entry still leaves the wrong-track rip in
+  // MeTube's folder for the next Navidrome scan to index — verification has to
+  // actually remove it, keyed by the full URL (a bare video id no-ops in MeTube).
+  const wrongItem = {
+    id: 'vid2',
+    title: "Phil Collins - Some Of Your Lovin' (Official Audio)",
+    url: 'https://www.youtube.com/watch?v=vid2',
+    status: 'finished' as const,
+    filename: 'Phil Collins - Some Of Your Lovin.mp3',
+  };
+  const wrongTrack = { artist: 'Phil Odd', title: 'ur lovin' };
+
+  it('deletes a mismatched download it just fetched', async () => {
+    (metube.getQueue as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ done: {}, queue: {} }) // pre-add snapshot: nothing yet
+      .mockResolvedValue({ done: { vid2: wrongItem }, queue: {} });
+
+    const job = startYouTubeFallbackJob('user-1', [wrongTrack], { skipInLibrary: false });
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    expect(finished?.results[0].status).toBe('mismatch');
+    expect(metube.deleteDownloads).toHaveBeenCalledWith(
+      expect.arrayContaining([wrongItem.url]),
+      'done'
+    );
+  });
+
+  it('flags an ambiguous library skip for review instead of deciding silently', async () => {
+    (metube.getQueue as ReturnType<typeof vi.fn>).mockResolvedValue({ done: {}, queue: {} });
+    (navidrome.search as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { title: 'I Choose You (Night)', name: 'I Choose You (Night)', artist: 'Small Town Kid' },
+    ]);
+
+    const job = startYouTubeFallbackJob(
+      'user-1',
+      [{ artist: 'Small Town Kid', title: 'I Choose You (Day)' }],
+      { skipInLibrary: true }
+    );
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    const entry = finished?.results[0];
+    // The skip still stands — flagging must never create a silent duplicate.
+    expect(entry?.status).toBe('skipped');
+    expect(entry?.resultTitle).toBe('I Choose You (Night)');
+    expect(entry?.review).toMatch(/"day".*"night"/);
+    expect(summarizeJob(finished!).needsReview).toBe(1);
+
+    (navidrome.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  });
+
+  it('does not flag an unambiguous library skip', async () => {
+    (metube.getQueue as ReturnType<typeof vi.fn>).mockResolvedValue({ done: {}, queue: {} });
+    (navidrome.search as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { title: 'Young Folks', name: 'Young Folks', artist: 'Glom' },
+    ]);
+
+    const job = startYouTubeFallbackJob('user-1', [{ artist: 'Glom', title: 'Young Folks' }], {
+      skipInLibrary: true,
+    });
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    expect(finished?.results[0].status).toBe('skipped');
+    expect(finished?.results[0].review).toBeUndefined();
+    expect(summarizeJob(finished!).needsReview).toBe(0);
+
+    (navidrome.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  });
+
+  it('does NOT delete a PRE-EXISTING entry that fails verification', async () => {
+    // Already finished before this job queued anything — it may belong to another
+    // flow, so it is flagged for manual cleanup instead of deleted.
+    (metube.getQueue as ReturnType<typeof vi.fn>).mockResolvedValue({
+      done: { vid2: wrongItem },
+      queue: {},
+    });
+
+    const job = startYouTubeFallbackJob('user-1', [wrongTrack], { skipInLibrary: false });
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    expect(finished?.results[0].status).toBe('mismatch');
+    expect(finished?.results[0].error).toMatch(/manual cleanup/);
+    expect(metube.deleteDownloads).not.toHaveBeenCalled();
   });
 });

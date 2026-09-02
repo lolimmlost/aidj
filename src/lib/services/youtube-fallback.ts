@@ -54,6 +54,12 @@ export interface FallbackTrackResult {
   resultTitle?: string;
   filename?: string;
   verification?: FallbackVerification;
+  /**
+   * Set on a `skipped` entry whose library match hinged on a differing bracketed
+   * qualifier ("(Day)" vs "(Night)"). The skip stands — re-queue the track with
+   * `skipInLibrary: false` to override it.
+   */
+  review?: string;
   error?: string;
   attempts?: number; // how many download attempts were made (>=1 once started)
   startedAt?: number;
@@ -158,6 +164,30 @@ function tokenOverlap(want: string, got: string): number {
   return hits / wantTokens.length;
 }
 
+/** True when every token of `sub` also appears in `sup` (order-independent). */
+function tokensSubsetOf(sub: string, sup: string): boolean {
+  const subTokens = sub.split(' ').filter(Boolean);
+  if (subTokens.length === 0) return false;
+  const supSet = new Set(sup.split(' ').filter(Boolean));
+  return subTokens.every((t) => supSet.has(t));
+}
+
+/**
+ * Isolate the artist portion of a resolved video title. yt-dlp / YouTube titles
+ * are overwhelmingly "Artist - Title …", so the left of the first spaced
+ * delimiter is the artist. Comparing artist FIELD-to-FIELD (as MusicBrainz Picard
+ * and beets do) — rather than matching the artist against the whole title string
+ * — is what lets us tell a *dropped* artist word ("bad tuner" → "tuner", benign)
+ * from a *substituted* one ("Phil Odd" → "Phil Collins", a real mismatch): both
+ * share exactly one token against the whole string, but only the dropped case is
+ * a clean subset of the artist field. Falls back to the whole (normalized) string
+ * when there's no separator — no worse than matching against the full title.
+ */
+function artistFieldOfTitle(resultTitle: string): string {
+  const idx = resultTitle.search(/\s[-–—:|]\s/); // spaced hyphen/dash/colon/pipe only
+  return normalizeForCompare(idx > 0 ? resultTitle.slice(0, idx) : resultTitle);
+}
+
 /**
  * Verify a completed MeTube item is plausibly the requested track. Because
  * `ytsearch1:` returns whatever YouTube ranks first, this guards against live
@@ -173,20 +203,33 @@ export function verifyDownload(
   }
 
   const got = normalizeForCompare(resultTitle);
+  const gotArtist = artistFieldOfTitle(resultTitle); // artist portion only, when present
   const wantTitle = normalizeForCompare(track.title);
   const wantArtist = normalizeForCompare((track.artist || '').split(/[;,]/)[0]);
 
   const titleScore = got.includes(wantTitle) && wantTitle.length > 0 ? 1 : tokenOverlap(wantTitle, got);
-  const artistScore =
-    wantArtist.length < 3 // too short to be a reliable signal
+  const artistReliable = wantArtist.length >= 3; // too short to be a reliable signal
+  // Containment-aware artist corroboration (field-to-field; see artistFieldOfTitle).
+  // A dropped artist word — one field is a clean subset of the other — still fully
+  // corroborates; only a genuine token *conflict* (competing words on each side,
+  // the "Phil Odd" → "Phil Collins" case) falls through to the low overlap score.
+  const artistScore = !artistReliable
+    ? 1
+    : got.includes(wantArtist) // full artist present anywhere in the title
       ? 1
-      : got.includes(wantArtist)
+      : tokensSubsetOf(wantArtist, gotArtist) || tokensSubsetOf(gotArtist, wantArtist)
         ? 1
-        : tokenOverlap(wantArtist, got);
+        : Math.max(tokenOverlap(wantArtist, gotArtist), tokenOverlap(wantArtist, got));
 
-  // Title carries most of the weight; a strong title + present artist passes.
+  // Title carries most of the weight; a strong title + corroborating artist passes.
   const score = titleScore * 0.65 + artistScore * 0.35;
-  const matched = titleScore >= 0.6 && score >= 0.6;
+  // A confident title is NOT enough on its own: `ytsearch1:` routinely returns a
+  // same-titled song by the WRONG artist. When the artist is a usable signal it
+  // must genuinely corroborate — but "corroborate" means field-level containment,
+  // not exact token match, so we don't reject legitimate downloads whose YouTube
+  // title merely abbreviates a multi-word artist. (score >= 0.6 is implied by both
+  // sub-scores clearing 0.6, so it's not a separate gate.)
+  const matched = titleScore >= 0.6 && (!artistReliable || artistScore >= 0.6);
 
   return {
     matched,
@@ -205,6 +248,7 @@ interface DownloadOutcome {
   errored?: boolean;
   timedOut?: boolean;
   stillDownloading?: boolean; // timed out, but MeTube was still actively fetching it
+  preExisting?: boolean; // matched an item already finished before this job queued anything
   error?: string;
 }
 
@@ -270,7 +314,9 @@ async function queueAndAwaitDownload(
     (d) => d.status === 'finished' && matches(d)
   );
   if (preFinished) {
-    return { metubeId: preFinished.id, item: preFinished };
+    // Not ours: it was on disk before this job started, so it must never be
+    // deleted on a failed verification (see runJob).
+    return { metubeId: preFinished.id, item: preFinished, preExisting: true };
   }
 
   try {
@@ -357,31 +403,111 @@ export function libraryMatch(track: FallbackTrack, song: LibSong): boolean {
     gotTitle.includes(wantTitle) || wantTitle.includes(gotTitle) || tokenOverlap(wantTitle, gotTitle) >= 0.6;
   if (!titleOk) return false;
 
+  // A same TITLE is not enough — the library holds plenty of distinct songs that
+  // share a title ("Wasting Time", "Forever", …). Skipping on title alone falsely
+  // marks a genuinely-missing track as "already in library" and drops its download
+  // (the eric404 - Wasting Time case). The artist MUST corroborate.
   const gotArtist = normalizeForCompare(song.artist || '');
-  const artistOk =
-    wantArtist.length < 3 ||
-    gotArtist.includes(wantArtist) ||
-    wantArtist.includes(gotArtist) ||
-    tokenOverlap(wantArtist, gotArtist) >= 0.5 ||
-    // junk copy: artist is baked into the title string
-    gotTitle.includes(wantArtist) ||
-    tokenOverlap(wantArtist, gotTitle) >= 0.5;
-  return artistOk;
+  // Navidrome never reports an empty artist: the library mapper substitutes a
+  // placeholder (`artist: song.artist || 'Unknown Artist'`, navidrome/library.ts).
+  // An untagged rip therefore arrives with a non-empty artist that carries no
+  // information, so it has to be treated as absent — otherwise the junk path
+  // below is unreachable for the exact copies it exists to catch.
+  const artistFieldPresent = !!gotArtist && gotArtist !== 'unknown artist';
+
+  // A 1–2 character artist ("U2", "AJ") is too weak for the fuzzy paths below:
+  // it wins `includes()` against half the library and appears by accident inside
+  // unrelated titles. But refusing it outright means the dedup guard NEVER fires
+  // for those artists and every one of their tracks re-downloads as a duplicate.
+  // So keep them — just require the strongest evidence: the name standing as a
+  // whole token in the song's own artist FIELD. No overlap, no title containment,
+  // no junk-copy path.
+  if (wantArtist.length < 3) {
+    return artistFieldPresent && gotArtist.split(' ').includes(wantArtist);
+  }
+
+  // Clean case: the library song's own ARTIST field matches the request.
+  const artistFieldOk =
+    artistFieldPresent &&
+    (gotArtist.includes(wantArtist) ||
+      wantArtist.includes(gotArtist) ||
+      tokenOverlap(wantArtist, gotArtist) >= 0.6);
+
+  // Junk-title copy: a YouTube rip stored with the whole "Artist - Title" video
+  // string in the title field, whose artist field failed to corroborate — either
+  // missing/placeholder (MeTube writes no tags; Picard retags later from the
+  // fingerprint) or mis-tagged. Gate on "the artist field didn't corroborate"
+  // rather than "there is no artist field", and only accept the requested artist
+  // appearing IN FULL inside the stored title, which a same-title-different-artist
+  // song (the eric404 case) never does.
+  const junkCopyOk = !artistFieldOk && gotTitle.includes(wantArtist);
+
+  return artistFieldOk || junkCopyOk;
 }
 
-async function findInLibrary(track: FallbackTrack): Promise<{ title: string } | null> {
+/**
+ * Bracketed qualifiers that survive `normalizeForCompare` — i.e. the ones that
+ * actually distinguish one recording from another. `normalizeForCompare` already
+ * blanks pure packaging noise ("(Official Video)", "(Lyrics)"); on top of that we
+ * drop collaborator and reissue qualifiers, which name the same recording.
+ */
+const NOISE_QUALIFIER = /^(?:with|feat|ft|featuring)\b|\b(?:remaster(?:ed)?|deluxe|anniversary|expanded|bonus)\b/;
+
+function meaningfulQualifiers(s: string): string[] {
+  return [...(s || '').matchAll(/[([]([^)\]]*)[)\]]/g)]
+    .map((m) => normalizeForCompare(m[1]))
+    .filter((q) => q && !NOISE_QUALIFIER.test(q));
+}
+
+/**
+ * Did this title match ONLY because the bracketed qualifiers were stripped, with
+ * each side carrying a *different* meaningful one? That is the "(Day)" vs
+ * "(Night)" shape — same base title, same artist, demonstrably different
+ * recordings — which no heuristic can settle: "(Day)"/"(Night)" and
+ * "(Live)"/studio are distinct tracks, while "(Lyrics)" or "(feat. X)" is the
+ * same one. So we don't guess; the skip is flagged for a human instead.
+ *
+ * Requires a qualifier on BOTH sides: one bare side is ordinary YouTube-title
+ * noise, already handled, and flagging it would bury the real cases.
+ */
+export function qualifierAmbiguity(
+  track: FallbackTrack,
+  song: LibSong
+): { wanted: string; found: string } | null {
+  const wantQ = meaningfulQualifiers(track.title);
+  const gotQ = meaningfulQualifiers(song.title || song.name || '');
+  if (wantQ.length === 0 || gotQ.length === 0) return null;
+  if (wantQ.some((w) => gotQ.some((g) => g === w || g.includes(w) || w.includes(g)))) return null;
+  return { wanted: wantQ.join(' / '), found: gotQ.join(' / ') };
+}
+
+interface LibraryHit {
+  title: string;
+  /** Set when the match hinged on a differing qualifier — needs a human look. */
+  ambiguity?: { wanted: string; found: string };
+}
+
+async function findInLibrary(track: FallbackTrack): Promise<LibraryHit | null> {
+  const toHit = (s: LibSong): LibraryHit => {
+    const ambiguity = qualifierAmbiguity(track, s);
+    return { title: s.title || s.name || '', ...(ambiguity ? { ambiguity } : {}) };
+  };
   try {
     const { search } = await import('./navidrome');
     const primaryArtist = (track.artist || '').split(/[;,]/)[0].trim();
     const query = normalizeSearchQuery(track); // "<primary artist> <clean title>"
     const results = (await search(query).catch(() => [])) as LibSong[];
-    const hit = results.find((s) => libraryMatch(track, s));
-    if (hit) return { title: hit.title || hit.name || '' };
+    // Prefer an unambiguous hit over an ambiguous one from the same result set,
+    // so a "(Day)" request that ALSO has a real "(Day)" copy skips cleanly.
+    const matches = results.filter((s) => libraryMatch(track, s));
+    const clean = matches.find((s) => !qualifierAmbiguity(track, s));
+    if (clean || matches.length > 0) return toHit(clean ?? matches[0]);
     // Fallback: artist-only search (catches title-mismatch / junk-title copies).
     if (primaryArtist.length > 2) {
       const r2 = (await search(primaryArtist).catch(() => [])) as LibSong[];
-      const hit2 = r2.find((s) => libraryMatch(track, s));
-      if (hit2) return { title: hit2.title || hit2.name || '' };
+      const m2 = r2.filter((s) => libraryMatch(track, s));
+      const clean2 = m2.find((s) => !qualifierAmbiguity(track, s));
+      if (clean2 || m2.length > 0) return toHit(clean2 ?? m2[0]);
     }
     return null;
   } catch {
@@ -390,15 +516,25 @@ async function findInLibrary(track: FallbackTrack): Promise<{ title: string } | 
 }
 
 /**
- * Remove a genuinely errored MeTube entry so a retry can re-add the same video
- * cleanly. Only ever called for confirmed errors — never for in-flight downloads.
+ * Remove a finished/errored MeTube entry — so a retry can re-add the same video
+ * cleanly, or so a wrong-track rip doesn't sit in the download folder waiting to
+ * be indexed. Only ever called for terminal items, never for in-flight downloads.
+ *
+ * MeTube's `/delete` keys `done` entries by the **full resolved URL**; a bare
+ * video id is accepted with `200 ok` and silently no-ops. So send the item's url
+ * and keep its id as a fallback for entries we only know by id.
+ *
+ * Whether the *file* goes with the entry is MeTube's call (`DELETE_FILE_ON_TRASHCAN`);
+ * either way the entry is gone, and the caller records `filename` for manual cleanup.
  */
-async function cleanupErroredDownload(metubeId?: string): Promise<void> {
-  if (!metubeId) return;
+async function deleteMeTubeItem(item?: MeTubeDownload, metubeId?: string): Promise<boolean> {
+  const ids = [...new Set([item?.url, item?.id ?? metubeId].filter((v): v is string => !!v))];
+  if (ids.length === 0) return false;
   try {
-    await metube.deleteDownloads([metubeId], 'done');
+    await metube.deleteDownloads(ids, 'done');
+    return true;
   } catch {
-    /* best-effort */
+    return false; // best-effort
   }
 }
 
@@ -430,7 +566,7 @@ async function queueWithRetries(
     }
 
     // Confirmed error — clean up the failed entry and retry.
-    await cleanupErroredDownload(outcome.metubeId);
+    await deleteMeTubeItem(outcome.item, outcome.metubeId);
 
     if (attempt < maxAttempts) {
       console.warn(
@@ -478,9 +614,17 @@ async function runJob(job: FallbackJob): Promise<void> {
       if (existing) {
         entry.status = 'skipped';
         entry.resultTitle = existing.title;
+        if (existing.ambiguity) {
+          // Same base title and artist, different qualifier — the library copy may
+          // well be a different recording. Skip (never create a dupe silently) but
+          // mark it so the job summary can hand the call back to the user.
+          entry.review = `wanted "${existing.ambiguity.wanted}", library has "${existing.ambiguity.found}" — re-queue if these are different recordings`;
+        }
         entry.finishedAt = Date.now();
         job.updatedAt = Date.now();
-        console.log(`[YouTubeFallback] SKIP (already in library) ${label} -> "${existing.title}"`);
+        console.log(
+          `[YouTubeFallback] SKIP (already in library) ${label} -> "${existing.title}"${entry.review ? ` [NEEDS REVIEW: ${entry.review}]` : ''}`
+        );
         if (i < job.results.length - 1) await sleep(BETWEEN_TRACKS_MS);
         continue;
       }
@@ -515,8 +659,24 @@ async function runJob(job: FallbackJob): Promise<void> {
       const verification = verifyDownload(entry.track, outcome.item);
       entry.verification = verification;
       entry.status = verification.matched ? 'downloaded' : 'mismatch';
+      if (!verification.matched) {
+        // A mismatch means `ytsearch1:` resolved to the WRONG track. Flagging it
+        // isn't enough: the rip is already in MeTube's download folder, so the
+        // next Picard/Navidrome pass indexes it and the library is polluted
+        // anyway — which is the whole thing verification exists to prevent. So
+        // remove it. Only ever a file THIS job fetched: a pre-existing finished
+        // entry may belong to another flow and isn't ours to delete.
+        if (outcome.preExisting) {
+          entry.error = 'wrong track; pre-existing MeTube entry left for manual cleanup';
+        } else {
+          const removed = await deleteMeTubeItem(outcome.item, outcome.metubeId);
+          entry.error = removed
+            ? 'wrong track; removed from MeTube'
+            : 'wrong track; MeTube cleanup failed — remove manually';
+        }
+      }
       console.log(
-        `[YouTubeFallback] ${entry.status.toUpperCase()} "${entry.track.artist} - ${entry.track.title}" (${verification.reason})`
+        `[YouTubeFallback] ${entry.status.toUpperCase()} "${entry.track.artist} - ${entry.track.title}" (${verification.reason})${entry.error ? ` — ${entry.error}` : ''}`
       );
     } else {
       entry.status = 'downloaded';
@@ -533,7 +693,7 @@ async function runJob(job: FallbackJob): Promise<void> {
 
   const summary = summarizeJob(job);
   console.log(
-    `[YouTubeFallback] Job ${job.id} complete: ${summary.downloaded} downloaded, ${summary.skipped} skipped, ${summary.mismatch} mismatch, ${summary.downloading} still-downloading, ${summary.failed} failed (of ${summary.total})`
+    `[YouTubeFallback] Job ${job.id} complete: ${summary.downloaded} downloaded, ${summary.skipped} skipped${summary.needsReview ? ` (${summary.needsReview} need review)` : ''}, ${summary.mismatch} mismatch, ${summary.downloading} still-downloading, ${summary.failed} failed (of ${summary.total})`
   );
 }
 
@@ -546,10 +706,12 @@ export function summarizeJob(job: FallbackJob): {
   mismatch: number;
   downloading: number;
   failed: number;
+  /** Subset of `skipped`: skips whose library match needs a human call. */
+  needsReview: number;
 } {
   const summary = { total: job.results.length, pending: 0, skipped: 0, searching: 0, downloaded: 0, mismatch: 0, downloading: 0, failed: 0 };
   for (const r of job.results) summary[r.status]++;
-  return summary;
+  return { ...summary, needsReview: job.results.filter((r) => r.review).length };
 }
 
 /**
