@@ -76,6 +76,10 @@ export interface FallbackJob {
   folder?: string;
   maxAttempts: number;
   skipInLibrary: boolean;
+  concurrency: number;
+  /** Highest track index any worker has started (rough progress signal only —
+   *  workers run out of order, so this is NOT "tracks completed so far";
+   *  use `summarizeJob` for accurate per-status counts). */
   currentIndex: number;
   results: FallbackTrackResult[];
 }
@@ -85,6 +89,7 @@ export interface StartFallbackOptions {
   folder?: string; // MeTube subfolder; default = MeTube's configured folder
   maxAttempts?: number; // download attempts per track before giving up (default 3)
   skipInLibrary?: boolean; // dedup guard: skip tracks already in Navidrome (default true)
+  concurrency?: number; // tracks processed in parallel (default DEFAULT_CONCURRENCY)
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +111,14 @@ const RETRY_DELAY_MS = 5000;
 export const DEFAULT_MAX_ATTEMPTS = 3;
 /** Ceiling on attempts, whatever the caller asks for. */
 export const MAX_ATTEMPTS_LIMIT = 5;
+/** Default number of tracks processed in parallel — a slow/missing track (up to
+ *  the full DOWNLOAD_TIMEOUT_MS) no longer blocks everything behind it. Kept
+ *  modest: the retry storm that tripped real YouTube 429s earlier the same
+ *  session was from *retries*, not this, but there's no reason to push harder
+ *  than necessary against YouTube's rate limiting. */
+export const DEFAULT_CONCURRENCY = 3;
+/** Ceiling on concurrency, whatever the caller asks for. */
+export const MAX_CONCURRENCY = 5;
 /** Hard cap on tracks per job to avoid runaway batches. */
 export const MAX_TRACKS_PER_JOB = 50;
 
@@ -322,6 +335,14 @@ export function itemLikelyMatchesTrack(
  * download that is simply slow — on timeout it reports `stillDownloading` rather
  * than a false failure, and never deletes an in-flight item.
  */
+/**
+ * `claimedIds` is mutated in here, synchronously at the moment a match is
+ * detected — not by the caller after this resolves. With concurrent tracks
+ * in flight (see `runJob`), two workers can each be mid-poll at once; claiming
+ * immediately on detection (rather than after the whole call returns) closes
+ * the race where both could otherwise attribute the same MeTube item to two
+ * different tracks before either claim lands.
+ */
 async function queueAndAwaitDownload(
   track: FallbackTrack,
   query: string,
@@ -352,6 +373,7 @@ async function queueAndAwaitDownload(
     (d) => d.status === 'finished' && matches(d)
   );
   if (preFinished) {
+    claimedIds.add(preFinished.id); // claim now — see the function-level note
     // Not ours: it was on disk before this job started, so it must never be
     // deleted on a failed verification (see runJob).
     return { metubeId: preFinished.id, item: preFinished, preExisting: true };
@@ -388,12 +410,16 @@ async function queueAndAwaitDownload(
     const finished = Object.values(q.done).find(
       (d) => d.status === 'finished' && matches(d)
     );
-    if (finished) return { metubeId: finished.id, item: finished };
+    if (finished) {
+      claimedIds.add(finished.id); // claim now — see the function-level note
+      return { metubeId: finished.id, item: finished };
+    }
 
     const errored = Object.values(q.done).find(
       (d) => d.status === 'error' && !staleErrorIds.has(d.id) && matches(d)
     );
     if (errored) {
+      claimedIds.add(errored.id); // claim now — see the function-level note
       return { metubeId: errored.id, item: errored, errored: true, error: errored.msg || 'MeTube reported error' };
     }
 
@@ -632,98 +658,123 @@ function pruneOldJobs() {
   }
 }
 
+/** Process one track (search, download, verify) and mutate `job.results[i]` in place. */
+async function processTrack(job: FallbackJob, i: number, claimedIds: Set<string>): Promise<void> {
+  const entry = job.results[i];
+  entry.status = 'searching';
+  entry.startedAt = Date.now();
+  job.updatedAt = Date.now();
+
+  const label = `"${entry.track.artist} - ${entry.track.title}"`;
+
+  // Dedup guard: don't re-download something already in the library (even if it
+  // was stored under a junk title the import matcher missed).
+  if (job.skipInLibrary) {
+    const existing = await findInLibrary(entry.track);
+    if (existing) {
+      entry.status = 'skipped';
+      entry.resultTitle = existing.title;
+      if (existing.ambiguity) {
+        // Same base title and artist, different qualifier — the library copy may
+        // well be a different recording. Skip (never create a dupe silently) but
+        // mark it so the job summary can hand the call back to the user.
+        entry.review = `wanted "${existing.ambiguity.wanted}", library has "${existing.ambiguity.found}" — re-queue if these are different recordings`;
+      }
+      entry.finishedAt = Date.now();
+      job.updatedAt = Date.now();
+      console.log(
+        `[YouTubeFallback] SKIP (already in library) ${label} -> "${existing.title}"${entry.review ? ` [NEEDS REVIEW: ${entry.review}]` : ''}`
+      );
+      return;
+    }
+  }
+
+  console.log(`[YouTubeFallback] (${i + 1}/${job.results.length}) searching: ${entry.query}`);
+
+  const outcome = await queueWithRetries(entry.track, entry.query, job.folder, job.maxAttempts, label, claimedIds);
+  entry.metubeId = outcome.metubeId;
+  entry.attempts = outcome.attempts;
+  entry.finishedAt = Date.now();
+  // NOTE: claiming happens inside queueAndAwaitDownload now, at detection time —
+  // required once tracks run concurrently (see that function's docstring).
+
+  if (outcome.item) {
+    entry.resultTitle = outcome.item.title;
+    entry.filename = outcome.item.filename;
+  }
+
+  if (outcome.stillDownloading) {
+    // Slow download still fetching when our window closed — not a failure.
+    entry.status = 'downloading';
+    entry.error = outcome.error;
+    console.log(`[YouTubeFallback] STILL DOWNLOADING ${label} (unconfirmed): ${entry.error}`);
+  } else if (outcome.errored || outcome.timedOut) {
+    entry.status = 'failed';
+    entry.error = outcome.error;
+    console.warn(
+      `[YouTubeFallback] FAILED ${label} after ${outcome.attempts} attempt(s): ${entry.error}`
+    );
+  } else if (job.verify && outcome.item) {
+    const verification = verifyDownload(entry.track, outcome.item);
+    entry.verification = verification;
+    entry.status = verification.matched ? 'downloaded' : 'mismatch';
+    if (!verification.matched) {
+      // A mismatch means `ytsearch1:` resolved to the WRONG track. Flagging it
+      // isn't enough: the rip is already in MeTube's download folder, so the
+      // next Picard/Navidrome pass indexes it and the library is polluted
+      // anyway — which is the whole thing verification exists to prevent. So
+      // remove it. Only ever a file THIS job fetched: a pre-existing finished
+      // entry may belong to another flow and isn't ours to delete.
+      if (outcome.preExisting) {
+        entry.error = 'wrong track; pre-existing MeTube entry left for manual cleanup';
+      } else {
+        const removed = await deleteMeTubeItem(outcome.item, outcome.metubeId);
+        entry.error = removed
+          ? 'wrong track; removed from MeTube'
+          : 'wrong track; MeTube cleanup failed — remove manually';
+      }
+    }
+    console.log(
+      `[YouTubeFallback] ${entry.status.toUpperCase()} "${entry.track.artist} - ${entry.track.title}" (${verification.reason})${entry.error ? ` — ${entry.error}` : ''}`
+    );
+  } else {
+    entry.status = 'downloaded';
+    console.log(`[YouTubeFallback] DOWNLOADED "${entry.track.artist} - ${entry.track.title}"`);
+  }
+
+  job.updatedAt = Date.now();
+}
+
+/**
+ * Runs the batch with `job.concurrency` tracks in flight at once (a fixed-size
+ * worker pool pulling from a shared index cursor), instead of one at a time.
+ * A slow or missing track can burn the full DOWNLOAD_TIMEOUT_MS (up to 12 min)
+ * — under the old strictly-sequential loop that stalled every track behind it;
+ * with N workers, the rest of the batch keeps moving. See #132 (folded from
+ * #207) for the motivating case: ~4 tracks/30min on a 50-track batch.
+ */
 async function runJob(job: FallbackJob): Promise<void> {
   // MeTube ids already attributed to an earlier track in this batch, so a shared
   // loose-match (e.g. near-duplicate titles) can't be counted twice. See #2.
+  // Claimed inside queueAndAwaitDownload, at detection time, so concurrent
+  // workers can't both attribute the same item before either claims it.
   const claimedIds = new Set<string>();
-  for (let i = 0; i < job.results.length; i++) {
-    job.currentIndex = i;
-    const entry = job.results[i];
-    entry.status = 'searching';
-    entry.startedAt = Date.now();
-    job.updatedAt = Date.now();
+  let nextIndex = 0;
 
-    const label = `"${entry.track.artist} - ${entry.track.title}"`;
-
-    // Dedup guard: don't re-download something already in the library (even if it
-    // was stored under a junk title the import matcher missed).
-    if (job.skipInLibrary) {
-      const existing = await findInLibrary(entry.track);
-      if (existing) {
-        entry.status = 'skipped';
-        entry.resultTitle = existing.title;
-        if (existing.ambiguity) {
-          // Same base title and artist, different qualifier — the library copy may
-          // well be a different recording. Skip (never create a dupe silently) but
-          // mark it so the job summary can hand the call back to the user.
-          entry.review = `wanted "${existing.ambiguity.wanted}", library has "${existing.ambiguity.found}" — re-queue if these are different recordings`;
-        }
-        entry.finishedAt = Date.now();
-        job.updatedAt = Date.now();
-        console.log(
-          `[YouTubeFallback] SKIP (already in library) ${label} -> "${existing.title}"${entry.review ? ` [NEEDS REVIEW: ${entry.review}]` : ''}`
-        );
-        if (i < job.results.length - 1) await sleep(BETWEEN_TRACKS_MS);
-        continue;
-      }
+  const worker = async () => {
+    for (;;) {
+      const i = nextIndex++;
+      if (i >= job.results.length) return;
+      // Rough progress signal only — workers finish out of order, so this is
+      // NOT "tracks completed"; summarizeJob(job) has the accurate counts.
+      job.currentIndex = Math.max(job.currentIndex, i);
+      await processTrack(job, i, claimedIds);
+      if (nextIndex < job.results.length) await sleep(BETWEEN_TRACKS_MS);
     }
+  };
 
-    console.log(`[YouTubeFallback] (${i + 1}/${job.results.length}) searching: ${entry.query}`);
-
-    const outcome = await queueWithRetries(entry.track, entry.query, job.folder, job.maxAttempts, label, claimedIds);
-    entry.metubeId = outcome.metubeId;
-    entry.attempts = outcome.attempts;
-    entry.finishedAt = Date.now();
-    // Claim this MeTube item so a later, similarly-titled track can't reuse it.
-    if (outcome.metubeId) claimedIds.add(outcome.metubeId);
-
-    if (outcome.item) {
-      entry.resultTitle = outcome.item.title;
-      entry.filename = outcome.item.filename;
-    }
-
-    if (outcome.stillDownloading) {
-      // Slow download still fetching when our window closed — not a failure.
-      entry.status = 'downloading';
-      entry.error = outcome.error;
-      console.log(`[YouTubeFallback] STILL DOWNLOADING ${label} (unconfirmed): ${entry.error}`);
-    } else if (outcome.errored || outcome.timedOut) {
-      entry.status = 'failed';
-      entry.error = outcome.error;
-      console.warn(
-        `[YouTubeFallback] FAILED ${label} after ${outcome.attempts} attempt(s): ${entry.error}`
-      );
-    } else if (job.verify && outcome.item) {
-      const verification = verifyDownload(entry.track, outcome.item);
-      entry.verification = verification;
-      entry.status = verification.matched ? 'downloaded' : 'mismatch';
-      if (!verification.matched) {
-        // A mismatch means `ytsearch1:` resolved to the WRONG track. Flagging it
-        // isn't enough: the rip is already in MeTube's download folder, so the
-        // next Picard/Navidrome pass indexes it and the library is polluted
-        // anyway — which is the whole thing verification exists to prevent. So
-        // remove it. Only ever a file THIS job fetched: a pre-existing finished
-        // entry may belong to another flow and isn't ours to delete.
-        if (outcome.preExisting) {
-          entry.error = 'wrong track; pre-existing MeTube entry left for manual cleanup';
-        } else {
-          const removed = await deleteMeTubeItem(outcome.item, outcome.metubeId);
-          entry.error = removed
-            ? 'wrong track; removed from MeTube'
-            : 'wrong track; MeTube cleanup failed — remove manually';
-        }
-      }
-      console.log(
-        `[YouTubeFallback] ${entry.status.toUpperCase()} "${entry.track.artist} - ${entry.track.title}" (${verification.reason})${entry.error ? ` — ${entry.error}` : ''}`
-      );
-    } else {
-      entry.status = 'downloaded';
-      console.log(`[YouTubeFallback] DOWNLOADED "${entry.track.artist} - ${entry.track.title}"`);
-    }
-
-    job.updatedAt = Date.now();
-    if (i < job.results.length - 1) await sleep(BETWEEN_TRACKS_MS);
-  }
+  const workerCount = Math.max(1, Math.min(job.concurrency, job.results.length));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
   job.status = 'completed';
   job.currentIndex = job.results.length;
@@ -775,6 +826,10 @@ export function startYouTubeFallbackJob(
     MAX_ATTEMPTS_LIMIT,
     Math.max(1, options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS)
   );
+  const concurrency = Math.min(
+    MAX_CONCURRENCY,
+    Math.max(1, options.concurrency ?? DEFAULT_CONCURRENCY)
+  );
 
   const now = Date.now();
   const job: FallbackJob = {
@@ -787,6 +842,7 @@ export function startYouTubeFallbackJob(
     folder: options.folder,
     maxAttempts,
     skipInLibrary: options.skipInLibrary ?? true,
+    concurrency,
     currentIndex: 0,
     results: cleaned.map((track) => ({
       track,

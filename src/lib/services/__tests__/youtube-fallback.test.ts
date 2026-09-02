@@ -443,6 +443,27 @@ describe('batch runner attribution + retry policy', () => {
     expect(finished?.results[1].metubeId).toBeUndefined();
   });
 
+  // Concurrency (#132/#207): with DEFAULT_CONCURRENCY workers all racing on the
+  // same shared claimedIds Set, exactly one of three identical tracks may claim
+  // the one available item — claiming happens synchronously at detection time
+  // inside queueAndAwaitDownload, so two concurrent workers can't both grab it.
+  it('lets exactly one of three CONCURRENT identical tracks claim the one available item', async () => {
+    const track = { artist: 'Cloonee', title: 'Good Girl' };
+    const job = startYouTubeFallbackJob('user-1', [track, { ...track }, { ...track }], {
+      skipInLibrary: false,
+    });
+
+    expect(job.concurrency).toBeGreaterThan(1); // this test only proves anything if they overlap
+
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    expect(finished?.status).toBe('completed');
+    const statuses = finished!.results.map((r) => r.status).sort();
+    expect(statuses).toEqual(['downloaded', 'failed', 'failed']);
+    expect(finished!.results.filter((r) => r.metubeId === 'vid1')).toHaveLength(1);
+  });
+
   // #3: a bare timeout (nothing matching ever appeared) must NOT be retried — the
   // same query would just re-resolve to the same undetectable video.
   it('does not retry a track that merely timed out', async () => {
