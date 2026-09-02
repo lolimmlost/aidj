@@ -591,7 +591,31 @@ export function parseJSON(content: string): ImportResult {
 }
 
 /**
- * Parse CSV playlist content (Spotify Exportify format)
+ * CSV source, inferred from header shape — drives the playlist name/description
+ * and which platform we tag matched songs with.
+ */
+export type CsvSource = 'chosic' | 'spotify_exportify' | 'generic';
+
+/**
+ * Detect which tool produced a playlist CSV, from its header row alone.
+ * - Chosic's playlist export/analyzer: `Title,Artist,Album,Spotify URL` (minimal, no audio-feature columns)
+ * - Exportify (Spotify): `Track URI,Track Name,Album Name,Artist Name(s),...,Danceability,Energy,...`
+ */
+export function detectCsvSource(headers: string[]): CsvSource {
+  const has = (name: string) => headers.includes(name);
+  if (has('track uri') || has('danceability') || has('track name')) {
+    return 'spotify_exportify';
+  }
+  if (has('title') && has('artist') && (has('spotify url') || headers.length <= 5)) {
+    return 'chosic';
+  }
+  return 'generic';
+}
+
+/**
+ * Parse CSV playlist content. Recognizes Chosic's playlist export
+ * (`Title,Artist,Album,Spotify URL`) and Spotify Exportify's fuller export;
+ * falls back to a generic title/artist/album column match otherwise.
  */
 export function parseCSV(content: string): ImportResult {
   const warnings: string[] = [];
@@ -606,6 +630,7 @@ export function parseCSV(content: string): ImportResult {
     // Parse header row to find column indices
     const headerRow = parseCSVRow(lines[0]);
     const headers = headerRow.map(h => h.toLowerCase().trim());
+    const source = detectCsvSource(headers);
 
     // Map common column names
     const columnMap: Record<string, number> = {};
@@ -614,7 +639,7 @@ export function parseCSV(content: string): ImportResult {
       artistName: ['artist name(s)', 'artist name', 'artistname', 'artist', 'artists'],
       albumName: ['album name', 'albumname', 'album'],
       duration: ['duration (ms)', 'duration_ms', 'duration'],
-      trackUri: ['track uri', 'trackuri', 'uri', 'spotify uri'],
+      trackUri: ['track uri', 'trackuri', 'uri', 'spotify uri', 'spotify url'],
       genres: ['genres', 'genre'],
     };
 
@@ -671,8 +696,10 @@ export function parseCSV(content: string): ImportResult {
 
         if (columnMap.trackUri !== undefined && row[columnMap.trackUri]) {
           const uri = row[columnMap.trackUri].trim();
-          // Extract Spotify track ID from URI (spotify:track:xxx)
-          const match = uri.match(/spotify:track:([a-zA-Z0-9]+)/);
+          // Extract Spotify track ID from either a URI (spotify:track:xxx) or a
+          // full share URL (https://open.spotify.com/track/xxx), which is what
+          // Chosic exports use.
+          const match = uri.match(/spotify(?::track:|\.com\/track\/)([a-zA-Z0-9]+)/);
           if (match) {
             song.platform = 'spotify';
             song.platformId = match[1];
@@ -690,10 +717,12 @@ export function parseCSV(content: string): ImportResult {
       throw new Error('No valid songs found in CSV');
     }
 
+    const sourceLabel = source === 'chosic' ? 'Chosic' : 'Spotify';
+
     return {
       playlist: {
         name: 'Imported Playlist',
-        description: `Imported from Spotify CSV (${songs.length} tracks)`,
+        description: `Imported from ${sourceLabel} CSV (${songs.length} tracks)`,
         platform: 'spotify',
         songs,
       },
@@ -777,15 +806,16 @@ export function parsePlaylist(content: string, format?: PlaylistExportFormat): I
 }
 
 /**
- * Detect if content looks like CSV (Spotify Exportify format)
+ * Detect if content looks like CSV (Spotify Exportify or Chosic playlist export)
  */
 function looksLikeCSV(content: string): boolean {
   const firstLine = content.split(/\r?\n/)[0]?.toLowerCase() || '';
-  // Check for common Spotify CSV headers
   return (
     (firstLine.includes('track') && firstLine.includes('artist')) ||
     firstLine.includes('track uri') ||
-    firstLine.includes('track name')
+    firstLine.includes('track name') ||
+    // Chosic's export header has no "track" word: Title,Artist,Album,Spotify URL
+    (firstLine.includes('title') && firstLine.includes('artist'))
   );
 }
 
