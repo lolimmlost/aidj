@@ -70,7 +70,9 @@ export function FileUploadStep({
     if (
       (firstLine.includes('track') && firstLine.includes('artist')) ||
       firstLine.includes('track uri') ||
-      firstLine.includes('track name')
+      firstLine.includes('track name') ||
+      // Chosic's export header has no "track" word: Title,Artist,Album,Spotify URL
+      (firstLine.includes('title') && firstLine.includes('artist'))
     ) {
       return 'csv';
     }

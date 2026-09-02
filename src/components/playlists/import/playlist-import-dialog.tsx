@@ -61,14 +61,29 @@ interface ImportResult {
   matchResults?: SongMatchResult[];
 }
 
-// Detect if content looks like CSV (Spotify Exportify format)
+// Detect if content looks like CSV (Spotify Exportify or Chosic playlist export)
 function looksLikeCSV(content: string): boolean {
   const firstLine = content.split(/\r?\n/)[0]?.toLowerCase() || '';
   return (
     (firstLine.includes('track') && firstLine.includes('artist')) ||
     firstLine.includes('track uri') ||
-    firstLine.includes('track name')
+    firstLine.includes('track name') ||
+    // Chosic's export header has no "track" word: Title,Artist,Album,Spotify URL
+    (firstLine.includes('title') && firstLine.includes('artist'))
   );
+}
+
+// Distinguish Chosic's minimal export (Title,Artist,Album,Spotify URL) from
+// Spotify Exportify's fuller one (Track URI,Track Name,...,Danceability,...)
+function detectCsvSourceLabel(headerLine: string): 'Chosic' | 'Spotify' {
+  const lower = headerLine.toLowerCase();
+  if (lower.includes('track uri') || lower.includes('track name') || lower.includes('danceability')) {
+    return 'Spotify';
+  }
+  if (lower.includes('title') && lower.includes('artist')) {
+    return 'Chosic';
+  }
+  return 'Spotify';
 }
 
 // Client-side playlist validation
@@ -165,8 +180,9 @@ function validatePlaylistClient(content: string, format?: ExportFormat): Validat
       if (lines.length >= 2) {
         // Count data rows (excluding header)
         songCount = lines.length - 1;
-        playlistName = 'Spotify Import';
-        description = `Imported from Spotify CSV (${songCount} tracks)`;
+        const sourceLabel = detectCsvSourceLabel(lines[0]);
+        playlistName = `${sourceLabel} Import`;
+        description = `Imported from ${sourceLabel} CSV (${songCount} tracks)`;
       }
     }
 
