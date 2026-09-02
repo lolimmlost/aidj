@@ -170,6 +170,39 @@ describe('verifyDownload', () => {
     );
     expect(v.matched).toBe(false);
   });
+
+  // The artist-less escape hatch must key off the title being EXACTLY ours — not
+  // off the absence of a spaced "-–—:|" separator. YouTube asserts the artist with
+  // all sorts of other punctuation, or with none at all, and every one of those is
+  // a contradicting artist claim that still has to be checked (#145 regression).
+  it.each([
+    'Little Mix • Touch',
+    'Little Mix / Touch',
+    'Little Mix ~ Touch',
+    'Little Mix Touch',
+    'Little Mix "Touch" (Official Video)',
+  ])('rejects a wrong artist asserted without a dash separator: %s', (resolved) => {
+    const v = verifyDownload({ artist: 'Nick Howe', title: 'Touch' }, { title: resolved });
+    expect(v.matched).toBe(false);
+  });
+
+  it('rejects the #145 Phil Collins case when the separator is a bullet, not a dash', () => {
+    const v = verifyDownload(
+      { artist: 'Phil Odd', title: 'ur lovin' },
+      { title: "Phil Collins • Some Of Your Lovin' (Official Audio)" }
+    );
+    expect(v.matched).toBe(false);
+  });
+
+  it('rejects a compilation title that merely CONTAINS the wanted title', () => {
+    // `got.includes(wantTitle)` scores 1, so containment is not "exact" — a mix
+    // upload would otherwise pass with the artist never checked at all.
+    const v = verifyDownload(
+      { artist: 'Britney Spears', title: 'Toxic' },
+      { title: 'Top 100 Pop Hits Toxic Umbrella Believe' }
+    );
+    expect(v.matched).toBe(false);
+  });
 });
 
 describe('itemLikelyMatchesTrack (detection)', () => {
@@ -230,6 +263,15 @@ describe('itemLikelyMatchesTrack (detection)', () => {
         { artist: 'UBEL', title: 'Нормальная музыка целиком' },
         { title: 'Нормальная музыка' }
       )
+    ).toBe(false);
+  });
+
+  // Detection must not take the artist-less shortcut for a title that asserts a
+  // (wrong) artist without a dash separator — otherwise a worker claims, and under
+  // concurrency steals, another track's item. See the verifyDownload cases above.
+  it('does not detect a wrong artist asserted without a dash separator', () => {
+    expect(
+      itemLikelyMatchesTrack({ artist: 'Nick Howe', title: 'Touch' }, { title: 'Little Mix • Touch' })
     ).toBe(false);
   });
 });
@@ -462,6 +504,44 @@ describe('batch runner attribution + retry policy', () => {
     const statuses = finished!.results.map((r) => r.status).sort();
     expect(statuses).toEqual(['downloaded', 'failed', 'failed']);
     expect(finished!.results.filter((r) => r.metubeId === 'vid1')).toHaveLength(1);
+  });
+
+  // MeTube keys entries by resolved video id, so re-queuing the same `ytsearch1:`
+  // query re-creates the entry under the SAME id. If the id claimed when the error
+  // was detected is not released after the entry is deleted, `matches()` goes blind
+  // to our own retry: it polls out the full DOWNLOAD_TIMEOUT_MS and reports a false
+  // `failed` while the successfully-downloaded file is orphaned in MeTube's folder,
+  // defeating `maxAttempts` entirely.
+  it('retries a confirmed error and accepts the re-queued download under the SAME id', async () => {
+    const erroredItem = {
+      id: 'vid1',
+      title: 'Cloonee - Good Girl',
+      url: 'ytsearch1:Cloonee Good Girl',
+      status: 'error' as const,
+      msg: 'HTTP Error 403: Forbidden',
+      filename: 'Cloonee - Good Girl.mp3',
+    };
+    // 1 = attempt-1 "before" snapshot (empty, so the error isn't treated as stale)
+    // 2 = attempt-1 poll (errored) → deleted + retried
+    // 3 = attempt-2 "before" snapshot (empty again), 4+ = attempt-2 poll (finished)
+    let call = 0;
+    (metube.getQueue as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      call++;
+      if (call === 2) return { done: { vid1: erroredItem }, queue: {} };
+      if (call >= 4) return { done: { vid1: finishedItem }, queue: {} };
+      return { done: {}, queue: {} };
+    });
+
+    const job = startYouTubeFallbackJob('user-1', [{ artist: 'Cloonee', title: 'Good Girl' }], {
+      skipInLibrary: false,
+    });
+
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    expect(finished?.results[0].status).toBe('downloaded');
+    expect(finished?.results[0].attempts).toBe(2);
+    expect(finished?.results[0].metubeId).toBe('vid1');
   });
 
   // #3: a bare timeout (nothing matching ever appeared) must NOT be retried — the

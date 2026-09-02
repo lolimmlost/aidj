@@ -188,16 +188,23 @@ function tokensSubsetOf(sub: string, sup: string): boolean {
 const ARTIST_SEPARATOR_RE = /\s[-–—:|]\s/; // spaced hyphen/dash/colon/pipe only
 
 /**
- * Whether a resolved title asserts an artist at all — an "Artist - Title" style
- * prefix. Absent on plenty of legitimate uploads (topic channels, bare singles)
- * and on virtually every cross-script title (a Latin artist name can never
- * token-overlap a Cyrillic/CJK/etc. song title — that's a script mismatch, not
- * an artist mismatch). When absent there's no artist claim to corroborate OR
- * contradict, so callers fall back to trusting an exact title match alone
- * rather than rejecting for a "missing" artist that was never there to check.
+ * Whether the resolved title, normalized, is EXACTLY the wanted title and nothing
+ * else — a bare single / topic-channel upload ("Нормальная музыка (Single Version)"
+ * for "Нормальная музыка"), which asserts no artist at all. That is the only shape
+ * where a missing artist is safely ignorable: there's no artist claim to
+ * corroborate OR contradict, and on a cross-script title a Latin artist name can
+ * never token-overlap a Cyrillic/CJK song title anyway (a script mismatch, not an
+ * artist mismatch).
+ *
+ * Testing instead for an absent "Artist - Title" *separator* is NOT enough, and
+ * reopened the #145 wrong-artist hole: YouTube asserts the artist with plenty of
+ * other punctuation ("Little Mix • Touch") or none at all ("Little Mix Touch"),
+ * and every one of those carries a contradicting artist claim that still has to be
+ * checked. Requiring full equality routes any residual token beyond the title —
+ * exactly where an artist would live — back to the strict artist path.
  */
-function titleAssertsArtist(resultTitle: string): boolean {
-  return ARTIST_SEPARATOR_RE.test(resultTitle);
+function isBareTitleMatch(got: string, wantTitle: string): boolean {
+  return wantTitle.length > 0 && got === wantTitle;
 }
 
 /**
@@ -208,8 +215,9 @@ function titleAssertsArtist(resultTitle: string): boolean {
  * — is what lets us tell a *dropped* artist word ("bad tuner" → "tuner", benign)
  * from a *substituted* one ("Phil Odd" → "Phil Collins", a real mismatch): both
  * share exactly one token against the whole string, but only the dropped case is
- * a clean subset of the artist field. Only called once `titleAssertsArtist` has
- * confirmed a separator exists.
+ * a clean subset of the artist field. Falls back to the whole (normalized) string
+ * when there's no separator — no worse than matching against the full title, and
+ * necessary because an artist can be asserted without one ("Little Mix Touch").
  */
 function artistFieldOfTitle(resultTitle: string): string {
   const idx = resultTitle.search(ARTIST_SEPARATOR_RE);
@@ -235,19 +243,17 @@ export function verifyDownload(
   const wantArtist = normalizeForCompare((track.artist || '').split(/[;,]/)[0]);
   const titleScore = got.includes(wantTitle) && wantTitle.length > 0 ? 1 : tokenOverlap(wantTitle, got);
 
-  // No "Artist - Title" separator in the resolved title — no artist field to
-  // corroborate or contradict (see `titleAssertsArtist`). Require an EXACT title
-  // match (not just high overlap) since there's no artist signal to lean on; this
-  // is what catches cross-script titles (e.g. Cyrillic song title, Latin artist
-  // name) without reopening the wrong-artist hole — a same-titled wrong-artist
-  // result always resolves with an asserted artist prefix, so it still hits the
-  // strict path below.
-  if (!titleAssertsArtist(resultTitle)) {
-    const matched = titleScore === 1;
+  // The resolved title is nothing BUT the wanted title (see `isBareTitleMatch`),
+  // so there is no artist claim in it to corroborate or contradict and an absent
+  // artist must not veto the match — this is what accepts cross-script titles
+  // (e.g. Cyrillic song title, Latin artist name). Note this is full equality, not
+  // containment: a title that merely *contains* the wanted one has extra tokens,
+  // which is precisely where a wrong artist hides, so it falls through below.
+  if (isBareTitleMatch(got, wantTitle)) {
     return {
-      matched,
-      score: titleScore,
-      reason: `title ${(titleScore * 100) | 0}% (no artist field in "${resultTitle}")`,
+      matched: true,
+      score: 1,
+      reason: `exact title match, no artist field in "${resultTitle}"`,
     };
   }
 
@@ -308,8 +314,7 @@ export function itemLikelyMatchesTrack(
   track: FallbackTrack,
   item: Partial<Pick<MeTubeDownload, 'title' | 'filename'>>
 ): boolean {
-  const resultTitle = item.title || item.filename || '';
-  const got = normalizeForCompare(resultTitle);
+  const got = normalizeForCompare(item.title || item.filename || '');
   if (!got) return false;
   const wantTitle = normalizeForCompare(track.title);
   const wantArtist = normalizeForCompare((track.artist || '').split(/[;,]/)[0]);
@@ -317,10 +322,10 @@ export function itemLikelyMatchesTrack(
 
   const titleOverlap = got.includes(wantTitle) ? 1 : tokenOverlap(wantTitle, got);
 
-  // No artist field to corroborate against (see `titleAssertsArtist`) — trust an
-  // exact title match on its own rather than stalling detection on an artist
-  // check that can never pass (e.g. cross-script titles).
-  if (!titleAssertsArtist(resultTitle)) return titleOverlap === 1;
+  // Bare title asserting no artist (see `isBareTitleMatch`) — trust it on its own
+  // rather than stalling detection on an artist check that can never pass (e.g.
+  // cross-script titles). A title with extra tokens around ours is NOT this case.
+  if (isBareTitleMatch(got, wantTitle)) return true;
 
   const artistOk =
     wantArtist.length < 3 || got.includes(wantArtist) || tokenOverlap(wantArtist, got) >= 0.5;
@@ -631,6 +636,13 @@ async function queueWithRetries(
 
     // Confirmed error — clean up the failed entry and retry.
     await deleteMeTubeItem(outcome.item, outcome.metubeId);
+    // Release the claim taken when the error was detected. MeTube keys entries by
+    // resolved video id, so re-queuing the same `ytsearch1:` query re-creates the
+    // entry under the SAME id; leaving it claimed makes `matches()` blind to our
+    // own retry, which then polls out the full DOWNLOAD_TIMEOUT_MS and reports a
+    // false `failed` while the file sits orphaned in MeTube's folder. Safe to
+    // release: the entry is deleted, so no concurrent worker can see it either.
+    if (outcome.metubeId) claimedIds.delete(outcome.metubeId);
 
     if (attempt < maxAttempts) {
       console.warn(
