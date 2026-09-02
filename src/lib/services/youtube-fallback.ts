@@ -54,6 +54,12 @@ export interface FallbackTrackResult {
   resultTitle?: string;
   filename?: string;
   verification?: FallbackVerification;
+  /**
+   * Set on a `skipped` entry whose library match hinged on a differing bracketed
+   * qualifier ("(Day)" vs "(Night)"). The skip stands — re-queue the track with
+   * `skipInLibrary: false` to override it.
+   */
+  review?: string;
   error?: string;
   attempts?: number; // how many download attempts were made (>=1 once started)
   startedAt?: number;
@@ -432,19 +438,69 @@ export function libraryMatch(track: FallbackTrack, song: LibSong): boolean {
   return artistFieldOk || junkCopyOk;
 }
 
-async function findInLibrary(track: FallbackTrack): Promise<{ title: string } | null> {
+/**
+ * Bracketed qualifiers that survive `normalizeForCompare` — i.e. the ones that
+ * actually distinguish one recording from another. `normalizeForCompare` already
+ * blanks pure packaging noise ("(Official Video)", "(Lyrics)"); on top of that we
+ * drop collaborator and reissue qualifiers, which name the same recording.
+ */
+const NOISE_QUALIFIER = /^(?:with|feat|ft|featuring)\b|\b(?:remaster(?:ed)?|deluxe|anniversary|expanded|bonus)\b/;
+
+function meaningfulQualifiers(s: string): string[] {
+  return [...(s || '').matchAll(/[([]([^)\]]*)[)\]]/g)]
+    .map((m) => normalizeForCompare(m[1]))
+    .filter((q) => q && !NOISE_QUALIFIER.test(q));
+}
+
+/**
+ * Did this title match ONLY because the bracketed qualifiers were stripped, with
+ * each side carrying a *different* meaningful one? That is the "(Day)" vs
+ * "(Night)" shape — same base title, same artist, demonstrably different
+ * recordings — which no heuristic can settle: "(Day)"/"(Night)" and
+ * "(Live)"/studio are distinct tracks, while "(Lyrics)" or "(feat. X)" is the
+ * same one. So we don't guess; the skip is flagged for a human instead.
+ *
+ * Requires a qualifier on BOTH sides: one bare side is ordinary YouTube-title
+ * noise, already handled, and flagging it would bury the real cases.
+ */
+export function qualifierAmbiguity(
+  track: FallbackTrack,
+  song: LibSong
+): { wanted: string; found: string } | null {
+  const wantQ = meaningfulQualifiers(track.title);
+  const gotQ = meaningfulQualifiers(song.title || song.name || '');
+  if (wantQ.length === 0 || gotQ.length === 0) return null;
+  if (wantQ.some((w) => gotQ.some((g) => g === w || g.includes(w) || w.includes(g)))) return null;
+  return { wanted: wantQ.join(' / '), found: gotQ.join(' / ') };
+}
+
+interface LibraryHit {
+  title: string;
+  /** Set when the match hinged on a differing qualifier — needs a human look. */
+  ambiguity?: { wanted: string; found: string };
+}
+
+async function findInLibrary(track: FallbackTrack): Promise<LibraryHit | null> {
+  const toHit = (s: LibSong): LibraryHit => {
+    const ambiguity = qualifierAmbiguity(track, s);
+    return { title: s.title || s.name || '', ...(ambiguity ? { ambiguity } : {}) };
+  };
   try {
     const { search } = await import('./navidrome');
     const primaryArtist = (track.artist || '').split(/[;,]/)[0].trim();
     const query = normalizeSearchQuery(track); // "<primary artist> <clean title>"
     const results = (await search(query).catch(() => [])) as LibSong[];
-    const hit = results.find((s) => libraryMatch(track, s));
-    if (hit) return { title: hit.title || hit.name || '' };
+    // Prefer an unambiguous hit over an ambiguous one from the same result set,
+    // so a "(Day)" request that ALSO has a real "(Day)" copy skips cleanly.
+    const matches = results.filter((s) => libraryMatch(track, s));
+    const clean = matches.find((s) => !qualifierAmbiguity(track, s));
+    if (clean || matches.length > 0) return toHit(clean ?? matches[0]);
     // Fallback: artist-only search (catches title-mismatch / junk-title copies).
     if (primaryArtist.length > 2) {
       const r2 = (await search(primaryArtist).catch(() => [])) as LibSong[];
-      const hit2 = r2.find((s) => libraryMatch(track, s));
-      if (hit2) return { title: hit2.title || hit2.name || '' };
+      const m2 = r2.filter((s) => libraryMatch(track, s));
+      const clean2 = m2.find((s) => !qualifierAmbiguity(track, s));
+      if (clean2 || m2.length > 0) return toHit(clean2 ?? m2[0]);
     }
     return null;
   } catch {
@@ -551,9 +607,17 @@ async function runJob(job: FallbackJob): Promise<void> {
       if (existing) {
         entry.status = 'skipped';
         entry.resultTitle = existing.title;
+        if (existing.ambiguity) {
+          // Same base title and artist, different qualifier — the library copy may
+          // well be a different recording. Skip (never create a dupe silently) but
+          // mark it so the job summary can hand the call back to the user.
+          entry.review = `wanted "${existing.ambiguity.wanted}", library has "${existing.ambiguity.found}" — re-queue if these are different recordings`;
+        }
         entry.finishedAt = Date.now();
         job.updatedAt = Date.now();
-        console.log(`[YouTubeFallback] SKIP (already in library) ${label} -> "${existing.title}"`);
+        console.log(
+          `[YouTubeFallback] SKIP (already in library) ${label} -> "${existing.title}"${entry.review ? ` [NEEDS REVIEW: ${entry.review}]` : ''}`
+        );
         if (i < job.results.length - 1) await sleep(BETWEEN_TRACKS_MS);
         continue;
       }
@@ -622,7 +686,7 @@ async function runJob(job: FallbackJob): Promise<void> {
 
   const summary = summarizeJob(job);
   console.log(
-    `[YouTubeFallback] Job ${job.id} complete: ${summary.downloaded} downloaded, ${summary.skipped} skipped, ${summary.mismatch} mismatch, ${summary.downloading} still-downloading, ${summary.failed} failed (of ${summary.total})`
+    `[YouTubeFallback] Job ${job.id} complete: ${summary.downloaded} downloaded, ${summary.skipped} skipped${summary.needsReview ? ` (${summary.needsReview} need review)` : ''}, ${summary.mismatch} mismatch, ${summary.downloading} still-downloading, ${summary.failed} failed (of ${summary.total})`
   );
 }
 
@@ -635,10 +699,12 @@ export function summarizeJob(job: FallbackJob): {
   mismatch: number;
   downloading: number;
   failed: number;
+  /** Subset of `skipped`: skips whose library match needs a human call. */
+  needsReview: number;
 } {
   const summary = { total: job.results.length, pending: 0, skipped: 0, searching: 0, downloaded: 0, mismatch: 0, downloading: 0, failed: 0 };
   for (const r of job.results) summary[r.status]++;
-  return summary;
+  return { ...summary, needsReview: job.results.filter((r) => r.review).length };
 }
 
 /**

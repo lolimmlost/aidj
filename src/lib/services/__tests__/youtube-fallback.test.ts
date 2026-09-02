@@ -11,8 +11,10 @@ import {
   verifyDownload,
   itemLikelyMatchesTrack,
   libraryMatch,
+  qualifierAmbiguity,
   startYouTubeFallbackJob,
   getYouTubeFallbackJob,
+  summarizeJob,
 } from '../youtube-fallback';
 
 // The batch-runner tests below drive real MeTube interaction, so stub the client.
@@ -22,6 +24,10 @@ vi.mock('../metube', () => ({
   deleteDownloads: vi.fn().mockResolvedValue({ status: 'ok' }),
 }));
 import * as metube from '../metube';
+
+// findInLibrary dynamic-imports the Navidrome service; only `search` is used.
+vi.mock('../navidrome', () => ({ search: vi.fn().mockResolvedValue([]) }));
+import * as navidrome from '../navidrome';
 
 describe('normalizeSearchQuery', () => {
   it('uses the primary artist and drops collaborators', () => {
@@ -262,6 +268,70 @@ describe('libraryMatch (dedup guard vs Navidrome songs)', () => {
   });
 });
 
+describe('qualifierAmbiguity (hand the call back to the user)', () => {
+  // Real false skip caught by the 100-track dry run: the library holds
+  // "I Choose You (Night)" by Small Town Kid and no "(Day)". Both titles
+  // normalize to "i choose you" and the artist corroborates, so the dedup guard
+  // skips a track that genuinely isn't there. No heuristic can settle it.
+  it('flags a differing meaningful qualifier (Day vs Night)', () => {
+    const a = qualifierAmbiguity(
+      { artist: 'Small Town Kid', title: 'I Choose You (Day)' },
+      { title: 'I Choose You (Night)', artist: 'Small Town Kid' }
+    );
+    expect(a).toEqual({ wanted: 'day', found: 'night' });
+  });
+
+  it('flags Live vs studio', () => {
+    expect(
+      qualifierAmbiguity(
+        { artist: 'DEVORA', title: 'What Doesn’t Kill Me (Live from Numbers)' },
+        { title: 'What Doesn’t Kill Me (Radio Edit)', artist: 'DEVORA' }
+      )
+    ).not.toBeNull();
+  });
+
+  it('does NOT flag the same qualifier on both sides', () => {
+    expect(
+      qualifierAmbiguity(
+        { artist: 'Bloom Phase', title: "I'll Dance With You (Feel Safe)" },
+        { title: "I'll Dance With You (Feel Safe)", artist: 'Bloom Phase' }
+      )
+    ).toBeNull();
+  });
+
+  it('does NOT flag packaging noise on one side only', () => {
+    // The overwhelmingly common junk-title shape — flagging it would bury the
+    // real cases in false alarms.
+    expect(
+      qualifierAmbiguity(
+        { artist: 'Small Town Kid', title: 'Something Good' },
+        { title: 'Small Town Kid - Something Good (Lyrics)', artist: 'House Muse' }
+      )
+    ).toBeNull();
+    expect(
+      qualifierAmbiguity(
+        { artist: 'GW Harrison', title: 'Big Bad City' },
+        { title: 'GW Harrison - Big Bad City (Official Audio)', artist: 'Sink Or Swim' }
+      )
+    ).toBeNull();
+  });
+
+  it('does NOT flag collaborator or reissue qualifiers', () => {
+    expect(
+      qualifierAmbiguity(
+        { artist: 'Wax Motif', title: 'Skank N Flex (with Scrufizzer)' },
+        { title: 'Skank n Flex (feat. Scrufizzer)', artist: 'Wax Motif' }
+      )
+    ).toBeNull();
+    expect(
+      qualifierAmbiguity(
+        { artist: 'Some Artist', title: 'A Song (2011 Remaster)' },
+        { title: 'A Song (Deluxe Edition)', artist: 'Some Artist' }
+      )
+    ).toBeNull();
+  });
+});
+
 describe('batch runner attribution + retry policy', () => {
   const finishedItem = {
     id: 'vid1',
@@ -348,6 +418,49 @@ describe('batch runner attribution + retry policy', () => {
       expect.arrayContaining([wrongItem.url]),
       'done'
     );
+  });
+
+  it('flags an ambiguous library skip for review instead of deciding silently', async () => {
+    (metube.getQueue as ReturnType<typeof vi.fn>).mockResolvedValue({ done: {}, queue: {} });
+    (navidrome.search as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { title: 'I Choose You (Night)', name: 'I Choose You (Night)', artist: 'Small Town Kid' },
+    ]);
+
+    const job = startYouTubeFallbackJob(
+      'user-1',
+      [{ artist: 'Small Town Kid', title: 'I Choose You (Day)' }],
+      { skipInLibrary: true }
+    );
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    const entry = finished?.results[0];
+    // The skip still stands — flagging must never create a silent duplicate.
+    expect(entry?.status).toBe('skipped');
+    expect(entry?.resultTitle).toBe('I Choose You (Night)');
+    expect(entry?.review).toMatch(/"day".*"night"/);
+    expect(summarizeJob(finished!).needsReview).toBe(1);
+
+    (navidrome.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  });
+
+  it('does not flag an unambiguous library skip', async () => {
+    (metube.getQueue as ReturnType<typeof vi.fn>).mockResolvedValue({ done: {}, queue: {} });
+    (navidrome.search as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { title: 'Young Folks', name: 'Young Folks', artist: 'Glom' },
+    ]);
+
+    const job = startYouTubeFallbackJob('user-1', [{ artist: 'Glom', title: 'Young Folks' }], {
+      skipInLibrary: true,
+    });
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    expect(finished?.results[0].status).toBe('skipped');
+    expect(finished?.results[0].review).toBeUndefined();
+    expect(summarizeJob(finished!).needsReview).toBe(0);
+
+    (navidrome.search as ReturnType<typeof vi.fn>).mockResolvedValue([]);
   });
 
   it('does NOT delete a PRE-EXISTING entry that fails verification', async () => {

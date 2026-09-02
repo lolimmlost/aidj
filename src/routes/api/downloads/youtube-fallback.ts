@@ -167,6 +167,8 @@ const GET = withAuthAndErrorHandling(
         resultTitle: r.resultTitle,
         verification: r.verification,
         attempts: r.attempts,
+        // Set on a skip that needs a human call; re-queue with skipInLibrary:false.
+        review: r.review,
         error: r.error,
       })),
       createdAt: job.createdAt,
