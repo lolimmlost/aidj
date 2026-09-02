@@ -591,6 +591,83 @@ describe('batch runner attribution + retry policy', () => {
     expect(finished?.results[0].metubeId).toBe('vid1');
   });
 
+  // #211: an unexpected throw inside processTrack must not take the batch down with
+  // it. Under Promise.all it rejected out of runJob, so the job flipped to `failed`
+  // while the other N-1 workers kept running detached — mutating results, queueing
+  // downloads and deleting MeTube entries for a job the API already reported dead.
+  it('contains an unexpected throw to the one track and still completes the batch', async () => {
+    const siblingItem = {
+      id: 'vid2',
+      title: 'Sun Room - Insincere',
+      url: 'ytsearch1:Sun Room Insincere',
+      status: 'finished' as const,
+      filename: 'Sun Room - Insincere.mp3',
+    };
+    let call = 0;
+    (metube.getQueue as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      call++;
+      // The first worker to poll hits an unguarded property access that throws —
+      // standing in for any future unguarded await on this path.
+      if (call === 1) {
+        return {
+          get done(): Record<string, never> {
+            throw new Error('kaboom');
+          },
+          queue: {},
+        };
+      }
+      return { done: { vid1: finishedItem, vid2: siblingItem }, queue: {} };
+    });
+
+    const job = startYouTubeFallbackJob(
+      'user-1',
+      [
+        { artist: 'Cloonee', title: 'Good Girl' },
+        { artist: 'Sun Room', title: 'Insincere' },
+      ],
+      { skipInLibrary: false }
+    );
+
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    // The job itself reports completed, not failed.
+    expect(finished?.status).toBe('completed');
+    // Only the track that threw is marked failed, and it carries the reason.
+    expect(finished?.results[0].status).toBe('failed');
+    expect(finished?.results[0].error).toContain('kaboom');
+    // Its sibling was neither abandoned nor left mid-flight.
+    expect(finished?.results[1].status).toBe('downloaded');
+  });
+
+  // #211 invariant (not a regression test — this passes with or without the fix,
+  // because processTrack already reaches a terminal status on every path today).
+  // It pins the property the reconcile pass in runJob exists to guarantee: once a
+  // job reports `completed`, no entry may still read `pending`/`searching`, or the
+  // summary is simply lying about what happened.
+  it('leaves no track in a non-terminal state after the job completes', async () => {
+    (metube.getQueue as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      throw new Error('MeTube unreachable');
+    });
+
+    const job = startYouTubeFallbackJob(
+      'user-1',
+      [
+        { artist: 'Cloonee', title: 'Good Girl' },
+        { artist: 'Sun Room', title: 'Insincere' },
+      ],
+      { skipInLibrary: false }
+    );
+
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    expect(finished?.status).toBe('completed');
+    const summary = summarizeJob(finished!);
+    expect(summary.pending).toBe(0);
+    expect(summary.searching).toBe(0);
+  });
+
   // #3: a bare timeout (nothing matching ever appeared) must NOT be retried — the
   // same query would just re-resolve to the same undetectable video.
   it('does not retry a track that merely timed out', async () => {

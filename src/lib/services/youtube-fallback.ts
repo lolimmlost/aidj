@@ -816,6 +816,10 @@ async function processTrack(job: FallbackJob, i: number, claimedIds: Set<string>
  * — under the old strictly-sequential loop that stalled every track behind it;
  * with N workers, the rest of the batch keeps moving. See #132 (folded from
  * #207) for the motivating case: ~4 tracks/30min on a 50-track batch.
+ *
+ * Failures are contained per track (#211): one track throwing marks only itself
+ * `failed` and the pool carries on, so the job's reported status always matches
+ * what the workers actually did.
  */
 async function runJob(job: FallbackJob): Promise<void> {
   // MeTube ids already attributed to an earlier track in this batch, so a shared
@@ -832,13 +836,54 @@ async function runJob(job: FallbackJob): Promise<void> {
       // Rough progress signal only — workers finish out of order, so this is
       // NOT "tracks completed"; summarizeJob(job) has the accurate counts.
       job.currentIndex = Math.max(job.currentIndex, i);
-      await processTrack(job, i, claimedIds);
+      try {
+        await processTrack(job, i, claimedIds);
+      } catch (err) {
+        // Contain an unexpected throw to the one track that caused it (#211).
+        // Every await inside processTrack is already individually guarded, so
+        // getting here means something genuinely unforeseen — but letting it
+        // escape would abandon this worker's whole remaining share of the queue
+        // and, under Promise.all, mark the entire job `failed` while N-1
+        // siblings kept running detached for up to 12 more minutes.
+        const failing = job.results[i];
+        failing.status = 'failed';
+        failing.error = err instanceof Error ? err.message : 'unexpected error while processing track';
+        failing.finishedAt = Date.now();
+        job.updatedAt = Date.now();
+        console.error(
+          `[YouTubeFallback] UNEXPECTED ERROR on "${failing.track.artist} - ${failing.track.title}":`,
+          err
+        );
+      }
       if (nextIndex < job.results.length) await sleep(BETWEEN_TRACKS_MS);
     }
   };
 
   const workerCount = Math.max(1, Math.min(job.concurrency, job.results.length));
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  // allSettled, not all: the per-track catch above handles the expected case, but
+  // a throw from the loop bookkeeping itself must not reject out of here and
+  // abandon the other workers mid-download. Nothing depends on the resolved
+  // values — the workers report by mutating job.results.
+  const settled = await Promise.allSettled(Array.from({ length: workerCount }, () => worker()));
+  for (const outcome of settled) {
+    if (outcome.status === 'rejected') {
+      console.error(`[YouTubeFallback] Job ${job.id}: worker crashed:`, outcome.reason);
+    }
+  }
+
+  // A crashed worker can leave the track it held stuck in a non-terminal state,
+  // and its unstarted share of the queue never picked up. Reconcile before
+  // reporting `completed`, so the summary reflects what actually happened rather
+  // than leaving entries reading `searching` forever. ('downloading' is NOT
+  // reconciled — that's the deliberate slow-download outcome, already terminal
+  // for this job.)
+  for (const entry of job.results) {
+    if (entry.status === 'pending' || entry.status === 'searching') {
+      entry.status = 'failed';
+      entry.error = entry.error ?? 'worker crashed before this track reached a terminal state';
+      entry.finishedAt = Date.now();
+    }
+  }
 
   job.status = 'completed';
   job.currentIndex = job.results.length;
