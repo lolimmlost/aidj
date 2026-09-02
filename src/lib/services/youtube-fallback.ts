@@ -406,11 +406,7 @@ export function libraryMatch(track: FallbackTrack, song: LibSong): boolean {
   // A same TITLE is not enough — the library holds plenty of distinct songs that
   // share a title ("Wasting Time", "Forever", …). Skipping on title alone falsely
   // marks a genuinely-missing track as "already in library" and drops its download
-  // (the eric404 - Wasting Time case). The artist MUST corroborate. And since the
-  // import matcher already searched the library and returned no_match, a short or
-  // absent artist can't override that verdict — don't skip.
-  if (wantArtist.length < 3) return false;
-
+  // (the eric404 - Wasting Time case). The artist MUST corroborate.
   const gotArtist = normalizeForCompare(song.artist || '');
   // Navidrome never reports an empty artist: the library mapper substitutes a
   // placeholder (`artist: song.artist || 'Unknown Artist'`, navidrome/library.ts).
@@ -418,6 +414,17 @@ export function libraryMatch(track: FallbackTrack, song: LibSong): boolean {
   // information, so it has to be treated as absent — otherwise the junk path
   // below is unreachable for the exact copies it exists to catch.
   const artistFieldPresent = !!gotArtist && gotArtist !== 'unknown artist';
+
+  // A 1–2 character artist ("U2", "AJ") is too weak for the fuzzy paths below:
+  // it wins `includes()` against half the library and appears by accident inside
+  // unrelated titles. But refusing it outright means the dedup guard NEVER fires
+  // for those artists and every one of their tracks re-downloads as a duplicate.
+  // So keep them — just require the strongest evidence: the name standing as a
+  // whole token in the song's own artist FIELD. No overlap, no title containment,
+  // no junk-copy path.
+  if (wantArtist.length < 3) {
+    return artistFieldPresent && gotArtist.split(' ').includes(wantArtist);
+  }
 
   // Clean case: the library song's own ARTIST field matches the request.
   const artistFieldOk =

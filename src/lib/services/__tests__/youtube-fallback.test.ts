@@ -233,6 +233,27 @@ describe('libraryMatch (dedup guard vs Navidrome songs)', () => {
     ).toBe(false);
   });
 
+  it('still dedups a SHORT artist name on an exact artist-field match', () => {
+    // Regression: a blanket `wantArtist.length < 3 → false` disabled the dedup
+    // guard outright for U2/AJ-style names, so every one of their tracks
+    // re-downloaded as a duplicate even when plainly present.
+    expect(libraryMatch({ artist: 'U2', title: 'One' }, { title: 'One', artist: 'U2' })).toBe(true);
+    expect(
+      libraryMatch({ artist: 'U2', title: 'One' }, { title: 'One', artist: 'U2, Green Day' })
+    ).toBe(true);
+  });
+
+  it('does NOT let a short artist name match loosely', () => {
+    // The name must stand as a whole token in the artist FIELD — no substring
+    // accidents, no title containment, no junk-copy path.
+    expect(libraryMatch({ artist: 'U2', title: 'One' }, { title: 'One', artist: 'U2000' })).toBe(false);
+    expect(libraryMatch({ artist: 'U2', title: 'One' }, { title: 'One', artist: 'Metallica' })).toBe(false);
+    expect(libraryMatch({ artist: 'U2', title: 'U2 - One' }, { title: 'U2 - One' })).toBe(false);
+    expect(
+      libraryMatch({ artist: 'U2', title: 'One' }, { title: 'One', artist: 'Unknown Artist' })
+    ).toBe(false);
+  });
+
   it('matches an UNTAGGED rip whose artist field is Navidrome’s placeholder', () => {
     // Navidrome never returns an empty artist — library.ts substitutes
     // 'Unknown Artist'. MeTube writes no tags, so a rip that Picard hasn't
