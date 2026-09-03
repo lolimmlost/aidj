@@ -26,6 +26,7 @@ import type { SubsonicSong } from './navidrome';
 import { getNavidromeUserCreds } from './navidrome-users';
 import type { SubsonicCreds } from './navidrome-users';
 import { broadcastFeedbackChange, broadcastFeedbackRefresh } from './feedback-broadcast';
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 
 // ============================================================================
 // Types
@@ -617,7 +618,7 @@ export async function rebuildLikedSongsPlaylist(
         id: crypto.randomUUID(),
         playlistId: likedPlaylist.id,
         songId: song.id,
-        songArtistTitle: `${song.artist} - ${song.title}`,
+        songArtistTitle: formatArtistTitle(song.artist, song.title),
         position: index + 1,
         addedAt: new Date(),
       }))

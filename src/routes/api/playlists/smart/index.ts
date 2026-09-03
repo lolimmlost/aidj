@@ -10,6 +10,7 @@ import {
   type SmartPlaylistRules,
 } from '../../../../lib/services/navidrome-smart-playlists';
 import { z } from 'zod';
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 
 // Recursive type for rule conditions (any is required for recursive Zod schema)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -116,7 +117,7 @@ export const Route = createFileRoute("/api/playlists/smart/")({
           id: crypto.randomUUID(),
           playlistId: localPlaylist.id,
           songId: song.id,
-          songArtistTitle: `${song.artist || 'Unknown'} - ${song.name || song.title || 'Unknown'}`,
+          songArtistTitle: formatArtistTitle(song.artist, song.name || song.title),
           position: index,
           addedAt: new Date(),
         }));
