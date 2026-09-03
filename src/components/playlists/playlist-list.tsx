@@ -67,6 +67,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useAudioStore } from '@/lib/stores/audio';
+import { parseArtistTitle } from '@/lib/utils/song-artist-title';
 
 // Sortable playlist card props
 interface SortablePlaylistCardProps {
@@ -467,16 +468,19 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
     }
 
     // Convert playlist songs to audio store format
-    const audioSongs = songs.map((song) => ({
-      id: song.songId,
-      name: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
-      title: song.songArtistTitle.split(' - ')[1] || song.songArtistTitle,
-      artist: song.songArtistTitle.split(' - ')[0] || 'Unknown Artist',
-      albumId: '',
-      duration: 0,
-      track: 1,
-      url: `/api/navidrome/stream/${song.songId}`,
-    }));
+    const audioSongs = songs.map((song) => {
+      const { artist, title } = parseArtistTitle(song.songArtistTitle);
+      return {
+        id: song.songId,
+        name: title,
+        title: title,
+        artist: artist || 'Unknown Artist',
+        albumId: '',
+        duration: 0,
+        track: 1,
+        url: `/api/navidrome/stream/${song.songId}`,
+      };
+    });
 
     if (position === 'next') {
       setAIUserActionInProgress(true);

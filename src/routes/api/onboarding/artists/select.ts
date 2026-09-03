@@ -14,6 +14,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/utils/api-response';
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 
 const MAX_ARTISTS = 50;
 
@@ -104,7 +105,7 @@ const POST = withAuthAndErrorHandling(
         artistCount++;
 
         for (const song of topSongs) {
-          const songArtistTitle = `${song.artist || artistName} - ${song.title || song.name}`;
+          const songArtistTitle = formatArtistTitle(song.artist || artistName, song.title || song.name);
           await tx
             .insert(recommendationFeedback)
             .values({

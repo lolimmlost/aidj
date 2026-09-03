@@ -7,13 +7,13 @@ import { db } from '../db';
 import { recommendationFeedback } from '../db/schema';
 import { eq, and, gte, ne } from 'drizzle-orm';
 import {
-  extractArtist,
   getDaysAgo,
   getStartOfWeek,
   getStartOfMonth,
   calculateDiversityScore,
   DAY_NAMES,
 } from '../utils/analytics-helpers';
+import { parseArtistTitle } from '@/lib/utils/song-artist-title';
 
 // ============================================================================
 // Types
@@ -100,7 +100,7 @@ export function clearAnalyticsCache(userId?: string): void {
 // Helper Functions
 // ============================================================================
 
-// Note: extractArtist, getDaysAgo, getStartOfWeek, getStartOfMonth
+// Note: getDaysAgo, getStartOfWeek, getStartOfMonth
 // are now imported from '../utils/analytics-helpers'
 
 /**
@@ -172,12 +172,15 @@ export async function getTasteEvolutionTimeline(
     }
 
     const periodData = periodMap.get(periodKey)!;
-    const artist = extractArtist(fb.songArtistTitle);
-
-    periodData.artistCounts.set(
-      artist,
-      (periodData.artistCounts.get(artist) || 0) + 1
-    );
+    // A row with no parseable artist still counts toward the thumbs totals; it
+    // just can't contribute to the dominant-artist ranking.
+    const { artist } = parseArtistTitle(fb.songArtistTitle);
+    if (artist) {
+      periodData.artistCounts.set(
+        artist,
+        (periodData.artistCounts.get(artist) || 0) + 1
+      );
+    }
 
     if (fb.feedbackType === 'thumbs_up') {
       periodData.thumbsUpCount++;
@@ -396,8 +399,8 @@ export async function getDiscoveryInsights(
   const historicalLiked = allLikedFeedback.filter(f => f.timestamp < recentStartDate);
 
   // Find new artists discovered
-  const historicalArtists = new Set(historicalLiked.map(f => extractArtist(f.songArtistTitle)));
-  const recentArtists = recentLiked.map(f => extractArtist(f.songArtistTitle));
+  const historicalArtists = new Set(historicalLiked.map(f => parseArtistTitle(f.songArtistTitle).artist).filter(Boolean));
+  const recentArtists = recentLiked.map(f => parseArtistTitle(f.songArtistTitle).artist).filter(Boolean);
 
   const newArtistNames = recentArtists.filter(artist => !historicalArtists.has(artist));
   const uniqueNewArtists = Array.from(new Set(newArtistNames));
@@ -418,7 +421,7 @@ export async function getDiscoveryInsights(
     f => f.timestamp >= previousStartDate && f.timestamp < recentStartDate
   );
 
-  const previousArtists = previousPeriodLiked.map(f => extractArtist(f.songArtistTitle));
+  const previousArtists = previousPeriodLiked.map(f => parseArtistTitle(f.songArtistTitle).artist).filter(Boolean);
   const previousArtistCounts = new Map<string, number>();
   for (const artist of previousArtists) {
     previousArtistCounts.set(artist, (previousArtistCounts.get(artist) || 0) + 1);
