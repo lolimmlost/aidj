@@ -17,6 +17,7 @@ import {
   type ExportableSong,
 } from '../../../lib/services/playlist-export';
 import { getSongsByIds } from '../../../lib/services/navidrome';
+import { parseArtistTitle } from '@/lib/utils/song-artist-title';
 
 // Validation schemas
 const ExportRequestSchema = z.object({
@@ -79,11 +80,11 @@ const POST = withAuthAndErrorHandling(
         // Fall back to basic info from playlist_songs table
         console.warn('Could not fetch song details from Navidrome:', error);
         songDetails = songs.map(s => {
-          const parts = s.songArtistTitle.split(' - ');
+          const { artist, title } = parseArtistTitle(s.songArtistTitle);
           return {
             id: s.songId,
-            title: parts[1] || s.songArtistTitle,
-            artist: parts[0] || 'Unknown Artist',
+            title,
+            artist: artist || 'Unknown Artist',
           };
         });
       }
