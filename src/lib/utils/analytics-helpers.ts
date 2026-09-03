@@ -7,38 +7,16 @@
  * - advanced-discovery-analytics.ts
  * - discovery-analytics.ts
  *
+ * Artist/title extraction lives in `song-artist-title.ts` — the copies that used
+ * to live here split on `parts[1]` and truncated any title containing " - ".
+ *
  * This module provides shared utilities for:
- * - Artist/title extraction from "Artist - Title" format
  * - Date range calculations
  * - Trend analysis
  * - Diversity scoring (Shannon entropy)
  * - Time slot classification
  * - A/B test confidence intervals
  */
-
-// ============================================================================
-// Artist/Title Extraction
-// ============================================================================
-
-/**
- * Extract artist name from "Artist - Title" format
- * @param songArtistTitle - Combined string in "Artist - Title" format
- * @returns Artist name, or original string if no separator found
- */
-export function extractArtist(songArtistTitle: string): string {
-  const parts = songArtistTitle.split(' - ');
-  return parts[0]?.trim() || songArtistTitle;
-}
-
-/**
- * Extract song title from "Artist - Title" format
- * @param songArtistTitle - Combined string in "Artist - Title" format
- * @returns Song title, or empty string if no separator found
- */
-export function extractTitle(songArtistTitle: string): string {
-  const parts = songArtistTitle.split(' - ');
-  return parts[1]?.trim() || '';
-}
 
 // ============================================================================
 // Date Range Helpers

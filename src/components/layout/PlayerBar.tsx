@@ -43,6 +43,7 @@ import { usePlaybackStateSync } from '@/lib/hooks/usePlaybackStateSync';
 import { useWebAudioGraph } from '@/lib/hooks/useWebAudioGraph';
 import { useDeckEventHandlers } from '@/lib/hooks/useDeckEventHandlers';
 import { useSongLoader } from '@/lib/hooks/useSongLoader';
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 
 // Helper function for time formatting
 const formatTime = (time: number) => {
@@ -412,7 +413,7 @@ export function PlayerBar() {
 
       const payload = {
         songId: currentSong.id,
-        songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
+        songArtistTitle: formatArtistTitle(currentSong.artist, currentSong.title || currentSong.name),
         feedbackType: liked ? 'thumbs_up' : 'thumbs_down',
         source: 'library',
       };

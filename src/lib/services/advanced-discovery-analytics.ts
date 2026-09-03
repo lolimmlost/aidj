@@ -19,13 +19,13 @@ import {
 } from '~/lib/db/schema';
 import { eq, and, gte, lte } from 'drizzle-orm';
 import {
-  extractArtist,
   getDateRange,
   calculateTrend,
   getTimeSlot,
   calculateConfidenceInterval,
   type DateRangePeriod,
 } from '~/lib/utils/analytics-helpers';
+import { parseArtistTitle } from '@/lib/utils/song-artist-title';
 
 // ============================================================================
 // Types
@@ -157,7 +157,7 @@ export function clearAdvancedAnalyticsCache(userId?: string): void {
 // Helper Functions
 // ============================================================================
 
-// Note: extractArtist, getDateRange, calculateTrend, getTimeSlot, calculateConfidenceInterval
+// Note: getDateRange, calculateTrend, getTimeSlot, calculateConfidenceInterval
 // are now imported from '~/lib/utils/analytics-helpers'
 
 /** Maps raw feedback source values to human-readable mode labels */
@@ -309,7 +309,8 @@ export async function getTopRecommendedArtists(
   const artistGroups = new Map<string, { up: number; down: number }>();
 
   for (const fb of feedback) {
-    const artist = extractArtist(fb.songArtistTitle);
+    const { artist } = parseArtistTitle(fb.songArtistTitle);
+    if (!artist) continue;
 
     if (!artistGroups.has(artist)) {
       artistGroups.set(artist, { up: 0, down: 0 });
@@ -813,7 +814,6 @@ export async function getDiscoveryAnalyticsSummary(
 export {
   getDateRange,
   calculateTrend,
-  extractArtist,
   calculateConfidenceInterval,
   type DateRangePeriod,
   type TrendDirection,
