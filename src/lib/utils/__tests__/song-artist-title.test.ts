@@ -70,6 +70,68 @@ describe('parseArtistTitle', () => {
     });
   });
 
+  // The undouble branch is gated on a word boundary, not a bare `startsWith`.
+  // Without it, any artist whose name is a prefix of the title's FIRST WORD
+  // enters `parseRealArtistTitle`, which promotes the title's first segment to
+  // artist — "Muse" becomes "Museum Hours" and the real artist is gone, taking
+  // the library search with it. None of these shapes were in prod on
+  // 2026-09-02; short artist names make them a matter of time.
+  it.each([
+    ['Muse - Museum Hours - Live', 'Muse', 'Museum Hours - Live'],
+    ['Air - Airbag - Reissue', 'Air', 'Airbag - Reissue'],
+    ['Sia - Siamese Dream - Remaster', 'Sia', 'Siamese Dream - Remaster'],
+  ])('does not undouble %p, where the artist is only a sub-word prefix', (raw, artist, title) => {
+    expect(parseArtistTitle(raw)).toEqual({ artist, title });
+  });
+
+  it.each([
+    ['Low - Lowlife | Full Set', 'Low', 'Lowlife | Full Set'],
+    ['Kid - Kidnapped [Official Audio]', 'Kid', 'Kidnapped [Official Audio]'],
+  ])('leaves %p intact rather than stripping a MeTube suffix off a real title', (raw, artist, title) => {
+    // The pipe/bracket strips belong to `parseRealArtistTitle`. Reaching them on
+    // a sub-word prefix would edit a title that was never a MeTube rip.
+    expect(parseArtistTitle(raw)).toEqual({ artist, title });
+  });
+
+  // The boundary check must not cost us the collaboration shape, where the
+  // repeat is real and the extra credit belongs in the artist. Both of these are
+  // verbatim prod rows; a stricter `"${artist} - "` gate would drop them.
+  it('promotes the full credit on a collaboration repeat', () => {
+    expect(
+      parseArtistTitle('Wax Motif - Wax Motif & Taiki Nulight - Skank n Flex ft. Scrufizzer')
+    ).toEqual({
+      artist: 'Wax Motif & Taiki Nulight',
+      title: 'Skank n Flex ft. Scrufizzer',
+    });
+  });
+
+  it('promotes the full credit and strips the suffix together', () => {
+    expect(parseArtistTitle('BL3SS - BL3SS & Tchami - R 2 ME [Official Audio]')).toEqual({
+      artist: 'BL3SS & Tchami',
+      title: 'R 2 ME',
+    });
+  });
+
+  // Verbatim prod rows. `Conrad.` also pins the boundary check to the character
+  // AFTER the artist rather than to a word character at the artist's own end.
+  it.each([
+    ['zvle - zvle - 1MY', 'zvle', '1MY'],
+    ['kysa - kysa - four', 'kysa', 'four'],
+    ['Conrad. - Conrad. - told you so', 'Conrad.', 'told you so'],
+  ])('still undoubles the genuine repeat %p', (raw, artist, title) => {
+    expect(parseArtistTitle(raw)).toEqual({ artist, title });
+  });
+
+  it('takes the promoted artist casing from the title, not the prefix', () => {
+    // "Desren - DESREN - …": the artist comes back off the title segment. Every
+    // consumer that compares these lowercases both sides, so this is cosmetic —
+    // pinned so a future normalization change is a deliberate one.
+    expect(parseArtistTitle('Desren - DESREN - WHERE HAVE U GONE?')).toEqual({
+      artist: 'DESREN',
+      title: 'WHERE HAVE U GONE?',
+    });
+  });
+
   // Legacy rows: written by `${song.artist || 'Unknown'} - ...` before
   // formatArtistTitle existed. The sentinel must not survive as a value.
   it.each(['Unknown', 'unknown', 'Unknown Artist'])(

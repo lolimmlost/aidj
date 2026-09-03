@@ -77,6 +77,26 @@ export function formatArtistTitle(
 }
 
 /**
+ * True when `title` opens with the artist's name as a whole token rather than as
+ * a bare character prefix.
+ *
+ * `startsWith` on its own fires for any artist whose name is a prefix of the
+ * title's first word — "Muse" against "Museum Hours - Live" — and
+ * `parseRealArtistTitle` would then promote "Museum Hours" to artist, losing
+ * "Muse" and the library search that depends on it.
+ *
+ * Requiring a literal `"${artist} - "` is too strict in the other direction: it
+ * rejects the collaboration shape "Wax Motif - Wax Motif & Taiki Nulight - Skank
+ * n Flex", where the repeat is real and the extra credit belongs in the artist.
+ * Checking the boundary character keeps both cases right.
+ */
+function titleRepeatsArtist(artist: string, title: string): boolean {
+  if (!title.toLowerCase().startsWith(artist.toLowerCase())) return false;
+  const next = title.charAt(artist.length);
+  return next === '' || !/[\p{L}\p{N}]/u.test(next);
+}
+
+/**
  * The single reader. Split a cached `"Artist - Title"` into a usable pair.
  *
  * For a dead Navidrome id (file moved by Lidarr after a Picard retag) this
@@ -115,7 +135,7 @@ export function parseArtistTitle(cached: string | null | undefined): {
   // for an ordinary title that merely contains " - ": "Artist - Song - Live at
   // Wembley" would come back as artist "Song", losing the real artist and the
   // search with it.
-  if (artist && title.toLowerCase().startsWith(artist.toLowerCase())) {
+  if (artist && titleRepeatsArtist(artist, title)) {
     return parseRealArtistTitle(artist, title);
   }
   return { artist, title };
