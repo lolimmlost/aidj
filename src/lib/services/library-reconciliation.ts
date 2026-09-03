@@ -40,6 +40,11 @@ import type { LibraryReconciliationState } from '@/lib/db/schema';
 import { getNavidromeUserCreds } from './navidrome-users';
 import type { SubsonicCreds } from './navidrome-users';
 import { getConfig } from '@/lib/config/config';
+import {
+  formatArtistTitle,
+  parseArtistTitle,
+  parseRealArtistTitle,
+} from '@/lib/utils/song-artist-title';
 
 /**
  * Delay before the first run after (re)initialization. Kept short so a fresh
@@ -325,67 +330,6 @@ function isTitleMatch(a: string, b: string): boolean {
   return false;
 }
 
-// MeTube downloads often have "Channel Name" as the artist and
-// "Real Artist - Real Title [Official Audio]" as the title.
-function parseRealArtistTitle(artist: string, title: string): {
-  artist: string;
-  title: string;
-} {
-  const clean = title
-    .replace(/\s*\[Official (?:Audio|Video|Music Video)\]/gi, '')
-    .replace(/\s*\(Official (?:Audio|Video)\)/gi, '')
-    .replace(/\s*\(Lyrics?\)/gi, '')
-    .replace(/\s*\|.*$/g, '')
-    .trim();
-  const parts = clean.split(/\s+-\s+/);
-  if (parts.length >= 2) {
-    return { artist: parts[0].trim(), title: parts.slice(1).join(' - ').trim() };
-  }
-  return { artist, title: clean };
-}
-
-/**
- * Split a cached `"Artist - Title"` string — `playlist_songs.song_artist_title` or
- * `recommendation_feedback.song_artist_title` — into a searchable artist/title pair.
- *
- * This cached string is the ONLY metadata available for a dead Navidrome id: the
- * id no longer resolves via `getSong`, so there is nothing else to search the
- * library with. `playlist_songs` rows previously arrived here with empty
- * artist/title because the query never selected the column, which meant every
- * playlist-only dead id failed the "no artist+title to search with" guard and was
- * reported `notFound` without a single lookup being attempted.
- *
- * Returns EMPTY strings (not the literal `"Unknown"`) when nothing is usable —
- * that guard tests truthiness, so `"Unknown"` would send the library searching for
- * a song by an artist named Unknown instead of skipping the id.
- *
- * Delegates to `parseRealArtistTitle` because MeTube rips are cached doubled
- * ("Blair Muir - Blair Muir - Divine (Official Lyric Video)"): the raw video title
- * already leads with the artist, so a naive split leaves it stuck to the title.
- */
-export function splitArtistTitle(cached: string | null | undefined): {
-  artist: string;
-  title: string;
-} {
-  const raw = (cached || '').trim();
-  if (!raw) return { artist: '', title: '' };
-  const parts = raw.split(' - ');
-  if (parts.length < 2) return { artist: '', title: raw };
-
-  const artist = parts[0].trim();
-  const title = parts.slice(1).join(' - ').trim();
-
-  // Only undouble when the title genuinely REPEATS the artist. `parseRealArtistTitle`
-  // re-splits the title and promotes its first segment to artist, which is right for
-  // "Blair Muir - Blair Muir - Divine" but destructive for an ordinary title that
-  // merely contains " - ": "Artist - Song - Live at Wembley" would come back as
-  // artist "Song", losing the real artist and the search with it.
-  if (artist && title.toLowerCase().startsWith(artist.toLowerCase())) {
-    return parseRealArtistTitle(artist, title);
-  }
-  return { artist, title };
-}
-
 async function isStreamable(songId: string): Promise<boolean> {
   try {
     const streamUrl = buildSubsonicUrl('stream');
@@ -470,7 +414,7 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
     if (existing) {
       existing.sources.add('recommendation_feedback');
     } else {
-      const { artist, title } = splitArtistTitle(row.songArtistTitle);
+      const { artist, title } = parseArtistTitle(row.songArtistTitle);
       idMeta.set(row.songId, { artist, title, sources: new Set(['recommendation_feedback']) });
     }
   }
@@ -482,7 +426,7 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
       // A feedback row may have registered this id first with empty metadata
       // (its own songArtistTitle was null); fill it in if the playlist row has it.
       if (!existing.artist && !existing.title) {
-        const { artist, title } = splitArtistTitle(row.songArtistTitle);
+        const { artist, title } = parseArtistTitle(row.songArtistTitle);
         existing.artist = artist;
         existing.title = title;
       }
@@ -492,7 +436,7 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
       // "no artist+title to search with" guard below, so it was recorded as
       // notFound without a single library lookup ever being attempted — which is
       // why a real prod run reported 7 deadIds / 7 notFound / 0 remapped.
-      const { artist, title } = splitArtistTitle(row.songArtistTitle);
+      const { artist, title } = parseArtistTitle(row.songArtistTitle);
       idMeta.set(row.songId, {
         artist,
         title,
@@ -808,7 +752,7 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
           .update(recommendationFeedback)
           .set({
             songId: match.id,
-            songArtistTitle: `${match.artist} - ${match.title}`,
+            songArtistTitle: formatArtistTitle(match.artist, match.title),
           })
           .where(
             and(
