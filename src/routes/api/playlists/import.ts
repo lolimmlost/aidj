@@ -4,6 +4,7 @@ import { db } from '../../../lib/db';
 import { userPlaylists, playlistSongs } from '../../../lib/db/schema/playlists.schema';
 import { playlistImportJobs } from '../../../lib/db/schema/playlist-export.schema';
 import { eq, and } from 'drizzle-orm';
+import { formatArtistTitle } from '../../../lib/utils/song-artist-title';
 import {
   withAuthAndErrorHandling,
   successResponse,
@@ -291,7 +292,7 @@ async function processMatchingInBackground(
               id: crypto.randomUUID(),
               playlistId: newPlaylist.id,
               songId,
-              songArtistTitle: `${result.originalSong.artist} - ${result.originalSong.title}`,
+              songArtistTitle: formatArtistTitle(result.originalSong.artist, result.originalSong.title),
               position: songsToAdd.length,
               addedAt: new Date(),
             });
@@ -616,7 +617,7 @@ const PUT = withAuthAndErrorHandling(
             id: crypto.randomUUID(),
             playlistId,
             songId,
-            songArtistTitle: `${result.originalSong.artist} - ${result.originalSong.title}`,
+            songArtistTitle: formatArtistTitle(result.originalSong.artist, result.originalSong.title),
             position: startPosition + songsToAdd.length,
             addedAt: new Date(),
           });

@@ -20,24 +20,29 @@
 // Artist/Title Extraction
 // ============================================================================
 
+import { parseArtistTitle } from './song-artist-title';
+
 /**
- * Extract artist name from "Artist - Title" format
+ * Extract artist name from "Artist - Title" format.
  * @param songArtistTitle - Combined string in "Artist - Title" format
- * @returns Artist name, or original string if no separator found
+ * @returns Artist name, or the original string if no separator found
  */
 export function extractArtist(songArtistTitle: string): string {
-  const parts = songArtistTitle.split(' - ');
-  return parts[0]?.trim() || songArtistTitle;
+  // Fall back to the raw string (legacy contract) when there is no artist segment.
+  return parseArtistTitle(songArtistTitle).artist || songArtistTitle;
 }
 
 /**
- * Extract song title from "Artist - Title" format
+ * Extract song title from "Artist - Title" format.
+ *
+ * Delegates to the canonical parser so a title containing " - " ("Song - Live at
+ * Wembley") is kept whole and the MeTube doubled shape is undoubled — the old
+ * `parts[1]` truncated both, charting the artist in the title slot (#219).
  * @param songArtistTitle - Combined string in "Artist - Title" format
  * @returns Song title, or empty string if no separator found
  */
 export function extractTitle(songArtistTitle: string): string {
-  const parts = songArtistTitle.split(' - ');
-  return parts[1]?.trim() || '';
+  return parseArtistTitle(songArtistTitle).title;
 }
 
 // ============================================================================

@@ -34,6 +34,7 @@ import { Radio } from 'lucide-react';
 import { PageLayout } from '@/components/ui/page-layout';
 import { useAudioStore } from '@/lib/stores/audio';
 import { cn } from '@/lib/utils';
+import { parseArtistTitle } from '@/lib/utils/song-artist-title';
 import { CollaborativePlaylistPanel } from '@/components/playlists/collaboration';
 import { StartRadioButton } from '@/components/radio/StartRadioButton';
 import {
@@ -122,11 +123,9 @@ const SORT_OPTIONS: Array<{ value: SortField; label: string }> = [
 ];
 
 function extractArtistTitle(songArtistTitle: string): [string, string] {
-  if (songArtistTitle.includes(' - ')) {
-    const parts = songArtistTitle.split(' - ');
-    return [parts[0], parts.slice(1).join(' - ')];
-  }
-  return ['Unknown Artist', songArtistTitle];
+  const { artist, title } = parseArtistTitle(songArtistTitle);
+  // 'Unknown Artist' is the display fallback here (a bare title has no artist).
+  return [artist || 'Unknown Artist', title];
 }
 
 function getSortValue(song: PlaylistSong, field: SortField): string | number {

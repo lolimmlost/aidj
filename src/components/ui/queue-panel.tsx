@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 import { queryKeys } from '@/lib/query';
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   DndContext,
@@ -401,7 +402,7 @@ export function QueuePanel() {
         credentials: 'include',
         body: JSON.stringify({
           songId,
-          songArtistTitle: `${artist} - ${songTitle}`,
+          songArtistTitle: formatArtistTitle(artist, songTitle),
           feedbackType,
           source, // Track that this came from AI DJ queue or Autoplay
         }),

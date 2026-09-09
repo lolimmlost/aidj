@@ -6,6 +6,7 @@
 import { db } from '../db';
 import { recommendationFeedback } from '../db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { parseArtistTitle } from '../utils/song-artist-title';
 
 export interface UserPreferenceProfile {
   userId: string;
@@ -46,11 +47,11 @@ const preferenceCache = new Map<string, CachedProfile>();
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 /**
- * Extract artist name from "Artist - Title" format
+ * Extract artist name from "Artist - Title" format.
+ * Falls back to the raw string (legacy contract) when there is no artist segment.
  */
 function extractArtist(songArtistTitle: string): string {
-  const parts = songArtistTitle.split(' - ');
-  return parts[0]?.trim() || songArtistTitle;
+  return parseArtistTitle(songArtistTitle).artist || songArtistTitle;
 }
 
 /**
