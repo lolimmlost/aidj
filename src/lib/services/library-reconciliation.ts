@@ -40,6 +40,11 @@ import type { LibraryReconciliationState } from '@/lib/db/schema';
 import { getNavidromeUserCreds } from './navidrome-users';
 import type { SubsonicCreds } from './navidrome-users';
 import { getConfig } from '@/lib/config/config';
+import {
+  parseArtistTitle,
+  parseRealArtistTitle,
+  formatArtistTitle,
+} from '@/lib/utils/song-artist-title';
 
 /**
  * Delay before the first run after (re)initialization. Kept short so a fresh
@@ -325,25 +330,6 @@ function isTitleMatch(a: string, b: string): boolean {
   return false;
 }
 
-// MeTube downloads often have "Channel Name" as the artist and
-// "Real Artist - Real Title [Official Audio]" as the title.
-function parseRealArtistTitle(artist: string, title: string): {
-  artist: string;
-  title: string;
-} {
-  const clean = title
-    .replace(/\s*\[Official (?:Audio|Video|Music Video)\]/gi, '')
-    .replace(/\s*\(Official (?:Audio|Video)\)/gi, '')
-    .replace(/\s*\(Lyrics?\)/gi, '')
-    .replace(/\s*\|.*$/g, '')
-    .trim();
-  const parts = clean.split(/\s+-\s+/);
-  if (parts.length >= 2) {
-    return { artist: parts[0].trim(), title: parts.slice(1).join(' - ').trim() };
-  }
-  return { artist, title: clean };
-}
-
 async function isStreamable(songId: string): Promise<boolean> {
   try {
     const streamUrl = buildSubsonicUrl('stream');
@@ -423,10 +409,13 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
     if (existing) {
       existing.sources.add('recommendation_feedback');
     } else {
-      const parts = (row.songArtistTitle || '').split(' - ');
+      // Empty (not "Unknown") when unusable — the `!meta.artist && !meta.title`
+      // guard below tests truthiness, and "Unknown" would search for a song by an
+      // artist named Unknown instead of skipping the id.
+      const { artist, title } = parseArtistTitle(row.songArtistTitle);
       idMeta.set(row.songId, {
-        artist: parts[0] || 'Unknown',
-        title: parts.slice(1).join(' - ') || 'Unknown',
+        artist,
+        title,
         sources: new Set(['recommendation_feedback']),
       });
     }
@@ -752,7 +741,7 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
           .update(recommendationFeedback)
           .set({
             songId: match.id,
-            songArtistTitle: `${match.artist} - ${match.title}`,
+            songArtistTitle: formatArtistTitle(match.artist, match.title),
           })
           .where(
             and(

@@ -4,6 +4,7 @@ import { userPreferences } from '@/lib/db/schema/preferences.schema';
 import { artistAffinities } from '@/lib/db/schema/profile.schema';
 import { recommendationFeedback } from '@/lib/db/schema/recommendations.schema';
 import { eq, sql } from 'drizzle-orm';
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 
 import {
   getArtistDetail,
@@ -104,7 +105,7 @@ const POST = withAuthAndErrorHandling(
         artistCount++;
 
         for (const song of topSongs) {
-          const songArtistTitle = `${song.artist || artistName} - ${song.title || song.name}`;
+          const songArtistTitle = formatArtistTitle(song.artist || artistName, song.title || song.name);
           await tx
             .insert(recommendationFeedback)
             .values({

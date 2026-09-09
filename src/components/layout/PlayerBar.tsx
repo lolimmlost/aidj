@@ -28,6 +28,7 @@ import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 import { queryKeys } from '@/lib/query';
 import { usePlaybackSync, sendRemoteCommand } from '@/lib/hooks/usePlaybackSync';
 import { ResumePlaybackPrompt } from './ResumePlaybackPrompt';
@@ -412,7 +413,7 @@ export function PlayerBar() {
 
       const payload = {
         songId: currentSong.id,
-        songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
+        songArtistTitle: formatArtistTitle(currentSong.artist || 'Unknown', currentSong.title || currentSong.name),
         feedbackType: liked ? 'thumbs_up' : 'thumbs_down',
         source: 'library',
       };
