@@ -51,7 +51,12 @@ export function useMediaSession({
   // Debounce mechanism for Bluetooth disconnect/reconnect rapid events
   const DEBOUNCE_MS = 300;
   const COOLDOWN_MS = 500;
-  const GLITCH_WINDOW_MS = 2000;
+  // An OS audio interruption (call, app-switch, Bluetooth blip) emits a spurious
+  // play→pause pair via Media Session; the pause lands ~2s after the play, right at
+  // the old 2000ms edge, so it slipped through and was cemented as a user pause —
+  // killing an otherwise-recoverable session (#176). Widened to give margin over
+  // that ~2s bounce while staying below any plausible real play-then-pause gesture.
+  const GLITCH_WINDOW_MS = 3500;
 
   const executeMediaAction = useCallback((action: 'play' | 'pause') => {
     const activeDeck = getActiveDeck();
