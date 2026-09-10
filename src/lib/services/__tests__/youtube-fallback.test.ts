@@ -140,6 +140,107 @@ describe('verifyDownload', () => {
     expect(v.matched).toBe(false);
     expect(v.score).toBe(0);
   });
+
+  it('accepts an exact cross-script title match with no artist field at all (#206 regression)', () => {
+    // Real #206 miss: "UBEL - Нормальная музыка" resolved to a YouTube upload
+    // titled just "Нормальная музыка (Single Version)" — no "Artist - Title"
+    // separator, and a Latin artist name can never token-overlap a Cyrillic
+    // title. The artist check must not veto a title that matches exactly.
+    const v = verifyDownload(
+      { artist: 'UBEL', title: 'Нормальная музыка' },
+      { title: 'Нормальная музыка (Single Version)' }
+    );
+    expect(v.matched).toBe(true);
+  });
+
+  it('still rejects an unrelated video with no artist field (no free pass on a weak title)', () => {
+    const v = verifyDownload(
+      { artist: 'UBEL', title: 'Нормальная музыка' },
+      { title: 'Совершенно другая песня' }
+    );
+    expect(v.matched).toBe(false);
+  });
+
+  it('requires an EXACT (not just high-overlap) title match when there is no artist field', () => {
+    // Partial title overlap with no artist signal at all is too weak to accept —
+    // unlike the dash-separated path, there's nothing else corroborating it.
+    const v = verifyDownload(
+      { artist: 'UBEL', title: 'Нормальная музыка целиком' },
+      { title: 'Нормальная музыка' }
+    );
+    expect(v.matched).toBe(false);
+  });
+
+  // The artist-less escape hatch must key off the title being EXACTLY ours — not
+  // off the absence of a spaced "-–—:|" separator. YouTube asserts the artist with
+  // all sorts of other punctuation, or with none at all, and every one of those is
+  // a contradicting artist claim that still has to be checked (#145 regression).
+  it.each([
+    'Little Mix • Touch',
+    'Little Mix / Touch',
+    'Little Mix ~ Touch',
+    'Little Mix Touch',
+    'Little Mix "Touch" (Official Video)',
+  ])('rejects a wrong artist asserted without a dash separator: %s', (resolved) => {
+    const v = verifyDownload({ artist: 'Nick Howe', title: 'Touch' }, { title: resolved });
+    expect(v.matched).toBe(false);
+  });
+
+  it('rejects the #145 Phil Collins case when the separator is a bullet, not a dash', () => {
+    const v = verifyDownload(
+      { artist: 'Phil Odd', title: 'ur lovin' },
+      { title: "Phil Collins • Some Of Your Lovin' (Official Audio)" }
+    );
+    expect(v.matched).toBe(false);
+  });
+
+  it('rejects a compilation title that merely CONTAINS the wanted title', () => {
+    // `got.includes(wantTitle)` scores 1, so containment is not "exact" — a mix
+    // upload would otherwise pass with the artist never checked at all.
+    const v = verifyDownload(
+      { artist: 'Britney Spears', title: 'Toxic' },
+      { title: 'Top 100 Pop Hits Toxic Umbrella Believe' }
+    );
+    expect(v.matched).toBe(false);
+  });
+
+  // The bare-title escape hatch must ALSO require that the artist is unverifiable
+  // across scripts, not merely absent from the title. `normalizeForCompare` drops
+  // bracketed qualifiers and the words official/music/video/audio/lyrics/hd/4k, so
+  // every one of these collapses to exactly "touch" — the most common YouTube
+  // title shape there is. Accepting them on the title alone is the #145 hole, and
+  // worse than a plain false accept: a `matched` result is KEPT rather than
+  // deleted, so the wrong rip lands in the library on the next Picard pass.
+  it.each([
+    'Touch (Official Video)',
+    'Touch - Official Music Video',
+    'Touch [Official Audio]',
+    'Touch (Lyrics)',
+    'Touch',
+  ])('rejects a same-script bare title by the wrong artist: %s', (resolved) => {
+    const v = verifyDownload({ artist: 'Nick Howe', title: 'Touch' }, { title: resolved });
+    expect(v.matched).toBe(false);
+  });
+
+  it('still accepts a same-script bare title when the artist IS corroborated', () => {
+    // Sanity check that the script gate didn't cost us the ordinary good case:
+    // the artist is present in the title, so the strict path passes on its own.
+    const v = verifyDownload(
+      { artist: 'Little Mix', title: 'Touch' },
+      { title: 'Little Mix - Touch (Official Video)' }
+    );
+    expect(v.matched).toBe(true);
+  });
+
+  it('does not take the cross-script hatch when the title mixes in the artist script', () => {
+    // A Latin artist name CAN appear in a title that carries Latin tokens, so the
+    // artist is verifiable and must actually be verified.
+    const v = verifyDownload(
+      { artist: 'UBEL', title: 'Нормальная музыка' },
+      { title: 'Нормальная музыка feat Someone Else' }
+    );
+    expect(v.matched).toBe(false);
+  });
 });
 
 describe('itemLikelyMatchesTrack (detection)', () => {
@@ -183,6 +284,42 @@ describe('itemLikelyMatchesTrack (detection)', () => {
 
   it('returns false with no title or filename', () => {
     expect(itemLikelyMatchesTrack({ artist: 'A', title: 'B' }, {})).toBe(false);
+  });
+
+  it('detects an exact cross-script title match with no artist field (#206 regression)', () => {
+    expect(
+      itemLikelyMatchesTrack(
+        { artist: 'UBEL', title: 'Нормальная музыка' },
+        { title: 'Нормальная музыка (Single Version)' }
+      )
+    ).toBe(true);
+  });
+
+  it('does not detect a merely-similar title with no artist field to corroborate', () => {
+    expect(
+      itemLikelyMatchesTrack(
+        { artist: 'UBEL', title: 'Нормальная музыка целиком' },
+        { title: 'Нормальная музыка' }
+      )
+    ).toBe(false);
+  });
+
+  // Detection must not take the artist-less shortcut for a title that asserts a
+  // (wrong) artist without a dash separator — otherwise a worker claims, and under
+  // concurrency steals, another track's item. See the verifyDownload cases above.
+  it('does not detect a wrong artist asserted without a dash separator', () => {
+    expect(
+      itemLikelyMatchesTrack({ artist: 'Nick Howe', title: 'Touch' }, { title: 'Little Mix • Touch' })
+    ).toBe(false);
+  });
+
+  // Detection takes the same hatch as verification, so it needs the same script
+  // gate — otherwise a worker claims another track's item on a bare same-script
+  // title, and under concurrency that item is stolen for good.
+  it('does not detect a same-script bare title by the wrong artist', () => {
+    expect(
+      itemLikelyMatchesTrack({ artist: 'Nick Howe', title: 'Touch' }, { title: 'Touch (Official Video)' })
+    ).toBe(false);
   });
 });
 
@@ -393,6 +530,142 @@ describe('batch runner attribution + retry policy', () => {
     expect(finished?.results[0].metubeId).toBe('vid1');
     expect(finished?.results[1].status).toBe('failed');
     expect(finished?.results[1].metubeId).toBeUndefined();
+  });
+
+  // Concurrency (#132/#207): with DEFAULT_CONCURRENCY workers all racing on the
+  // same shared claimedIds Set, exactly one of three identical tracks may claim
+  // the one available item — claiming happens synchronously at detection time
+  // inside queueAndAwaitDownload, so two concurrent workers can't both grab it.
+  it('lets exactly one of three CONCURRENT identical tracks claim the one available item', async () => {
+    const track = { artist: 'Cloonee', title: 'Good Girl' };
+    const job = startYouTubeFallbackJob('user-1', [track, { ...track }, { ...track }], {
+      skipInLibrary: false,
+    });
+
+    expect(job.concurrency).toBeGreaterThan(1); // this test only proves anything if they overlap
+
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    expect(finished?.status).toBe('completed');
+    const statuses = finished!.results.map((r) => r.status).sort();
+    expect(statuses).toEqual(['downloaded', 'failed', 'failed']);
+    expect(finished!.results.filter((r) => r.metubeId === 'vid1')).toHaveLength(1);
+  });
+
+  // MeTube keys entries by resolved video id, so re-queuing the same `ytsearch1:`
+  // query re-creates the entry under the SAME id. If the id claimed when the error
+  // was detected is not released after the entry is deleted, `matches()` goes blind
+  // to our own retry: it polls out the full DOWNLOAD_TIMEOUT_MS and reports a false
+  // `failed` while the successfully-downloaded file is orphaned in MeTube's folder,
+  // defeating `maxAttempts` entirely.
+  it('retries a confirmed error and accepts the re-queued download under the SAME id', async () => {
+    const erroredItem = {
+      id: 'vid1',
+      title: 'Cloonee - Good Girl',
+      url: 'ytsearch1:Cloonee Good Girl',
+      status: 'error' as const,
+      msg: 'HTTP Error 403: Forbidden',
+      filename: 'Cloonee - Good Girl.mp3',
+    };
+    // 1 = attempt-1 "before" snapshot (empty, so the error isn't treated as stale)
+    // 2 = attempt-1 poll (errored) → deleted + retried
+    // 3 = attempt-2 "before" snapshot (empty again), 4+ = attempt-2 poll (finished)
+    let call = 0;
+    (metube.getQueue as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      call++;
+      if (call === 2) return { done: { vid1: erroredItem }, queue: {} };
+      if (call >= 4) return { done: { vid1: finishedItem }, queue: {} };
+      return { done: {}, queue: {} };
+    });
+
+    const job = startYouTubeFallbackJob('user-1', [{ artist: 'Cloonee', title: 'Good Girl' }], {
+      skipInLibrary: false,
+    });
+
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    expect(finished?.results[0].status).toBe('downloaded');
+    expect(finished?.results[0].attempts).toBe(2);
+    expect(finished?.results[0].metubeId).toBe('vid1');
+  });
+
+  // #211: an unexpected throw inside processTrack must not take the batch down with
+  // it. Under Promise.all it rejected out of runJob, so the job flipped to `failed`
+  // while the other N-1 workers kept running detached — mutating results, queueing
+  // downloads and deleting MeTube entries for a job the API already reported dead.
+  it('contains an unexpected throw to the one track and still completes the batch', async () => {
+    const siblingItem = {
+      id: 'vid2',
+      title: 'Sun Room - Insincere',
+      url: 'ytsearch1:Sun Room Insincere',
+      status: 'finished' as const,
+      filename: 'Sun Room - Insincere.mp3',
+    };
+    let call = 0;
+    (metube.getQueue as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      call++;
+      // The first worker to poll hits an unguarded property access that throws —
+      // standing in for any future unguarded await on this path.
+      if (call === 1) {
+        return {
+          get done(): Record<string, never> {
+            throw new Error('kaboom');
+          },
+          queue: {},
+        };
+      }
+      return { done: { vid1: finishedItem, vid2: siblingItem }, queue: {} };
+    });
+
+    const job = startYouTubeFallbackJob(
+      'user-1',
+      [
+        { artist: 'Cloonee', title: 'Good Girl' },
+        { artist: 'Sun Room', title: 'Insincere' },
+      ],
+      { skipInLibrary: false }
+    );
+
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    // The job itself reports completed, not failed.
+    expect(finished?.status).toBe('completed');
+    // Only the track that threw is marked failed, and it carries the reason.
+    expect(finished?.results[0].status).toBe('failed');
+    expect(finished?.results[0].error).toContain('kaboom');
+    // Its sibling was neither abandoned nor left mid-flight.
+    expect(finished?.results[1].status).toBe('downloaded');
+  });
+
+  // #211 invariant (not a regression test — this passes with or without the fix,
+  // because processTrack already reaches a terminal status on every path today).
+  // It pins the property the reconcile pass in runJob exists to guarantee: once a
+  // job reports `completed`, no entry may still read `pending`/`searching`, or the
+  // summary is simply lying about what happened.
+  it('leaves no track in a non-terminal state after the job completes', async () => {
+    (metube.getQueue as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      throw new Error('MeTube unreachable');
+    });
+
+    const job = startYouTubeFallbackJob(
+      'user-1',
+      [
+        { artist: 'Cloonee', title: 'Good Girl' },
+        { artist: 'Sun Room', title: 'Insincere' },
+      ],
+      { skipInLibrary: false }
+    );
+
+    await vi.runAllTimersAsync();
+
+    const finished = getYouTubeFallbackJob(job.id, 'user-1');
+    expect(finished?.status).toBe('completed');
+    const summary = summarizeJob(finished!);
+    expect(summary.pending).toBe(0);
+    expect(summary.searching).toBe(0);
   });
 
   // #3: a bare timeout (nothing matching ever appeared) must NOT be retried — the
