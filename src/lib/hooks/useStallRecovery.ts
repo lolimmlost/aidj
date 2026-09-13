@@ -39,6 +39,13 @@ export function useStallRecovery({
   const lastProgressValueRef = useRef<number>(0);
   const stallWatchdogIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Reactive so the watchdog effect below re-runs when playback starts. Reading
+  // this via getState() (and omitting it from the effect deps) left the watchdog
+  // starting only on an incidental remount, not when the user pressed play — the
+  // deps fix was collateral damage from the #170 revert, unrelated to the
+  // audio-session-stealing frozen-clock probe that revert actually targeted.
+  const isPlaying = useAudioStore((s) => s.isPlaying);
+
   // Helper to play with timeout - iOS play() can hang
   const playWithTimeout = useCallback(async (audio: HTMLAudioElement, timeoutMs: number = 3000): Promise<void> => {
     const playPromise = audio.play();
@@ -154,8 +161,6 @@ export function useStallRecovery({
 
   // Stall watchdog effect - monitors playback progress
   useEffect(() => {
-    const isPlaying = useAudioStore.getState().isPlaying;
-
     const STALL_THRESHOLD_MS = 5000; // 5 seconds no progress = stall
     const CHECK_INTERVAL_MS = 2000;  // Check every 2 seconds
     const MIN_PROGRESS_DELTA = 0.5;  // Minimum progress to consider "advancing"
@@ -249,7 +254,7 @@ export function useStallRecovery({
         console.log('🐕 [WATCHDOG] Stopped stall watchdog');
       }
     };
-  }, [getActiveDeck, crossfadeInProgressRef, attemptStallRecovery]);
+  }, [isPlaying, getActiveDeck, crossfadeInProgressRef, attemptStallRecovery]);
 
   return {
     recoveryAttemptRef,

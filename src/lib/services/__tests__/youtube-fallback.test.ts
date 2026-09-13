@@ -568,14 +568,15 @@ describe('batch runner attribution + retry policy', () => {
       msg: 'HTTP Error 403: Forbidden',
       filename: 'Cloonee - Good Girl.mp3',
     };
-    // 1 = attempt-1 "before" snapshot (empty, so the error isn't treated as stale)
-    // 2 = attempt-1 poll (errored) → deleted + retried
-    // 3 = attempt-2 "before" snapshot (empty again), 4+ = attempt-2 poll (finished)
+    // 1 = job-level pre-existing snapshot in runJob (empty → nothing pre-existing)
+    // 2 = attempt-1 "before" snapshot (empty, so the error isn't treated as stale)
+    // 3 = attempt-1 poll (errored) → deleted + retried
+    // 4 = attempt-2 "before" snapshot (empty again), 5+ = attempt-2 poll (finished)
     let call = 0;
     (metube.getQueue as ReturnType<typeof vi.fn>).mockImplementation(async () => {
       call++;
-      if (call === 2) return { done: { vid1: erroredItem }, queue: {} };
-      if (call >= 4) return { done: { vid1: finishedItem }, queue: {} };
+      if (call === 3) return { done: { vid1: erroredItem }, queue: {} };
+      if (call >= 5) return { done: { vid1: finishedItem }, queue: {} };
       return { done: {}, queue: {} };
     });
 
@@ -606,9 +607,11 @@ describe('batch runner attribution + retry policy', () => {
     let call = 0;
     (metube.getQueue as ReturnType<typeof vi.fn>).mockImplementation(async () => {
       call++;
-      // The first worker to poll hits an unguarded property access that throws —
+      // 1 = job-level pre-existing snapshot in runJob (guarded there — must not throw).
+      if (call === 1) return { done: {}, queue: {} };
+      // 2 = the first worker's pre-add snapshot: an unguarded `.done` access throws,
       // standing in for any future unguarded await on this path.
-      if (call === 1) {
+      if (call === 2) {
         return {
           get done(): Record<string, never> {
             throw new Error('kaboom');

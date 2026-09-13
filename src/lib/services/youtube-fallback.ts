@@ -3,7 +3,8 @@
  *
  * When a playlist-import "miss" can't be resolved through Lidarr (commonly the
  * "artist has 0 albums" dead-end — see issue #144), we can still fetch the track
- * straight from YouTube via MeTube, **one song at a time**, using yt-dlp's
+ * straight from YouTube via MeTube — a few tracks at a time via a small worker
+ * pool (see `runJob`) — using yt-dlp's
  * `ytsearch1:` search syntax (no YouTube API key / OAuth required). Each download
  * is verified against the requested artist/title so obvious wrong-video / live /
  * channel-rip results are flagged instead of silently polluting the library.
@@ -404,7 +405,13 @@ async function queueAndAwaitDownload(
   track: FallbackTrack,
   query: string,
   folder: string | undefined,
-  claimedIds: Set<string>
+  claimedIds: Set<string>,
+  // Ids finished/errored in MeTube BEFORE this whole job started (snapshot taken
+  // once in runJob). Only these count as "pre-existing on disk". A per-worker
+  // `before` snapshot races siblings — it can capture a sibling's just-finished
+  // in-job download and wrongly tag it pre-existing. See runJob and the preFinished
+  // handling below.
+  preExistingDoneIds: Set<string>
 ): Promise<DownloadOutcome> {
   let before: metube.MeTubeQueueResponse;
   try {
@@ -426,8 +433,15 @@ async function queueAndAwaitDownload(
       .filter((d) => d.status === 'error' && matches(d))
       .map((d) => d.id)
   );
+  // A finished match counts as pre-existing ONLY if it was already done before the
+  // job started. A match that finished DURING the job is a fresh download (possibly
+  // a sibling worker's) — do NOT short-circuit on it here: falling through to
+  // add+poll lets each worker own the download it actually queued, and `matches()`
+  // already excludes ids claimed by siblings. Tagging such an item `preExisting`
+  // (the old per-worker-snapshot behavior) suppressed the mismatch-deletion path and
+  // left wrong-track rips in the library (#164 regression).
   const preFinished = Object.values(before.done).find(
-    (d) => d.status === 'finished' && matches(d)
+    (d) => d.status === 'finished' && preExistingDoneIds.has(d.id) && matches(d)
   );
   if (preFinished) {
     claimedIds.add(preFinished.id); // claim now — see the function-level note
@@ -674,11 +688,12 @@ async function queueWithRetries(
   folder: string | undefined,
   maxAttempts: number,
   label: string,
-  claimedIds: Set<string>
+  claimedIds: Set<string>,
+  preExistingDoneIds: Set<string>
 ): Promise<DownloadOutcome & { attempts: number }> {
   let outcome: DownloadOutcome = {};
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    outcome = await queueAndAwaitDownload(track, query, folder, claimedIds);
+    outcome = await queueAndAwaitDownload(track, query, folder, claimedIds, preExistingDoneIds);
 
     // Anything but a confirmed error is terminal — success, mismatch-to-verify,
     // still-downloading, or a bare timeout all stop here (see docstring).
@@ -687,14 +702,16 @@ async function queueWithRetries(
     }
 
     // Confirmed error — clean up the failed entry and retry.
-    await deleteMeTubeItem(outcome.item, outcome.metubeId);
-    // Release the claim taken when the error was detected. MeTube keys entries by
-    // resolved video id, so re-queuing the same `ytsearch1:` query re-creates the
-    // entry under the SAME id; leaving it claimed makes `matches()` blind to our
-    // own retry, which then polls out the full DOWNLOAD_TIMEOUT_MS and reports a
-    // false `failed` while the file sits orphaned in MeTube's folder. Safe to
-    // release: the entry is deleted, so no concurrent worker can see it either.
-    if (outcome.metubeId) claimedIds.delete(outcome.metubeId);
+    const deleted = await deleteMeTubeItem(outcome.item, outcome.metubeId);
+    // Release the claim taken when the error was detected — but ONLY if the delete
+    // actually succeeded. MeTube keys entries by resolved video id, so re-queuing the
+    // same `ytsearch1:` query re-creates the entry under the SAME id; releasing lets
+    // `matches()` re-detect our own retry (otherwise it polls out the full
+    // DOWNLOAD_TIMEOUT_MS and reports a false `failed`). But `deleteMeTubeItem` is
+    // best-effort and returns false on failure: releasing then would leave the errored
+    // entry BOTH present in MeTube and unclaimed, so a concurrent worker whose track
+    // loosely matches could grab it and churn. Keep it claimed in that case.
+    if (deleted && outcome.metubeId) claimedIds.delete(outcome.metubeId);
 
     if (attempt < maxAttempts) {
       console.warn(
@@ -723,7 +740,7 @@ function pruneOldJobs() {
 }
 
 /** Process one track (search, download, verify) and mutate `job.results[i]` in place. */
-async function processTrack(job: FallbackJob, i: number, claimedIds: Set<string>): Promise<void> {
+async function processTrack(job: FallbackJob, i: number, claimedIds: Set<string>, preExistingDoneIds: Set<string>): Promise<void> {
   const entry = job.results[i];
   entry.status = 'searching';
   entry.startedAt = Date.now();
@@ -755,7 +772,7 @@ async function processTrack(job: FallbackJob, i: number, claimedIds: Set<string>
 
   console.log(`[YouTubeFallback] (${i + 1}/${job.results.length}) searching: ${entry.query}`);
 
-  const outcome = await queueWithRetries(entry.track, entry.query, job.folder, job.maxAttempts, label, claimedIds);
+  const outcome = await queueWithRetries(entry.track, entry.query, job.folder, job.maxAttempts, label, claimedIds, preExistingDoneIds);
   entry.metubeId = outcome.metubeId;
   entry.attempts = outcome.attempts;
   entry.finishedAt = Date.now();
@@ -827,6 +844,21 @@ async function runJob(job: FallbackJob): Promise<void> {
   // Claimed inside queueAndAwaitDownload, at detection time, so concurrent
   // workers can't both attribute the same item before either claims it.
   const claimedIds = new Set<string>();
+
+  // Snapshot the ids already finished/errored in MeTube BEFORE any worker runs. Only
+  // these count as "pre-existing on disk" (never deleted on failed verification). A
+  // per-worker snapshot inside queueAndAwaitDownload raced siblings and could tag a
+  // sibling's fresh in-job download `preExisting`, suppressing mismatch-deletion and
+  // leaving a wrong-track file in the library (#164 regression). Best-effort: on a
+  // read failure, treat nothing as pre-existing (safer — a real pre-existing file at
+  // worst gets re-downloaded, vs. a wrong rip being left behind).
+  let preExistingDoneIds: Set<string>;
+  try {
+    preExistingDoneIds = new Set(Object.values((await metube.getQueue()).done).map((d) => d.id));
+  } catch {
+    preExistingDoneIds = new Set();
+  }
+
   let nextIndex = 0;
 
   const worker = async () => {
@@ -837,7 +869,7 @@ async function runJob(job: FallbackJob): Promise<void> {
       // NOT "tracks completed"; summarizeJob(job) has the accurate counts.
       job.currentIndex = Math.max(job.currentIndex, i);
       try {
-        await processTrack(job, i, claimedIds);
+        await processTrack(job, i, claimedIds, preExistingDoneIds);
       } catch (err) {
         // Contain an unexpected throw to the one track that caused it (#211).
         // Every await inside processTrack is already individually guarded, so
@@ -914,7 +946,8 @@ export function summarizeJob(job: FallbackJob): {
 
 /**
  * Create and start a fallback job. Returns immediately with the job id; the
- * batch runs one track at a time in the background. Throws on empty/oversized input.
+ * batch runs in the background with up to `job.concurrency` tracks in flight (a
+ * fixed-size worker pool; see `runJob`). Throws on empty/oversized input.
  */
 export function startYouTubeFallbackJob(
   userId: string,
