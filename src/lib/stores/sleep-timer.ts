@@ -42,20 +42,24 @@ export const useSleepTimer = create<SleepTimerState>()(
       durationMs: null,
       lastPresetMs: DEFAULT_PRESET_MS,
 
-      armDuration: (ms) =>
+      armDuration: (ms) => {
+        console.log(`😴 [SLEEP] armed duration timer: ${Math.round(ms / 60000)}min (expires in ${Math.round(ms / 1000)}s)`);
         set({
           mode: 'duration',
           durationMs: ms,
           expiresAt: Date.now() + ms,
           lastPresetMs: ms,
-        }),
+        });
+      },
 
-      armEndOfTrack: (remainingMs) =>
+      armEndOfTrack: (remainingMs) => {
+        console.log(`😴 [SLEEP] armed end-of-track timer: ${Math.round(Math.max(0, remainingMs) / 1000)}s remaining`);
         set({
           mode: 'end-of-track',
           durationMs: Math.max(0, remainingMs),
           expiresAt: Date.now() + Math.max(0, remainingMs),
-        }),
+        });
+      },
 
       clear: () => set({ mode: 'off', expiresAt: null, durationMs: null }),
     }),

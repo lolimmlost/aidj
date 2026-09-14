@@ -591,7 +591,11 @@ export function PlayerBar() {
     if (sleepExpiresAt == null) return;
     const check = () => {
       if (Date.now() < sleepExpiresAt) return;
-      if (useAudioStore.getState().isPlaying) togglePlayPause();
+      const wasPlaying = useAudioStore.getState().isPlaying;
+      console.log(
+        `😴 [SLEEP] timer expired (mode=${useSleepTimer.getState().mode}) — ${wasPlaying ? 'pausing playback' : 'already paused, clearing'}`
+      );
+      if (wasPlaying) togglePlayPause();
       clearSleepTimer();
     };
     const id = setInterval(check, 1000);
