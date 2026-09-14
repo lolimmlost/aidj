@@ -740,7 +740,7 @@ function pruneOldJobs() {
 }
 
 /** Process one track (search, download, verify) and mutate `job.results[i]` in place. */
-async function processTrack(job: FallbackJob, i: number, claimedIds: Set<string>, preExistingDoneIds: Set<string>): Promise<void> {
+async function processTrack(job: FallbackJob, i: number, claimedIds: Set<string>, preExistingDoneIds: Set<string>, preExistingSnapshotOk: boolean): Promise<void> {
   const entry = job.results[i];
   entry.status = 'searching';
   entry.startedAt = Date.now();
@@ -805,9 +805,12 @@ async function processTrack(job: FallbackJob, i: number, claimedIds: Set<string>
       // next Picard/Navidrome pass indexes it and the library is polluted
       // anyway — which is the whole thing verification exists to prevent. So
       // remove it. Only ever a file THIS job fetched: a pre-existing finished
-      // entry may belong to another flow and isn't ours to delete.
+      // entry may belong to another flow and isn't ours to delete. If the job-start
+      // snapshot failed we can't tell the two apart, so fail closed — leave it.
       if (outcome.preExisting) {
         entry.error = 'wrong track; pre-existing MeTube entry left for manual cleanup';
+      } else if (!preExistingSnapshotOk) {
+        entry.error = 'wrong track; MeTube snapshot unavailable at job start — left for manual cleanup (can’t prove it isn’t a pre-existing file)';
       } else {
         const removed = await deleteMeTubeItem(outcome.item, outcome.metubeId);
         entry.error = removed
@@ -849,14 +852,20 @@ async function runJob(job: FallbackJob): Promise<void> {
   // these count as "pre-existing on disk" (never deleted on failed verification). A
   // per-worker snapshot inside queueAndAwaitDownload raced siblings and could tag a
   // sibling's fresh in-job download `preExisting`, suppressing mismatch-deletion and
-  // leaving a wrong-track file in the library (#164 regression). Best-effort: on a
-  // read failure, treat nothing as pre-existing (safer — a real pre-existing file at
-  // worst gets re-downloaded, vs. a wrong rip being left behind).
+  // leaving a wrong-track file in the library (#164 regression).
+  //
+  // If this read FAILS we cannot tell a pre-existing file from one we fetched, so we
+  // must NOT delete on mismatch for the whole job — `preExistingSnapshotOk=false`
+  // makes the deletion path fail closed (leave for manual cleanup). An empty set
+  // alone would be unsafe: it makes every match look non-pre-existing and therefore
+  // deletable, so a genuinely pre-existing file failing verification would be deleted.
   let preExistingDoneIds: Set<string>;
+  let preExistingSnapshotOk = true;
   try {
     preExistingDoneIds = new Set(Object.values((await metube.getQueue()).done).map((d) => d.id));
   } catch {
     preExistingDoneIds = new Set();
+    preExistingSnapshotOk = false;
   }
 
   let nextIndex = 0;
@@ -869,7 +878,7 @@ async function runJob(job: FallbackJob): Promise<void> {
       // NOT "tracks completed"; summarizeJob(job) has the accurate counts.
       job.currentIndex = Math.max(job.currentIndex, i);
       try {
-        await processTrack(job, i, claimedIds, preExistingDoneIds);
+        await processTrack(job, i, claimedIds, preExistingDoneIds, preExistingSnapshotOk);
       } catch (err) {
         // Contain an unexpected throw to the one track that caused it (#211).
         // Every await inside processTrack is already individually guarded, so

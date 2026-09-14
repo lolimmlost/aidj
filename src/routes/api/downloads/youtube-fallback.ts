@@ -21,8 +21,9 @@ import {
  *
  * POST: start a job. Provide either an explicit `tracks` array, or an
  * `importJobId` to pull the misses (no_match / pending_review by default) from a
- * finished playlist import. Downloads run one at a time and are verified against
- * the requested artist/title. Returns a `jobId` to poll.
+ * finished playlist import. Downloads run a few at a time (a fixed-size worker
+ * pool; see `runJob`) and are verified against the requested artist/title. Returns
+ * a `jobId` to poll.
  *
  * GET ?jobId=…: report per-track status + a summary.
  */
