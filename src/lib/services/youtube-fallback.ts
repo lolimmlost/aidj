@@ -258,6 +258,35 @@ function isUncheckableBareTitle(got: string, wantTitle: string, wantArtist: stri
   return wantTitle.length > 0 && got === wantTitle && scriptsDisjoint(wantArtist, got);
 }
 
+/** Minimum word-tokens for a same-script bare title to be trusted without an artist. */
+const DISTINCTIVE_TITLE_MIN_TOKENS = 3;
+
+/**
+ * The same-script sibling of `isUncheckableBareTitle`: the resolved title is EXACTLY
+ * the wanted title (nothing else) AND is distinctive enough — at least
+ * `DISTINCTIVE_TITLE_MIN_TOKENS` word-tokens — that a coincidental bare upload of a
+ * DIFFERENT artist's identically-titled song is implausible, so an absent artist
+ * should not veto the match.
+ *
+ * Real #206 misses this recovers: "MOMENTARY BLISS", "iloveitiloveitiloveit …",
+ * "A Comfortable Place To Hide" — artist-less YouTube "topic"/single-art uploads
+ * that download correctly but were never claimed, burning the full timeout.
+ *
+ * The token floor is load-bearing, NOT cosmetic: a one/two-word bare title genuinely
+ * collides (bare "Touch" → many artists; bare "Momentary Bliss" is also a Gorillaz
+ * single). Those stay on the strict artist path and may still false-fail — cheaper
+ * than indexing the wrong recording. Exact equality (not containment) is retained
+ * from `isUncheckableBareTitle`: a title with residual tokens is where a wrong artist
+ * hides ("Little Mix - Touch"), and it never reaches this predicate.
+ */
+function isDistinctiveBareTitle(got: string, wantTitle: string): boolean {
+  return (
+    wantTitle.length > 0 &&
+    got === wantTitle &&
+    wantTitle.split(' ').filter(Boolean).length >= DISTINCTIVE_TITLE_MIN_TOKENS
+  );
+}
+
 /**
  * Isolate the artist portion of a resolved video title. yt-dlp / YouTube titles
  * are overwhelmingly "Artist - Title …", so the left of the first spaced
@@ -305,6 +334,15 @@ export function verifyDownload(
       matched: true,
       score: 1,
       reason: `exact title match, artist unverifiable across scripts in "${resultTitle}"`,
+    };
+  }
+  // Same-script, but the title is distinctive enough (>=3 tokens) to stand without
+  // an artist — the common artist-less "topic"/single-art YouTube upload (#233).
+  if (isDistinctiveBareTitle(got, wantTitle)) {
+    return {
+      matched: true,
+      score: 1,
+      reason: `exact distinctive title match, artist absent in "${resultTitle}"`,
     };
   }
 
@@ -379,6 +417,9 @@ export function itemLikelyMatchesTrack(
   // in the same script as the artist, is NOT this case: it must corroborate below,
   // or a worker claims — and under concurrency steals — another track's item.
   if (isUncheckableBareTitle(got, wantTitle, wantArtist)) return true;
+  // Distinctive same-script bare title (>=3 tokens) — claim it rather than stall
+  // detection (and burn the full timeout) on an artist check that can't pass (#233).
+  if (isDistinctiveBareTitle(got, wantTitle)) return true;
 
   const artistOk =
     wantArtist.length < 3 || got.includes(wantArtist) || tokenOverlap(wantArtist, got) >= 0.5;
