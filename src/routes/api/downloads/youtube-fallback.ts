@@ -21,8 +21,9 @@ import {
  *
  * POST: start a job. Provide either an explicit `tracks` array, or an
  * `importJobId` to pull the misses (no_match / pending_review by default) from a
- * finished playlist import. Downloads run one at a time and are verified against
- * the requested artist/title. Returns a `jobId` to poll.
+ * finished playlist import. Downloads run a few at a time (a fixed-size worker
+ * pool; see `runJob`) and are verified against the requested artist/title. Returns
+ * a `jobId` to poll.
  *
  * GET ?jobId=…: report per-track status + a summary.
  */
@@ -44,6 +45,7 @@ const StartSchema = z
     folder: z.string().optional(),
     maxAttempts: z.number().int().min(1).max(5).optional(),
     skipInLibrary: z.boolean().optional(),
+    concurrency: z.number().int().min(1).max(5).optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.tracks?.length && !data.importJobId) {
@@ -108,6 +110,7 @@ const POST = withAuthAndErrorHandling(
         folder: data.folder,
         maxAttempts: data.maxAttempts,
         skipInLibrary: data.skipInLibrary,
+        concurrency: data.concurrency,
       });
     } catch (err) {
       return errorResponse('INVALID_TRACKS', err instanceof Error ? err.message : 'Invalid tracks', {
