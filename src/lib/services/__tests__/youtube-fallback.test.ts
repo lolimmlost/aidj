@@ -241,6 +241,26 @@ describe('verifyDownload', () => {
     );
     expect(v.matched).toBe(false);
   });
+
+  it('accepts a distinctive (>=3 token) same-script bare title with the artist absent (#233)', () => {
+    // Real chosic miss: "camo mane - A Comfortable Place To Hide" resolves to a
+    // topic-channel upload titled just the (distinctive) song title.
+    const v = verifyDownload(
+      { artist: 'camo mane', title: 'A Comfortable Place To Hide' },
+      { title: 'A Comfortable Place To Hide' }
+    );
+    expect(v.matched).toBe(true);
+  });
+
+  it('still rejects a SHORT (<3 token) same-script bare title — collision risk (#233)', () => {
+    // "Momentary Bliss" is also a Gorillaz single: a bare two-word title can't be
+    // told apart from a different artist's, so it stays on the strict artist path.
+    const v = verifyDownload(
+      { artist: 'Coloray', title: 'Momentary Bliss' },
+      { title: 'Momentary Bliss' }
+    );
+    expect(v.matched).toBe(false);
+  });
 });
 
 describe('itemLikelyMatchesTrack (detection)', () => {
@@ -319,6 +339,23 @@ describe('itemLikelyMatchesTrack (detection)', () => {
   it('does not detect a same-script bare title by the wrong artist', () => {
     expect(
       itemLikelyMatchesTrack({ artist: 'Nick Howe', title: 'Touch' }, { title: 'Touch (Official Video)' })
+    ).toBe(false);
+  });
+
+  it('detects a distinctive (>=3 token) same-script bare title with the artist absent (#233)', () => {
+    // The stuck-worker case from the live chosic import: the file downloaded fine
+    // but detection never claimed it, burning the full DOWNLOAD_TIMEOUT_MS.
+    expect(
+      itemLikelyMatchesTrack(
+        { artist: 'camo mane', title: 'A Comfortable Place To Hide' },
+        { title: 'A Comfortable Place To Hide' }
+      )
+    ).toBe(true);
+  });
+
+  it('still does NOT detect a short (<3 token) same-script bare title (Gorillaz-collision guard, #233)', () => {
+    expect(
+      itemLikelyMatchesTrack({ artist: 'Coloray', title: 'Momentary Bliss' }, { title: 'Momentary Bliss' })
     ).toBe(false);
   });
 });
