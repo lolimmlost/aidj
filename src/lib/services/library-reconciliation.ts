@@ -332,8 +332,8 @@ function parseRealArtistTitle(artist: string, title: string): {
   title: string;
 } {
   const clean = title
-    .replace(/\s*\[Official (?:Audio|Video|Music Video)\]/gi, '')
-    .replace(/\s*\(Official (?:Audio|Video)\)/gi, '')
+    .replace(/\s*\[Official\s+(?:Music\s+|Lyric\s+)?(?:Audio|Video)\]/gi, '')
+    .replace(/\s*\(Official\s+(?:Music\s+|Lyric\s+)?(?:Audio|Video)\)/gi, '')
     .replace(/\s*\(Lyrics?\)/gi, '')
     .replace(/\s*\|.*$/g, '')
     .trim();
@@ -342,6 +342,42 @@ function parseRealArtistTitle(artist: string, title: string): {
     return { artist: parts[0].trim(), title: parts.slice(1).join(' - ').trim() };
   }
   return { artist, title: clean };
+}
+
+/**
+ * Split a cached `"Artist - Title"` string (`playlist_songs.song_artist_title` or
+ * `recommendation_feedback.song_artist_title`) into a searchable artist/title pair.
+ *
+ * A dead id referenced ONLY by a playlist previously arrived here with empty
+ * artist/title — the reconciliation query never selected the column — so every
+ * playlist-only ghost failed the `!artist && !title` guard and was reported
+ * `missing` without a single library lookup. That left retagged tracks unhealable
+ * even though the replacement was sitting in the library.
+ *
+ * Returns EMPTY strings (never the literal `"Unknown"`, which defeats that guard)
+ * when nothing is usable. Undoubles the MeTube shape ("Blair Muir - Blair Muir -
+ * Divine") only when the title genuinely REPEATS the artist — delegating
+ * unconditionally would promote an ordinary title's first segment to artist
+ * ("Artist - Song - Live" → artist "Song").
+ *
+ * TODO: dedupe against the canonical `@/lib/utils/song-artist-title` parser once
+ * #219/#225 lands on this lineage (that's the #218/#219 umbrella goal).
+ */
+export function splitArtistTitle(cached: string | null | undefined): {
+  artist: string;
+  title: string;
+} {
+  const raw = (cached || '').trim();
+  if (!raw) return { artist: '', title: '' };
+  const parts = raw.split(' - ');
+  if (parts.length < 2) return { artist: '', title: raw };
+
+  const artist = parts[0].trim();
+  const title = parts.slice(1).join(' - ').trim();
+  if (artist && title.toLowerCase().startsWith(artist.toLowerCase())) {
+    return parseRealArtistTitle(artist, title);
+  }
+  return { artist, title };
 }
 
 async function isStreamable(songId: string): Promise<boolean> {
@@ -392,6 +428,7 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
       .select({
         songId: playlistSongs.songId,
         playlistId: playlistSongs.playlistId,
+        songArtistTitle: playlistSongs.songArtistTitle,
       })
       .from(playlistSongs)
       .innerJoin(userPlaylists, eq(playlistSongs.playlistId, userPlaylists.id))
@@ -437,9 +474,12 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
     if (existing) {
       existing.sources.add('playlist_songs');
     } else {
+      // Parse the cached title so playlist-only dead ids are searchable (empty
+      // when unusable — never "Unknown", which would defeat the search guard).
+      const { artist, title } = splitArtistTitle(row.songArtistTitle);
       idMeta.set(row.songId, {
-        artist: '',
-        title: '',
+        artist,
+        title,
         sources: new Set(['playlist_songs']),
       });
     }
