@@ -6,6 +6,7 @@
 import { db } from '../db';
 import { recommendationFeedback } from '../db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { parseArtistTitle } from '@/lib/utils/song-artist-title';
 
 export interface UserPreferenceProfile {
   userId: string;
@@ -46,14 +47,6 @@ const preferenceCache = new Map<string, CachedProfile>();
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 /**
- * Extract artist name from "Artist - Title" format
- */
-function extractArtist(songArtistTitle: string): string {
-  const parts = songArtistTitle.split(' - ');
-  return parts[0]?.trim() || songArtistTitle;
-}
-
-/**
  * Build comprehensive user preference profile from feedback data
  */
 export async function buildUserPreferenceProfile(userId: string): Promise<UserPreferenceProfile> {
@@ -87,12 +80,14 @@ export async function buildUserPreferenceProfile(userId: string): Promise<UserPr
   const dislikedArtistCounts = new Map<string, number>();
 
   for (const feedback of likedFeedback) {
-    const artist = extractArtist(feedback.songArtistTitle);
+    const { artist } = parseArtistTitle(feedback.songArtistTitle);
+    if (!artist) continue;
     likedArtistCounts.set(artist, (likedArtistCounts.get(artist) || 0) + 1);
   }
 
   for (const feedback of dislikedFeedback) {
-    const artist = extractArtist(feedback.songArtistTitle);
+    const { artist } = parseArtistTitle(feedback.songArtistTitle);
+    if (!artist) continue;
     dislikedArtistCounts.set(artist, (dislikedArtistCounts.get(artist) || 0) + 1);
   }
 
@@ -182,7 +177,7 @@ export async function getListeningPatterns(userId: string): Promise<ListeningPat
 
     // Check for recent preference changes
     const recentFeedback = profile.likedSongs.slice(0, 5);
-    const recentArtists = new Set(recentFeedback.map(s => extractArtist(s.songArtistTitle)));
+    const recentArtists = new Set(recentFeedback.map(s => parseArtistTitle(s.songArtistTitle).artist).filter(Boolean));
     if (recentArtists.size === 1 && profile.totalFeedbackCount > 10) {
       insights.push(`Recently focused on ${Array.from(recentArtists)[0]}`);
     }

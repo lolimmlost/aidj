@@ -13,6 +13,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { parseArtistTitle } from '@/lib/utils/song-artist-title';
 
 // ============================================================================
 // Types & Interfaces
@@ -652,11 +653,12 @@ export async function checkDuplicates(
         const songs = data.data?.songs || [];
         const match = songs.find((song: { songArtistTitle?: string; id: string }) => {
           if (song.songArtistTitle) {
-            const parts = song.songArtistTitle.split(' - ');
-            if (parts.length >= 2) {
-              const songArtist = parts[0].toLowerCase().trim();
-              const songTitle = parts.slice(1).join(' - ').toLowerCase().trim();
-              return songArtist === normalizedArtist && songTitle === normalizedTitle;
+            const { artist, title } = parseArtistTitle(song.songArtistTitle);
+            if (artist && title) {
+              return (
+                artist.toLowerCase().trim() === normalizedArtist &&
+                title.toLowerCase().trim() === normalizedTitle
+              );
             }
           }
           return false;

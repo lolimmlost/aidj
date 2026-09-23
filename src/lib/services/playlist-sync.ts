@@ -5,6 +5,7 @@ import { getPlaylists, getPlaylist, type NavidromePlaylist, type NavidromePlayli
 import { getNavidromeUserCreds } from './navidrome-users';
 import { DELETED_FROM_NAVIDROME_PREFIX, stripDeletedMarker } from './playlist-deleted-marker';
 import { ServiceError } from '../utils';
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 
 /**
  * Sync result interface
@@ -216,7 +217,7 @@ async function syncPlaylistSongs(localPlaylistId: string, navidromePlaylistId: s
       const songsToInsert = navidromePlaylist.entry.map((song, index) => ({
         playlistId: localPlaylistId,
         songId: song.id,
-        songArtistTitle: `${song.artist} - ${song.title}`,
+        songArtistTitle: formatArtistTitle(song.artist, song.title),
         position: index,
       }));
 

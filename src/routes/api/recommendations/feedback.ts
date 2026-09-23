@@ -13,6 +13,7 @@ import {
   errorResponse,
   jsonResponse,
 } from '../../../lib/utils/api-response';
+import { parseArtistTitle } from '@/lib/utils/song-artist-title';
 
 // Zod schema for feedback validation
 const FeedbackSchema = z.object({
@@ -203,9 +204,7 @@ export const POST = withAuthAndErrorHandling(
           // Single write-through keeps Navidrome + feedback + liked_songs_sync +
           // the ❤️ Liked Songs playlist in lockstep (surgical single-row update,
           // no full rebuild).
-          const parts = validatedData.songArtistTitle.split(' - ');
-          const artist = parts[0] || 'Unknown';
-          const title = parts.slice(1).join(' - ') || validatedData.songArtistTitle;
+          const { artist, title } = parseArtistTitle(validatedData.songArtistTitle);
           await setSongLiked(
             session.user.id,
             validatedData.songId,

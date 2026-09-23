@@ -26,6 +26,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 
 interface SortableQueueItemProps {
   song: { id: string; title?: string; name?: string; artist?: string };
@@ -401,7 +402,7 @@ export function QueuePanel() {
         credentials: 'include',
         body: JSON.stringify({
           songId,
-          songArtistTitle: `${artist} - ${songTitle}`,
+          songArtistTitle: formatArtistTitle(artist, songTitle),
           feedbackType,
           source, // Track that this came from AI DJ queue or Autoplay
         }),

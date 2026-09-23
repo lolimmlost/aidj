@@ -29,6 +29,7 @@ import {
   isAuthenticated as isSpotifyAuthenticated,
 } from '../../../lib/services/spotify';
 import type { SongMatchResult, PlaylistPlatform, PlaylistExportFormat } from '../../../lib/db/schema/playlist-export.schema';
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 
 // Validation schemas
 const ImportValidateSchema = z.object({
@@ -291,7 +292,7 @@ async function processMatchingInBackground(
               id: crypto.randomUUID(),
               playlistId: newPlaylist.id,
               songId,
-              songArtistTitle: `${result.originalSong.artist} - ${result.originalSong.title}`,
+              songArtistTitle: formatArtistTitle(result.originalSong.artist, result.originalSong.title),
               position: songsToAdd.length,
               addedAt: new Date(),
             });
@@ -616,7 +617,7 @@ const PUT = withAuthAndErrorHandling(
             id: crypto.randomUUID(),
             playlistId,
             songId,
-            songArtistTitle: `${result.originalSong.artist} - ${result.originalSong.title}`,
+            songArtistTitle: formatArtistTitle(result.originalSong.artist, result.originalSong.title),
             position: startPosition + songsToAdd.length,
             addedAt: new Date(),
           });

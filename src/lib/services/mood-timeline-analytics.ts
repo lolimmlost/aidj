@@ -23,13 +23,12 @@ import type {
 import { eq, and, gte, lte, desc, asc } from 'drizzle-orm';
 import { getSeason, type Season } from '../utils/temporal';
 import {
-  extractArtist,
-  extractTitle,
   calculateDiversityScore,
   getPeriodLabel,
   getPeriodBounds,
   type TimeGranularity,
 } from '../utils/analytics-helpers';
+import { formatArtistTitle, parseArtistTitle } from '@/lib/utils/song-artist-title';
 
 // ============================================================================
 // Types
@@ -230,7 +229,7 @@ function inferMoodFromGenre(genre: string): keyof MoodDistribution {
   return 'neutral';
 }
 
-// Note: getPeriodLabel, getPeriodBounds, extractArtist, extractTitle, calculateDiversityScore
+// Note: getPeriodLabel, getPeriodBounds, calculateDiversityScore
 // are now imported from '../utils/analytics-helpers'
 
 function detectSignificantChanges(
@@ -396,15 +395,22 @@ export async function getMoodTimeline(
       }
 
       artistCounts.set(h.artist, (artistCounts.get(h.artist) || 0) + 1);
-      trackCounts.set(`${h.artist} - ${h.title}`, (trackCounts.get(`${h.artist} - ${h.title}`) || 0) + 1);
+      const histKey = formatArtistTitle(h.artist, h.title);
+      trackCounts.set(histKey, (trackCounts.get(histKey) || 0) + 1);
     }
 
     // Process feedback for artist/track counts
     for (const fb of periodFeedback) {
-      const artist = extractArtist(fb.songArtistTitle);
+      const { artist, title } = parseArtistTitle(fb.songArtistTitle);
       const weight = fb.feedbackType === 'thumbs_up' ? 2 : -1;
-      artistCounts.set(artist, (artistCounts.get(artist) || 0) + weight);
-      trackCounts.set(fb.songArtistTitle, (trackCounts.get(fb.songArtistTitle) || 0) + weight);
+      if (artist) {
+        artistCounts.set(artist, (artistCounts.get(artist) || 0) + weight);
+      }
+      // Key on the normalized form, not the raw column: the history loop above
+      // keys the same map from separate artist/title fields, so a doubled cached
+      // string would otherwise land in its own bucket and split the count.
+      const trackKey = formatArtistTitle(artist, title) || fb.songArtistTitle;
+      trackCounts.set(trackKey, (trackCounts.get(trackKey) || 0) + weight);
     }
 
     // Normalize mood distribution
@@ -736,9 +742,11 @@ export async function regenerateHistoricalPlaylist(
   const historicalArtists = new Map<string, number>();
 
   for (const fb of feedback) {
-    historicalTracks.add(fb.songArtistTitle);
-    const artist = extractArtist(fb.songArtistTitle);
-    historicalArtists.set(artist, (historicalArtists.get(artist) || 0) + 1);
+    const { artist, title } = parseArtistTitle(fb.songArtistTitle);
+    historicalTracks.add(formatArtistTitle(artist, title) || fb.songArtistTitle);
+    if (artist) {
+      historicalArtists.set(artist, (historicalArtists.get(artist) || 0) + 1);
+    }
   }
 
   // Build playlist tracks
@@ -749,8 +757,7 @@ export async function regenerateHistoricalPlaylist(
   const historicalArray = Array.from(historicalTracks).slice(0, historicalCount);
 
   for (const track of historicalArray) {
-    const artist = extractArtist(track);
-    const title = extractTitle(track);
+    const { artist, title } = parseArtistTitle(track);
     const artistCount = historicalArtists.get(artist) || 1;
 
     tracks.push({

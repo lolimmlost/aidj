@@ -40,6 +40,11 @@ import type { LibraryReconciliationState } from '@/lib/db/schema';
 import { getNavidromeUserCreds } from './navidrome-users';
 import type { SubsonicCreds } from './navidrome-users';
 import { getConfig } from '@/lib/config/config';
+import {
+  formatArtistTitle,
+  parseArtistTitle,
+  parseRealArtistTitle,
+} from '@/lib/utils/song-artist-title';
 
 /**
  * Delay before the first run after (re)initialization. Kept short so a fresh
@@ -325,25 +330,6 @@ function isTitleMatch(a: string, b: string): boolean {
   return false;
 }
 
-// MeTube downloads often have "Channel Name" as the artist and
-// "Real Artist - Real Title [Official Audio]" as the title.
-function parseRealArtistTitle(artist: string, title: string): {
-  artist: string;
-  title: string;
-} {
-  const clean = title
-    .replace(/\s*\[Official (?:Audio|Video|Music Video)\]/gi, '')
-    .replace(/\s*\(Official (?:Audio|Video)\)/gi, '')
-    .replace(/\s*\(Lyrics?\)/gi, '')
-    .replace(/\s*\|.*$/g, '')
-    .trim();
-  const parts = clean.split(/\s+-\s+/);
-  if (parts.length >= 2) {
-    return { artist: parts[0].trim(), title: parts.slice(1).join(' - ').trim() };
-  }
-  return { artist, title: clean };
-}
-
 async function isStreamable(songId: string): Promise<boolean> {
   try {
     const streamUrl = buildSubsonicUrl('stream');
@@ -392,6 +378,11 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
       .select({
         songId: playlistSongs.songId,
         playlistId: playlistSongs.playlistId,
+        // Needed to remap: a dead Navidrome id can't be resolved via getSong, so
+        // the cached "Artist - Title" on the row is the ONLY metadata we have to
+        // search the library with. Omitting it made every playlist-only dead id
+        // unremappable (see the loop below).
+        songArtistTitle: playlistSongs.songArtistTitle,
       })
       .from(playlistSongs)
       .innerJoin(userPlaylists, eq(playlistSongs.playlistId, userPlaylists.id))
@@ -423,12 +414,8 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
     if (existing) {
       existing.sources.add('recommendation_feedback');
     } else {
-      const parts = (row.songArtistTitle || '').split(' - ');
-      idMeta.set(row.songId, {
-        artist: parts[0] || 'Unknown',
-        title: parts.slice(1).join(' - ') || 'Unknown',
-        sources: new Set(['recommendation_feedback']),
-      });
+      const { artist, title } = parseArtistTitle(row.songArtistTitle);
+      idMeta.set(row.songId, { artist, title, sources: new Set(['recommendation_feedback']) });
     }
   }
 
@@ -436,10 +423,23 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
     const existing = idMeta.get(row.songId);
     if (existing) {
       existing.sources.add('playlist_songs');
+      // A feedback row may have registered this id first with empty metadata
+      // (its own songArtistTitle was null); fill it in if the playlist row has it.
+      if (!existing.artist && !existing.title) {
+        const { artist, title } = parseArtistTitle(row.songArtistTitle);
+        existing.artist = artist;
+        existing.title = title;
+      }
     } else {
+      // Parse the cached "Artist - Title" exactly as the feedback branch does.
+      // Leaving these empty made every playlist-only dead id fail the
+      // "no artist+title to search with" guard below, so it was recorded as
+      // notFound without a single library lookup ever being attempted — which is
+      // why a real prod run reported 7 deadIds / 7 notFound / 0 remapped.
+      const { artist, title } = parseArtistTitle(row.songArtistTitle);
       idMeta.set(row.songId, {
-        artist: '',
-        title: '',
+        artist,
+        title,
         sources: new Set(['playlist_songs']),
       });
     }
@@ -752,7 +752,7 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
           .update(recommendationFeedback)
           .set({
             songId: match.id,
-            songArtistTitle: `${match.artist} - ${match.title}`,
+            songArtistTitle: formatArtistTitle(match.artist, match.title),
           })
           .where(
             and(

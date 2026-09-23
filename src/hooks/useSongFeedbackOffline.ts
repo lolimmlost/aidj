@@ -19,6 +19,7 @@ import {
   getLocalFeedback,
   isOnline,
 } from '@/lib/services/offline';
+import { parseArtistTitle } from '@/lib/utils/song-artist-title';
 
 interface FeedbackResponse {
   feedback: Record<string, 'thumbs_up' | 'thumbs_down'>;
@@ -129,10 +130,11 @@ export function useSubmitFeedbackOffline() {
       const action = params.feedbackType === 'thumbs_up' ? 'Liked' : 'Disliked';
       const isOfflineMode = !isOnline();
 
-      toast.success(`${action} "${params.songArtistTitle.split(' - ')[1] || params.songArtistTitle}"`, {
+      const { artist, title } = parseArtistTitle(params.songArtistTitle);
+      toast.success(`${action} "${title}"`, {
         description: isOfflineMode
           ? 'Will sync when you reconnect'
-          : params.songArtistTitle.split(' - ')[0],
+          : artist,
         duration: 2000,
       });
     },

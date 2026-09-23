@@ -5,6 +5,7 @@ import { ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 import { queryKeys } from '@/lib/query';
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 
 interface SongFeedbackButtonsProps {
   songId?: string;
@@ -58,7 +59,7 @@ export function SongFeedbackButtons({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          songArtistTitle: `${artistName} - ${songTitle}`,
+          songArtistTitle: formatArtistTitle(artistName, songTitle),
           feedbackType,
           source,
           songId,

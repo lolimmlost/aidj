@@ -5,6 +5,7 @@ import { userPlaylists, playlistSongs } from '../../../../../lib/db/schema/playl
 import { eq, and, max } from 'drizzle-orm';
 import { z } from 'zod';
 import { mirrorAddSong } from '../../../../../lib/services/playlist-navidrome-mirror';
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 
 // Zod schema for adding song
 const AddSongSchema = z.object({
@@ -93,7 +94,7 @@ export const Route = createFileRoute("/api/playlists/$id/songs/")({
         id: crypto.randomUUID(),
         playlistId,
         songId: validatedData.songId,
-        songArtistTitle: `${validatedData.artistName} - ${validatedData.songTitle}`,
+        songArtistTitle: formatArtistTitle(validatedData.artistName, validatedData.songTitle),
         position: nextPosition,
         addedAt: new Date(),
       };

@@ -1,4 +1,5 @@
 import type { Song } from '@/lib/types/song';
+import { parseArtistTitle } from '@/lib/utils/song-artist-title';
 
 interface PlaylistSong {
   id: string;
@@ -71,9 +72,9 @@ export async function loadPlaylistIntoQueue(
     }
 
     // Fallback to parsed data if metadata not found
-    const parts = playlistSong.songArtistTitle.split(' - ');
-    const artist = parts[0] || 'Unknown Artist';
-    const title = parts.slice(1).join(' - ') || playlistSong.songArtistTitle;
+    const parsed = parseArtistTitle(playlistSong.songArtistTitle);
+    const artist = parsed.artist || 'Unknown Artist';
+    const title = parsed.title;
 
     return {
       id: playlistSong.songId,

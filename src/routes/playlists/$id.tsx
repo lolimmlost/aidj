@@ -54,6 +54,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { parseArtistTitle } from '@/lib/utils/song-artist-title';
 
 export const Route = createFileRoute('/playlists/$id')({
   beforeLoad: async ({ context }) => {
@@ -121,12 +122,13 @@ const SORT_OPTIONS: Array<{ value: SortField; label: string }> = [
   { value: 'duration', label: 'Duration' },
 ];
 
+// Display wrapper over the canonical parser. The UI wants a visible
+// "Unknown Artist" placeholder; `parseArtistTitle` deliberately never returns
+// one, because an "Unknown" that looks like a real value defeats the
+// truthiness guards downstream.
 function extractArtistTitle(songArtistTitle: string): [string, string] {
-  if (songArtistTitle.includes(' - ')) {
-    const parts = songArtistTitle.split(' - ');
-    return [parts[0], parts.slice(1).join(' - ')];
-  }
-  return ['Unknown Artist', songArtistTitle];
+  const { artist, title } = parseArtistTitle(songArtistTitle);
+  return [artist || 'Unknown Artist', title];
 }
 
 function getSortValue(song: PlaylistSong, field: SortField): string | number {
@@ -265,9 +267,7 @@ function SongRowContent({
   isRemovePending,
   dragHandle,
 }: SongRowProps & { dragHandle?: JSX.Element }) {
-  const [artist, title] = song.songArtistTitle.includes(' - ')
-    ? song.songArtistTitle.split(' - ')
-    : ['Unknown Artist', song.songArtistTitle];
+  const [artist, title] = extractArtistTitle(song.songArtistTitle);
 
   const { open: menuOpen, onOpenChange: onMenuOpenChange, triggerProps: menuTriggerProps } = useScrollSafeMenu();
 
@@ -617,9 +617,7 @@ function PlaylistSongsList({
 
 function playlistSongsToAudio(songs: PlaylistSong[]) {
   return songs.map((song) => {
-    const parts = song.songArtistTitle.split(' - ');
-    const artist = parts[0] || 'Unknown Artist';
-    const title = parts.slice(1).join(' - ') || song.songArtistTitle;
+    const [artist, title] = extractArtistTitle(song.songArtistTitle);
     return {
       id: song.songId,
       name: title,
@@ -844,9 +842,7 @@ function PlaylistDetailPage() {
   const handleAddSongToQueue = (song: PlaylistSong, position: 'now' | 'next' | 'end') => {
     if (!playlist) return;
 
-    const parts = song.songArtistTitle.split(' - ');
-    const artist = parts[0] || 'Unknown Artist';
-    const title = parts.slice(1).join(' - ') || song.songArtistTitle;
+    const [artist, title] = extractArtistTitle(song.songArtistTitle);
 
     if (position === 'now') {
       const audioSongs = playlistSongsToAudio(playlist.songs);

@@ -24,6 +24,7 @@ import { getConfigAsync } from '@/lib/config/config';
 // EnrichedTrack type removed - unused
 import { search as navidromeSearch, getArtists as getNavidromeArtists } from '../navidrome';
 import { batchResolveImages, resolveAlbumImage } from '../image-resolver';
+import { parseArtistTitle } from '@/lib/utils/song-artist-title';
 
 // ============================================================================
 // Types
@@ -203,10 +204,8 @@ async function getLikedTrack(userId: string, artist: string): Promise<{ title: s
     .limit(1);
 
   if (results[0]) {
-    const parts = results[0].songArtistTitle.split(' - ');
-    if (parts.length >= 2) {
-      return { title: parts.slice(1).join(' - ') };
-    }
+    const { title } = parseArtistTitle(results[0].songArtistTitle);
+    if (title) return { title };
   }
 
   return null;

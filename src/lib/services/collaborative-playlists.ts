@@ -24,6 +24,7 @@ import {
 } from "../db/schema";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import { ServiceError } from "../utils";
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 
 // Types for service operations
 export interface CreateCollaborativePlaylistInput {
@@ -1003,7 +1004,7 @@ async function approveSuggestion(
     .values({
       playlistId: suggestion.playlistId,
       songId: suggestion.songId,
-      songArtistTitle: `${suggestion.songArtist} - ${suggestion.songTitle}`,
+      songArtistTitle: formatArtistTitle(suggestion.songArtist, suggestion.songTitle),
       position: maxPosition + 1,
     })
     .returning();

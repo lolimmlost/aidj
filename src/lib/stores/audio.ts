@@ -7,6 +7,7 @@ import { getDeviceInfo } from '@/lib/utils/device';
 import { usePreferencesStore } from './preferences';
 import { toast } from '@/lib/toast';
 import { shuffleSongs } from '@/lib/utils/shuffle-scoring';
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 import type { SeededRadioSeed, ArtistVariety } from '@/lib/services/seeded-radio';
 
 // Any non-additive queue replacement clears radio-session state. Spread into
@@ -443,7 +444,7 @@ export const useAudioStore = create<AudioState>()(
               credentials: 'include',
               body: JSON.stringify({
                 songId: currentSong.id,
-                songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
+                songArtistTitle: formatArtistTitle(currentSong.artist, currentSong.title || currentSong.name),
                 feedbackType: 'thumbs_down',
                 source: 'ai_dj_skip',
               }),
@@ -461,7 +462,7 @@ export const useAudioStore = create<AudioState>()(
             credentials: 'include',
             body: JSON.stringify({
               songId: currentSong.id,
-              songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
+              songArtistTitle: formatArtistTitle(currentSong.artist, currentSong.title || currentSong.name),
               feedbackType: 'thumbs_up',
               source: 'ai_dj_listen_through',
             }),
@@ -1252,7 +1253,7 @@ export const useAudioStore = create<AudioState>()(
             credentials: 'include',
             body: JSON.stringify({
               songId: currentSong.id,
-              songArtistTitle: `${currentSong.artist || 'Unknown'} - ${currentSong.title || currentSong.name}`,
+              songArtistTitle: formatArtistTitle(currentSong.artist, currentSong.title || currentSong.name),
               feedbackType: 'thumbs_up',
               source: 'nudge', // Special source to track nudge-based feedback
             }),
@@ -1745,7 +1746,7 @@ export const useAudioStore = create<AudioState>()(
           credentials: 'include',
           body: JSON.stringify({
             songId: skippedSong.id,
-            songArtistTitle: `${skippedSong.artist || 'Unknown'} - ${skippedSong.title || skippedSong.name}`,
+            songArtistTitle: formatArtistTitle(skippedSong.artist, skippedSong.title || skippedSong.name),
             feedbackType: 'thumbs_down',
             source: 'autoplay_skip',
           }),

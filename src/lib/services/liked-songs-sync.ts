@@ -26,6 +26,7 @@ import type { SubsonicSong } from './navidrome';
 import { getNavidromeUserCreds } from './navidrome-users';
 import type { SubsonicCreds } from './navidrome-users';
 import { broadcastFeedbackChange, broadcastFeedbackRefresh } from './feedback-broadcast';
+import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 
 // ============================================================================
 // Types
@@ -129,7 +130,7 @@ export async function syncLikedSongsToFeedback(userId: string): Promise<SyncResu
       }
 
       try {
-        const songArtistTitle = `${song.artist || 'Unknown'} - ${song.title}`;
+        const songArtistTitle = formatArtistTitle(song.artist, song.title);
 
         if (existing) {
           // Was previously synced but marked inactive, reactivate
@@ -145,7 +146,7 @@ export async function syncLikedSongsToFeedback(userId: string): Promise<SyncResu
           const syncRecord: LikedSongsSyncInsert = {
             userId,
             songId: song.id,
-            artist: song.artist || 'Unknown',
+            artist: song.artist || '',
             title: song.title,
             isActive: 1,
           };
@@ -441,16 +442,18 @@ export async function setSongLiked(
     try {
       const [song] = await getSongsByIds([songId]);
       if (song) {
-        artist = artist || song.artist || 'Unknown';
+        artist = artist || song.artist;
         title = title || song.title || song.name || songId;
       }
     } catch {
       // metadata lookup failed — fall through to placeholders
     }
   }
-  artist = artist || 'Unknown';
+  // No "Unknown" placeholder for the artist: it is not a value, and writing it
+  // sends every downstream truthiness guard searching for a song by an artist
+  // named Unknown. The id is a usable last resort for the title.
   title = title || songId;
-  const songArtistTitle = `${artist} - ${title}`;
+  const songArtistTitle = formatArtistTitle(artist, title);
 
   // 3. recommendation_feedback (source='library' — mirrors the star)
   if (liked) {
@@ -488,7 +491,9 @@ export async function setSongLiked(
   if (liked) {
     await db
       .insert(likedSongsSync)
-      .values({ userId, songId, artist, title, isActive: 1 })
+      // The column is NOT NULL, so an unresolved artist is stored as "" — a
+      // falsy blank the read side can skip, not an "Unknown" that reads as a name.
+      .values({ userId, songId, artist: artist || '', title, isActive: 1 })
       .onConflictDoUpdate({
         target: [likedSongsSync.userId, likedSongsSync.songId],
         set: { isActive: 1, syncedAt: new Date() },
@@ -617,7 +622,7 @@ export async function rebuildLikedSongsPlaylist(
         id: crypto.randomUUID(),
         playlistId: likedPlaylist.id,
         songId: song.id,
-        songArtistTitle: `${song.artist} - ${song.title}`,
+        songArtistTitle: formatArtistTitle(song.artist, song.title),
         position: index + 1,
         addedAt: new Date(),
       }))
