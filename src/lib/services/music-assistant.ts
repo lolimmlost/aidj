@@ -210,6 +210,8 @@ interface MaQueue {
   items?: number;
   elapsed_time?: number;
   elapsed_time_last_updated?: number;
+  /** Position saved on pause — set even when elapsed_time hasn't caught up yet. */
+  resume_pos?: number;
   current_item?: MaQueueItem | null;
 }
 
@@ -244,6 +246,11 @@ export async function getSpeakerState(playerId: string): Promise<SpeakerState> {
   let positionSec = queue?.elapsed_time ?? 0;
   if (state === 'playing' && queue?.elapsed_time_last_updated) {
     positionSec += Math.max(0, now / 1000 - queue.elapsed_time_last_updated);
+  }
+  // resume_pos is written at the moment of pause; elapsed_time only updates
+  // every few seconds, so prefer whichever is further along.
+  if (state === 'paused' && queue?.resume_pos) {
+    positionSec = Math.max(positionSec, queue.resume_pos);
   }
   const durationSec = queue?.current_item?.duration ?? null;
   if (durationSec) positionSec = Math.min(positionSec, durationSec);

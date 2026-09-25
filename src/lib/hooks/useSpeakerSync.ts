@@ -69,7 +69,11 @@ function resetFollow() {
  * `positionSec` defaults to the phone's current position (mid-song hand-off);
  * pass 0 when starting a different song.
  */
-export async function startSpeakerPlayback(speaker: ActiveSpeaker, positionSec?: number): Promise<void> {
+export async function startSpeakerPlayback(
+  speaker: ActiveSpeaker,
+  positionSec?: number,
+  { announce = true }: { announce?: boolean } = {},
+): Promise<void> {
   const audio = useAudioStore.getState();
   const index = audio.currentSongIndex;
   const current = audio.playlist[index];
@@ -94,7 +98,7 @@ export async function startSpeakerPlayback(speaker: ActiveSpeaker, positionSec?:
     });
     resetFollow();
     out.setActive(speaker);
-    toast.success(`Playing on ${speaker.name}`);
+    if (announce) toast.success(`Playing on ${speaker.name}`);
   } catch (err) {
     toast.error(`Couldn't play on ${speaker.name}`, {
       description: err instanceof Error ? err.message : undefined,
@@ -124,17 +128,25 @@ export async function stopSpeakerPlayback({ resumeLocally }: { resumeLocally: bo
 }
 
 /**
- * Transport control from the phone. next/previous also move AIDJ's queue right
- * away (a user skip, so the AI DJ's skip signals see it), which keeps the phone
- * in step without waiting for the next poll.
+ * Transport control from the phone. `next` also moves AIDJ's queue right away
+ * (a user skip, so the AI DJ's skip signals see it), which keeps the phone in
+ * step without waiting for the next poll.
  */
 export async function controlSpeaker(action: SpeakerAction, value?: number): Promise<void> {
   const { active, status, setStatus } = useSpeakerOutput.getState();
   if (!active) return;
   const audio = useAudioStore.getState();
 
+  if (action === 'previous') {
+    // MA's "previous" restarts the current track once it's a few seconds in
+    // (seen live at 61s), while AIDJ's always steps back a song. Step AIDJ back
+    // and replay from there so both sides land on the same track.
+    audio.previousSong();
+    resetFollow();
+    await startSpeakerPlayback(active, 0, { announce: false });
+    return;
+  }
   if (action === 'next') audio.nextSong(true);
-  if (action === 'previous') audio.previousSong();
   if (status && (action === 'play' || action === 'pause')) {
     setStatus({ ...status, state: action === 'play' ? 'playing' : 'paused', receivedAt: Date.now() });
   }
