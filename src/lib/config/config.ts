@@ -51,6 +51,13 @@ interface ServiceConfig {
   aurralUrl: string;
   aurralUsername: string;
   aurralPassword: string;
+
+  // Music Assistant (house speakers — #244). Token is a credential: see redact.ts.
+  musicAssistantUrl: string;
+  musicAssistantToken: string;
+  // MA's Navidrome/OpenSubsonic provider instance id, e.g. "opensubsonic--mYxQozrc".
+  // MA track uri = `${instance}://track/${navidromeSongId}`.
+  musicAssistantSubsonicProvider: string;
 }
 
 let currentConfig: ServiceConfig = {
@@ -71,6 +78,9 @@ let currentConfig: ServiceConfig = {
   aurralUrl: '',
   aurralUsername: '',
   aurralPassword: '',
+  musicAssistantUrl: '',
+  musicAssistantToken: '',
+  musicAssistantSubsonicProvider: '',
 };
 
 if (typeof window !== 'undefined') {
@@ -129,6 +139,9 @@ if (typeof window !== 'undefined') {
     aurralUrl: process.env.AURRAL_URL || fileConfig.aurralUrl || '',
     aurralUsername: process.env.AURRAL_USERNAME || fileConfig.aurralUsername || '',
     aurralPassword: process.env.AURRAL_PASSWORD || fileConfig.aurralPassword || '',
+    musicAssistantUrl: process.env.MUSIC_ASSISTANT_URL || fileConfig.musicAssistantUrl || '',
+    musicAssistantToken: process.env.MUSIC_ASSISTANT_TOKEN || fileConfig.musicAssistantToken || '',
+    musicAssistantSubsonicProvider: process.env.MUSIC_ASSISTANT_SUBSONIC_PROVIDER || fileConfig.musicAssistantSubsonicProvider || '',
   };
 }
 
@@ -177,6 +190,9 @@ async function loadServerConfigAsync(): Promise<void> {
         aurralUrl: process.env.AURRAL_URL || fileConfig.aurralUrl || '',
         aurralUsername: process.env.AURRAL_USERNAME || fileConfig.aurralUsername || '',
         aurralPassword: process.env.AURRAL_PASSWORD || fileConfig.aurralPassword || '',
+        musicAssistantUrl: process.env.MUSIC_ASSISTANT_URL || fileConfig.musicAssistantUrl || '',
+        musicAssistantToken: process.env.MUSIC_ASSISTANT_TOKEN || fileConfig.musicAssistantToken || '',
+        musicAssistantSubsonicProvider: process.env.MUSIC_ASSISTANT_SUBSONIC_PROVIDER || fileConfig.musicAssistantSubsonicProvider || '',
       };
       serverConfigLoaded = true;
     }
@@ -211,7 +227,7 @@ export function setConfig(cfg: Partial<ServiceConfig>): void {
 }
 
 export function resetConfig(): void {
-  currentConfig = { ...defaults, lidarrApiKey: '', openrouterApiKey: '', glmApiKey: '', anthropicApiKey: '', anthropicBaseUrl: 'https://api.anthropic.com/v1', lastfmApiKey: '', aurralUrl: '', aurralUsername: '', aurralPassword: '' };
+  currentConfig = { ...defaults, lidarrApiKey: '', openrouterApiKey: '', glmApiKey: '', anthropicApiKey: '', anthropicBaseUrl: 'https://api.anthropic.com/v1', lastfmApiKey: '', aurralUrl: '', aurralUsername: '', aurralPassword: '', musicAssistantUrl: '', musicAssistantToken: '', musicAssistantSubsonicProvider: '' };
   if (typeof window !== 'undefined') {
     localStorage.removeItem('serviceConfig');
   }
