@@ -80,6 +80,10 @@ export function ServicesSettings() {
     phase: string;
     detail: string;
   } | null>(null);
+  // Secrets never come back from GET /api/config — only whether each is set.
+  const [secretsSet, setSecretsSet] = useState<Record<string, boolean>>({});
+  const secretPlaceholder = (key: string, fallback: string) =>
+    secretsSet[key] ? 'Saved — leave blank to keep' : fallback;
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queryClient = useQueryClient();
   const importStatsRef = useRef<{ imported: number; skipped: number }>({ imported: 0, skipped: 0 });
@@ -89,6 +93,7 @@ export function ServicesSettings() {
     fetch('/api/config', { method: 'GET' })
       .then((r) => r.json())
       .then((data) => {
+        if (data?.secretsSet) setSecretsSet(data.secretsSet);
         if (data?.config) {
           setConfig({
             llmProvider: data.config.llmProvider,
@@ -148,6 +153,7 @@ export function ServicesSettings() {
       });
       const json = await res.json();
       if (res.ok && json.ok) {
+        if (json.secretsSet) setSecretsSet(json.secretsSet);
         setStatus('Configuration saved successfully');
       } else {
         setStatus(json?.error ?? 'Save failed');
@@ -480,7 +486,7 @@ export function ServicesSettings() {
                     id="openrouterApiKey"
                     name="openrouterApiKey"
                     type="password"
-                    placeholder="sk-or-..."
+                    placeholder={secretPlaceholder('openrouterApiKey', 'sk-or-...')}
                     value={config.openrouterApiKey ?? ''}
                     onChange={(e) => update('openrouterApiKey', e.target.value)}
                     className="mt-2"
@@ -530,7 +536,7 @@ export function ServicesSettings() {
                     id="glmApiKey"
                     name="glmApiKey"
                     type="password"
-                    placeholder="..."
+                    placeholder={secretPlaceholder('glmApiKey', '...')}
                     value={config.glmApiKey ?? ''}
                     onChange={(e) => update('glmApiKey', e.target.value)}
                     className="mt-2"
@@ -580,7 +586,7 @@ export function ServicesSettings() {
                     id="anthropicApiKey"
                     name="anthropicApiKey"
                     type="password"
-                    placeholder="sk-ant-..."
+                    placeholder={secretPlaceholder('anthropicApiKey', 'sk-ant-...')}
                     value={config.anthropicApiKey ?? ''}
                     onChange={(e) => update('anthropicApiKey', e.target.value)}
                     className="mt-2"
@@ -694,7 +700,7 @@ export function ServicesSettings() {
                   id="lidarrApiKey"
                   name="lidarrApiKey"
                   type="password"
-                  placeholder="Lidarr API key"
+                  placeholder={secretPlaceholder('lidarrApiKey', 'Lidarr API key')}
                   value={config.lidarrApiKey ?? ''}
                   onChange={(e) => update('lidarrApiKey', e.target.value)}
                   className="mt-1"
@@ -764,7 +770,7 @@ export function ServicesSettings() {
                   id="lastfmApiKey"
                   name="lastfmApiKey"
                   type="password"
-                  placeholder="Your Last.fm API key"
+                  placeholder={secretPlaceholder('lastfmApiKey', 'Your Last.fm API key')}
                   value={config.lastfmApiKey ?? ''}
                   onChange={(e) => update('lastfmApiKey', e.target.value)}
                   className="flex-1"
@@ -774,7 +780,7 @@ export function ServicesSettings() {
                   variant="outline"
                   size="sm"
                   onClick={testLastFmConnection}
-                  disabled={lastfmTesting || !config.lastfmApiKey}
+                  disabled={lastfmTesting || !(config.lastfmApiKey || secretsSet.lastfmApiKey)}
                 >
                   {lastfmTesting ? 'Testing...' : 'Test'}
                 </Button>
