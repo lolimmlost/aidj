@@ -5,11 +5,22 @@ import {
   jsonResponse,
 } from '../../lib/utils/api-response';
 import { auth } from '~/lib/auth/auth';
+import { SECRET_KEYS, redactConfig } from '~/lib/config/redact';
+
+async function requireAdmin(request: Request): Promise<Response | null> {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session) return new Response('Unauthorized', { status: 401 });
+  if (session.user.role !== 'admin') {
+    return new Response('Forbidden: admin access required', { status: 403 });
+  }
+  return null;
+}
 
 const GET = withErrorHandling(
-  async () => {
-    const cfg = getConfig();
-    return jsonResponse({ ok: true, config: cfg });
+  async ({ request }: { request: Request }) => {
+    const denied = await requireAdmin(request);
+    if (denied) return denied;
+    return jsonResponse({ ok: true, ...redactConfig(getConfig()) });
   },
   {
     service: 'config',
@@ -21,14 +32,8 @@ const GET = withErrorHandling(
 
 const POST = withErrorHandling(
   async ({ request }: { request: Request }) => {
-    // Admin-only: check session and role
-    const session = await auth.api.getSession({ headers: request.headers });
-    if (!session) {
-      return new Response('Unauthorized', { status: 401 });
-    }
-    if (session.user.role !== 'admin') {
-      return new Response('Forbidden: admin access required', { status: 403 });
-    }
+    const denied = await requireAdmin(request);
+    if (denied) return denied;
 
     const body = await request.json();
 
@@ -163,15 +168,21 @@ const POST = withErrorHandling(
     // Discovery services (Story 7.2)
     if (typeof body.lastfmApiKey === "string") allowed.lastfmApiKey = body.lastfmApiKey;
 
+    // A blank secret means "unchanged" — GET never sends the real value, so the
+    // settings form posts back '' for every secret the user didn't retype.
+    for (const key of SECRET_KEYS) {
+      if (allowed[key] === '') delete allowed[key];
+    }
+
     if (!Object.keys(allowed).length) {
       // No keys provided; return current config without error
-      return jsonResponse({ ok: true, config: getConfig() });
+      return jsonResponse({ ok: true, ...redactConfig(getConfig()) });
     }
 
     setConfig(allowed);
     // Persist to DB if configured
     await saveConfigToDb(allowed);
-    return jsonResponse({ ok: true, config: getConfig() });
+    return jsonResponse({ ok: true, ...redactConfig(getConfig()) });
   },
   {
     service: 'config',
