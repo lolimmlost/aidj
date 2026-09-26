@@ -86,6 +86,8 @@ import { Route as ApiLastfmSimilarTracksRouteImport } from './routes/api/lastfm/
 import { Route as ApiLastfmTestRouteImport } from './routes/api/lastfm/test'
 import { Route as ApiLastfmTopTracksRouteImport } from './routes/api/lastfm/top-tracks'
 import { Route as ApiLibraryProfileAnalyzeRouteImport } from './routes/api/library-profile/analyze'
+import { Route as ApiLibraryReconciliationStatusRouteImport } from './routes/api/library-reconciliation/status'
+import { Route as ApiLibraryReconciliationTriggerRouteImport } from './routes/api/library-reconciliation/trigger'
 import { Route as ApiLibraryMostPlayedRouteImport } from './routes/api/library/most-played'
 import { Route as ApiLibraryTopArtistsRouteImport } from './routes/api/library/top-artists'
 import { Route as ApiLidarrAddRouteImport } from './routes/api/lidarr/add'
@@ -149,6 +151,11 @@ import { Route as ApiRecommendationsSeasonalInsightsRouteImport } from './routes
 import { Route as ApiRecommendationsSeasonalPlaylistRouteImport } from './routes/api/recommendations/seasonal-playlist'
 import { Route as ApiSecurityDisable2faRouteImport } from './routes/api/security/disable-2fa'
 import { Route as ApiSecurityEnable2faRouteImport } from './routes/api/security/enable-2fa'
+import { Route as ApiSpeakersIndexRouteImport } from './routes/api/speakers/index'
+import { Route as ApiSpeakersControlRouteImport } from './routes/api/speakers/control'
+import { Route as ApiSpeakersEnqueueRouteImport } from './routes/api/speakers/enqueue'
+import { Route as ApiSpeakersPlayRouteImport } from './routes/api/speakers/play'
+import { Route as ApiSpeakersStateRouteImport } from './routes/api/speakers/state'
 import { Route as ApiTasksIndexRouteImport } from './routes/api/tasks/index'
 import { Route as DashboardRecommendationsIdRouteImport } from './routes/dashboard/recommendations/$id'
 import { Route as LibraryArtistsIndexRouteImport } from './routes/library/artists/index'
@@ -592,6 +599,18 @@ const ApiLibraryProfileAnalyzeRoute =
     path: '/api/library-profile/analyze',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiLibraryReconciliationStatusRoute =
+  ApiLibraryReconciliationStatusRouteImport.update({
+    id: '/api/library-reconciliation/status',
+    path: '/api/library-reconciliation/status',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiLibraryReconciliationTriggerRoute =
+  ApiLibraryReconciliationTriggerRouteImport.update({
+    id: '/api/library-reconciliation/trigger',
+    path: '/api/library-reconciliation/trigger',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiLibraryMostPlayedRoute = ApiLibraryMostPlayedRouteImport.update({
   id: '/api/library/most-played',
   path: '/api/library/most-played',
@@ -929,6 +948,31 @@ const ApiSecurityEnable2faRoute = ApiSecurityEnable2faRouteImport.update({
   path: '/api/security/enable-2fa',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSpeakersIndexRoute = ApiSpeakersIndexRouteImport.update({
+  id: '/api/speakers/',
+  path: '/api/speakers/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSpeakersControlRoute = ApiSpeakersControlRouteImport.update({
+  id: '/api/speakers/control',
+  path: '/api/speakers/control',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSpeakersEnqueueRoute = ApiSpeakersEnqueueRouteImport.update({
+  id: '/api/speakers/enqueue',
+  path: '/api/speakers/enqueue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSpeakersPlayRoute = ApiSpeakersPlayRouteImport.update({
+  id: '/api/speakers/play',
+  path: '/api/speakers/play',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSpeakersStateRoute = ApiSpeakersStateRouteImport.update({
+  id: '/api/speakers/state',
+  path: '/api/speakers/state',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTasksIndexRoute = ApiTasksIndexRouteImport.update({
   id: '/api/tasks/',
   path: '/api/tasks/',
@@ -1252,6 +1296,8 @@ export interface FileRoutesByFullPath {
   '/api/lastfm/test': typeof ApiLastfmTestRoute
   '/api/lastfm/top-tracks': typeof ApiLastfmTopTracksRoute
   '/api/library-profile/analyze': typeof ApiLibraryProfileAnalyzeRoute
+  '/api/library-reconciliation/status': typeof ApiLibraryReconciliationStatusRoute
+  '/api/library-reconciliation/trigger': typeof ApiLibraryReconciliationTriggerRoute
   '/api/library/most-played': typeof ApiLibraryMostPlayedRoute
   '/api/library/top-artists': typeof ApiLibraryTopArtistsRoute
   '/api/lidarr/add': typeof ApiLidarrAddRoute
@@ -1312,6 +1358,10 @@ export interface FileRoutesByFullPath {
   '/api/recommendations/seasonal-playlist': typeof ApiRecommendationsSeasonalPlaylistRoute
   '/api/security/disable-2fa': typeof ApiSecurityDisable2faRoute
   '/api/security/enable-2fa': typeof ApiSecurityEnable2faRoute
+  '/api/speakers/control': typeof ApiSpeakersControlRoute
+  '/api/speakers/enqueue': typeof ApiSpeakersEnqueueRoute
+  '/api/speakers/play': typeof ApiSpeakersPlayRoute
+  '/api/speakers/state': typeof ApiSpeakersStateRoute
   '/dashboard/recommendations/$id': typeof DashboardRecommendationsIdRoute
   '/library/artists/$id': typeof LibraryArtistsIdRouteWithChildren
   '/music-identity/share/$token': typeof MusicIdentityShareTokenRoute
@@ -1320,6 +1370,7 @@ export interface FileRoutesByFullPath {
   '/api/lyrics/': typeof ApiLyricsIndexRoute
   '/api/music-identity/': typeof ApiMusicIdentityIndexRoute
   '/api/playlists/': typeof ApiPlaylistsIndexRoute
+  '/api/speakers/': typeof ApiSpeakersIndexRoute
   '/api/tasks/': typeof ApiTasksIndexRoute
   '/library/artists/': typeof LibraryArtistsIndexRoute
   '/api/background-discovery/suggestions/$id': typeof ApiBackgroundDiscoverySuggestionsIdRoute
@@ -1436,6 +1487,8 @@ export interface FileRoutesByTo {
   '/api/lastfm/test': typeof ApiLastfmTestRoute
   '/api/lastfm/top-tracks': typeof ApiLastfmTopTracksRoute
   '/api/library-profile/analyze': typeof ApiLibraryProfileAnalyzeRoute
+  '/api/library-reconciliation/status': typeof ApiLibraryReconciliationStatusRoute
+  '/api/library-reconciliation/trigger': typeof ApiLibraryReconciliationTriggerRoute
   '/api/library/most-played': typeof ApiLibraryMostPlayedRoute
   '/api/library/top-artists': typeof ApiLibraryTopArtistsRoute
   '/api/lidarr/add': typeof ApiLidarrAddRoute
@@ -1496,6 +1549,10 @@ export interface FileRoutesByTo {
   '/api/recommendations/seasonal-playlist': typeof ApiRecommendationsSeasonalPlaylistRoute
   '/api/security/disable-2fa': typeof ApiSecurityDisable2faRoute
   '/api/security/enable-2fa': typeof ApiSecurityEnable2faRoute
+  '/api/speakers/control': typeof ApiSpeakersControlRoute
+  '/api/speakers/enqueue': typeof ApiSpeakersEnqueueRoute
+  '/api/speakers/play': typeof ApiSpeakersPlayRoute
+  '/api/speakers/state': typeof ApiSpeakersStateRoute
   '/dashboard/recommendations/$id': typeof DashboardRecommendationsIdRoute
   '/library/artists/$id': typeof LibraryArtistsIdRouteWithChildren
   '/music-identity/share/$token': typeof MusicIdentityShareTokenRoute
@@ -1504,6 +1561,7 @@ export interface FileRoutesByTo {
   '/api/lyrics': typeof ApiLyricsIndexRoute
   '/api/music-identity': typeof ApiMusicIdentityIndexRoute
   '/api/playlists': typeof ApiPlaylistsIndexRoute
+  '/api/speakers': typeof ApiSpeakersIndexRoute
   '/api/tasks': typeof ApiTasksIndexRoute
   '/library/artists': typeof LibraryArtistsIndexRoute
   '/api/background-discovery/suggestions/$id': typeof ApiBackgroundDiscoverySuggestionsIdRoute
@@ -1624,6 +1682,8 @@ export interface FileRoutesById {
   '/api/lastfm/test': typeof ApiLastfmTestRoute
   '/api/lastfm/top-tracks': typeof ApiLastfmTopTracksRoute
   '/api/library-profile/analyze': typeof ApiLibraryProfileAnalyzeRoute
+  '/api/library-reconciliation/status': typeof ApiLibraryReconciliationStatusRoute
+  '/api/library-reconciliation/trigger': typeof ApiLibraryReconciliationTriggerRoute
   '/api/library/most-played': typeof ApiLibraryMostPlayedRoute
   '/api/library/top-artists': typeof ApiLibraryTopArtistsRoute
   '/api/lidarr/add': typeof ApiLidarrAddRoute
@@ -1684,6 +1744,10 @@ export interface FileRoutesById {
   '/api/recommendations/seasonal-playlist': typeof ApiRecommendationsSeasonalPlaylistRoute
   '/api/security/disable-2fa': typeof ApiSecurityDisable2faRoute
   '/api/security/enable-2fa': typeof ApiSecurityEnable2faRoute
+  '/api/speakers/control': typeof ApiSpeakersControlRoute
+  '/api/speakers/enqueue': typeof ApiSpeakersEnqueueRoute
+  '/api/speakers/play': typeof ApiSpeakersPlayRoute
+  '/api/speakers/state': typeof ApiSpeakersStateRoute
   '/dashboard/recommendations/$id': typeof DashboardRecommendationsIdRoute
   '/library/artists/$id': typeof LibraryArtistsIdRouteWithChildren
   '/music-identity/share/$token': typeof MusicIdentityShareTokenRoute
@@ -1692,6 +1756,7 @@ export interface FileRoutesById {
   '/api/lyrics/': typeof ApiLyricsIndexRoute
   '/api/music-identity/': typeof ApiMusicIdentityIndexRoute
   '/api/playlists/': typeof ApiPlaylistsIndexRoute
+  '/api/speakers/': typeof ApiSpeakersIndexRoute
   '/api/tasks/': typeof ApiTasksIndexRoute
   '/library/artists/': typeof LibraryArtistsIndexRoute
   '/api/background-discovery/suggestions/$id': typeof ApiBackgroundDiscoverySuggestionsIdRoute
@@ -1812,6 +1877,8 @@ export interface FileRouteTypes {
     | '/api/lastfm/test'
     | '/api/lastfm/top-tracks'
     | '/api/library-profile/analyze'
+    | '/api/library-reconciliation/status'
+    | '/api/library-reconciliation/trigger'
     | '/api/library/most-played'
     | '/api/library/top-artists'
     | '/api/lidarr/add'
@@ -1872,6 +1939,10 @@ export interface FileRouteTypes {
     | '/api/recommendations/seasonal-playlist'
     | '/api/security/disable-2fa'
     | '/api/security/enable-2fa'
+    | '/api/speakers/control'
+    | '/api/speakers/enqueue'
+    | '/api/speakers/play'
+    | '/api/speakers/state'
     | '/dashboard/recommendations/$id'
     | '/library/artists/$id'
     | '/music-identity/share/$token'
@@ -1880,6 +1951,7 @@ export interface FileRouteTypes {
     | '/api/lyrics/'
     | '/api/music-identity/'
     | '/api/playlists/'
+    | '/api/speakers/'
     | '/api/tasks/'
     | '/library/artists/'
     | '/api/background-discovery/suggestions/$id'
@@ -1996,6 +2068,8 @@ export interface FileRouteTypes {
     | '/api/lastfm/test'
     | '/api/lastfm/top-tracks'
     | '/api/library-profile/analyze'
+    | '/api/library-reconciliation/status'
+    | '/api/library-reconciliation/trigger'
     | '/api/library/most-played'
     | '/api/library/top-artists'
     | '/api/lidarr/add'
@@ -2056,6 +2130,10 @@ export interface FileRouteTypes {
     | '/api/recommendations/seasonal-playlist'
     | '/api/security/disable-2fa'
     | '/api/security/enable-2fa'
+    | '/api/speakers/control'
+    | '/api/speakers/enqueue'
+    | '/api/speakers/play'
+    | '/api/speakers/state'
     | '/dashboard/recommendations/$id'
     | '/library/artists/$id'
     | '/music-identity/share/$token'
@@ -2064,6 +2142,7 @@ export interface FileRouteTypes {
     | '/api/lyrics'
     | '/api/music-identity'
     | '/api/playlists'
+    | '/api/speakers'
     | '/api/tasks'
     | '/library/artists'
     | '/api/background-discovery/suggestions/$id'
@@ -2183,6 +2262,8 @@ export interface FileRouteTypes {
     | '/api/lastfm/test'
     | '/api/lastfm/top-tracks'
     | '/api/library-profile/analyze'
+    | '/api/library-reconciliation/status'
+    | '/api/library-reconciliation/trigger'
     | '/api/library/most-played'
     | '/api/library/top-artists'
     | '/api/lidarr/add'
@@ -2243,6 +2324,10 @@ export interface FileRouteTypes {
     | '/api/recommendations/seasonal-playlist'
     | '/api/security/disable-2fa'
     | '/api/security/enable-2fa'
+    | '/api/speakers/control'
+    | '/api/speakers/enqueue'
+    | '/api/speakers/play'
+    | '/api/speakers/state'
     | '/dashboard/recommendations/$id'
     | '/library/artists/$id'
     | '/music-identity/share/$token'
@@ -2251,6 +2336,7 @@ export interface FileRouteTypes {
     | '/api/lyrics/'
     | '/api/music-identity/'
     | '/api/playlists/'
+    | '/api/speakers/'
     | '/api/tasks/'
     | '/library/artists/'
     | '/api/background-discovery/suggestions/$id'
@@ -2359,6 +2445,8 @@ export interface RootRouteChildren {
   ApiLastfmTestRoute: typeof ApiLastfmTestRoute
   ApiLastfmTopTracksRoute: typeof ApiLastfmTopTracksRoute
   ApiLibraryProfileAnalyzeRoute: typeof ApiLibraryProfileAnalyzeRoute
+  ApiLibraryReconciliationStatusRoute: typeof ApiLibraryReconciliationStatusRoute
+  ApiLibraryReconciliationTriggerRoute: typeof ApiLibraryReconciliationTriggerRoute
   ApiLibraryMostPlayedRoute: typeof ApiLibraryMostPlayedRoute
   ApiLibraryTopArtistsRoute: typeof ApiLibraryTopArtistsRoute
   ApiLidarrAddRoute: typeof ApiLidarrAddRoute
@@ -2411,12 +2499,17 @@ export interface RootRouteChildren {
   ApiRadioShuffleRoute: typeof ApiRadioShuffleRoute
   ApiSecurityDisable2faRoute: typeof ApiSecurityDisable2faRoute
   ApiSecurityEnable2faRoute: typeof ApiSecurityEnable2faRoute
+  ApiSpeakersControlRoute: typeof ApiSpeakersControlRoute
+  ApiSpeakersEnqueueRoute: typeof ApiSpeakersEnqueueRoute
+  ApiSpeakersPlayRoute: typeof ApiSpeakersPlayRoute
+  ApiSpeakersStateRoute: typeof ApiSpeakersStateRoute
   MusicIdentityShareTokenRoute: typeof MusicIdentityShareTokenRoute
   PlaylistsJoinShareCodeRoute: typeof PlaylistsJoinShareCodeRoute
   ApiDiscoveryFeedIndexRoute: typeof ApiDiscoveryFeedIndexRoute
   ApiLyricsIndexRoute: typeof ApiLyricsIndexRoute
   ApiMusicIdentityIndexRoute: typeof ApiMusicIdentityIndexRoute
   ApiPlaylistsIndexRoute: typeof ApiPlaylistsIndexRoute
+  ApiSpeakersIndexRoute: typeof ApiSpeakersIndexRoute
   ApiTasksIndexRoute: typeof ApiTasksIndexRoute
   ApiDiscoveryFeedNotificationsPreferencesRoute: typeof ApiDiscoveryFeedNotificationsPreferencesRoute
   ApiLibrarySyncAbortRoute: typeof ApiLibrarySyncAbortRoute
@@ -2986,6 +3079,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLibraryProfileAnalyzeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/library-reconciliation/status': {
+      id: '/api/library-reconciliation/status'
+      path: '/api/library-reconciliation/status'
+      fullPath: '/api/library-reconciliation/status'
+      preLoaderRoute: typeof ApiLibraryReconciliationStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/library-reconciliation/trigger': {
+      id: '/api/library-reconciliation/trigger'
+      path: '/api/library-reconciliation/trigger'
+      fullPath: '/api/library-reconciliation/trigger'
+      preLoaderRoute: typeof ApiLibraryReconciliationTriggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/library/most-played': {
       id: '/api/library/most-played'
       path: '/api/library/most-played'
@@ -3425,6 +3532,41 @@ declare module '@tanstack/react-router' {
       path: '/api/security/enable-2fa'
       fullPath: '/api/security/enable-2fa'
       preLoaderRoute: typeof ApiSecurityEnable2faRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/speakers/': {
+      id: '/api/speakers/'
+      path: '/api/speakers'
+      fullPath: '/api/speakers/'
+      preLoaderRoute: typeof ApiSpeakersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/speakers/control': {
+      id: '/api/speakers/control'
+      path: '/api/speakers/control'
+      fullPath: '/api/speakers/control'
+      preLoaderRoute: typeof ApiSpeakersControlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/speakers/enqueue': {
+      id: '/api/speakers/enqueue'
+      path: '/api/speakers/enqueue'
+      fullPath: '/api/speakers/enqueue'
+      preLoaderRoute: typeof ApiSpeakersEnqueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/speakers/play': {
+      id: '/api/speakers/play'
+      path: '/api/speakers/play'
+      fullPath: '/api/speakers/play'
+      preLoaderRoute: typeof ApiSpeakersPlayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/speakers/state': {
+      id: '/api/speakers/state'
+      path: '/api/speakers/state'
+      fullPath: '/api/speakers/state'
+      preLoaderRoute: typeof ApiSpeakersStateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tasks/': {
@@ -3989,6 +4131,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLastfmTestRoute: ApiLastfmTestRoute,
   ApiLastfmTopTracksRoute: ApiLastfmTopTracksRoute,
   ApiLibraryProfileAnalyzeRoute: ApiLibraryProfileAnalyzeRoute,
+  ApiLibraryReconciliationStatusRoute: ApiLibraryReconciliationStatusRoute,
+  ApiLibraryReconciliationTriggerRoute: ApiLibraryReconciliationTriggerRoute,
   ApiLibraryMostPlayedRoute: ApiLibraryMostPlayedRoute,
   ApiLibraryTopArtistsRoute: ApiLibraryTopArtistsRoute,
   ApiLidarrAddRoute: ApiLidarrAddRoute,
@@ -4043,12 +4187,17 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRadioShuffleRoute: ApiRadioShuffleRoute,
   ApiSecurityDisable2faRoute: ApiSecurityDisable2faRoute,
   ApiSecurityEnable2faRoute: ApiSecurityEnable2faRoute,
+  ApiSpeakersControlRoute: ApiSpeakersControlRoute,
+  ApiSpeakersEnqueueRoute: ApiSpeakersEnqueueRoute,
+  ApiSpeakersPlayRoute: ApiSpeakersPlayRoute,
+  ApiSpeakersStateRoute: ApiSpeakersStateRoute,
   MusicIdentityShareTokenRoute: MusicIdentityShareTokenRoute,
   PlaylistsJoinShareCodeRoute: PlaylistsJoinShareCodeRoute,
   ApiDiscoveryFeedIndexRoute: ApiDiscoveryFeedIndexRoute,
   ApiLyricsIndexRoute: ApiLyricsIndexRoute,
   ApiMusicIdentityIndexRoute: ApiMusicIdentityIndexRoute,
   ApiPlaylistsIndexRoute: ApiPlaylistsIndexRoute,
+  ApiSpeakersIndexRoute: ApiSpeakersIndexRoute,
   ApiTasksIndexRoute: ApiTasksIndexRoute,
   ApiDiscoveryFeedNotificationsPreferencesRoute:
     ApiDiscoveryFeedNotificationsPreferencesRoute,

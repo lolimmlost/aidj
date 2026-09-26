@@ -14,6 +14,7 @@ import {
   MicVocal,
   AudioWaveform,
   Smartphone,
+  Speaker,
   Repeat1,
 } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
@@ -26,11 +27,13 @@ import { useSleepTimer } from '@/lib/stores/sleep-timer';
 import { AIDJToggle } from '@/components/ai-dj-toggle';
 import { scrobbleSong } from '@/lib/services/navidrome';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/query';
 import { usePlaybackSync, sendRemoteCommand } from '@/lib/hooks/usePlaybackSync';
+import { useSpeakerSync, controlSpeaker } from '@/lib/hooks/useSpeakerSync';
+import { useSpeakerOutput } from '@/lib/stores/speaker-output';
 import { ResumePlaybackPrompt } from './ResumePlaybackPrompt';
 import { NowPlayingFullscreen } from './NowPlayingFullscreen';
 
@@ -69,6 +72,8 @@ const formatTime = (time: number) => {
 export function PlayerBar() {
   // Cross-device playback sync (WebSocket + REST)
   usePlaybackSync();
+  // House speaker output via Music Assistant (#244)
+  useSpeakerSync();
 
   // Dual-deck audio system
   const {
@@ -156,32 +161,83 @@ export function PlayerBar() {
   const remoteDevice = useAudioStore((s) => s.remoteDevice);
   const sleepExpiresAt = useSleepTimer((s) => s.expiresAt);
   const clearSleepTimer = useSleepTimer((s) => s.clear);
-  const isRemotePlaying = !!remoteDevice?.isPlaying;
+
+  // A house speaker (#244) takes over the remote display: same green
+  // "playing elsewhere" treatment, but position/state come from the speaker.
+  const activeSpeaker = useSpeakerOutput((s) => s.active);
+  const speakerStatus = useSpeakerOutput((s) => s.status);
+  const speakerConnecting = useSpeakerOutput((s) => s.connecting);
+  const speakerMode = !!activeSpeaker;
+  const remoteView = speakerMode
+    ? {
+        isPlaying: speakerStatus?.state === 'playing',
+        currentPositionMs: speakerStatus ? Math.round(speakerStatus.positionSec * 1000) : null,
+        updatedAt: speakerStatus?.receivedAt ?? null,
+        durationMs: speakerStatus?.durationSec ? speakerStatus.durationSec * 1000 : null,
+        deviceName: activeSpeaker.name,
+      }
+    : remoteDevice;
+  const isRemotePlaying = !!remoteView?.isPlaying;
   const [remoteEstimatedPositionMs, setRemoteEstimatedPositionMs] = useState(0);
 
   // Interpolate remote playback position every second
   useEffect(() => {
-    if (!isRemotePlaying || !remoteDevice?.updatedAt || remoteDevice.currentPositionMs == null) {
-      setRemoteEstimatedPositionMs(remoteDevice?.currentPositionMs ?? 0);
+    const positionMs = remoteView?.currentPositionMs;
+    const updatedAt = remoteView?.updatedAt;
+    const durationMs = remoteView?.durationMs;
+    if (!isRemotePlaying || !updatedAt || positionMs == null) {
+      setRemoteEstimatedPositionMs(positionMs ?? 0);
       return;
     }
-    setRemoteEstimatedPositionMs(remoteDevice.currentPositionMs);
+    setRemoteEstimatedPositionMs(positionMs);
     const interval = setInterval(() => {
-      const elapsed = Date.now() - (remoteDevice.updatedAt ?? Date.now());
-      const pos = (remoteDevice.currentPositionMs ?? 0) + elapsed;
-      const clamped = remoteDevice.durationMs ? Math.min(pos, remoteDevice.durationMs) : pos;
-      setRemoteEstimatedPositionMs(clamped);
+      const pos = positionMs + (Date.now() - updatedAt);
+      setRemoteEstimatedPositionMs(durationMs ? Math.min(pos, durationMs) : pos);
     }, 1000);
     return () => clearInterval(interval);
-  }, [isRemotePlaying, remoteDevice?.currentPositionMs, remoteDevice?.updatedAt, remoteDevice?.durationMs]);
+  }, [isRemotePlaying, remoteView?.currentPositionMs, remoteView?.updatedAt, remoteView?.durationMs]);
 
   // Derived values for display: use remote time when remote is playing and local isn't
   const showDevicePicker = useAudioStore((s) => s.isDevicePickerOpen);
   const setDevicePickerOpen = useAudioStore((s) => s.setDevicePickerOpen);
   const devicePickerTriggerRef = useRef<HTMLButtonElement>(null);
-  const showRemoteTime = isRemotePlaying && !isPlaying;
+  const showRemoteTime = speakerMode || (isRemotePlaying && !isPlaying);
   const displayCurrentTime = showRemoteTime ? remoteEstimatedPositionMs / 1000 : currentTime;
-  const displayDuration = showRemoteTime && remoteDevice?.durationMs ? remoteDevice.durationMs / 1000 : duration;
+  const displayDuration = showRemoteTime && remoteView?.durationMs ? remoteView.durationMs / 1000 : duration;
+  const remoteDeviceLabel = speakerMode
+    ? speakerConnecting ? `Connecting to ${activeSpeaker.name}…` : activeSpeaker.name
+    : remoteDevice?.deviceName || 'Another device';
+  const RemoteDeviceIcon = speakerMode ? Speaker : Smartphone;
+
+  // Shares DevicePicker's cache; the speaker button only shows when MA is set up.
+  const { data: speakersData } = useQuery({
+    queryKey: ['playback', 'speakers'],
+    queryFn: async () => {
+      const res = await fetch('/api/speakers', { credentials: 'include' });
+      if (!res.ok) return { configured: false, speakers: [] };
+      return res.json() as Promise<{ configured: boolean; speakers: unknown[] }>;
+    },
+    staleTime: 60_000,
+  });
+  const showSpeakerButton = !!speakersData?.configured && !showRemoteTime;
+  const speakerButton = showSpeakerButton && (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-8 w-8 p-0"
+      onClick={(e) => {
+        e.stopPropagation();
+        // Rendered in both the mobile and desktop bars (one hidden) — anchor
+        // the picker to the copy that was actually tapped.
+        devicePickerTriggerRef.current = e.currentTarget;
+        setDevicePickerOpen(!showDevicePicker);
+      }}
+      title="Play on a speaker"
+      aria-label="Play on a speaker"
+    >
+      <Speaker className="h-4 w-4" />
+    </Button>
+  );
 
   // Record a song play in listening history.
   // Called on: natural end, crossfade complete, manual skip/next.
@@ -631,23 +687,29 @@ export function PlayerBar() {
   const isRemoteControlMode = isRemotePlaying && !isPlaying;
 
   const remoteAwareNext = useCallback(() => {
-    if (isRemoteControlMode) {
+    if (speakerMode) {
+      void controlSpeaker('next');
+    } else if (isRemoteControlMode) {
       sendRemoteCommand('next');
     } else {
       handleNextSong();
     }
-  }, [isRemoteControlMode, handleNextSong]);
+  }, [speakerMode, isRemoteControlMode, handleNextSong]);
 
   const remoteAwarePrevious = useCallback(() => {
-    if (isRemoteControlMode) {
+    if (speakerMode) {
+      void controlSpeaker('previous');
+    } else if (isRemoteControlMode) {
       sendRemoteCommand('previous');
     } else {
       previousSong();
     }
-  }, [isRemoteControlMode, previousSong]);
+  }, [speakerMode, isRemoteControlMode, previousSong]);
 
   const remoteAwareTogglePlayPause = useCallback(() => {
-    if (isRemoteControlMode) {
+    if (speakerMode) {
+      void controlSpeaker(isRemotePlaying ? 'pause' : 'play');
+    } else if (isRemoteControlMode) {
       // Remote device is playing and we want to pause it
       sendRemoteCommand('pause');
     } else if (!isPlaying && remoteDevice?.isPlaying) {
@@ -657,11 +719,20 @@ export function PlayerBar() {
     } else {
       togglePlayPause();
     }
-  }, [isRemoteControlMode, isPlaying, remoteDevice?.isPlaying, togglePlayPause]);
+  }, [speakerMode, isRemotePlaying, isRemoteControlMode, isPlaying, remoteDevice?.isPlaying, togglePlayPause]);
 
+  // Slider drags fire continuously; send the speaker only the settled value.
+  const speakerVolumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const changeVolume = useCallback((newVolume: number) => {
     const clampedVolume = Math.max(0, Math.min(1, newVolume));
     setVolume(clampedVolume);
+    if (speakerMode) {
+      if (speakerVolumeTimerRef.current) clearTimeout(speakerVolumeTimerRef.current);
+      speakerVolumeTimerRef.current = setTimeout(() => {
+        void controlSpeaker('volume', Math.round(clampedVolume * 100));
+      }, 250);
+      return;
+    }
     // Use Web Audio masterGain when available, fall back to element.volume
     if (webAudioInitialized) {
       setMasterVolume(clampedVolume);
@@ -671,7 +742,7 @@ export function PlayerBar() {
         activeDeck.volume = clampedVolume;
       }
     }
-  }, [setVolume, getActiveDeck, webAudioInitialized, setMasterVolume]);
+  }, [speakerMode, setVolume, getActiveDeck, webAudioInitialized, setMasterVolume]);
 
   // Audio event listeners for BOTH decks (extracted hook)
   useDeckEventHandlers({
@@ -968,8 +1039,8 @@ export function PlayerBar() {
                   className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5 hover:text-green-500 transition-colors"
                   aria-label="Switch playback device"
                 >
-                  <Smartphone className="h-2.5 w-2.5" />
-                  <span className="truncate">{remoteDevice?.deviceName || 'Another device'}</span>
+                  <RemoteDeviceIcon className="h-2.5 w-2.5" />
+                  <span className="truncate">{remoteDeviceLabel}</span>
                 </button>
               )}
             </div>
@@ -977,6 +1048,7 @@ export function PlayerBar() {
 
           {/* Compact Controls */}
           <div className="flex items-center gap-1">
+            {speakerButton}
             <Button
               variant="ghost"
               size="sm"
@@ -1083,8 +1155,8 @@ export function PlayerBar() {
                 className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5 hover:text-green-500 transition-colors"
                 aria-label="Switch playback device"
               >
-                <Smartphone className="h-2.5 w-2.5" />
-                <span className="truncate">{remoteDevice?.deviceName || 'Another device'}</span>
+                <RemoteDeviceIcon className="h-2.5 w-2.5" />
+                <span className="truncate">{remoteDeviceLabel}</span>
               </button>
             )}
           </div>
@@ -1222,6 +1294,8 @@ export function PlayerBar() {
               className="w-24"
             />
           </div>
+
+          {speakerButton}
 
           <Button
             variant="ghost"

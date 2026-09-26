@@ -17,6 +17,7 @@ export const SECRET_KEYS = [
   'youtubeApiKey',
   'youtubeClientSecret',
   'aurralPassword',
+  'musicAssistantToken',
 ] as const;
 
 export type SecretKey = (typeof SECRET_KEYS)[number];

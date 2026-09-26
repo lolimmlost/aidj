@@ -8,11 +8,13 @@
 
 import { useEffect, useRef, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
-import { Smartphone, Monitor, Tablet, Check, ArrowRight } from 'lucide-react';
+import { Smartphone, Monitor, Tablet, Check, ArrowRight, Speaker, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAudioStore } from '@/lib/stores/audio';
 import { getDeviceInfo } from '@/lib/utils/device';
 import { sendPlaybackMessage } from '@/lib/hooks/usePlaybackSync';
+import { startSpeakerPlayback, stopSpeakerPlayback } from '@/lib/hooks/useSpeakerSync';
+import { useSpeakerOutput } from '@/lib/stores/speaker-output';
 import { cn } from '@/lib/utils';
 
 interface DevicePickerProps {
@@ -31,6 +33,14 @@ function getDeviceIcon(type: string) {
   }
 }
 
+interface SpeakerOption {
+  id: string;
+  name: string;
+  provider: string;
+  playbackState: string;
+  busyWith: string | null;
+}
+
 function formatLastSeen(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const minutes = Math.floor(diff / 60000);
@@ -46,6 +56,20 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
   const ref = useRef<HTMLDivElement>(null);
   const localDevice = getDeviceInfo();
   const remoteDevice = useAudioStore((s) => s.remoteDevice);
+  const activeSpeaker = useSpeakerOutput((s) => s.active);
+  const speakerConnecting = useSpeakerOutput((s) => s.connecting);
+
+  // House speakers via Music Assistant (#244); section hidden when not configured.
+  const { data: speakerData } = useQuery({
+    queryKey: ['playback', 'speakers'],
+    queryFn: async () => {
+      const res = await fetch('/api/speakers', { credentials: 'include' });
+      if (!res.ok) return { configured: false, speakers: [] as SpeakerOption[] };
+      return res.json() as Promise<{ configured: boolean; speakers: SpeakerOption[] }>;
+    },
+    staleTime: 10_000,
+  });
+  const speakers = speakerData?.speakers ?? [];
 
   const { data } = useQuery({
     queryKey: ['playback', 'devices'],
@@ -92,7 +116,37 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
 
   const devices = data?.devices ?? [];
 
+  const handleSpeaker = async (speaker: SpeakerOption) => {
+    if (activeSpeaker?.id === speaker.id || speakerConnecting) return;
+    if (
+      speaker.busyWith &&
+      !window.confirm(`${speaker.name} is playing ${speaker.busyWith}. Take it over?`)
+    ) {
+      return;
+    }
+    onClose();
+    // Moving between speakers: continue from where the old one was.
+    let positionSec: number | undefined;
+    const status = useSpeakerOutput.getState().status;
+    if (activeSpeaker && status) {
+      const drift = status.state === 'playing' ? (Date.now() - status.receivedAt) / 1000 : 0;
+      positionSec = status.positionSec + drift;
+      useAudioStore.getState().syncIndexToActiveSong(status.currentSongId);
+      await stopSpeakerPlayback({ resumeLocally: false });
+    }
+    await startSpeakerPlayback({ id: speaker.id, name: speaker.name }, positionSec);
+  };
+
   const handleTransfer = async (targetDeviceId: string, targetDeviceName: string, targetDeviceType: string) => {
+    // Leaving a speaker: the phone (or the chosen device) takes over again.
+    if (activeSpeaker) {
+      const isLocalTarget = targetDeviceId === localDevice.deviceId;
+      await stopSpeakerPlayback({ resumeLocally: isLocalTarget });
+      if (isLocalTarget) {
+        onClose();
+        return;
+      }
+    }
     try {
       await fetch('/api/playback/transfer', {
         method: 'POST',
@@ -147,7 +201,7 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
         <div className="space-y-1">
           {devices.map((device) => {
             const isLocal = device.id === localDevice.deviceId;
-            const isActive = remoteDevice?.deviceId === device.id && remoteDevice?.isPlaying;
+            const isActive = !activeSpeaker && remoteDevice?.deviceId === device.id && remoteDevice?.isPlaying;
 
             return (
               <button
@@ -191,6 +245,53 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
             </p>
           )}
         </div>
+        {speakers.length > 0 && (
+          <>
+            <h4 className="text-sm font-medium mt-3 mb-2">Speakers</h4>
+            <div className="space-y-1">
+              {speakers.map((speaker) => {
+                const isActive = activeSpeaker?.id === speaker.id;
+                const isConnecting = isActive && speakerConnecting;
+                return (
+                  <button
+                    type="button"
+                    key={speaker.id}
+                    onClick={() => void handleSpeaker(speaker)}
+                    className={cn(
+                      "group flex items-center gap-3 w-full px-2 py-2 rounded-md text-sm transition-colors",
+                      "hover:bg-accent/50",
+                      isActive && "bg-green-500/10"
+                    )}
+                    aria-label={`${isActive ? 'Playing on' : 'Play on'} ${speaker.name}`}
+                  >
+                    <span className={cn("text-muted-foreground", isActive && "text-green-500")}>
+                      <Speaker className="w-4 h-4" />
+                    </span>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className={cn("truncate", isActive && "text-green-500 font-medium")}>{speaker.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {isConnecting
+                          ? 'Connecting…'
+                          : isActive
+                            ? 'Playing'
+                            : speaker.busyWith
+                              ? `In use: ${speaker.busyWith}`
+                              : 'Available'}
+                      </p>
+                    </div>
+                    {isConnecting ? (
+                      <Loader2 className="w-4 h-4 text-green-500 flex-shrink-0 animate-spin" />
+                    ) : isActive ? (
+                      <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    ) : (
+                      <ArrowRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 opacity-0 group-hover:opacity-100" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

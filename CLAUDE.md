@@ -83,6 +83,9 @@
 | GITHUB_CLIENT_SECRET | No | GitHub OAuth |
 | GOOGLE_CLIENT_ID | No | Google OAuth |
 | GOOGLE_CLIENT_SECRET | No | Google OAuth |
+| MUSIC_ASSISTANT_URL | No | Music Assistant server, enables house-speaker output (#244) |
+| MUSIC_ASSISTANT_TOKEN | No | Music Assistant long-lived token (secret — redacted from /api/config) |
+| MUSIC_ASSISTANT_SUBSONIC_PROVIDER | No | MA's Navidrome provider instance id; MA track uri = `<id>://track/<navidromeSongId>` |
 
 ## Conventions
 
