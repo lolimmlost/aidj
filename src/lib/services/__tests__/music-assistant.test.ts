@@ -8,7 +8,7 @@ vi.mock('@/lib/config/config', () => ({
   }),
 }));
 
-import { songIdToUri, uriToSongId, toSpeaker, isMusicAssistantConfigured } from '../music-assistant';
+import { songIdToUri, uriToSongId, toSpeaker, isMusicAssistantConfigured, itemSongId } from '../music-assistant';
 
 describe('music-assistant track uris', () => {
   it('round-trips a Navidrome song id through the provider uri', () => {
@@ -21,6 +21,19 @@ describe('music-assistant track uris', () => {
     expect(uriToSongId('spotify://track/123')).toBeNull();
     expect(uriToSongId('opensubsonic--other://track/123')).toBeNull();
     expect(uriToSongId(null)).toBeNull();
+  });
+
+  it('finds the Navidrome id of a library:// queue item via its provider mapping', () => {
+    expect(itemSongId({
+      media_item: {
+        uri: 'library://track/13790',
+        provider_mappings: [
+          { provider_instance: 'spotify--x', item_id: 'nope' },
+          { provider_instance: 'opensubsonic--abc', item_id: '85gWrmrkqWY2kgrvitW4n9' },
+        ],
+      },
+    })).toBe('85gWrmrkqWY2kgrvitW4n9');
+    expect(itemSongId({ media_item: { uri: 'library://track/1', provider_mappings: [] } })).toBeNull();
   });
 
   it('is configured when url, token and provider are all set', () => {

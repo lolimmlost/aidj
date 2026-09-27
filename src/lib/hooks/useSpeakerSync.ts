@@ -37,10 +37,10 @@ const SETTLE_POLLS = 2;
  */
 const NO_REPLACE_TAIL_SEC = 15;
 /**
- * Polls in a row the speaker must be idle, or playing something that isn't
- * AIDJ's, before the phone lets go of it and plays locally again. Without
- * this a stopped or taken-over speaker (the selection survives reloads)
- * would keep swallowing every play tap.
+ * Polls in a row the speaker's queue must be idle (stopped, or taken over by
+ * another app) before the phone lets go of it and plays locally again.
+ * Without this a stopped speaker (the selection survives reloads) would keep
+ * swallowing every play tap.
  */
 const RELEASE_POLLS = 2;
 
@@ -188,7 +188,7 @@ async function pollSpeaker(): Promise<void> {
     // Speaker was switched off or changed while the request was out.
     if (useSpeakerOutput.getState().active?.id !== active.id) return;
     consecutiveFailures = 0;
-    if (s.state === 'idle' || !s.currentSongId) {
+    if (s.state === 'idle') {
       if (++lostCount >= RELEASE_POLLS) {
         lostCount = 0;
         resetFollow();
