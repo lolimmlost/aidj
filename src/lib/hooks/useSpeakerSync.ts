@@ -36,6 +36,13 @@ const SETTLE_POLLS = 2;
  * the receiver has already buffered the next track.
  */
 const NO_REPLACE_TAIL_SEC = 15;
+/**
+ * Polls in a row the speaker must be idle, or playing something that isn't
+ * AIDJ's, before the phone lets go of it and plays locally again. Without
+ * this a stopped or taken-over speaker (the selection survives reloads)
+ * would keep swallowing every play tap.
+ */
+const RELEASE_POLLS = 2;
 
 type SpeakerAction = 'play' | 'pause' | 'next' | 'previous' | 'stop' | 'seek' | 'volume';
 
@@ -57,6 +64,7 @@ let pendingCount = 0;
 let pollInFlight = false;
 let feedInFlight = false;
 let consecutiveFailures = 0;
+let lostCount = 0;
 let pollNow: (() => void) | null = null;
 
 function resetFollow() {
@@ -97,6 +105,7 @@ export async function startSpeakerPlayback(
       positionSec: positionSec ?? audio.currentTime,
     });
     resetFollow();
+    lostCount = 0;
     out.setActive(speaker);
     if (announce) toast.success(`Playing on ${speaker.name}`);
   } catch (err) {
@@ -179,6 +188,17 @@ async function pollSpeaker(): Promise<void> {
     // Speaker was switched off or changed while the request was out.
     if (useSpeakerOutput.getState().active?.id !== active.id) return;
     consecutiveFailures = 0;
+    if (s.state === 'idle' || !s.currentSongId) {
+      if (++lostCount >= RELEASE_POLLS) {
+        lostCount = 0;
+        resetFollow();
+        out.setActive(null);
+        toast(`${active.name} stopped — back to this device`);
+        return;
+      }
+    } else {
+      lostCount = 0;
+    }
     out.setStatus({ ...s, receivedAt: Date.now() });
     followSpeaker(s.currentSongId);
     await feedSpeaker(active, s);

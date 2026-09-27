@@ -114,7 +114,21 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  const devices = data?.devices ?? [];
+  // The registry only lists devices seen in the last few minutes, and a phone
+  // that has handed off to a speaker goes quiet — always offer this device so
+  // there is a way back from the speaker.
+  const registered = data?.devices ?? [];
+  const devices = !activeSpeaker || registered.some((d) => d.id === localDevice.deviceId)
+    ? registered
+    : [
+        {
+          id: localDevice.deviceId,
+          deviceName: localDevice.deviceName,
+          deviceType: localDevice.deviceType,
+          lastSeenAt: new Date().toISOString(),
+        },
+        ...registered,
+      ];
 
   const handleSpeaker = async (speaker: SpeakerOption) => {
     if (activeSpeaker?.id === speaker.id || speakerConnecting) return;
