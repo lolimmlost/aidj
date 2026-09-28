@@ -75,6 +75,7 @@ export const userPreferences = pgTable("user_preferences", {
     crossfadeDuration: number; // 0-10 seconds
     defaultQuality: 'low' | 'medium' | 'high';
     safeMode?: boolean; // PG/SFW mode — filter explicit content from recommendations
+    scrobbleThreshold?: number; // % of a song played before it counts as a play (default 50)
   }>().default({
     volume: 0.5,
     autoplayNext: true,

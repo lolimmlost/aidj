@@ -210,14 +210,34 @@ export async function getMissingStarredSongs(): Promise<SubsonicSong[]> {
   return fetchStarredSongsNative(true);
 }
 
+// Client: songs already submitted for the play in progress (songId → ms until
+// which a repeat submission is dropped). The threshold submit below records
+// the play the moment it counts; the older end-of-song / skip paths still
+// call scrobbleSong and must not count it twice.
+const submittedUntil = new Map<string, number>();
+
+/**
+ * Submit a play as soon as the user's scrobble threshold is crossed, instead
+ * of waiting for the song to end — a play that is interrupted afterwards
+ * (iOS audio interruption, app killed) still counts.
+ */
+export async function scrobbleAtThreshold(songId: string, remainingSec: number): Promise<void> {
+  const remainingMs = Number.isFinite(remainingSec) ? Math.max(0, remainingSec) * 1000 : 0;
+  // Only a successful submit suppresses the end-of-song fallback.
+  if (await scrobbleSong(songId, true)) {
+    submittedUntil.set(songId, Date.now() + remainingMs + 30_000);
+  }
+}
+
 /**
  * Scrobble a song play in Navidrome (register play count)
  * Uses Subsonic API scrobble endpoint
  */
-export async function scrobbleSong(songId: string, submission: boolean = true, time?: Date, creds?: SubsonicCreds): Promise<void> {
+export async function scrobbleSong(songId: string, submission: boolean = true, time?: Date, creds?: SubsonicCreds): Promise<boolean> {
   const isClient = typeof window !== 'undefined';
 
   if (isClient) {
+    if (submission && (submittedUntil.get(songId) ?? 0) > Date.now()) return true;
     try {
       const params = new URLSearchParams({
         id: songId,
@@ -238,13 +258,13 @@ export async function scrobbleSong(songId: string, submission: boolean = true, t
       if (!response?.ok) {
         const errorText = await response.text();
         console.error('Failed to scrobble song:', errorText);
-        return;
+        return false;
       }
 
       const data = await response.json();
       if (data?.['subsonic-response']?.status !== 'ok') {
         console.error('Subsonic API error:', data?.['subsonic-response']?.error?.message || 'Unknown error');
-        return;
+        return false;
       }
 
       if (submission) {
@@ -252,10 +272,11 @@ export async function scrobbleSong(songId: string, submission: boolean = true, t
       } else {
         console.log(`▶️ Updated now playing status for song ${songId} in Navidrome`);
       }
+      return true;
     } catch (error) {
       console.error('Failed to scrobble song in Navidrome:', error);
+      return false;
     }
-    return;
   }
 
   // Server-side: direct access to Navidrome
@@ -295,7 +316,9 @@ export async function scrobbleSong(songId: string, submission: boolean = true, t
     } else {
       console.log(`▶️ Updated now playing status for song ${songId} in Navidrome`);
     }
+    return true;
   } catch (error) {
     console.error('Failed to scrobble song in Navidrome:', error);
+    return false;
   }
 }

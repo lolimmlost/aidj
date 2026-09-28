@@ -48,6 +48,7 @@ const PreferencesSchema = z.object({
     crossfadeDuration: z.number().min(0).max(10).optional(),
     defaultQuality: z.enum(['low', 'medium', 'high']).optional(),
     safeMode: z.boolean().optional(),
+    scrobbleThreshold: z.number().int().min(10).max(100).optional(),
   }).optional(),
   notificationSettings: z.object({
     browserNotifications: z.boolean().optional(),
