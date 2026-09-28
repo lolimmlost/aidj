@@ -346,9 +346,7 @@ function StartListeningCTA() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const queryClient = useQueryClient();
-  const setPlaylist = useAudioStore((s) => s.setPlaylist);
-  const playSong = useAudioStore((s) => s.playSong);
-  const setIsPlaying = useAudioStore((s) => s.setIsPlaying);
+  const playShuffled = useAudioStore((s) => s.playShuffled);
 
   const { data: playlistsData } = useQuery({
     queryKey: ['playlists'],
@@ -374,16 +372,7 @@ function StartListeningCTA() {
       const songs = await loadPlaylistIntoQueue(likedPlaylist.id);
       if (songs.length === 0) return;
 
-      // Fisher-Yates shuffle
-      const shuffled = [...songs];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-
-      setPlaylist(shuffled);
-      playSong(shuffled[0].id, shuffled);
-      setIsPlaying(true);
+      playShuffled(songs);
     } catch (error) {
       console.error('Failed to load liked songs:', error);
     } finally {

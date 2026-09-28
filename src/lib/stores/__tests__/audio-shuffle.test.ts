@@ -165,4 +165,63 @@ describe('Audio Store Shuffle', () => {
       expect(recentlyPlayed).toContain('1');
     });
   });
+
+  describe('shuffle on / off', () => {
+    const songs = () =>
+      ['1', '2', '3', '4', '5', '6', '7', '8'].map((id, i) => createMockSong(id, `Artist ${i}`, `Song ${id}`));
+    const ids = () => useAudioStore.getState().playlist.map((s) => s.id);
+
+    it('turning shuffle off restores the original order after the current song', () => {
+      const original = songs();
+      useAudioStore.getState().setPlaylist(original);
+      useAudioStore.getState().toggleShuffle();
+      expect(ids()).not.toEqual(original.map((s) => s.id));
+
+      useAudioStore.getState().toggleShuffle();
+      expect(useAudioStore.getState().isShuffled).toBe(false);
+      expect(useAudioStore.getState().originalQueue).toEqual([]);
+      expect(ids()).toEqual(original.map((s) => s.id));
+    });
+
+    it('playShuffled starts a shuffled queue with shuffle on, and can be undone', () => {
+      const original = songs();
+      useAudioStore.getState().playShuffled(original);
+      const state = useAudioStore.getState();
+      expect(state.isShuffled).toBe(true);
+      expect(state.isPlaying).toBe(true);
+      expect(state.currentSongIndex).toBe(0);
+      expect(new Set(ids())).toEqual(new Set(original.map((s) => s.id)));
+
+      const current = state.playlist[0].id;
+      useAudioStore.getState().toggleShuffle();
+      // Continues in original order from the current song, then wraps.
+      const at = original.findIndex((s) => s.id === current);
+      const expected = [...original.slice(at), ...original.slice(0, at)].map((s) => s.id);
+      expect(ids()).toEqual(expected);
+    });
+
+    it('loading a new queue drops the saved order', () => {
+      useAudioStore.getState().playShuffled(songs());
+      useAudioStore.getState().setPlaylist(songs().slice(0, 3));
+      expect(useAudioStore.getState().isShuffled).toBe(false);
+      expect(useAudioStore.getState().originalQueue).toEqual([]);
+    });
+
+    it('a shuffled queue stops at the end when repeat is off', () => {
+      useAudioStore.getState().playShuffled(songs().slice(0, 3));
+      useAudioStore.setState({ currentSongIndex: 2, repeatMode: 'off' });
+      useAudioStore.getState().nextSong();
+      expect(useAudioStore.getState().isPlaying).toBe(false);
+    });
+
+    it('repeat-all with shuffle reshuffles and keeps playing', () => {
+      useAudioStore.getState().playShuffled(songs());
+      useAudioStore.setState({ currentSongIndex: 7, repeatMode: 'all' });
+      useAudioStore.getState().nextSong();
+      const state = useAudioStore.getState();
+      expect(state.isPlaying).toBe(true);
+      expect(state.currentSongIndex).toBe(0);
+      expect(state.playlist).toHaveLength(8);
+    });
+  });
 });

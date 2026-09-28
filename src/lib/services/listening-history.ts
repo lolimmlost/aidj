@@ -174,6 +174,30 @@ export async function getRecentListeningHistory(
   }));
 }
 
+/** How far back "recently heard" reaches for shuffle ordering. */
+export const SHUFFLE_RECENT_DAYS = 14;
+
+/**
+ * Ids of songs the user played (listened to or skipped) in the last `daysBack`
+ * days, most recent first. Shuffle places these after everything else.
+ */
+export async function getRecentlyPlayedSongIds(
+  userId: string,
+  daysBack: number = SHUFFLE_RECENT_DAYS,
+  limit: number = 5000,
+): Promise<string[]> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+  const rows = await db
+    .select({ songId: listeningHistory.songId })
+    .from(listeningHistory)
+    .where(and(eq(listeningHistory.userId, userId), gte(listeningHistory.playedAt, cutoffDate)))
+    .groupBy(listeningHistory.songId)
+    .orderBy(desc(sql`max(${listeningHistory.playedAt})`))
+    .limit(limit);
+  return rows.map((r) => r.songId);
+}
+
 /**
  * Get unique songs played by a user in a time period
  * Used for compound score calculation

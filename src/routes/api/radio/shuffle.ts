@@ -4,7 +4,10 @@ import { db } from '@/lib/db';
 import { artistAffinities } from '@/lib/db/schema/profile.schema';
 import { userPreferences } from '@/lib/db/schema/preferences.schema';
 import { eq, desc } from 'drizzle-orm';
-import { getSongsByArtist, getRandomSongs, search } from '@/lib/services/navidrome';
+import { getSongsByArtist, getRandomSongs, resolveArtistIdByName } from '@/lib/services/navidrome';
+import { getRecentlyPlayedSongIds } from '@/lib/services/listening-history';
+import { shuffleSongs } from '@/lib/utils/shuffle-scoring';
+import type { Song } from '@/lib/types/song';
 
 /** Fisher-Yates in-place shuffle */
 function shuffle<T>(arr: T[]): T[] {
@@ -23,16 +26,36 @@ function sample<T>(arr: T[], n: number): T[] {
 }
 
 /**
+ * Pick N random songs, taking ones not heard recently first. Drawing from an
+ * artist's whole catalogue (not the first page of a search) is what keeps
+ * deep cuts in rotation.
+ */
+function sampleSongs<T extends { id: string }>(songs: T[], n: number, recent: ReadonlySet<string>): T[] {
+  const fresh = shuffle(songs.filter((s) => !recent.has(s.id)));
+  const heard = shuffle(songs.filter((s) => recent.has(s.id)));
+  return [...fresh, ...heard].slice(0, n);
+}
+
+/** Most songs fetched per artist — effectively the whole catalogue. */
+const ARTIST_CATALOG_LIMIT = 1000;
+
+function artistCatalog(artistId: string): Promise<Song[]> {
+  return getSongsByArtist(artistId, 0, ARTIST_CATALOG_LIMIT).catch(() => []);
+}
+
+/**
  * GET /api/radio/shuffle
  *
  * Returns a shuffled list of songs for radio playback.
  * Strategy:
  * - Pull from a wider pool of affinity artists (top 50), randomly pick 10-15
  * - Only guarantee top 2 artists (not 5) to reduce repetition
- * - Fetch more songs per artist than needed, then randomly sample
+ * - Sample each artist from their full catalogue, preferring songs not heard
+ *   in the last 14 days
  * - Deduplicate by song ID
  * - Mix in ~30% random library songs for discovery variety
- * - Final shuffle for a fresh mix every time
+ * - Order with the shared spread shuffle (artists evenly spaced, recently
+ *   heard songs last)
  */
 const GET = withAuthAndErrorHandling(
   async ({ request, session }) => {
@@ -41,26 +64,16 @@ const GET = withAuthAndErrorHandling(
     const artistIdsParam = url.searchParams.get('artistIds');
     const count = Math.min(parseInt(url.searchParams.get('count') || '50', 10) || 50, 100);
 
-    let songs: Array<{
-      id: string;
-      title: string;
-      artist: string;
-      album: string;
-      albumArt?: string;
-      duration: number;
-    }>;
+    let songs: ReturnType<typeof mapSong>[];
+    const recent = new Set(await getRecentlyPlayedSongIds(userId).catch(() => [] as string[]));
 
     if (artistIdsParam) {
       // Seed artists provided (e.g., from onboarding selections)
       const artistIds = artistIdsParam.split(',').filter(Boolean);
-      const songsPerArtist = Math.ceil((count * 2) / Math.max(artistIds.length, 1));
-
-      const results = await Promise.all(
-        artistIds.map((id) => getSongsByArtist(id, 0, songsPerArtist).catch(() => []))
-      );
+      const results = await Promise.all(artistIds.map(artistCatalog));
 
       // Randomly sample from each artist's catalog
-      const allSongs = results.flatMap((artistSongs) => sample(artistSongs, Math.ceil(count / artistIds.length)));
+      const allSongs = results.flatMap((artistSongs) => sampleSongs(artistSongs, Math.ceil(count / artistIds.length), recent));
       songs = allSongs.map(mapSong);
     } else {
       // Check user's artist affinities — pull wider pool, randomly select subset
@@ -78,25 +91,19 @@ const GET = withAuthAndErrorHandling(
         const randomPicks = sample(candidates, Math.min(12, candidates.length));
         const selectedArtists = shuffle([...guaranteed, ...randomPicks]);
 
-        // Fetch more songs per artist than needed so we can randomly sample
-        const fetchPerArtist = Math.max(15, Math.ceil((count * 2) / selectedArtists.length));
-
+        // Each artist's whole catalogue. A name search only ever returned the
+        // same top-ranked handful, so radio kept replaying the same songs.
         const results = await Promise.all(
           selectedArtists.map(async (affinity) => {
-            try {
-              // Search Navidrome for songs by this artist
-              const found = await search(affinity.artist, 0, fetchPerArtist);
-              return found;
-            } catch {
-              return [];
-            }
+            const artistId = await resolveArtistIdByName(affinity.artist);
+            return artistId ? artistCatalog(artistId) : [];
           })
         );
 
         // Randomly sample from each artist's full catalog
         const affinitySongs = results.flatMap((artistSongs) => {
           const pickCount = Math.max(2, Math.ceil(count / selectedArtists.length));
-          return sample(artistSongs, pickCount);
+          return sampleSongs(artistSongs, pickCount, recent);
         });
 
         songs = affinitySongs.map(mapSong);
@@ -146,11 +153,9 @@ const GET = withAuthAndErrorHandling(
       console.warn('Safe Mode filter failed, continuing unfiltered:', err);
     }
 
-    // Final shuffle
-    shuffle(songs);
-
-    // Limit to requested count
-    songs = songs.slice(0, count);
+    // Spread artists evenly with recently heard songs last, then trim from the
+    // end so those are the ones dropped.
+    songs = (shuffleSongs(songs as Song[], { recentlyPlayedIds: recent }) as typeof songs).slice(0, count);
 
     return successResponse({ songs });
   },

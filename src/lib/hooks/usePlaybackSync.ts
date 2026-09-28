@@ -90,6 +90,15 @@ function createDebounced(fn: () => void, delay: number): { trigger: () => void; 
 }
 
 /**
+ * The pre-shuffle order, so another device (or this one after a reload) can
+ * restore it when shuffle is turned off. Capped like the server's queue.
+ */
+const MAX_ORIGINAL_QUEUE = 500;
+function originalQueueForSync(state: ReturnType<typeof useAudioStore.getState>) {
+  return state.isShuffled ? state.originalQueue.slice(0, MAX_ORIGINAL_QUEUE).map(toSyncSong) : [];
+}
+
+/**
  * Push current audio store state to server via REST.
  * Always stamps positionUpdatedAt with the current time so the server
  * has an accurate timestamp for conflict resolution.
@@ -109,7 +118,7 @@ async function pushStateToServer(): Promise<void> {
       credentials: 'include',
       body: JSON.stringify({
         queue: state.playlist.map(toSyncSong),
-        originalQueue: [],
+        originalQueue: originalQueueForSync(state),
         currentIndex: state.currentSongIndex,
         currentPositionMs: Math.floor((state.currentTime ?? 0) * 1000),
         isPlaying: state.isPlaying,
@@ -143,7 +152,7 @@ function pushStateViaBeacon(): void {
 
   const body = JSON.stringify({
     queue: state.playlist.map(toSyncSong),
-    originalQueue: [],
+    originalQueue: originalQueueForSync(state),
     currentIndex: state.currentSongIndex,
     currentPositionMs: Math.floor((state.currentTime ?? 0) * 1000),
     isPlaying: state.isPlaying,
@@ -198,7 +207,7 @@ function broadcastStateViaWS(ws: WebSocket | null): void {
     deviceId: deviceInfo.deviceId,
     payload: {
       queue: state.playlist.map(toSyncSong),
-      originalQueue: [],
+      originalQueue: originalQueueForSync(state),
       currentIndex: state.currentSongIndex,
       currentPositionMs: Math.floor((state.currentTime ?? 0) * 1000),
       isPlaying: state.isPlaying,

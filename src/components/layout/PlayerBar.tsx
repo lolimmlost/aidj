@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/query';
 import { usePlaybackSync, sendRemoteCommand } from '@/lib/hooks/usePlaybackSync';
 import { useSpeakerSync, controlSpeaker } from '@/lib/hooks/useSpeakerSync';
+import { refreshRecentlyPlayedIds } from '@/lib/utils/recently-played';
 import { useSpeakerOutput } from '@/lib/stores/speaker-output';
 import { ResumePlaybackPrompt } from './ResumePlaybackPrompt';
 import { NowPlayingFullscreen } from './NowPlayingFullscreen';
@@ -74,6 +75,8 @@ export function PlayerBar() {
   usePlaybackSync();
   // House speaker output via Music Assistant (#244)
   useSpeakerSync();
+  // Shuffle reads recent plays synchronously — have them ready before the first tap.
+  useEffect(() => { void refreshRecentlyPlayedIds(); }, []);
 
   // Dual-deck audio system
   const {

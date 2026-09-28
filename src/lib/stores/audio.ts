@@ -6,7 +6,8 @@ import type { PlaybackStateResponse } from '@/lib/types/sync';
 import { getDeviceInfo } from '@/lib/utils/device';
 import { usePreferencesStore } from './preferences';
 import { toast } from '@/lib/toast';
-import { shuffleSongs } from '@/lib/utils/shuffle-scoring';
+import { shuffleSongs, unshuffleUpcoming } from '@/lib/utils/shuffle-scoring';
+import { peekRecentlyPlayedIds } from '@/lib/utils/recently-played';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 import type { SeededRadioSeed, ArtistVariety } from '@/lib/services/seeded-radio';
 
@@ -54,6 +55,8 @@ interface AudioState {
   duration: number;
   volume: number;
   isShuffled: boolean;
+  /** Queue as it was before shuffle was turned on — restored when it's turned off. */
+  originalQueue: Song[];
   repeatMode: 'off' | 'all' | 'one';
   // AI DJ state (Story 3.9)
   aiDJEnabled: boolean;
@@ -169,6 +172,8 @@ interface AudioState {
   toggleShuffle: () => void;
   toggleRepeat: () => void;
   shufflePlaylist: () => void;
+  /** Replace the queue with `songs` shuffled and start playing (shuffle stays on). */
+  playShuffled: (songs: Song[]) => void;
   // AI DJ actions (Story 3.9)
   setAIDJEnabled: (enabled: boolean) => void;
   monitorQueueForAIDJ: () => Promise<void>;
@@ -223,6 +228,7 @@ export const useAudioStore = create<AudioState>()(
     duration: 0,
     volume: 0.5,
     isShuffled: false,
+    originalQueue: [],
     repeatMode: 'off',
     // AI DJ initial state (Story 3.9)
     aiDJEnabled: false,
@@ -285,6 +291,7 @@ export const useAudioStore = create<AudioState>()(
       playlist: songs,
       currentSongIndex: 0,
       isShuffled: false,
+      originalQueue: [],
       ...RADIO_RESET,
     }),
 
@@ -369,6 +376,7 @@ export const useAudioStore = create<AudioState>()(
           currentSongIndex: 0,
           isPlaying: true,
           isShuffled: false,
+          originalQueue: [],
           ...RADIO_RESET,
         });
       } else {
@@ -506,10 +514,12 @@ export const useAudioStore = create<AudioState>()(
 
       // End of queue
       if (nextIndex >= state.playlist.length) {
-        if (state.repeatMode === 'all' || state.isShuffled) {
-          // Repeat-all or shuffle: wrap around (reshuffle if needed)
+        if (state.repeatMode === 'all') {
+          // Repeat-all: wrap around (a fresh shuffle when shuffle is on)
           if (state.isShuffled) {
-            const reshuffled = shuffleSongs([...state.playlist]);
+            const reshuffled = shuffleSongs([...state.playlist], {
+              recentlyPlayedIds: peekRecentlyPlayedIds(state.recentlyPlayedIds),
+            });
             set({
               ...updates,
               playlist: reshuffled,
@@ -560,6 +570,7 @@ export const useAudioStore = create<AudioState>()(
       currentSongIndex: -1,
       isPlaying: false,
       isShuffled: false,
+      originalQueue: [],
 
     }),
     addPlaylist: (songs: Song[]) => {
@@ -568,6 +579,7 @@ export const useAudioStore = create<AudioState>()(
         currentSongIndex: 0,
         isPlaying: true,
         isShuffled: false,
+        originalQueue: [],
         ...RADIO_RESET,
       });
     },
@@ -580,6 +592,7 @@ export const useAudioStore = create<AudioState>()(
           currentSongIndex: 0,
           isPlaying: true,
           isShuffled: false,
+          originalQueue: [],
           ...RADIO_RESET,
         });
       } else {
@@ -779,8 +792,17 @@ export const useAudioStore = create<AudioState>()(
     toggleShuffle: () => {
       const state = get();
       if (state.isShuffled) {
-        // Turn off shuffle — keep current order, just clear the flag
-        set({ isShuffled: false });
+        // Turn off: put what's still to come back in the original order.
+        const current = state.playlist[state.currentSongIndex];
+        const played = state.playlist.slice(0, state.currentSongIndex + 1);
+        const upcoming = state.playlist.slice(state.currentSongIndex + 1);
+        set({
+          playlist: state.originalQueue.length > 0
+            ? [...played, ...unshuffleUpcoming(upcoming, state.originalQueue, current?.id)]
+            : state.playlist,
+          isShuffled: false,
+          originalQueue: [],
+        });
       } else {
         get().shufflePlaylist();
       }
@@ -800,14 +822,31 @@ export const useAudioStore = create<AudioState>()(
 
       const currentSong = state.playlist[state.currentSongIndex];
       const upcomingSongs = state.playlist.slice(state.currentSongIndex + 1);
-      const shuffledUpcoming = shuffleSongs([...upcomingSongs]);
+      const shuffledUpcoming = shuffleSongs(upcomingSongs, {
+        recentlyPlayedIds: peekRecentlyPlayedIds(state.recentlyPlayedIds),
+      });
       const newPlaylist = currentSong ? [currentSong, ...shuffledUpcoming] : shuffledUpcoming;
 
       set({
         playlist: newPlaylist,
         currentSongIndex: currentSong ? 0 : -1,
         isShuffled: true,
+        // Keep the order from the first shuffle if this is a re-shuffle.
+        originalQueue: state.isShuffled && state.originalQueue.length > 0
+          ? state.originalQueue
+          : state.playlist,
       });
+    },
+
+    playShuffled: (songs: Song[]) => {
+      if (songs.length === 0) return;
+      const shuffled = shuffleSongs(songs, {
+        recentlyPlayedIds: peekRecentlyPlayedIds(get().recentlyPlayedIds),
+      });
+      get().playSong(shuffled[0].id, shuffled);
+      // playSong refuses while another device is playing — leave state alone then.
+      if (get().playlist !== shuffled) return;
+      set({ isShuffled: true, originalQueue: songs });
     },
 
     // AI DJ actions (Story 3.9)
@@ -1789,6 +1828,7 @@ export const useAudioStore = create<AudioState>()(
         merged.playlist = server.queue.map(fromSyncSong);
         merged.currentSongIndex = server.currentIndex;
         merged.isShuffled = server.isShuffled;
+        merged.originalQueue = server.isShuffled ? (server.originalQueue ?? []).map(fromSyncSong) : [];
         merged.queueUpdatedAt = server.queueUpdatedAt;
         changed = true;
       }

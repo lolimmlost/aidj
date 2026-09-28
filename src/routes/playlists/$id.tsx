@@ -1035,11 +1035,7 @@ function PlaylistDetailPage() {
       return;
     }
 
-    const audioSongs = playlistSongsToAudio(playlist.songs);
-    const shuffled = [...audioSongs].sort(() => Math.random() - 0.5);
-    setPlaylist(shuffled);
-    playSong(shuffled[0].id, shuffled);
-    setIsPlaying(true);
+    useAudioStore.getState().playShuffled(playlistSongsToAudio(playlist.songs));
     toast.success('Shuffling playlist', {
       description: `Playing ${playlist.name}`,
     });
