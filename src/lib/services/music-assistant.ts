@@ -200,7 +200,10 @@ export async function controlSpeaker(playerId: string, action: SpeakerAction, va
 
 interface MaQueueItem {
   duration?: number | null;
-  media_item?: { uri?: string | null } | null;
+  media_item?: {
+    uri?: string | null;
+    provider_mappings?: Array<{ provider_instance?: string; item_id?: string }> | null;
+  } | null;
   streamdetails?: { provider?: string; item_id?: string } | null;
 }
 
@@ -227,10 +230,15 @@ export interface SpeakerState {
   sampledAt: number;
 }
 
-function itemSongId(item: MaQueueItem | null | undefined): string | null {
+export function itemSongId(item: MaQueueItem | null | undefined): string | null {
   if (!item) return null;
   const fromUri = uriToSongId(item.media_item?.uri);
   if (fromUri) return fromUri;
+  // Once a track is in MA's library its uri becomes library://track/<n>; the
+  // Navidrome id is then only in the provider mapping (seen live 2026-09-27).
+  const provider = maConfig().provider;
+  const mapped = item.media_item?.provider_mappings?.find((m) => m.provider_instance === provider);
+  if (mapped?.item_id) return mapped.item_id;
   const sd = item.streamdetails;
   return sd?.provider === maConfig().provider && sd.item_id ? sd.item_id : null;
 }

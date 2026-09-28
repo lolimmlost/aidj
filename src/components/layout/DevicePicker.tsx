@@ -114,7 +114,21 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  const devices = data?.devices ?? [];
+  // The registry only lists devices seen in the last few minutes, and a phone
+  // that has handed off to a speaker goes quiet — always offer this device so
+  // there is a way back from the speaker.
+  const registered = data?.devices ?? [];
+  const devices = !activeSpeaker || registered.some((d) => d.id === localDevice.deviceId)
+    ? registered
+    : [
+        {
+          id: localDevice.deviceId,
+          deviceName: localDevice.deviceName,
+          deviceType: localDevice.deviceType,
+          lastSeenAt: new Date().toISOString(),
+        },
+        ...registered,
+      ];
 
   const handleSpeaker = async (speaker: SpeakerOption) => {
     if (activeSpeaker?.id === speaker.id || speakerConnecting) return;
@@ -174,8 +188,9 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
   // is portaled and must be positioned before first paint to avoid a jump.
 
   const initialStyle: React.CSSProperties = (() => {
-    if (triggerRef?.current) {
-      const r = triggerRef.current.getBoundingClientRect();
+    const r = triggerRef?.current?.getBoundingClientRect();
+    // A hidden trigger measures 0×0 — fall back rather than render off-screen.
+    if (r && r.width > 0 && r.height > 0) {
       const bottomOffset = window.innerHeight - r.top + 8;
       const left = Math.max(8, Math.min(r.left, window.innerWidth - 264));
       const maxH = window.innerHeight - bottomOffset - 16;

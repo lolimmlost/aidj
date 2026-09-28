@@ -1031,9 +1031,11 @@ export function PlayerBar() {
               </div>
               {showRemoteTime && (
                 <button
-                  ref={devicePickerTriggerRef}
                   onClick={(e) => {
                     e.stopPropagation();
+                    // Mobile and desktop bars both render this (one hidden) —
+                    // anchor to the one tapped, not the hidden 0×0 copy.
+                    devicePickerTriggerRef.current = e.currentTarget;
                     setDevicePickerOpen(!showDevicePicker);
                   }}
                   className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5 hover:text-green-500 transition-colors"
@@ -1150,8 +1152,11 @@ export function PlayerBar() {
             )}
             {showRemoteTime && (
               <button
-                ref={devicePickerTriggerRef}
-                onClick={(e) => { e.stopPropagation(); setDevicePickerOpen(!showDevicePicker); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  devicePickerTriggerRef.current = e.currentTarget;
+                  setDevicePickerOpen(!showDevicePicker);
+                }}
                 className="flex items-center gap-1 text-[10px] text-green-500/60 mt-0.5 hover:text-green-500 transition-colors"
                 aria-label="Switch playback device"
               >
