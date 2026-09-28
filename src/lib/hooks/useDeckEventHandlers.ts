@@ -173,7 +173,7 @@ export function useDeckEventHandlers({
             const isLastSong = currentSongIndex + 1 >= playlist.length;
 
             // Don't crossfade at end of playlist when repeat is off — let it stop naturally
-            if (!isLastSong || currentRepeatMode === 'all' || useAudioStore.getState().isShuffled) {
+            if (!isLastSong || currentRepeatMode === 'all') {
               const nextIndex = (currentSongIndex + 1) % playlist.length;
               const nextSongData = playlist[nextIndex] as Song;
 

@@ -264,9 +264,7 @@ function ArtistDetail() {
 
   const handleShuffleAll = () => {
     if (songs.length > 0) {
-      const shuffled = [...songs].sort(() => Math.random() - 0.5);
-      playSong(shuffled[0].id, shuffled);
-      setIsPlaying(true);
+      useAudioStore.getState().playShuffled(songs);
       toast.success(`Shuffling ${songs.length} songs`);
     }
   };

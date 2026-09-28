@@ -103,9 +103,7 @@ function AlbumDetail() {
 
   const handleShuffle = () => {
     if (sortedSongs.length === 0) return;
-    const shuffled = [...sortedSongs].sort(() => Math.random() - 0.5);
-    playSong(shuffled[0].id, shuffled);
-    setIsPlaying(true);
+    useAudioStore.getState().playShuffled(sortedSongs);
   };
 
   const handleSongClick = (songId: string) => {

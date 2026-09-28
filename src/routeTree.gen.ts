@@ -105,6 +105,7 @@ import { Route as ApiListeningHistoryCompoundScoresRouteImport } from './routes/
 import { Route as ApiListeningHistoryFullRouteImport } from './routes/api/listening-history/full'
 import { Route as ApiListeningHistoryInterestOverTimeRouteImport } from './routes/api/listening-history/interest-over-time'
 import { Route as ApiListeningHistoryRecentRouteImport } from './routes/api/listening-history/recent'
+import { Route as ApiListeningHistoryRecentIdsRouteImport } from './routes/api/listening-history/recent-ids'
 import { Route as ApiListeningHistoryRecordRouteImport } from './routes/api/listening-history/record'
 import { Route as ApiListeningHistoryStatsRouteImport } from './routes/api/listening-history/stats'
 import { Route as ApiListeningHistoryTopArtistsRouteImport } from './routes/api/listening-history/top-artists'
@@ -700,6 +701,12 @@ const ApiListeningHistoryRecentRoute =
   ApiListeningHistoryRecentRouteImport.update({
     id: '/api/listening-history/recent',
     path: '/api/listening-history/recent',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiListeningHistoryRecentIdsRoute =
+  ApiListeningHistoryRecentIdsRouteImport.update({
+    id: '/api/listening-history/recent-ids',
+    path: '/api/listening-history/recent-ids',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiListeningHistoryRecordRoute =
@@ -1315,6 +1322,7 @@ export interface FileRoutesByFullPath {
   '/api/listening-history/full': typeof ApiListeningHistoryFullRoute
   '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
   '/api/listening-history/recent': typeof ApiListeningHistoryRecentRoute
+  '/api/listening-history/recent-ids': typeof ApiListeningHistoryRecentIdsRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
   '/api/listening-history/stats': typeof ApiListeningHistoryStatsRoute
   '/api/listening-history/top-artists': typeof ApiListeningHistoryTopArtistsRoute
@@ -1506,6 +1514,7 @@ export interface FileRoutesByTo {
   '/api/listening-history/full': typeof ApiListeningHistoryFullRoute
   '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
   '/api/listening-history/recent': typeof ApiListeningHistoryRecentRoute
+  '/api/listening-history/recent-ids': typeof ApiListeningHistoryRecentIdsRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
   '/api/listening-history/stats': typeof ApiListeningHistoryStatsRoute
   '/api/listening-history/top-artists': typeof ApiListeningHistoryTopArtistsRoute
@@ -1701,6 +1710,7 @@ export interface FileRoutesById {
   '/api/listening-history/full': typeof ApiListeningHistoryFullRoute
   '/api/listening-history/interest-over-time': typeof ApiListeningHistoryInterestOverTimeRoute
   '/api/listening-history/recent': typeof ApiListeningHistoryRecentRoute
+  '/api/listening-history/recent-ids': typeof ApiListeningHistoryRecentIdsRoute
   '/api/listening-history/record': typeof ApiListeningHistoryRecordRoute
   '/api/listening-history/stats': typeof ApiListeningHistoryStatsRoute
   '/api/listening-history/top-artists': typeof ApiListeningHistoryTopArtistsRoute
@@ -1896,6 +1906,7 @@ export interface FileRouteTypes {
     | '/api/listening-history/full'
     | '/api/listening-history/interest-over-time'
     | '/api/listening-history/recent'
+    | '/api/listening-history/recent-ids'
     | '/api/listening-history/record'
     | '/api/listening-history/stats'
     | '/api/listening-history/top-artists'
@@ -2087,6 +2098,7 @@ export interface FileRouteTypes {
     | '/api/listening-history/full'
     | '/api/listening-history/interest-over-time'
     | '/api/listening-history/recent'
+    | '/api/listening-history/recent-ids'
     | '/api/listening-history/record'
     | '/api/listening-history/stats'
     | '/api/listening-history/top-artists'
@@ -2281,6 +2293,7 @@ export interface FileRouteTypes {
     | '/api/listening-history/full'
     | '/api/listening-history/interest-over-time'
     | '/api/listening-history/recent'
+    | '/api/listening-history/recent-ids'
     | '/api/listening-history/record'
     | '/api/listening-history/stats'
     | '/api/listening-history/top-artists'
@@ -2464,6 +2477,7 @@ export interface RootRouteChildren {
   ApiListeningHistoryFullRoute: typeof ApiListeningHistoryFullRoute
   ApiListeningHistoryInterestOverTimeRoute: typeof ApiListeningHistoryInterestOverTimeRoute
   ApiListeningHistoryRecentRoute: typeof ApiListeningHistoryRecentRoute
+  ApiListeningHistoryRecentIdsRoute: typeof ApiListeningHistoryRecentIdsRoute
   ApiListeningHistoryRecordRoute: typeof ApiListeningHistoryRecordRoute
   ApiListeningHistoryStatsRoute: typeof ApiListeningHistoryStatsRoute
   ApiListeningHistoryTopArtistsRoute: typeof ApiListeningHistoryTopArtistsRoute
@@ -3210,6 +3224,13 @@ declare module '@tanstack/react-router' {
       path: '/api/listening-history/recent'
       fullPath: '/api/listening-history/recent'
       preLoaderRoute: typeof ApiListeningHistoryRecentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/listening-history/recent-ids': {
+      id: '/api/listening-history/recent-ids'
+      path: '/api/listening-history/recent-ids'
+      fullPath: '/api/listening-history/recent-ids'
+      preLoaderRoute: typeof ApiListeningHistoryRecentIdsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/listening-history/record': {
@@ -4152,6 +4173,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiListeningHistoryInterestOverTimeRoute:
     ApiListeningHistoryInterestOverTimeRoute,
   ApiListeningHistoryRecentRoute: ApiListeningHistoryRecentRoute,
+  ApiListeningHistoryRecentIdsRoute: ApiListeningHistoryRecentIdsRoute,
   ApiListeningHistoryRecordRoute: ApiListeningHistoryRecordRoute,
   ApiListeningHistoryStatsRoute: ApiListeningHistoryStatsRoute,
   ApiListeningHistoryTopArtistsRoute: ApiListeningHistoryTopArtistsRoute,
