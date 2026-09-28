@@ -53,6 +53,7 @@ export interface PlaybackSettings {
   crossfadeDuration: number;
   defaultQuality: 'low' | 'medium' | 'high';
   safeMode?: boolean; // PG/SFW mode — filter explicit content from recommendations
+  scrobbleThreshold?: number; // % of a song played before it counts as a play (default 50)
 }
 
 export interface NotificationSettings {

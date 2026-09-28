@@ -31,7 +31,7 @@ export {
 
 // User features (star, scrobble)
 export {
-  starSong, unstarSong, getStarredSongs, getMissingStarredSongs, scrobbleSong,
+  starSong, unstarSong, getStarredSongs, getMissingStarredSongs, scrobbleSong, scrobbleAtThreshold,
 } from './user-features';
 
 // Playlists

@@ -134,6 +134,30 @@ export function PlaybackSettings() {
           </p>
         </div>
 
+        {/* Scrobble Threshold */}
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <Label htmlFor="scrobble-threshold">Count a Play After</Label>
+            <span className="text-sm text-muted-foreground">
+              {localSettings.scrobbleThreshold ?? 50}%
+            </span>
+          </div>
+          <Slider
+            id="scrobble-threshold"
+            min={10}
+            max={100}
+            step={5}
+            value={[localSettings.scrobbleThreshold ?? 50]}
+            onValueChange={(value) =>
+              setLocalSettings({ ...localSettings, scrobbleThreshold: value[0] })
+            }
+            className="mt-2"
+          />
+          <p className="text-sm text-muted-foreground mt-1">
+            How much of a song must play before it is scrobbled and added to your play count
+          </p>
+        </div>
+
         {/* Default Playback Quality */}
         <div>
           <Label htmlFor="quality">Default Playback Quality</Label>

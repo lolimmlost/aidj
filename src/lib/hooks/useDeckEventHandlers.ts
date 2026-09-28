@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
-import { scrobbleSong } from '@/lib/services/navidrome';
+import { scrobbleSong, scrobbleAtThreshold } from '@/lib/services/navidrome';
+import { usePreferencesStore } from '@/lib/stores/preferences';
 import { hasRealSong, Song, SILENT_AUDIO_DATA_URL, type SetActiveDeckOptions } from './useDualDeckAudio';
 import type { QueryClient } from '@tanstack/react-query';
 
@@ -141,8 +142,18 @@ export function useDeckEventHandlers({
 
       if (effectiveDuration > 0 && currentSong) {
         const playedPercentage = (deck.currentTime / effectiveDuration) * 100;
-        if (playedPercentage >= 50 && !scrobbleThresholdReachedRef.current) {
+        const scrobbleThreshold = usePreferencesStore.getState().preferences.playbackSettings.scrobbleThreshold ?? 50;
+        if (playedPercentage >= scrobbleThreshold && !scrobbleThresholdReachedRef.current) {
           scrobbleThresholdReachedRef.current = true;
+          // Count the play now rather than at song end (see scrobbleAtThreshold).
+          if (currentSongIdRef.current) {
+            scrobbleAtThreshold(currentSongIdRef.current, effectiveDuration - deck.currentTime)
+              .then(() => {
+                queryClient.invalidateQueries({ queryKey: ['most-played-songs'] });
+                queryClient.invalidateQueries({ queryKey: ['top-artists'] });
+              })
+              .catch(console.error);
+          }
         }
 
         // CROSSFADE: Check if we should start crossfade
