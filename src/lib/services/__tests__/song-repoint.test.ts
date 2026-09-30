@@ -109,6 +109,33 @@ describe('repointSongId', () => {
     expect(r.starMoved).toBe(false);
     expect(r.playlistsMirrored).toBe(4);
   });
+
+  it('keeps the ghost star when starring the new id failed — it is the only copy of the like', async () => {
+    vi.mocked(starSong).mockRejectedValue(new Error('503'));
+    const s = stars(['old'], ['old']);
+    const r = await repointSongId({ ...input, stars: s });
+    expect(unstarSong).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ starMoved: false, ghostUnstarred: false });
+    expect(s.ghosts.has('old')).toBe(true);
+    expect(s.starred.has('old')).toBe(true);
+  });
+
+  it('unstars the ghost when the new id was already starred', async () => {
+    const s = stars(['old', 'new'], ['old']);
+    const r = await repointSongId({ ...input, stars: s });
+    expect(starSong).not.toHaveBeenCalled();
+    expect(unstarSong).toHaveBeenCalledWith('old', undefined);
+    expect(r).toMatchObject({ starMoved: false, ghostUnstarred: true });
+    expect([...s.starred]).toEqual(['new']);
+  });
+
+  it('a failed ghost unstar is reported, not thrown, and the star sets stay as they were', async () => {
+    vi.mocked(unstarSong).mockRejectedValue(new Error('503'));
+    const s = stars(['old'], ['old']);
+    const r = await repointSongId({ ...input, stars: s });
+    expect(r).toMatchObject({ starMoved: true, ghostUnstarred: false });
+    expect(s.ghosts.has('old')).toBe(true);
+  });
 });
 
 describe('describeRepoint', () => {

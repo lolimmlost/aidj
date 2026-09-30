@@ -15,6 +15,7 @@ vi.mock('@/lib/db', () => ({ db: { select: vi.fn() } }));
 vi.mock('../navidrome-users', () => ({ getNavidromeUserCreds: vi.fn() }));
 
 import { db } from '@/lib/db';
+import { getNavidromeUserCreds } from '../navidrome-users';
 import { getPlaylist, removeSongsFromPlaylistByIndex, replacePlaylistSongs } from '../navidrome';
 import { mirrorRemoveSong, mirrorReplaceSongs } from '../playlist-navidrome-mirror';
 import type { SubsonicCreds } from '../navidrome-users';
@@ -92,6 +93,42 @@ describe('mirrorReplaceSongs', () => {
     queueSelects([row]);
     await expect(mirrorReplaceSongs('pl1', 'u1', creds)).resolves.toBe(false);
     expect(replacePlaylistSongs).not.toHaveBeenCalled();
+  });
+
+  it('skips a playlist that no longer exists locally', async () => {
+    queueSelects([]);
+    await expect(mirrorReplaceSongs('gone', 'u1', creds)).resolves.toBe(false);
+    expect(replacePlaylistSongs).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the user\'s own Navidrome creds when none are passed', async () => {
+    const userCreds = { username: 'juan', password: 'x' } as unknown as SubsonicCreds;
+    vi.mocked(getNavidromeUserCreds).mockResolvedValue(userCreds);
+    queueSelects([basic], [{ songId: 'a' }]);
+    await expect(mirrorReplaceSongs('pl1', 'u1')).resolves.toBe(true);
+    expect(getNavidromeUserCreds).toHaveBeenCalledWith('u1');
+    expect(replacePlaylistSongs).toHaveBeenCalledWith('nd1', ['a'], userCreds);
+  });
+
+  it('skips when the user has no Navidrome creds', async () => {
+    vi.mocked(getNavidromeUserCreds).mockResolvedValue(null as never);
+    queueSelects([basic]);
+    await expect(mirrorReplaceSongs('pl1', 'u1')).resolves.toBe(false);
+    expect(replacePlaylistSongs).not.toHaveBeenCalled();
+  });
+
+  it('after a merge, pushes the de-duplicated local list', async () => {
+    // repointRows deleted the old row because the playlist already had newId.
+    queueSelects([basic], [{ songId: 'new' }, { songId: 'b' }]);
+    await mirrorReplaceSongs('pl1', 'u1', creds);
+    expect(replacePlaylistSongs).toHaveBeenCalledWith('nd1', ['new', 'b'], creds);
+  });
+
+  it('never throws when the db read fails', async () => {
+    vi.mocked(db.select).mockImplementationOnce(() => {
+      throw new Error('connection reset');
+    });
+    await expect(mirrorReplaceSongs('pl1', 'u1', creds)).resolves.toBe(false);
   });
 
   it('never throws when Navidrome fails', async () => {

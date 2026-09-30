@@ -220,6 +220,8 @@ export async function mirrorAddSong(
  * Navidrome playlist keeps the dead id and the next sync — which rebuilds local
  * rows from Navidrome — undoes the heal. Only already-mirrored basic playlists
  * are touched; local-only ones heal forward via `ensurePlaylistOnNavidrome`.
+ * Note: LOCAL wins — songs added/reordered on Navidrome since the last sync are
+ * overwritten by the local list.
  * Returns true when Navidrome was updated. Best-effort; never throws.
  */
 export async function mirrorReplaceSongs(

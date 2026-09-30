@@ -17,6 +17,11 @@
  * whole transaction, so the old "catch 23505, then delete" pattern cannot work here.
  *
  * Idempotent: a second call finds no rows under `oldId` and changes nothing.
+ *
+ * Behavior change vs. the pre-#221 inline reconciliation code: EVERY row of the
+ * user's under `oldId` in the five tables moves — including thumbs-down/skip
+ * feedback and inactive liked rows — not only the sources where reconciliation
+ * found the dead id. listening_history and compound_scores are newly covered.
  */
 import { db } from '@/lib/db';
 import {
@@ -246,8 +251,11 @@ export async function repointSongId(input: RepointInput): Promise<RepointResult>
       console.warn(`[song-repoint] failed to star ${newId}:`, err instanceof Error ? err.message : err);
     }
   }
-  // Only a ghost (missing-file) star on oldId is safe to remove here (GH #130).
-  if (stars?.ghosts.has(oldId)) {
+  // Only a ghost (missing-file) star on oldId is safe to remove here (GH #130),
+  // and only once the like is safe on newId — if starring newId failed, the ghost
+  // is the user's only star, and liked sync (stars are the source of truth)
+  // would otherwise drop the song from Liked.
+  if (stars?.ghosts.has(oldId) && stars.starred.has(newId)) {
     try {
       await unstarSong(oldId, creds || undefined);
       stars.ghosts.delete(oldId);
