@@ -29,19 +29,14 @@ import { eq, and } from 'drizzle-orm';
 import {
   getSongsByIds,
   search as navidromeSearch,
-  starSong,
-  unstarSong,
-  getStarredSongs,
-  getMissingStarredSongs,
   buildSubsonicUrl,
   apiFetch,
 } from './navidrome';
 import type { LibraryReconciliationState } from '@/lib/db/schema';
 import { getNavidromeUserCreds } from './navidrome-users';
 import type { SubsonicCreds } from './navidrome-users';
-import { getConfig } from '@/lib/config/config';
+import { repointSongId, describeRepoint, loadStarState } from './song-repoint';
 import {
-  formatArtistTitle,
   parseArtistTitle,
   parseRealArtistTitle,
 } from '@/lib/utils/song-artist-title';
@@ -293,12 +288,6 @@ class LibraryReconciliationManager {
 // Core Reconciliation Logic
 // ============================================================================
 
-/** Extract a Postgres error code from an unknown thrown value (direct or wrapped in `.cause`). */
-function pgErrorCode(err: unknown): string | undefined {
-  const e = err as { code?: string; cause?: { code?: string } } | null;
-  return e?.code ?? e?.cause?.code;
-}
-
 function normalizeForMatch(s: string): string {
   return s
     .toLowerCase()
@@ -342,7 +331,15 @@ async function isStreamable(songId: string): Promise<boolean> {
   }
 }
 
-async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
+/**
+ * Find dead song ids for a user and repoint each to its live replacement.
+ * `dryRun`: detection and matching run for real (read-only), every repoint rolls
+ * back, and nothing is written to Navidrome (no star, mirror or scan) — a preview.
+ */
+export async function reconcileLibrary(
+  userId: string,
+  options: { dryRun?: boolean } = {},
+): Promise<ReconciliationResult> {
   const startMs = Date.now();
   const details: RemapDetail[] = [];
   const missingFromLibrary: MissingSong[] = [];
@@ -540,22 +537,9 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
     // Will fall back to admin creds for star operations
   }
 
-  // Get currently starred songs to know if we need to re-star.
-  //
-  // getStarredSongs now filters out missing-file "ghost stars" (GH #130), but a
-  // starred song whose file was moved becomes exactly such a ghost — and it's
-  // precisely the dead ID we're remapping. If we only looked at the filtered
-  // list we'd fail to re-star the remapped (now-playable) song and silently
-  // drop the user's like. So union the filtered list with the unfiltered ghost
-  // list to recover those stars. Ghosts are admin-native only, so only fetch
-  // them when this user IS the admin account.
-  const isAdminUser = !userCreds || userCreds.username === getConfig().navidromeUsername;
-  const [liveStarred, ghostStarred] = await Promise.all([
-    userCreds ? getStarredSongs(userCreds) : getStarredSongs(),
-    isAdminUser ? getMissingStarredSongs().catch(() => []) : Promise.resolve([]),
-  ]);
-  const starredIds = new Set([...liveStarred, ...ghostStarred].map((s) => s.id));
-  const ghostStarredIds = new Set(ghostStarred.map((s) => s.id));
+  // Load stars once for the whole run (live + ghost, see loadStarState / GH #130);
+  // repointSongId keeps the sets current as it moves stars.
+  const stars = await loadStarState(userCreds);
 
   for (const [deadId, meta] of deadIds) {
     // Skip if we don't have artist+title to search with
@@ -702,153 +686,25 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
       continue;
     }
 
-    // ── 4.  Remap references ─────────────────────────────────────────
+    // ── 4.  Remap references (single owner: song-repoint, #221) ────────
 
-    const tablesUpdated: string[] = [];
-
-    // Update liked_songs_sync (delete old if new ID already exists)
-    if (meta.sources.has('liked_songs_sync')) {
-      try {
-        await db
-          .update(likedSongsSync)
-          .set({
-            songId: match.id,
-            artist: match.artist,
-            title: match.title,
-            syncedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(likedSongsSync.userId, userId),
-              eq(likedSongsSync.songId, deadId)
-            )
-          );
-        tablesUpdated.push('liked_songs_sync');
-      } catch (err: unknown) {
-        const pgCode = pgErrorCode(err);
-        if (pgCode === '23505') {
-          await db
-            .delete(likedSongsSync)
-            .where(
-              and(
-                eq(likedSongsSync.userId, userId),
-                eq(likedSongsSync.songId, deadId)
-              )
-            );
-          tablesUpdated.push('liked_songs_sync(dedup)');
-        } else {
-          console.warn(
-            `[LibraryReconciliation] Failed to update liked_songs_sync for ${deadId}:`,
-            err
-          );
-        }
-      }
-    }
-
-    // Update recommendation_feedback
-    if (meta.sources.has('recommendation_feedback')) {
-      try {
-        await db
-          .update(recommendationFeedback)
-          .set({
-            songId: match.id,
-            songArtistTitle: formatArtistTitle(match.artist, match.title),
-          })
-          .where(
-            and(
-              eq(recommendationFeedback.userId, userId),
-              eq(recommendationFeedback.songId, deadId)
-            )
-          );
-        tablesUpdated.push('recommendation_feedback');
-      } catch (err: unknown) {
-        const pgCode2 = pgErrorCode(err);
-        if (pgCode2 === '23505') {
-          await db
-            .delete(recommendationFeedback)
-            .where(
-              and(
-                eq(recommendationFeedback.userId, userId),
-                eq(recommendationFeedback.songId, deadId)
-              )
-            );
-          tablesUpdated.push('recommendation_feedback(dedup)');
-        } else {
-          console.warn(
-            `[LibraryReconciliation] Failed to update recommendation_feedback for ${deadId}:`,
-            err
-          );
-        }
-      }
-    }
-
-    // Update playlist_songs
-    if (meta.sources.has('playlist_songs')) {
-      try {
-        const affectedPlaylists = playlistRows.filter(
-          (r) => r.songId === deadId
-        );
-        for (const pl of affectedPlaylists) {
-          try {
-            await db
-              .update(playlistSongs)
-              .set({ songId: match.id })
-              .where(
-                and(
-                  eq(playlistSongs.playlistId, pl.playlistId),
-                  eq(playlistSongs.songId, deadId)
-                )
-              );
-          } catch (dupErr: unknown) {
-            const pgCode3 = pgErrorCode(dupErr);
-            if (pgCode3 === '23505') {
-              await db
-                .delete(playlistSongs)
-                .where(
-                  and(
-                    eq(playlistSongs.playlistId, pl.playlistId),
-                    eq(playlistSongs.songId, deadId)
-                  )
-                );
-            } else throw dupErr;
-          }
-        }
-        tablesUpdated.push('playlist_songs');
-      } catch (err) {
-        console.warn(
-          `[LibraryReconciliation] Failed to update playlist_songs for ${deadId}:`,
-          err
-        );
-      }
-    }
-
-    // Re-star if the old ID was starred
-    if (starredIds.has(deadId) && !starredIds.has(match.id)) {
-      try {
-        await starSong(match.id, userCreds || undefined);
-        tablesUpdated.push('navidrome_star');
-      } catch (err) {
-        console.warn(
-          `[LibraryReconciliation] Failed to re-star ${match.id}:`,
-          err
-        );
-      }
-    }
-
-    // If the dead ID was a ghost star (missing file), unstar it now that the
-    // star has moved to the live match — otherwise it lingers in Navidrome as
-    // an unplayable star. Only ghosts are safe to unstar here: a live star on
-    // deadId would already be covered by the remap above (GH #130).
-    if (ghostStarredIds.has(deadId)) {
-      try {
-        await unstarSong(deadId, userCreds || undefined);
-        tablesUpdated.push('navidrome_unstar_ghost');
-      } catch (err) {
-        console.warn(
-          `[LibraryReconciliation] Failed to unstar ghost ${deadId}:`,
-          err
-        );
-      }
+    let tablesUpdated: string[];
+    try {
+      const result = await repointSongId({
+        userId,
+        oldId: deadId,
+        newId: match.id,
+        artist: match.artist,
+        title: match.title,
+        creds: userCreds,
+        stars,
+        dryRun: options.dryRun,
+      });
+      tablesUpdated = describeRepoint(result);
+    } catch (err) {
+      // The transaction rolled back, so nothing was half-written; retry next run.
+      console.warn(`[LibraryReconciliation] Repoint failed for ${deadId} → ${match.id}:`, err);
+      continue;
     }
 
     details.push({
@@ -869,7 +725,7 @@ async function reconcileLibrary(userId: string): Promise<ReconciliationResult> {
   // ── 5.  Trigger Navidrome scan to clean ghost entries ────────────────
 
   let scanTriggered = false;
-  if (deadIds.size > 0) {
+  if (deadIds.size > 0 && !options.dryRun) {
     try {
       const url = buildSubsonicUrl('startScan');
       await fetch(url.toString());

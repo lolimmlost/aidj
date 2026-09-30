@@ -25,6 +25,7 @@ import {
   getPlaylist,
   getPlaylists,
   removeSongsFromPlaylistByIndex,
+  replacePlaylistSongs,
 } from './navidrome';
 import { getNavidromeUserCreds, type SubsonicCreds } from './navidrome-users';
 import { hasDeletedFromNavidromeMarker } from './playlist-deleted-marker';
@@ -210,6 +211,39 @@ export async function mirrorAddSong(
     await addSongsToPlaylist(pl.navidromeId, [songId], c);
   } catch (err) {
     console.warn(`[playlist-mirror] mirrorAddSong failed for ${playlistId}/${songId}:`, err instanceof Error ? err.message : err);
+  }
+}
+
+/**
+ * Push the playlist's full LOCAL song list (in local order) to its Navidrome
+ * copy. Used after a song id is repointed locally (#221/#239): without it, the
+ * Navidrome playlist keeps the dead id and the next sync — which rebuilds local
+ * rows from Navidrome — undoes the heal. Only already-mirrored basic playlists
+ * are touched; local-only ones heal forward via `ensurePlaylistOnNavidrome`.
+ * Returns true when Navidrome was updated. Best-effort; never throws.
+ */
+export async function mirrorReplaceSongs(
+  playlistId: string,
+  userId: string,
+  creds?: SubsonicCreds | null,
+): Promise<boolean> {
+  try {
+    const pl = await db
+      .select()
+      .from(userPlaylists)
+      .where(eq(userPlaylists.id, playlistId))
+      .limit(1)
+      .then((r) => r[0]);
+    if (!pl || !isMirrorable(pl) || !pl.navidromeId) return false;
+
+    const c = await resolveCreds(userId, creds);
+    if (!c) return false;
+
+    await replacePlaylistSongs(pl.navidromeId, await orderedSongIds(playlistId), c);
+    return true;
+  } catch (err) {
+    console.warn(`[playlist-mirror] mirrorReplaceSongs failed for ${playlistId}:`, err instanceof Error ? err.message : err);
+    return false;
   }
 }
 
