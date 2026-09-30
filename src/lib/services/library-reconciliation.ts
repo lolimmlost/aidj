@@ -31,6 +31,7 @@ import {
   search as navidromeSearch,
   buildSubsonicUrl,
   apiFetch,
+  getAuthToken,
 } from './navidrome';
 import type { LibraryReconciliationState } from '@/lib/db/schema';
 import { getNavidromeUserCreds } from './navidrome-users';
@@ -325,6 +326,9 @@ function isTitleMatch(a: string, b: string): boolean {
 
 async function isStreamable(songId: string): Promise<boolean> {
   try {
+    // buildSubsonicUrl signs with the cached login; without one the request
+    // 401s and a live song would read as dead.
+    await getAuthToken();
     const streamUrl = buildSubsonicUrl('stream');
     streamUrl.searchParams.set('id', songId);
     const resp = await fetch(streamUrl.toString(), { method: 'HEAD' });
@@ -344,11 +348,21 @@ async function isStreamable(songId: string): Promise<boolean> {
  */
 async function isScanRunning(): Promise<boolean> {
   try {
+    // Must log in first: buildSubsonicUrl signs with the cached token, which is
+    // empty until something has authenticated (this is the first call of a run).
+    await getAuthToken();
     const resp = await fetch(buildSubsonicUrl('getScanStatus').toString());
-    const data = (await resp.json()) as { 'subsonic-response'?: { scanStatus?: { scanning?: boolean } } };
+    const data = (await resp.json()) as {
+      'subsonic-response'?: { scanStatus?: { scanning?: boolean }; error?: { message?: string } };
+    };
     const status = data['subsonic-response']?.scanStatus;
-    return !status || status.scanning === true;
-  } catch {
+    if (!status) {
+      console.warn('[LibraryReconciliation] Could not read scan status:', data['subsonic-response']?.error?.message ?? 'no scanStatus');
+      return true;
+    }
+    return status.scanning === true;
+  } catch (err) {
+    console.warn('[LibraryReconciliation] Could not read scan status:', err instanceof Error ? err.message : err);
     return true;
   }
 }

@@ -18,6 +18,7 @@ vi.mock('../navidrome', () => ({
   getSongsByIds: vi.fn(),
   search: vi.fn(),
   apiFetch: vi.fn(),
+  getAuthToken: vi.fn(async () => 'jwt'),
   buildSubsonicUrl: (endpoint: string) => new URL(`http://nd/rest/${endpoint}`),
 }));
 vi.mock('../navidrome-users', () => ({ getNavidromeUserCreds: vi.fn(async () => null) }));
@@ -27,7 +28,7 @@ vi.mock('../song-repoint', () => ({
   loadStarState: vi.fn(async () => ({ starred: new Set(), ghosts: new Set() })),
 }));
 
-import { getSongsByIds, search } from '../navidrome';
+import { getSongsByIds, search, getAuthToken } from '../navidrome';
 import { repointSongId } from '../song-repoint';
 import { reconcileLibrary } from '../library-reconciliation';
 
@@ -65,6 +66,7 @@ describe('reconcileLibrary scan guards', () => {
     vi.mocked(getSongsByIds).mockResolvedValue([{ id: DEAD, duration: 225.62 }] as never);
     vi.mocked(search).mockResolvedValue([{ id: LIVE, artist: 'Deep Sea Arcade', title: 'Outlaw', name: 'Outlaw' }] as never);
     vi.mocked(repointSongId).mockResolvedValue({} as never);
+    vi.mocked(getAuthToken).mockResolvedValue('jwt');
   });
 
   it('repoints a dead id when no scan is running and it is still dead on re-check', async () => {
@@ -85,6 +87,30 @@ describe('reconcileLibrary scan guards', () => {
     vi.mocked(fetch).mockImplementation(async () => {
       throw new Error('ECONNREFUSED');
     });
+    const r = await reconcileLibrary('u1');
+    expect(r.skipped).toBe('scan_in_progress');
+    expect(repointSongId).not.toHaveBeenCalled();
+  });
+
+  it('logs in before the scan check — the first call of a run has no cached token', async () => {
+    const order: string[] = [];
+    vi.mocked(getAuthToken).mockImplementation(async () => {
+      order.push('auth');
+      return 'jwt';
+    });
+    const realFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (url) => {
+      order.push(String(url).includes('getScanStatus') ? 'scan' : 'other');
+      return realFetch(url as string);
+    });
+    await reconcileLibrary('u1');
+    expect(order.slice(0, 2)).toEqual(['auth', 'scan']);
+  });
+
+  it('treats a Subsonic auth error on the scan check as scanning', async () => {
+    vi.mocked(fetch).mockImplementation(async () => ({
+      json: async () => ({ 'subsonic-response': { status: 'failed', error: { code: 40, message: 'Wrong username or password' } } }),
+    }) as never);
     const r = await reconcileLibrary('u1');
     expect(r.skipped).toBe('scan_in_progress');
     expect(repointSongId).not.toHaveBeenCalled();
