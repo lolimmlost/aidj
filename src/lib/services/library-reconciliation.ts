@@ -62,6 +62,10 @@ export interface ReconciliationResult {
   details: RemapDetail[];
   missingFromLibrary: MissingSong[];
   durationMs: number;
+  /** Dead at detection but alive again on the pre-write re-check — left alone. */
+  revived?: number;
+  /** Set when the run wrote nothing (or stopped early) because Navidrome was scanning. */
+  skipped?: 'scan_in_progress';
 }
 
 interface RemapDetail {
@@ -332,7 +336,37 @@ async function isStreamable(songId: string): Promise<boolean> {
 }
 
 /**
+ * True while Navidrome is scanning — or when we can't tell. Mid-scan, files in a
+ * rescanned folder briefly read as missing (stream HEAD fails), so a retagged
+ * song whose id Navidrome is about to KEEP looks dead. Repointing it then moves
+ * its likes/plays/playlists onto whatever the matcher found — a merge that
+ * can't be undone. Seen live 2026-09-30: 165 "dead" mid-scan, 8 after.
+ */
+async function isScanRunning(): Promise<boolean> {
+  try {
+    const resp = await fetch(buildSubsonicUrl('getScanStatus').toString());
+    const data = (await resp.json()) as { 'subsonic-response'?: { scanStatus?: { scanning?: boolean } } };
+    const status = data['subsonic-response']?.scanStatus;
+    return !status || status.scanning === true;
+  } catch {
+    return true;
+  }
+}
+
+/** Re-check right before writing: the id resolves AND streams audio again. */
+async function isAlive(songId: string): Promise<boolean> {
+  try {
+    const [song] = await getSongsByIds([songId]);
+    return !!song && (await isStreamable(songId));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Find dead song ids for a user and repoint each to its live replacement.
+ * Skips the whole run while Navidrome is scanning, and re-verifies each dead id
+ * (and the scan state) immediately before repointing it.
  * `dryRun`: detection and matching run for real (read-only), every repoint rolls
  * back, and nothing is written to Navidrome (no star, mirror or scan) — a preview.
  */
@@ -343,6 +377,15 @@ export async function reconcileLibrary(
   const startMs = Date.now();
   const details: RemapDetail[] = [];
   const missingFromLibrary: MissingSong[] = [];
+
+  if (await isScanRunning()) {
+    console.log('[LibraryReconciliation] Navidrome is scanning — skipping this run');
+    return {
+      checkedIds: 0, deadIds: 0, remapped: 0, notFound: 0, scanTriggered: false,
+      details, missingFromLibrary, durationMs: Date.now() - startMs,
+      revived: 0, skipped: 'scan_in_progress',
+    };
+  }
 
   // ── 1.  Collect all referenced song IDs ──────────────────────────────
 
@@ -528,6 +571,8 @@ export async function reconcileLibrary(
 
   let remapped = 0;
   let notFound = 0;
+  let revived = 0;
+  let skipped: ReconciliationResult['skipped'];
 
   // Get per-user Navidrome creds for star operations
   let userCreds: SubsonicCreds | null = null;
@@ -686,6 +731,19 @@ export async function reconcileLibrary(
       continue;
     }
 
+    // ── 3b. Re-verify just before writing (a scan may have started) ────
+
+    if (await isScanRunning()) {
+      console.log('[LibraryReconciliation] Navidrome started scanning — stopping; the rest waits for the next run');
+      skipped = 'scan_in_progress';
+      break;
+    }
+    if (await isAlive(deadId)) {
+      console.log(`[LibraryReconciliation] ${deadId} is alive again — not repointing`);
+      revived++;
+      continue;
+    }
+
     // ── 4.  Remap references (single owner: song-repoint, #221) ────────
 
     let tablesUpdated: string[];
@@ -750,6 +808,8 @@ export async function reconcileLibrary(
     details,
     missingFromLibrary,
     durationMs: Date.now() - startMs,
+    revived,
+    skipped,
   };
 }
 

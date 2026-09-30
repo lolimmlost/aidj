@@ -54,6 +54,12 @@ async function main() {
 
   if (reconcile) {
     const r = await reconcileLibrary(userId, { dryRun });
+    if (r.skipped === 'scan_in_progress' && r.checkedIds === 0) {
+      console.log('Navidrome is scanning — nothing checked. Re-run when the scan finishes.');
+      process.exit(0);
+    }
+    if (r.skipped) console.log('Navidrome started scanning mid-run — stopped early; re-run when it finishes.');
+    if (r.revived) console.log(`${r.revived} id(s) were dead at detection but alive on re-check — left alone.`);
     console.log(
       `Checked ${r.checkedIds} ids: ${r.deadIds} dead, ${r.remapped} ${dryRun ? 'would be ' : ''}remapped, ` +
         `${r.notFound} not found in the library (${Math.round(r.durationMs / 1000)}s)`,
@@ -76,7 +82,7 @@ async function main() {
     oldId,
     newId,
     artist: song.artist || 'Unknown Artist',
-    title: song.title,
+    title: song.title ?? '',
     creds,
     dryRun,
     navidrome: !dbOnly,
