@@ -3,9 +3,7 @@ import { ServiceError } from '../utils';
 import { db } from '../db';
 import { platformCredentials } from '../db/schema/playlist-export.schema';
 import { eq, and } from 'drizzle-orm';
-import type { PlaylistPlatform } from '../db/schema/playlist-export.schema';
 import type { ExportablePlaylist, ExportableSong } from './playlist-export';
-import type { PlatformSearcher, PlatformSearchResult } from './song-matcher';
 
 /**
  * Spotify API configuration
@@ -58,13 +56,6 @@ interface SpotifyPlaylist {
   };
   images: Array<{ url: string }>;
   external_urls: { spotify: string };
-}
-
-interface SpotifySearchResponse {
-  tracks?: {
-    items: SpotifyTrack[];
-    total: number;
-  };
 }
 
 interface SpotifyPlaylistsResponse {
@@ -484,80 +475,6 @@ export async function getPlaylist(userId: string, playlistId: string): Promise<E
 }
 
 /**
- * Search for tracks
- */
-export async function searchTracks(
-  userId: string,
-  query: string,
-  limit: number = 10
-): Promise<ExportableSong[]> {
-  const response = await spotifyFetch<SpotifySearchResponse>(
-    userId,
-    `/search?type=track&q=${encodeURIComponent(query)}&limit=${limit}`
-  );
-
-  return (response.tracks?.items || []).map(convertSpotifyTrack);
-}
-
-/**
- * Search by ISRC
- */
-export async function searchByIsrc(userId: string, isrc: string): Promise<ExportableSong[]> {
-  const response = await spotifyFetch<SpotifySearchResponse>(
-    userId,
-    `/search?type=track&q=isrc:${encodeURIComponent(isrc)}&limit=5`
-  );
-
-  return (response.tracks?.items || []).map(convertSpotifyTrack);
-}
-
-/**
- * Create a new playlist
- */
-export async function createPlaylist(
-  userId: string,
-  name: string,
-  description?: string,
-  isPublic: boolean = false
-): Promise<string> {
-  // First get the Spotify user ID
-  const user = await spotifyFetch<{ id: string }>(userId, '/me');
-
-  const playlist = await spotifyFetch<SpotifyPlaylist>(userId, `/users/${user.id}/playlists`, {
-    method: 'POST',
-    body: JSON.stringify({
-      name,
-      description: description || '',
-      public: isPublic,
-    }),
-  });
-
-  return playlist.id;
-}
-
-/**
- * Add tracks to a playlist
- */
-export async function addTracksToPlaylist(
-  userId: string,
-  playlistId: string,
-  trackUris: string[]
-): Promise<void> {
-  // Spotify limits to 100 tracks per request
-  const chunks = [];
-  for (let i = 0; i < trackUris.length; i += 100) {
-    chunks.push(trackUris.slice(i, i + 100));
-  }
-
-  for (const chunk of chunks) {
-    await spotifyFetch(userId, `/playlists/${playlistId}/tracks`, {
-      method: 'POST',
-      body: JSON.stringify({ uris: chunk }),
-    });
-  }
-}
-
-/**
  * Convert Spotify track to ExportableSong
  */
 function convertSpotifyTrack(track: SpotifyTrack): ExportableSong {
@@ -571,52 +488,6 @@ function convertSpotifyTrack(track: SpotifyTrack): ExportableSong {
     platform: 'spotify',
     platformId: track.id,
     url: track.external_urls.spotify,
-  };
-}
-
-/**
- * Create Spotify platform searcher
- */
-export function createSpotifySearcher(userId: string): PlatformSearcher {
-  return {
-    platform: 'spotify' as PlaylistPlatform,
-
-    async searchByIsrc(isrc: string): Promise<PlatformSearchResult[]> {
-      const results = await searchByIsrc(userId, isrc);
-      return results.map(song => ({
-        platform: 'spotify' as PlaylistPlatform,
-        platformId: song.platformId!,
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-        duration: song.duration,
-        isrc: song.isrc,
-        url: song.url,
-      }));
-    },
-
-    async searchByTitleArtist(
-      title: string,
-      artist: string,
-      album?: string
-    ): Promise<PlatformSearchResult[]> {
-      let query = `track:${title} artist:${artist}`;
-      if (album) {
-        query += ` album:${album}`;
-      }
-
-      const results = await searchTracks(userId, query, 10);
-      return results.map(song => ({
-        platform: 'spotify' as PlaylistPlatform,
-        platformId: song.platformId!,
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-        duration: song.duration,
-        isrc: song.isrc,
-        url: song.url,
-      }));
-    },
   };
 }
 

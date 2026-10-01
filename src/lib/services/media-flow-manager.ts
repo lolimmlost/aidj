@@ -681,45 +681,6 @@ export async function checkDuplicates(
   return { isDuplicate: false };
 }
 
-/**
- * Fuzzy match check for artist/title (handles slight variations)
- */
-export function fuzzyMatch(str1: string, str2: string, threshold: number = 0.85): boolean {
-  const s1 = str1.toLowerCase().trim().replace(/[^\w\s]/g, '');
-  const s2 = str2.toLowerCase().trim().replace(/[^\w\s]/g, '');
-
-  if (s1 === s2) return true;
-  if (s1.includes(s2) || s2.includes(s1)) return true;
-
-  // Calculate Levenshtein similarity
-  const similarity = 1 - levenshteinDistance(s1, s2) / Math.max(s1.length, s2.length);
-  return similarity >= threshold;
-}
-
-/**
- * Levenshtein distance calculation
- */
-function levenshteinDistance(s1: string, s2: string): number {
-  const m = s1.length;
-  const n = s2.length;
-  const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
-
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (s1[i - 1] === s2[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1];
-      } else {
-        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-      }
-    }
-  }
-
-  return dp[m][n];
-}
-
 // ============================================================================
 // Singleton Export
 // ============================================================================
