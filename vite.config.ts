@@ -110,9 +110,6 @@ export default defineConfig({
               if (id.includes('/components/dj/mix-compatibility-badges')) {
                 return 'dj-components';
               }
-              if (id.includes('/components/recommendations/PreferenceInsights')) {
-                return 'analytics-components';
-              }
               if (id.includes('/components/discovery/DiscoveryQueuePanel')) {
                 return 'discovery-components';
               }

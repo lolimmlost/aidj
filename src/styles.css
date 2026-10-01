@@ -125,15 +125,8 @@
   --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px oklch(0 0 0 / 0.1), 0 2px 4px -2px oklch(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px oklch(0 0 0 / 0.1), 0 4px 6px -4px oklch(0 0 0 / 0.1);
-  --shadow-glow: 0 0 40px oklch(0.55 0.25 285 / 0.2);
   --shadow-glow-sm: 0 0 20px oklch(0.55 0.25 285 / 0.15);
 
-  /* Animation Timings */
-  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  --duration-fast: 150ms;
-  --duration-normal: 250ms;
-  --duration-slow: 400ms;
 }
 
 .dark {
@@ -191,7 +184,6 @@
   --gradient-discover: linear-gradient(135deg, oklch(0.65 0.28 285), oklch(0.6 0.3 260));
 
   /* Dark mode shadows - glow effects more visible */
-  --shadow-glow: 0 0 60px oklch(0.7 0.25 285 / 0.3);
   --shadow-glow-sm: 0 0 30px oklch(0.7 0.25 285 / 0.2);
 }
 
@@ -227,9 +219,6 @@
   */
   :root {
     --font-display: 'Plus Jakarta Sans';
-  }
-  .card {
-    @apply bg-card text-card-foreground rounded-lg border shadow-sm;
   }
   .fade-in {
     @apply opacity-0 animate-in fade-in-0 duration-300;
@@ -701,34 +690,6 @@
     background: oklch(from var(--aidj-violet) l c h / 0.12);
     color: var(--aidj-violet);
     border-color: oklch(from var(--aidj-violet) l c h / 0.25);
-  }
-  .badge-magenta {
-    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5
-           text-xs font-semibold;
-    background: oklch(from var(--aidj-magenta) l c h / 0.12);
-    color: var(--aidj-magenta);
-    border-color: oklch(from var(--aidj-magenta) l c h / 0.25);
-  }
-  .badge-cyan {
-    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5
-           text-xs font-semibold;
-    background: oklch(from var(--aidj-cyan) l c h / 0.12);
-    color: var(--aidj-cyan);
-    border-color: oklch(from var(--aidj-cyan) l c h / 0.25);
-  }
-  .badge-emerald {
-    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5
-           text-xs font-semibold;
-    background: oklch(from var(--aidj-emerald) l c h / 0.12);
-    color: var(--aidj-emerald);
-    border-color: oklch(from var(--aidj-emerald) l c h / 0.25);
-  }
-  .badge-amber {
-    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5
-           text-xs font-semibold;
-    background: oklch(from var(--aidj-amber) l c h / 0.12);
-    color: var(--aidj-amber);
-    border-color: oklch(from var(--aidj-amber) l c h / 0.25);
   }
 
   /* ── Hero Glow Tertiary ── */
