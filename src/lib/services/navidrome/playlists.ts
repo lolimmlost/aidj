@@ -218,6 +218,33 @@ export async function deletePlaylist(id: string, creds?: SubsonicCreds): Promise
 }
 
 /**
+ * Replace a playlist's entire song list, in the given order.
+ *
+ * Subsonic `createPlaylist` with a `playlistId` (and no name) rewrites that
+ * playlist's tracks in place — verified against Navidrome 2026-09-30: [a,b,c]
+ * → [a,d,c] keeps the name and order. This is the only order-preserving way to
+ * swap one id for another; remove-by-index + add would move the song to the end.
+ */
+export async function replacePlaylistSongs(playlistId: string, songIds: string[], creds: SubsonicCreds): Promise<void> {
+  try {
+    const url = buildSubsonicUrl('createPlaylist', creds);
+    url.searchParams.set('playlistId', playlistId);
+    songIds.forEach(songId => url.searchParams.append('songId', songId));
+    const response = await fetch(url.toString(), { method: 'POST' });
+    if (!response.ok) {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Failed to replace playlist songs: ${response.statusText}`);
+    }
+    const data = await response.json() as SubsonicApiResponse;
+    if (data['subsonic-response']?.status !== 'ok') {
+      throw new ServiceError('NAVIDROME_API_ERROR', `Subsonic API error: ${data['subsonic-response']?.error?.message || 'Unknown error'}`);
+    }
+  } catch (error) {
+    if (error instanceof ServiceError) throw error;
+    throw new ServiceError('NAVIDROME_API_ERROR', `Failed to replace playlist songs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
  * Add songs to an existing playlist
  */
 export async function addSongsToPlaylist(playlistId: string, songIds: string[], creds?: SubsonicCreds): Promise<void> {
