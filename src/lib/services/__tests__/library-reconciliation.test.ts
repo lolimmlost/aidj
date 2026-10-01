@@ -147,3 +147,17 @@ describe('reconcileLibrary scan guards', () => {
     expect(repointSongId).not.toHaveBeenCalled();
   });
 });
+
+describe('getReconciliationManager across module copies (#267)', () => {
+  it('returns the same manager from a second copy of the module', async () => {
+    // Prod loads this module twice (server.ts from source, routes from the
+    // bundle). The boot hook initializes one copy; the Tasks trigger reads the
+    // other — they must be the same manager or the trigger sees "Not initialized".
+    vi.resetModules();
+    const first = await import('../library-reconciliation');
+    vi.resetModules();
+    const second = await import('../library-reconciliation');
+    expect(second).not.toBe(first); // genuinely two module instances
+    expect(second.getReconciliationManager()).toBe(first.getReconciliationManager());
+  });
+});

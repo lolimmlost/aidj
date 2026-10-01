@@ -97,9 +97,20 @@ export interface ReconciliationStatus {
 // Singleton Manager
 // ============================================================================
 
-class LibraryReconciliationManager {
-  private static instance: LibraryReconciliationManager | null = null;
+/**
+ * Prod loads this module twice: `server.ts` imports it from source and
+ * initializes the scheduler at boot, while API routes (the Tasks Center trigger)
+ * run from the bundled `dist/server/server.js`, which has its own copy. A static
+ * field would give each copy its own manager, so the route's one was never
+ * initialized ("Not initialized", #267). Parking the instance on globalThis makes
+ * both copies share the one the boot hook initialized.
+ */
+declare global {
+  // `var` is required here — a global augmentation on globalThis can't use let/const.
+  var __aidjReconciliationManager: LibraryReconciliationManager | undefined;
+}
 
+class LibraryReconciliationManager {
   private userId: string | null = null;
   private scheduledTimeoutId: NodeJS.Timeout | null = null;
   private isRunning = false;
@@ -113,10 +124,8 @@ class LibraryReconciliationManager {
   private constructor() {}
 
   static getInstance(): LibraryReconciliationManager {
-    if (!LibraryReconciliationManager.instance) {
-      LibraryReconciliationManager.instance = new LibraryReconciliationManager();
-    }
-    return LibraryReconciliationManager.instance;
+    globalThis.__aidjReconciliationManager ??= new LibraryReconciliationManager();
+    return globalThis.__aidjReconciliationManager;
   }
 
   async initialize(userId: string, frequencyHours?: number): Promise<void> {
