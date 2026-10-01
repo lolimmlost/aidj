@@ -91,7 +91,6 @@ import { Route as ApiLibraryReconciliationTriggerRouteImport } from './routes/ap
 import { Route as ApiLibraryMostPlayedRouteImport } from './routes/api/library/most-played'
 import { Route as ApiLibraryTopArtistsRouteImport } from './routes/api/library/top-artists'
 import { Route as ApiLidarrAddRouteImport } from './routes/api/lidarr/add'
-import { Route as ApiLidarrAvailabilityRouteImport } from './routes/api/lidarr/availability'
 import { Route as ApiLidarrCancelRouteImport } from './routes/api/lidarr/cancel'
 import { Route as ApiLidarrHistoryRouteImport } from './routes/api/lidarr/history'
 import { Route as ApiLidarrSearchRouteImport } from './routes/api/lidarr/search'
@@ -130,7 +129,6 @@ import { Route as ApiPlaybackTransferRouteImport } from './routes/api/playback/t
 import { Route as ApiPlaylistsIndexRouteImport } from './routes/api/playlists/index'
 import { Route as ApiPlaylistsIdRouteImport } from './routes/api/playlists/$id'
 import { Route as ApiPlaylistsCreateFromIdsRouteImport } from './routes/api/playlists/create-from-ids'
-import { Route as ApiPlaylistsDownloadRouteImport } from './routes/api/playlists/download'
 import { Route as ApiPlaylistsExportRouteImport } from './routes/api/playlists/export'
 import { Route as ApiPlaylistsImportRouteImport } from './routes/api/playlists/import'
 import { Route as ApiPlaylistsJoinRouteImport } from './routes/api/playlists/join'
@@ -627,11 +625,6 @@ const ApiLidarrAddRoute = ApiLidarrAddRouteImport.update({
   path: '/api/lidarr/add',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiLidarrAvailabilityRoute = ApiLidarrAvailabilityRouteImport.update({
-  id: '/api/lidarr/availability',
-  path: '/api/lidarr/availability',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiLidarrCancelRoute = ApiLidarrCancelRouteImport.update({
   id: '/api/lidarr/cancel',
   path: '/api/lidarr/cancel',
@@ -835,11 +828,6 @@ const ApiPlaylistsCreateFromIdsRoute =
     path: '/api/playlists/create-from-ids',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPlaylistsDownloadRoute = ApiPlaylistsDownloadRouteImport.update({
-  id: '/api/playlists/download',
-  path: '/api/playlists/download',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPlaylistsExportRoute = ApiPlaylistsExportRouteImport.update({
   id: '/api/playlists/export',
   path: '/api/playlists/export',
@@ -1308,7 +1296,6 @@ export interface FileRoutesByFullPath {
   '/api/library/most-played': typeof ApiLibraryMostPlayedRoute
   '/api/library/top-artists': typeof ApiLibraryTopArtistsRoute
   '/api/lidarr/add': typeof ApiLidarrAddRoute
-  '/api/lidarr/availability': typeof ApiLidarrAvailabilityRoute
   '/api/lidarr/cancel': typeof ApiLidarrCancelRoute
   '/api/lidarr/history': typeof ApiLidarrHistoryRoute
   '/api/lidarr/search': typeof ApiLidarrSearchRoute
@@ -1344,7 +1331,6 @@ export interface FileRoutesByFullPath {
   '/api/playback/transfer': typeof ApiPlaybackTransferRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
   '/api/playlists/create-from-ids': typeof ApiPlaylistsCreateFromIdsRoute
-  '/api/playlists/download': typeof ApiPlaylistsDownloadRoute
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
   '/api/playlists/join': typeof ApiPlaylistsJoinRoute
@@ -1500,7 +1486,6 @@ export interface FileRoutesByTo {
   '/api/library/most-played': typeof ApiLibraryMostPlayedRoute
   '/api/library/top-artists': typeof ApiLibraryTopArtistsRoute
   '/api/lidarr/add': typeof ApiLidarrAddRoute
-  '/api/lidarr/availability': typeof ApiLidarrAvailabilityRoute
   '/api/lidarr/cancel': typeof ApiLidarrCancelRoute
   '/api/lidarr/history': typeof ApiLidarrHistoryRoute
   '/api/lidarr/search': typeof ApiLidarrSearchRoute
@@ -1536,7 +1521,6 @@ export interface FileRoutesByTo {
   '/api/playback/transfer': typeof ApiPlaybackTransferRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
   '/api/playlists/create-from-ids': typeof ApiPlaylistsCreateFromIdsRoute
-  '/api/playlists/download': typeof ApiPlaylistsDownloadRoute
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
   '/api/playlists/join': typeof ApiPlaylistsJoinRoute
@@ -1696,7 +1680,6 @@ export interface FileRoutesById {
   '/api/library/most-played': typeof ApiLibraryMostPlayedRoute
   '/api/library/top-artists': typeof ApiLibraryTopArtistsRoute
   '/api/lidarr/add': typeof ApiLidarrAddRoute
-  '/api/lidarr/availability': typeof ApiLidarrAvailabilityRoute
   '/api/lidarr/cancel': typeof ApiLidarrCancelRoute
   '/api/lidarr/history': typeof ApiLidarrHistoryRoute
   '/api/lidarr/search': typeof ApiLidarrSearchRoute
@@ -1732,7 +1715,6 @@ export interface FileRoutesById {
   '/api/playback/transfer': typeof ApiPlaybackTransferRoute
   '/api/playlists/$id': typeof ApiPlaylistsIdRouteWithChildren
   '/api/playlists/create-from-ids': typeof ApiPlaylistsCreateFromIdsRoute
-  '/api/playlists/download': typeof ApiPlaylistsDownloadRoute
   '/api/playlists/export': typeof ApiPlaylistsExportRoute
   '/api/playlists/import': typeof ApiPlaylistsImportRoute
   '/api/playlists/join': typeof ApiPlaylistsJoinRoute
@@ -1892,7 +1874,6 @@ export interface FileRouteTypes {
     | '/api/library/most-played'
     | '/api/library/top-artists'
     | '/api/lidarr/add'
-    | '/api/lidarr/availability'
     | '/api/lidarr/cancel'
     | '/api/lidarr/history'
     | '/api/lidarr/search'
@@ -1928,7 +1909,6 @@ export interface FileRouteTypes {
     | '/api/playback/transfer'
     | '/api/playlists/$id'
     | '/api/playlists/create-from-ids'
-    | '/api/playlists/download'
     | '/api/playlists/export'
     | '/api/playlists/import'
     | '/api/playlists/join'
@@ -2084,7 +2064,6 @@ export interface FileRouteTypes {
     | '/api/library/most-played'
     | '/api/library/top-artists'
     | '/api/lidarr/add'
-    | '/api/lidarr/availability'
     | '/api/lidarr/cancel'
     | '/api/lidarr/history'
     | '/api/lidarr/search'
@@ -2120,7 +2099,6 @@ export interface FileRouteTypes {
     | '/api/playback/transfer'
     | '/api/playlists/$id'
     | '/api/playlists/create-from-ids'
-    | '/api/playlists/download'
     | '/api/playlists/export'
     | '/api/playlists/import'
     | '/api/playlists/join'
@@ -2279,7 +2257,6 @@ export interface FileRouteTypes {
     | '/api/library/most-played'
     | '/api/library/top-artists'
     | '/api/lidarr/add'
-    | '/api/lidarr/availability'
     | '/api/lidarr/cancel'
     | '/api/lidarr/history'
     | '/api/lidarr/search'
@@ -2315,7 +2292,6 @@ export interface FileRouteTypes {
     | '/api/playback/transfer'
     | '/api/playlists/$id'
     | '/api/playlists/create-from-ids'
-    | '/api/playlists/download'
     | '/api/playlists/export'
     | '/api/playlists/import'
     | '/api/playlists/join'
@@ -2463,7 +2439,6 @@ export interface RootRouteChildren {
   ApiLibraryMostPlayedRoute: typeof ApiLibraryMostPlayedRoute
   ApiLibraryTopArtistsRoute: typeof ApiLibraryTopArtistsRoute
   ApiLidarrAddRoute: typeof ApiLidarrAddRoute
-  ApiLidarrAvailabilityRoute: typeof ApiLidarrAvailabilityRoute
   ApiLidarrCancelRoute: typeof ApiLidarrCancelRoute
   ApiLidarrHistoryRoute: typeof ApiLidarrHistoryRoute
   ApiLidarrSearchRoute: typeof ApiLidarrSearchRoute
@@ -2499,7 +2474,6 @@ export interface RootRouteChildren {
   ApiPlaybackTransferRoute: typeof ApiPlaybackTransferRoute
   ApiPlaylistsIdRoute: typeof ApiPlaylistsIdRouteWithChildren
   ApiPlaylistsCreateFromIdsRoute: typeof ApiPlaylistsCreateFromIdsRoute
-  ApiPlaylistsDownloadRoute: typeof ApiPlaylistsDownloadRoute
   ApiPlaylistsExportRoute: typeof ApiPlaylistsExportRoute
   ApiPlaylistsImportRoute: typeof ApiPlaylistsImportRoute
   ApiPlaylistsJoinRoute: typeof ApiPlaylistsJoinRoute
@@ -3128,13 +3102,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLidarrAddRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/lidarr/availability': {
-      id: '/api/lidarr/availability'
-      path: '/api/lidarr/availability'
-      fullPath: '/api/lidarr/availability'
-      preLoaderRoute: typeof ApiLidarrAvailabilityRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/lidarr/cancel': {
       id: '/api/lidarr/cancel'
       path: '/api/lidarr/cancel'
@@ -3399,13 +3366,6 @@ declare module '@tanstack/react-router' {
       path: '/api/playlists/create-from-ids'
       fullPath: '/api/playlists/create-from-ids'
       preLoaderRoute: typeof ApiPlaylistsCreateFromIdsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/playlists/download': {
-      id: '/api/playlists/download'
-      path: '/api/playlists/download'
-      fullPath: '/api/playlists/download'
-      preLoaderRoute: typeof ApiPlaylistsDownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/playlists/export': {
@@ -4157,7 +4117,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLibraryMostPlayedRoute: ApiLibraryMostPlayedRoute,
   ApiLibraryTopArtistsRoute: ApiLibraryTopArtistsRoute,
   ApiLidarrAddRoute: ApiLidarrAddRoute,
-  ApiLidarrAvailabilityRoute: ApiLidarrAvailabilityRoute,
   ApiLidarrCancelRoute: ApiLidarrCancelRoute,
   ApiLidarrHistoryRoute: ApiLidarrHistoryRoute,
   ApiLidarrSearchRoute: ApiLidarrSearchRoute,
@@ -4195,7 +4154,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPlaybackTransferRoute: ApiPlaybackTransferRoute,
   ApiPlaylistsIdRoute: ApiPlaylistsIdRouteWithChildren,
   ApiPlaylistsCreateFromIdsRoute: ApiPlaylistsCreateFromIdsRoute,
-  ApiPlaylistsDownloadRoute: ApiPlaylistsDownloadRoute,
   ApiPlaylistsExportRoute: ApiPlaylistsExportRoute,
   ApiPlaylistsImportRoute: ApiPlaylistsImportRoute,
   ApiPlaylistsJoinRoute: ApiPlaylistsJoinRoute,
@@ -4254,3 +4212,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
