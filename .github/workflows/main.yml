@@ -63,15 +63,55 @@ jobs:
       - name: Fail on high/critical vulnerabilities
         run: |
           # npm audit exits non-zero when vulns are present, so `|| true`
-          # lets us capture the JSON and parse the counts ourselves.
+          # lets us capture the JSON and parse the advisories ourselves.
           audit_json=$(npm audit --json || true)
-          high=$(echo "$audit_json" | jq '.metadata.vulnerabilities.high // 0')
-          crit=$(echo "$audit_json" | jq '.metadata.vulnerabilities.critical // 0')
-          echo "npm audit: high=$high critical=$crit"
-          if [ "$high" -gt 0 ] || [ "$crit" -gt 0 ]; then
-            echo "High or critical vulnerabilities found!"
+
+          # Scoped exceptions (#241). better-auth is pinned to 1.5.6 because 1.7.x
+          # broke every email sign-in (2026-09-01 → 09-04 outage). Each advisory
+          # below is in a feature this app does not run: plugins in use are only
+          # admin() + twoFactor(), and social sign-in is only registered when
+          # GITHUB_/GOOGLE_CLIENT_ID+SECRET are set — all unset in prod
+          # (verified 2026-10-01). Upgrade better-auth BEFORE enabling OAuth:
+          # GHSA-g38m-r43w-p2q7 becomes live the moment a social provider is on.
+          # Review by 2026-12-31; drop entries as soon as better-auth is upgraded.
+          allow='[
+            "GHSA-pw9m-5jxm-xr6h",
+            "GHSA-9h47-pqcx-hjr4",
+            "GHSA-86j7-9j95-vpqj",
+            "GHSA-7w99-5wm4-3g79",
+            "GHSA-392p-2q2v-4372",
+            "GHSA-g38m-r43w-p2q7",
+            "GHSA-fmh4-wcc4-5jm3",
+            "GHSA-qq9h-g4jm-xgf3"
+          ]'
+          # pw9m (critical), 9h47, 86j7: oidcProvider / mcp plugins — not used
+          # 7w99, 392p: @better-auth/oauth-provider — not used
+          # g38m: OAuth account auto-link — social providers unset in prod
+          # fmh4: organization plugin — not used
+          # qq9h: magic-link / email-OTP sign-in — not used
+
+          # Every high/critical advisory not on the allowlist fails the gate,
+          # so a new one in ANY package (better-auth included) still turns it red.
+          blocking=$(echo "$audit_json" | jq -r --argjson allow "$allow" '
+            [.vulnerabilities[] | .via[] | objects
+              | select(.severity == "high" or .severity == "critical")
+              | select((.url | split("/") | last) as $id | ($allow | index($id)) | not)
+              | "\(.severity)\t\(.name)\t\(.url)\t\(.title)"]
+            | unique | .[]')
+          allowed=$(echo "$audit_json" | jq -r --argjson allow "$allow" '
+            [.vulnerabilities[] | .via[] | objects
+              | select((.url | split("/") | last) as $id | ($allow | index($id)))
+              | "\(.severity)\t\(.name)\t\(.url)"] | unique | .[]')
+
+          echo "npm audit totals: $(echo "$audit_json" | jq -c '.metadata.vulnerabilities')"
+          echo "--- allowlisted (#241) ---"
+          echo "${allowed:-none}"
+          if [ -n "$blocking" ]; then
+            echo "--- BLOCKING high/critical advisories ---"
+            echo "$blocking"
             exit 1
           fi
+          echo "No unallowlisted high/critical advisories."
         if: always()
 
   secret-scan:
