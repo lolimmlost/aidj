@@ -1,4 +1,3 @@
-import { ServiceError } from '../utils';
 import type {
   PlaylistPlatform,
   MatchConfidence,
@@ -12,7 +11,6 @@ import type { ExportableSong } from './playlist-export';
 export interface MatchOptions {
   targetPlatforms: PlaylistPlatform[];
   useIsrc?: boolean;
-  useFuzzyMatch?: boolean;
   minConfidenceScore?: number;
   maxMatchesPerSong?: number;
 }
@@ -338,55 +336,6 @@ export async function matchSong(
 }
 
 /**
- * Match multiple songs with progress callback
- */
-export async function matchSongs(
-  songs: ExportableSong[],
-  searchers: PlatformSearcher[],
-  options: MatchOptions,
-  onProgress?: (current: number, total: number, song: ExportableSong) => void
-): Promise<SongMatchResult[]> {
-  const results: SongMatchResult[] = [];
-
-  for (let i = 0; i < songs.length; i++) {
-    const song = songs[i];
-
-    if (onProgress) {
-      onProgress(i + 1, songs.length, song);
-    }
-
-    try {
-      const result = await matchSong(song, searchers, options);
-      results.push(result);
-    } catch (error) {
-      // If matching fails for a song (e.g., rate limit timeout), continue with others
-      console.error(`Error matching song "${song.artist} - ${song.title}":`, error);
-      results.push({
-        originalSong: {
-          title: song.title || 'Unknown Title',
-          artist: song.artist || 'Unknown Artist',
-          album: song.album,
-          duration: song.duration,
-          isrc: song.isrc,
-          platform: song.platform,
-          platformId: song.platformId,
-        },
-        matches: [],
-        selectedMatch: undefined,
-        status: 'no_match',
-      });
-    }
-
-    // Small delay to avoid rate limiting
-    if (i < songs.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-  }
-
-  return results;
-}
-
-/**
  * Generate a matching report
  */
 export function generateMatchReport(results: SongMatchResult[]): {
@@ -487,81 +436,5 @@ export function generateMatchReport(results: SongMatchResult[]): {
     byConfidence,
     unmatchedSongs,
     pendingReviewSongs,
-  };
-}
-
-/**
- * Export match results to CSV
- */
-export function exportMatchResultsToCSV(results: SongMatchResult[]): string {
-  const headers = [
-    'Original Title',
-    'Original Artist',
-    'Original Album',
-    'Status',
-    'Match Platform',
-    'Match Title',
-    'Match Artist',
-    'Confidence',
-    'Score',
-    'Reason',
-  ];
-
-  const rows = results.map(result => {
-    const match = result.matches[0];
-    return [
-      result.originalSong.title,
-      result.originalSong.artist,
-      result.originalSong.album || '',
-      result.status,
-      match?.platform || '',
-      match?.title || '',
-      match?.artist || '',
-      match?.confidence || '',
-      match?.matchScore?.toString() || '',
-      match?.matchReason || '',
-    ].map(cell => `"${cell.replace(/"/g, '""')}"`).join(',');
-  });
-
-  return [headers.join(','), ...rows].join('\n');
-}
-
-/**
- * Update match selection (for user review)
- */
-export function updateMatchSelection(
-  result: SongMatchResult,
-  platformId: string,
-  platform: PlaylistPlatform
-): SongMatchResult {
-  const selectedMatch = result.matches.find(
-    m => m.platformId === platformId && m.platform === platform
-  );
-
-  if (!selectedMatch) {
-    throw new ServiceError(
-      'MATCH_NOT_FOUND',
-      'Selected match not found in match results'
-    );
-  }
-
-  return {
-    ...result,
-    selectedMatch: {
-      platform,
-      platformId,
-    },
-    status: 'matched',
-  };
-}
-
-/**
- * Skip a song (mark as intentionally unmatched)
- */
-export function skipSong(result: SongMatchResult): SongMatchResult {
-  return {
-    ...result,
-    status: 'skipped',
-    selectedMatch: undefined,
   };
 }

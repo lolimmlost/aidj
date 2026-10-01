@@ -194,7 +194,6 @@ async function processMatchingInBackground(
     const searcher = createNavidromeSearcher();
     const matchOptions: MatchOptions = {
       targetPlatforms: ['navidrome'],
-      useFuzzyMatch: true,
       minConfidenceScore: 50,
       maxMatchesPerSong: 5,
     };
