@@ -475,52 +475,6 @@ export async function getPlaylist(userId: string, playlistId: string): Promise<E
 }
 
 /**
- * Create a new playlist
- */
-export async function createPlaylist(
-  userId: string,
-  name: string,
-  description?: string,
-  isPublic: boolean = false
-): Promise<string> {
-  // First get the Spotify user ID
-  const user = await spotifyFetch<{ id: string }>(userId, '/me');
-
-  const playlist = await spotifyFetch<SpotifyPlaylist>(userId, `/users/${user.id}/playlists`, {
-    method: 'POST',
-    body: JSON.stringify({
-      name,
-      description: description || '',
-      public: isPublic,
-    }),
-  });
-
-  return playlist.id;
-}
-
-/**
- * Add tracks to a playlist
- */
-export async function addTracksToPlaylist(
-  userId: string,
-  playlistId: string,
-  trackUris: string[]
-): Promise<void> {
-  // Spotify limits to 100 tracks per request
-  const chunks = [];
-  for (let i = 0; i < trackUris.length; i += 100) {
-    chunks.push(trackUris.slice(i, i + 100));
-  }
-
-  for (const chunk of chunks) {
-    await spotifyFetch(userId, `/playlists/${playlistId}/tracks`, {
-      method: 'POST',
-      body: JSON.stringify({ uris: chunk }),
-    });
-  }
-}
-
-/**
  * Convert Spotify track to ExportableSong
  */
 function convertSpotifyTrack(track: SpotifyTrack): ExportableSong {
