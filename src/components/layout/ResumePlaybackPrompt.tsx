@@ -62,7 +62,7 @@ export const ResumePlaybackPrompt = memo(function ResumePlaybackPrompt() {
   return (
     <div
       className={cn(
-        "fixed bottom-24 left-1/2 -translate-x-1/2 z-50",
+        "fixed bottom-[calc(6rem+3.5rem+env(safe-area-inset-bottom))] md:bottom-24 left-1/2 -translate-x-1/2 z-50",
         "bg-card border border-border rounded-lg shadow-xl",
         "px-4 py-3 flex items-center gap-3",
         "animate-in fade-in slide-in-from-bottom-4 duration-300"
