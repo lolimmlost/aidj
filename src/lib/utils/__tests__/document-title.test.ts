@@ -14,6 +14,7 @@ describe('getRouteTitle', () => {
     ['/playlists', 'Playlists'],
     ['/playlists/pl1', 'Playlist'],
     ['/playlists/join/abc', 'Join Playlist'],
+    ['/playlists/liked-songs', 'Liked Songs'],
     ['/settings', 'Settings'],
     ['/settings/playback', 'Playback · Settings'],
     ['/tasks', 'Tasks'],
@@ -39,6 +40,15 @@ describe('buildDocumentTitle', () => {
 
   it('prefers title over name and tolerates a missing artist', () => {
     expect(buildDocumentTitle('/x', { name: 'file-name', title: 'Real Title' })).toBe('▶ Real Title');
+  });
+
+  it('prefers a page-supplied name over the route label', () => {
+    expect(buildDocumentTitle('/playlists/p1', null, 'Road Trip')).toBe('Road Trip · AIDJ');
+    expect(buildDocumentTitle('/playlists/p1', null, '  ')).toBe('Playlist · AIDJ');
+  });
+
+  it('still shows the playing track over a page name', () => {
+    expect(buildDocumentTitle('/playlists/p1', { name: 'Song', artist: 'Band' }, 'Road Trip')).toBe('▶ Song · Band');
   });
 
   it('falls back to the page title when the track has no name', () => {

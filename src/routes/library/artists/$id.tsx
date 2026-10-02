@@ -30,6 +30,7 @@ import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton'
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { cn } from '@/lib/utils';
 import { getArtistGradient } from '@/lib/utils/artist-avatar';
+import { usePageTitle } from '@/lib/hooks/useDocumentTitle';
 
 /** Album cover with Navidrome getCoverArt proxy fallback, then placeholder */
 function AlbumCoverArt({ albumId, artwork, name }: { albumId: string; artwork?: string; name: string }) {
@@ -219,6 +220,7 @@ function ArtistDetail() {
     retry: 1,
     refetchOnWindowFocus: false,
   });
+  usePageTitle(artist?.name);
 
   const { data: albums = [], isLoading: loadingAlbums, error: albumsError } = useQuery({
     queryKey: ['albums', id],

@@ -23,6 +23,7 @@ const ROUTE_TITLES: ReadonlyArray<[RegExp, string]> = [
   [/^\/library\/artists/, 'Artists'],
   [/^\/library\/search/, 'Search'],
   [/^\/playlists\/join/, 'Join Playlist'],
+  [/^\/playlists\/liked-songs/, 'Liked Songs'],
   [/^\/playlists\/[^/]+/, 'Playlist'],
   [/^\/playlists/, 'Playlists'],
   [/^\/dj\/set-builder/, 'Set Builder'],
@@ -68,6 +69,8 @@ export function getRouteTitle(pathname: string): string | null {
 export function buildDocumentTitle(
   pathname: string,
   nowPlaying?: Pick<Song, 'name' | 'title' | 'artist'> | null,
+  /** Page-supplied name (playlist / artist / album) that beats the route label. */
+  pageTitle?: string | null,
 ): string {
   if (nowPlaying) {
     const track = nowPlaying.title || nowPlaying.name;
@@ -75,6 +78,6 @@ export function buildDocumentTitle(
       return nowPlaying.artist ? `▶ ${track} · ${nowPlaying.artist}` : `▶ ${track}`;
     }
   }
-  const page = getRouteTitle(pathname);
+  const page = pageTitle?.trim() || getRouteTitle(pathname);
   return page ? `${page} · ${APP_NAME}` : APP_NAME;
 }
