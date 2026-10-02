@@ -17,6 +17,7 @@ import {
 import { toast } from '@/lib/toast';
 import { StartRadioButton } from '@/components/radio/StartRadioButton';
 import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
+import { usePageTitle } from '@/lib/hooks/useDocumentTitle';
 
 export const Route = createFileRoute('/library/artists/$id/albums/$albumId')({
   beforeLoad: async ({ context }) => {
@@ -57,6 +58,7 @@ function AlbumDetail() {
     retry: 1,
     refetchOnWindowFocus: false,
   });
+  usePageTitle(album?.name ? (artist?.name ? `${album.name} — ${artist.name}` : album.name) : undefined);
 
   const {
     data: songs = [],

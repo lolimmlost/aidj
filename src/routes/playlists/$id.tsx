@@ -55,6 +55,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { parseArtistTitle } from '@/lib/utils/song-artist-title';
+import { usePageTitle } from '@/lib/hooks/useDocumentTitle';
 
 export const Route = createFileRoute('/playlists/$id')({
   beforeLoad: async ({ context }) => {
@@ -665,6 +666,7 @@ function PlaylistDetailPage() {
       return json.data as PlaylistDetail;
     },
   });
+  usePageTitle(playlist?.name);
 
   // Reconcile-on-open backstop for Liked Songs: when the canonical Liked Songs
   // playlist is opened, rebuild it once from Navidrome stars so the view
