@@ -49,6 +49,7 @@ import { useWebAudioGraph } from '@/lib/hooks/useWebAudioGraph';
 import { useDeckEventHandlers } from '@/lib/hooks/useDeckEventHandlers';
 import { useSongLoader } from '@/lib/hooks/useSongLoader';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
+import { haptic } from '@/lib/utils/haptics';
 
 // Helper function for time formatting
 const formatTime = (time: number) => {
@@ -525,8 +526,15 @@ export function PlayerBar() {
     },
   });
 
+  // Song the user just hearted in this session — drives the one-shot pop so an
+  // already-liked song doesn't animate when it merely starts playing.
+  const [likePopSongId, setLikePopSongId] = useState<string | null>(null);
+  const showLikePop = isLiked && !!currentSong && likePopSongId === currentSong.id;
+
   const handleToggleLike = useCallback(() => {
     if (!currentSong || isLikePending) return;
+    haptic('light');
+    setLikePopSongId(isLiked ? null : currentSong.id);
     likeMutate(!isLiked);
   }, [currentSong, isLikePending, isLiked, likeMutate]);
 
@@ -1061,7 +1069,7 @@ export function PlayerBar() {
               onClick={handleToggleLike}
               disabled={isLikePending}
             >
-              <Heart className={cn("h-4 w-4", isLiked && "fill-current text-red-500")} />
+              <Heart className={cn("h-4 w-4 transition-colors", isLiked && "fill-current text-red-500", showLikePop && "animate-like-pop")} />
             </Button>
 
             <Button
@@ -1175,7 +1183,7 @@ export function PlayerBar() {
             onClick={handleToggleLike}
             disabled={isLikePending}
           >
-            <Heart className={cn("h-4 w-4", isLiked && "fill-current text-red-500")} />
+            <Heart className={cn("h-4 w-4 transition-colors", isLiked && "fill-current text-red-500", showLikePop && "animate-like-pop")} />
           </Button>
         </div>
 
