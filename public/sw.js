@@ -56,8 +56,10 @@ self.addEventListener('install', (event) => {
       );
     })
   );
-  // Activate immediately
-  self.skipWaiting();
+  // Don't skipWaiting() here: an update waits until the user accepts the
+  // in-app "Update ready · Reload" prompt (SKIP_WAITING message below) or
+  // every tab closes, so a deploy never swaps the worker under live playback.
+  // First install has no previous worker, so it activates immediately anyway.
 });
 
 // Activate event - clean up old caches

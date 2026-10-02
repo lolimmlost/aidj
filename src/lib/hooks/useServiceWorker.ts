@@ -1,4 +1,32 @@
 import { useEffect, useState, useCallback } from 'react';
+import { toast } from '@/lib/toast';
+
+const UPDATE_TOAST_ID = 'sw-update-ready';
+
+// Set only by an explicit user action; resets naturally on reload.
+let reloadRequested = false;
+
+/**
+ * Ask a waiting worker to take over; the page reloads on the resulting
+ * controllerchange. Only ever called from an explicit user action.
+ */
+function applyUpdate(worker: ServiceWorker | null | undefined) {
+  if (!worker) return;
+  reloadRequested = true;
+  worker.postMessage({ type: 'SKIP_WAITING' });
+}
+
+function promptForUpdate(reg: ServiceWorkerRegistration) {
+  toast.info('A new version of AIDJ is ready', {
+    id: UPDATE_TOAST_ID,
+    description: 'Reload when convenient — it applies automatically next time you open the app.',
+    duration: Infinity,
+    action: {
+      label: 'Reload',
+      onClick: () => applyUpdate(reg.waiting),
+    },
+  });
+}
 
 interface SyncStatus {
   pending: number;
@@ -28,6 +56,12 @@ export function useServiceWorker() {
         setIsRegistered(true);
         console.log('[PWA] Service worker registered:', reg.scope);
 
+        // An update may already be waiting from a previous visit
+        if (reg.waiting && navigator.serviceWorker.controller) {
+          setIsUpdateAvailable(true);
+          promptForUpdate(reg);
+        }
+
         // Check for updates
         reg.addEventListener('updatefound', () => {
           const newWorker = reg.installing;
@@ -36,6 +70,7 @@ export function useServiceWorker() {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                 console.log('[PWA] New version available');
                 setIsUpdateAvailable(true);
+                promptForUpdate(reg);
               }
             });
           }
@@ -65,10 +100,16 @@ export function useServiceWorker() {
 
     registerSW();
 
-    // Listen for controller change (new SW activated)
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
+    // Listen for controller change (new SW activated). Reload only when the
+    // user asked for the update — never yank the page out from under playback.
+    const handleControllerChange = () => {
       console.log('[PWA] New service worker activated');
-    });
+      if (reloadRequested) {
+        reloadRequested = false;
+        window.location.reload();
+      }
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
 
     // Listen for messages from service worker
     const handleMessage = (event: MessageEvent) => {
@@ -90,14 +131,12 @@ export function useServiceWorker() {
 
     return () => {
       navigator.serviceWorker.removeEventListener('message', handleMessage);
+      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
     };
   }, []);
 
   const updateServiceWorker = useCallback(() => {
-    if (registration?.waiting) {
-      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      window.location.reload();
-    }
+    applyUpdate(registration?.waiting);
   }, [registration]);
 
   const requestSyncStatus = useCallback(() => {
