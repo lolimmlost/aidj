@@ -2,6 +2,9 @@ import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
+import { execSync } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import { viteWebSocketPlugin } from "./vite-ws-plugin";
@@ -48,6 +51,37 @@ function hmrNoReloadOnReconnect(): Plugin {
   }
 </script></body>`
       );
+    },
+  };
+}
+
+/**
+ * Stamp a per-build id into the emitted sw.js (placeholder __AIDJ_BUILD_ID__).
+ * Browsers only install a new service worker when sw.js's bytes change, so
+ * without this an app-only deploy never triggers the update prompt (#294).
+ * Uses the commit SHA when available (rebuilding the same commit doesn't
+ * nag users), else a timestamp.
+ */
+function swBuildId(): Plugin {
+  const buildId = (() => {
+    const fromEnv = process.env.SOURCE_COMMIT || process.env.GIT_SHA || process.env.COMMIT_SHA;
+    if (fromEnv) return fromEnv.slice(0, 12);
+    try {
+      return execSync("git rev-parse --short=12 HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    } catch {
+      return Date.now().toString(36);
+    }
+  })();
+  return {
+    name: "aidj-sw-build-id",
+    apply: "build",
+    writeBundle(options) {
+      if (!options.dir) return;
+      const file = join(options.dir, "sw.js");
+      if (!existsSync(file)) return; // server build output has no sw.js
+      const src = readFileSync(file, "utf8");
+      if (!src.includes("__AIDJ_BUILD_ID__")) return;
+      writeFileSync(file, src.replaceAll("__AIDJ_BUILD_ID__", buildId));
     },
   };
 }
@@ -158,5 +192,7 @@ export default defineConfig({
       },
     }),
     tailwindcss(),
+    // Unique sw.js per build so every deploy shows "New version ready"
+    swBuildId(),
   ],
 });

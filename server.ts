@@ -78,6 +78,14 @@ async function start() {
     const serve = sirv(join(import.meta.dirname, 'dist/client'), {
       immutable: true,
       maxAge: 31536000, // 1 year for hashed assets
+      setHeaders: (res, pathname) => {
+        // Never let a browser or CDN (e.g. a Cloudflare tunnel) hold on to
+        // the service worker or manifest: a cached sw.js means devices never
+        // see new versions, so the "New version ready" prompt never fires.
+        if (pathname === '/sw.js' || pathname === '/manifest.json') {
+          res.setHeader('Cache-Control', 'no-cache, max-age=0, must-revalidate');
+        }
+      },
     });
 
     const mod = await import('./dist/server/server.js');

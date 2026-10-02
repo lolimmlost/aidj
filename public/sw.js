@@ -1,4 +1,9 @@
 // AIDJ Service Worker - Enables background audio, PWA functionality, and offline-first features
+
+// Replaced with a unique id on every production build (vite.config.ts,
+// swBuildId) so each deploy changes this file's bytes — that's what makes the
+// browser install the new worker and show the "New version ready" prompt.
+const BUILD_ID = '__AIDJ_BUILD_ID__';
 const CACHE_NAME = 'aidj-v3';
 const AUDIO_CACHE_NAME = 'aidj-audio-v1';
 const API_CACHE_NAME = 'aidj-api-v1';
@@ -42,7 +47,7 @@ const CACHEABLE_API_PATTERNS = [
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing service worker v3...');
+  console.log(`[SW] Installing service worker v3 (build ${BUILD_ID})...`);
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching static assets');
