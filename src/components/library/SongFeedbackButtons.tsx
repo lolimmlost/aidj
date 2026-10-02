@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
-import { ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
+import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSongFeedback } from '@/hooks/useSongFeedback';
 import { queryKeys } from '@/lib/query';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
+import { haptic } from '@/lib/utils/haptics';
 
 interface SongFeedbackButtonsProps {
   songId?: string;
@@ -117,6 +118,7 @@ export function SongFeedbackButtons({
       return;
     }
 
+    haptic('light');
     feedbackMutation.mutate(feedbackType);
   };
 
@@ -138,11 +140,9 @@ export function SongFeedbackButtons({
         aria-label={isLiked ? 'Unlike song' : 'Like song'}
         aria-pressed={isLiked}
       >
-        {isLoading && optimisticFeedback === 'thumbs_up' ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <ThumbsUp className={`h-4 w-4 transition-all ${isLiked ? 'fill-current scale-110' : ''}`} />
-        )}
+        <ThumbsUp
+          className={`h-4 w-4 transition-all ${isLiked ? 'fill-current scale-110' : ''} ${optimisticFeedback === 'thumbs_up' ? 'animate-like-pop' : ''}`}
+        />
       </Button>
 
       <Button
@@ -157,11 +157,9 @@ export function SongFeedbackButtons({
         aria-label={isDisliked ? 'Remove dislike' : 'Dislike song'}
         aria-pressed={isDisliked}
       >
-        {isLoading && optimisticFeedback === 'thumbs_down' ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <ThumbsDown className={`h-4 w-4 transition-all ${isDisliked ? 'fill-current scale-110' : ''}`} />
-        )}
+        <ThumbsDown
+          className={`h-4 w-4 transition-all ${isDisliked ? 'fill-current scale-110' : ''} ${optimisticFeedback === 'thumbs_down' ? 'animate-like-pop' : ''}`}
+        />
       </Button>
     </div>
   );

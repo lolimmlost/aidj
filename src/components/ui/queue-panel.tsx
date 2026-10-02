@@ -654,8 +654,9 @@ export function QueuePanel() {
     // Positioned above player bar with safe margins
     // Touch target: 56x56px (h-14 w-14) exceeds 44px minimum
     // Landscape mode: slightly lower to accommodate reduced player height
+    // Below md: clear the ~6rem mobile player, which sits on the tab bar
     return (
-      <div className="fixed bottom-[calc(4rem+1rem)] right-2 md:right-4 z-50 md:bottom-[calc(5rem+1rem)] landscape:max-md:bottom-[calc(3.5rem+0.5rem)]">
+      <div className="fixed bottom-[calc(6.75rem+var(--mobile-tabbar-offset,0px))] right-2 md:right-4 z-50 md:bottom-[calc(5rem+1rem)] landscape:max-md:bottom-[calc(3.5rem+0.5rem+var(--mobile-tabbar-offset,0px))]">
         <Button
           onClick={() => setIsOpen(true)}
           variant="outline"
@@ -684,7 +685,7 @@ export function QueuePanel() {
 
   return (
     <div
-      className="fixed z-50 bottom-[calc(4rem)] left-0 right-0 sm:left-auto sm:w-80 sm:right-2 sm:bottom-[calc(4rem+1rem)] md:w-96 md:right-4 md:bottom-[calc(5rem+1rem)] landscape:max-md:bottom-[calc(3.5rem+0.5rem)] landscape:max-md:w-[min(45vw,20rem)] animate-in slide-in-from-bottom sm:slide-in-from-right duration-300"
+      className="fixed z-50 bottom-[calc(4rem+var(--mobile-tabbar-offset,0px))] left-0 right-0 sm:left-auto sm:w-80 sm:right-2 sm:bottom-[calc(4rem+1rem+var(--mobile-tabbar-offset,0px))] md:w-96 md:right-4 md:bottom-[calc(5rem+1rem)] landscape:max-md:bottom-[calc(3.5rem+0.5rem+var(--mobile-tabbar-offset,0px))] landscape:max-md:w-[min(45vw,20rem)] animate-in slide-in-from-bottom sm:slide-in-from-right duration-300"
       role="dialog"
       aria-label="Playback queue"
       aria-modal="false"
