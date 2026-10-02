@@ -67,6 +67,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
               : "oklch(0.6 0.16 80 / 0.2)",
         } as React.CSSProperties
       }
+      // Sit above the player bar / mobile tab bar rather than on top of
+      // them (--bottom-chrome is measured in AppLayout; 0 elsewhere).
+      offset={{ bottom: "calc(var(--bottom-chrome, 0px) + 16px)" }}
+      mobileOffset={{ bottom: "calc(var(--bottom-chrome, 0px) + 12px)" }}
       visibleToasts={4}
       {...props}
     />

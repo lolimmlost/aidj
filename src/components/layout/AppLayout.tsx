@@ -38,6 +38,7 @@ import { PlayerBar } from './PlayerBar';
 import { QueuePanel } from '@/components/ui/queue-panel';
 import { MobileNav } from '@/components/ui/mobile-nav';
 import { MobileTabBar } from './MobileTabBar';
+import { useBottomChrome } from '@/lib/hooks/useBottomChrome';
 import { toast } from '@/lib/toast';
 import { useDeferredRender } from '@/lib/utils/lazy-components';
 import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar';
@@ -215,6 +216,9 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { playlist, currentSongIndex } = useAudioStore();
   const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
 
+  // Keep toasts above the player / tab bar (--bottom-chrome, see Toaster)
+  useBottomChrome();
+
   // Debug panel state with localStorage persistence
   const [showDebugPanel, setShowDebugPanel] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -277,7 +281,7 @@ export function AppLayout({ children }: AppLayoutProps) {
          sits on top of the tab bar (--mobile-tabbar-offset, see MobileTabBar). */}
       {/* CRITICAL: Always render PlayerBar to preserve audio elements across state changes.
          Unmounting destroys <audio> elements and kills playback. Hide visually instead. */}
-      <div className={cn(
+      <div data-bottom-chrome className={cn(
         "fixed bottom-[var(--mobile-tabbar-offset,0px)] md:bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl",
         !hasActiveSong && "hidden"
       )}>

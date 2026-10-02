@@ -96,6 +96,7 @@ export function MobileTabBar() {
 
   return (
     <nav
+      data-bottom-chrome
       aria-label="Primary"
       className="md:hidden shrink-0 border-t border-border/50 bg-background/95 backdrop-blur-xl pb-[var(--mobile-safe-bottom,env(safe-area-inset-bottom))]"
     >
