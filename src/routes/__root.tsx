@@ -20,6 +20,7 @@ import { AppLayout } from "~/components/layout";
 import { useAudioStore } from "~/lib/stores/audio";
 import { useServiceWorker } from "~/lib/hooks/useServiceWorker";
 import { useEruda } from "~/lib/hooks/useEruda";
+import { useDocumentTitle } from "~/lib/hooks/useDocumentTitle";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -138,6 +139,9 @@ function RootComponent() {
 
   // Load Eruda debug console if ?debug=true in URL
   useEruda();
+
+  // Per-route tab title, or the playing track (#287)
+  useDocumentTitle();
 
   // Use new AppLayout for main app routes (dashboard, library, playlists, dj, settings, music-identity)
   const useNewLayout = currentPath.startsWith('/dashboard') ||

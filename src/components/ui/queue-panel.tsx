@@ -661,6 +661,11 @@ export function QueuePanel() {
     );
   }
 
+  // Mobile height is bounded by both edges (#304): the bottom anchor (player +
+  // tab bar) and the top (status bar + mobile top bar, 3rem + 0.5rem gap), using
+  // dvh because iOS standalone's 100vh doesn't match the layout viewport. The
+  // list then flexes to fill what's left, so the header/close button can never
+  // be pushed under the status bar.
   return (
     <div
       className="fixed z-50 bottom-[calc(4rem+var(--mobile-tabbar-offset,0px))] left-0 right-0 sm:left-auto sm:w-80 sm:right-2 sm:bottom-[calc(4rem+1rem+var(--mobile-tabbar-offset,0px))] md:w-96 md:right-4 md:bottom-[calc(5rem+1rem)] landscape:max-md:bottom-[calc(3.5rem+0.5rem+var(--mobile-tabbar-offset,0px))] landscape:max-md:w-[min(45vw,20rem)] animate-in slide-in-from-bottom sm:slide-in-from-right duration-300"
@@ -668,7 +673,7 @@ export function QueuePanel() {
       aria-label="Playback queue"
       aria-modal="false"
     >
-      <Card className="shadow-2xl border-2 border-primary/10 bg-gradient-to-br from-background via-background to-primary/5 backdrop-blur-xl overflow-hidden max-h-[calc(100vh-7rem-env(safe-area-inset-top))] sm:max-h-[60vh] md:max-h-[calc(100vh-8rem)] landscape:max-md:max-h-[calc(100vh-5rem-env(safe-area-inset-top))] flex flex-col rounded-b-none sm:rounded-b-xl">
+      <Card className="shadow-2xl border-2 border-primary/10 bg-gradient-to-br from-background via-background to-primary/5 backdrop-blur-xl overflow-hidden max-h-[calc(100dvh-4rem-var(--mobile-tabbar-offset,0px)-env(safe-area-inset-top)-3.5rem)] sm:max-h-[60vh] md:max-h-[calc(100vh-8rem)] landscape:max-md:max-h-[calc(100dvh-4rem-var(--mobile-tabbar-offset,0px)-env(safe-area-inset-top)-1rem)] flex flex-col rounded-b-none sm:rounded-b-xl">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-(--aidj-violet) to-(--aidj-magenta)" />
         <CardHeader className="pb-2 md:pb-3 px-3 md:px-6 pt-3 md:pt-6 bg-gradient-to-br from-primary/5 to-transparent">
           <div className="flex items-center justify-between">
@@ -805,7 +810,7 @@ export function QueuePanel() {
                   items={upcomingQueue.map((s, i) => `${s.id}-${i}`)}
                   strategy={verticalListSortingStrategy}
                 >
-                  <div className="h-[calc(100vh-16rem)] sm:h-[25vh] md:h-[40vh] overflow-y-auto overflow-x-hidden pr-1 md:pr-2 space-y-2">
+                  <div className="min-h-0 flex-1 sm:flex-none sm:h-[25vh] md:h-[40vh] overflow-y-auto overflow-x-hidden pr-1 md:pr-2 space-y-2">
                     {upcomingQueue.map((song, index) => {
                       // If nothing playing (currentSongIndex === -1), actualIndex is just index
                       const actualIndex = currentSongIndex === -1 ? index : currentSongIndex + 1 + index;
