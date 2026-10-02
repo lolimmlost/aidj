@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query';
-import { toast } from '@/lib/toast';
+import { toast, UNDO_DURATION_MS } from '@/lib/toast';
 import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
 import { useScrollSafeMenu } from '@/lib/hooks/useScrollSafeMenu';
 import {
@@ -654,6 +654,12 @@ function PlaylistDetailPage() {
   const isLikedSongsPlaylist = id === 'liked-songs';
   const isSmartPlaylist = id.startsWith('smart-');
 
+  // Songs removed but still inside their Undo window (#277): songId → commit
+  // timer. The DELETE is deferred until the window closes, and refetches filter
+  // these out so the row doesn't flicker back meanwhile.
+  const pendingRemovalsRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the ref only hides songs mid-Undo; it is not part of the cache identity
   const { data: playlist, isLoading, error } = useQuery({
     queryKey: ['playlist', id],
     queryFn: async () => {
@@ -662,7 +668,11 @@ function PlaylistDetailPage() {
         throw new Error('Failed to fetch playlist');
       }
       const json = await response.json();
-      return json.data as PlaylistDetail;
+      const data = json.data as PlaylistDetail;
+      const pending = pendingRemovalsRef.current;
+      return pending.size > 0
+        ? { ...data, songs: data.songs.filter(s => !pending.has(s.songId)) }
+        : data;
     },
   });
 
@@ -699,34 +709,39 @@ function PlaylistDetailPage() {
       }
       return response.json();
     },
-    onMutate: async (songId) => {
-      // Optimistic update
-      await queryClient.cancelQueries({ queryKey: ['playlist', id] });
-      const previousPlaylist = queryClient.getQueryData(['playlist', id]);
-      queryClient.setQueryData(['playlist', id], (old: PlaylistDetail | undefined) => {
-        if (!old) return old;
-        return {
-          ...old,
-          songs: old.songs.filter(s => s.songId !== songId),
-        };
-      });
-      return { previousPlaylist };
-    },
-    onError: (error, _, context) => {
-      // Revert optimistic update
-      if (context?.previousPlaylist) {
-        queryClient.setQueryData(['playlist', id], context.previousPlaylist);
-      }
+    // The row was already hidden by handleRemoveSong; the song stays in
+    // pendingRemovalsRef until the DELETE settles so refetches keep it hidden.
+    onError: (error, songId) => {
+      pendingRemovalsRef.current.delete(songId);
+      queryClient.invalidateQueries({ queryKey: ['playlist', id] });
       toast.error('Failed to remove song', {
         description: error instanceof Error ? error.message : 'Please try again',
       });
     },
-    onSuccess: () => {
+    onSuccess: (_, songId) => {
+      pendingRemovalsRef.current.delete(songId);
       queryClient.invalidateQueries({ queryKey: ['playlist', id] });
       queryClient.invalidateQueries({ queryKey: ['playlists'] });
-      toast.success('Song removed from playlist');
     },
   });
+
+  // Leaving the page (or switching playlists) commits any removal still inside
+  // its Undo window rather than silently dropping it.
+  useEffect(() => {
+    const pending = pendingRemovalsRef.current;
+    return () => {
+      for (const [songId, timer] of pending) {
+        clearTimeout(timer);
+        void fetch(`/api/playlists/${id}/songs/${songId}`, { method: 'DELETE', keepalive: true })
+          .then(() => {
+            queryClient.invalidateQueries({ queryKey: ['playlist', id] });
+            queryClient.invalidateQueries({ queryKey: ['playlists'] });
+          })
+          .catch(() => {});
+      }
+      pending.clear();
+    };
+  }, [id, queryClient]);
 
   const deletePlaylistMutation = useMutation({
     mutationFn: async () => {
@@ -928,7 +943,38 @@ function PlaylistDetailPage() {
   };
 
   const handleRemoveSong = (songId: string) => {
-    removeSongMutation.mutate(songId);
+    const pending = pendingRemovalsRef.current;
+    if (pending.has(songId)) return;
+
+    const queryKey = ['playlist', id];
+    const before = queryClient.getQueryData<PlaylistDetail>(queryKey);
+    const index = before?.songs.findIndex(s => s.songId === songId) ?? -1;
+    const removed = index >= 0 ? before?.songs[index] : undefined;
+
+    void queryClient.cancelQueries({ queryKey });
+    queryClient.setQueryData(queryKey, (old: PlaylistDetail | undefined) =>
+      old && { ...old, songs: old.songs.filter(s => s.songId !== songId) },
+    );
+
+    pending.set(songId, setTimeout(() => removeSongMutation.mutate(songId), UNDO_DURATION_MS));
+
+    const title = removed ? extractArtistTitle(removed.songArtistTitle)[1] : undefined;
+    toast.undo('Removed from playlist', () => {
+      const timer = pending.get(songId);
+      if (timer === undefined) return; // already committed
+      clearTimeout(timer);
+      pending.delete(songId);
+      if (!removed) {
+        queryClient.invalidateQueries({ queryKey });
+        return;
+      }
+      queryClient.setQueryData(queryKey, (old: PlaylistDetail | undefined) => {
+        if (!old || old.songs.some(s => s.songId === songId)) return old;
+        const songs = [...old.songs];
+        songs.splice(Math.min(index, songs.length), 0, removed);
+        return { ...old, songs };
+      });
+    }, { description: title });
   };
 
   const handleDeletePlaylist = () => {

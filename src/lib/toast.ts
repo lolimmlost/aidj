@@ -8,8 +8,12 @@
  *   info     – 4 000 ms
  *   warning  – 5 000 ms
  *   loading  – ∞ (until dismissed or replaced)
+ *   undo     – 5 000 ms, with an "Undo" action (see `toast.undo`)
  */
 import { toast as sonnerToast, type ExternalToast } from 'sonner';
+
+/** How long an Undo toast stays up; deferred commits should wait this long. */
+export const UNDO_DURATION_MS = 5_000;
 
 const DURATIONS = {
   success: 3_000,
@@ -26,6 +30,18 @@ function withDefault<T extends keyof typeof DURATIONS>(
     original(message, { duration: DURATIONS[type], ...data });
 }
 
+/**
+ * Reversible-action toast (#277): "Removed · Undo" instead of a confirm
+ * dialog. `onUndo` runs only if the user taps Undo before it times out.
+ */
+function undo(message: string, onUndo: () => void, data?: Omit<ExternalToast, 'action'>) {
+  return sonnerToast(message, {
+    duration: UNDO_DURATION_MS,
+    ...data,
+    action: { label: 'Undo', onClick: onUndo },
+  });
+}
+
 /** Re-export with per-type duration defaults applied. */
 export const toast = Object.assign(
   // The base `toast()` call (no type) keeps sonner's default
@@ -37,5 +53,6 @@ export const toast = Object.assign(
     info: withDefault('info', sonnerToast.info),
     warning: withDefault('warning', sonnerToast.warning),
     // loading keeps sonner's default (infinite until dismissed)
+    undo,
   },
 );

@@ -340,6 +340,28 @@ export function QueuePanel() {
     nudgeMoreLikeThis,
     aiDJRecommendationReasons,
   } = useAudioStore();
+  const addToQueueNext = useAudioStore(s => s.addToQueueNext);
+
+  // Remove with an Undo toast (#277). Undo is offered only for upcoming songs:
+  // it re-inserts after the current track and moves the song back to its old
+  // slot via the store's own queue actions.
+  const handleRemoveFromQueue = useCallback((index: number) => {
+    const before = useAudioStore.getState();
+    const song = before.playlist[index];
+    removeFromQueue(index);
+    if (!song || before.currentSongIndex < 0 || index <= before.currentSongIndex) return;
+
+    toast.undo('Removed from queue', () => {
+      const { currentSongIndex } = useAudioStore.getState();
+      if (currentSongIndex < 0) return;
+      addToQueueNext([song]);
+      const insertedAt = currentSongIndex + 1;
+      const { playlist: after } = useAudioStore.getState();
+      const target = Math.min(Math.max(index, insertedAt), after.length - 1);
+      if (target !== insertedAt) reorderQueue(insertedAt, target);
+    }, { description: song.title || song.name });
+  }, [removeFromQueue, addToQueueNext, reorderQueue]);
+
   const queuePanelOpen = useAudioStore(s => s.queuePanelOpen);
   const toggleQueuePanel = useAudioStore(s => s.toggleQueuePanel);
   const isRadioSession = useAudioStore(s => s.isRadioSession);
@@ -820,7 +842,7 @@ export function QueuePanel() {
                           song={song}
                           index={index}
                           actualIndex={actualIndex}
-                          onRemove={removeFromQueue}
+                          onRemove={handleRemoveFromQueue}
                           onPlay={handlePlaySong}
                           isAIQueued={isAIQueued}
                           isAutoplayQueued={isAutoplayQueued}
