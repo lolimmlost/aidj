@@ -173,7 +173,7 @@ describe('SongFeedbackButtons', () => {
       });
     });
 
-    it('shows loading spinner during mutation', async () => {
+    it('disables both buttons while the mutation is pending', async () => {
       const user = userEvent.setup();
       (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise(() => {})); // Never resolves
 

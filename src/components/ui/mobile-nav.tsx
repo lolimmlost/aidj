@@ -5,7 +5,6 @@ import { Button } from './button';
 import { cn } from '@/lib/utils';
 import authClient from '@/lib/auth/auth-client';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAudioStore } from '@/lib/stores/audio';
 import { useDebugTapToggle } from '@/lib/hooks/useDebugTapToggle';
 
 /** Derive a page title from the current route path */
@@ -43,8 +42,6 @@ export function MobileNav() {
   const navigate = useNavigate();
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
-  const { playlist, currentSongIndex } = useAudioStore();
-  const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
   const { data: session } = authClient.useSession();
   const isAdmin = session?.user?.role === 'admin';
 
@@ -92,7 +89,7 @@ export function MobileNav() {
       {/* Overlay */}
       {isOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-black/50 z-40 animate-in fade-in-0 duration-200"
+          className="md:hidden fixed inset-x-0 bottom-0 top-[calc(env(safe-area-inset-top)+3rem)] bg-black/50 z-[55] animate-in fade-in-0 duration-200"
           onClick={closeMenu}
           aria-hidden="true"
         />
@@ -101,13 +98,13 @@ export function MobileNav() {
       {/* Slide-out Navigation Drawer */}
       <nav
         className={`
-          md:hidden fixed top-0 left-0 h-full w-[280px] bg-background border-r border-border z-40
+          md:hidden fixed top-[calc(env(safe-area-inset-top)+3rem)] bottom-0 left-0 w-[280px] bg-background border-r border-border z-[55]
           transform transition-transform duration-300 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
         aria-label="Mobile navigation"
       >
-        <div className={`flex flex-col h-full pt-[calc(env(safe-area-inset-top)+4rem)] px-4 overflow-y-auto ${hasActiveSong ? 'pb-28' : 'pb-6'}`}>
+        <div className="flex flex-col h-full pt-4 px-4 overflow-y-auto pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
           <div className="space-y-1">
             <NavSectionLabel label="Main" />
             <NavLink

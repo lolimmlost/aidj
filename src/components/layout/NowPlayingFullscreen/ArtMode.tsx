@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { getCoverArtUrl } from '@/components/ui/album-art';
+import { LikeHeart } from '@/components/player/LikeHeart';
 import type { NowPlayingSong } from './types';
 
 interface ArtModeProps {
@@ -13,15 +14,33 @@ interface ArtModeProps {
   onPrevious: () => void;
   onNext: () => void;
   expanded?: boolean;
+  /** Double-tap / double-click on the artwork (used to like the song). */
+  onDoubleTap?: () => void;
 }
 
-export function ArtMode({ song, onPrevious, onNext, expanded }: ArtModeProps) {
+// A tap is a touch that barely moves and lifts quickly; two within this
+// window are a double-tap.
+const TAP_MAX_MOVE_PX = 10;
+const TAP_MAX_MS = 250;
+const DOUBLE_TAP_MS = 300;
+
+export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: ArtModeProps) {
   const [imgError, setImgError] = useState(false);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
 
   const artSwipeRef = useRef<{ x: number; time: number } | null>(null);
   const artOffsetRef = useRef(0);
   const artContainerRef = useRef<HTMLDivElement>(null);
+  const lastTapRef = useRef(0);
+  const lastTouchEndRef = useRef(0);
+  // Bumped per double-tap to replay the big-heart burst over the art.
+  const [bigHeartKey, setBigHeartKey] = useState(0);
+
+  const triggerDoubleTap = useCallback(() => {
+    if (!onDoubleTap) return;
+    setBigHeartKey((k) => k + 1);
+    onDoubleTap();
+  }, [onDoubleTap]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setImgError(false); }, [song.id]);
@@ -31,6 +50,11 @@ export function ArtMode({ song, onPrevious, onNext, expanded }: ArtModeProps) {
     const t = setTimeout(() => setSwipeDirection(null), 300);
     return () => clearTimeout(t);
   }, [swipeDirection]);
+
+  const handleDoubleClick = useCallback(() => {
+    if (Date.now() - lastTouchEndRef.current < 800) return;
+    triggerDoubleTap();
+  }, [triggerDoubleTap]);
 
   const handleArtTouchStart = useCallback((e: React.TouchEvent) => {
     artSwipeRef.current = { x: e.touches[0].clientX, time: Date.now() };
@@ -50,6 +74,17 @@ export function ArtMode({ song, onPrevious, onNext, expanded }: ArtModeProps) {
   }, []);
 
   const handleArtTouchEnd = useCallback(() => {
+    lastTouchEndRef.current = Date.now();
+    const start = artSwipeRef.current;
+    if (start && Math.abs(artOffsetRef.current) < TAP_MAX_MOVE_PX && Date.now() - start.time < TAP_MAX_MS) {
+      const now = Date.now();
+      if (now - lastTapRef.current < DOUBLE_TAP_MS) {
+        lastTapRef.current = 0;
+        triggerDoubleTap();
+      } else {
+        lastTapRef.current = now;
+      }
+    }
     if (artContainerRef.current) {
       const offset = artOffsetRef.current;
       const velocity = artSwipeRef.current
@@ -70,7 +105,7 @@ export function ArtMode({ song, onPrevious, onNext, expanded }: ArtModeProps) {
     }
     artSwipeRef.current = null;
     artOffsetRef.current = 0;
-  }, [onNext, onPrevious]);
+  }, [onNext, onPrevious, triggerDoubleTap]);
 
   const artId = song.albumId || song.id;
   const coverUrl = getCoverArtUrl(artId, 600);
@@ -87,6 +122,9 @@ export function ArtMode({ song, onPrevious, onNext, expanded }: ArtModeProps) {
       onTouchStart={handleArtTouchStart}
       onTouchMove={handleArtTouchMove}
       onTouchEnd={handleArtTouchEnd}
+      // Desktop. Touch double-taps are handled in touchend; ignore the
+      // synthetic dblclick some mobile browsers emit right after them.
+      onDoubleClick={handleDoubleClick}
     >
       <div
         ref={artContainerRef}
@@ -112,6 +150,21 @@ export function ArtMode({ song, onPrevious, onNext, expanded }: ArtModeProps) {
           </div>
         )}
       </div>
+
+      {bigHeartKey > 0 && (
+        <div
+          key={bigHeartKey}
+          className="animate-like-big pointer-events-none absolute inset-0 flex items-center justify-center"
+          aria-hidden="true"
+        >
+          <LikeHeart
+            liked
+            effect={{ kind: 'like', key: bigHeartKey }}
+            className="h-24 w-24 drop-shadow-[0_4px_24px_rgba(239,68,68,0.55)]"
+            burst={72}
+          />
+        </div>
+      )}
     </div>
   );
 }
