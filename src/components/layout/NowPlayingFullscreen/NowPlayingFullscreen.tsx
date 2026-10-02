@@ -15,7 +15,6 @@ import {
   SkipForward,
   Play,
   Pause,
-  Heart,
   Loader2,
   Shuffle,
   Repeat,
@@ -30,6 +29,8 @@ import { getCoverArtUrl } from '@/components/ui/album-art';
 import { cn } from '@/lib/utils';
 import { AIDJToggle } from '@/components/ai-dj-toggle';
 import { SleepTimerButton } from '@/components/player/SleepTimerButton';
+import { LikeHeart } from '@/components/player/LikeHeart';
+import { haptic } from '@/lib/utils/haptics';
 import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
 import { useAudioStore } from '@/lib/stores/audio';
 import { ArtMode } from './ArtMode';
@@ -56,6 +57,7 @@ export function NowPlayingFullscreen({
   duration,
   isLiked,
   isLikePending,
+  likeEffect,
   isShuffled,
   repeatMode,
   onTogglePlayPause,
@@ -71,6 +73,13 @@ export function NowPlayingFullscreen({
   const [animating, setAnimating] = useState(false);
   const [mode, setMode] = useState<NPMode>(initialMode);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Double-tap the artwork to like (Instagram rule: it only ever likes,
+  // never unlikes). ArtMode shows the big heart either way.
+  const handleArtDoubleTap = useCallback(() => {
+    if (!isLiked && !isLikePending) onToggleLike();
+    else haptic('light');
+  }, [isLiked, isLikePending, onToggleLike]);
 
   // Reset mode on each open so re-opening from a fresh trigger respects
   // the caller's initialMode (e.g. opening from the player-bar lyrics
@@ -267,7 +276,13 @@ export function NowPlayingFullscreen({
 
           {/* === Mode swap area === */}
           {mode === 'art' && (
-            <ArtMode song={currentSong} onPrevious={onPrevious} onNext={onNext} expanded={isExpanded} />
+            <ArtMode
+              song={currentSong}
+              onPrevious={onPrevious}
+              onNext={onNext}
+              expanded={isExpanded}
+              onDoubleTap={handleArtDoubleTap}
+            />
           )}
           {mode === 'lyrics' && (
             <div className={cn("w-full flex min-h-0", isExpanded ? "flex-1 pt-[env(safe-area-inset-top)]" : "lg:flex-1 flex-1")}>
@@ -396,7 +411,7 @@ export function NowPlayingFullscreen({
                   onClick={onToggleLike}
                   disabled={isLikePending}
                 >
-                  <Heart className={cn('h-5 w-5', isLiked && 'fill-red-500 text-red-500')} />
+                  <LikeHeart liked={isLiked} effect={likeEffect} className="h-5 w-5" burst={18} />
                 </Button>
                 {/* TODO: restyle dropdown to match dark fullscreen theme */}
                 <AddToPlaylistButton
