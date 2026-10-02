@@ -1,7 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { toast } from '@/lib/toast';
-
-const UPDATE_TOAST_ID = 'sw-update-ready';
+import { showUpdateReadyToast } from '@/components/pwa/UpdateReadyToast';
 
 // Set only by an explicit user action; resets naturally on reload.
 let reloadRequested = false;
@@ -17,15 +15,7 @@ function applyUpdate(worker: ServiceWorker | null | undefined) {
 }
 
 function promptForUpdate(reg: ServiceWorkerRegistration) {
-  toast.info('A new version of AIDJ is ready', {
-    id: UPDATE_TOAST_ID,
-    description: 'Reload when convenient — it applies automatically next time you open the app.',
-    duration: Infinity,
-    action: {
-      label: 'Reload',
-      onClick: () => applyUpdate(reg.waiting),
-    },
-  });
+  showUpdateReadyToast(() => applyUpdate(reg.waiting));
 }
 
 interface SyncStatus {
