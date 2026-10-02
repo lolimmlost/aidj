@@ -4,7 +4,6 @@ import {
   SkipForward,
   Play,
   Pause,
-  Heart,
   Loader2,
   Volume2,
   VolumeX,
@@ -49,6 +48,8 @@ import { useWebAudioGraph } from '@/lib/hooks/useWebAudioGraph';
 import { useDeckEventHandlers } from '@/lib/hooks/useDeckEventHandlers';
 import { useSongLoader } from '@/lib/hooks/useSongLoader';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
+import { haptic } from '@/lib/utils/haptics';
+import { LikeHeart, type LikeEffect } from '@/components/player/LikeHeart';
 
 // Helper function for time formatting
 const formatTime = (time: number) => {
@@ -506,9 +507,9 @@ export function PlayerBar() {
       }));
       return { previous, feedbackQueryKey };
     },
-    onSuccess: (liked) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.feedback.all() });
-      toast.success(liked ? '❤️ Liked' : '💔 Unliked', { duration: 1500 });
+      // No success toast: the heart animation is the feedback (#278).
       // Cross-device propagation is server-authoritative now: the like endpoint
       // (setSongLiked) broadcasts feedback_update to all devices. No client emit.
     },
@@ -525,8 +526,18 @@ export function PlayerBar() {
     },
   });
 
+  // The like/unlike the user just made, so the heart animates only for their
+  // own tap — not when an already-liked song starts or a like syncs in.
+  const [likeEffectState, setLikeEffectState] = useState<(LikeEffect & { songId: string }) | null>(null);
+  const likeEffect = likeEffectState && currentSong && likeEffectState.songId === currentSong.id
+    ? likeEffectState
+    : null;
+
   const handleToggleLike = useCallback(() => {
     if (!currentSong || isLikePending) return;
+    const kind = isLiked ? 'unlike' : 'like';
+    haptic(kind === 'like' ? 'success' : 'light');
+    setLikeEffectState((prev) => ({ kind, key: (prev?.key ?? 0) + 1, songId: currentSong.id }));
     likeMutate(!isLiked);
   }, [currentSong, isLikePending, isLiked, likeMutate]);
 
@@ -1061,7 +1072,7 @@ export function PlayerBar() {
               onClick={handleToggleLike}
               disabled={isLikePending}
             >
-              <Heart className={cn("h-4 w-4", isLiked && "fill-current text-red-500")} />
+              <LikeHeart liked={isLiked} effect={likeEffect} className="h-4 w-4" />
             </Button>
 
             <Button
@@ -1175,7 +1186,7 @@ export function PlayerBar() {
             onClick={handleToggleLike}
             disabled={isLikePending}
           >
-            <Heart className={cn("h-4 w-4", isLiked && "fill-current text-red-500")} />
+            <LikeHeart liked={isLiked} effect={likeEffect} className="h-4 w-4" />
           </Button>
         </div>
 
@@ -1338,6 +1349,7 @@ export function PlayerBar() {
         duration={displayDuration}
         isLiked={isLiked}
         isLikePending={isLikePending}
+        likeEffect={likeEffect}
         isShuffled={isShuffled}
         repeatMode={repeatMode}
         analyserNode={

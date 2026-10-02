@@ -37,6 +37,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlayerBar } from './PlayerBar';
 import { QueuePanel } from '@/components/ui/queue-panel';
 import { MobileNav } from '@/components/ui/mobile-nav';
+import { MobileTabBar } from './MobileTabBar';
 import { toast } from '@/lib/toast';
 import { useDeferredRender } from '@/lib/utils/lazy-components';
 import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar';
@@ -269,11 +270,15 @@ export function AppLayout({ children }: AppLayoutProps) {
         <RightSidebar />
       </div>
 
-      {/* Bottom Player Bar - Fixed to viewport bottom on all screen sizes */}
+      {/* Mobile bottom tab bar (#283) - in flow, so content shrinks above it */}
+      <MobileTabBar />
+
+      {/* Bottom Player Bar - fixed to the viewport bottom on desktop; on mobile it
+         sits on top of the tab bar (--mobile-tabbar-offset, see MobileTabBar). */}
       {/* CRITICAL: Always render PlayerBar to preserve audio elements across state changes.
          Unmounting destroys <audio> elements and kills playback. Hide visually instead. */}
       <div className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl",
+        "fixed bottom-[var(--mobile-tabbar-offset,0px)] md:bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl",
         !hasActiveSong && "hidden"
       )}>
         <PlayerBar />

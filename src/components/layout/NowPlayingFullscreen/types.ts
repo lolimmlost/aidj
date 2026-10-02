@@ -1,3 +1,5 @@
+import type { LikeEffect } from '@/components/player/LikeHeart';
+
 /**
  * Modes the unified Now Playing surface can render. Phase A ships only
  * 'art'; lyrics/visualizer/queue are wired in subsequent phases.
@@ -30,6 +32,8 @@ export interface NowPlayingFullscreenProps {
   duration: number;
   isLiked: boolean;
   isLikePending: boolean;
+  /** The user's own like/unlike to animate (see LikeHeart). */
+  likeEffect?: LikeEffect | null;
   isShuffled: boolean;
   repeatMode: 'off' | 'all' | 'one';
   onTogglePlayPause: () => void;
