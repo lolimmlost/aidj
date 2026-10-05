@@ -74,6 +74,18 @@ export interface SeededRadioResult {
     seedArtists: string[];
   };
   discoveryArtists?: DiscoveryArtist[];
+  /**
+   * Why each song is in the queue, keyed by song id. `source` = taken from the
+   * seed collection itself; `discovery` = recommended from `seedSongId`.
+   * Returned so queue entries can carry it into play history (#250/#251).
+   * Only set for collection radio (album / playlist).
+   */
+  picks?: Record<string, RadioPick>;
+}
+
+export interface RadioPick {
+  pool: 'source' | 'discovery';
+  seedSongId?: string;
 }
 
 // ============================================================================
@@ -599,7 +611,7 @@ async function generateFromCollection(
   const seedIds = new Set(collection.map((s) => s.id));
   console.log(
     `[SeededRadio] ${label}: ${seeds.length} seeds from ${collection.length} tracks — ` +
-      seeds.map((s) => `${s.artist} - ${s.title ?? s.name}`).join(' | '),
+      seeds.map((s, i) => `${i + 1}. ${s.artist} - ${s.title ?? s.name}`).join(' | '),
   );
 
   // Run scorer per seed, merge scored results with first-seen-wins priority.
@@ -612,11 +624,15 @@ async function generateFromCollection(
   // Interleave results from each seed so no single seed dominates.
   const merged: Song[] = [];
   const allDiscoveryArtists = new Map<string, DiscoveryArtist>();
+  const foundBy = new Map<string, string>(); // discovery song id → seed song id
   const maxLen = Math.max(...perSeedResults.map((r) => r.songs.length), 0);
   for (let i = 0; i < maxLen; i++) {
-    for (const row of perSeedResults) {
-      if (row.songs[i]) merged.push(row.songs[i]);
-    }
+    perSeedResults.forEach((row, seedIdx) => {
+      const song = row.songs[i];
+      if (!song) return;
+      merged.push(song);
+      if (!foundBy.has(song.id)) foundBy.set(song.id, seeds[seedIdx].id);
+    });
   }
   for (const row of perSeedResults) {
     for (const da of row.discoveryArtists) {
@@ -661,6 +677,15 @@ async function generateFromCollection(
   const seedArtists = Array.from(
     new Set(seeds.map((s) => s.artist).filter((a): a is string => !!a)),
   );
+
+  const picks: Record<string, RadioPick> = {};
+  for (const s of final) {
+    picks[s.id] = seedIds.has(s.id)
+      ? { pool: 'source' }
+      : { pool: 'discovery', seedSongId: foundBy.get(s.id) };
+  }
+  logChosenSongs(label, final, picks, seeds);
+
   return {
     songs: final,
     seedInfo: {
@@ -671,7 +696,36 @@ async function generateFromCollection(
     discoveryArtists: [...allDiscoveryArtists.values()]
       .sort((a, b) => b.matchScore - a.matchScore)
       .slice(0, 8),
+    picks,
   };
+}
+
+/**
+ * One compact log line per radio: the pool counts, then every chosen song in
+ * queue order tagged S (from the collection) or D<n> (discovery from seed n).
+ * This is the "why is this in my radio" record until per-queue-entry context
+ * lands in play history (#250/#251).
+ */
+function logChosenSongs(
+  label: string,
+  songs: Song[],
+  picks: Record<string, RadioPick>,
+  seeds: Song[],
+): void {
+  const seedIndex = new Map(seeds.map((s, i) => [s.id, i + 1]));
+  let fromSource = 0;
+  const parts = songs.map((s, i) => {
+    const p = picks[s.id];
+    const tag = p?.pool === 'source'
+      ? 'S'
+      : `D${(p?.seedSongId && seedIndex.get(p.seedSongId)) || '?'}`;
+    if (p?.pool === 'source') fromSource++;
+    return `${i + 1}.[${tag}] ${s.artist} - ${s.title ?? s.name}`;
+  });
+  console.log(
+    `[SeededRadio] ${label} queue: ${songs.length} songs, ${fromSource} from the collection, ` +
+      `${songs.length - fromSource} discovery — ${parts.join(' | ')}`,
+  );
 }
 
 /**

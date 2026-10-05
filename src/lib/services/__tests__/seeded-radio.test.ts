@@ -460,6 +460,37 @@ describe('generateSeededRadio', () => {
     }
   });
 
+  it('playlist seed: tags every chosen song with its pool and the seed that found it', async () => {
+    const entry = Array.from({ length: 25 }, (_, i) => ({ id: `pl-${i}`, title: `PT${i}`, artist: `PA${i}`, albumId: 'pa', duration: '180', track: '1' }));
+    vi.mocked(getPlaylist).mockResolvedValue({
+      id: 'pl-3', name: 'Tagged', songCount: 25, duration: 0, owner: 'me', public: false, created: '', changed: '',
+      entry: entry as never,
+    } as never);
+    let call = 0;
+    vi.mocked(getBlendedRecommendations).mockImplementation(async () => {
+      const k = call++;
+      return {
+        songs: Array.from({ length: 6 }, (_, i) => makeSong({ id: `d${k}-${i}`, artist: `DA${k}-${i}`, title: 't' })),
+        metadata: { totalCandidates: 0, sourceCounts: {} },
+      };
+    });
+
+    const result = await generateSeededRadio('user-1', { kind: 'playlist', playlistId: 'pl-3' }, { size: 20 });
+
+    const playlistIds = new Set(entry.map((e) => e.id));
+    const seedIds = new Set(result.seedInfo.seedSongIds);
+    expect(Object.keys(result.picks ?? {})).toHaveLength(result.songs.length);
+    for (const s of result.songs) {
+      const pick = result.picks?.[s.id];
+      if (playlistIds.has(s.id)) {
+        expect(pick).toEqual({ pool: 'source' });
+      } else {
+        expect(pick?.pool).toBe('discovery');
+        expect(seedIds.has(pick?.seedSongId ?? '')).toBe(true);
+      }
+    }
+  });
+
   it('playlist seed: seeds come from many artists, not the most-played corner', async () => {
     // One heavily played artist (the "Sade" case) plus a long tail.
     const heavy = Array.from({ length: 9 }, (_, i) => ({ id: `h-${i}`, title: `H${i}`, artist: 'Heavy', albumId: 'h', duration: '200', track: '1' }));

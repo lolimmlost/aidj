@@ -41,6 +41,8 @@ const POST = withAuthAndErrorHandling(
       songs: result.songs,
       seedInfo: result.seedInfo,
       discoveryArtists: result.discoveryArtists ?? [],
+      // Per-song pool/seed, for queue-entry context in play history (#250/#251).
+      picks: result.picks ?? {},
     });
   },
   {
