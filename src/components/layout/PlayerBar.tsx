@@ -38,7 +38,8 @@ import { ResumePlaybackPrompt } from './ResumePlaybackPrompt';
 import { NowPlayingFullscreen } from './NowPlayingFullscreen';
 
 // Import extracted hooks
-import { useDualDeckAudio, hasRealSong, Song, SILENT_AUDIO_DATA_URL } from '@/lib/hooks/useDualDeckAudio';
+import { useDualDeckAudio, hasRealSong, Song, SILENT_AUDIO_DATA_URL, type SetActiveDeckOptions } from '@/lib/hooks/useDualDeckAudio';
+import { withActiveDeckGain } from '@/lib/hooks/deckGainBackstop';
 import { useCrossfade } from '@/lib/hooks/useCrossfade';
 import { useStallRecovery } from '@/lib/hooks/useStallRecovery';
 import { useMediaSession } from '@/lib/hooks/useMediaSession';
@@ -332,11 +333,20 @@ export function PlayerBar() {
   const crossfadeInProgressRef = useRef<boolean>(false);
   // Cooldown after crossfade abort — prevents immediate re-trigger from timeupdate
   const crossfadeAbortedAtRef = useRef<number>(0);
+  // setActiveDeck for everything except the crossfade itself: a deck promoted
+  // outside a crossfade is forced audible, so a gain-0 deck left by a cancelled
+  // crossfade can't become the active deck and mute every later song (#296).
+  const setActiveDeckAudible = useCallback(
+    (deck: 'A' | 'B', reason: string, opts?: SetActiveDeckOptions) =>
+      withActiveDeckGain(setActiveDeck, setGainImmediate, crossfadeInProgressRef)(deck, reason, opts),
+    [setActiveDeck, setGainImmediate],
+  );
 
   // Crossfade hook (initialized first since stall recovery needs crossfadeInProgressRef)
   const {
     crossfadeJustCompletedRef,
     startCrossfade,
+    cancelCrossfade,
     clearCrossfade,
     resetCrossfadeState,
   } = useCrossfade({
@@ -553,14 +563,27 @@ export function PlayerBar() {
   // Reset recovery attempts when song changes
   useEffect(() => {
     resetRecoveryState();
+    // A song change while a crossfade is in flight (incl. its warmup) means the
+    // user picked something else: run the full abort BEFORE flipping the flag,
+    // or the ramps keep running and useSongLoader loads the new song onto the
+    // outgoing deck as it fades to 0 (#296). A no-op after a normal completion
+    // or a failure abort, which have already cleared the in-flight crossfade.
+    cancelCrossfade('song changed');
     resetCrossfadeState();
-  }, [currentSongIndex, resetRecoveryState, resetCrossfadeState]);
+  }, [currentSongIndex, resetRecoveryState, cancelCrossfade, resetCrossfadeState]);
 
   // Load song on the active deck
   const loadSong = useCallback((song: Song | null) => {
     const audio = getActiveDeck();
     if (audio && song) {
       clearCrossfade();
+      // Outside a crossfade the deck we load onto must be audible and the
+      // other silent — backstop for a deck left at gain 0 (#296).
+      if (!crossfadeInProgressRef.current) {
+        const label = activeDeckRef.current;
+        setGainImmediate(label, 1);
+        setGainImmediate(label === 'A' ? 'B' : 'A', 0);
+      }
       audio.src = song.url;
       audio.load();
       setCurrentTime(0);
@@ -576,7 +599,7 @@ export function PlayerBar() {
       resetCrossfadeState();
       console.log(`[XFADE] loadSong called on deck ${activeDeckRef.current}`);
     }
-  }, [setCurrentTime, setDuration, getActiveDeck, clearCrossfade, resetCrossfadeState, activeDeckRef]);
+  }, [setCurrentTime, setDuration, getActiveDeck, clearCrossfade, resetCrossfadeState, activeDeckRef, setGainImmediate]);
 
   // Player controls
   const togglePlayPause = useCallback(() => {
@@ -760,7 +783,7 @@ export function PlayerBar() {
 
   // Audio event listeners for BOTH decks (extracted hook)
   useDeckEventHandlers({
-    deckARef, deckBRef, activeDeckRef, setActiveDeck,
+    deckARef, deckBRef, activeDeckRef, setActiveDeck: setActiveDeckAudible,
     crossfadeInProgressRef, crossfadeAbortedAtRef,
     currentSongIdRef, playbackSnapshotRef,
     scrobbleThresholdReachedRef, hasScrobbledRef,
@@ -776,7 +799,7 @@ export function PlayerBar() {
   // Load song when it changes (extracted hook)
   useSongLoader({
     playlist: playlist as Song[],
-    currentSongIndex, getActiveDeck, loadSong, setActiveDeck,
+    currentSongIndex, getActiveDeck, loadSong, setActiveDeck: setActiveDeckAudible,
     crossfadeInProgressRef, crossfadeJustCompletedRef,
     deckARef, deckBRef, activeDeckRef,
     lastProgressTimeRef, lastProgressValueRef,
@@ -843,7 +866,7 @@ export function PlayerBar() {
     attemptStallRecovery,
     lastProgressTimeRef,
     lastProgressValueRef,
-    setActiveDeck,
+    setActiveDeck: setActiveDeckAudible,
     currentSongIdRef,
   });
 
