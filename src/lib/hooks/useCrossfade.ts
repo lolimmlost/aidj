@@ -24,6 +24,13 @@ export interface UseCrossfadeOptions {
 export interface UseCrossfadeReturn {
   crossfadeJustCompletedRef: React.MutableRefObject<boolean>;
   startCrossfade: (nextSongData: Song, xfadeDuration: number) => void;
+  /**
+   * Fully abort an in-flight crossfade (including its 1s warmup) on behalf of
+   * the user — e.g. they picked another song. Cancels both gain ramps, restores
+   * gains (outgoing deck 1, incoming deck 0) and stops/clears the incoming deck,
+   * without firing onCrossfadeAbort. Returns true if a crossfade was cancelled.
+   */
+  cancelCrossfade: (reason: string) => boolean;
   clearCrossfade: () => void;
   resetCrossfadeState: () => void;
 }
@@ -69,6 +76,11 @@ export function useCrossfade({
   const crossfadeCompletionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Store unsubscribe for pause detection during crossfade
   const pauseUnsubscribeRef = useRef<(() => void) | null>(null);
+  // Abort for the crossfade currently in flight (set by startCrossfade, cleared
+  // when it aborts or completes). Lets a song change reach the full abort —
+  // clearCrossfade/resetCrossfadeState alone leave the gain ramps running and
+  // the incoming deck playing at gain 0 (#296).
+  const inFlightAbortRef = useRef<((reason: string, opts?: { userInitiated?: boolean }) => void) | null>(null);
 
   // Clear the crossfade completion timeout if running
   const clearCrossfade = useCallback(() => {
@@ -119,8 +131,16 @@ export function useCrossfade({
     // Ensure inactive deck gain is at 0 before crossfade starts
     setGainImmediate(inactiveDeckLabel, 0);
 
+    // Set once this crossfade has aborted or completed, so a late play()
+    // rejection (we pause the deck mid-play) or a stale timer can't run the
+    // cleanup a second time.
+    let settled = false;
+
     // Helper to abort crossfade and reset state
-    const abortCrossfade = (reason: string) => {
+    const abortCrossfade = (reason: string, opts?: { userInitiated?: boolean }) => {
+      if (settled) return;
+      settled = true;
+      if (inFlightAbortRef.current === abortCrossfade) inFlightAbortRef.current = null;
       console.warn(`⚠️ [XFADE] Aborting crossfade: ${reason}`);
       // Stamp cooldown unconditionally so timeupdate doesn't immediately
       // re-enter startCrossfade on the next tick. Without this, autoplay-
@@ -145,6 +165,10 @@ export function useCrossfade({
 
       console.log(`⚠️ [XFADE] Abort cleanup complete - active deck remains ${activeDeckLabel}`);
 
+      // A user-initiated cancel (they picked another song) is not a failure of
+      // the next song, so the queue must not be touched.
+      if (opts?.userInitiated) return;
+
       // Notify callback so it can remove the failed song from queue.
       // Always fire for load failures (timeout, never ready) so the unavailable
       // song gets removed regardless of whether the current song has ended yet.
@@ -157,6 +181,8 @@ export function useCrossfade({
         onCrossfadeAbortRef.current(nextSongData, isLoadFailure);
       }
     };
+
+    inFlightAbortRef.current = abortCrossfade;
 
     // Wait for inactive deck to be ready, then start crossfade
     const onCanPlayThrough = () => {
@@ -193,6 +219,23 @@ export function useCrossfade({
           setTimeout(() => {
             if (!crossfadeInProgressRef.current) {
               console.log('[XFADE] Crossfade aborted during warmup, skipping ramps');
+              // If the flag was flipped without running the abort (a soft reset),
+              // the incoming deck is still playing at gain 0. Clean it up so it
+              // can't later be promoted to active while muted (#296).
+              if (!settled) {
+                if (activeDeckRef.current === activeDeckLabel) {
+                  abortCrossfade('reset during warmup', { userInitiated: true });
+                } else {
+                  // Something already promoted the incoming deck; don't stop it,
+                  // just make sure the deck that's now active is audible.
+                  settled = true;
+                  if (inFlightAbortRef.current === abortCrossfade) inFlightAbortRef.current = null;
+                  cancelGainRamp(activeDeckLabel);
+                  cancelGainRamp(inactiveDeckLabel);
+                  setGainImmediate(activeDeckRef.current, 1.0);
+                  setGainImmediate(activeDeckRef.current === 'A' ? 'B' : 'A', 0);
+                }
+              }
               return;
             }
 
@@ -257,6 +300,9 @@ export function useCrossfade({
           }, WARMUP_MS);
         })
         .catch((err) => {
+          // Already cancelled (e.g. user picked a song, which paused this deck
+          // mid-play() and rejects it with AbortError) — nothing left to undo.
+          if (settled) return;
           console.error(`❌ [XFADE] Inactive deck play() FAILED: ${err.name} - ${err.message}`);
           abortCrossfade('play() failed - likely autoplay blocked');
         });
@@ -270,6 +316,9 @@ export function useCrossfade({
       newDeckLabel: 'A' | 'B',
       song: Song,
     ) => {
+      if (settled) return;
+      settled = true;
+      if (inFlightAbortRef.current === abortCrossfade) inFlightAbortRef.current = null;
       clearCrossfade();
 
       // Cancel any remaining ramp automation and set final gain values
@@ -389,9 +438,21 @@ export function useCrossfade({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- onCrossfadeComplete/onCrossfadeAbort accessed via stable refs
   }, [getActiveDeck, getInactiveDeck, activeDeckRef, crossfadeInProgressRef, clearCrossfade, canPlayHandlerRef, errorHandlerRef, scheduleGainRamp, cancelGainRamp, setGainImmediate, setActiveDeck, resumeContext]);
 
+  const cancelCrossfade = useCallback((reason: string): boolean => {
+    const abort = inFlightAbortRef.current;
+    if (!abort) return false;
+    // Runs the same abort as a failure, which also stamps crossfadeAbortedAtRef.
+    // Kept deliberately: it stops the outgoing deck's next timeupdate from
+    // re-entering startCrossfade before loadSong swaps its src, and the user's
+    // pick starts at 0s so the 10s auto-crossfade cooldown can't bite.
+    abort(reason, { userInitiated: true });
+    return true;
+  }, []);
+
   return {
     crossfadeJustCompletedRef,
     startCrossfade,
+    cancelCrossfade,
     clearCrossfade,
     resetCrossfadeState,
   };
