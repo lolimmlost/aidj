@@ -408,8 +408,8 @@ describe('generateSeededRadio', () => {
     expect(result.seedInfo.label).toContain('Album Radio');
   });
 
-  it('playlist seed: excludes playlist tracks from output', async () => {
-    const entry = Array.from({ length: 5 }, (_, i) => ({
+  it('playlist seed: blends a share of the playlist itself with discovery, per variety', async () => {
+    const entry = Array.from({ length: 30 }, (_, i) => ({
       id: `pl-${i}`,
       title: `PT${i}`,
       artist: `PA${i}`,
@@ -420,7 +420,7 @@ describe('generateSeededRadio', () => {
     vi.mocked(getPlaylist).mockResolvedValue({
       id: 'pl-1',
       name: 'My List',
-      songCount: 5,
+      songCount: entry.length,
       duration: 900,
       owner: 'me',
       public: false,
@@ -428,23 +428,83 @@ describe('generateSeededRadio', () => {
       changed: '',
       entry: entry as never,
     } as never);
-    vi.mocked(getBlendedRecommendations).mockResolvedValue({
-      songs: Array.from({ length: 10 }, (_, i) =>
+    vi.mocked(getBlendedRecommendations).mockImplementation(async () => ({
+      songs: Array.from({ length: 30 }, (_, i) =>
         makeSong({ id: `r-${i}`, artist: `RA${i}`, title: `rt${i}` }),
       ),
       metadata: { totalCandidates: 0, sourceCounts: {} },
-    });
-
-    const result = await generateSeededRadio('user-1', {
-      kind: 'playlist',
-      playlistId: 'pl-1',
-    });
+    }));
 
     const playlistIds = new Set(entry.map((e) => e.id));
-    for (const s of result.songs) {
-      expect(playlistIds.has(s.id)).toBe(false);
+    const countSource = (songs: Song[]) => songs.filter((s) => playlistIds.has(s.id)).length;
+
+    // rng pinned at 0.5: every blend slot compares 0.5 < fraction.
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const low = await generateSeededRadio('user-1', { kind: 'playlist', playlistId: 'pl-1' }, { variety: 'low', size: 20 });
+      const high = await generateSeededRadio('user-1', { kind: 'playlist', playlistId: 'pl-1' }, { variety: 'high', size: 20 });
+
+      expect(low.songs).toHaveLength(20);
+      expect(high.songs).toHaveLength(20);
+      // Both are real mixes, not pure discovery (the old behaviour) or pure replay.
+      expect(countSource(high.songs)).toBeGreaterThan(0);
+      expect(countSource(high.songs)).toBeLessThan(20);
+      // Low variety leans on the playlist, high variety on discovery.
+      expect(countSource(low.songs)).toBeGreaterThan(countSource(high.songs));
+      // Never two tracks from one artist.
+      const artists = low.songs.map((s) => s.artist);
+      expect(new Set(artists).size).toBe(artists.length);
+      expect(low.seedInfo.label).toContain('My List');
+    } finally {
+      rand.mockRestore();
     }
-    expect(result.seedInfo.label).toContain('My List');
+  });
+
+  it('playlist seed: tags every chosen song with its pool and the seed that found it', async () => {
+    const entry = Array.from({ length: 25 }, (_, i) => ({ id: `pl-${i}`, title: `PT${i}`, artist: `PA${i}`, albumId: 'pa', duration: '180', track: '1' }));
+    vi.mocked(getPlaylist).mockResolvedValue({
+      id: 'pl-3', name: 'Tagged', songCount: 25, duration: 0, owner: 'me', public: false, created: '', changed: '',
+      entry: entry as never,
+    } as never);
+    let call = 0;
+    vi.mocked(getBlendedRecommendations).mockImplementation(async () => {
+      const k = call++;
+      return {
+        songs: Array.from({ length: 6 }, (_, i) => makeSong({ id: `d${k}-${i}`, artist: `DA${k}-${i}`, title: 't' })),
+        metadata: { totalCandidates: 0, sourceCounts: {} },
+      };
+    });
+
+    const result = await generateSeededRadio('user-1', { kind: 'playlist', playlistId: 'pl-3' }, { size: 20 });
+
+    const playlistIds = new Set(entry.map((e) => e.id));
+    const seedIds = new Set(result.seedInfo.seedSongIds);
+    expect(Object.keys(result.picks ?? {})).toHaveLength(result.songs.length);
+    for (const s of result.songs) {
+      const pick = result.picks?.[s.id];
+      if (playlistIds.has(s.id)) {
+        expect(pick).toEqual({ pool: 'source' });
+      } else {
+        expect(pick?.pool).toBe('discovery');
+        expect(seedIds.has(pick?.seedSongId ?? '')).toBe(true);
+      }
+    }
+  });
+
+  it('playlist seed: seeds come from many artists, not the most-played corner', async () => {
+    // One heavily played artist (the "Sade" case) plus a long tail.
+    const heavy = Array.from({ length: 9 }, (_, i) => ({ id: `h-${i}`, title: `H${i}`, artist: 'Heavy', albumId: 'h', duration: '200', track: '1' }));
+    const tail = Array.from({ length: 70 }, (_, i) => ({ id: `t-${i}`, title: `T${i}`, artist: `Tail${i}`, albumId: 't', duration: '200', track: '1' }));
+    vi.mocked(getPlaylist).mockResolvedValue({
+      id: 'pl-2', name: 'Big', songCount: 79, duration: 0, owner: 'me', public: false, created: '', changed: '',
+      entry: [...heavy, ...tail] as never,
+    } as never);
+    vi.mocked(getBlendedRecommendations).mockResolvedValue({ songs: [], metadata: { totalCandidates: 0, sourceCounts: {} } });
+
+    const result = await generateSeededRadio('user-1', { kind: 'playlist', playlistId: 'pl-2' });
+
+    expect(result.seedInfo.seedSongIds).toHaveLength(8); // large collection → 8 seeds
+    expect(new Set(result.seedInfo.seedArtists).size).toBe(8); // one per artist
   });
 
   it('artist seed: mix of seed-artist tracks + adjacent, honours variety knob', async () => {
@@ -505,6 +565,61 @@ describe('generateSeededRadio', () => {
 // ---------------------------------------------------------------------------
 // interleaveByFraction — direct unit tests with deterministic rng
 // ---------------------------------------------------------------------------
+
+describe('pickRepresentativeSeeds', () => {
+  const { pickRepresentativeSeeds, seedCountFor } = __internal;
+  // Deterministic LCG so sampling is reproducible.
+  const lcg = (seed: number) => () => ((seed = (seed * 1664525 + 1013904223) % 2 ** 32) / 2 ** 32);
+
+  it('picks one track per artist and never lets a heavy favourite take most seeds', () => {
+    const heavy = Array.from({ length: 9 }, (_, i) => makeSong({ id: `h${i}`, artist: 'Sade', title: `s${i}` }));
+    const tail = Array.from({ length: 60 }, (_, i) => makeSong({ id: `t${i}`, artist: `Tail${i}`, title: `t${i}` }));
+    const plays = new Map<string, number>(heavy.map((s) => [s.id, 37]));
+    for (let run = 0; run < 25; run++) {
+      const seeds = pickRepresentativeSeeds([...heavy, ...tail], plays, 8, lcg(run + 1));
+      expect(seeds).toHaveLength(8);
+      const artists = seeds.map((s) => s.artist);
+      expect(new Set(artists).size).toBe(8);
+      expect(artists.filter((a) => a === 'Sade').length).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('varies between calls instead of always returning the top-played tracks', () => {
+    const songs = Array.from({ length: 40 }, (_, i) => makeSong({ id: `x${i}`, artist: `A${i}`, title: `t${i}` }));
+    const plays = new Map<string, number>(songs.map((s, i) => [s.id, 40 - i]));
+    const a = pickRepresentativeSeeds(songs, plays, 5, lcg(1)).map((s) => s.id).sort();
+    const b = pickRepresentativeSeeds(songs, plays, 5, lcg(99)).map((s) => s.id).sort();
+    expect(a).not.toEqual(b);
+  });
+
+  it('fills from the leftover tracks when there are fewer artists than seeds (album case)', () => {
+    const album = Array.from({ length: 10 }, (_, i) => makeSong({ id: `al${i}`, artist: 'Solo', title: `t${i}` }));
+    const seeds = pickRepresentativeSeeds(album, new Map(), 3, lcg(7));
+    expect(seeds).toHaveLength(3);
+    expect(new Set(seeds.map((s) => s.id)).size).toBe(3);
+  });
+
+  it('scales the seed count with collection size', () => {
+    expect(seedCountFor(10)).toBe(3);
+    expect(seedCountFor(40)).toBe(5);
+    expect(seedCountFor(477)).toBe(8);
+  });
+});
+
+describe('blendPools', () => {
+  const { blendPools } = __internal;
+  const pool = (p: string, n: number) => Array.from({ length: n }, (_, i) => makeSong({ id: `${p}${i}`, artist: `${p}${i}`, title: 't' }));
+
+  it('follows the fraction slot by slot', () => {
+    const out = blendPools(pool('s', 10), pool('d', 10), 10, 0.5, () => 0.4);
+    expect(out.every((s) => s.id.startsWith('s'))).toBe(true); // 0.4 < 0.5 → source every slot
+  });
+
+  it('drains the other pool when one runs dry', () => {
+    const out = blendPools(pool('s', 2), pool('d', 10), 6, 0.9, () => 0);
+    expect(out.map((s) => s.id)).toEqual(['s0', 's1', 'd0', 'd1', 'd2', 'd3']);
+  });
+});
 
 describe('interleaveByFraction', () => {
   function makeRng(values: number[]): () => number {

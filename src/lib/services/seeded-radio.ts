@@ -16,7 +16,9 @@
  * Inclusion rules follow industry convention:
  *  - Song seed   → seed song is track 1, then similar.
  *  - Album seed  → seed tracks excluded from output (avoid "shuffled album" feel).
- *  - Playlist seed → same as album.
+ *  - Playlist seed → a share of the playlist itself (variety: Low=70% /
+ *    Medium=50% / High=25%) blended with discovery. Seeds are sampled across
+ *    the playlist's artists (dampened by plays), not its top-played tracks.
  *  - Artist seed → seed artist catalog IS part of output (that's the point).
  */
 
@@ -72,6 +74,18 @@ export interface SeededRadioResult {
     seedArtists: string[];
   };
   discoveryArtists?: DiscoveryArtist[];
+  /**
+   * Why each song is in the queue, keyed by song id. `source` = taken from the
+   * seed collection itself; `discovery` = recommended from `seedSongId`.
+   * Returned so queue entries can carry it into play history (#250/#251).
+   * Only set for collection radio (album / playlist).
+   */
+  picks?: Record<string, RadioPick>;
+}
+
+export interface RadioPick {
+  pool: 'source' | 'discovery';
+  seedSongId?: string;
 }
 
 // ============================================================================
@@ -90,6 +104,21 @@ const ARTIST_CATALOG_FRACTION: Record<ArtistVariety, number> = {
   medium: 0.35,
   high: 0.15,
 };
+
+// % of a PLAYLIST radio drawn from the playlist itself, per variety level. The
+// rest is scorer discovery. Album radio stays pure discovery (fraction 0): you
+// already know the album; a playlist like Liked Songs is "music like this,
+// including this".
+const PLAYLIST_SOURCE_FRACTION: Record<ArtistVariety, number> = {
+  low: 0.7,
+  medium: 0.5,
+  high: 0.25,
+};
+
+// Larger collections get more seeds so one corner of a big, varied playlist
+// (e.g. 477 liked songs across ~350 artists) can't stand in for the whole.
+const SEED_TRACKS_LARGE = 8;
+const LARGE_COLLECTION = 60;
 
 // Per-seed scorer fetch size (we ask for more than we need so dedupe+cap leave headroom).
 const SCORER_LIMIT_PER_SEED = 20;
@@ -354,12 +383,85 @@ function applyRecencyCap(
 // Seed track picking
 // ============================================================================
 
+/** Number of seeds for a collection of `count` tracks. */
+function seedCountFor(count: number): number {
+  if (count < 20) return SEED_TRACKS_MIN;
+  if (count < LARGE_COLLECTION) return SEED_TRACKS_MAX;
+  return SEED_TRACKS_LARGE;
+}
+
+/** Draw one index from `weights` (all > 0) proportionally. */
+function weightedIndex(weights: number[], rng: () => number): number {
+  const total = weights.reduce((a, w) => a + w, 0);
+  let r = rng() * total;
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i];
+    if (r < 0) return i;
+  }
+  return weights.length - 1;
+}
+
 /**
- * Pick `n` "representative" seed tracks from a source collection, weighted by
- * local play count (from listening history). Ties broken randomly.
+ * Pick `n` seeds that represent the WHOLE collection, not just its most-played
+ * corner. Previously this took the top-n tracks by play count, so a 477-song
+ * Liked Songs radio always seeded from the same 5 tracks (3 of them Sade) and
+ * the radio sounded nothing like the playlist.
+ *
+ * - Artists are sampled without replacement, weighted by
+ *   sqrt(Σ over their tracks of (1 + plays)) — counts both how many of the
+ *   artist's tracks are in the collection and how much they're played, but
+ *   dampened so a heavy favourite can't take most of the seeds.
+ * - One track per chosen artist, weighted by sqrt(1 + plays).
+ * - If the collection has fewer artists than `n` (an album, a single-artist
+ *   playlist) the remaining slots are filled from the leftover tracks.
+ * - Re-sampled on every call, so each radio from the same playlist differs.
  */
-async function pickSeedTracks(userId: string, songs: Song[], n: number): Promise<Song[]> {
+function pickRepresentativeSeeds(
+  songs: Song[],
+  playCounts: Map<string, number>,
+  n: number,
+  rng: () => number = Math.random,
+): Song[] {
   if (songs.length <= n) return shuffle(songs);
+  const plays = (s: Song) => playCounts.get(s.id) ?? 0;
+
+  const byArtist = new Map<string, Song[]>();
+  for (const s of songs) {
+    const key = (s.artist ?? '').toLowerCase();
+    const list = byArtist.get(key);
+    if (list) list.push(s);
+    else byArtist.set(key, [s]);
+  }
+
+  const artists = [...byArtist.values()];
+  const artistWeights = artists.map((tracks) =>
+    Math.sqrt(tracks.reduce((sum, t) => sum + 1 + plays(t), 0)),
+  );
+
+  const picked: Song[] = [];
+  while (picked.length < n && artists.length > 0) {
+    const i = weightedIndex(artistWeights, rng);
+    const tracks = artists[i];
+    const t = weightedIndex(tracks.map((s) => Math.sqrt(1 + plays(s))), rng);
+    picked.push(tracks[t]);
+    artists.splice(i, 1);
+    artistWeights.splice(i, 1);
+  }
+
+  if (picked.length < n) {
+    const pickedIds = new Set(picked.map((s) => s.id));
+    const rest = songs.filter((s) => !pickedIds.has(s.id));
+    while (picked.length < n && rest.length > 0) {
+      const i = weightedIndex(rest.map((s) => Math.sqrt(1 + plays(s))), rng);
+      picked.push(rest[i]);
+      rest.splice(i, 1);
+    }
+  }
+  return picked;
+}
+
+/** Local play counts (listening history) for the given songs. */
+async function loadPlayCounts(userId: string, songs: Song[]): Promise<Map<string, number>> {
   const ids = songs.map((s) => s.id).filter(Boolean);
   const playCounts = new Map<string, number>();
 
@@ -385,8 +487,17 @@ async function pickSeedTracks(userId: string, songs: Song[], n: number): Promise
   } catch (err) {
     console.warn('[SeededRadio] Failed to load play counts for seed picking:', err);
   }
+  return playCounts;
+}
 
-  // Rank: played songs first (by count desc), random tail for ties + unplayed.
+/**
+ * Top-`n` tracks by local play count (ties random). Artist radio still seeds
+ * this way: within one artist's catalog, the most-played tracks ARE the
+ * representative ones. Collections use pickRepresentativeSeeds instead.
+ */
+async function pickSeedTracks(userId: string, songs: Song[], n: number): Promise<Song[]> {
+  if (songs.length <= n) return shuffle(songs);
+  const playCounts = await loadPlayCounts(userId, songs);
   const ranked = [...songs].sort((a, b) => {
     const ca = playCounts.get(a.id) ?? 0;
     const cb = playCounts.get(b.id) ?? 0;
@@ -394,6 +505,28 @@ async function pickSeedTracks(userId: string, songs: Song[], n: number): Promise
     return Math.random() - 0.5;
   });
   return ranked.slice(0, n);
+}
+
+/**
+ * Blend the collection's own tracks with discovery tracks so roughly
+ * `sourceFraction` of the output comes from `source`. Each slot is a weighted
+ * coin flip; when one pool runs dry the other fills the rest.
+ */
+function blendPools(
+  source: Song[],
+  discovery: Song[],
+  size: number,
+  sourceFraction: number,
+  rng: () => number = Math.random,
+): Song[] {
+  const out: Song[] = [];
+  const src = [...source];
+  const disc = [...discovery];
+  while (out.length < size && (src.length || disc.length)) {
+    const takeSource = src.length > 0 && (disc.length === 0 || rng() < sourceFraction);
+    out.push(takeSource ? src.shift()! : disc.shift()!);
+  }
+  return out;
 }
 
 // ============================================================================
@@ -463,6 +596,8 @@ async function generateFromCollection(
   label: string,
   size: number,
   recent: { ids: Set<string>; titleKeys: Set<string> },
+  // Share of the output drawn from the collection itself (0 = pure discovery).
+  sourceFraction = 0,
 ): Promise<SeededRadioResult> {
   if (collection.length === 0) {
     return {
@@ -471,9 +606,13 @@ async function generateFromCollection(
     };
   }
 
-  const seedCount = collection.length < 20 ? SEED_TRACKS_MIN : SEED_TRACKS_MAX;
-  const seeds = await pickSeedTracks(userId, collection, seedCount);
+  const playCounts = await loadPlayCounts(userId, collection);
+  const seeds = pickRepresentativeSeeds(collection, playCounts, seedCountFor(collection.length));
   const seedIds = new Set(collection.map((s) => s.id));
+  console.log(
+    `[SeededRadio] ${label}: ${seeds.length} seeds from ${collection.length} tracks — ` +
+      seeds.map((s, i) => `${i + 1}. ${s.artist} - ${s.title ?? s.name}`).join(' | '),
+  );
 
   // Run scorer per seed, merge scored results with first-seen-wins priority.
   const perSeedResults = await Promise.all(
@@ -485,11 +624,15 @@ async function generateFromCollection(
   // Interleave results from each seed so no single seed dominates.
   const merged: Song[] = [];
   const allDiscoveryArtists = new Map<string, DiscoveryArtist>();
+  const foundBy = new Map<string, string>(); // discovery song id → seed song id
   const maxLen = Math.max(...perSeedResults.map((r) => r.songs.length), 0);
   for (let i = 0; i < maxLen; i++) {
-    for (const row of perSeedResults) {
-      if (row.songs[i]) merged.push(row.songs[i]);
-    }
+    perSeedResults.forEach((row, seedIdx) => {
+      const song = row.songs[i];
+      if (!song) return;
+      merged.push(song);
+      if (!foundBy.has(song.id)) foundBy.set(song.id, seeds[seedIdx].id);
+    });
   }
   for (const row of perSeedResults) {
     for (const da of row.discoveryArtists) {
@@ -500,14 +643,49 @@ async function generateFromCollection(
     }
   }
 
-  let final = dedupe(merged);
-  final = final.filter((s) => !seedIds.has(s.id));
-  final = enforceArtistDiversity(final);
-  final = applyRecencyCap(final, recent, size);
+  let discovery = dedupe(merged);
+  discovery = discovery.filter((s) => !seedIds.has(s.id));
+
+  let final: Song[];
+  if (sourceFraction > 0) {
+    // Recency cap per pool, so a heavily-replayed playlist doesn't lose its
+    // share to the cap (most of a Liked Songs list is "recent" by definition).
+    // The source pool is sized to the whole queue so it can also fill any
+    // slots discovery can't (blendPools drains whichever pool is left).
+    const discoveryTarget = size - Math.round(size * sourceFraction);
+    const sourcePool = applyRecencyCap(
+      enforceArtistDiversity(dedupe(shuffle(collection))),
+      recent,
+      size,
+    );
+    // Keep discovery off the artists the source half will most likely use;
+    // the final diversity pass catches any overlap from the fill-up tail.
+    const sourceArtists = new Set(
+      sourcePool.slice(0, size - discoveryTarget).map((s) => (s.artist ?? '').toLowerCase()),
+    );
+    const discoveryPool = applyRecencyCap(
+      enforceArtistDiversity(discovery).filter((s) => !sourceArtists.has((s.artist ?? '').toLowerCase())),
+      recent,
+      discoveryTarget,
+    );
+    final = enforceArtistDiversity(blendPools(sourcePool, discoveryPool, size, sourceFraction));
+  } else {
+    final = enforceArtistDiversity(discovery);
+    final = applyRecencyCap(final, recent, size);
+  }
 
   const seedArtists = Array.from(
     new Set(seeds.map((s) => s.artist).filter((a): a is string => !!a)),
   );
+
+  const picks: Record<string, RadioPick> = {};
+  for (const s of final) {
+    picks[s.id] = seedIds.has(s.id)
+      ? { pool: 'source' }
+      : { pool: 'discovery', seedSongId: foundBy.get(s.id) };
+  }
+  logChosenSongs(label, final, picks, seeds);
+
   return {
     songs: final,
     seedInfo: {
@@ -518,7 +696,36 @@ async function generateFromCollection(
     discoveryArtists: [...allDiscoveryArtists.values()]
       .sort((a, b) => b.matchScore - a.matchScore)
       .slice(0, 8),
+    picks,
   };
+}
+
+/**
+ * One compact log line per radio: the pool counts, then every chosen song in
+ * queue order tagged S (from the collection) or D<n> (discovery from seed n).
+ * This is the "why is this in my radio" record until per-queue-entry context
+ * lands in play history (#250/#251).
+ */
+function logChosenSongs(
+  label: string,
+  songs: Song[],
+  picks: Record<string, RadioPick>,
+  seeds: Song[],
+): void {
+  const seedIndex = new Map(seeds.map((s, i) => [s.id, i + 1]));
+  let fromSource = 0;
+  const parts = songs.map((s, i) => {
+    const p = picks[s.id];
+    const tag = p?.pool === 'source'
+      ? 'S'
+      : `D${(p?.seedSongId && seedIndex.get(p.seedSongId)) || '?'}`;
+    if (p?.pool === 'source') fromSource++;
+    return `${i + 1}.[${tag}] ${s.artist} - ${s.title ?? s.name}`;
+  });
+  console.log(
+    `[SeededRadio] ${label} queue: ${songs.length} songs, ${fromSource} from the collection, ` +
+      `${songs.length - fromSource} discovery — ${parts.join(' | ')}`,
+  );
 }
 
 /**
@@ -835,7 +1042,9 @@ export async function generateSeededRadio(
         }
       }
 
-      result = await generateFromCollection(userId, songs, label, size, recent);
+      result = await generateFromCollection(
+        userId, songs, label, size, recent, PLAYLIST_SOURCE_FRACTION[variety],
+      );
       break;
     }
 
@@ -865,11 +1074,15 @@ export const __internal = {
   enforceArtistDiversity,
   applyRecencyCap,
   pickSeedTracks,
+  pickRepresentativeSeeds,
+  blendPools,
+  seedCountFor,
   interleaveByFraction,
   applyDurationTarget,
   estimateSizeFromMinutes,
   tokenizeGenre,
   filterByGenreOverlap,
   ARTIST_CATALOG_FRACTION,
+  PLAYLIST_SOURCE_FRACTION,
   MIN_FILTERED_FRACTION,
 };
