@@ -17,7 +17,9 @@ import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-p
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as authResetPasswordRouteImport } from './routes/(auth)/reset-password'
 import { Route as authSignupRouteImport } from './routes/(auth)/signup'
+import { Route as authTwoFactorRouteImport } from './routes/(auth)/two-factor'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as ApiAuthOptionsRouteImport } from './routes/api/auth-options'
 import { Route as ApiCacheRouteImport } from './routes/api/cache'
 import { Route as ApiConfigRouteImport } from './routes/api/config'
 import { Route as ApiDebugLibraryRouteImport } from './routes/api/debug-library'
@@ -148,8 +150,6 @@ import { Route as ApiRecommendationsFeedbackRouteImport } from './routes/api/rec
 import { Route as ApiRecommendationsMoodTimelineRouteImport } from './routes/api/recommendations/mood-timeline'
 import { Route as ApiRecommendationsSeasonalInsightsRouteImport } from './routes/api/recommendations/seasonal-insights'
 import { Route as ApiRecommendationsSeasonalPlaylistRouteImport } from './routes/api/recommendations/seasonal-playlist'
-import { Route as ApiSecurityDisable2faRouteImport } from './routes/api/security/disable-2fa'
-import { Route as ApiSecurityEnable2faRouteImport } from './routes/api/security/enable-2fa'
 import { Route as ApiSpeakersIndexRouteImport } from './routes/api/speakers/index'
 import { Route as ApiSpeakersControlRouteImport } from './routes/api/speakers/control'
 import { Route as ApiSpeakersEnqueueRouteImport } from './routes/api/speakers/enqueue'
@@ -240,9 +240,19 @@ const authSignupRoute = authSignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => authRouteRoute,
 } as any)
+const authTwoFactorRoute = authTwoFactorRouteImport.update({
+  id: '/two-factor',
+  path: '/two-factor',
+  getParentRoute: () => authRouteRoute,
+} as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthOptionsRoute = ApiAuthOptionsRouteImport.update({
+  id: '/api/auth-options',
+  path: '/api/auth-options',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCacheRoute = ApiCacheRouteImport.update({
@@ -933,16 +943,6 @@ const ApiRecommendationsSeasonalPlaylistRoute =
     path: '/seasonal-playlist',
     getParentRoute: () => ApiRecommendationsRoute,
   } as any)
-const ApiSecurityDisable2faRoute = ApiSecurityDisable2faRouteImport.update({
-  id: '/api/security/disable-2fa',
-  path: '/api/security/disable-2fa',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSecurityEnable2faRoute = ApiSecurityEnable2faRouteImport.update({
-  id: '/api/security/enable-2fa',
-  path: '/api/security/enable-2fa',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiSpeakersIndexRoute = ApiSpeakersIndexRouteImport.update({
   id: '/api/speakers/',
   path: '/api/speakers/',
@@ -1223,6 +1223,8 @@ export interface FileRoutesByFullPath {
   '/login': typeof authLoginRoute
   '/reset-password': typeof authResetPasswordRoute
   '/signup': typeof authSignupRoute
+  '/two-factor': typeof authTwoFactorRoute
+  '/api/auth-options': typeof ApiAuthOptionsRoute
   '/api/cache': typeof ApiCacheRoute
   '/api/config': typeof ApiConfigRoute
   '/api/debug-library': typeof ApiDebugLibraryRoute
@@ -1350,8 +1352,6 @@ export interface FileRoutesByFullPath {
   '/api/recommendations/mood-timeline': typeof ApiRecommendationsMoodTimelineRoute
   '/api/recommendations/seasonal-insights': typeof ApiRecommendationsSeasonalInsightsRoute
   '/api/recommendations/seasonal-playlist': typeof ApiRecommendationsSeasonalPlaylistRoute
-  '/api/security/disable-2fa': typeof ApiSecurityDisable2faRoute
-  '/api/security/enable-2fa': typeof ApiSecurityEnable2faRoute
   '/api/speakers/control': typeof ApiSpeakersControlRoute
   '/api/speakers/enqueue': typeof ApiSpeakersEnqueueRoute
   '/api/speakers/play': typeof ApiSpeakersPlayRoute
@@ -1414,6 +1414,8 @@ export interface FileRoutesByTo {
   '/login': typeof authLoginRoute
   '/reset-password': typeof authResetPasswordRoute
   '/signup': typeof authSignupRoute
+  '/two-factor': typeof authTwoFactorRoute
+  '/api/auth-options': typeof ApiAuthOptionsRoute
   '/api/cache': typeof ApiCacheRoute
   '/api/config': typeof ApiConfigRoute
   '/api/debug-library': typeof ApiDebugLibraryRoute
@@ -1540,8 +1542,6 @@ export interface FileRoutesByTo {
   '/api/recommendations/mood-timeline': typeof ApiRecommendationsMoodTimelineRoute
   '/api/recommendations/seasonal-insights': typeof ApiRecommendationsSeasonalInsightsRoute
   '/api/recommendations/seasonal-playlist': typeof ApiRecommendationsSeasonalPlaylistRoute
-  '/api/security/disable-2fa': typeof ApiSecurityDisable2faRoute
-  '/api/security/enable-2fa': typeof ApiSecurityEnable2faRoute
   '/api/speakers/control': typeof ApiSpeakersControlRoute
   '/api/speakers/enqueue': typeof ApiSpeakersEnqueueRoute
   '/api/speakers/play': typeof ApiSpeakersPlayRoute
@@ -1607,6 +1607,8 @@ export interface FileRoutesById {
   '/(auth)/login': typeof authLoginRoute
   '/(auth)/reset-password': typeof authResetPasswordRoute
   '/(auth)/signup': typeof authSignupRoute
+  '/(auth)/two-factor': typeof authTwoFactorRoute
+  '/api/auth-options': typeof ApiAuthOptionsRoute
   '/api/cache': typeof ApiCacheRoute
   '/api/config': typeof ApiConfigRoute
   '/api/debug-library': typeof ApiDebugLibraryRoute
@@ -1734,8 +1736,6 @@ export interface FileRoutesById {
   '/api/recommendations/mood-timeline': typeof ApiRecommendationsMoodTimelineRoute
   '/api/recommendations/seasonal-insights': typeof ApiRecommendationsSeasonalInsightsRoute
   '/api/recommendations/seasonal-playlist': typeof ApiRecommendationsSeasonalPlaylistRoute
-  '/api/security/disable-2fa': typeof ApiSecurityDisable2faRoute
-  '/api/security/enable-2fa': typeof ApiSecurityEnable2faRoute
   '/api/speakers/control': typeof ApiSpeakersControlRoute
   '/api/speakers/enqueue': typeof ApiSpeakersEnqueueRoute
   '/api/speakers/play': typeof ApiSpeakersPlayRoute
@@ -1801,6 +1801,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/two-factor'
+    | '/api/auth-options'
     | '/api/cache'
     | '/api/config'
     | '/api/debug-library'
@@ -1928,8 +1930,6 @@ export interface FileRouteTypes {
     | '/api/recommendations/mood-timeline'
     | '/api/recommendations/seasonal-insights'
     | '/api/recommendations/seasonal-playlist'
-    | '/api/security/disable-2fa'
-    | '/api/security/enable-2fa'
     | '/api/speakers/control'
     | '/api/speakers/enqueue'
     | '/api/speakers/play'
@@ -1992,6 +1992,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/two-factor'
+    | '/api/auth-options'
     | '/api/cache'
     | '/api/config'
     | '/api/debug-library'
@@ -2118,8 +2120,6 @@ export interface FileRouteTypes {
     | '/api/recommendations/mood-timeline'
     | '/api/recommendations/seasonal-insights'
     | '/api/recommendations/seasonal-playlist'
-    | '/api/security/disable-2fa'
-    | '/api/security/enable-2fa'
     | '/api/speakers/control'
     | '/api/speakers/enqueue'
     | '/api/speakers/play'
@@ -2184,6 +2184,8 @@ export interface FileRouteTypes {
     | '/(auth)/login'
     | '/(auth)/reset-password'
     | '/(auth)/signup'
+    | '/(auth)/two-factor'
+    | '/api/auth-options'
     | '/api/cache'
     | '/api/config'
     | '/api/debug-library'
@@ -2311,8 +2313,6 @@ export interface FileRouteTypes {
     | '/api/recommendations/mood-timeline'
     | '/api/recommendations/seasonal-insights'
     | '/api/recommendations/seasonal-playlist'
-    | '/api/security/disable-2fa'
-    | '/api/security/enable-2fa'
     | '/api/speakers/control'
     | '/api/speakers/enqueue'
     | '/api/speakers/play'
@@ -2374,6 +2374,7 @@ export interface RootRouteChildren {
   authRouteRoute: typeof authRouteRouteWithChildren
   DashboardRouteRoute: typeof DashboardRouteRouteWithChildren
   InviteRoute: typeof InviteRoute
+  ApiAuthOptionsRoute: typeof ApiAuthOptionsRoute
   ApiCacheRoute: typeof ApiCacheRoute
   ApiConfigRoute: typeof ApiConfigRoute
   ApiDebugLibraryRoute: typeof ApiDebugLibraryRoute
@@ -2485,8 +2486,6 @@ export interface RootRouteChildren {
   ApiProfileUpdateRoute: typeof ApiProfileUpdateRoute
   ApiRadioSeededRoute: typeof ApiRadioSeededRoute
   ApiRadioShuffleRoute: typeof ApiRadioShuffleRoute
-  ApiSecurityDisable2faRoute: typeof ApiSecurityDisable2faRoute
-  ApiSecurityEnable2faRoute: typeof ApiSecurityEnable2faRoute
   ApiSpeakersControlRoute: typeof ApiSpeakersControlRoute
   ApiSpeakersEnqueueRoute: typeof ApiSpeakersEnqueueRoute
   ApiSpeakersPlayRoute: typeof ApiSpeakersPlayRoute
@@ -2584,11 +2583,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authSignupRouteImport
       parentRoute: typeof authRouteRoute
     }
+    '/(auth)/two-factor': {
+      id: '/(auth)/two-factor'
+      path: '/two-factor'
+      fullPath: '/two-factor'
+      preLoaderRoute: typeof authTwoFactorRouteImport
+      parentRoute: typeof authRouteRoute
+    }
     '/admin/': {
       id: '/admin/'
       path: '/admin'
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth-options': {
+      id: '/api/auth-options'
+      path: '/api/auth-options'
+      fullPath: '/api/auth-options'
+      preLoaderRoute: typeof ApiAuthOptionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cache': {
@@ -3501,20 +3514,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRecommendationsSeasonalPlaylistRouteImport
       parentRoute: typeof ApiRecommendationsRoute
     }
-    '/api/security/disable-2fa': {
-      id: '/api/security/disable-2fa'
-      path: '/api/security/disable-2fa'
-      fullPath: '/api/security/disable-2fa'
-      preLoaderRoute: typeof ApiSecurityDisable2faRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/security/enable-2fa': {
-      id: '/api/security/enable-2fa'
-      path: '/api/security/enable-2fa'
-      fullPath: '/api/security/enable-2fa'
-      preLoaderRoute: typeof ApiSecurityEnable2faRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/speakers/': {
       id: '/api/speakers/'
       path: '/api/speakers'
@@ -3873,6 +3872,7 @@ interface authRouteRouteChildren {
   authLoginRoute: typeof authLoginRoute
   authResetPasswordRoute: typeof authResetPasswordRoute
   authSignupRoute: typeof authSignupRoute
+  authTwoFactorRoute: typeof authTwoFactorRoute
 }
 
 const authRouteRouteChildren: authRouteRouteChildren = {
@@ -3880,6 +3880,7 @@ const authRouteRouteChildren: authRouteRouteChildren = {
   authLoginRoute: authLoginRoute,
   authResetPasswordRoute: authResetPasswordRoute,
   authSignupRoute: authSignupRoute,
+  authTwoFactorRoute: authTwoFactorRoute,
 }
 
 const authRouteRouteWithChildren = authRouteRoute._addFileChildren(
@@ -4051,6 +4052,7 @@ const rootRouteChildren: RootRouteChildren = {
   authRouteRoute: authRouteRouteWithChildren,
   DashboardRouteRoute: DashboardRouteRouteWithChildren,
   InviteRoute: InviteRoute,
+  ApiAuthOptionsRoute: ApiAuthOptionsRoute,
   ApiCacheRoute: ApiCacheRoute,
   ApiConfigRoute: ApiConfigRoute,
   ApiDebugLibraryRoute: ApiDebugLibraryRoute,
@@ -4165,8 +4167,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProfileUpdateRoute: ApiProfileUpdateRoute,
   ApiRadioSeededRoute: ApiRadioSeededRoute,
   ApiRadioShuffleRoute: ApiRadioShuffleRoute,
-  ApiSecurityDisable2faRoute: ApiSecurityDisable2faRoute,
-  ApiSecurityEnable2faRoute: ApiSecurityEnable2faRoute,
   ApiSpeakersControlRoute: ApiSpeakersControlRoute,
   ApiSpeakersEnqueueRoute: ApiSpeakersEnqueueRoute,
   ApiSpeakersPlayRoute: ApiSpeakersPlayRoute,

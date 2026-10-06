@@ -8,8 +8,15 @@ import { env } from "~/env/server";
 import { db } from "~/lib/db";
 import {
   sendPasswordResetEmail,
+  sendTwoFactorCodeEmail,
   sendVerificationEmail,
 } from "~/lib/email/auth-emails";
+import { buildSocialProviders, getAuthOptions } from "~/lib/auth/auth-options";
+
+// Email one-time codes are offered as a 2FA method only when a working sender
+// is configured (see getAuthOptions); otherwise /two-factor/send-otp answers
+// OTP_NOT_CONFIGURED and the sign-in page hides the option.
+const EMAIL_OTP_PERIOD_MINUTES = 3;
 
 const getAuthConfig = createServerOnlyFn(() =>
   betterAuth({
@@ -49,6 +56,22 @@ const getAuthConfig = createServerOnlyFn(() =>
         backupCodeOptions: {
           length: 10,
         },
+        ...(getAuthOptions(env).emailOtp && {
+          otpOptions: {
+            period: EMAIL_OTP_PERIOD_MINUTES,
+            sendOTP: async ({ user, otp }) => {
+              const result = await sendTwoFactorCodeEmail({
+                email: user.email,
+                name: user.name,
+                code: otp,
+                expiresIn: `${EMAIL_OTP_PERIOD_MINUTES} minutes`,
+              });
+              if (!result.success) {
+                console.error(`[2FA] Email code not sent to ${user.email}: ${result.error}`);
+              }
+            },
+          },
+        }),
       }),
     ],
 
@@ -67,21 +90,9 @@ const getAuthConfig = createServerOnlyFn(() =>
     // See: https://github.com/better-auth/better-auth/issues/5639
 
     // https://www.better-auth.com/docs/concepts/oauth
-    // Only include social providers if credentials are available
-    ...(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET && {
-      socialProviders: {
-        github: {
-          clientId: env.GITHUB_CLIENT_ID,
-          clientSecret: env.GITHUB_CLIENT_SECRET,
-        },
-        ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && {
-          google: {
-            clientId: env.GOOGLE_CLIENT_ID,
-            clientSecret: env.GOOGLE_CLIENT_SECRET,
-          },
-        }),
-      },
-    }),
+    // Only providers whose credentials are set (see auth-options.ts, which the
+    // login page reads too, so buttons and providers can't disagree).
+    ...(buildSocialProviders(env) && { socialProviders: buildSocialProviders(env) }),
 
     // https://www.better-auth.com/docs/authentication/email-password
     emailAndPassword: {
