@@ -7,7 +7,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { db } from '@/lib/db';
 import { discoveryJobState, discoverySuggestions } from '@/lib/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import {
   withAuthAndErrorHandling,
   successResponse,
@@ -27,11 +27,12 @@ const GET = withAuthAndErrorHandling(
       .limit(1)
       .then(rows => rows[0]);
 
-    // Get pending suggestions count
+    // Get pending suggestions count (status filter matters: without it this
+    // counted every suggestion ever made — 580 shown vs 14 actually pending)
     const pendingResult = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(discoverySuggestions)
-      .where(eq(discoverySuggestions.userId, userId));
+      .where(and(eq(discoverySuggestions.userId, userId), eq(discoverySuggestions.status, 'pending')));
 
     const pendingCount = pendingResult[0]?.count ?? 0;
 
