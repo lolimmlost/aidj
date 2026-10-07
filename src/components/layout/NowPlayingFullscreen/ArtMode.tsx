@@ -129,6 +129,8 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
       <div
         ref={artContainerRef}
         className={cn(
+          // Morph target for the mini-player art (#289)
+          '[view-transition-name:np-art]',
           expanded ? 'max-h-full max-w-full aspect-square' : 'w-full h-full',
           swipeDirection === 'left' && 'animate-[slideInRight_250ms_ease-out]',
           swipeDirection === 'right' && 'animate-[slideInLeft_250ms_ease-out]',

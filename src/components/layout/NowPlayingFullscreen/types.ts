@@ -23,6 +23,9 @@ export interface NowPlayingSong {
 export interface NowPlayingFullscreenProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Open/close instantly (no slide): the caller is animating it with a view
+   *  transition that morphs the mini-player art into the big art (#289). */
+  skipSlide?: boolean;
   /** Mode to start in. Defaults to 'art'. */
   initialMode?: NPMode;
   currentSong: NowPlayingSong | null;

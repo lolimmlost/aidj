@@ -49,6 +49,7 @@ const formatTime = (time: number) => {
 export function NowPlayingFullscreen({
   isOpen,
   onClose,
+  skipSlide = false,
   initialMode = 'art',
   currentSong,
   isPlaying,
@@ -84,12 +85,13 @@ export function NowPlayingFullscreen({
   // Reset mode on each open so re-opening from a fresh trigger respects
   // the caller's initialMode (e.g. opening from the player-bar lyrics
   // button should land on 'lyrics' even if the user previously closed
-  // the surface while on 'art').
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
+  // the surface while on 'art'). Done during render, not in an effect, so a
+  // view-transition open captures the right mode in its very first frame.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) setMode(initialMode);
-  }, [isOpen, initialMode]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  }
 
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const touchOffsetRef = useRef(0);
@@ -129,7 +131,9 @@ export function NowPlayingFullscreen({
     if (containerRef.current) {
       containerRef.current.style.transition = 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)';
       if (touchOffsetRef.current > 100) {
-        containerRef.current.style.transform = 'translateY(100%)';
+        // With a view transition the art morphs back to the mini player from
+        // where the drag left it; otherwise slide the rest of the way out.
+        if (!skipSlide) containerRef.current.style.transform = 'translateY(100%)';
         onClose();
       } else {
         containerRef.current.style.transform = 'translateY(0)';
@@ -137,7 +141,7 @@ export function NowPlayingFullscreen({
     }
     touchStartRef.current = null;
     touchOffsetRef.current = 0;
-  }, [onClose]);
+  }, [onClose, skipSlide]);
 
   const toggleExpanded = useCallback(() => {
     setIsExpanded((prev) => {
@@ -193,7 +197,12 @@ export function NowPlayingFullscreen({
     setTimeout(fn, 150);
   }, [onClose]);
 
-  if (!visible || !currentSong) return null;
+  // With skipSlide the view transition does the animating: render the final
+  // open/closed state immediately instead of the slide.
+  const isVisible = skipSlide ? isOpen : visible;
+  const isShown = skipSlide ? isOpen : animating;
+
+  if (!isVisible || !currentSong) return null;
 
   const artId = currentSong.albumId || currentSong.id;
   const bgCoverUrl = getCoverArtUrl(artId, 128);
@@ -205,7 +214,7 @@ export function NowPlayingFullscreen({
     <div
       className={cn(
         'fixed inset-0 z-[60] transition-opacity duration-300',
-        animating ? 'opacity-100' : 'opacity-0'
+        isShown ? 'opacity-100' : 'opacity-0'
       )}
     >
       {/* Solid black base + blurred album art tint.
@@ -226,7 +235,7 @@ export function NowPlayingFullscreen({
         ref={containerRef}
         className={cn(
           'relative h-full flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]',
-          animating ? 'translate-y-0' : 'translate-y-full'
+          isShown ? 'translate-y-0' : 'translate-y-full'
         )}
         onTouchStart={handleBodyTouchStart}
         onTouchMove={handleBodyTouchMove}

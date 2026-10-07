@@ -808,6 +808,52 @@
     }
   }
 
+  /* ── View Transitions (#289) ──
+     Page navigations animate only the main content area (named app-main in
+     AppLayout); the sidebar, player and tab bar stay put. The now-playing art
+     (np-art) and a tapped album cover (album-art) morph into their larger
+     selves. Reduced motion: everything is instant. */
+  @keyframes vt-fade-out {
+    to { opacity: 0; }
+  }
+
+  @keyframes vt-fade-in-up {
+    from { opacity: 0; transform: translateY(8px); }
+  }
+
+  html:active-view-transition-type(page)::view-transition-old(app-main) {
+    animation: 120ms ease-out both vt-fade-out;
+  }
+
+  html:active-view-transition-type(page)::view-transition-new(app-main) {
+    animation: 220ms cubic-bezier(0.2, 0.7, 0.3, 1) both vt-fade-in-up;
+  }
+
+  ::view-transition-group(np-art),
+  ::view-transition-group(album-art) {
+    animation-duration: 380ms;
+    animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* Art morphs between different-sized images: scale both snapshots to the
+     group box instead of letterboxing. */
+  ::view-transition-old(np-art),
+  ::view-transition-new(np-art),
+  ::view-transition-old(album-art),
+  ::view-transition-new(album-art) {
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+      animation: none !important;
+    }
+  }
+
   /* ── Toast Notifications (Sonner) ──
      Glass-card aesthetic with OKLCH brand colors, backdrop blur,
      and a countdown progress bar that matches the toast duration. */

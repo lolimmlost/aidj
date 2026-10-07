@@ -258,7 +258,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <LeftSidebar />
 
         {/* Center - Main Content */}
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden [view-transition-name:app-main]">
           <ScrollArea className="h-full">
             <div className="min-h-full pb-6">
               {children}

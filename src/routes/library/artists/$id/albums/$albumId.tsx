@@ -197,7 +197,18 @@ function AlbumDetail() {
 
         {isLoading ? (
           <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 mb-8">
-            <Skeleton className="w-48 h-48 sm:w-56 sm:h-56 rounded-xl mx-auto sm:mx-0 flex-shrink-0" />
+            {/* Show the cover while details load — it only needs the album id —
+                so the tapped card has something to morph into (#289). The 300px
+                proxy URL matches the artist page's card, so it's usually cached. */}
+            <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 mx-auto sm:mx-0 flex-shrink-0 bg-muted [view-transition-name:album-art]">
+              {!coverError && (
+                <img
+                  src={`/api/navidrome/rest/getCoverArt?id=${albumId}&size=300`}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              )}
+            </div>
             <div className="flex-1 space-y-3 pt-2 text-center sm:text-left">
               <Skeleton className="h-4 w-16" />
               <Skeleton className="h-8 w-3/4" />
@@ -207,8 +218,8 @@ function AlbumDetail() {
           </div>
         ) : (
           <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 mb-8">
-            {/* Album art */}
-            <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 mx-auto sm:mx-0 flex-shrink-0">
+            {/* Album art — target of the tapped album cover's morph (#289) */}
+            <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 mx-auto sm:mx-0 flex-shrink-0 [view-transition-name:album-art]">
               {coverError ? (
                 <div className="w-full h-full bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center">
                   <Disc className="h-12 w-12 text-muted-foreground/40" />

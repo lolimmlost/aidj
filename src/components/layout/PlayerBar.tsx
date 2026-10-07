@@ -50,6 +50,7 @@ import { useDeckEventHandlers } from '@/lib/hooks/useDeckEventHandlers';
 import { useSongLoader } from '@/lib/hooks/useSongLoader';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 import { haptic } from '@/lib/utils/haptics';
+import { canViewTransition, withViewTransition } from '@/lib/utils/view-transition';
 import { LikeHeart, type LikeEffect } from '@/components/player/LikeHeart';
 
 // Helper function for time formatting
@@ -132,6 +133,30 @@ export function PlayerBar() {
   const [isLoading, setIsLoading] = useState(false);
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [fullscreenInitialMode, setFullscreenInitialMode] = useState<'art' | 'lyrics' | 'visualizer'>('art');
+  // Opened via a view transition: the mini-player art morphs into the big art
+  // (#289), so the fullscreen view skips its own slide animation.
+  const [fullscreenViaTransition, setFullscreenViaTransition] = useState(false);
+
+  const openFullscreen = useCallback((mode: 'art' | 'lyrics' | 'visualizer' = 'art') => {
+    // Only art mode has a big artwork to morph into; other modes slide up.
+    const morph = mode === 'art' && canViewTransition();
+    const open = () => {
+      setFullscreenViaTransition(morph);
+      setFullscreenInitialMode(mode);
+      setShowFullscreen(true);
+    };
+    if (morph) withViewTransition(open, ['np-open']);
+    else open();
+  }, []);
+
+  const closeFullscreen = useCallback(() => {
+    const close = () => {
+      setShowFullscreen(false);
+      setFullscreenInitialMode('art');
+    };
+    if (fullscreenViaTransition && canViewTransition()) withViewTransition(close, ['np-close']);
+    else close();
+  }, [fullscreenViaTransition]);
 
   // Track canplay/error handlers for cleanup
   const canPlayHandlerRef = useRef<(() => void) | null>(null);
@@ -1017,7 +1042,7 @@ export function PlayerBar() {
             "flex items-center gap-3 min-w-0 flex-1 rounded-lg transition-all",
             showRemoteTime && "ring-1 ring-green-500/60 bg-green-500/5 px-2 py-1"
           )}>
-            <div onClick={() => setShowFullscreen(true)} className="cursor-pointer relative group/art">
+            <div onClick={() => openFullscreen()} className="cursor-pointer relative group/art" style={{ viewTransitionName: showFullscreen ? undefined : 'np-art' }}>
               <AlbumArt
                 albumId={currentSong.albumId}
                 songId={currentSong.id}
@@ -1047,7 +1072,7 @@ export function PlayerBar() {
                 ) : (
                   <span
                     className="font-display font-semibold active:text-primary transition-colors"
-                    onClick={() => setShowFullscreen(true)}
+                    onClick={() => openFullscreen()}
                   >
                     {currentSong.name || currentSong.title}
                   </span>
@@ -1151,7 +1176,7 @@ export function PlayerBar() {
           showRemoteTime && "ring-1 ring-green-500/60 bg-green-500/5 px-2 py-1 -ml-2"
         )}>
           {/* Mini Album Art — click to open fullscreen */}
-          <div onClick={() => setShowFullscreen(true)} className="cursor-pointer">
+          <div onClick={() => openFullscreen()} className="cursor-pointer" style={{ viewTransitionName: showFullscreen ? undefined : 'np-art' }}>
             <AlbumArt
               albumId={currentSong.albumId}
               songId={currentSong.id}
@@ -1298,8 +1323,7 @@ export function PlayerBar() {
             size="sm"
             className="h-8 w-8 p-0"
             onClick={() => {
-              setFullscreenInitialMode('lyrics');
-              setShowFullscreen(true);
+              openFullscreen('lyrics');
             }}
             title="Show lyrics"
           >
@@ -1311,8 +1335,7 @@ export function PlayerBar() {
             size="sm"
             className="h-8 w-8 p-0"
             onClick={() => {
-              setFullscreenInitialMode('visualizer');
-              setShowFullscreen(true);
+              openFullscreen('visualizer');
             }}
             title="Show visualizer"
           >
@@ -1343,7 +1366,7 @@ export function PlayerBar() {
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
-            onClick={() => setShowFullscreen(true)}
+            onClick={() => openFullscreen()}
           >
             <Maximize2 className="h-4 w-4" />
           </Button>
@@ -1360,10 +1383,8 @@ export function PlayerBar() {
       {/* Fullscreen Now Playing — unified chassis (Phase C: art + lyrics + visualizer modes) */}
       <NowPlayingFullscreen
         isOpen={showFullscreen}
-        onClose={() => {
-          setShowFullscreen(false);
-          setFullscreenInitialMode('art');
-        }}
+        onClose={closeFullscreen}
+        skipSlide={fullscreenViaTransition}
         initialMode={fullscreenInitialMode}
         currentSong={currentSong}
         isPlaying={isPlaying}

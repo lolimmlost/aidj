@@ -6,6 +6,7 @@ import { DefaultCatchBoundary } from "@/components/default-catch-boundary";
 import { DefaultNotFound } from "@/components/default-not-found";
 import { routeTree } from "./routeTree.gen";
 import { defaultQueryOptions } from "@/lib/query";
+import { supportsViewTransitionTypes } from "@/lib/utils/view-transition";
 
 export function getRouter() {
   const queryClient = new QueryClient({
@@ -29,6 +30,12 @@ export function getRouter() {
     defaultNotFoundComponent: DefaultNotFound,
     scrollRestoration: true,
     defaultStructuralSharing: true,
+    // Page transitions (#289). Only where typed view transitions exist, so
+    // search-param-only updates (e.g. typing in search) can opt out; older
+    // engines just navigate instantly. Styles: "View Transitions" in styles.css.
+    defaultViewTransition: supportsViewTransitionTypes()
+      ? { types: ({ pathChanged }) => (pathChanged ? ["page"] : false) }
+      : false,
   });
 
   setupRouterSsrQueryIntegration({
