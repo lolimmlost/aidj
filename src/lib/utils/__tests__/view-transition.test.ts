@@ -5,6 +5,7 @@ vi.unmock('react-dom');
 import {
   canViewTransition,
   nameForNextTransition,
+  suppressTransitionNames,
   waitForImage,
   withViewTransition,
   withViewTransitionAsync,
@@ -55,6 +56,38 @@ describe('view-transition helpers', () => {
     expect(withViewTransition(update)).toBe(false);
     expect(start).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onFinished once the transition finishes', async () => {
+    let finish!: () => void;
+    start.mockImplementation((arg: { update: () => void } | (() => void)) => {
+      (typeof arg === 'function' ? arg : arg.update)();
+      return { finished: new Promise<void>((r) => { finish = r; }) };
+    });
+    const onFinished = vi.fn();
+    withViewTransition(vi.fn(), undefined, onFinished);
+    await Promise.resolve();
+    expect(onFinished).not.toHaveBeenCalled();
+    finish();
+    await vi.waitFor(() => expect(onFinished).toHaveBeenCalledTimes(1));
+  });
+
+  it('calls onFinished right away when no transition runs', () => {
+    setReducedMotion(true);
+    const onFinished = vi.fn();
+    withViewTransition(vi.fn(), undefined, onFinished);
+    expect(onFinished).toHaveBeenCalledTimes(1);
+  });
+
+  it('suppresses names and restores them', () => {
+    const el = document.createElement('div');
+    el.setAttribute('data-hero', '');
+    document.body.appendChild(el);
+    const restore = suppressTransitionNames('[data-hero]');
+    expect(el.style.viewTransitionName).toBe('none');
+    restore();
+    expect(el.style.viewTransitionName).toBe('');
+    el.remove();
   });
 
   it('names an element for the next transition only', () => {

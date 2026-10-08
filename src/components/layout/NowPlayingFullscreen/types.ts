@@ -29,6 +29,9 @@ export interface NowPlayingFullscreenProps {
   /** Open the current song's album page from the fullscreen view, morphing the
    *  big art into the album page's cover (#289). Falls back to onClose + link. */
   onOpenAlbum?: (artistId: string, albumId: string) => void;
+  /** Open the artist page and close the sheet as one transition (#289).
+   *  Falls back to onClose + link. */
+  onOpenArtist?: (artistId: string) => void;
   /** Mode to start in. Defaults to 'art'. */
   initialMode?: NPMode;
   currentSong: NowPlayingSong | null;

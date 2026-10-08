@@ -32,18 +32,38 @@ export function supportsViewTransitionTypes(): boolean {
  * captured first, then `update` is flushed synchronously so the browser can
  * capture the new state. Returns whether a transition was started.
  */
-export function withViewTransition(update: () => void, types?: string[]): boolean {
+export function withViewTransition(update: () => void, types?: string[], onFinished?: () => void): boolean {
   const start = getStart();
   if (!start || !canViewTransition()) {
     update();
+    onFinished?.();
     return false;
   }
   // flushSync is the point: the browser captures the new snapshot as soon as
   // this callback returns, so React must have committed the update by then.
   // eslint-disable-next-line @eslint-react/dom-no-flush-sync -- required by the View Transitions API
   const run = () => flushSync(update);
-  start(types && supportsViewTransitionTypes() ? { update: run, types } : run);
+  const transition = start(types && supportsViewTransitionTypes() ? { update: run, types } : run) as
+    { finished?: Promise<unknown> } | undefined;
+  if (onFinished) {
+    if (transition?.finished) transition.finished.then(onFinished, onFinished);
+    else onFinished();
+  }
   return true;
+}
+
+/**
+ * Temporarily clear the view-transition-name of every element matching
+ * `selector` (e.g. an album page's always-named cover) so it stays part of
+ * the page snapshot. Returns a function that restores the names.
+ */
+export function suppressTransitionNames(selector: string): () => void {
+  if (typeof document === 'undefined') return () => {};
+  const els = Array.from(document.querySelectorAll<HTMLElement>(selector));
+  els.forEach((el) => { el.style.viewTransitionName = 'none'; });
+  return () => els.forEach((el) => {
+    if (el.style.viewTransitionName === 'none') el.style.viewTransitionName = '';
+  });
 }
 
 /**

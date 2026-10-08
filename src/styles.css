@@ -878,20 +878,26 @@
   }
 
   /* The page itself doesn't change on open/close, so animate one copy and hide
-     the other instead of cross-fading two identical snapshots. */
-  html:active-view-transition-type(np-open)::view-transition-old(root) {
+     the other instead of cross-fading two identical snapshots. <main> is its
+     own layer (app-main, for page transitions), so it needs the same rules or
+     only the chrome around it would recede. */
+  html:active-view-transition-type(np-open)::view-transition-old(root),
+  html:active-view-transition-type(np-open)::view-transition-old(app-main) {
     animation: 440ms cubic-bezier(0.32, 0.72, 0, 1) both np-page-recede;
     transform-origin: 50% 40%;
   }
-  html:active-view-transition-type(np-open)::view-transition-new(root) {
+  html:active-view-transition-type(np-open)::view-transition-new(root),
+  html:active-view-transition-type(np-open)::view-transition-new(app-main) {
     animation: none;
     opacity: 0;
   }
-  html:active-view-transition-type(np-close)::view-transition-old(root) {
+  html:active-view-transition-type(np-close)::view-transition-old(root),
+  html:active-view-transition-type(np-close)::view-transition-old(app-main) {
     animation: none;
     opacity: 0;
   }
-  html:active-view-transition-type(np-close)::view-transition-new(root) {
+  html:active-view-transition-type(np-close)::view-transition-new(root),
+  html:active-view-transition-type(np-close)::view-transition-new(app-main) {
     animation: 380ms cubic-bezier(0.32, 0.72, 0, 1) both np-page-return;
     transform-origin: 50% 40%;
   }

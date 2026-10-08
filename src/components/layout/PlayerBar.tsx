@@ -50,7 +50,7 @@ import { useDeckEventHandlers } from '@/lib/hooks/useDeckEventHandlers';
 import { useSongLoader } from '@/lib/hooks/useSongLoader';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 import { haptic } from '@/lib/utils/haptics';
-import { canViewTransition, waitForImage, withViewTransition, withViewTransitionAsync } from '@/lib/utils/view-transition';
+import { canViewTransition, suppressTransitionNames, waitForImage, withViewTransition, withViewTransitionAsync } from '@/lib/utils/view-transition';
 import { LikeHeart, type LikeEffect } from '@/components/player/LikeHeart';
 
 // Helper function for time formatting
@@ -158,8 +158,21 @@ export function PlayerBar() {
     const ready = img?.decode
       ? Promise.race([img.decode().catch(() => undefined), new Promise((r) => setTimeout(r, 200))])
       : Promise.resolve();
-    void ready.then(() => withViewTransition(open, ['np-open']));
+    void ready.then(() => {
+      // An album page's cover is always named album-art; left named it would
+      // float above the sliding sheet instead of receding with the page.
+      const restoreNames = suppressTransitionNames('[data-album-hero-art]');
+      withViewTransition(open, ['np-open'], restoreNames);
+    });
   }, []);
+
+  // The sheet only carries the np-sheet name when it opened with the morph.
+  // Name it for a transition that closes it anyway, so it slides down instead
+  // of cross-fading with the page.
+  const nameSheetForClose = () => {
+    const sheet = document.querySelector<HTMLElement>('[data-np-sheet]');
+    if (sheet) sheet.style.viewTransitionName = 'np-sheet';
+  };
 
   const navigate = useNavigate();
 
@@ -168,6 +181,9 @@ export function PlayerBar() {
   // of the art flying back to the mini player and the page cutting over (#289).
   const openAlbumFromFullscreen = useCallback((artistId: string, albumId: string) => {
     const close = () => {
+      // Unmount the sheet in this same commit (no 300ms slide-out), or its big
+      // art would still be named album-art when the album page is captured.
+      setFullscreenViaTransition(true);
       setShowFullscreen(false);
       setFullscreenInitialMode('art');
     };
@@ -184,13 +200,13 @@ export function PlayerBar() {
     // Two elements named album-art in one snapshot cancel the transition: if
     // the page under the sheet is itself an album page, hide its cover's name
     // for the "before" capture and restore it right after.
-    const underCovers = Array.from(document.querySelectorAll<HTMLElement>('[data-album-hero-art]'));
-    underCovers.forEach((el) => { el.style.viewTransitionName = 'none'; });
+    const restoreNames = suppressTransitionNames('[data-album-hero-art]');
     const bigArt = document.querySelector<HTMLElement>('[data-np-art]');
     if (bigArt) bigArt.style.viewTransitionName = 'album-art';
+    nameSheetForClose();
     withViewTransitionAsync(
       () => {
-        underCovers.forEach((el) => { el.style.viewTransitionName = ''; });
+        restoreNames();
         close();
       },
       async () => {
@@ -201,13 +217,46 @@ export function PlayerBar() {
     );
   }, [navigate]);
 
+  // Fullscreen → artist page as one transition. Closing and navigating
+  // separately would start two transitions, and the router's would abort the
+  // sheet's slide-down midway.
+  const openArtistFromFullscreen = useCallback((artistId: string) => {
+    const close = () => {
+      setFullscreenViaTransition(true);
+      setShowFullscreen(false);
+      setFullscreenInitialMode('art');
+    };
+    const go = () => navigate({
+      to: '/library/artists/$id',
+      params: { id: artistId },
+      viewTransition: false, // we're already inside our own transition
+    });
+    if (!canViewTransition()) {
+      close();
+      void go();
+      return;
+    }
+    const restoreNames = suppressTransitionNames('[data-album-hero-art]');
+    nameSheetForClose();
+    withViewTransitionAsync(
+      () => {
+        restoreNames();
+        close();
+      },
+      async () => { await go(); },
+      ['np-close'],
+    );
+  }, [navigate]);
+
   const closeFullscreen = useCallback(() => {
     const close = () => {
       setShowFullscreen(false);
       setFullscreenInitialMode('art');
     };
-    if (fullscreenViaTransition && canViewTransition()) withViewTransition(close, ['np-close']);
-    else close();
+    if (fullscreenViaTransition && canViewTransition()) {
+      const restoreNames = suppressTransitionNames('[data-album-hero-art]');
+      withViewTransition(close, ['np-close'], restoreNames);
+    } else close();
   }, [fullscreenViaTransition]);
 
   // Track canplay/error handlers for cleanup
@@ -1463,6 +1512,7 @@ export function PlayerBar() {
         isOpen={showFullscreen}
         onClose={closeFullscreen}
         onOpenAlbum={openAlbumFromFullscreen}
+        onOpenArtist={openArtistFromFullscreen}
         skipSlide={fullscreenViaTransition}
         initialMode={fullscreenInitialMode}
         currentSong={currentSong}

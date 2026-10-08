@@ -39,6 +39,10 @@ import { VisualizerMode } from './VisualizerMode';
 import { ModeSwitcher } from './ModeSwitcher';
 import type { NowPlayingFullscreenProps, NPMode } from './types';
 
+// Cmd/ctrl/shift/alt-click on a link means "new tab/window": leave it to the browser.
+const isModifiedClick = (e: React.MouseEvent) =>
+  e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
+
 const formatTime = (time: number) => {
   if (!isFinite(time) || time < 0) return '0:00';
   const minutes = Math.floor(time / 60);
@@ -51,6 +55,7 @@ export function NowPlayingFullscreen({
   onClose,
   skipSlide = false,
   onOpenAlbum,
+  onOpenArtist,
   initialMode = 'art',
   currentSong,
   isPlaying,
@@ -221,6 +226,7 @@ export function NowPlayingFullscreen({
       // own snapshot so it can slide up behind the art morph instead of
       // snapping in with the page cross-fade (#289; styles: np-sheet).
       style={skipSlide ? { viewTransitionName: 'np-sheet' } : undefined}
+      data-np-sheet
     >
       {/* Solid black base + blurred album art tint.
        *  Skipped in visualizer mode because the opaque canvas covers the
@@ -322,6 +328,8 @@ export function NowPlayingFullscreen({
                     to="/library/artists/$id/albums/$albumId"
                     params={{ id: artistId, albumId: currentSong.albumId }}
                     onClick={(e) => {
+                      // Let cmd/ctrl/shift-click open the album in a new tab.
+                      if (isModifiedClick(e)) return;
                       if (onOpenAlbum && currentSong.albumId) {
                         e.preventDefault();
                         onOpenAlbum(artistId, currentSong.albumId);
@@ -341,7 +349,15 @@ export function NowPlayingFullscreen({
                   <Link
                     to="/library/artists/$id"
                     params={{ id: artistId }}
-                    onClick={() => onClose()}
+                    onClick={(e) => {
+                      if (isModifiedClick(e)) return;
+                      if (onOpenArtist) {
+                        e.preventDefault();
+                        onOpenArtist(artistId);
+                      } else {
+                        onClose();
+                      }
+                    }}
                     className="text-sm sm:text-base text-white/60 mt-1 truncate hover:text-white hover:underline block"
                   >
                     {songArtist}
