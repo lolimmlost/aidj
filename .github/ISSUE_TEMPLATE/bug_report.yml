@@ -1,0 +1,37 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Tap …
+        3. See …
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device / browser
+      placeholder: "e.g. iPhone 15, iOS 18.7, installed PWA / Chrome 130 on Windows"
+  - type: input
+    id: version
+    attributes:
+      label: AIDJ version / commit
+      placeholder: "e.g. main @ 15ac6c9"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Browser console (or Eruda on mobile) and server logs around the time it happened.
+      render: shell

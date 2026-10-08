@@ -4,7 +4,6 @@ dist
 .env
 .env.*
 .git
-TODO.md
 env
 tests
 *.spec.ts

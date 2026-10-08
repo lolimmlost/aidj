@@ -1,8 +1,10 @@
 <h1 align="center">AIDJ</h1>
-<p align="center"><strong>Self-hosted, AI-powered music command center</strong></p>
+<p align="center"><strong>Self-hosted, AI-powered music command center for <a href="https://www.navidrome.org/">Navidrome</a></strong></p>
 
 <p align="center">
-  <a href="./LICENSE"><img src="https://img.shields.io/github/license/lolimmlost/aidj?style=flat-square" alt="License"></a>
+  <a href="https://github.com/lolimmlost/aidj/actions/workflows/main.yml"><img src="https://img.shields.io/github/actions/workflow/status/lolimmlost/aidj/main.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/lolimmlost/aidj?style=flat-square" alt="License: MIT"></a>
+  <a href="https://github.com/lolimmlost/aidj/stargazers"><img src="https://img.shields.io/github/stars/lolimmlost/aidj?style=flat-square" alt="GitHub stars"></a>
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white" alt="React 19">
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white" alt="Tailwind CSS v4">
@@ -174,6 +176,7 @@
 | [Spotify](https://developer.spotify.com/) | Metadata lookup (no streaming) | Optional |
 | [Deezer](https://developers.deezer.com/) | Explicit content detection, cover art, metadata | Optional |
 | [LRCLIB](https://lrclib.net/) | Synced lyrics lookup | Optional |
+| [AudioMuse-AI](https://github.com/NeptuneHub/AudioMuse-AI) | Sonic analysis: "sounds like" similarity and smooth track paths ([planned, #314](https://github.com/lolimmlost/aidj/issues/314)) | Optional |
 
 ---
 
@@ -196,7 +199,16 @@ npm run db             # generate and apply database migrations
 npm run dev
 ```
 
-The dev server starts at [http://localhost:3003](http://localhost:3003).
+The dev server starts at [http://localhost:3003](http://localhost:3003). No local PostgreSQL? `docker compose up -d db` starts one from `compose.yml`.
+
+**Production (Docker):**
+
+```bash
+docker build -t aidj .
+docker run -d --name aidj -p 3003:3003 --env-file .env aidj   # serves on :3003 (override with -e PORT=…)
+```
+
+Deployment notes (Node server, Cloudflare Pages, Coolify) live in [docs/deployment/](docs/deployment/).
 
 Optional services (Last.fm, Lidarr, MeTube, Ollama, Aurral) can be configured later in Settings.
 
@@ -219,16 +231,6 @@ Happens automatically during playback — AIDJ sends "now playing" when a song s
 
 3. **AIDJ (optional)** — set `LASTFM_API_KEY` in your `.env` to enable Last.fm-powered features (similar tracks, similar artists, discovery recommendations). This is a read-only key and is not required for scrobbling.
 
-#### Backfilling Historical Scrobbles
-
-If you have listening history in AIDJ from before Last.fm was linked, you can backfill it:
-
-```bash
-# Scrobble all completed native plays to Navidrome (which forwards to Last.fm)
-npx tsx scripts/backfill-lastfm.ts
-```
-
-The script reads from the `listening_history` table and replays each play through Navidrome's Subsonic scrobble endpoint with the original timestamp. Only plays with real Navidrome song IDs are included (previously imported Last.fm entries are skipped). Keep the rate under 1 scrobble/second to avoid Last.fm rate limiting.
 
 ### Environment Variables
 
@@ -328,16 +330,23 @@ Detailed architecture documentation is auto-generated from the codebase:
 npm run dev             # Start dev server (port 3003)
 npm run build           # Production build (node-server target)
 npm test                # Run tests (watch mode)
-npm run test:coverage   # Run with coverage (>80% required)
+npm run test:coverage   # Run with coverage report
 npm run lint            # Lint with ESLint
 npm run db              # Generate & apply database migrations
 npm run db:studio       # Open Drizzle Studio
 ```
 
-CI runs lint, build, test, security scanning (Trivy + Gitleaks), and uploads coverage to Codecov on every push and PR. See [.github/workflows/README.md](.github/workflows/README.md) for details.
+CI runs on every push and PR: lint, build, unit tests (Vitest), an `npm audit` security gate (fails on any high/critical advisory not on the documented allowlist), and a Gitleaks secret scan.
+
+---
+
+## Contributing
+
+Issues, ideas and pull requests are welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup and conventions,
+[SECURITY.md](./SECURITY.md) to report vulnerabilities privately, and [Discussions](https://github.com/lolimmlost/aidj/discussions) for questions.
 
 ---
 
 ## License
 
-[Unlicense](./LICENSE) -- public domain.
+[MIT](./LICENSE)
