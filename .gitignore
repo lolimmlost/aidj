@@ -86,3 +86,8 @@ bmad-temp/
 .automaker/
 .claude/
 .clinerules/
+
+# Generated / local tool output (untracked 2026-10-07)
+test-results.json
+.nitro/
+.roomodes

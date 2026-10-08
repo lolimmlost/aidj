@@ -1,7 +1,12 @@
 {
   "name": "aidj-music-interface",
   "version": "1.5.0",
-  "description": "AIDJ Music Library Interface - Modern music streaming and library management application",
+  "description": "Self-hosted AI DJ for Navidrome: dual-deck crossfade, learning radio, cross-device playback (PWA)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lolimmlost/aidj.git"
+  },
   "private": true,
   "type": "module",
   "scripts": {
