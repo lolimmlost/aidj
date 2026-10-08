@@ -831,8 +831,60 @@
 
   ::view-transition-group(np-art),
   ::view-transition-group(album-art) {
-    animation-duration: 380ms;
+    animation-duration: 440ms;
     animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* Now Playing open/close (np-open / np-close): the sheet slides up from the
+     bottom (down on close) while the art morphs on top of it, and the page
+     behind recedes (scales back + dims), so the whole screen visibly moves
+     instead of only the art. Same curve and duration as the art morph. */
+  @keyframes np-sheet-up {
+    from { transform: translateY(100%); }
+  }
+  @keyframes np-sheet-down {
+    to { transform: translateY(100%); }
+  }
+  @keyframes np-page-recede {
+    to { transform: scale(0.94); opacity: 0.55; filter: brightness(0.6); }
+  }
+  @keyframes np-page-return {
+    from { transform: scale(0.94); opacity: 0.55; filter: brightness(0.6); }
+  }
+
+  ::view-transition-group(np-sheet) {
+    animation-duration: 440ms;
+    animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* :only-child = the sheet exists on just one side of the transition, i.e.
+     it's opening (new only) or closing (old only). Works even where typed
+     transitions aren't supported. */
+  ::view-transition-new(np-sheet):only-child {
+    animation: 440ms cubic-bezier(0.32, 0.72, 0, 1) both np-sheet-up;
+  }
+
+  ::view-transition-old(np-sheet):only-child {
+    animation: 380ms cubic-bezier(0.32, 0.72, 0, 1) both np-sheet-down;
+  }
+
+  /* The page itself doesn't change on open/close, so animate one copy and hide
+     the other instead of cross-fading two identical snapshots. */
+  html:active-view-transition-type(np-open)::view-transition-old(root) {
+    animation: 440ms cubic-bezier(0.32, 0.72, 0, 1) both np-page-recede;
+    transform-origin: 50% 40%;
+  }
+  html:active-view-transition-type(np-open)::view-transition-new(root) {
+    animation: none;
+    opacity: 0;
+  }
+  html:active-view-transition-type(np-close)::view-transition-old(root) {
+    animation: none;
+    opacity: 0;
+  }
+  html:active-view-transition-type(np-close)::view-transition-new(root) {
+    animation: 380ms cubic-bezier(0.32, 0.72, 0, 1) both np-page-return;
+    transform-origin: 50% 40%;
   }
 
   /* Art morphs between different-sized images: scale both snapshots to the

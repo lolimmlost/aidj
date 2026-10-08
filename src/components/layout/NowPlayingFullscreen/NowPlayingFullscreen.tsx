@@ -216,6 +216,10 @@ export function NowPlayingFullscreen({
         'fixed inset-0 z-[60] transition-opacity duration-300',
         isShown ? 'opacity-100' : 'opacity-0'
       )}
+      // With a view transition the whole sheet (background + controls) gets its
+      // own snapshot so it can slide up behind the art morph instead of
+      // snapping in with the page cross-fade (#289; styles: np-sheet).
+      style={skipSlide ? { viewTransitionName: 'np-sheet' } : undefined}
     >
       {/* Solid black base + blurred album art tint.
        *  Skipped in visualizer mode because the opaque canvas covers the
