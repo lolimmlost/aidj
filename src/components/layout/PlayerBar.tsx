@@ -200,7 +200,13 @@ export function PlayerBar() {
 
   // Keep the fullscreen art warm for the open morph (see bigArtRef). Same URL
   // as ArtMode's <img>, so the browser cache serves it when the sheet renders.
-  const bigArtUrl = currentSong ? getCoverArtUrl(currentSong.albumId || currentSong.id, 600) : null;
+  // The previous/next songs are warmed too, so swipe-to-skip lands on an image
+  // that's already loaded instead of one that pops in after the slide.
+  const bigArtFor = (s: Song | null | undefined) => (s ? getCoverArtUrl(s.albumId || s.id, 600) : null);
+  const bigArtUrl = bigArtFor(currentSong);
+  const prevArtUrl = bigArtFor(playlist[currentSongIndex - 1] as Song | undefined);
+  const nextArtUrl = bigArtFor(playlist[currentSongIndex + 1] as Song | undefined);
+  const neighbourArtRef = useRef<HTMLImageElement[]>([]);
   useEffect(() => {
     if (!bigArtUrl) {
       bigArtRef.current = null;
@@ -210,6 +216,13 @@ export function PlayerBar() {
     img.src = bigArtUrl;
     bigArtRef.current = img;
   }, [bigArtUrl]);
+  useEffect(() => {
+    neighbourArtRef.current = [prevArtUrl, nextArtUrl].filter((u): u is string => !!u).map((u) => {
+      const img = new Image();
+      img.src = u;
+      return img;
+    });
+  }, [prevArtUrl, nextArtUrl]);
   const queryClient = useQueryClient();
 
   // Remote device state for cross-device sync indicator
