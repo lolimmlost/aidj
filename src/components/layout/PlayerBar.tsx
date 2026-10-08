@@ -19,7 +19,7 @@ import {
 import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { AlbumArt } from '@/components/ui/album-art';
+import { AlbumArt, getCoverArtUrl } from '@/components/ui/album-art';
 import { DevicePicker } from '@/components/layout/DevicePicker';
 import { useAudioStore } from '@/lib/stores/audio';
 import { useSleepTimer } from '@/lib/stores/sleep-timer';
@@ -137,6 +137,11 @@ export function PlayerBar() {
   // (#289), so the fullscreen view skips its own slide animation.
   const [fullscreenViaTransition, setFullscreenViaTransition] = useState(false);
 
+  // The fullscreen art (600px) for the current song, preloaded below. The open
+  // morph waits briefly for it to decode so the transition's "after" snapshot
+  // contains the image instead of an empty frame that pops in later (#289).
+  const bigArtRef = useRef<HTMLImageElement | null>(null);
+
   const openFullscreen = useCallback((mode: 'art' | 'lyrics' | 'visualizer' = 'art') => {
     // Only art mode has a big artwork to morph into; other modes slide up.
     const morph = mode === 'art' && canViewTransition();
@@ -145,8 +150,15 @@ export function PlayerBar() {
       setFullscreenInitialMode(mode);
       setShowFullscreen(true);
     };
-    if (morph) withViewTransition(open, ['np-open']);
-    else open();
+    if (!morph) {
+      open();
+      return;
+    }
+    const img = bigArtRef.current;
+    const ready = img?.decode
+      ? Promise.race([img.decode().catch(() => undefined), new Promise((r) => setTimeout(r, 200))])
+      : Promise.resolve();
+    void ready.then(() => withViewTransition(open, ['np-open']));
   }, []);
 
   const closeFullscreen = useCallback(() => {
@@ -185,6 +197,19 @@ export function PlayerBar() {
   } = useAudioStore();
 
   const currentSong = useMemo(() => playlist[currentSongIndex] || null, [playlist, currentSongIndex]) as Song | null;
+
+  // Keep the fullscreen art warm for the open morph (see bigArtRef). Same URL
+  // as ArtMode's <img>, so the browser cache serves it when the sheet renders.
+  const bigArtUrl = currentSong ? getCoverArtUrl(currentSong.albumId || currentSong.id, 600) : null;
+  useEffect(() => {
+    if (!bigArtUrl) {
+      bigArtRef.current = null;
+      return;
+    }
+    const img = new Image();
+    img.src = bigArtUrl;
+    bigArtRef.current = img;
+  }, [bigArtUrl]);
   const queryClient = useQueryClient();
 
   // Remote device state for cross-device sync indicator

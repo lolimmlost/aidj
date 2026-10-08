@@ -855,6 +855,15 @@
   ::view-transition-group(np-sheet) {
     animation-duration: 440ms;
     animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+    z-index: 2;
+  }
+
+  /* Explicit stacking: art always above the sheet, sheet above the page.
+     Without it Safari can paint the art group under the sliding sheet, so the
+     art "pops in" only when the transition ends. */
+  ::view-transition-group(np-art),
+  ::view-transition-group(album-art) {
+    z-index: 3;
   }
 
   /* :only-child = the sheet exists on just one side of the transition, i.e.
