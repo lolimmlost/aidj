@@ -5,7 +5,9 @@ vi.unmock('react-dom');
 import {
   canViewTransition,
   nameForNextTransition,
+  waitForImage,
   withViewTransition,
+  withViewTransitionAsync,
 } from '../view-transition';
 
 const doc = document as unknown as { startViewTransition?: unknown };
@@ -71,3 +73,57 @@ describe('view-transition helpers', () => {
     expect(el.style.viewTransitionName).toBe('');
   });
 });
+
+describe('withViewTransitionAsync / waitForImage', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  afterEach(() => {
+    delete doc.startViewTransition;
+    window.matchMedia = originalMatchMedia;
+    document.body.innerHTML = '';
+  });
+
+  it('flushes the sync part, then awaits the async part, inside one transition', async () => {
+    const order: string[] = [];
+    let done: Promise<unknown> = Promise.resolve();
+    doc.startViewTransition = vi.fn((arg: (() => Promise<void>) | { update: () => Promise<void> }) => {
+      done = (typeof arg === 'function' ? arg : arg.update)();
+    });
+    setReducedMotion(false);
+    const started = withViewTransitionAsync(
+      () => { order.push('sync'); },
+      async () => { order.push('async'); },
+    );
+    await done;
+    expect(started).toBe(true);
+    expect(doc.startViewTransition).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(['sync', 'async']);
+  });
+
+  it('without support (or reduced motion) just runs both parts, no transition', async () => {
+    setReducedMotion(true);
+    doc.startViewTransition = vi.fn();
+    const sync = vi.fn();
+    const asyncPart = vi.fn(async () => {});
+    expect(withViewTransitionAsync(sync, asyncPart)).toBe(false);
+    expect(doc.startViewTransition).not.toHaveBeenCalled();
+    expect(sync).toHaveBeenCalledTimes(1);
+    expect(asyncPart).toHaveBeenCalledTimes(1);
+  });
+
+  it('waitForImage resolves when the target image has loaded', async () => {
+    document.body.innerHTML = '<div data-hero><img></div>';
+    const img = document.querySelector('img')!;
+    Object.defineProperty(img, 'complete', { value: true });
+    Object.defineProperty(img, 'naturalWidth', { value: 600 });
+    await expect(waitForImage('[data-hero]', 1000)).resolves.toBeUndefined();
+  });
+
+  it('waitForImage gives up after the timeout when nothing loads', async () => {
+    document.body.innerHTML = '';
+    const t0 = performance.now();
+    await waitForImage('[data-missing]', 50);
+    expect(performance.now() - t0).toBeGreaterThanOrEqual(45);
+  });
+});
+

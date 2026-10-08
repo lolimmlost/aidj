@@ -16,7 +16,7 @@ import {
   Speaker,
   Repeat1,
 } from 'lucide-react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { AlbumArt, getCoverArtUrl } from '@/components/ui/album-art';
@@ -50,7 +50,7 @@ import { useDeckEventHandlers } from '@/lib/hooks/useDeckEventHandlers';
 import { useSongLoader } from '@/lib/hooks/useSongLoader';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 import { haptic } from '@/lib/utils/haptics';
-import { canViewTransition, withViewTransition } from '@/lib/utils/view-transition';
+import { canViewTransition, waitForImage, withViewTransition, withViewTransitionAsync } from '@/lib/utils/view-transition';
 import { LikeHeart, type LikeEffect } from '@/components/player/LikeHeart';
 
 // Helper function for time formatting
@@ -160,6 +160,46 @@ export function PlayerBar() {
       : Promise.resolve();
     void ready.then(() => withViewTransition(open, ['np-open']));
   }, []);
+
+  const navigate = useNavigate();
+
+  // Fullscreen → album page as ONE transition: the big art morphs into the
+  // album page's cover (both named album-art) while the sheet leaves, instead
+  // of the art flying back to the mini player and the page cutting over (#289).
+  const openAlbumFromFullscreen = useCallback((artistId: string, albumId: string) => {
+    const close = () => {
+      setShowFullscreen(false);
+      setFullscreenInitialMode('art');
+    };
+    const go = () => navigate({
+      to: '/library/artists/$id/albums/$albumId',
+      params: { id: artistId, albumId },
+      viewTransition: false, // we're already inside our own transition
+    });
+    if (!canViewTransition()) {
+      close();
+      void go();
+      return;
+    }
+    // Two elements named album-art in one snapshot cancel the transition: if
+    // the page under the sheet is itself an album page, hide its cover's name
+    // for the "before" capture and restore it right after.
+    const underCovers = Array.from(document.querySelectorAll<HTMLElement>('[data-album-hero-art]'));
+    underCovers.forEach((el) => { el.style.viewTransitionName = 'none'; });
+    const bigArt = document.querySelector<HTMLElement>('[data-np-art]');
+    if (bigArt) bigArt.style.viewTransitionName = 'album-art';
+    withViewTransitionAsync(
+      () => {
+        underCovers.forEach((el) => { el.style.viewTransitionName = ''; });
+        close();
+      },
+      async () => {
+        await go();
+        await waitForImage('[data-album-hero-art]');
+      },
+      ['np-to-album'],
+    );
+  }, [navigate]);
 
   const closeFullscreen = useCallback(() => {
     const close = () => {
@@ -1422,6 +1462,7 @@ export function PlayerBar() {
       <NowPlayingFullscreen
         isOpen={showFullscreen}
         onClose={closeFullscreen}
+        onOpenAlbum={openAlbumFromFullscreen}
         skipSlide={fullscreenViaTransition}
         initialMode={fullscreenInitialMode}
         currentSong={currentSong}

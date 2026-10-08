@@ -166,6 +166,7 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
     >
       <div
         ref={artContainerRef}
+        data-np-art
         className={cn(
           // Morph target for the mini-player art (#289)
           '[view-transition-name:np-art]',

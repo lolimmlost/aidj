@@ -50,6 +50,7 @@ export function NowPlayingFullscreen({
   isOpen,
   onClose,
   skipSlide = false,
+  onOpenAlbum,
   initialMode = 'art',
   currentSong,
   isPlaying,
@@ -320,7 +321,14 @@ export function NowPlayingFullscreen({
                   <Link
                     to="/library/artists/$id/albums/$albumId"
                     params={{ id: artistId, albumId: currentSong.albumId }}
-                    onClick={() => onClose()}
+                    onClick={(e) => {
+                      if (onOpenAlbum && currentSong.albumId) {
+                        e.preventDefault();
+                        onOpenAlbum(artistId, currentSong.albumId);
+                      } else {
+                        onClose();
+                      }
+                    }}
                     className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate hover:underline focus:outline-none focus:underline block"
                     title="View album"
                   >
