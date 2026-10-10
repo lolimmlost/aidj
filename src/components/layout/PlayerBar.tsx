@@ -16,10 +16,10 @@ import {
   Speaker,
   Repeat1,
 } from 'lucide-react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { AlbumArt } from '@/components/ui/album-art';
+import { AlbumArt, getCoverArtUrl } from '@/components/ui/album-art';
 import { DevicePicker } from '@/components/layout/DevicePicker';
 import { useAudioStore } from '@/lib/stores/audio';
 import { useSleepTimer } from '@/lib/stores/sleep-timer';
@@ -50,6 +50,7 @@ import { useDeckEventHandlers } from '@/lib/hooks/useDeckEventHandlers';
 import { useSongLoader } from '@/lib/hooks/useSongLoader';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 import { haptic } from '@/lib/utils/haptics';
+import { canViewTransition, suppressTransitionNames, waitForImage, withViewTransition, withViewTransitionAsync } from '@/lib/utils/view-transition';
 import { LikeHeart, type LikeEffect } from '@/components/player/LikeHeart';
 
 // Helper function for time formatting
@@ -132,6 +133,131 @@ export function PlayerBar() {
   const [isLoading, setIsLoading] = useState(false);
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [fullscreenInitialMode, setFullscreenInitialMode] = useState<'art' | 'lyrics' | 'visualizer'>('art');
+  // Opened via a view transition: the mini-player art morphs into the big art
+  // (#289), so the fullscreen view skips its own slide animation.
+  const [fullscreenViaTransition, setFullscreenViaTransition] = useState(false);
+
+  // The fullscreen art (600px) for the current song, preloaded below. The open
+  // morph waits briefly for it to decode so the transition's "after" snapshot
+  // contains the image instead of an empty frame that pops in later (#289).
+  const bigArtRef = useRef<HTMLImageElement | null>(null);
+
+  const openFullscreen = useCallback((mode: 'art' | 'lyrics' | 'visualizer' = 'art') => {
+    // Only art mode has a big artwork to morph into; other modes slide up.
+    const morph = mode === 'art' && canViewTransition();
+    const open = () => {
+      setFullscreenViaTransition(morph);
+      setFullscreenInitialMode(mode);
+      setShowFullscreen(true);
+    };
+    if (!morph) {
+      open();
+      return;
+    }
+    const img = bigArtRef.current;
+    const ready = img?.decode
+      ? Promise.race([img.decode().catch(() => undefined), new Promise((r) => setTimeout(r, 200))])
+      : Promise.resolve();
+    void ready.then(() => {
+      // An album page's cover is always named album-art; left named it would
+      // float above the sliding sheet instead of receding with the page.
+      const restoreNames = suppressTransitionNames('[data-album-hero-art]');
+      withViewTransition(open, ['np-open'], restoreNames);
+    });
+  }, []);
+
+  // The sheet only carries the np-sheet name when it opened with the morph.
+  // Name it for a transition that closes it anyway, so it slides down instead
+  // of cross-fading with the page.
+  const nameSheetForClose = () => {
+    const sheet = document.querySelector<HTMLElement>('[data-np-sheet]');
+    if (sheet) sheet.style.viewTransitionName = 'np-sheet';
+  };
+
+  const navigate = useNavigate();
+
+  // Fullscreen → album page as ONE transition: the big art morphs into the
+  // album page's cover (both named album-art) while the sheet leaves, instead
+  // of the art flying back to the mini player and the page cutting over (#289).
+  const openAlbumFromFullscreen = useCallback((artistId: string, albumId: string) => {
+    const close = () => {
+      // Unmount the sheet in this same commit (no 300ms slide-out), or its big
+      // art would still be named album-art when the album page is captured.
+      setFullscreenViaTransition(true);
+      setShowFullscreen(false);
+      setFullscreenInitialMode('art');
+    };
+    const go = () => navigate({
+      to: '/library/artists/$id/albums/$albumId',
+      params: { id: artistId, albumId },
+      viewTransition: false, // we're already inside our own transition
+    });
+    if (!canViewTransition()) {
+      close();
+      void go();
+      return;
+    }
+    // Two elements named album-art in one snapshot cancel the transition: if
+    // the page under the sheet is itself an album page, hide its cover's name
+    // for the "before" capture and restore it right after.
+    const restoreNames = suppressTransitionNames('[data-album-hero-art]');
+    const bigArt = document.querySelector<HTMLElement>('[data-np-art]');
+    if (bigArt) bigArt.style.viewTransitionName = 'album-art';
+    nameSheetForClose();
+    withViewTransitionAsync(
+      () => {
+        restoreNames();
+        close();
+      },
+      async () => {
+        await go();
+        await waitForImage('[data-album-hero-art]');
+      },
+      ['np-to-album'],
+    );
+  }, [navigate]);
+
+  // Fullscreen → artist page as one transition. Closing and navigating
+  // separately would start two transitions, and the router's would abort the
+  // sheet's slide-down midway.
+  const openArtistFromFullscreen = useCallback((artistId: string) => {
+    const close = () => {
+      setFullscreenViaTransition(true);
+      setShowFullscreen(false);
+      setFullscreenInitialMode('art');
+    };
+    const go = () => navigate({
+      to: '/library/artists/$id',
+      params: { id: artistId },
+      viewTransition: false, // we're already inside our own transition
+    });
+    if (!canViewTransition()) {
+      close();
+      void go();
+      return;
+    }
+    const restoreNames = suppressTransitionNames('[data-album-hero-art]');
+    nameSheetForClose();
+    withViewTransitionAsync(
+      () => {
+        restoreNames();
+        close();
+      },
+      async () => { await go(); },
+      ['np-close'],
+    );
+  }, [navigate]);
+
+  const closeFullscreen = useCallback(() => {
+    const close = () => {
+      setShowFullscreen(false);
+      setFullscreenInitialMode('art');
+    };
+    if (fullscreenViaTransition && canViewTransition()) {
+      const restoreNames = suppressTransitionNames('[data-album-hero-art]');
+      withViewTransition(close, ['np-close'], restoreNames);
+    } else close();
+  }, [fullscreenViaTransition]);
 
   // Track canplay/error handlers for cleanup
   const canPlayHandlerRef = useRef<(() => void) | null>(null);
@@ -160,6 +286,32 @@ export function PlayerBar() {
   } = useAudioStore();
 
   const currentSong = useMemo(() => playlist[currentSongIndex] || null, [playlist, currentSongIndex]) as Song | null;
+
+  // Keep the fullscreen art warm for the open morph (see bigArtRef). Same URL
+  // as ArtMode's <img>, so the browser cache serves it when the sheet renders.
+  // The previous/next songs are warmed too, so swipe-to-skip lands on an image
+  // that's already loaded instead of one that pops in after the slide.
+  const bigArtFor = (s: Song | null | undefined) => (s ? getCoverArtUrl(s.albumId || s.id, 600) : null);
+  const bigArtUrl = bigArtFor(currentSong);
+  const prevArtUrl = bigArtFor(playlist[currentSongIndex - 1] as Song | undefined);
+  const nextArtUrl = bigArtFor(playlist[currentSongIndex + 1] as Song | undefined);
+  const neighbourArtRef = useRef<HTMLImageElement[]>([]);
+  useEffect(() => {
+    if (!bigArtUrl) {
+      bigArtRef.current = null;
+      return;
+    }
+    const img = new Image();
+    img.src = bigArtUrl;
+    bigArtRef.current = img;
+  }, [bigArtUrl]);
+  useEffect(() => {
+    neighbourArtRef.current = [prevArtUrl, nextArtUrl].filter((u): u is string => !!u).map((u) => {
+      const img = new Image();
+      img.src = u;
+      return img;
+    });
+  }, [prevArtUrl, nextArtUrl]);
   const queryClient = useQueryClient();
 
   // Remote device state for cross-device sync indicator
@@ -1017,7 +1169,7 @@ export function PlayerBar() {
             "flex items-center gap-3 min-w-0 flex-1 rounded-lg transition-all",
             showRemoteTime && "ring-1 ring-green-500/60 bg-green-500/5 px-2 py-1"
           )}>
-            <div onClick={() => setShowFullscreen(true)} className="cursor-pointer relative group/art">
+            <div onClick={() => openFullscreen()} className="cursor-pointer relative group/art" style={{ viewTransitionName: showFullscreen ? undefined : 'np-art' }}>
               <AlbumArt
                 albumId={currentSong.albumId}
                 songId={currentSong.id}
@@ -1047,7 +1199,7 @@ export function PlayerBar() {
                 ) : (
                   <span
                     className="font-display font-semibold active:text-primary transition-colors"
-                    onClick={() => setShowFullscreen(true)}
+                    onClick={() => openFullscreen()}
                   >
                     {currentSong.name || currentSong.title}
                   </span>
@@ -1151,7 +1303,7 @@ export function PlayerBar() {
           showRemoteTime && "ring-1 ring-green-500/60 bg-green-500/5 px-2 py-1 -ml-2"
         )}>
           {/* Mini Album Art — click to open fullscreen */}
-          <div onClick={() => setShowFullscreen(true)} className="cursor-pointer">
+          <div onClick={() => openFullscreen()} className="cursor-pointer" style={{ viewTransitionName: showFullscreen ? undefined : 'np-art' }}>
             <AlbumArt
               albumId={currentSong.albumId}
               songId={currentSong.id}
@@ -1298,8 +1450,7 @@ export function PlayerBar() {
             size="sm"
             className="h-8 w-8 p-0"
             onClick={() => {
-              setFullscreenInitialMode('lyrics');
-              setShowFullscreen(true);
+              openFullscreen('lyrics');
             }}
             title="Show lyrics"
           >
@@ -1311,8 +1462,7 @@ export function PlayerBar() {
             size="sm"
             className="h-8 w-8 p-0"
             onClick={() => {
-              setFullscreenInitialMode('visualizer');
-              setShowFullscreen(true);
+              openFullscreen('visualizer');
             }}
             title="Show visualizer"
           >
@@ -1343,7 +1493,7 @@ export function PlayerBar() {
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
-            onClick={() => setShowFullscreen(true)}
+            onClick={() => openFullscreen()}
           >
             <Maximize2 className="h-4 w-4" />
           </Button>
@@ -1360,10 +1510,10 @@ export function PlayerBar() {
       {/* Fullscreen Now Playing — unified chassis (Phase C: art + lyrics + visualizer modes) */}
       <NowPlayingFullscreen
         isOpen={showFullscreen}
-        onClose={() => {
-          setShowFullscreen(false);
-          setFullscreenInitialMode('art');
-        }}
+        onClose={closeFullscreen}
+        onOpenAlbum={openAlbumFromFullscreen}
+        onOpenArtist={openArtistFromFullscreen}
+        skipSlide={fullscreenViaTransition}
         initialMode={fullscreenInitialMode}
         currentSong={currentSong}
         isPlaying={isPlaying}

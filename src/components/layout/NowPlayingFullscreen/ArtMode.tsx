@@ -26,7 +26,6 @@ const DOUBLE_TAP_MS = 300;
 
 export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: ArtModeProps) {
   const [imgError, setImgError] = useState(false);
-  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
 
   const artSwipeRef = useRef<{ x: number; time: number } | null>(null);
   const artOffsetRef = useRef(0);
@@ -45,11 +44,53 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setImgError(false); }, [song.id]);
 
-  useEffect(() => {
-    if (!swipeDirection) return;
-    const t = setTimeout(() => setSwipeDirection(null), 300);
-    return () => clearTimeout(t);
-  }, [swipeDirection]);
+
+  // Swipe-to-skip as ONE continuous motion (#289): the current art carries on
+  // in the swipe direction and fades, the track changes, then the new art
+  // slides in from the other side. Driven here with the Web Animations API so
+  // nothing competes with it (the old version ran an inline snap-back
+  // transition and a CSS slide-in class at the same time, which jumped when
+  // they settled).
+  const animateSkip = useCallback((dir: 'next' | 'previous', fromX: number, fromOpacity: number) => {
+    const el = artContainerRef.current;
+    const skip = dir === 'next' ? onNext : onPrevious;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (!el || reduce || typeof el.animate !== 'function') {
+      if (el) {
+        el.style.transition = '';
+        el.style.transform = '';
+        el.style.opacity = '';
+      }
+      skip();
+      return;
+    }
+    const exitX = (dir === 'next' ? -1 : 1) * Math.max(160, el.offsetWidth * 0.6);
+    el.style.transition = 'none';
+    const out = el.animate(
+      [
+        { transform: `translateX(${fromX}px)`, opacity: fromOpacity },
+        { transform: `translateX(${exitX}px)`, opacity: 0 },
+      ],
+      { duration: 140, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' },
+    );
+    out.onfinish = () => {
+      skip();
+      // Next frame: React has rendered the new song; bring it in from the
+      // opposite side, then hand the element back with no inline styles.
+      requestAnimationFrame(() => {
+        el.style.transform = '';
+        el.style.opacity = '';
+        out.cancel();
+        el.animate(
+          [
+            { transform: `translateX(${-exitX * 0.5}px)`, opacity: 0 },
+            { transform: 'translateX(0)', opacity: 1 },
+          ],
+          { duration: 280, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' },
+        );
+      });
+    };
+  }, [onNext, onPrevious]);
 
   const handleDoubleClick = useCallback(() => {
     if (Date.now() - lastTouchEndRef.current < 800) return;
@@ -91,21 +132,18 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
         ? Math.abs(offset) / (Date.now() - artSwipeRef.current.time)
         : 0;
       if (Math.abs(offset) > 80 || velocity > 0.3) {
-        if (offset > 0) {
-          setSwipeDirection('right');
-          onPrevious();
-        } else {
-          setSwipeDirection('left');
-          onNext();
-        }
+        const dampened = offset * 0.6;
+        animateSkip(offset > 0 ? 'previous' : 'next', dampened, 1 - Math.abs(dampened) / 400);
+      } else {
+        // Not a skip: spring back to centre.
+        artContainerRef.current.style.transition = 'transform 250ms cubic-bezier(0.32, 0.72, 0, 1), opacity 250ms ease';
+        artContainerRef.current.style.transform = 'translateX(0)';
+        artContainerRef.current.style.opacity = '1';
       }
-      artContainerRef.current.style.transition = 'transform 250ms cubic-bezier(0.32, 0.72, 0, 1), opacity 250ms ease';
-      artContainerRef.current.style.transform = 'translateX(0)';
-      artContainerRef.current.style.opacity = '1';
     }
     artSwipeRef.current = null;
     artOffsetRef.current = 0;
-  }, [onNext, onPrevious, triggerDoubleTap]);
+  }, [animateSkip, triggerDoubleTap]);
 
   const artId = song.albumId || song.id;
   const coverUrl = getCoverArtUrl(artId, 600);
@@ -128,10 +166,11 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
     >
       <div
         ref={artContainerRef}
+        data-np-art
         className={cn(
+          // Morph target for the mini-player art (#289)
+          '[view-transition-name:np-art]',
           expanded ? 'max-h-full max-w-full aspect-square' : 'w-full h-full',
-          swipeDirection === 'left' && 'animate-[slideInRight_250ms_ease-out]',
-          swipeDirection === 'right' && 'animate-[slideInLeft_250ms_ease-out]',
         )}
       >
         {coverUrl && !imgError ? (

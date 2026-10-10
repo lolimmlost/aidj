@@ -39,6 +39,10 @@ import { VisualizerMode } from './VisualizerMode';
 import { ModeSwitcher } from './ModeSwitcher';
 import type { NowPlayingFullscreenProps, NPMode } from './types';
 
+// Cmd/ctrl/shift/alt-click on a link means "new tab/window": leave it to the browser.
+const isModifiedClick = (e: React.MouseEvent) =>
+  e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
+
 const formatTime = (time: number) => {
   if (!isFinite(time) || time < 0) return '0:00';
   const minutes = Math.floor(time / 60);
@@ -49,6 +53,9 @@ const formatTime = (time: number) => {
 export function NowPlayingFullscreen({
   isOpen,
   onClose,
+  skipSlide = false,
+  onOpenAlbum,
+  onOpenArtist,
   initialMode = 'art',
   currentSong,
   isPlaying,
@@ -84,12 +91,13 @@ export function NowPlayingFullscreen({
   // Reset mode on each open so re-opening from a fresh trigger respects
   // the caller's initialMode (e.g. opening from the player-bar lyrics
   // button should land on 'lyrics' even if the user previously closed
-  // the surface while on 'art').
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
+  // the surface while on 'art'). Done during render, not in an effect, so a
+  // view-transition open captures the right mode in its very first frame.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) setMode(initialMode);
-  }, [isOpen, initialMode]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  }
 
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const touchOffsetRef = useRef(0);
@@ -129,7 +137,9 @@ export function NowPlayingFullscreen({
     if (containerRef.current) {
       containerRef.current.style.transition = 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)';
       if (touchOffsetRef.current > 100) {
-        containerRef.current.style.transform = 'translateY(100%)';
+        // With a view transition the art morphs back to the mini player from
+        // where the drag left it; otherwise slide the rest of the way out.
+        if (!skipSlide) containerRef.current.style.transform = 'translateY(100%)';
         onClose();
       } else {
         containerRef.current.style.transform = 'translateY(0)';
@@ -137,7 +147,7 @@ export function NowPlayingFullscreen({
     }
     touchStartRef.current = null;
     touchOffsetRef.current = 0;
-  }, [onClose]);
+  }, [onClose, skipSlide]);
 
   const toggleExpanded = useCallback(() => {
     setIsExpanded((prev) => {
@@ -193,7 +203,12 @@ export function NowPlayingFullscreen({
     setTimeout(fn, 150);
   }, [onClose]);
 
-  if (!visible || !currentSong) return null;
+  // With skipSlide the view transition does the animating: render the final
+  // open/closed state immediately instead of the slide.
+  const isVisible = skipSlide ? isOpen : visible;
+  const isShown = skipSlide ? isOpen : animating;
+
+  if (!isVisible || !currentSong) return null;
 
   const artId = currentSong.albumId || currentSong.id;
   const bgCoverUrl = getCoverArtUrl(artId, 128);
@@ -204,9 +219,18 @@ export function NowPlayingFullscreen({
   return createPortal(
     <div
       className={cn(
-        'fixed inset-0 z-[60] transition-opacity duration-300',
-        animating ? 'opacity-100' : 'opacity-0'
+        // overflow-hidden: the blurred, scaled-up art tint below bleeds past
+        // the sheet's edges. The np-sheet snapshot would include that bleed,
+        // leaving a strip of it at the bottom of the screen after the
+        // slide-down until the transition ends and it vanishes.
+        'fixed inset-0 z-[60] overflow-hidden transition-opacity duration-300',
+        isShown ? 'opacity-100' : 'opacity-0'
       )}
+      // With a view transition the whole sheet (background + controls) gets its
+      // own snapshot so it can slide up behind the art morph instead of
+      // snapping in with the page cross-fade (#289; styles: np-sheet).
+      style={skipSlide ? { viewTransitionName: 'np-sheet' } : undefined}
+      data-np-sheet
     >
       {/* Solid black base + blurred album art tint.
        *  Skipped in visualizer mode because the opaque canvas covers the
@@ -226,7 +250,7 @@ export function NowPlayingFullscreen({
         ref={containerRef}
         className={cn(
           'relative h-full flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]',
-          animating ? 'translate-y-0' : 'translate-y-full'
+          isShown ? 'translate-y-0' : 'translate-y-full'
         )}
         onTouchStart={handleBodyTouchStart}
         onTouchMove={handleBodyTouchMove}
@@ -307,7 +331,16 @@ export function NowPlayingFullscreen({
                   <Link
                     to="/library/artists/$id/albums/$albumId"
                     params={{ id: artistId, albumId: currentSong.albumId }}
-                    onClick={() => onClose()}
+                    onClick={(e) => {
+                      // Let cmd/ctrl/shift-click open the album in a new tab.
+                      if (isModifiedClick(e)) return;
+                      if (onOpenAlbum && currentSong.albumId) {
+                        e.preventDefault();
+                        onOpenAlbum(artistId, currentSong.albumId);
+                      } else {
+                        onClose();
+                      }
+                    }}
                     className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate hover:underline focus:outline-none focus:underline block"
                     title="View album"
                   >
@@ -320,7 +353,15 @@ export function NowPlayingFullscreen({
                   <Link
                     to="/library/artists/$id"
                     params={{ id: artistId }}
-                    onClick={() => onClose()}
+                    onClick={(e) => {
+                      if (isModifiedClick(e)) return;
+                      if (onOpenArtist) {
+                        e.preventDefault();
+                        onOpenArtist(artistId);
+                      } else {
+                        onClose();
+                      }
+                    }}
                     className="text-sm sm:text-base text-white/60 mt-1 truncate hover:text-white hover:underline block"
                   >
                     {songArtist}

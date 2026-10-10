@@ -31,6 +31,7 @@ import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { cn } from '@/lib/utils';
 import { getArtistGradient } from '@/lib/utils/artist-avatar';
 import { usePageTitle } from '@/lib/hooks/useDocumentTitle';
+import { nameForNextTransition } from '@/lib/utils/view-transition';
 
 /** Album cover with Navidrome getCoverArt proxy fallback, then placeholder */
 function AlbumCoverArt({ albumId, artwork, name }: { albumId: string; artwork?: string; name: string }) {
@@ -503,10 +504,14 @@ function ArtistDetail() {
                     <div
                       key={album.id}
                       className="group flex-shrink-0 w-[160px] sm:w-[180px] snap-start cursor-pointer"
-                      onClick={() => navigate({ to: '/library/artists/$id/albums/$albumId', params: { id, albumId: album.id } })}
+                      onClick={(e) => {
+                        // Morph this cover into the album page header (#289)
+                        nameForNextTransition(e.currentTarget.querySelector('[data-vt-cover]'), 'album-art');
+                        navigate({ to: '/library/artists/$id/albums/$albumId', params: { id, albumId: album.id } });
+                      }}
                     >
                       <div className="relative mb-2.5">
-                        <div className="aspect-square rounded-xl overflow-hidden ring-1 ring-border/30 shadow-lg transition-transform duration-500 group-hover:scale-[1.03]">
+                        <div data-vt-cover className="aspect-square rounded-xl overflow-hidden ring-1 ring-border/30 shadow-lg transition-transform duration-500 group-hover:scale-[1.03]">
                           <AlbumCoverArt albumId={album.id} artwork={album.artwork} name={album.name} />
                         </div>
                         <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
@@ -561,10 +566,14 @@ function ArtistDetail() {
                       <div
                         key={album.id}
                         className="group cursor-pointer p-2 -m-2 rounded-xl transition-colors hover:bg-muted/30"
-                        onClick={() => navigate({ to: '/library/artists/$id/albums/$albumId', params: { id, albumId: album.id } })}
+                        onClick={(e) => {
+                        // Morph this cover into the album page header (#289)
+                        nameForNextTransition(e.currentTarget.querySelector('[data-vt-cover]'), 'album-art');
+                        navigate({ to: '/library/artists/$id/albums/$albumId', params: { id, albumId: album.id } });
+                      }}
                       >
                         <div className="relative mb-2.5">
-                          <div className="aspect-square rounded-xl overflow-hidden ring-1 ring-border/30 shadow-lg transition-transform duration-500 group-hover:scale-[1.03]">
+                          <div data-vt-cover className="aspect-square rounded-xl overflow-hidden ring-1 ring-border/30 shadow-lg transition-transform duration-500 group-hover:scale-[1.03]">
                             <AlbumCoverArt albumId={album.id} artwork={album.artwork} name={album.name} />
                           </div>
                           <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
