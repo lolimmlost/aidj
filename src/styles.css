@@ -821,6 +821,14 @@
     from { opacity: 0; transform: translateY(8px); }
   }
 
+  /* app-main's snapshot includes fixed-position descendants, e.g. the album
+     and search pages' full-window blurred backdrop. Unclipped, that backdrop
+     paints over the sidebars for the whole transition. Clip the snapshot to
+     <main>'s box. */
+  ::view-transition-group(app-main) {
+    overflow: clip;
+  }
+
   html:active-view-transition-type(page)::view-transition-old(app-main) {
     animation: 120ms ease-out both vt-fade-out;
   }
