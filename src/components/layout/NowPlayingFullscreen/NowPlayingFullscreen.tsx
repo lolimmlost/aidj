@@ -219,7 +219,11 @@ export function NowPlayingFullscreen({
   return createPortal(
     <div
       className={cn(
-        'fixed inset-0 z-[60] transition-opacity duration-300',
+        // overflow-hidden: the blurred, scaled-up art tint below bleeds past
+        // the sheet's edges. The np-sheet snapshot would include that bleed,
+        // leaving a strip of it at the bottom of the screen after the
+        // slide-down until the transition ends and it vanishes.
+        'fixed inset-0 z-[60] overflow-hidden transition-opacity duration-300',
         isShown ? 'opacity-100' : 'opacity-0'
       )}
       // With a view transition the whole sheet (background + controls) gets its
