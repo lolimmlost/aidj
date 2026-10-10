@@ -50,8 +50,34 @@ import { useDeckEventHandlers } from '@/lib/hooks/useDeckEventHandlers';
 import { useSongLoader } from '@/lib/hooks/useSongLoader';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 import { haptic } from '@/lib/utils/haptics';
+import { registerAudioUnlocker } from '@/lib/utils/audio-unlock';
 import { canViewTransition, suppressTransitionNames, waitForImage, withViewTransition, withViewTransitionAsync } from '@/lib/utils/view-transition';
 import { LikeHeart, type LikeEffect } from '@/components/player/LikeHeart';
+
+/**
+ * Spend a user gesture on an idle deck so a later play() isn't refused by
+ * autoplay policy. A deck with no source gets a silent clip; a deck holding a
+ * song is played and paused in the same tick, so nothing is heard.
+ */
+function primeDeckForGesture(deck: HTMLAudioElement | null) {
+  if (!deck || !deck.paused) return;
+  if (!deck.getAttribute('src')) {
+    deck.src = SILENT_AUDIO_DATA_URL;
+    deck.play()
+      .then(() => {
+        deck.pause();
+        // Only strip the silent clip if nothing loaded a song meanwhile.
+        if (deck.getAttribute('src') === SILENT_AUDIO_DATA_URL) {
+          deck.removeAttribute('src');
+          deck.load();
+        }
+      })
+      .catch(() => { /* best-effort */ });
+    return;
+  }
+  deck.play().catch(() => { /* AbortError from the pause below is expected */ });
+  deck.pause();
+}
 
 // Helper function for time formatting
 const formatTime = (time: number) => {
@@ -118,6 +144,16 @@ export function PlayerBar() {
     }
     resumeContext();
   };
+
+  // Async starts (radio) call unlockAudioForGesture() inside the tap; this is
+  // what it runs. Creating/resuming the AudioContext and calling play() on
+  // each idle deck within the gesture is what iOS needs before a later,
+  // non-gesture play() is allowed (#311).
+  useEffect(() => registerAudioUnlocker(() => {
+    ensureGraphInitializedRef.current();
+    primeDeckForGesture(deckARef.current);
+    primeDeckForGesture(deckBRef.current);
+  }), [deckARef, deckBRef]);
 
   // Scrobble tracking refs
   const hasScrobbledRef = useRef<boolean>(false);
