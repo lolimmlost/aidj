@@ -3,6 +3,7 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { scrobbleSong } from '@/lib/services/navidrome';
 import { toast } from '@/lib/toast';
 import { Song, type SetActiveDeckOptions } from './useDualDeckAudio';
+import { handleAutoplayBlocked, isAutoplayBlocked } from '@/lib/utils/audio-unlock';
 
 export interface UseSongLoaderOptions {
   playlist: Song[];
@@ -311,7 +312,13 @@ export function useSongLoader({
           consecutiveTimeoutsRef.current = 0;
           if (useAudioStore.getState().isPlaying) {
             ensureGraphInitializedRef.current();
-            audio.play().catch(console.error);
+            audio.play().catch((err) => {
+              // Cold iOS launch + async start (radio): no gesture, so the
+              // play is refused. Pause and ask for a tap rather than leaving
+              // the stall watchdog to "recover" a deck it can't start (#311).
+              if (isAutoplayBlocked(err)) handleAutoplayBlocked('song loaded', setIsPlaying);
+              else console.error(err);
+            });
           }
           // Send "now playing" to Navidrome (forwarded to Last.fm)
           if (song.id) {
@@ -324,6 +331,9 @@ export function useSongLoader({
           const errorDeck = e.target as HTMLAudioElement;
           const activeDeck = getActiveDeck();
           if (errorDeck !== activeDeck) return;
+          // A deck whose src was cleared (reset/recovery) errors with nothing
+          // loaded: that's not the song being unavailable (#311).
+          if (!errorDeck.getAttribute('src')) return;
           console.error('Audio load error:', errorDeck?.error);
           skipUnavailableSong('unavailable');
         };

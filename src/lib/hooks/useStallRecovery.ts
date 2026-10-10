@@ -1,6 +1,7 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
 import { hasRealSong } from './useDualDeckAudio';
+import { handleAutoplayBlocked, isAutoplayBlocked } from '@/lib/utils/audio-unlock';
 
 export interface UseStallRecoveryOptions {
   getActiveDeck: () => HTMLAudioElement | null;
@@ -101,19 +102,14 @@ export function useStallRecovery({
         await playWithTimeout(audio);
         console.log('🔧 [RECOVERY] Attempt 2 succeeded');
       } else {
-        // Attempt 3: Full reload - clear src, set it again, seek, play
-        const src = audio.src;
+        // Attempt 3: Full reload - load() re-fetches the current src, seek, play.
+        // Don't clear src first: `src = ''` fires an error event, and the song
+        // loader's error handler reads that as "song unavailable" and removes a
+        // healthy song from the queue (#311).
         const seekTarget = Math.max(0, savedTime - 5);
         console.log(`🔧 [RECOVERY] Strategy 3: full reload, seek to ${seekTarget.toFixed(1)}s`);
 
         audio.pause();
-        audio.src = '';
-        audio.load();
-
-        // Small delay for cleanup
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        audio.src = src;
         audio.load();
 
         // Wait for enough data to seek
@@ -147,6 +143,13 @@ export function useStallRecovery({
 
       return true;
     } catch (err) {
+      if (isAutoplayBlocked(err)) {
+        // Not a stall: iOS won't allow play() until the user taps. Retrying
+        // can't succeed, so don't spend attempts (or escalate to a reload).
+        recoveryAttemptRef.current = 0;
+        handleAutoplayBlocked(`recovery attempt ${attempt}`, useAudioStore.getState().setIsPlaying);
+        return false;
+      }
       console.log(`🔧 [RECOVERY] Attempt ${attempt} failed:`, (err as Error).message);
       return false;
     }
