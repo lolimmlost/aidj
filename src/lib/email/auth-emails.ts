@@ -1,6 +1,7 @@
 import { sendEmail } from "./send";
 import { PasswordResetTemplate } from "./templates/auth/password-reset";
 import { SecurityAlertTemplate } from "./templates/auth/security-alert";
+import { TwoFactorCodeTemplate } from "./templates/auth/two-factor-code";
 import { VerifyEmailTemplate } from "./templates/auth/verify-email";
 import { WelcomeEmailTemplate } from "./templates/auth/welcome";
 
@@ -95,6 +96,25 @@ export async function sendSecurityAlertEmail(params: {
       deviceInfo,
       timestamp: new Date(),
       actionUrl: actionUrl || `${baseUrl}/settings?tab=security`,
+    }),
+  });
+}
+
+export async function sendTwoFactorCodeEmail(params: {
+  email: string;
+  name?: string;
+  code: string;
+  expiresIn?: string;
+}) {
+  const { email, name, code, expiresIn } = params;
+  return sendEmail({
+    to: email,
+    toName: name,
+    subject: "Your AIDJ sign-in code",
+    react: TwoFactorCodeTemplate({
+      userName: name || email.split("@")[0],
+      code,
+      expiresIn,
     }),
   });
 }
