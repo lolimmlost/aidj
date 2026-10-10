@@ -381,7 +381,10 @@ function LeftSidebar() {
 
   return (
     <aside className={cn(
-      "hidden md:flex flex-col border-r bg-card/30 flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out",
+      // relative z-[1]: <main> is named for view transitions, which makes it a
+      // stacking context, so a page's fixed backdrop (album/search) would
+      // paint over this translucent sidebar. Keep the sidebars above it.
+      "relative z-[1] hidden md:flex flex-col border-r bg-card/30 flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out",
       isCollapsed ? "w-14" : "w-56"
     )}>
       {/* Logo + Collapse Toggle */}
@@ -773,7 +776,7 @@ function RightSidebar() {
   ];
 
   return (
-    <aside className="hidden xl:flex flex-col w-72 border-l bg-card/30 flex-shrink-0">
+    <aside className="relative z-[1] hidden xl:flex flex-col w-72 border-l bg-card/30 flex-shrink-0">
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-5">
           {/* Now Playing - Large Album Art at Top */}
