@@ -50,7 +50,7 @@ import { useDeckEventHandlers } from '@/lib/hooks/useDeckEventHandlers';
 import { useSongLoader } from '@/lib/hooks/useSongLoader';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 import { haptic } from '@/lib/utils/haptics';
-import { registerAudioUnlocker } from '@/lib/utils/audio-unlock';
+import { dismissAutoplayPrompt, registerAudioUnlocker } from '@/lib/utils/audio-unlock';
 import { canViewTransition, suppressTransitionNames, waitForImage, withViewTransition, withViewTransitionAsync } from '@/lib/utils/view-transition';
 import { LikeHeart, type LikeEffect } from '@/components/player/LikeHeart';
 
@@ -154,6 +154,10 @@ export function PlayerBar() {
     primeDeckForGesture(deckARef.current);
     primeDeckForGesture(deckBRef.current);
   }), [deckARef, deckBRef]);
+  // The "needs a tap" toast is moot once anything starts playback.
+  useEffect(() => useAudioStore.subscribe((s, prev) => {
+    if (s.isPlaying && !prev.isPlaying) dismissAutoplayPrompt();
+  }), []);
 
   // Scrobble tracking refs
   const hasScrobbledRef = useRef<boolean>(false);

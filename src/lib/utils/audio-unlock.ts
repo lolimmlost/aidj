@@ -38,12 +38,30 @@ export function isAutoplayBlocked(err: unknown): boolean {
   return (err as { name?: unknown } | null)?.name === 'NotAllowedError';
 }
 
+const AUTOPLAY_TOAST_ID = 'autoplay-blocked';
+
 /**
  * Stop claiming to play and ask for a tap, instead of letting the stall
  * watchdog treat the paused deck as a stall. The song stays in the queue.
+ * The toast stays up until something plays, and its button is itself the tap.
  */
 export function handleAutoplayBlocked(source: string, setIsPlaying: (playing: boolean) => void): void {
   console.warn(`[UNLOCK] play() blocked by autoplay policy (${source}) — waiting for a tap`);
   setIsPlaying(false);
-  toast.info('Tap play to start', { id: 'autoplay-blocked' });
+  toast.info('Playback needs a tap to start', {
+    id: AUTOPLAY_TOAST_ID,
+    duration: Infinity,
+    action: {
+      label: 'Play',
+      onClick: () => {
+        unlockAudioForGesture();
+        setIsPlaying(true);
+      },
+    },
+  });
+}
+
+/** Playback started some other way (play button, lock screen): drop the prompt. */
+export function dismissAutoplayPrompt(): void {
+  toast.dismiss(AUTOPLAY_TOAST_ID);
 }
