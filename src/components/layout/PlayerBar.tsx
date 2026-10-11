@@ -26,7 +26,7 @@ import { useSleepTimer } from '@/lib/stores/sleep-timer';
 import { AIDJToggle } from '@/components/ai-dj-toggle';
 import { scrobbleSong } from '@/lib/services/navidrome';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/query';
@@ -402,17 +402,10 @@ export function PlayerBar() {
     : remoteDevice?.deviceName || 'Another device';
   const RemoteDeviceIcon = speakerMode ? Speaker : Smartphone;
 
-  // Shares DevicePicker's cache; the speaker button only shows when MA is set up.
-  const { data: speakersData } = useQuery({
-    queryKey: ['playback', 'speakers'],
-    queryFn: async () => {
-      const res = await fetch('/api/speakers', { credentials: 'include' });
-      if (!res.ok) return { configured: false, speakers: [] };
-      return res.json() as Promise<{ configured: boolean; speakers: unknown[] }>;
-    },
-    staleTime: 60_000,
-  });
-  const showSpeakerButton = !!speakersData?.configured && !showRemoteTime;
+  // The picker also lists this account's other devices, so it must stay
+  // reachable when Music Assistant isn't configured or is down — otherwise a
+  // locally playing device has no way to hand playback to a phone.
+  const showSpeakerButton = !showRemoteTime;
   const speakerButton = showSpeakerButton && (
     <Button
       variant="ghost"
@@ -425,8 +418,8 @@ export function PlayerBar() {
         devicePickerTriggerRef.current = e.currentTarget;
         setDevicePickerOpen(!showDevicePicker);
       }}
-      title="Play on a speaker"
-      aria-label="Play on a speaker"
+      title="Play on another device"
+      aria-label="Play on another device"
     >
       <Speaker className="h-4 w-4" />
     </Button>
