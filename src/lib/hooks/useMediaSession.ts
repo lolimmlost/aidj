@@ -223,8 +223,13 @@ export function useMediaSession({
       setupMediaSession();
       navigator.mediaSession.playbackState = 'playing';
 
-      // Sync store state when audio starts playing
-      if (!useAudioStore.getState().isPlaying) {
+      // Sync store state when audio starts playing — but not right after a
+      // pause. A store-only pause (remote command, takeover) changes the remote-
+      // aware callbacks, re-running this effect before the element has paused;
+      // syncing here would flip the store back to playing (#256).
+      const { isPlaying: storePlaying, _userPauseAt: userPauseAt } = useAudioStore.getState();
+      const isRecentUserPause = userPauseAt > 0 && Date.now() - userPauseAt < 3000;
+      if (!storePlaying && !isRecentUserPause) {
         console.log('🎛️ Media Session: Syncing store isPlaying=true');
         setIsPlaying(true);
       }

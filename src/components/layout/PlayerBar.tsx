@@ -26,7 +26,7 @@ import { useSleepTimer } from '@/lib/stores/sleep-timer';
 import { AIDJToggle } from '@/components/ai-dj-toggle';
 import { scrobbleSong } from '@/lib/services/navidrome';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { queryKeys } from '@/lib/query';
@@ -50,8 +50,34 @@ import { useDeckEventHandlers } from '@/lib/hooks/useDeckEventHandlers';
 import { useSongLoader } from '@/lib/hooks/useSongLoader';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 import { haptic } from '@/lib/utils/haptics';
+import { dismissAutoplayPrompt, registerAudioUnlocker } from '@/lib/utils/audio-unlock';
 import { canViewTransition, suppressTransitionNames, waitForImage, withViewTransition, withViewTransitionAsync } from '@/lib/utils/view-transition';
 import { LikeHeart, type LikeEffect } from '@/components/player/LikeHeart';
+
+/**
+ * Spend a user gesture on an idle deck so a later play() isn't refused by
+ * autoplay policy. A deck with no source gets a silent clip; a deck holding a
+ * song is played and paused in the same tick, so nothing is heard.
+ */
+function primeDeckForGesture(deck: HTMLAudioElement | null) {
+  if (!deck || !deck.paused) return;
+  if (!deck.getAttribute('src')) {
+    deck.src = SILENT_AUDIO_DATA_URL;
+    deck.play()
+      .then(() => {
+        deck.pause();
+        // Only strip the silent clip if nothing loaded a song meanwhile.
+        if (deck.getAttribute('src') === SILENT_AUDIO_DATA_URL) {
+          deck.removeAttribute('src');
+          deck.load();
+        }
+      })
+      .catch(() => { /* best-effort */ });
+    return;
+  }
+  deck.play().catch(() => { /* AbortError from the pause below is expected */ });
+  deck.pause();
+}
 
 // Helper function for time formatting
 const formatTime = (time: number) => {
@@ -118,6 +144,20 @@ export function PlayerBar() {
     }
     resumeContext();
   };
+
+  // Async starts (radio) call unlockAudioForGesture() inside the tap; this is
+  // what it runs. Creating/resuming the AudioContext and calling play() on
+  // each idle deck within the gesture is what iOS needs before a later,
+  // non-gesture play() is allowed (#311).
+  useEffect(() => registerAudioUnlocker(() => {
+    ensureGraphInitializedRef.current();
+    primeDeckForGesture(deckARef.current);
+    primeDeckForGesture(deckBRef.current);
+  }), [deckARef, deckBRef]);
+  // The "needs a tap" toast is moot once anything starts playback.
+  useEffect(() => useAudioStore.subscribe((s, prev) => {
+    if (s.isPlaying && !prev.isPlaying) dismissAutoplayPrompt();
+  }), []);
 
   // Scrobble tracking refs
   const hasScrobbledRef = useRef<boolean>(false);
@@ -366,17 +406,10 @@ export function PlayerBar() {
     : remoteDevice?.deviceName || 'Another device';
   const RemoteDeviceIcon = speakerMode ? Speaker : Smartphone;
 
-  // Shares DevicePicker's cache; the speaker button only shows when MA is set up.
-  const { data: speakersData } = useQuery({
-    queryKey: ['playback', 'speakers'],
-    queryFn: async () => {
-      const res = await fetch('/api/speakers', { credentials: 'include' });
-      if (!res.ok) return { configured: false, speakers: [] };
-      return res.json() as Promise<{ configured: boolean; speakers: unknown[] }>;
-    },
-    staleTime: 60_000,
-  });
-  const showSpeakerButton = !!speakersData?.configured && !showRemoteTime;
+  // The picker also lists this account's other devices, so it must stay
+  // reachable when Music Assistant isn't configured or is down — otherwise a
+  // locally playing device has no way to hand playback to a phone.
+  const showSpeakerButton = !showRemoteTime;
   const speakerButton = showSpeakerButton && (
     <Button
       variant="ghost"
@@ -389,8 +422,8 @@ export function PlayerBar() {
         devicePickerTriggerRef.current = e.currentTarget;
         setDevicePickerOpen(!showDevicePicker);
       }}
-      title="Play on a speaker"
-      aria-label="Play on a speaker"
+      title="Play on another device"
+      aria-label="Play on another device"
     >
       <Speaker className="h-4 w-4" />
     </Button>

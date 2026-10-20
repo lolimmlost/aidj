@@ -9,6 +9,7 @@ import { toast } from '@/lib/toast';
 import { shuffleSongs, unshuffleUpcoming } from '@/lib/utils/shuffle-scoring';
 import { peekRecentlyPlayedIds } from '@/lib/utils/recently-played';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
+import { unlockAudioForGesture } from '@/lib/utils/audio-unlock';
 import type { SeededRadioSeed, ArtistVariety } from '@/lib/services/seeded-radio';
 
 // Any non-additive queue replacement clears radio-session state. Spread into
@@ -1955,6 +1956,10 @@ export const useAudioStore = create<AudioState>()(
         });
         return;
       }
+      // The play() below runs after a ~4s fetch, outside the tap. On a cold
+      // iOS launch that's refused unless the decks are unlocked now, while
+      // this call is still inside the gesture (#311).
+      unlockAudioForGesture();
       const variety = opts.variety ?? 'medium';
       const targetMinutes = opts.targetMinutes ?? null;
       // Gate AI DJ auto-refresh while the queue is being replaced. Released
