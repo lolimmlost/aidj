@@ -414,7 +414,7 @@ export function PlayerBar() {
     <Button
       variant="ghost"
       size="sm"
-      className="h-8 w-8 p-0"
+      className="h-8 w-8 p-0 flex-shrink-0"
       onClick={(e) => {
         e.stopPropagation();
         // Rendered in both the mobile and desktop bars (one hidden) — anchor
@@ -1396,6 +1396,8 @@ export function PlayerBar() {
           >
             <LikeHeart liked={isLiked} effect={likeEffect} className="h-4 w-4" />
           </Button>
+          {/* Beside the song, where the "playing on" label appears once handed off. */}
+          {speakerButton}
         </div>
 
         {/* Center: Controls + Progress */}
@@ -1519,8 +1521,6 @@ export function PlayerBar() {
               className="w-24"
             />
           </div>
-
-          {speakerButton}
 
           <Button
             variant="ghost"
