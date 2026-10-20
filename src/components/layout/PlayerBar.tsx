@@ -894,8 +894,12 @@ export function PlayerBar() {
     if (audio && !isNaN(time) && isFinite(time)) {
       audio.currentTime = time;
       setCurrentTime(time);
+      // A user seek fetches the new range itself, so recovery starts fresh —
+      // otherwise a stale count (it only resets past the old stall point)
+      // would make the next stall jump straight to a reload or a skip.
+      recoveryAttemptRef.current = 0;
     }
-  }, [setCurrentTime, getActiveDeck]);
+  }, [setCurrentTime, getActiveDeck, recoveryAttemptRef]);
 
   // --- Remote control wrappers ---
   // When this device is NOT the active player (another device is playing),
