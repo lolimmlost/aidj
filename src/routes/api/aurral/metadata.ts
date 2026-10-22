@@ -8,7 +8,7 @@ import {
 
 const GET = withAuthAndErrorHandling(
   async ({ request }) => {
-    const { isAurralConfigured, getEnrichedArtist } = await import('../../../lib/services/aurral');
+    const { isAurralConfigured, getEnrichedArtist, AurralUnavailableError } = await import('../../../lib/services/aurral');
 
     if (!(await isAurralConfigured())) {
       return serviceUnavailableResponse('AURRAL_NOT_CONFIGURED', 'Aurral is not configured');
@@ -22,7 +22,18 @@ const GET = withAuthAndErrorHandling(
       return errorResponse('MISSING_REQUIRED_FIELD', 'name query param is required', { status: 400 });
     }
 
-    const metadata = await getEnrichedArtist(name, navidromeId);
+    let metadata;
+    try {
+      metadata = await getEnrichedArtist(name, navidromeId);
+    } catch (err) {
+      // Configured but not answering (wedged/restarting) — a distinct 503 so the UI can say
+      // "try again in a minute" instead of "no results" (#336).
+      if (err instanceof AurralUnavailableError) {
+        console.warn(`[AURRAL] metadata unavailable for "${name}": ${err.message}`);
+        return serviceUnavailableResponse('AURRAL_UNAVAILABLE', 'The artist lookup service is not responding. Try again in a minute.');
+      }
+      throw err;
+    }
     if (!metadata) {
       return successResponse({ metadata: null, found: false });
     }

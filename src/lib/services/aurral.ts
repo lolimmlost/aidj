@@ -117,6 +117,52 @@ let authInFlight: Promise<string> | null = null; // prevents concurrent auth rac
 const TOKEN_REFRESH_BUFFER = 5 * 60 * 1000; // 5 min before expiry
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const FAILED_LOOKUP_TTL_MS = 24 * 60 * 60 * 1000; // 1 day for failed MBID lookups
+const AUTH_TIMEOUT_MS = 8_000;
+
+/**
+ * Aurral is configured but not answering (wedged, restarting, upstream timeouts).
+ * Distinct from "Aurral answered: no such artist" — callers must NOT cache it as a miss
+ * and the UI should say "try again in a minute", not "no results" (#336).
+ */
+export class AurralUnavailableError extends Error {
+  constructor(message = 'Aurral is not responding', options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'AurralUnavailableError';
+  }
+}
+
+// Short-lived health verdict so a wedged Aurral fails requests in ~3 s instead of
+// 2 × 10 s search timeouts (Aurral wedges every week or two — see #336).
+const HEALTH_TIMEOUT_MS = 3_000;
+const HEALTH_OK_TTL_MS = 60_000;
+const HEALTH_FAIL_TTL_MS = 10_000;
+let healthVerdict: { ok: boolean; at: number } | null = null;
+
+async function probeHealth(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${url}/api/health/live`, { signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Throws AurralUnavailableError if Aurral's health endpoint doesn't answer (verdict cached briefly). */
+export async function assertAurralResponsive(): Promise<void> {
+  const aurral = await getAurralConfig();
+  if (!aurral) throw new Error('Aurral not configured');
+  const now = Date.now();
+  const ttl = healthVerdict?.ok ? HEALTH_OK_TTL_MS : HEALTH_FAIL_TTL_MS;
+  if (!healthVerdict || now - healthVerdict.at > ttl) {
+    healthVerdict = { ok: await probeHealth(aurral.url), at: now };
+  }
+  if (!healthVerdict.ok) throw new AurralUnavailableError('Aurral health check failed');
+}
+
+/** Test hook: forget the cached health verdict. */
+export function resetAurralHealthCache(): void {
+  healthVerdict = null;
+}
 
 async function getAurralConfig() {
   const config = await getConfigAsync();
@@ -154,6 +200,9 @@ async function ensureAuthenticated(): Promise<string> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: aurral.username, password: aurral.password }),
+        // A wedged Aurral accepts the connection and never answers; without this the
+        // whole request (and every request queued behind authInFlight) hangs.
+        signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
       });
 
       if (!res.ok) {
@@ -215,7 +264,8 @@ async function aurralFetch<T>(path: string, options?: RequestInit & { retries?: 
         continue;
       }
       if (isAbort) {
-        throw new Error(`Aurral request timed out after ${timeoutMs}ms: ${path}`, { cause: err });
+        healthVerdict = { ok: false, at: Date.now() }; // fail the next requests fast too
+        throw new AurralUnavailableError(`Aurral request timed out after ${timeoutMs}ms: ${path}`, { cause: err });
       }
       throw err;
     }
@@ -256,13 +306,7 @@ export async function getAurralHealth(): Promise<{ status: string; configured: b
   const aurral = await getAurralConfig();
   if (!aurral) return { status: 'not_configured', configured: false };
 
-  try {
-    const res = await fetch(`${aurral.url}/api/health/live`);
-    if (res.ok) return { status: 'ok', configured: true };
-    return { status: 'unreachable', configured: true };
-  } catch {
-    return { status: 'unreachable', configured: true };
-  }
+  return { status: (await probeHealth(aurral.url)) ? 'ok' : 'unreachable', configured: true };
 }
 
 /** Fetch discovery recommendations */
@@ -380,15 +424,17 @@ export async function getEnrichedArtist(
     console.warn('[AURRAL] DB cache lookup failed:', err);
   }
 
-  // 2. Resolve MBID via Aurral search
-  let mbid: string | null = null;
+  // 2. Resolve MBID via Aurral search. Fail fast if Aurral is wedged, and never cache a
+  // failed *request* as "no such artist" — that hid real artists for 24 h after every
+  // Aurral wedge (#336). Only an answered search with zero hits is a cacheable miss.
+  await assertAurralResponsive();
+  let mbid: string | null;
   try {
     const searchResult = await searchArtists(artistName, 1);
-    if (searchResult.artists?.[0]) {
-      mbid = searchResult.artists[0].id;
-    }
+    mbid = searchResult.artists?.[0]?.id ?? null;
   } catch (err) {
-    console.warn(`[AURRAL] MBID resolution failed for "${artistName}":`, err);
+    if (err instanceof AurralUnavailableError) throw err;
+    throw new AurralUnavailableError(`Aurral artist search failed for "${artistName}"`, { cause: err });
   }
 
   if (!mbid) {
@@ -419,8 +465,8 @@ export async function getEnrichedArtist(
     const coverData = coverResult.status === 'fulfilled' ? coverResult.value : null;
 
     if (!artistData) {
-      console.warn(`[AURRAL] Failed to fetch metadata for MBID ${mbid}`);
-      return null;
+      const reason = artist.status === 'rejected' ? artist.reason : undefined;
+      throw new AurralUnavailableError(`Aurral artist lookup failed for MBID ${mbid}`, { cause: reason });
     }
 
     const coverImageUrl = coverData?.images?.find(i => i.front)?.image
@@ -527,6 +573,7 @@ export async function getEnrichedArtist(
 
     return enriched;
   } catch (err) {
+    if (err instanceof AurralUnavailableError) throw err;
     console.error(`[AURRAL] Metadata enrichment failed for "${artistName}":`, err);
     return null;
   }
@@ -620,8 +667,16 @@ export async function warmArtistCache(
   let skipped = 0;
   let failed = 0;
 
+  let unavailable = false;
+
   // Process in batches to respect rate limits
   for (let i = 0; i < artists.length; i += concurrency) {
+    if (unavailable) {
+      // Aurral stopped answering: don't grind through the rest at one timeout each
+      failed += artists.length - i;
+      console.warn(`[AURRAL] Cache warming stopped early: Aurral unavailable (${artists.length - i} artists left)`);
+      break;
+    }
     const batch = artists.slice(i, i + concurrency);
 
     await Promise.all(batch.map(async (artist) => {
@@ -640,7 +695,8 @@ export async function warmArtistCache(
         } else {
           failed++;
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof AurralUnavailableError) unavailable = true;
         failed++;
       }
     }));

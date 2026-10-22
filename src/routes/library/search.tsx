@@ -22,7 +22,7 @@ import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { ArtistCard } from '@/components/library/ArtistsList';
 import { AlbumArt, getCoverArtUrl } from '@/components/ui/album-art';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
-import { useArtistMetadata, useAddArtistToLibrary } from '@/lib/hooks/useArtistMetadata';
+import { useArtistMetadata, useAddArtistToLibrary, ServiceRestartingError } from '@/lib/hooks/useArtistMetadata';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 
@@ -702,16 +702,24 @@ function ArtistAddFallback({ query }: { query: string }) {
 
   if (isError) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
+    const restarting = error instanceof ServiceRestartingError;
     return (
-      <Card className="border-destructive/30">
+      <Card className={restarting ? 'border-amber-500/30' : 'border-destructive/30'}>
         <CardContent className="p-8 sm:p-12 text-center space-y-3">
-          <AlertCircle className="h-10 w-10 mx-auto text-destructive opacity-80" />
-          <h3 className="font-semibold text-lg">MusicBrainz lookup unavailable</h3>
+          {restarting ? (
+            <Clock className="h-10 w-10 mx-auto text-amber-600 dark:text-amber-400 opacity-80" />
+          ) : (
+            <AlertCircle className="h-10 w-10 mx-auto text-destructive opacity-80" />
+          )}
+          <h3 className="font-semibold text-lg">
+            {restarting ? 'Download service is restarting' : 'MusicBrainz lookup unavailable'}
+          </h3>
           <p className="text-sm text-muted-foreground">
-            Couldn't reach the metadata service. "{query}" isn't in your library and
-            we can't offer to add it right now.
+            {restarting
+              ? `"${query}" isn't in your library. The lookup service that finds and downloads new artists isn't responding right now. It restarts itself within a few minutes, so try again shortly.`
+              : `Couldn't reach the metadata service. "${query}" isn't in your library and we can't offer to add it right now.`}
           </p>
-          <p className="text-xs text-muted-foreground font-mono break-all">{msg}</p>
+          {!restarting && <p className="text-xs text-muted-foreground font-mono break-all">{msg}</p>}
           <Button
             variant="outline"
             size="sm"
