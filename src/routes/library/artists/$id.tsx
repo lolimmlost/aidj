@@ -1,4 +1,5 @@
-import { createFileRoute, Link, useParams, useNavigate, useRouter, redirect, Outlet, useLocation } from '@tanstack/react-router';
+import { createFileRoute, Link, useParams, useNavigate, useRouter, Outlet, useLocation } from '@tanstack/react-router';
+import { loginRedirect } from '~/lib/auth/login-redirect';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useRef } from 'react';
 import { useScrollSafeMenu } from '@/lib/hooks/useScrollSafeMenu';
@@ -196,8 +197,8 @@ function ArtistSongRow({
 }
 
 export const Route = createFileRoute('/library/artists/$id')({
-  beforeLoad: async ({ context }) => {
-    if (!context.user) throw redirect({ to: '/login' });
+  beforeLoad: async ({ context, location }) => {
+    if (!context.user) throw loginRedirect(location);
   },
   component: ArtistDetail,
 });

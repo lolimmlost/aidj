@@ -1,4 +1,5 @@
-import { createFileRoute, useSearch, redirect } from '@tanstack/react-router';
+import { createFileRoute, useSearch } from '@tanstack/react-router';
+import { loginRedirect } from '~/lib/auth/login-redirect';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -18,9 +19,9 @@ import { queryKeys } from '@/lib/query';
 import { PageLayout } from '@/components/ui/page-layout';
 
 export const Route = createFileRoute('/dashboard/recommendations/$id')({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
   },
   component: RecommendationDetail,

@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
+import { loginRedirect } from '~/lib/auth/login-redirect';
 import { useQuery } from '@tanstack/react-query';
 import {
   Users,
@@ -15,9 +16,9 @@ import { PageLayout } from '@/components/ui/page-layout';
 import { cn } from '@/lib/utils';
 
 export const Route = createFileRoute('/admin/')({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
     if (context.user.role !== 'admin') {
       throw redirect({ to: '/dashboard' });

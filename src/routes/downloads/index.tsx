@@ -1,4 +1,5 @@
-import { createFileRoute, redirect, useSearch, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useSearch, useNavigate } from '@tanstack/react-router'
+import { loginRedirect } from '~/lib/auth/login-redirect';
 import { useState, useEffect } from 'react'
 import { search } from '@/lib/services/lidarr'
 import { search as searchNavidrome } from '@/lib/services/navidrome'
@@ -16,9 +17,9 @@ export const Route = createFileRoute('/downloads/')({
       search: (search.search as string) || '',
     }
   },
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
   },
   component: DownloadsPage,

@@ -5,7 +5,8 @@
  * Users can review suggestions and approve them for download via Lidarr.
  */
 
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { loginRedirect } from "~/lib/auth/login-redirect";
 import { useState, Suspense, lazy } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
@@ -26,9 +27,9 @@ const DiscoverySettings = lazy(() =>
 );
 
 export const Route = createFileRoute("/dashboard/library-growth")({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
   },
   component: LibraryGrowthPage,

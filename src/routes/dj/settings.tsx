@@ -1,4 +1,5 @@
-import { createFileRoute, redirect, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { loginRedirect } from "~/lib/auth/login-redirect";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Waves } from "lucide-react";
@@ -7,9 +8,9 @@ import { AIDJSettings } from "@/components/ai-dj-settings";
 import { PageLayout } from "@/components/ui/page-layout";
 
 export const Route = createFileRoute("/dj/settings")({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
   },
   component: DJSettingsPage,

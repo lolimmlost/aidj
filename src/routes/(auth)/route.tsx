@@ -1,12 +1,17 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { safeRedirectPath } from "~/lib/auth/safe-redirect";
 
 export const Route = createFileRoute("/(auth)")({
   component: RouteComponent,
-  beforeLoad: async ({ context }) => {
-    const REDIRECT_URL = "/dashboard";
+  // `?redirect=` = where a protected route bounced the visitor from (see loginRedirect).
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } =>
+    typeof search.redirect === "string" ? { redirect: search.redirect } : {},
+  beforeLoad: async ({ context, search }) => {
+    // Untrusted URL input: same-origin app paths only, else /dashboard (#341).
+    const REDIRECT_URL = safeRedirectPath(search.redirect);
     if (context.user) {
       throw redirect({
-        to: REDIRECT_URL,
+        href: REDIRECT_URL,
       });
     }
     return {

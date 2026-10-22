@@ -1,9 +1,10 @@
-import { createFileRoute, redirect, Outlet } from '@tanstack/react-router';
+import { createFileRoute, Outlet } from '@tanstack/react-router';
+import { loginRedirect } from '~/lib/auth/login-redirect';
 
 export const Route = createFileRoute('/library/artists')({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
   },
   loader: async () => {

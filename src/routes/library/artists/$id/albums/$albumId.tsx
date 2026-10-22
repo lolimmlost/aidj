@@ -1,4 +1,5 @@
-import { createFileRoute, useParams, redirect, Link, useRouter, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, useParams, Link, useRouter, useNavigate } from '@tanstack/react-router';
+import { loginRedirect } from '~/lib/auth/login-redirect';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { getSongs, getAlbumDetail, getArtistDetail } from '@/lib/services/navidrome';
@@ -20,9 +21,9 @@ import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton'
 import { usePageTitle } from '@/lib/hooks/useDocumentTitle';
 
 export const Route = createFileRoute('/library/artists/$id/albums/$albumId')({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
   },
   component: AlbumDetail,

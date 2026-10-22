@@ -1,4 +1,5 @@
-import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { loginRedirect } from '~/lib/auth/login-redirect';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query';
 import { toast } from '@/lib/toast';
@@ -58,9 +59,9 @@ import { parseArtistTitle } from '@/lib/utils/song-artist-title';
 import { usePageTitle } from '@/lib/hooks/useDocumentTitle';
 
 export const Route = createFileRoute('/playlists/$id')({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
     return { user: context.user };
   },
