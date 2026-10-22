@@ -5,7 +5,8 @@
  * Shows content tailored to user's listening patterns and current time of day.
  */
 
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { loginRedirect } from "~/lib/auth/login-redirect";
 import { Suspense, lazy, useCallback } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
@@ -21,9 +22,9 @@ const DiscoveryFeed = lazy(() =>
 );
 
 export const Route = createFileRoute("/dashboard/discover")({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
   },
   component: DiscoverPage,

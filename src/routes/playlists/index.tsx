@@ -1,4 +1,5 @@
-import { createFileRoute, redirect } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
+import { loginRedirect } from '~/lib/auth/login-redirect';
 import { ListMusic } from 'lucide-react';
 import { SmartPlaylistEditor } from '@/components/playlists/smart-playlist-editor';
 import { CreatePlaylistDialog } from '@/components/playlists/create-playlist-dialog';
@@ -6,9 +7,9 @@ import { PlaylistList } from '@/components/playlists/playlist-list';
 import { PageLayout, PageSection } from '@/components/ui/page-layout';
 
 export const Route = createFileRoute('/playlists/')({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
   },
   component: PlaylistsPage,

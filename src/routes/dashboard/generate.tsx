@@ -1,4 +1,5 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { loginRedirect } from "~/lib/auth/login-redirect";
 import { toast } from '@/lib/toast';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
@@ -21,9 +22,9 @@ export const Route = createFileRoute("/dashboard/generate")({
     preset: (search.preset as string) || undefined,
     section: (search.section as 'recommendations' | 'playlist') || undefined,
   }),
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
   },
   component: GeneratePage,

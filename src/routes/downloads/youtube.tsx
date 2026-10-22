@@ -1,4 +1,5 @@
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { loginRedirect } from '~/lib/auth/login-redirect';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -18,9 +19,9 @@ import { Youtube, Download, Music, Video, List, Trash2, CheckCircle, AlertCircle
 import { queryKeys, queryPresets, createSmartPollingInterval } from '@/lib/query';
 
 export const Route = createFileRoute('/downloads/youtube')({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
   },
   component: YouTubeDownloadPage,

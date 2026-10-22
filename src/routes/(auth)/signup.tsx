@@ -54,7 +54,7 @@ function SignupForm() {
         },
         onSuccess: () => {
           queryClient.removeQueries({ queryKey: authQueryOptions().queryKey });
-          navigate({ to: redirectUrl });
+          navigate({ href: redirectUrl }); // may carry ?search from the original link (#341)
         },
       },
     );
@@ -203,7 +203,7 @@ function SignupForm() {
 
       <div className="text-center text-sm">
         Already have an account?{" "}
-        <Link to="/login" className="underline underline-offset-4">
+        <Link to="/login" search={true} className="underline underline-offset-4">
           Login
         </Link>
       </div>

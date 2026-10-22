@@ -5,7 +5,8 @@
  * (Spotify Wrapped-style yearly/monthly reports)
  */
 
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { loginRedirect } from "~/lib/auth/login-redirect";
 import { Suspense, lazy } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
@@ -19,10 +20,10 @@ const MusicIdentityDashboard = lazy(() =>
 );
 
 export const Route = createFileRoute("/music-identity/")({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     // Require authentication
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
   },
   component: MusicIdentityPage,

@@ -1,4 +1,5 @@
-import { createFileRoute, redirect, useSearch } from '@tanstack/react-router';
+import { createFileRoute, useSearch } from '@tanstack/react-router';
+import { loginRedirect } from '~/lib/auth/login-redirect';
 import { useEffect } from 'react';
 import { Cog } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -40,9 +41,9 @@ export const Route = createFileRoute('/settings/')({
   validateSearch: (search: Record<string, unknown>) => ({
     tab: resolveTab(search.tab),
   }),
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
     return { user: context.user };
   },

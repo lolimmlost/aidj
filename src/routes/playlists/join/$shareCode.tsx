@@ -2,9 +2,15 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { Loader2, Users, Music } from "lucide-react";
 import { useJoinPlaylist } from "@/components/playlists/collaboration";
+import { loginRedirect } from "~/lib/auth/login-redirect";
 
 export const Route = createFileRoute("/playlists/join/$shareCode")({
   component: JoinPlaylistPage,
+  // Invite links are opened by people who may not be logged in yet: log in, then join (#341).
+  // Without this the join mutation fired logged-out and showed a 401 error.
+  beforeLoad: async ({ context, location }) => {
+    if (!context.user) throw loginRedirect(location);
+  },
 });
 
 function JoinPlaylistPage() {

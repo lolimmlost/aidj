@@ -7,6 +7,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import authClient from "~/lib/auth/auth-client";
 import { useAuthOptions } from "~/lib/auth/use-auth-options";
+import { withRedirectParam } from "~/lib/auth/safe-redirect";
 
 export const Route = createFileRoute("/(auth)/login")({
   component: LoginForm,
@@ -129,7 +130,7 @@ function LoginForm() {
           // With 2FA on, the password step returns no session — just a
           // challenge. Without this the redirect bounced back to /login (#299).
           if ((ctx.data as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect) {
-            window.location.href = "/two-factor";
+            window.location.href = withRedirectParam("/two-factor", redirectUrl); // keep the return path through 2FA (#341)
             return;
           }
           queryClient.removeQueries({ queryKey: ["user"] });
@@ -314,7 +315,7 @@ function LoginForm() {
             {/* Sign up link */}
             <p className="mt-6 text-center text-sm text-muted-foreground md:text-left">
               Don&apos;t have an account?{" "}
-              <Link to="/signup" className="font-medium text-primary underline underline-offset-4 hover:text-primary/80 transition-colors">
+              <Link to="/signup" search={true} className="font-medium text-primary underline underline-offset-4 hover:text-primary/80 transition-colors">
                 Sign up
               </Link>
             </p>

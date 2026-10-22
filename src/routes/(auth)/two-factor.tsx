@@ -110,7 +110,7 @@ function TwoFactorChallenge() {
             <p className="text-sm font-medium text-red-500 dark:text-red-400">{error}</p>
           </div>
           <Button asChild className="w-full min-h-[44px]" size="lg">
-            <Link to="/login">Back to sign in</Link>
+            <Link to="/login" search={true}>Back to sign in</Link>
           </Button>
         </div>
       ) : (
@@ -204,7 +204,7 @@ function TwoFactorChallenge() {
               )}
             </div>
             <p className="pt-2">
-              <Link to="/login" className="text-muted-foreground underline underline-offset-4 hover:text-foreground">
+              <Link to="/login" search={true} className="text-muted-foreground underline underline-offset-4 hover:text-foreground">
                 Use a different account
               </Link>
             </p>

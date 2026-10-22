@@ -1,4 +1,5 @@
-import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { loginRedirect } from '~/lib/auth/login-redirect';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useScrollSafeMenu } from '@/lib/hooks/useScrollSafeMenu';
 import { useQuery } from '@tanstack/react-query';
@@ -29,9 +30,9 @@ export const Route = createFileRoute('/library/search')({
   validateSearch: (search: Record<string, unknown>): { q?: string } => ({
     q: typeof search.q === 'string' && search.q.trim().length > 0 ? search.q : undefined,
   }),
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     if (!context.user) {
-      throw redirect({ to: '/login' });
+      throw loginRedirect(location);
     }
   },
   component: SearchPage,
