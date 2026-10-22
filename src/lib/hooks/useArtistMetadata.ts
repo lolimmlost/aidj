@@ -10,17 +10,29 @@ interface MetadataResponse {
   };
 }
 
+/** The lookup/download service (Aurral) is configured but not answering — retry shortly (#336). */
+export class ServiceRestartingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ServiceRestartingError';
+  }
+}
+
 async function fetchArtistMetadata(name: string, navidromeId?: string): Promise<EnrichedArtistMetadata | null> {
   const params = new URLSearchParams({ name });
   if (navidromeId) params.set('navidromeId', navidromeId);
 
   const res = await fetch(`/api/aurral/metadata?${params}`);
-  // 503 = Aurral intentionally not configured. Treat as "service gracefully
-  // unavailable" → null so we can render a clean "no results" state without
-  // an error flash. Any other non-OK status (timeout, 500, network) is a
-  // real failure — throw so useQuery's isError fires and the UI can tell
-  // the user the service is down vs. just "no match".
-  if (res.status === 503) return null;
+  // 503 has two meanings, told apart by the error code:
+  // - AURRAL_NOT_CONFIGURED: intentionally off → null, a clean "no results" state.
+  // - AURRAL_UNAVAILABLE: configured but not answering (it wedges every week or two
+  //   and a watchdog restarts it) → ServiceRestartingError so the UI says "try again".
+  // Any other non-OK status (500, network) is a real failure → plain Error.
+  if (res.status === 503) {
+    const body = await res.json().catch(() => null) as { code?: string; message?: string } | null;
+    if (body?.code === 'AURRAL_UNAVAILABLE') throw new ServiceRestartingError(body.message ?? 'Artist lookup service is not responding');
+    return null;
+  }
   if (!res.ok) throw new Error(`Metadata lookup failed (HTTP ${res.status})`);
 
   const json = await res.json() as MetadataResponse;
@@ -166,8 +178,9 @@ export function useAddArtistToLibrary() {
         body: JSON.stringify({ mbid, artistName }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: 'Failed to add artist' }));
-        throw new Error((err as { message: string }).message);
+        const err = await res.json().catch(() => ({ message: 'Failed to add artist' })) as { code?: string; message: string };
+        if (err.code === 'AURRAL_UNAVAILABLE') throw new ServiceRestartingError(err.message);
+        throw new Error(err.message);
       }
       return res.json();
     },
