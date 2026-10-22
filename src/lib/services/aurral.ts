@@ -159,9 +159,10 @@ export async function assertAurralResponsive(): Promise<void> {
   if (!healthVerdict.ok) throw new AurralUnavailableError('Aurral health check failed');
 }
 
-/** Test hook: forget the cached health verdict. */
+/** Test hook: forget the cached health verdict and login token. */
 export function resetAurralHealthCache(): void {
   healthVerdict = null;
+  tokenInfo = null;
 }
 
 async function getAurralConfig() {
@@ -196,14 +197,20 @@ async function ensureAuthenticated(): Promise<string> {
       const aurral = await getAurralConfig();
       if (!aurral) throw new Error('Aurral not configured');
 
-      const res = await fetch(`${aurral.url}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: aurral.username, password: aurral.password }),
-        // A wedged Aurral accepts the connection and never answers; without this the
-        // whole request (and every request queued behind authInFlight) hangs.
-        signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
-      });
+      let res: Response;
+      try {
+        res = await fetch(`${aurral.url}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: aurral.username, password: aurral.password }),
+          // A wedged Aurral accepts the connection and never answers; without this the
+          // whole request (and every request queued behind authInFlight) hangs.
+          signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
+        });
+      } catch (err) {
+        healthVerdict = { ok: false, at: Date.now() };
+        throw new AurralUnavailableError('Aurral login did not answer', { cause: err });
+      }
 
       if (!res.ok) {
         const text = await res.text().catch(() => '');
@@ -263,11 +270,13 @@ async function aurralFetch<T>(path: string, options?: RequestInit & { retries?: 
         // One quick retry on timeout; if still hung, surface the error.
         continue;
       }
-      if (isAbort) {
-        healthVerdict = { ok: false, at: Date.now() }; // fail the next requests fast too
-        throw new AurralUnavailableError(`Aurral request timed out after ${timeoutMs}ms: ${path}`, { cause: err });
-      }
-      throw err;
+      // Timed out, or refused/reset (e.g. mid-restart): the service is down, not this
+      // request. Fail the next requests fast too.
+      healthVerdict = { ok: false, at: Date.now() };
+      throw new AurralUnavailableError(
+        isAbort ? `Aurral request timed out after ${timeoutMs}ms: ${path}` : `Aurral unreachable: ${path}`,
+        { cause: err },
+      );
     }
     clearTimeout(timeoutId);
 
@@ -466,7 +475,12 @@ export async function getEnrichedArtist(
 
     if (!artistData) {
       const reason = artist.status === 'rejected' ? artist.reason : undefined;
-      throw new AurralUnavailableError(`Aurral artist lookup failed for MBID ${mbid}`, { cause: reason });
+      // Down (timed out / unreachable) → say so. Otherwise Aurral answered with an error for
+      // this one MBID: a per-artist miss (not cached), not an outage — don't show "restarting"
+      // or stop cache warming over it.
+      if (reason instanceof AurralUnavailableError) throw reason;
+      console.warn(`[AURRAL] Failed to fetch metadata for MBID ${mbid}:`, reason);
+      return null;
     }
 
     const coverImageUrl = coverData?.images?.find(i => i.front)?.image

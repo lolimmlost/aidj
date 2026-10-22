@@ -90,6 +90,30 @@ describe('Aurral availability', () => {
     expect(insertValues).not.toHaveBeenCalled();
   });
 
+  it('a hung login fails as unavailable instead of a generic error', async () => {
+    stubFetch((url) => {
+      if (url.endsWith('/api/health/live')) return json({ status: 'ok' });
+      if (url.endsWith('/api/auth/login')) return Promise.reject(new DOMException('timed out', 'TimeoutError'));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+    await expect(getEnrichedArtist('glaive')).rejects.toBeInstanceOf(AurralUnavailableError);
+    expect(insertValues).not.toHaveBeenCalled();
+  });
+
+  it('Aurral answering with an error for one MBID is a per-artist miss, not an outage', async () => {
+    const f = stubFetch((url) => {
+      if (url.endsWith('/api/health/live')) return json({ status: 'ok' });
+      if (url.endsWith('/api/auth/login')) return authOk();
+      if (url.includes('/api/artists/search')) return json({ artists: [{ id: 'mbid-1', name: 'glaive' }], count: 1 });
+      return json({ error: 'Invalid MBID format' }, 400);
+    });
+    await expect(getEnrichedArtist('glaive')).resolves.toBeNull();
+    expect(insertValues).not.toHaveBeenCalled();
+    // Still considered healthy: the next request isn't failed fast and doesn't re-probe.
+    await expect(assertAurralResponsive()).resolves.toBeUndefined();
+    expect(f.mock.calls.filter(([u]) => String(u).endsWith('/api/health/live'))).toHaveLength(1);
+  });
+
   it('an answered search with no hits is a real miss: returns null and caches it', async () => {
     stubFetch((url) => {
       if (url.endsWith('/api/health/live')) return json({ status: 'ok' });
