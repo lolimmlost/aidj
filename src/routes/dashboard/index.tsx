@@ -19,6 +19,7 @@ import { ProfileNudge } from '@/components/onboarding/ProfileNudge';
 import { Sparkles, Music, ArrowRight } from 'lucide-react';
 import { AurralDiscoverySection } from '@/components/dashboard/AurralDiscoverySection';
 import { RecentlyAddedSection } from '@/components/dashboard/RecentlyAddedSection';
+import { FeaturedMixCard } from '@/components/dashboard/FeaturedMixCard';
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context, location }) => {
@@ -175,6 +176,9 @@ function DashboardIndex() {
           onStartRadio={handleStartRadio}
           radioLoading={radioLoading}
         />
+
+        {/* Featured AIDJ mix */}
+        <FeaturedMixCard />
 
         {/* Tier 1: New User — Show onboarding wizard */}
         {showOnboarding && !showWizard && (
