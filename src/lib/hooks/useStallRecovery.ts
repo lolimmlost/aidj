@@ -39,6 +39,13 @@ export function useStallRecovery({
   const lastProgressTimeRef = useRef<number>(Date.now());
   const lastProgressValueRef = useRef<number>(0);
   const stallWatchdogIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Where the current run of recovery attempts stalled. The attempt counter
+  // only resets once playback gets past this point (#297): play() resolves on
+  // iOS even when no data will ever arrive, and the seek-back strategies replay
+  // buffered audio right up to the same edge — so "not paused" or "moved a
+  // little" kept recovery looping on the cheap strategies and the reload in
+  // attempt 3 (the one that makes Safari refetch) never ran.
+  const stalledAtRef = useRef<number>(0);
 
   // Reactive so the watchdog effect below re-runs when playback starts. Reading
   // this via getState() (and omitting it from the effect deps) left the watchdog
@@ -56,6 +63,11 @@ export function useStallRecovery({
     await Promise.race([playPromise, timeoutPromise]);
   }, []);
 
+  const isPastStall = useCallback((audio: HTMLAudioElement): boolean => {
+    const STABLE_PAST_STALL_S = 1;
+    return audio.currentTime > stalledAtRef.current + STABLE_PAST_STALL_S;
+  }, []);
+
   // Centralized stall recovery with escalating strategies
   const attemptStallRecovery = useCallback(async (audio: HTMLAudioElement, source: string): Promise<boolean> => {
     const MAX_RECOVERY_ATTEMPTS = 3;
@@ -64,6 +76,7 @@ export function useStallRecovery({
     const savedTime = audio.currentTime > 0
       ? audio.currentTime
       : lastProgressValueRef.current;
+    stalledAtRef.current = attempt === 1 ? savedTime : Math.max(stalledAtRef.current, savedTime);
 
     console.log(`🔧 [RECOVERY] Attempt ${attempt}/${MAX_RECOVERY_ATTEMPTS} from ${source} at ${savedTime.toFixed(1)}s (audio=${audio.currentTime.toFixed(1)}s, saved=${lastProgressValueRef.current.toFixed(1)}s)`);
 
@@ -128,12 +141,15 @@ export function useStallRecovery({
         console.log('🔧 [RECOVERY] Attempt 3 succeeded');
       }
 
-      // Success - reset counter after playback stabilizes
+      // play() resolving isn't recovery — only progress past the stall is. The
+      // watchdog checks this every tick while visible; this covers a hidden page.
       setTimeout(() => {
-        const deck = getActiveDeck();
-        if (deck && !deck.paused) {
+        if (recoveryAttemptRef.current === 0 || getActiveDeck() !== audio || audio.paused) return;
+        if (isPastStall(audio)) {
           recoveryAttemptRef.current = 0;
           console.log('🔧 [RECOVERY] Playback stable - reset recovery counter');
+        } else {
+          console.log(`🔧 [RECOVERY] Still at ${audio.currentTime.toFixed(1)}s, not past the stall at ${stalledAtRef.current.toFixed(1)}s - next stall escalates`);
         }
       }, 5000);
 
@@ -153,11 +169,12 @@ export function useStallRecovery({
       console.log(`🔧 [RECOVERY] Attempt ${attempt} failed:`, (err as Error).message);
       return false;
     }
-  }, [resumeContext, getActiveDeck, onMaxAttemptsReached, playWithTimeout]);
+  }, [resumeContext, getActiveDeck, onMaxAttemptsReached, playWithTimeout, isPastStall]);
 
   // Reset recovery state (called when song changes)
   const resetRecoveryState = useCallback(() => {
     recoveryAttemptRef.current = 0;
+    stalledAtRef.current = 0;
     lastProgressValueRef.current = 0;
     lastProgressTimeRef.current = Date.now();
   }, []);
@@ -221,6 +238,11 @@ export function useStallRecovery({
       // Skip if no real audio loaded
       if (!hasRealSong(audio)) return;
 
+      if (recoveryAttemptRef.current > 0 && isPastStall(audio)) {
+        recoveryAttemptRef.current = 0;
+        console.log(`🔧 [RECOVERY] Played past the stall at ${stalledAtRef.current.toFixed(1)}s - reset recovery counter`);
+      }
+
       const now = Date.now();
       const currentProgress = audio.currentTime;
 
@@ -228,9 +250,6 @@ export function useStallRecovery({
       if (currentProgress > lastProgressValueRef.current + MIN_PROGRESS_DELTA) {
         lastProgressTimeRef.current = now;
         lastProgressValueRef.current = currentProgress;
-        if (recoveryAttemptRef.current > 0) {
-          recoveryAttemptRef.current = 0;
-        }
         return;
       }
 
@@ -257,7 +276,7 @@ export function useStallRecovery({
         console.log('🐕 [WATCHDOG] Stopped stall watchdog');
       }
     };
-  }, [isPlaying, getActiveDeck, crossfadeInProgressRef, attemptStallRecovery]);
+  }, [isPlaying, getActiveDeck, crossfadeInProgressRef, attemptStallRecovery, isPastStall]);
 
   return {
     recoveryAttemptRef,
