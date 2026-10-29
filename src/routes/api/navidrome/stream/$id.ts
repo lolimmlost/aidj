@@ -1,12 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 import { getAuthToken, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
+import { requireSession } from '@/lib/utils/api-response';
 import { createHash } from 'crypto';
 
 export const Route = createFileRoute("/api/navidrome/stream/$id")({
   server: {
     handlers: {
   async GET({ request, params }) {
+    const session = await requireSession(request);
+    if (session instanceof Response) return session;
+
     console.log('Stream route hit:', request.url);
     
     const config = getConfig();

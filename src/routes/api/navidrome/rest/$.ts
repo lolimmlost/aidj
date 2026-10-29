@@ -2,8 +2,11 @@
  * Catch-all for Subsonic API endpoints - proxies to Navidrome's Subsonic API
  * Handles: getCoverArt, search3, getPlaylists, etc.
  *
+ * Requires an AIDJ session: the proxy signs every request with Navidrome credentials, so without
+ * the gate anyone on the internet could browse, stream, and call write endpoints as the admin.
+ *
  * For user-scoped endpoints (star, unstar, getStarred2, playlists, scrobble),
- * uses per-user Navidrome credentials when the user is authenticated.
+ * uses the user's own Navidrome credentials.
  * For shared endpoints (getCoverArt, stream, search, etc.), uses admin credentials.
  *
  * GET /api/navidrome/rest/*
@@ -11,6 +14,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 import { getAuthToken, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
+import { requireSession, unauthorizedResponse } from '@/lib/utils/api-response';
 
 /** Subsonic endpoints that are user-scoped and need per-user credentials */
 const USER_SCOPED_ENDPOINTS = [
@@ -29,6 +33,17 @@ function isUserScopedEndpoint(endpoint: string): boolean {
   return USER_SCOPED_ENDPOINTS.some(e => endpoint === e || endpoint.startsWith(e + '?'));
 }
 
+/** Reads (get*, search*, stream, ...); everything else changes state, even over GET */
+const READ_ENDPOINT = /^(get|search|ping|stream|download|hls)/;
+
+/**
+ * The session cookie is SameSite=None, so another site could fire a GET like
+ * <img src=".../rest/deletePlaylist?id=…"> with it. Writes must come from AIDJ itself.
+ */
+function isCrossSiteWrite(endpoint: string, request: Request): boolean {
+  return !READ_ENDPOINT.test(endpoint) && request.headers.get('sec-fetch-site') === 'cross-site';
+}
+
 export const Route = createFileRoute("/api/navidrome/rest/$")({
   server: {
     handlers: {
@@ -39,11 +54,17 @@ export const Route = createFileRoute("/api/navidrome/rest/$")({
             return new Response('Navidrome not configured', { status: 500 });
           }
 
+          const session = await requireSession(request);
+          if (session instanceof Response) return session;
+
           await getAuthToken();
 
           // Get the endpoint name from params (e.g., "getCoverArt", "search3")
           // @ts-expect-error TanStack router splat param
           const endpoint = params['_splat'] || params['$'] || '';
+          if (isCrossSiteWrite(endpoint, request)) {
+            return unauthorizedResponse('Cross-site request refused');
+          }
 
           const url = new URL(`${config.navidromeUrl}/rest/${endpoint}`);
 
@@ -57,22 +78,14 @@ export const Route = createFileRoute("/api/navidrome/rest/$")({
           if (isUserScopedEndpoint(endpoint)) {
             let usedPerUserCreds = false;
             try {
-              const { auth } = await import('@/lib/auth/auth');
-              const session = await auth.api.getSession({
-                headers: request.headers,
-                query: { disableCookieCache: true },
-              });
-
-              if (session) {
-                const { ensureNavidromeUser } = await import('@/lib/services/navidrome-users');
-                const creds = await ensureNavidromeUser(session.user.id, session.user.name, session.user.email);
-                url.searchParams.set('u', creds.username);
-                url.searchParams.set('t', creds.token);
-                url.searchParams.set('s', creds.salt);
-                url.searchParams.set('v', '1.16.1');
-                url.searchParams.set('c', 'aidj');
-                usedPerUserCreds = true;
-              }
+              const { ensureNavidromeUser } = await import('@/lib/services/navidrome-users');
+              const creds = await ensureNavidromeUser(session.user.id, session.user.name, session.user.email);
+              url.searchParams.set('u', creds.username);
+              url.searchParams.set('t', creds.token);
+              url.searchParams.set('s', creds.salt);
+              url.searchParams.set('v', '1.16.1');
+              url.searchParams.set('c', 'aidj');
+              usedPerUserCreds = true;
             } catch (credsError) {
               console.warn(`[REST Proxy] Failed to get per-user creds for ${endpoint}, falling back to admin:`, credsError);
             }
