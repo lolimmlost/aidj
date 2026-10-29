@@ -35,6 +35,19 @@ describe('FeaturedMixCard', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(8);
   });
 
+  it("shows the mix album's cover, and the disc when the cover won't load", async () => {
+    const { container } = renderCard({
+      id: 'mix1', title: 'Stage Climb', album: 'BOO Seattle 2026', albumId: 'al9', artist: 'AIDJ', duration: 2238,
+    });
+    await screen.findByRole('heading', { name: 'Stage Climb' });
+    const img = container.querySelector('img');
+    expect(img?.getAttribute('src')).toBe('/api/navidrome/rest/getCoverArt?id=al9&size=280');
+
+    fireEvent.error(img!);
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('svg.lucide-disc-3, svg.lucide-disc3')).not.toBeNull();
+  });
+
   it('renders nothing when Navidrome does not know the id', async () => {
     const { container } = renderCard(null);
     await waitFor(() => expect(container.querySelector('[data-slot="skeleton"]')).toBeNull());

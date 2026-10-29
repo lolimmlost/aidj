@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, Disc3, Pause, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getCoverArtUrl } from '@/components/ui/album-art';
 import { useAudioStore } from '@/lib/stores/audio';
 import { FEATURED_MIX_ID } from '@/lib/config/featured-mix';
 import { mixDisplayTitle, parseMixTracklist } from '@/lib/utils/mix-tracklist';
@@ -40,6 +41,7 @@ function useMixSong(id: string) {
 export function FeaturedMixCard({ songId = FEATURED_MIX_ID }: { songId?: string }) {
   const { data: mix, isLoading } = useMixSong(songId);
   const [expanded, setExpanded] = useState(false);
+  const [coverFailed, setCoverFailed] = useState(false);
   const isCurrent = useAudioStore((s) => !!mix && s.playlist[s.currentSongIndex]?.id === mix.id);
   const isPlaying = useAudioStore((s) => s.isPlaying);
   const playSong = useAudioStore((s) => s.playSong);
@@ -53,6 +55,7 @@ export function FeaturedMixCard({ songId = FEATURED_MIX_ID }: { songId?: string 
   const shown = expanded ? tracks : tracks.slice(0, PREVIEW_TRACKS);
   const minutes = Math.round(mix.duration / 60);
   const playingThis = isCurrent && isPlaying;
+  const coverUrl = getCoverArtUrl(mix.albumId, 280);
 
   const handlePlay = () => {
     if (isCurrent) {
@@ -80,8 +83,25 @@ export function FeaturedMixCard({ songId = FEATURED_MIX_ID }: { songId?: string 
       className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/15 via-card to-card p-4 sm:p-6"
     >
       <div className="flex items-center gap-4 sm:gap-6">
-        <div className="grid size-20 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary sm:size-28">
-          <Disc3 className={cn('size-10 sm:size-14', playingThis && 'motion-safe:animate-[spin_4s_linear_infinite]')} aria-hidden />
+        <div className="relative size-20 shrink-0 sm:size-28">
+          {/* The mix album's cover.jpg (#360); the disc stands in if it won't load */}
+          {coverUrl && !coverFailed ? (
+            <img
+              src={coverUrl}
+              alt=""
+              className="size-full rounded-xl object-cover shadow-md"
+              onError={() => setCoverFailed(true)}
+            />
+          ) : (
+            <div className="grid size-full place-items-center rounded-xl bg-primary/15 text-primary">
+              <Disc3 className={cn('size-10 sm:size-14', playingThis && 'motion-safe:animate-[spin_4s_linear_infinite]')} aria-hidden />
+            </div>
+          )}
+          {playingThis && coverUrl && !coverFailed && (
+            <span className="absolute -bottom-1.5 -right-1.5 grid size-7 place-items-center rounded-full bg-primary text-primary-foreground shadow ring-2 ring-card">
+              <Disc3 className="size-4 motion-safe:animate-[spin_4s_linear_infinite]" aria-hidden />
+            </span>
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium uppercase tracking-wider text-primary">
