@@ -6,15 +6,17 @@
  * the gate anyone on the internet could browse, stream, and call write endpoints as the admin.
  *
  * For user-scoped endpoints (star, unstar, getStarred2, playlists, scrobble),
- * uses the user's own Navidrome credentials.
- * For shared endpoints (getCoverArt, stream, search, etc.), uses admin credentials.
+ * uses the user's own Navidrome credentials, and fails rather than fall back to the admin's.
+ * For shared reads (getCoverArt, stream, search, etc.), uses admin credentials.
+ * Any other write (startScan, createShare, ...) would run as the Navidrome admin, so only
+ * AIDJ admins may call it.
  *
  * GET /api/navidrome/rest/*
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 import { getAuthToken, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
-import { requireSession, unauthorizedResponse } from '@/lib/utils/api-response';
+import { errorResponse, requireSession, unauthorizedResponse } from '@/lib/utils/api-response';
 
 /** Subsonic endpoints that are user-scoped and need per-user credentials */
 const USER_SCOPED_ENDPOINTS = [
@@ -74,6 +76,10 @@ export const Route = createFileRoute("/api/navidrome/rest/$")({
           if (isCrossSiteWrite(endpoint, request)) {
             return unauthorizedResponse('Cross-site request refused');
           }
+          const isAdmin = session.user.role === 'admin';
+          if (!READ_ENDPOINT.test(endpoint) && !isUserScopedEndpoint(endpoint) && !isAdmin) {
+            return errorResponse('FORBIDDEN', 'Admin access required', { status: 403 });
+          }
 
           const url = new URL(`${config.navidromeUrl}/rest/${endpoint}`);
 
@@ -100,7 +106,11 @@ export const Route = createFileRoute("/api/navidrome/rest/$")({
             }
 
             if (!usedPerUserCreds) {
-              // Fall back to admin creds
+              // Only the admin may fall back to admin creds: anyone else would act on the admin's
+              // playlists and stars (the admin's own creds come from ensureNavidromeUser anyway)
+              if (!isAdmin) {
+                return errorResponse('NAVIDROME_USER_UNAVAILABLE', 'Your Navidrome account is unavailable', { status: 503 });
+              }
               if (subsonicToken && subsonicSalt) {
                 url.searchParams.set('u', config.navidromeUsername || '');
                 url.searchParams.set('t', subsonicToken);

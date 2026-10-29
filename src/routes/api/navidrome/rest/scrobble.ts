@@ -48,8 +48,15 @@ export const Route = createFileRoute("/api/navidrome/rest/scrobble")({
         url.searchParams.set('t', creds.token);
         url.searchParams.set('s', creds.salt);
       } catch (credsError) {
+        // Only the admin may fall back to admin creds; anyone else's plays would land on the admin's account
+        if (session.user.role !== 'admin') {
+          console.warn('Failed to get per-user creds for scrobble:', credsError);
+          return new Response(JSON.stringify({ error: 'Your Navidrome account is unavailable' }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
         console.warn('Failed to get per-user creds for scrobble, falling back to admin:', credsError);
-        // Fall back to admin creds
         await getAuthToken();
         if (!subsonicToken || !subsonicSalt) {
           return new Response(JSON.stringify({ error: 'Not authenticated with Navidrome' }), {

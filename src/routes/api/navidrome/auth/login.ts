@@ -1,29 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
-import { withAuthAndErrorHandling, errorResponse } from '@/lib/utils/api-response';
+import { getAuthToken } from '@/lib/services/navidrome';
+import { withAuthAndErrorHandling, errorResponse, jsonResponse } from '@/lib/utils/api-response';
 
 /**
  * Navidrome auth proxy.
  *
- * The client never holds Navidrome credentials (they were stripped from
- * defaults.json — public repo). A session-authenticated AIDJ user calls this
- * with an empty body and the server logs in with its own env-configured
- * admin credentials, returning Navidrome's token + subsonicToken/subsonicSalt
- * for shared read ops (browse/search/stream). Per-user writes still go
- * through navidrome-users.ts.
+ * The browser never holds Navidrome credentials. It reaches Navidrome only through the
+ * /api/navidrome/* proxies, which sign every request with the server's own credentials
+ * (per-user ones for user-scoped calls) and ignore whatever the browser sends. So a
+ * session-authenticated user gets placeholders here, not the admin token: handing it out
+ * gave every signed-in user admin rights on Navidrome (delete any playlist, start scans).
+ *
+ * The server still logs in, so a dead Navidrome or bad env credentials fail here as before.
  */
+const PROXY_CREDENTIAL = 'aidj-proxy';
+
 const POST = withAuthAndErrorHandling(
   async () => {
     const config = getConfig();
     if (!config.navidromeUrl) {
       return errorResponse('NAVIDROME_CONFIG_ERROR', 'Navidrome not configured', { status: 500 });
     }
-
-    // Ignore any client-supplied credentials — always authenticate with the
-    // server's own credentials so they never need to exist client-side.
-    const username = config.navidromeUsername;
-    const password = config.navidromePassword;
-    if (!username || !password) {
+    if (!config.navidromeUsername || !config.navidromePassword) {
       return errorResponse(
         'NAVIDROME_CONFIG_ERROR',
         'Navidrome credentials not configured on server (set NAVIDROME_USERNAME / NAVIDROME_PASSWORD)',
@@ -31,17 +30,14 @@ const POST = withAuthAndErrorHandling(
       );
     }
 
-    const response = await fetch(`${config.navidromeUrl}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
+    await getAuthToken();
 
-    const data = await response.json();
-
-    return new Response(JSON.stringify(data), {
-      status: response.status,
-      headers: { 'Content-Type': 'application/json' },
+    return jsonResponse({
+      id: PROXY_CREDENTIAL,
+      username: PROXY_CREDENTIAL,
+      token: PROXY_CREDENTIAL,
+      subsonicToken: PROXY_CREDENTIAL,
+      subsonicSalt: PROXY_CREDENTIAL,
     });
   },
   { service: 'navidrome', operation: 'auth-login' },
