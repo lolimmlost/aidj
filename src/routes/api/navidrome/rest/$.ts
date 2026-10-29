@@ -29,6 +29,16 @@ const USER_SCOPED_ENDPOINTS = [
   'updatePlaylist', 'updatePlaylist.view',
   'deletePlaylist', 'deletePlaylist.view',
   'scrobble', 'scrobble.view',
+  // The rest of the per-user state: on admin creds these read or write the admin's own
+  // stars, ratings, play queue and bookmarks
+  'getStarred', 'getStarred.view',
+  'setRating', 'setRating.view',
+  'getPlayQueue', 'getPlayQueue.view',
+  'savePlayQueue', 'savePlayQueue.view',
+  'getBookmarks', 'getBookmarks.view',
+  'createBookmark', 'createBookmark.view',
+  'deleteBookmark', 'deleteBookmark.view',
+  'getUser', 'getUser.view',
 ];
 
 function isUserScopedEndpoint(endpoint: string): boolean {

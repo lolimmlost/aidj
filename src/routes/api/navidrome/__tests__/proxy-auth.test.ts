@@ -41,7 +41,7 @@ const ADMIN = { ...SESSION, user: { ...SESSION.user, role: 'admin' } };
 beforeEach(() => {
   getSession.mockReset();
   ensureNavidromeUser.mockReset();
-  ensureNavidromeUser.mockResolvedValue({ username: 'juan', token: 'user-token', salt: 'user-salt' });
+  ensureNavidromeUser.mockResolvedValue({ username: 'friend_aidj', token: 'user-token', salt: 'user-salt' });
   fetchMock.mockReset();
   fetchMock.mockImplementation(async (url: string) =>
     String(url).includes('getCoverArt')
@@ -96,7 +96,7 @@ describe('Navidrome proxies with a session', () => {
   it("signs user-scoped calls with the user's own Navidrome account", async () => {
     await handler(restRoute)({ request: req('/api/navidrome/rest/getPlaylists'), params: { _splat: 'getPlaylists' } });
     const url = new URL(fetchMock.mock.calls[0][0]);
-    expect(url.searchParams.get('u')).toBe('juan');
+    expect(url.searchParams.get('u')).toBe('friend_aidj');
     expect(url.searchParams.get('t')).toBe('user-token');
   });
 
@@ -196,5 +196,21 @@ describe('admin rights stay on the server', () => {
     const res = await handler(restRoute)({ request: req('/api/navidrome/rest/getPlaylists'), params: { _splat: 'getPlaylists' } });
     expect(res.status).toBe(200);
     expect(new URL(fetchMock.mock.calls[0][0]).searchParams.get('u')).toBe('admin');
+  });
+
+  it("reads a user's own stars and play queue, not the admin's", async () => {
+    getSession.mockResolvedValue(SESSION);
+    for (const endpoint of ['getStarred', 'getPlayQueue', 'getBookmarks']) {
+      fetchMock.mockClear();
+      const res = await handler(restRoute)({ request: req(`/api/navidrome/rest/${endpoint}`), params: { _splat: endpoint } });
+      expect(res.status).toBe(200);
+      expect(new URL(fetchMock.mock.calls[0][0]).searchParams.get('u')).toBe('friend_aidj');
+    }
+  });
+
+  it('keeps public share links admin-only', async () => {
+    getSession.mockResolvedValue(SESSION);
+    const res = await handler(restRoute)({ request: req('/api/navidrome/rest/createShare?id=s1'), params: { _splat: 'createShare' } });
+    expect(res.status).toBe(403);
   });
 });
