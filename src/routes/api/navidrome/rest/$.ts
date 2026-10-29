@@ -33,6 +33,12 @@ function isUserScopedEndpoint(endpoint: string): boolean {
   return USER_SCOPED_ENDPOINTS.some(e => endpoint === e || endpoint.startsWith(e + '?'));
 }
 
+/**
+ * A Subsonic method name, optionally with `.view`. The splat is URL-decoded, so without this
+ * `getX%2F..%2FdeletePlaylist` would pass as a read and resolve to /rest/deletePlaylist upstream.
+ */
+const SUBSONIC_ENDPOINT = /^[A-Za-z0-9]+(\.view)?$/;
+
 /** Reads (get*, search*, stream, ...); everything else changes state, even over GET */
 const READ_ENDPOINT = /^(get|search|ping|stream|download|hls)/;
 
@@ -62,6 +68,9 @@ export const Route = createFileRoute("/api/navidrome/rest/$")({
           // Get the endpoint name from params (e.g., "getCoverArt", "search3")
           // @ts-expect-error TanStack router splat param
           const endpoint = params['_splat'] || params['$'] || '';
+          if (!SUBSONIC_ENDPOINT.test(endpoint)) {
+            return new Response('Unknown endpoint', { status: 400 });
+          }
           if (isCrossSiteWrite(endpoint, request)) {
             return unauthorizedResponse('Cross-site request refused');
           }

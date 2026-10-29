@@ -25,6 +25,7 @@ const { Route: scrobbleRoute } = await import('../rest/scrobble');
 const { Route: streamRoute } = await import('../stream/$id');
 const { Route: albumRoute } = await import('../api/album');
 const { Route: songRoute } = await import('../api/song');
+const { Route: albumIdRoute } = await import('../api/album/$id');
 
 type Handler = (ctx: { request: Request; params: Record<string, string> }) => Promise<Response>;
 const handler = (route: unknown) =>
@@ -119,5 +120,32 @@ describe('Navidrome proxies with a session', () => {
     });
     expect(del.status).toBe(200);
     expect(cover.status).toBe(200);
+  });
+
+  it('refuses endpoint names that climb out of /rest (the splat is URL-decoded)', async () => {
+    // e.g. /api/navidrome/rest/getX%2F..%2FdeletePlaylist: looks like a read, resolves to deletePlaylist
+    const res = await handler(restRoute)({
+      request: req('/api/navidrome/rest/getX%2F..%2FdeletePlaylist?id=p1', { 'sec-fetch-site': 'cross-site' }),
+      params: { _splat: 'getX/../deletePlaylist' },
+    });
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('accepts the .view form of an endpoint', async () => {
+    const res = await handler(restRoute)({
+      request: req('/api/navidrome/rest/getPlaylists.view'),
+      params: { _splat: 'getPlaylists.view' },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('refuses an album id that climbs into other Navidrome APIs', async () => {
+    const res = await handler(albumIdRoute)({
+      request: req('/api/navidrome/api/album/..%2F..%2Fapi%2Fuser'),
+      params: { id: '../../api/user' },
+    });
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
