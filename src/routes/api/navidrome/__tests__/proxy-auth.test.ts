@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const getSession = vi.fn();
 vi.mock('@/lib/auth/auth', () => ({ auth: { api: { getSession } } }));
 vi.mock('@/lib/config/config', () => ({
-  getConfig: () => ({ navidromeUrl: 'http://nd', navidromeUsername: 'admin' }),
+  getConfig: () => ({ navidromeUrl: 'http://nd', navidromeUsername: 'admin', navidromePassword: 'pw' }),
 }));
 vi.mock('@/lib/services/navidrome', () => ({
   getAuthToken: vi.fn().mockResolvedValue('jwt'),
@@ -16,9 +16,8 @@ vi.mock('@/lib/services/navidrome', () => ({
   token: 'jwt',
   clientId: 'client',
 }));
-vi.mock('@/lib/services/navidrome-users', () => ({
-  ensureNavidromeUser: vi.fn().mockResolvedValue({ username: 'juan', token: 'user-token', salt: 'user-salt' }),
-}));
+const ensureNavidromeUser = vi.fn();
+vi.mock('@/lib/services/navidrome-users', () => ({ ensureNavidromeUser }));
 
 const { Route: restRoute } = await import('../rest/$');
 const { Route: scrobbleRoute } = await import('../rest/scrobble');
@@ -26,6 +25,7 @@ const { Route: streamRoute } = await import('../stream/$id');
 const { Route: albumRoute } = await import('../api/album');
 const { Route: songRoute } = await import('../api/song');
 const { Route: albumIdRoute } = await import('../api/album/$id');
+const { Route: loginRoute } = await import('../auth/login');
 
 type Handler = (ctx: { request: Request; params: Record<string, string> }) => Promise<Response>;
 const handler = (route: unknown) =>
@@ -35,10 +35,13 @@ const req = (path: string, headers: Record<string, string> = {}) =>
   new Request(`https://aidj.test${path}`, { headers });
 
 const fetchMock = vi.fn();
-const SESSION = { user: { id: 'u1', name: 'Juan', email: 'juan@example.com' }, session: { id: 's1' } };
+const SESSION = { user: { id: 'u1', name: 'Friend', email: 'friend@example.com', role: 'user' }, session: { id: 's1' } };
+const ADMIN = { ...SESSION, user: { ...SESSION.user, role: 'admin' } };
 
 beforeEach(() => {
   getSession.mockReset();
+  ensureNavidromeUser.mockReset();
+  ensureNavidromeUser.mockResolvedValue({ username: 'friend_aidj', token: 'user-token', salt: 'user-salt' });
   fetchMock.mockReset();
   fetchMock.mockImplementation(async (url: string) =>
     String(url).includes('getCoverArt')
@@ -93,7 +96,7 @@ describe('Navidrome proxies with a session', () => {
   it("signs user-scoped calls with the user's own Navidrome account", async () => {
     await handler(restRoute)({ request: req('/api/navidrome/rest/getPlaylists'), params: { _splat: 'getPlaylists' } });
     const url = new URL(fetchMock.mock.calls[0][0]);
-    expect(url.searchParams.get('u')).toBe('juan');
+    expect(url.searchParams.get('u')).toBe('friend_aidj');
     expect(url.searchParams.get('t')).toBe('user-token');
   });
 
@@ -147,5 +150,67 @@ describe('Navidrome proxies with a session', () => {
     });
     expect(res.status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('admin rights stay on the server', () => {
+  it('login hands the browser placeholders, never the Navidrome admin token', async () => {
+    getSession.mockResolvedValue(SESSION);
+    const post = (loginRoute as unknown as { options: { server: { handlers: { POST: Handler } } } }).options.server.handlers.POST;
+    const res = await post({ request: new Request('https://aidj.test/api/navidrome/auth/login', { method: 'POST' }), params: {} });
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body).toMatchObject({ token: 'aidj-proxy', id: 'aidj-proxy', subsonicToken: 'aidj-proxy', subsonicSalt: 'aidj-proxy' });
+    expect(JSON.stringify(body)).not.toMatch(/jwt|admin-token|admin-salt/);
+  });
+
+  it('refuses a non-admin a write the proxy would sign as the Navidrome admin', async () => {
+    getSession.mockResolvedValue(SESSION);
+    const res = await handler(restRoute)({ request: req('/api/navidrome/rest/startScan'), params: { _splat: 'startScan' } });
+    expect(res.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('lets the admin run it', async () => {
+    getSession.mockResolvedValue(ADMIN);
+    const res = await handler(restRoute)({ request: req('/api/navidrome/rest/startScan'), params: { _splat: 'startScan' } });
+    expect(res.status).toBe(200);
+  });
+
+  it("does not fall back to the admin's account when a user's own Navidrome account fails", async () => {
+    getSession.mockResolvedValue(SESSION);
+    ensureNavidromeUser.mockRejectedValue(new Error('navidrome user create failed'));
+    const playlists = await handler(restRoute)({
+      request: req('/api/navidrome/rest/deletePlaylist?id=p1'),
+      params: { _splat: 'deletePlaylist' },
+    });
+    const scrobble = await handler(scrobbleRoute)({ request: req('/api/navidrome/rest/scrobble?id=s1'), params: {} });
+    expect(playlists.status).toBe(503);
+    expect(scrobble.status).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('still falls back for the admin', async () => {
+    getSession.mockResolvedValue(ADMIN);
+    ensureNavidromeUser.mockRejectedValue(new Error('navidrome user create failed'));
+    const res = await handler(restRoute)({ request: req('/api/navidrome/rest/getPlaylists'), params: { _splat: 'getPlaylists' } });
+    expect(res.status).toBe(200);
+    expect(new URL(fetchMock.mock.calls[0][0]).searchParams.get('u')).toBe('admin');
+  });
+
+  it("reads a user's own stars and play queue, not the admin's", async () => {
+    getSession.mockResolvedValue(SESSION);
+    for (const endpoint of ['getStarred', 'getPlayQueue', 'getBookmarks']) {
+      fetchMock.mockClear();
+      const res = await handler(restRoute)({ request: req(`/api/navidrome/rest/${endpoint}`), params: { _splat: endpoint } });
+      expect(res.status).toBe(200);
+      expect(new URL(fetchMock.mock.calls[0][0]).searchParams.get('u')).toBe('friend_aidj');
+    }
+  });
+
+  it('keeps public share links admin-only', async () => {
+    getSession.mockResolvedValue(SESSION);
+    const res = await handler(restRoute)({ request: req('/api/navidrome/rest/createShare?id=s1'), params: { _splat: 'createShare' } });
+    expect(res.status).toBe(403);
   });
 });
