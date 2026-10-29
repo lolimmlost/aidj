@@ -182,6 +182,7 @@ import { Route as ApiNavidromeAuthLoginRouteImport } from './routes/api/navidrom
 import { Route as ApiNavidromeRestSplatRouteImport } from './routes/api/navidrome/rest/$'
 import { Route as ApiNavidromeRestScrobbleRouteImport } from './routes/api/navidrome/rest/scrobble'
 import { Route as ApiNavidromeStreamIdRouteImport } from './routes/api/navidrome/stream/$id'
+import { Route as ApiOgCoverIdRouteImport } from './routes/api/og/cover.$id'
 import { Route as ApiOnboardingArtistsSelectRouteImport } from './routes/api/onboarding/artists/select'
 import { Route as ApiPlaylistsIdActivityRouteImport } from './routes/api/playlists/$id/activity'
 import { Route as ApiPlaylistsIdEventsRouteImport } from './routes/api/playlists/$id/events'
@@ -1113,6 +1114,11 @@ const ApiNavidromeStreamIdRoute = ApiNavidromeStreamIdRouteImport.update({
   path: '/api/navidrome/stream/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOgCoverIdRoute = ApiOgCoverIdRouteImport.update({
+  id: '/api/og/cover/$id',
+  path: '/api/og/cover/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOnboardingArtistsSelectRoute =
   ApiOnboardingArtistsSelectRouteImport.update({
     id: '/select',
@@ -1387,6 +1393,7 @@ export interface FileRoutesByFullPath {
   '/api/navidrome/rest/$': typeof ApiNavidromeRestSplatRoute
   '/api/navidrome/rest/scrobble': typeof ApiNavidromeRestScrobbleRoute
   '/api/navidrome/stream/$id': typeof ApiNavidromeStreamIdRoute
+  '/api/og/cover/$id': typeof ApiOgCoverIdRoute
   '/api/onboarding/artists/select': typeof ApiOnboardingArtistsSelectRoute
   '/api/playlists/$id/activity': typeof ApiPlaylistsIdActivityRoute
   '/api/playlists/$id/events': typeof ApiPlaylistsIdEventsRoute
@@ -1577,6 +1584,7 @@ export interface FileRoutesByTo {
   '/api/navidrome/rest/$': typeof ApiNavidromeRestSplatRoute
   '/api/navidrome/rest/scrobble': typeof ApiNavidromeRestScrobbleRoute
   '/api/navidrome/stream/$id': typeof ApiNavidromeStreamIdRoute
+  '/api/og/cover/$id': typeof ApiOgCoverIdRoute
   '/api/onboarding/artists/select': typeof ApiOnboardingArtistsSelectRoute
   '/api/playlists/$id/activity': typeof ApiPlaylistsIdActivityRoute
   '/api/playlists/$id/events': typeof ApiPlaylistsIdEventsRoute
@@ -1771,6 +1779,7 @@ export interface FileRoutesById {
   '/api/navidrome/rest/$': typeof ApiNavidromeRestSplatRoute
   '/api/navidrome/rest/scrobble': typeof ApiNavidromeRestScrobbleRoute
   '/api/navidrome/stream/$id': typeof ApiNavidromeStreamIdRoute
+  '/api/og/cover/$id': typeof ApiOgCoverIdRoute
   '/api/onboarding/artists/select': typeof ApiOnboardingArtistsSelectRoute
   '/api/playlists/$id/activity': typeof ApiPlaylistsIdActivityRoute
   '/api/playlists/$id/events': typeof ApiPlaylistsIdEventsRoute
@@ -1965,6 +1974,7 @@ export interface FileRouteTypes {
     | '/api/navidrome/rest/$'
     | '/api/navidrome/rest/scrobble'
     | '/api/navidrome/stream/$id'
+    | '/api/og/cover/$id'
     | '/api/onboarding/artists/select'
     | '/api/playlists/$id/activity'
     | '/api/playlists/$id/events'
@@ -2155,6 +2165,7 @@ export interface FileRouteTypes {
     | '/api/navidrome/rest/$'
     | '/api/navidrome/rest/scrobble'
     | '/api/navidrome/stream/$id'
+    | '/api/og/cover/$id'
     | '/api/onboarding/artists/select'
     | '/api/playlists/$id/activity'
     | '/api/playlists/$id/events'
@@ -2348,6 +2359,7 @@ export interface FileRouteTypes {
     | '/api/navidrome/rest/$'
     | '/api/navidrome/rest/scrobble'
     | '/api/navidrome/stream/$id'
+    | '/api/og/cover/$id'
     | '/api/onboarding/artists/select'
     | '/api/playlists/$id/activity'
     | '/api/playlists/$id/events'
@@ -2517,6 +2529,7 @@ export interface RootRouteChildren {
   ApiNavidromeRestSplatRoute: typeof ApiNavidromeRestSplatRoute
   ApiNavidromeRestScrobbleRoute: typeof ApiNavidromeRestScrobbleRoute
   ApiNavidromeStreamIdRoute: typeof ApiNavidromeStreamIdRoute
+  ApiOgCoverIdRoute: typeof ApiOgCoverIdRoute
   ApiPlaylistsLikedSongsSyncRoute: typeof ApiPlaylistsLikedSongsSyncRoute
   ApiPlaylistsSmartPreviewRoute: typeof ApiPlaylistsSmartPreviewRoute
   ApiPlaylistsSmartRandomRoute: typeof ApiPlaylistsSmartRandomRoute
@@ -3738,6 +3751,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiNavidromeStreamIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/og/cover/$id': {
+      id: '/api/og/cover/$id'
+      path: '/api/og/cover/$id'
+      fullPath: '/api/og/cover/$id'
+      preLoaderRoute: typeof ApiOgCoverIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/onboarding/artists/select': {
       id: '/api/onboarding/artists/select'
       path: '/select'
@@ -4201,6 +4221,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNavidromeRestSplatRoute: ApiNavidromeRestSplatRoute,
   ApiNavidromeRestScrobbleRoute: ApiNavidromeRestScrobbleRoute,
   ApiNavidromeStreamIdRoute: ApiNavidromeStreamIdRoute,
+  ApiOgCoverIdRoute: ApiOgCoverIdRoute,
   ApiPlaylistsLikedSongsSyncRoute: ApiPlaylistsLikedSongsSyncRoute,
   ApiPlaylistsSmartPreviewRoute: ApiPlaylistsSmartPreviewRoute,
   ApiPlaylistsSmartRandomRoute: ApiPlaylistsSmartRandomRoute,

@@ -22,6 +22,9 @@ import { useServiceWorker } from "~/lib/hooks/useServiceWorker";
 import { useEruda } from "~/lib/hooks/useEruda";
 import { useDocumentTitle } from "~/lib/hooks/useDocumentTitle";
 
+// Default link-preview image (#361). Absolute: unfurlers (iMessage, Discord, Slack) skip relative og:image URLs.
+const OG_IMAGE = `${(import.meta.env.VITE_BASE_URL ?? "").replace(/\/+$/, "")}/og-image.png`;
+
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
   user: AuthQueryResult;
@@ -98,6 +101,11 @@ export const Route = createRootRouteWithContext<{
         property: "og:type",
         content: "website",
       },
+      { property: "og:site_name", content: "AIDJ" },
+      { property: "og:image", content: OG_IMAGE },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "AIDJ — your library, mixed" },
       {
         name: "twitter:card",
         content: "summary_large_image",
@@ -110,6 +118,7 @@ export const Route = createRootRouteWithContext<{
         name: "twitter:description",
         content: "AI-powered music discovery and smart playlists",
       },
+      { name: "twitter:image", content: OG_IMAGE },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

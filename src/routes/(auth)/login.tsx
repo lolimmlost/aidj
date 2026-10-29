@@ -8,8 +8,15 @@ import { Label } from "~/components/ui/label";
 import authClient from "~/lib/auth/auth-client";
 import { useAuthOptions } from "~/lib/auth/use-auth-options";
 import { withRedirectParam } from "~/lib/auth/safe-redirect";
+import { getLinkPreview } from "~/lib/link-preview/get-link-preview";
+import { linkPreviewMeta } from "~/lib/link-preview/link-preview";
 
 export const Route = createFileRoute("/(auth)/login")({
+  // A shared album/artist link sends logged-out visitors and preview bots here with ?redirect=<link>:
+  // the head describes that item, so the link unfurls as the album, not the generic AIDJ card (#361).
+  loaderDeps: ({ search }) => ({ redirect: search.redirect }),
+  loader: ({ deps }) => (deps.redirect ? getLinkPreview({ data: deps.redirect }).catch(() => null) : null),
+  head: ({ loaderData }) => (loaderData ? { meta: linkPreviewMeta(loaderData) } : {}),
   component: LoginForm,
 });
 

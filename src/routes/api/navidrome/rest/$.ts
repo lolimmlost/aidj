@@ -126,7 +126,9 @@ export const Route = createFileRoute("/api/navidrome/rest/$")({
               status: 200,
               headers: {
                 'Content-Type': contentType,
-                'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+                // One day, not a year: cover URLs are keyed by album id, so a year pinned Navidrome's
+                // placeholder vinyl even after an album got real art (#360). Private: these need a session.
+                'Cache-Control': 'private, max-age=86400, stale-while-revalidate=604800',
                 'Access-Control-Allow-Origin': '*',
               },
             });
