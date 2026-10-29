@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { loginRedirect } from "~/lib/auth/login-redirect";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Disc, ListMusic, Sparkles, Settings } from "lucide-react";
+import { Disc, FlaskConical, ListMusic, Sparkles, Settings } from "lucide-react";
 import { PageLayout } from "@/components/ui/page-layout";
 
 export const Route = createFileRoute("/dj/")({
@@ -15,6 +15,7 @@ export const Route = createFileRoute("/dj/")({
 });
 
 function DJIndex() {
+  const { user } = Route.useRouteContext();
   return (
     <PageLayout
       title="DJ Tools"
@@ -69,6 +70,30 @@ function DJIndex() {
             </CardContent>
           </Card>
         </Link>
+
+        {/* Transition Lab (#345): admin-only prototype */}
+        {user?.role === 'admin' && (
+          <Link to="/dj/lab">
+            <Card className="h-full cursor-pointer hover:bg-muted/50 transition-colors">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FlaskConical className="h-5 w-5 text-primary" />
+                  Transition Lab
+                </CardTitle>
+                <CardDescription>
+                  Continuous mix that locks the next song, plus blind A/B of transitions
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>- Drop-chain transitions, beat-locked in the browser</li>
+                  <li>- Next song locked and scheduled ahead</li>
+                  <li>- Blind A/B votes, exportable</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
 
         {/* AI DJ Info Card */}
         <Card className="h-full bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
