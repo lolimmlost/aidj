@@ -1,12 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 import { getAuthToken, token, clientId } from '@/lib/services/navidrome';
+import { requireSession } from '@/lib/utils/api-response';
 
 export const Route = createFileRoute("/api/navidrome/api/artist/$id")({
   server: {
     handlers: {
   GET: async ({ params, request }) => {
     try {
+      const session = await requireSession(request);
+      if (session instanceof Response) return session;
+
       const config = getConfig();
       if (!config.navidromeUrl) {
         return new Response(JSON.stringify({ error: 'Navidrome not configured' }), {
@@ -18,6 +22,13 @@ export const Route = createFileRoute("/api/navidrome/api/artist/$id")({
       await getAuthToken();
 
       const artistId = params.id;
+      // Ids are alphanumeric; the param is URL-decoded, so '..%2F' would reach other Navidrome APIs
+      if (!/^[A-Za-z0-9]+$/.test(artistId)) {
+        return new Response(JSON.stringify({ error: 'Invalid artist id' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
       const url = new URL(`${config.navidromeUrl}/api/artist/${artistId}`);
       url.search = new URL(request.url).search;
 

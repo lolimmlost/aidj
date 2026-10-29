@@ -2,12 +2,16 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ServiceError } from '../../../lib/utils';
 import { getConfig } from '@/lib/config/config';
 import { getAuthToken, token, clientId, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
+import { requireSession } from '@/lib/utils/api-response';
 
 export const Route = createFileRoute("/api/navidrome/[./path]")({
   server: {
     handlers: {
   GET: async ({ params, request }) => {
     try {
+      const session = await requireSession(request);
+      if (session instanceof Response) return session;
+
       const config = getConfig();
       if (!config.navidromeUrl) {
         return new Response('Navidrome not configured', { status: 500 });

@@ -325,6 +325,23 @@ export function withAuthAndErrorHandling<T extends { request: Request }>(
 }
 
 /**
+ * Session gate for routes that keep their own error handling (the Navidrome proxies,
+ * which stream bodies and pass upstream statuses through).
+ * Returns the session, or a 401 Response to return as-is.
+ *
+ * @example
+ * ```typescript
+ * const session = await requireSession(request);
+ * if (session instanceof Response) return session;
+ * ```
+ */
+export async function requireSession(request: Request) {
+  const { auth } = await import('../auth/auth');
+  const session = await auth.api.getSession({ headers: request.headers });
+  return session ?? unauthorizedResponse();
+}
+
+/**
  * Helper to require specific request body fields
  */
 export function requireBodyFields<T extends Record<string, unknown>>(
