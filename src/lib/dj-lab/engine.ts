@@ -39,10 +39,12 @@ export interface LabDefaults {
   /** tempo window for the next track (#378): how much slower / faster than what's playing, % */
   tempoDown: number;
   tempoUp: number;
+  /** phones: hold the decks in mono, half the memory (stereo is a choice, not the default) */
+  phoneMono: boolean;
 }
 
 const DEFAULTS_KEY = 'aidj:dj-lab:defaults';
-const NO_DEFAULTS: LabDefaults = { openerPlaysOut: false, preferFirstDrop: false, tempoDown: 4, tempoUp: 4 };
+const NO_DEFAULTS: LabDefaults = { openerPlaysOut: false, preferFirstDrop: false, tempoDown: 4, tempoUp: 4, phoneMono: true };
 
 export interface NextInfo {
   song: LabSong;
@@ -120,6 +122,19 @@ const BEAT_MS = 5000;
 const PHONE_DECK_RATE = 32000;
 let phoneCtx: OfflineAudioContext | null = null;
 const phoneDecoder = () => (phoneCtx ??= new OfflineAudioContext(2, 1, PHONE_DECK_RATE));
+
+/** One channel, the average of all: the stereo buffer becomes garbage right away. */
+function toMono(b: AudioBuffer): AudioBuffer {
+  if (b.numberOfChannels === 1) return b;
+  const mono = new AudioBuffer({ numberOfChannels: 1, length: b.length, sampleRate: b.sampleRate });
+  const out = mono.getChannelData(0);
+  const k = 1 / b.numberOfChannels;
+  for (let c = 0; c < b.numberOfChannels; c++) {
+    const ch = b.getChannelData(c);
+    for (let i = 0; i < out.length; i++) out[i] += ch[i] * k;
+  }
+  return mono;
+}
 
 const posAt = (d: LiveDeck, t: number) => d.trackStart + (t - d.ctxStart) * d.rate;
 const mb = (bytes: number) => Math.round(bytes / 1e5) / 10;
@@ -338,8 +353,10 @@ export class LabEngine {
       const cached = await getCachedAnalysis(song.id);
       signal?.throwIfAborted();
       // a phone decodes the decks at 32 kHz: ~27 % less memory per deck than 44.1 kHz (a 6-minute
-      // extended mix is ~130 MB at 44.1 kHz), at the cost of the band above 16 kHz
-      const buffer = await (isPhone() ? phoneDecoder() : ctx).decodeAudioData(cached ? buf : buf.slice(0));
+      // extended mix is ~130 MB at 44.1 kHz), at the cost of the band above 16 kHz; in mono, half again
+      const phone = isPhone();
+      const decoded = await (phone ? phoneDecoder() : ctx).decodeAudioData(cached ? buf : buf.slice(0));
+      const buffer = phone && this.snap.defaults.phoneMono ? toMono(decoded) : decoded;
       const t2 = performance.now();
       signal?.throwIfAborted();
       const analysis = cached ?? (await analyseSong(song, undefined, buf));

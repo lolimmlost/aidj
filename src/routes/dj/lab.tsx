@@ -241,6 +241,12 @@ function DJLab() {
                   <Switch checked={snap.defaults.preferFirstDrop} onCheckedChange={(v) => engine.setDefaults({ preferFirstDrop: v })} />
                   1st drops
                 </label>
+                {phone && (
+                  <label className="flex items-center gap-1.5" title="Hold the tracks in mono: half the memory, so long sets don't get the page closed. Applies from the next track.">
+                    <Switch checked={snap.defaults.phoneMono} onCheckedChange={(v) => engine.setDefaults({ phoneMono: v })} />
+                    Mono (saves memory)
+                  </label>
+                )}
                 {scanText && <span className="ml-auto tabular-nums">{scanText}</span>}
               </div>
               {crate.scanning && crate.songs.length > 0 && (
