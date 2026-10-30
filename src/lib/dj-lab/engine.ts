@@ -90,7 +90,12 @@ export interface EngineSnapshot {
   choices: Choices;
   pinned: ChoiceKey[];
   defaults: LabDefaults;
+  /** the AudioContext's state ("interrupted" on iOS when a call or another app takes the audio) */
+  audio?: string;
 }
+
+/** while a set should be playing but iOS has stopped its audio, try to resume this often */
+const RESUME_RETRY_MS = 3000;
 
 interface LiveDeck {
   track: LoadedTrack;
@@ -137,7 +142,11 @@ export class LabEngine {
   private lastTick: { wall: number; ctx: number } | null = null;
   /** performance.now() of the last heartbeat (same clock as checkHealth) */
   private lastBeat = 0;
-  private lastStall = 0;
+  private lastStall = -Infinity;
+  /** last automatic resume attempt, and when the audio stopped (performance.now()) */
+  private lastResumeTry = 0;
+  private lastResumeLog = -Infinity;
+  private audioStoppedAt: number | null = null;
   private listeners = new Set<() => void>();
   private snap: EngineSnapshot = {
     status: 'idle',
@@ -220,17 +229,22 @@ export class LabEngine {
       labLog('audio context', { sampleRate: ctx.sampleRate, state: ctx.state, baseLatency: ctx.baseLatency, audioSession: nav.audioSession?.type });
       ctx.addEventListener('statechange', () => {
         const bad = ctx.state !== 'running' && this.snap.status === 'playing';
-        labLog('audio context state', { state: ctx.state, t: ctx.currentTime, status: this.snap.status }, bad ? 'warn' : 'info');
+        const now = performance.now();
+        if (bad && this.audioStoppedAt === null) this.audioStoppedAt = now;
+        const stoppedSec = ctx.state === 'running' && this.audioStoppedAt !== null ? Math.round((now - this.audioStoppedAt) / 100) / 10 : undefined;
+        if (ctx.state === 'running') this.audioStoppedAt = null;
+        labLog('audio context state', { state: ctx.state, t: ctx.currentTime, status: this.snap.status, stoppedSec }, bad ? 'warn' : 'info');
+        this.set({ audio: ctx.state });
       });
-      // iOS can leave the context suspended after an interruption (a call, Siri, the lock screen)
+      // iOS can leave the context suspended after an interruption (a call, Siri, another app's audio)
+      const retry = (why: string) => {
+        if (this.snap.status === 'playing' && ctx.state !== 'running') this.tryResume(ctx, why);
+      };
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState !== 'visible' || this.snap.status !== 'playing' || ctx.state === 'running') return;
-        labLog('resuming audio context on return', { state: ctx.state }, 'warn');
-        ctx.resume().then(
-          () => labLog('audio context resumed', { state: ctx.state }),
-          (e: Error) => labLog('audio context resume failed', { error: e.message }, 'error'),
-        );
+        if (document.visibilityState === 'visible') retry('back in view');
       });
+      window.addEventListener('pageshow', () => retry('page shown'));
+      window.addEventListener('focus', () => retry('focus'));
     }
     void this.ctx.resume();
     return this.ctx;
@@ -673,12 +687,30 @@ export class LabEngine {
     });
   }
 
+  /**
+   * Resume after iOS stopped the audio mid-set. Fails quietly while the interruption lasts (another
+   * app still has the audio); the next try or a tap on the live bar gets it back.
+   */
+  private tryResume(ctx: AudioContext, why: string) {
+    const now = performance.now();
+    this.lastResumeTry = now;
+    // retries every few seconds through a long interruption: log the first, then twice a minute
+    if (why !== 'retry' || now - this.lastResumeLog >= 30_000) {
+      this.lastResumeLog = now;
+      labLog('resuming audio', { why, state: ctx.state }, 'warn');
+    }
+    ctx.resume().catch((e: Error) => labLog('audio resume refused', { why, error: e.message }, 'warn'));
+  }
+
   /** Timers stopped (page in the background) or the audio clock stopped while it should run. */
   private checkHealth(ctx: AudioContext) {
     const wall = performance.now();
     const last = this.lastTick;
     this.lastTick = { wall, ctx: ctx.currentTime };
     if (wall - this.lastBeat >= BEAT_MS) this.beat();
+    if (this.snap.status === 'playing' && ctx.state !== 'running' && wall - this.lastResumeTry >= RESUME_RETRY_MS) {
+      this.tryResume(ctx, 'retry');
+    }
     if (!last || this.snap.status !== 'playing') return;
     const wallGap = (wall - last.wall) / 1000;
     const ctxGap = ctx.currentTime - last.ctx;

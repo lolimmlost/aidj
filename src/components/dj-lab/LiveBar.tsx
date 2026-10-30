@@ -1,4 +1,4 @@
-import { Pause, Play, SkipForward } from 'lucide-react';
+import { AlertTriangle, Pause, Play, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { barTime } from '@/lib/dj-lab/analysis';
@@ -22,6 +22,8 @@ export function LiveBar({ engine, snap }: { engine: LabEngine; snap: EngineSnaps
   const dur = Math.max(1, now.analysis.duration);
   const mixAt = next?.plan ? barTime(now.analysis, next.plan.entryA) : null;
   const toBlend = engine.secondsToBlend();
+  // iOS stopped the audio (a call, Siri, another app): the engine keeps retrying, a tap always works
+  const interrupted = playing && !!snap.audio && snap.audio !== 'running';
   const countdown =
     next?.state === 'mixing' ? 'mixing' : toBlend !== null && toBlend > 0 ? fmtTime(toBlend) : next?.state === 'loading' ? '…' : '–';
 
@@ -64,6 +66,16 @@ export function LiveBar({ engine, snap }: { engine: LabEngine; snap: EngineSnaps
           <SkipForward className="size-4" />
         </Button>
       </div>
+      {interrupted && (
+        <button
+          type="button"
+          onClick={() => engine.unlockAudio()}
+          className="mt-1.5 flex w-full items-center gap-1.5 rounded-md bg-warning/10 px-2 py-1 text-left text-[11px] text-warning"
+        >
+          <AlertTriangle className="size-3.5 shrink-0" />
+          The phone paused the audio (a call or another app). Tap to resume.
+        </button>
+      )}
       <div className="relative mt-1.5 h-1 rounded-full bg-muted" aria-hidden>
         <div className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: pct(pos / dur) }} />
         {mixAt !== null && <div className="absolute -top-0.5 h-2 w-0.5 rounded bg-foreground" style={{ left: pct(mixAt / dur) }} title="Mix starts" />}

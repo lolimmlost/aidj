@@ -110,7 +110,7 @@ function DJLab() {
     : crate.error
       ? `Crate failed: ${crate.error}`
       : crate.songs.length
-        ? `${crate.done}/${crate.songs.length} analysed${crate.failed ? `, ${crate.failed} failed` : ''}${crate.scanning ? '…' : ''}`
+        ? `${crate.done}/${crate.songs.length} analysed${crate.failed ? `, ${crate.failed} failed` : ''}${crate.waiting ? `, ${crate.waiting} big files after the set` : ''}${crate.scanning && !crate.waiting ? '…' : ''}`
         : '';
   const openers = useMemo(
     () =>

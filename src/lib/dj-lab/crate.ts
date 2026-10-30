@@ -18,6 +18,9 @@ export interface LabSong {
   /** tagged tempo, if any */
   bpm?: number;
   genre?: string;
+  /** file size in bytes and format, from Navidrome (a FLAC is 25–60 MB) */
+  size?: number;
+  suffix?: string;
 }
 
 export interface CrateInfo {
@@ -35,6 +38,8 @@ interface SubsonicSong {
   duration?: number;
   bpm?: number;
   genre?: string;
+  size?: number;
+  suffix?: string;
   isDir?: boolean;
 }
 
@@ -47,7 +52,18 @@ const toSong = (s: SubsonicSong): LabSong => ({
   duration: s.duration ?? 0,
   bpm: s.bpm || undefined,
   genre: s.genre,
+  size: s.size,
+  suffix: s.suffix,
 });
+
+/** Files this big (FLACs) wait for the set to end on a phone, where decoding them mid-set got the page killed. */
+export const BIG_FILE_BYTES = 20e6;
+
+/** Phones and tablets: iOS kills a page that runs out of memory, without any warning. */
+export function isPhone(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+}
 
 async function subsonic<T>(endpoint: string): Promise<T> {
   const res = await fetch(`/api/navidrome/rest/${endpoint}`, { credentials: 'include' });
@@ -79,15 +95,22 @@ export async function fetchAudio(id: string, signal?: AbortSignal): Promise<Arra
   return res.arrayBuffer();
 }
 
+let decoder: OfflineAudioContext | null = null;
+/** One context decodes every scanned song (Safari may hold on to each one it's given) */
+function analysisDecoder(): OfflineAudioContext {
+  if (!decoder) {
+    try {
+      decoder = new OfflineAudioContext(1, 1, 11025);
+    } catch {
+      decoder = new OfflineAudioContext(1, 1, 22050);
+    }
+  }
+  return decoder;
+}
+
 /** Decode to mono at a low rate for analysis (11 kHz; 22 kHz where a browser refuses that). */
 export async function decodeMono(buf: ArrayBuffer): Promise<{ mono: Float32Array; sr: number }> {
-  let ctx: OfflineAudioContext;
-  try {
-    ctx = new OfflineAudioContext(1, 1, 11025);
-  } catch {
-    ctx = new OfflineAudioContext(1, 1, 22050);
-  }
-  const ab = await ctx.decodeAudioData(buf);
+  const ab = await analysisDecoder().decodeAudioData(buf);
   const mono = new Float32Array(ab.length);
   for (let c = 0; c < ab.numberOfChannels; c++) {
     const ch = ab.getChannelData(c);
