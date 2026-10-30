@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, FlaskConical, Loader2, Play } from 'lucide-react';
+import { AlertTriangle, ChevronDown, FlaskConical, Loader2, Play, Settings2 } from 'lucide-react';
 import { loginRedirect } from '~/lib/auth/login-redirect';
 import { PageLayout } from '@/components/ui/page-layout';
 import { Button } from '@/components/ui/button';
@@ -101,6 +101,17 @@ function DJLab() {
   };
 
   const live = snap.status !== 'idle';
+  // mid-set the setup folds into one line
+  const [setupOpen, setSetupOpen] = useState(false);
+  const showSetup = !live || setupOpen;
+  const crateName = crates.data?.find((c) => c.id === crateId)?.name;
+  const scanText = crate.loading
+    ? 'Loading crate…'
+    : crate.error
+      ? `Crate failed: ${crate.error}`
+      : crate.songs.length
+        ? `${crate.done}/${crate.songs.length} analysed${crate.failed ? `, ${crate.failed} failed` : ''}${crate.scanning ? '…' : ''}`
+        : '';
   const openers = useMemo(
     () =>
       tempoManual
@@ -122,111 +133,122 @@ function DJLab() {
   return (
     <PageLayout
       title="Transition Lab"
-      description="A continuous mix that locks the next song, and blind A/B of the transitions"
       icon={<FlaskConical className="h-5 w-5" />}
+      compact
       backLink="/dj"
       backLabel="DJ Tools"
     >
-      <div className="mx-auto max-w-3xl space-y-4">
-        <Card className="space-y-3 p-3 sm:p-4">
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-            <label className="block min-w-0 space-y-1 text-xs text-muted-foreground">
-              Crate
-              <Select value={crateId ?? undefined} onValueChange={chooseCrate}>
-                <SelectTrigger className="w-full min-w-0 *:data-[slot=select-value]:block *:data-[slot=select-value]:truncate">
-                  <SelectValue placeholder={crates.isLoading ? 'Loading playlists…' : 'Pick a playlist'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {crates.data?.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                      {c.songCount ? ` · ${c.songCount}` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
-            <label className="space-y-1 text-xs text-muted-foreground">
-              <span className="flex items-center justify-between gap-2">
-                Set tempo
-                {tempoManual && !live && (
-                  <button type="button" className="text-primary" onClick={() => setTempoManual(false)}>
-                    auto
-                  </button>
-                )}
+      <div className="mx-auto max-w-3xl space-y-3">
+        <Card className="space-y-2 p-2.5">
+          {live && (
+            <button
+              type="button"
+              onClick={() => setSetupOpen(!setupOpen)}
+              aria-expanded={showSetup}
+              className="flex w-full items-center gap-2 text-left text-xs text-muted-foreground"
+            >
+              <span className="min-w-0 flex-1 truncate tabular-nums">
+                <span className="font-medium text-foreground">{crateName ?? 'Crate'}</span> · {snap.setBpm} BPM ·{' '}
+                {snap.mode === 'dropchain' ? 'drop-chain' : 'classic'} · −{snap.defaults.tempoDown}…+{snap.defaults.tempoUp} %
+                {snap.autoLock ? ' · auto-lock' : ''}
+                {crate.scanning ? ` · ${scanText}` : ''}
               </span>
-              <Input
-                type="number"
-                inputMode="decimal"
-                min={70}
-                max={190}
-                step={1}
-                value={live || tempoManual ? snap.setBpm : ''}
-                placeholder="Opener's"
-                disabled={live}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  setTempoManual(true);
-                  if (v >= 70 && v <= 190) engine.setSetBpm(v);
-                }}
-                className="w-28"
-              />
-            </label>
-            <div className="space-y-1 text-xs text-muted-foreground">
-              Recipe
-              <div className="flex rounded-md border p-0.5">
-                {(['dropchain', 'classic'] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => engine.setMode(m)}
-                    className={cn('rounded px-2.5 py-1.5 text-xs font-medium', snap.mode === m ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}
+              <Settings2 className="size-3.5 shrink-0" />
+              <ChevronDown className={cn('size-4 shrink-0 transition-transform', showSetup && 'rotate-180')} />
+            </button>
+          )}
+          {showSetup && (
+            <>
+              <div className="flex items-center gap-2">
+                <Select value={crateId ?? undefined} onValueChange={chooseCrate}>
+                  <SelectTrigger
+                    size="sm"
+                    aria-label="Crate"
+                    className="min-w-0 flex-1 *:data-[slot=select-value]:block *:data-[slot=select-value]:truncate"
                   >
-                    {m === 'dropchain' ? 'Drop-chain' : 'Classic'}
-                  </button>
-                ))}
+                    <SelectValue placeholder={crates.isLoading ? 'Loading playlists…' : 'Pick a crate (playlist)'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {crates.data?.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                        {c.songCount ? ` · ${c.songCount}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min={70}
+                  max={190}
+                  step={1}
+                  value={live || tempoManual ? snap.setBpm : ''}
+                  placeholder="Auto"
+                  disabled={live}
+                  aria-label="Set tempo (BPM)"
+                  title="Set tempo: blank = the opener's own tempo"
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setTempoManual(true);
+                    if (v >= 70 && v <= 190) engine.setSetBpm(v);
+                  }}
+                  className="h-8 w-20"
+                />
+                <span className="text-xs text-muted-foreground">
+                  {tempoManual && !live ? (
+                    <button type="button" className="text-primary" onClick={() => setTempoManual(false)}>
+                      auto
+                    </button>
+                  ) : (
+                    'BPM'
+                  )}
+                </span>
               </div>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <label className="flex items-center gap-2">
-                <Switch checked={snap.autoLock} onCheckedChange={(v) => engine.setAutoLock(v)} />
-                Auto-lock the best next song
-              </label>
-              <label className="flex items-center gap-2" title="The first song runs to its end before the first transition">
-                <Switch checked={snap.defaults.openerPlaysOut} onCheckedChange={(v) => engine.setDefaults({ openerPlaysOut: v })} />
-                Opener plays out
-              </label>
-              <label className="flex items-center gap-2" title="Next songs come in on their first drop instead of their main drop">
-                <Switch checked={snap.defaults.preferFirstDrop} onCheckedChange={(v) => engine.setDefaults({ preferFirstDrop: v })} />
-                Prefer first drops
-              </label>
-            </div>
-            <span className="tabular-nums">
-              {crate.loading
-                ? 'Loading crate…'
-                : crate.error
-                  ? `Crate failed: ${crate.error}`
-                  : crate.songs.length
-                    ? `${crate.done}/${crate.songs.length} analysed${crate.failed ? `, ${crate.failed} failed` : ''}${crate.scanning ? '…' : ''}`
-                    : ''}
-            </span>
-          </div>
-          <TempoWindow
-            down={snap.defaults.tempoDown}
-            up={snap.defaults.tempoUp}
-            playing={snap.now ? snap.now.analysis.bpm * snap.now.rate : snap.setBpm}
-            onChange={(down, up) => engine.setDefaults({ tempoDown: down, tempoUp: up })}
-          />
-          {snap.message && <p className="text-sm text-muted-foreground">{snap.message}</p>}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+                <div className="flex rounded-md border p-0.5" role="group" aria-label="Recipe">
+                  {(['dropchain', 'classic'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => engine.setMode(m)}
+                      aria-pressed={snap.mode === m}
+                      className={cn('rounded px-2 py-0.5 text-[11px] font-medium', snap.mode === m ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}
+                    >
+                      {m === 'dropchain' ? 'Drop-chain' : 'Classic'}
+                    </button>
+                  ))}
+                </div>
+                <label className="flex items-center gap-1.5" title="Lock the best next song automatically">
+                  <Switch checked={snap.autoLock} onCheckedChange={(v) => engine.setAutoLock(v)} />
+                  Auto-lock
+                </label>
+                <label className="flex items-center gap-1.5" title="The first song runs to its end before the first transition">
+                  <Switch checked={snap.defaults.openerPlaysOut} onCheckedChange={(v) => engine.setDefaults({ openerPlaysOut: v })} />
+                  Opener plays out
+                </label>
+                <label className="flex items-center gap-1.5" title="Next songs come in on their first drop instead of their main drop">
+                  <Switch checked={snap.defaults.preferFirstDrop} onCheckedChange={(v) => engine.setDefaults({ preferFirstDrop: v })} />
+                  1st drops
+                </label>
+                {scanText && <span className="ml-auto tabular-nums">{scanText}</span>}
+              </div>
+              <TempoWindow
+                down={snap.defaults.tempoDown}
+                up={snap.defaults.tempoUp}
+                playing={snap.now ? snap.now.analysis.bpm * snap.now.rate : snap.setBpm}
+                onChange={(down, up) => engine.setDefaults({ tempoDown: down, tempoUp: up })}
+              />
+            </>
+          )}
+          {snap.message && <p className="text-xs text-muted-foreground">{snap.message}</p>}
           {died && !live && (
             <button
               type="button"
               onClick={() => setTab('log')}
-              className="flex w-full items-start gap-2 rounded-md bg-destructive/10 p-2 text-left text-sm text-destructive"
+              className="flex w-full items-start gap-2 rounded-md bg-destructive/10 p-2 text-left text-xs text-destructive"
             >
-              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
               <span>
                 The last set stopped when the page reloaded mid-set
                 {typeof died.data?.lastBeatAt === 'string' ? ` (around ${new Date(died.data.lastBeatAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}
@@ -252,7 +274,7 @@ function DJLab() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="mix" className="mt-4">
+          <TabsContent value="mix" className="mt-3">
             {live && snap.now ? (
               <LabMix engine={engine} snap={snap} pool={pool} />
             ) : snap.status === 'loading' ? (
@@ -261,7 +283,7 @@ function DJLab() {
               </p>
             ) : (
               <section className="space-y-2">
-                <h3 className="text-sm font-semibold">Pick the opener</h3>
+                <h3 className="text-xs font-semibold">Pick the opener</h3>
                 {!crateId && <p className="text-sm text-muted-foreground">Pick a crate first. Its tracks get analysed in the background (once, then cached).</p>}
                 {crateId && !openers.length && !crate.loading && (
                   <p className="text-sm text-muted-foreground">
@@ -273,16 +295,16 @@ function DJLab() {
                 )}
                 <ul className="divide-y rounded-lg border">
                   {openers.slice(0, 200).map((p) => (
-                    <li key={p.song.id} className="flex items-center gap-3 p-2.5">
+                    <li key={p.song.id} className="flex items-center gap-2 px-2 py-1.5">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{p.song.title}</div>
-                        <div className="truncate text-xs text-muted-foreground">
+                        <div className="truncate text-sm font-medium">{p.song.title}</div>
+                        <div className="truncate text-[11px] text-muted-foreground">
                           {p.song.artist} · track {p.analysis.bpm.toFixed(1)} BPM
                           {tempoManual ? ` → plays at ${snap.setBpm} (${stretchPct(snap.setBpm, p.analysis.bpm)})` : ''} · {p.analysis.drops.length} drops
                         </div>
                       </div>
-                      <Button size="sm" className="shrink-0 gap-1.5" onClick={() => startSet(p)}>
-                        <Play className="size-3.5" /> Start set
+                      <Button size="sm" className="h-7 shrink-0 gap-1 px-2 text-xs" onClick={() => startSet(p)}>
+                        <Play className="size-3" /> Start
                       </Button>
                     </li>
                   ))}

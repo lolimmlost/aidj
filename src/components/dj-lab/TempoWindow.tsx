@@ -21,13 +21,13 @@ export function TempoWindow({
   const lo = playing * (1 - down / 100);
   const hi = playing * (1 + up / 100);
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-xs text-muted-foreground">
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-[11px] text-muted-foreground">
         <span>
-          Next track tempo: <span className="font-medium text-foreground tabular-nums">−{down} % … +{up} %</span>
+          Next tempo <span className="font-medium text-foreground tabular-nums">−{down} % … +{up} %</span>
         </span>
         <span className="tabular-nums">
-          {lo.toFixed(1)}–{hi.toFixed(1)} BPM (playing {playing.toFixed(1)})
+          {lo.toFixed(1)}–{hi.toFixed(1)} BPM (now {playing.toFixed(1)})
         </span>
       </div>
       <Slider
