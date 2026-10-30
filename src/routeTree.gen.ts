@@ -36,6 +36,7 @@ import { Route as DashboardHistoryRouteImport } from './routes/dashboard/history
 import { Route as DashboardLibraryGrowthRouteImport } from './routes/dashboard/library-growth'
 import { Route as DashboardMoodTimelineRouteImport } from './routes/dashboard/mood-timeline'
 import { Route as DjIndexRouteImport } from './routes/dj/index'
+import { Route as DjLabRouteImport } from './routes/dj/lab'
 import { Route as DjSetBuilderRouteImport } from './routes/dj/set-builder'
 import { Route as DjSettingsRouteImport } from './routes/dj/settings'
 import { Route as DownloadsIndexRouteImport } from './routes/downloads/index'
@@ -335,6 +336,11 @@ const DashboardMoodTimelineRoute = DashboardMoodTimelineRouteImport.update({
 const DjIndexRoute = DjIndexRouteImport.update({
   id: '/dj/',
   path: '/dj/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DjLabRoute = DjLabRouteImport.update({
+  id: '/dj/lab',
+  path: '/dj/lab',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DjSetBuilderRoute = DjSetBuilderRouteImport.update({
@@ -1245,6 +1251,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/history': typeof DashboardHistoryRoute
   '/dashboard/library-growth': typeof DashboardLibraryGrowthRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
+  '/dj/lab': typeof DjLabRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/settings': typeof DjSettingsRoute
   '/downloads/history': typeof DownloadsHistoryRoute
@@ -1437,6 +1444,7 @@ export interface FileRoutesByTo {
   '/dashboard/history': typeof DashboardHistoryRoute
   '/dashboard/library-growth': typeof DashboardLibraryGrowthRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
+  '/dj/lab': typeof DjLabRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/settings': typeof DjSettingsRoute
   '/downloads/history': typeof DownloadsHistoryRoute
@@ -1631,6 +1639,7 @@ export interface FileRoutesById {
   '/dashboard/history': typeof DashboardHistoryRoute
   '/dashboard/library-growth': typeof DashboardLibraryGrowthRoute
   '/dashboard/mood-timeline': typeof DashboardMoodTimelineRoute
+  '/dj/lab': typeof DjLabRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/settings': typeof DjSettingsRoute
   '/downloads/history': typeof DownloadsHistoryRoute
@@ -1826,6 +1835,7 @@ export interface FileRouteTypes {
     | '/dashboard/history'
     | '/dashboard/library-growth'
     | '/dashboard/mood-timeline'
+    | '/dj/lab'
     | '/dj/set-builder'
     | '/dj/settings'
     | '/downloads/history'
@@ -2018,6 +2028,7 @@ export interface FileRouteTypes {
     | '/dashboard/history'
     | '/dashboard/library-growth'
     | '/dashboard/mood-timeline'
+    | '/dj/lab'
     | '/dj/set-builder'
     | '/dj/settings'
     | '/downloads/history'
@@ -2211,6 +2222,7 @@ export interface FileRouteTypes {
     | '/dashboard/history'
     | '/dashboard/library-growth'
     | '/dashboard/mood-timeline'
+    | '/dj/lab'
     | '/dj/set-builder'
     | '/dj/settings'
     | '/downloads/history'
@@ -2394,6 +2406,7 @@ export interface RootRouteChildren {
   ApiPreferencesRoute: typeof ApiPreferencesRoute
   ApiRecommendationsRoute: typeof ApiRecommendationsRouteWithChildren
   ApiSearchRoute: typeof ApiSearchRoute
+  DjLabRoute: typeof DjLabRoute
   DjSetBuilderRoute: typeof DjSetBuilderRoute
   DjSettingsRoute: typeof DjSettingsRoute
   DownloadsHistoryRoute: typeof DownloadsHistoryRoute
@@ -2727,6 +2740,13 @@ declare module '@tanstack/react-router' {
       path: '/dj'
       fullPath: '/dj/'
       preLoaderRoute: typeof DjIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dj/lab': {
+      id: '/dj/lab'
+      path: '/dj/lab'
+      fullPath: '/dj/lab'
+      preLoaderRoute: typeof DjLabRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dj/set-builder': {
@@ -4080,6 +4100,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPreferencesRoute: ApiPreferencesRoute,
   ApiRecommendationsRoute: ApiRecommendationsRouteWithChildren,
   ApiSearchRoute: ApiSearchRoute,
+  DjLabRoute: DjLabRoute,
   DjSetBuilderRoute: DjSetBuilderRoute,
   DjSettingsRoute: DjSettingsRoute,
   DownloadsHistoryRoute: DownloadsHistoryRoute,
