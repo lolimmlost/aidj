@@ -133,6 +133,7 @@ export class LabEngine {
   private timer: ReturnType<typeof setInterval> | null = null;
   /** tick health: wall/audio clock at the last tick, last heartbeat, last clock-stall report */
   private lastTick: { wall: number; ctx: number } | null = null;
+  /** performance.now() of the last heartbeat (same clock as checkHealth) */
   private lastBeat = 0;
   private lastStall = 0;
   private listeners = new Set<() => void>();
@@ -635,7 +636,7 @@ export class LabEngine {
 
   /** Heartbeat for the flight recorder: a page that dies mid-set leaves this behind. */
   private beat() {
-    this.lastBeat = Date.now();
+    this.lastBeat = performance.now();
     const cur = this.cur;
     labBeat({
       status: this.snap.status,
