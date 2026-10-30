@@ -19,6 +19,7 @@ import { LabMix } from '@/components/dj-lab/LabMix';
 import { LabAB } from '@/components/dj-lab/LabAB';
 import { LabVotes } from '@/components/dj-lab/LabVotes';
 import { RecentSets } from '@/components/dj-lab/RecentSets';
+import { TempoWindow } from '@/components/dj-lab/TempoWindow';
 import { cn } from '@/lib/utils';
 
 const stretchPct = (setBpm: number, bpm: number) => {
@@ -69,16 +70,22 @@ function DJLab() {
   }, []);
 
   useEffect(() => watchAppPlayer(engine), [engine]);
+  useEffect(() => engine.loadDefaults(), [engine]);
 
   // auto-lock picks the best-ranked crate track
   useEffect(() => {
     engine.setPicker(
       (now, played) =>
-        rankCandidates({ song: now.song, analysis: now.analysis }, pool, { setBpm: snap.setBpm, played, mode: snap.mode })[0]?.song ?? null,
+        rankCandidates({ song: now.song, analysis: now.analysis }, pool, {
+          setBpm: snap.setBpm,
+          played,
+          mode: snap.mode,
+          window: { down: snap.defaults.tempoDown, up: snap.defaults.tempoUp },
+        })[0]?.song ?? null,
     );
     // the set may start before the crate is analysed: pick as soon as there's something to pick
     engine.maybeAutoLock();
-  }, [engine, pool, snap.setBpm, snap.mode, snap.autoLock, snap.status, snap.now, snap.next]);
+  }, [engine, pool, snap.setBpm, snap.mode, snap.autoLock, snap.status, snap.now, snap.next, snap.defaults.tempoDown, snap.defaults.tempoUp]);
 
   const chooseCrate = (id: string) => {
     setCrateId(id);
@@ -176,10 +183,20 @@ function DJLab() {
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            <label className="flex items-center gap-2">
-              <Switch checked={snap.autoLock} onCheckedChange={(v) => engine.setAutoLock(v)} />
-              Auto-lock the best next song
-            </label>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <label className="flex items-center gap-2">
+                <Switch checked={snap.autoLock} onCheckedChange={(v) => engine.setAutoLock(v)} />
+                Auto-lock the best next song
+              </label>
+              <label className="flex items-center gap-2" title="The first song runs to its end before the first transition">
+                <Switch checked={snap.defaults.openerPlaysOut} onCheckedChange={(v) => engine.setDefaults({ openerPlaysOut: v })} />
+                Opener plays out
+              </label>
+              <label className="flex items-center gap-2" title="Next songs come in on their first drop instead of their main drop">
+                <Switch checked={snap.defaults.preferFirstDrop} onCheckedChange={(v) => engine.setDefaults({ preferFirstDrop: v })} />
+                Prefer first drops
+              </label>
+            </div>
             <span className="tabular-nums">
               {crate.loading
                 ? 'Loading crate…'
@@ -190,6 +207,12 @@ function DJLab() {
                     : ''}
             </span>
           </div>
+          <TempoWindow
+            down={snap.defaults.tempoDown}
+            up={snap.defaults.tempoUp}
+            playing={snap.now ? snap.now.analysis.bpm * snap.now.rate : snap.setBpm}
+            onChange={(down, up) => engine.setDefaults({ tempoDown: down, tempoUp: up })}
+          />
           {snap.message && <p className="text-sm text-muted-foreground">{snap.message}</p>}
         </Card>
 

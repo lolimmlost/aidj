@@ -51,7 +51,12 @@ export function RecentSets() {
                         <span className="min-w-0 flex-1 truncate">
                           {t.title} <span className="text-muted-foreground">· {t.artist}</span>
                         </span>
-                        {t.kind && <span className="shrink-0 text-xs text-muted-foreground">{t.kind}</span>}
+                        {t.kind && (
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {t.kind}
+                            {t.choice ? ` · ${t.choice}` : ''}
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ol>

@@ -8,10 +8,11 @@ import { cn } from '@/lib/utils';
 import { barAt, type TrackAnalysis } from '@/lib/dj-lab/analysis';
 import { rankCandidates, type LabSong } from '@/lib/dj-lab/crate';
 import type { EngineSnapshot, HistoryEntry, LabEngine, NextInfo } from '@/lib/dj-lab/engine';
-import type { Recipe, TransitionPlan } from '@/lib/dj-lab/plan';
+import { describeRecipe, type TransitionPlan } from '@/lib/dj-lab/plan';
 import { lockRecord, newId, planRecord, saveVote } from '@/lib/dj-lab/votes';
 import { DeckStrip, type StripMarker, type StripRegion } from './DeckStrip';
 import { fmtTime, useTicker } from './useLab';
+import { TransitionPicker } from './TransitionPicker';
 
 type Pool = { song: LabSong; analysis: TrackAnalysis }[];
 
@@ -27,7 +28,7 @@ function SongLine({ song, sub }: { song: LabSong; sub?: string }) {
   return (
     <div className="min-w-0">
       <div className="truncate font-semibold">{song.title}</div>
-      <div className="truncate text-xs text-muted-foreground">
+      <div className="line-clamp-2 text-xs text-muted-foreground">
         {song.artist}
         {sub ? ` · ${sub}` : ''}
       </div>
@@ -89,15 +90,6 @@ function LockBadge({ next }: { next: NextInfo }) {
   );
 }
 
-const RECIPES: [string, Recipe][] = [
-  ['Rules', {}],
-  ['Sweep bass', { bass: 'sweep' }],
-  ['Hard swap', { bass: 'swap' }],
-  ['8 bars', { bars: 8 }],
-  ['16 bars', { bars: 16 }],
-  ['Chain', { kind: 'chain' }],
-  ['Swap', { kind: 'swap' }],
-];
 
 function flag(entry: HistoryEntry, thumb: 'up' | 'down', setBpm: number) {
   if (!entry.from || !entry.plan) return;
@@ -124,8 +116,16 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
   const next = snap.next;
   const played = useMemo(() => new Set(snap.history.map((h) => h.song.id)), [snap.history]);
   const candidates = useMemo(
-    () => (now ? rankCandidates({ song: now.song, analysis: now.analysis }, pool, { setBpm: snap.setBpm, played, mode: snap.mode }).slice(0, 12) : []),
-    [now, pool, snap.setBpm, played, snap.mode],
+    () =>
+      now
+        ? rankCandidates({ song: now.song, analysis: now.analysis }, pool, {
+            setBpm: snap.setBpm,
+            played,
+            mode: snap.mode,
+            window: { down: snap.defaults.tempoDown, up: snap.defaults.tempoUp },
+          }).slice(0, 12)
+        : [],
+    [now, pool, snap.setBpm, played, snap.mode, snap.defaults.tempoDown, snap.defaults.tempoUp],
   );
   const posNow = useMemo(() => () => engine.position('now'), [engine]);
   const posNext = useMemo(() => () => engine.position('next'), [engine]);
@@ -232,23 +232,23 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
               <Button size="sm" variant="outline" disabled={frozen} onClick={() => engine.unlock()} className="gap-1.5">
                 <LockOpen className="size-3.5" /> Unlock
               </Button>
-              {next.plan &&
-                RECIPES.map(([label, r]) => (
-                  <Button key={label} size="sm" variant="ghost" disabled={frozen} onClick={() => void engine.relock(r)} className="h-8 px-2 text-xs">
-                    {label}
-                  </Button>
-                ))}
             </div>
           </>
         )}
       </Card>
+
+      <TransitionPicker engine={engine} snap={snap} />
 
       {/* candidates */}
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">
           Up next <span className="font-normal text-muted-foreground">· matched to {(now.analysis.bpm * now.rate).toFixed(1)} BPM, the tempo playing now</span>
         </h3>
-        {candidates.length === 0 && <p className="text-sm text-muted-foreground">No analysed track within ±8 % of {snap.setBpm} BPM yet.</p>}
+        {candidates.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            No analysed track between −{snap.defaults.tempoDown} % and +{snap.defaults.tempoUp} % of the playing tempo. Widen the tempo window above.
+          </p>
+        )}
         <ul className="divide-y rounded-lg border">
           {candidates.map((c) => {
             const isNext = next?.song.id === c.song.id;
@@ -296,7 +296,8 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
                   </div>
                   {h.plan && (
                     <div className="truncate text-xs text-muted-foreground">
-                      {h.plan.kind}, {h.plan.N} bars{h.lock ? ` · lock ${h.lock.verified ? '✓' : '✗'} ${h.lock.p90Ms?.toFixed(1) ?? 'n/a'} ms` : ''}
+                      {h.plan.kind}, {h.plan.N} bars{h.recipe && describeRecipe(h.recipe) ? ` · ${describeRecipe(h.recipe)}` : ''}
+                      {h.lock ? ` · lock ${h.lock.verified ? '✓' : '✗'} ${h.lock.p90Ms?.toFixed(1) ?? 'n/a'} ms` : ''}
                     </div>
                   )}
                 </div>

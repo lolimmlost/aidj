@@ -8,7 +8,7 @@ import { createDeck, createMaster, placeTransition, scheduleIncoming, scheduleOu
 import type { LockResult } from './lock';
 import { planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
 
-export type Factor = 'bass' | 'length' | 'kind' | 'mode' | 'kill';
+export type Factor = 'bass' | 'length' | 'kind' | 'mode' | 'kill' | 'exit' | 'entry';
 
 export const FACTORS: Record<Factor, { label: string; variants: [string, Recipe][] }> = {
   bass: { label: 'Bass: filter sweep vs hard swap', variants: [['sweep', { bass: 'sweep' }], ['swap', { bass: 'swap' }]] },
@@ -16,6 +16,8 @@ export const FACTORS: Record<Factor, { label: string; variants: [string, Recipe]
   kind: { label: "Drop-chain: chain vs swap (B's drop replaces A's next)", variants: [['chain', { kind: 'chain' }], ['swap', { kind: 'swap' }]] },
   mode: { label: "Recipe: drop-chain vs classic (B's intro over A's end)", variants: [['drop-chain', { mode: 'dropchain' }], ['classic', { mode: 'classic' }]] },
   kill: { label: 'Pre-drop bass kill: 4 vs 8 bars', variants: [['kill 4', { kill: 4 }], ['kill 8', { kill: 8 }]] },
+  exit: { label: 'A: drop-chain exit vs played out', variants: [['drop-chain exit', {}], ['play out', { exit: 'end' }]] },
+  entry: { label: 'B: first drop vs main drop', variants: [['first drop', { entry: 'first-drop' }], ['main drop', { entry: 'main-drop' }]] },
 };
 
 export interface Variant {

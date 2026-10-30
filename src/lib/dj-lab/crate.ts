@@ -209,7 +209,13 @@ export const MAX_STRETCH = 0.08;
 export function rankCandidates(
   current: { song: LabSong; analysis: TrackAnalysis },
   pool: { song: LabSong; analysis: TrackAnalysis }[],
-  opts: { setBpm: number; played: Set<string>; mode: 'dropchain' | 'classic' },
+  opts: {
+    setBpm: number;
+    played: Set<string>;
+    mode: 'dropchain' | 'classic';
+    /** tempo window (#378): how much slower / faster the track may be than what's playing, % */
+    window?: { down: number; up: number };
+  },
 ): Candidate[] {
   const out: Candidate[] = [];
   const curBass = bassWeight(current.analysis);
@@ -217,6 +223,8 @@ export function rankCandidates(
     if (song.id === current.song.id || opts.played.has(song.id)) continue;
     const stretch = opts.setBpm / analysis.bpm - 1;
     if (Math.abs(stretch) > MAX_STRETCH) continue;
+    const faster = (analysis.bpm / opts.setBpm - 1) * 100;
+    if (opts.window && (faster > opts.window.up + 1e-9 || faster < -opts.window.down - 1e-9)) continue;
     const reasons: string[] = [];
     const warnings: string[] = [];
     if (opts.mode === 'dropchain' && analysis.drop === null) warnings.push('no clear drop');

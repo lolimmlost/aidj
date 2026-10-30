@@ -14,7 +14,7 @@ import { barAt, barTime, dropLevelDb, type TrackAnalysis } from './analysis';
 import { analyseSong, fetchAudio, monoSegment, type LabSong } from './crate';
 import { createDeck, createMaster, disposeDeck, placeTransition, resetGains, scheduleIncoming, scheduleOutgoing, type DeckNodes, type PlacedTransition } from './graph';
 import { measureLock, type LockResult } from './lock';
-import { planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
+import { describeRecipe, planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
 import { saveSet } from './sets';
 
 export interface LoadedTrack {
@@ -25,9 +25,29 @@ export interface LoadedTrack {
 
 export type NextState = 'loading' | 'locked' | 'committed' | 'mixing' | 'failed';
 
+/** The next-transition picker (#375): unset = the rules decide */
+export type Choices = Pick<Recipe, 'exit' | 'entry' | 'bass' | 'bars'>;
+export type ChoiceKey = keyof Choices;
+
+/** Set-wide defaults, kept per device */
+export interface LabDefaults {
+  /** the opener runs to its end before the first transition */
+  openerPlaysOut: boolean;
+  /** next songs come in on their first drop */
+  preferFirstDrop: boolean;
+  /** tempo window for the next track (#378): how much slower / faster than what's playing, % */
+  tempoDown: number;
+  tempoUp: number;
+}
+
+const DEFAULTS_KEY = 'aidj:dj-lab:defaults';
+const NO_DEFAULTS: LabDefaults = { openerPlaysOut: false, preferFirstDrop: false, tempoDown: 4, tempoUp: 4 };
+
 export interface NextInfo {
   song: LabSong;
   state: NextState;
+  /** the recipe it was planned with */
+  recipe?: Recipe;
   analysis?: TrackAnalysis;
   plan?: TransitionPlan;
   lock?: LockResult;
@@ -53,6 +73,7 @@ export interface HistoryEntry {
   plan?: TransitionPlan;
   lock?: LockResult;
   from?: LabSong;
+  recipe?: Recipe;
 }
 
 export interface EngineSnapshot {
@@ -64,6 +85,10 @@ export interface EngineSnapshot {
   next?: NextInfo;
   history: HistoryEntry[];
   message?: string;
+  /** what the next transition should do; cleared after it plays unless pinned */
+  choices: Choices;
+  pinned: ChoiceKey[];
+  defaults: LabDefaults;
 }
 
 interface LiveDeck {
@@ -100,7 +125,16 @@ export class LabEngine {
   private setStartedAt = '';
   private timer: ReturnType<typeof setInterval> | null = null;
   private listeners = new Set<() => void>();
-  private snap: EngineSnapshot = { status: 'idle', setBpm: 126, mode: 'dropchain', autoLock: true, history: [] };
+  private snap: EngineSnapshot = {
+    status: 'idle',
+    setBpm: 126,
+    mode: 'dropchain',
+    autoLock: true,
+    history: [],
+    choices: {},
+    pinned: [],
+    defaults: NO_DEFAULTS,
+  };
   /** picks the next song when auto-lock is on (the page ranks the crate) */
   private pickNext: ((now: NowInfo, played: Set<string>) => LabSong | null) | null = null;
   /** called before the Lab starts sound, so the app's own player can pause */
@@ -147,6 +181,7 @@ export class LabEngine {
         bars: h.plan?.N,
         lockMs: h.lock?.p90Ms ?? null,
         locked: h.lock?.verified,
+        choice: h.recipe ? describeRecipe(h.recipe) || undefined : undefined,
       })),
     });
   }
@@ -180,6 +215,58 @@ export class LabEngine {
     this.set({ autoLock });
   }
 
+  /** Read the per-device defaults (client only: call from an effect, so SSR and hydration agree). */
+  loadDefaults() {
+    try {
+      const d = JSON.parse(localStorage.getItem(DEFAULTS_KEY) ?? 'null') as Partial<LabDefaults> | null;
+      if (d) this.set({ defaults: { ...NO_DEFAULTS, ...d } });
+    } catch {
+      // no storage: defaults stay off
+    }
+  }
+
+  setDefaults(patch: Partial<LabDefaults>) {
+    const defaults = { ...this.snap.defaults, ...patch };
+    try {
+      localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults));
+    } catch {
+      // still applies this session
+    }
+    this.set({ defaults });
+    this.replanIfOpen();
+  }
+
+  /** Set (or clear, with undefined) one choice for the next transition; re-plans a locked song in time. */
+  setChoice<K extends ChoiceKey>(key: K, value: Choices[K] | undefined) {
+    const choices: Choices = { ...this.snap.choices };
+    if (value === undefined) delete choices[key];
+    else choices[key] = value;
+    this.set({ choices });
+    this.replanIfOpen();
+  }
+
+  /** 📌 keep a choice for the rest of the set instead of just the next transition */
+  togglePin(key: ChoiceKey) {
+    const pinned = this.snap.pinned.includes(key) ? this.snap.pinned.filter((k) => k !== key) : [...this.snap.pinned, key];
+    this.set({ pinned });
+  }
+
+  /** The recipe the next lock uses: your choices, then the set defaults, then the rules. */
+  recipe(): Recipe {
+    const c = this.snap.choices;
+    const d = this.snap.defaults;
+    const opener = this.snap.history.length <= 1;
+    return {
+      ...c,
+      exit: c.exit ?? (d.openerPlaysOut && opener ? 'end' : undefined),
+      entry: c.entry ?? (d.preferFirstDrop ? 'first-drop' : undefined),
+    };
+  }
+
+  private replanIfOpen() {
+    if (this.snap.next?.state === 'locked' && this.nextTrack) void this.relock();
+  }
+
   /** The set tempo only changes between sets: every deck plays at it. */
   setSetBpm(bpm: number) {
     if (this.snap.status === 'idle') this.set({ setBpm: bpm });
@@ -203,6 +290,7 @@ export class LabEngine {
     const ctx = this.unlockAudio();
     this.skipped.clear();
     this.autoFails = 0;
+    this.set({ choices: {}, pinned: [] });
     this.setId = `${Date.now().toString(36)}`;
     this.setStartedAt = new Date().toISOString();
     this.set({ status: 'loading', message: `Loading ${song.title}…`, history: [], next: undefined, now: undefined });
@@ -259,7 +347,7 @@ export class LabEngine {
     }
     if (token !== this.lockToken || !this.cur) return;
     try {
-      this.schedule(track, recipe, auto);
+      this.schedule(track, { ...this.recipe(), ...recipe }, auto);
     } catch (e) {
       // scheduling errors (Web Audio automation) fail this lock visibly instead of an unhandled rejection
       this.failLock(song, `couldn't schedule: ${(e as Error).message}`, auto);
@@ -291,7 +379,10 @@ export class LabEngine {
     }
     const lock = lockFor(cur.track, track, plan, cur.rate);
     const notes: string[] = [];
-    if (plan.kind === 'chain' && !lock.verified) {
+    if (plan.unmet) notes.push(plan.unmet);
+    // a build over A's beats: a chain, or B's drop landing as A plays out
+    const buildOverBeats = plan.kind === 'chain' || (plan.kind === 'playout' && plan.S === plan.N);
+    if (buildOverBeats && !lock.verified) {
       // rule 1: never overlap two kick lines without a verified lock — hold B's build back
       plan.hold = Math.min(4, plan.N);
       notes.push("Lock unverified: B's build held to the last 4 bars (rule 1)");
@@ -308,7 +399,7 @@ export class LabEngine {
     scheduleOutgoing(cur.nodes, plan, tEntry, placed.barSec);
     this.nxt = { track, nodes, rate: placed.bRate, ctxStart: placed.bWhen, trackStart: placed.bOffset };
     this.nextTrack = track;
-    this.setNext({ song, state: 'locked', analysis: B, plan, lock, placed, notes, error: undefined });
+    this.setNext({ song, state: 'locked', analysis: B, plan, lock, placed, notes, error: undefined, recipe });
     this.autoFails = 0;
     if (this.snap.message) this.set({ message: undefined });
   }
@@ -354,14 +445,14 @@ export class LabEngine {
     }
   }
 
-  /** Re-plan the locked song with another recipe (A/B winner, or a manual override). */
+  /** Re-plan the locked song: with the current choices, or an explicit recipe on top (A/B winner). */
   async relock(recipe?: Recipe) {
     const track = this.nextTrack;
     if (!track || !this.cur) return;
     const st = this.snap.next?.state;
     if (st === 'committed' || st === 'mixing') return;
     this.cancelNext();
-    this.schedule(track, recipe);
+    this.schedule(track, { ...this.recipe(), ...recipe });
   }
 
   pause() {
@@ -492,7 +583,12 @@ export class LabEngine {
     this.set({
       now: { song: nxt.track.song, analysis: nxt.track.analysis, rate: nxt.rate, floorBar: next.plan!.deB },
       next: undefined,
-      history: [...this.snap.history, { song: nxt.track.song, at: next.placed!.bWhen, plan: next.plan, lock: next.lock, from: cur.track.song }],
+      history: [...this.snap.history, { song: nxt.track.song, at: next.placed!.bWhen, plan: next.plan, lock: next.lock, from: cur.track.song, recipe: next.recipe }],
+      // the choices this transition used are spent, unless 📌 pinned; ones changed after it was
+      // committed are for the next transition and stay
+      choices: Object.fromEntries(
+        Object.entries(this.snap.choices).filter(([k, v]) => this.snap.pinned.includes(k as ChoiceKey) || next.recipe?.[k as ChoiceKey] !== v),
+      ) as Choices,
     });
     this.maybeAutoLock();
   }
