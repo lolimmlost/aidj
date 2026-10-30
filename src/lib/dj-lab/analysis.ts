@@ -22,7 +22,9 @@ import {
   spanDb,
 } from './dsp';
 
-export const ANALYSIS_VERSION = 1;
+export const ANALYSIS_VERSION = 2;
+/** v1 analyses with a tempo at or above this are reused: the v2 change only fixes octave / 3:2 misreads below it */
+export const V1_TRUSTED_BPM = 100;
 
 export interface TrackAnalysis {
   version: number;
@@ -112,6 +114,32 @@ export function coarseTempo(o: Float32Array, fps: number, hint?: number): number
     const w = Math.exp(-0.5 * (Math.log2(bpm / center) / sigma) ** 2);
     if (s * w > bestScore) {
       bestScore = s * w;
+      best = bpm;
+    }
+  }
+  return best;
+}
+
+/**
+ * Octave and 3:2 check on the coarse tempo. Half-time bass music has strong dotted (1.5-beat)
+ * rhythms, so the autocorrelation alone read 140 BPM tracks as 93 and 150 as 75 (3 of 36 Peak Time /
+ * BOO tracks without a hint). The kick attacks decide instead: on the real beat grid they line up,
+ * on a 3:2 grid a four-on-the-floor kick cancels out. A log-tempo prior settles ×2 ties (140 over 70).
+ */
+export function pickTempo(peaks: Peak[], duration: number, bpm0: number, hint?: number): number {
+  const center = hint ?? 128;
+  const sigma = hint ? 0.3 : 0.6;
+  let best = bpm0;
+  let bestScore = -Infinity;
+  // octaves and 3:2 only: a once-a-bar kick lines up just as well on a grid of bar/3, so 4:3 candidates
+  // (140 → 105) would win on noise
+  for (const r of [1, 2, 0.5, 1.5, 2 / 3]) {
+    const bpm = bpm0 * r;
+    if (bpm < MIN_BPM || bpm > MAX_BPM) continue;
+    const { conf } = fitGrid(peaks, duration, bpm);
+    const score = conf * Math.exp(-0.5 * (Math.log2(bpm / center) / sigma) ** 2);
+    if (score > bestScore) {
+      bestScore = score;
       best = bpm;
     }
   }
@@ -383,8 +411,9 @@ export function analyseTrack(mono: Float32Array, sr: number, opts: AnalyseOption
   const eAttack = bandEnergy(mono, sr, hop, [highpass(90, sr), highpass(90, sr), lowpass(250, sr), lowpass(250, sr)]);
   const oGrid = onsetFromEnergy(eAttack, 4, 2, 'lin');
 
-  const bpm0 = coarseTempo(oAll, fps, opts.bpmHint);
-  const fit = fitGrid(pickPeaks(oGrid, fps), duration, bpm0);
+  const peaks = pickPeaks(oGrid, fps);
+  const bpm0 = pickTempo(peaks, duration, coarseTempo(oAll, fps, opts.bpmHint), opts.bpmHint);
+  const fit = fitGrid(peaks, duration, bpm0);
   // the onset (4-frame average, 2-frame rise) peaks ~2 frames after the attack; put the grid on the attack
   const grid = { ...fit, t0: fit.t0 - 2 / fps };
   const P = grid.period;

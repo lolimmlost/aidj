@@ -15,7 +15,7 @@ import type { TrackAnalysis } from './analysis';
 import { meanOf, percentile } from './dsp';
 
 export type MixMode = 'dropchain' | 'classic';
-export type TransitionKind = 'chain' | 'swap' | 'droplands' | 'longoutro' | 'intro';
+export type TransitionKind = 'chain' | 'swap' | 'droplands' | 'longoutro' | 'intro' | 'cut';
 
 /** Overrides an A/B variant can set; anything left out follows the rules. */
 export interface Recipe {
@@ -191,14 +191,42 @@ export function planClassic(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOption
   };
 }
 
-/** The first feasible exit for A into B; dropchain falls back to the classic end-of-track blend. */
+/**
+ * Last resort when A has no phrase exit left (its last beat bar is behind the playhead, e.g. a long
+ * beatless outro): cut on the next bar line into a 4-bar build and B's drop. Without it every lock
+ * failed with "no exit left" and auto-lock cycled through the whole crate.
+ */
+export function planCut(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOptions): TransitionPlan | null {
+  if (B.nBars < 8) return null;
+  const N = 4;
+  const entryA = Math.max(0, opts.fromBar);
+  const target = B.drop !== null ? B.de : B.first;
+  return {
+    mode: opts.mode,
+    kind: 'cut',
+    N,
+    S: N,
+    entryA,
+    cueB: Math.max(0, target - N),
+    bass: 'swap',
+    kill: N,
+    hold: 0,
+    endA: entryA + N + 1,
+    deB: B.drop !== null ? B.de : target + N,
+    lift: null,
+    breakdown: null,
+    how: `cut: no phrase exit left in A, B's ${B.drop !== null ? 'drop' : 'intro'} lands ${N} bars after the cut`,
+  };
+}
+
+/** The first feasible exit for A into B; dropchain falls back to the classic end-of-track blend, then a cut. */
 export function planTransition(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOptions): TransitionPlan | null {
   const mode = opts.recipe?.mode ?? opts.mode;
   if (mode === 'dropchain' && A.drops.length + (A.drop !== null ? 1 : 0) > 0 && B.drop !== null) {
     const p = planDropchain(A, B, { ...opts, mode });
     if (p) return p;
   }
-  return planClassic(A, B, { ...opts, mode });
+  return planClassic(A, B, { ...opts, mode }) ?? planCut(A, B, { ...opts, mode });
 }
 
 /* ---------- gain curves (shared by the live deck and the offline A/B render) ---------- */

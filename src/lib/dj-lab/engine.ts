@@ -80,6 +80,7 @@ const LEAD_SEC = 8;
 /** unlock refused this close to the blend */
 const COMMIT_SEC = 3;
 const TRIM_LIMIT_DB = 6;
+const AUTO_FAIL_LIMIT = 3;
 
 const posAt = (d: LiveDeck, t: number) => d.trackStart + (t - d.ctxStart) * d.rate;
 const timeAt = (d: LiveDeck, p: number) => d.ctxStart + (p - d.trackStart) / d.rate;
@@ -93,6 +94,8 @@ export class LabEngine {
   private lockToken = 0;
   private refLevel = 0;
   private skipped = new Set<string>();
+  /** auto-picks that failed in a row; auto-lock pauses at AUTO_FAIL_LIMIT */
+  private autoFails = 0;
   private setId = '';
   private setStartedAt = '';
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -199,6 +202,7 @@ export class LabEngine {
     this.stop();
     const ctx = this.unlockAudio();
     this.skipped.clear();
+    this.autoFails = 0;
     this.setId = `${Date.now().toString(36)}`;
     this.setStartedAt = new Date().toISOString();
     this.set({ status: 'loading', message: `Loading ${song.title}…`, history: [], next: undefined, now: undefined });
@@ -236,7 +240,7 @@ export class LabEngine {
   }
 
   /** Lock `song` as the next track: decode, plan, check the lock, schedule. */
-  async lock(song: LabSong, recipe?: Recipe) {
+  async lock(song: LabSong, recipe?: Recipe, auto = false) {
     if (!this.cur || !this.ctx) return;
     const st = this.snap.next?.state;
     if (st === 'committed' || st === 'mixing') return;
@@ -250,14 +254,14 @@ export class LabEngine {
     try {
       track = await this.loadTrack(song);
     } catch (e) {
-      if (token === this.lockToken) this.failLock(song, (e as Error).message);
+      if (token === this.lockToken) this.failLock(song, (e as Error).message, auto);
       return;
     }
     if (token !== this.lockToken || !this.cur) return;
-    this.schedule(track, recipe);
+    this.schedule(track, recipe, auto);
   }
 
-  private schedule(track: LoadedTrack, recipe?: Recipe) {
+  private schedule(track: LoadedTrack, recipe?: Recipe, auto = false) {
     const ctx = this.ctx!;
     const cur = this.cur!;
     const A = cur.track.analysis;
@@ -265,7 +269,7 @@ export class LabEngine {
     const song = track.song;
     const rateB0 = this.snap.setBpm / B.bpm;
     if (Math.abs(rateB0 - 1) > 0.08) {
-      this.failLock(song, `${B.bpm.toFixed(1)} BPM is more than 8 % from the set tempo`);
+      this.failLock(song, `${B.bpm.toFixed(1)} BPM is more than 8 % from the set tempo`, auto);
       return;
     }
     const fromBar = Math.ceil(barAt(A, posAt(cur, ctx.currentTime + LEAD_SEC)));
@@ -277,7 +281,7 @@ export class LabEngine {
       recipe,
     });
     if (!plan) {
-      this.failLock(song, 'No exit left in this track for that song');
+      this.failLock(song, 'No exit left in this track for that song', auto);
       return;
     }
     const lock = lockFor(cur.track, track, plan, cur.rate);
@@ -300,18 +304,25 @@ export class LabEngine {
     this.nxt = { track, nodes, rate: placed.bRate, ctxStart: placed.bWhen, trackStart: placed.bOffset };
     this.nextTrack = track;
     this.setNext({ song, state: 'locked', analysis: B, plan, lock, placed, notes, error: undefined });
+    this.autoFails = 0;
     if (this.snap.message) this.set({ message: undefined });
   }
 
-  /** A song that can't be locked is skipped; with auto-lock on, the next pick is tried. */
-  private failLock(song: LabSong, error: string) {
+  /**
+   * A song that can't be locked is skipped. An auto-pick moves on to the next pick, up to
+   * AUTO_FAIL_LIMIT in a row (then auto-lock waits for you). A song you picked shows why it failed.
+   */
+  private failLock(song: LabSong, error: string, auto: boolean) {
     this.skipped.add(song.id);
-    if (this.snap.autoLock && this.pickNext) {
+    if (auto && this.snap.autoLock && this.pickNext && ++this.autoFails < AUTO_FAIL_LIMIT) {
       this.set({ next: undefined, message: `Skipped ${song.title}: ${error}` });
       this.maybeAutoLock();
-    } else {
-      this.setNext({ state: 'failed', error });
+      return;
     }
+    if (auto && this.autoFails >= AUTO_FAIL_LIMIT) {
+      this.set({ message: `Auto-lock paused: ${AUTO_FAIL_LIMIT} picks in a row couldn't lock (${error}). Lock one by hand.` });
+    }
+    this.setNext({ song, state: 'failed', error });
   }
 
   /** Drop the locked song (only before it's committed). */
@@ -459,6 +470,7 @@ export class LabEngine {
   }
 
   private promote() {
+    this.autoFails = 0;
     const cur = this.cur!;
     const nxt = this.nxt!;
     const next = this.snap.next!;
@@ -477,9 +489,10 @@ export class LabEngine {
   /** With auto-lock on and nothing locked, lock the best pick (also called when the crate grows). */
   maybeAutoLock() {
     if (!this.snap.autoLock || !this.pickNext || !this.snap.now || this.snap.next || this.snap.status !== 'playing') return;
+    if (this.autoFails >= AUTO_FAIL_LIMIT) return;
     const played = new Set([...this.snap.history.map((h) => h.song.id), ...this.skipped]);
     const song = this.pickNext(this.snap.now, played);
-    if (song) void this.lock(song);
+    if (song) void this.lock(song, undefined, true);
   }
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TrackAnalysis } from '../analysis';
 import { incomingGains, outgoingGains, planTransition } from '../plan';
+import { rankCandidates } from '../crate';
 
 /** A hand-built analysis: per-bar low end from [bars, dB] sections, drops where the low end jumps. */
 function track(sections: [number, number][], opts: Partial<TrackAnalysis> = {}): TrackAnalysis {
@@ -80,6 +81,13 @@ describe('planTransition (drop-chain)', () => {
     expect(p.bass).toBe('sweep');
   });
 
+  it('cuts into B on the next bar when A has no phrase exit left (no "no exit left" loop)', () => {
+    const p = planTransition(SHORT_BREAK, B, { ...opts, fromBar: SHORT_BREAK.last + 1 })!;
+    expect(p.kind).toBe('cut');
+    expect(p.entryA).toBe(SHORT_BREAK.last + 1);
+    expect(p.cueB + p.S).toBe(B.de);
+  });
+
   it("falls back to the classic blend over A's end when B has no drop", () => {
     const flat = track([[96, -10]]);
     const p = planTransition(SHORT_BREAK, flat, opts)!;
@@ -109,5 +117,23 @@ describe('band gains', () => {
     const held = { ...swap, hold: 4 };
     expect(incomingGains(held, swap.S - 6).mid).toBe(0);
     expect(incomingGains(held, swap.S - 2).mid).toBeGreaterThan(0);
+  });
+});
+
+describe('rankCandidates', () => {
+  const song = (id: string, artist = id) => ({ id, title: id, artist, duration: 200 });
+  it('puts the closest tempo first, whatever the rest of the score', () => {
+    const at = (bpm: number) => ({ ...B, bpm, barLen: 240 / bpm, gridConf: bpm === 131 ? 0.9 : 0.3 });
+    const ranked = rankCandidates(
+      { song: song('now'), analysis: at(128) },
+      [
+        { song: song('far'), analysis: at(131) },
+        { song: song('near'), analysis: at(128.2) },
+        { song: song('out'), analysis: at(150) },
+      ],
+      { setBpm: 128, played: new Set(), mode: 'dropchain' },
+    );
+    expect(ranked.map((c) => c.song.id)).toEqual(['near', 'far']);
+    expect(ranked[1].bpmDelta).toBeCloseTo(3);
   });
 });

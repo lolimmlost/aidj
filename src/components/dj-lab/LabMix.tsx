@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Lock, LockOpen, Pause, Play, SkipForward, Square, ThumbsDown, ThumbsUp, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,6 +53,25 @@ function entryRegions(plan: TransitionPlan, b: TrackAnalysis): { regions: StripR
   const regions: StripRegion[] = [{ from: plan.cueB, to: plan.cueB + plan.N, className: 'bg-primary/25', label: 'build' }];
   if (plan.hold) regions.push({ from: plan.cueB, to: plan.cueB + plan.S - plan.hold, className: 'bg-destructive/20', label: 'held (no lock)' });
   return { regions, markers: [{ bar: plan.cueB + plan.S, className: 'bg-foreground/70', label: 'drop' }, ...b.drops.filter((d) => d > plan.cueB + plan.S).map((d) => ({ bar: d, className: 'bg-foreground/30' }))] };
+}
+
+/** Higher than what's playing = green ▲, lower = red ▼, within `flat` = neutral. */
+function DeltaChip({ delta, flat, title, children }: { delta: number; flat: number; title: string; children: ReactNode }) {
+  const dir = delta > flat ? 'up' : delta < -flat ? 'down' : 'flat';
+  return (
+    <span
+      title={title}
+      className={cn(
+        'rounded px-1.5 py-0.5 text-[11px] tabular-nums',
+        dir === 'up' && 'bg-success/15 text-success',
+        dir === 'down' && 'bg-destructive/10 text-destructive',
+        dir === 'flat' && 'bg-muted text-muted-foreground',
+      )}
+    >
+      {dir === 'up' ? '▲ ' : dir === 'down' ? '▼ ' : ''}
+      {children}
+    </span>
+  );
 }
 
 function LockBadge({ next }: { next: NextInfo }) {
@@ -238,6 +257,14 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
                 <div className="min-w-0 flex-1">
                   <SongLine song={c.song} />
                   <div className="mt-1 flex flex-wrap gap-1">
+                    <DeltaChip delta={c.bpmDelta} flat={0.005 * snap.setBpm} title="Track tempo vs the tempo playing now">
+                      {c.analysis.bpm.toFixed(1)} BPM {c.bpmDelta >= 0 ? '+' : ''}
+                      {c.bpmDelta.toFixed(1)}
+                    </DeltaChip>
+                    <DeltaChip delta={c.bassDelta} flat={0.5} title="Drop bass vs the playing track's">
+                      bass {c.bassDelta >= 0 ? '+' : ''}
+                      {c.bassDelta.toFixed(1)} dB
+                    </DeltaChip>
                     {c.reasons.map((r) => (
                       <span key={r} className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">{r}</span>
                     ))}

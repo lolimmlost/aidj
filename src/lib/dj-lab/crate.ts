@@ -4,7 +4,7 @@
  * A crate is a Navidrome playlist (or Liked songs). Its tracks are analysed in the background
  * (fetch → decode at 11 kHz mono → analyseTrack) and cached in IndexedDB, so a crate is scanned once.
  */
-import { analyseTrack, ANALYSIS_VERSION, dropLevelDb, type TrackAnalysis } from './analysis';
+import { analyseTrack, ANALYSIS_VERSION, V1_TRUSTED_BPM, dropLevelDb, type TrackAnalysis } from './analysis';
 import { meanOf } from './dsp';
 
 export interface LabSong {
@@ -131,12 +131,12 @@ function openDb(): Promise<IDBDatabase | null> {
   return dbPromise;
 }
 
-async function cacheGet(id: string): Promise<CacheEntry | undefined> {
+async function cacheGet(id: string, version = ANALYSIS_VERSION): Promise<CacheEntry | undefined> {
   const db = await openDb();
   if (!db) return undefined;
   return new Promise((resolve) => {
     try {
-      const req = db.transaction('analysis').objectStore('analysis').get(`${id}:v${ANALYSIS_VERSION}`);
+      const req = db.transaction('analysis').objectStore('analysis').get(`${id}:v${version}`);
       req.onsuccess = () => resolve(req.result as CacheEntry | undefined);
       req.onerror = () => resolve(undefined);
     } catch {
@@ -160,7 +160,10 @@ const hintCompatible = (a?: number, b?: number) => !a || !b || Math.abs(Math.log
 
 export async function getCachedAnalysis(id: string, hint?: number): Promise<TrackAnalysis | null> {
   const hit = await cacheGet(id);
-  return hit && hintCompatible(hit.hint, hint) ? hit.analysis : null;
+  if (hit && hintCompatible(hit.hint, hint)) return hit.analysis;
+  // v1 read some half-time tracks at 2/3 or 1/2 tempo; keep only its readings that can't be that
+  const old = await cacheGet(id, 1);
+  return old && old.analysis.bpm >= V1_TRUSTED_BPM && hintCompatible(old.hint, hint) ? old.analysis : null;
 }
 
 /** Analysis for a song: cache, else from `buf` (or a fresh fetch). `buf` is left intact. */
@@ -181,8 +184,12 @@ export async function analyseSong(song: LabSong, hint: number | undefined, buf?:
 export interface Candidate {
   song: LabSong;
   analysis: TrackAnalysis;
-  /** stretch to the set tempo, % */
+  /** stretch to the set tempo, % (negative = the track is faster than what's playing) */
   stretch: number;
+  /** the track's own tempo minus the tempo playing now */
+  bpmDelta: number;
+  /** drop bass weight vs the playing track's, dB */
+  bassDelta: number;
   score: number;
   reasons: string[];
   warnings: string[];
@@ -212,11 +219,8 @@ export function rankCandidates(
     if (Math.abs(stretch) > MAX_STRETCH) continue;
     const reasons: string[] = [];
     const warnings: string[] = [];
-    // the track's own tempo → the tempo it would play at (what's playing now)
-    reasons.push(`${analysis.bpm.toFixed(1)} → ${opts.setBpm.toFixed(1)} BPM (${stretch >= 0 ? '+' : ''}${(stretch * 100).toFixed(1)}%)`);
     if (opts.mode === 'dropchain' && analysis.drop === null) warnings.push('no clear drop');
     const dBass = bassWeight(analysis) - curBass;
-    reasons.push(`bass ${dBass >= 0 ? '+' : ''}${dBass.toFixed(1)} dB`);
     if (dBass < -3) warnings.push('lighter drop');
     if (analysis.gridConf < 0.2) warnings.push('loose beat grid');
     if (Math.abs(stretch) > 0.04) warnings.push('big stretch (pitch shifts)');
@@ -228,7 +232,9 @@ export function rankCandidates(
       0.15 * Math.min(1, analysis.gridConf / 0.5) +
       0.15 * (sameArtist ? 0 : 1) -
       (opts.mode === 'dropchain' && analysis.drop === null ? 0.3 : 0);
-    out.push({ song, analysis, stretch: stretch * 100, score, reasons, warnings });
+    out.push({ song, analysis, stretch: stretch * 100, bpmDelta: analysis.bpm - opts.setBpm, bassDelta: dBass, score, reasons, warnings });
   }
-  return out.sort((a, b) => b.score - a.score);
+  // closest tempo first (0.5 % steps), then the rest of the score
+  const step = (c: Candidate) => Math.round(Math.abs(c.stretch) * 2);
+  return out.sort((a, b) => step(a) - step(b) || b.score - a.score);
 }
