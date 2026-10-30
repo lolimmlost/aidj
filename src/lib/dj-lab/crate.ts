@@ -56,9 +56,6 @@ const toSong = (s: SubsonicSong): LabSong => ({
   suffix: s.suffix,
 });
 
-/** Files this big (FLACs) wait for the set to end on a phone, where decoding them mid-set got the page killed. */
-export const BIG_FILE_BYTES = 20e6;
-
 /** Phones and tablets: iOS kills a page that runs out of memory, without any warning. */
 export function isPhone(): boolean {
   if (typeof navigator === 'undefined') return false;

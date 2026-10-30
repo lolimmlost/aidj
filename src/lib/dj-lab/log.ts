@@ -230,7 +230,9 @@ export function startLabLog() {
   window.addEventListener('error', (e) => labLog('uncaught error', { msg: e.message, src: e.filename ? `${e.filename}:${e.lineno}` : undefined }, 'error'));
   window.addEventListener('unhandledrejection', (e) => {
     const r = e.reason as { message?: string; name?: string } | undefined;
-    labLog('unhandled rejection', { msg: r?.message ?? String(e.reason), name: r?.name }, 'error');
+    // Safari also reports a cancelled download's body as unhandled; the cancel itself is logged
+    const aborted = r?.name === 'AbortError';
+    labLog('unhandled rejection', { msg: r?.message ?? String(e.reason), name: r?.name }, aborted ? 'info' : 'error');
   });
   // whatever the last page didn't get to send
   scheduleFlush(500);

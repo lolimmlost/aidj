@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { getLabEngine } from '@/lib/dj-lab/engine';
-import { analyseSong, BIG_FILE_BYTES, getCachedAnalysis, isPhone, loadCrate, type LabSong } from '@/lib/dj-lab/crate';
+import { analyseSong, getCachedAnalysis, isPhone, loadCrate, type LabSong } from '@/lib/dj-lab/crate';
 import type { TrackAnalysis } from '@/lib/dj-lab/analysis';
 
 const noSubscribe = () => () => {};
@@ -32,7 +32,7 @@ export interface CrateState {
   scanning: boolean;
   done: number;
   failed: number;
-  /** big files (phones) waiting for the set to end */
+  /** songs not analysed yet that wait for the set to end (phones) */
   waiting: number;
   error?: string;
 }
@@ -47,9 +47,11 @@ const MAX_TRIES = 3;
  * Load a crate and analyse its songs one at a time in the background (IndexedDB-cached). Not keyed
  * on the set tempo: changing it would re-fetch the whole crate.
  *
- * The scan gets out of a set's way: a lock that starts loading cancels the scan's download (the song
- * goes back in the queue), and on a phone, big files (FLACs) wait until the set ends. Decoding a
- * 50 MB FLAC next to two playing decks is what got the page killed mid-set.
+ * The scan gets out of a set's way: a set or lock that starts loading cancels the scan's download
+ * (the song goes back in the queue). On a phone the scan pauses for the whole set (already analysed
+ * songs still load from the cache): every mid-set crash in the flight recorder was the scan decoding
+ * a song next to the two decks. A decode needs memory for the song's full length at the file's rate
+ * (~120 MB for a 5-minute extended mix, whatever the download size).
  */
 export function useCrate(crateId: string | null): CrateState {
   const [state, setState] = useState<CrateState>(EMPTY);
@@ -63,7 +65,8 @@ export function useCrate(crateId: string | null): CrateState {
     let current: AbortController | null = null;
     // a lock needs the network more than the scan does
     const unsubscribe = engine.subscribe(() => {
-      if (engine.getSnapshot().next?.state === 'loading') current?.abort();
+      const snap = engine.getSnapshot();
+      if (snap.status === 'loading' || snap.next?.state === 'loading') current?.abort();
     });
     setState({ ...EMPTY, loading: true });
     (async () => {
@@ -79,7 +82,7 @@ export function useCrate(crateId: string | null): CrateState {
       const queue = [...songs];
       const waiting: LabSong[] = [];
       const tries = new Map<string, number>();
-      const holdBig = isPhone();
+      const pauseForSet = isPhone();
       const live = () => engine.getSnapshot().status !== 'idle';
       let done = 0;
       let failed = 0;
@@ -91,14 +94,19 @@ export function useCrate(crateId: string | null): CrateState {
         while (!cancelled && engine.getSnapshot().next?.state === 'loading') await sleep(500);
         let song = queue.shift();
         if (!song) {
-          // only big files left: they wait for the set to end
+          // only songs waiting for the set to end are left
           if (live()) {
             await sleep(2000);
             continue;
           }
           song = waiting.shift()!;
-        } else if (holdBig && live() && (song.size ?? 0) > BIG_FILE_BYTES && !(await getCachedAnalysis(song.id))) {
-          waiting.push(song);
+        } else if (pauseForSet && live()) {
+          // mid-set on a phone: only what's cached already
+          const cached = await getCachedAnalysis(song.id);
+          if (cached) {
+            analyses.set(song.id, cached);
+            done++;
+          } else waiting.push(song);
           publish(true);
           continue;
         }

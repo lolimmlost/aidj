@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAudioStore } from '@/lib/stores/audio';
-import { listCrates, rankCandidates, MAX_STRETCH } from '@/lib/dj-lab/crate';
+import { isPhone, listCrates, rankCandidates, MAX_STRETCH } from '@/lib/dj-lab/crate';
 import type { LabEngine } from '@/lib/dj-lab/engine';
 import { loadVotes } from '@/lib/dj-lab/votes';
 import { startLabLog } from '@/lib/dj-lab/log';
@@ -101,6 +101,8 @@ function DJLab() {
   };
 
   const live = snap.status !== 'idle';
+  const hydrated = useHydrated();
+  const phone = hydrated && isPhone();
   // mid-set the setup folds into one line
   const [setupOpen, setSetupOpen] = useState(false);
   const showSetup = !live || setupOpen;
@@ -110,7 +112,7 @@ function DJLab() {
     : crate.error
       ? `Crate failed: ${crate.error}`
       : crate.songs.length
-        ? `${crate.done}/${crate.songs.length} analysed${crate.failed ? `, ${crate.failed} failed` : ''}${crate.waiting ? `, ${crate.waiting} big files after the set` : ''}${crate.scanning && !crate.waiting ? '…' : ''}`
+        ? `${crate.done}/${crate.songs.length} analysed${crate.failed ? `, ${crate.failed} failed` : ''}${crate.waiting ? `, ${crate.waiting} wait for the set to end` : ''}${crate.scanning && !crate.waiting ? '…' : ''}`
         : '';
   const openers = useMemo(
     () =>
@@ -133,7 +135,6 @@ function DJLab() {
     void engine.start(p.song);
   };
   // localStorage only after hydration: the server render has no votes
-  const hydrated = useHydrated();
   const voteCount = useMemo(() => (hydrated ? loadVotes().length : 0), [hydrated, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -300,6 +301,9 @@ function DJLab() {
                     Pick the opener{openers.length ? <span className="font-normal text-muted-foreground"> · {openers.length}, slowest first</span> : null}
                   </h3>
                 </div>
+                {crate.scanning && phone && (
+                  <p className="text-[11px] text-muted-foreground">On a phone the scan pauses while a set plays: let it finish for the most picks.</p>
+                )}
                 {openers.length > 12 && (
                   <Input
                     type="search"
