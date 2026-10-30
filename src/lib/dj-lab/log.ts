@@ -188,20 +188,29 @@ const vis = () => (typeof document !== 'undefined' ? document.visibilityState : 
  * Once per page load: report a previous page that died mid-set, log the device, and watch the page
  * lifecycle and uncaught errors. Safe to call more than once.
  */
-export function startLabLog() {
-  if (!isBrowser() || started) return;
-  started = true;
+/**
+ * A page that died mid-set left a "playing" heartbeat that was never closed: log it (once) and send it.
+ * The app calls this on every load, so reopening on any page reports it, not only on the Lab.
+ */
+export function checkPreviousLabPage() {
+  if (!isBrowser()) return;
   try {
     const prev = JSON.parse(localStorage.getItem(BEAT_KEY) ?? 'null') as LabBeat | null;
     if (prev && prev.sid !== sid && !prev.clean && prev.status !== 'idle') {
       const { sid: prevSid, t, ...rest } = prev;
-      labLog('previous page died mid-set', { prevSid, lastBeatAgoSec: Math.round((Date.now() - t) / 1000), lastBeatAt: new Date(t).toISOString(), ...rest }, 'error');
+      labLog('previous page died mid-set', { prevSid, lastBeatAgoSec: Math.round((Date.now() - t) / 1000), lastBeatAt: new Date(t).toISOString(), path: location.pathname, ...rest }, 'error');
       // reported once
       markClean(prevSid);
     }
   } catch {
     // ignore
   }
+}
+
+export function startLabLog() {
+  if (!isBrowser() || started) return;
+  started = true;
+  checkPreviousLabPage();
   const nav = navigator as Navigator & { deviceMemory?: number; audioSession?: { type: string }; standalone?: boolean };
   labLog('page load', {
     ua: navigator.userAgent,

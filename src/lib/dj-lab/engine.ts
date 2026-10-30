@@ -11,7 +11,7 @@
  * capped at ±8 %). Separate from the app's player: it pauses that one while it plays.
  */
 import { barAt, barTime, dropLevelDb, type TrackAnalysis } from './analysis';
-import { analyseSong, fetchAudio, getCachedAnalysis, monoSegment, type LabSong } from './crate';
+import { analyseSong, fetchAudio, getCachedAnalysis, isPhone, monoSegment, type LabSong } from './crate';
 import { createDeck, createMaster, disposeDeck, placeTransition, resetGains, scheduleIncoming, scheduleOutgoing, type DeckNodes, type PlacedTransition } from './graph';
 import { measureLock, type LockResult } from './lock';
 import { describeRecipe, planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
@@ -115,6 +115,11 @@ const AUTO_FAIL_LIMIT = 3;
 
 /** a heartbeat for the flight recorder this often while a set runs */
 const BEAT_MS = 5000;
+
+/** decks decode at this rate on a phone (the AudioContext resamples on playback) */
+const PHONE_DECK_RATE = 32000;
+let phoneCtx: OfflineAudioContext | null = null;
+const phoneDecoder = () => (phoneCtx ??= new OfflineAudioContext(2, 1, PHONE_DECK_RATE));
 
 const posAt = (d: LiveDeck, t: number) => d.trackStart + (t - d.ctxStart) * d.rate;
 const mb = (bytes: number) => Math.round(bytes / 1e5) / 10;
@@ -332,7 +337,9 @@ export class LabEngine {
       // (a FLAC is 25–55 MB, and phones run out of memory)
       const cached = await getCachedAnalysis(song.id);
       signal?.throwIfAborted();
-      const buffer = await ctx.decodeAudioData(cached ? buf : buf.slice(0));
+      // a phone decodes the decks at 32 kHz: ~27 % less memory per deck than 44.1 kHz (a 6-minute
+      // extended mix is ~130 MB at 44.1 kHz), at the cost of the band above 16 kHz
+      const buffer = await (isPhone() ? phoneDecoder() : ctx).decodeAudioData(cached ? buf : buf.slice(0));
       const t2 = performance.now();
       signal?.throwIfAborted();
       const analysis = cached ?? (await analyseSong(song, undefined, buf));

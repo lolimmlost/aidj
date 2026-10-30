@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, ChevronDown, FlaskConical, Loader2, Play, Settings2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, FlaskConical, Loader2, Play, Settings2, X } from 'lucide-react';
 import { loginRedirect } from '~/lib/auth/login-redirect';
 import { PageLayout } from '@/components/ui/page-layout';
 import { Card } from '@/components/ui/card';
@@ -75,6 +75,8 @@ function DJLab() {
   useEffect(() => engine.loadDefaults(), [engine]);
   useEffect(() => startLabLog(), []);
   const died = useDiedBanner();
+  // stays up through the next set until dismissed
+  const [diedSeen, setDiedSeen] = useState(false);
 
   // auto-lock picks the best-ranked crate track
   useEffect(() => {
@@ -255,19 +257,18 @@ function DJLab() {
             </>
           )}
           {snap.message && <p className="text-xs text-muted-foreground">{snap.message}</p>}
-          {died && !live && (
-            <button
-              type="button"
-              onClick={() => setTab('log')}
-              className="flex w-full items-start gap-2 rounded-md bg-destructive/10 p-2 text-left text-xs text-destructive"
-            >
+          {died && !diedSeen && (
+            <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-              <span>
+              <button type="button" onClick={() => setTab('log')} className="min-w-0 flex-1 text-left">
                 The last set stopped when the page reloaded mid-set
                 {typeof died.data?.lastBeatAt === 'string' ? ` (around ${new Date(died.data.lastBeatAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}
-                . The phone may have closed it for memory. See the Log tab.
-              </span>
-            </button>
+                . The phone likely closed it for memory; the details went to the server log. See the Log tab.
+              </button>
+              <button type="button" onClick={() => setDiedSeen(true)} aria-label="Dismiss" className="-m-1 shrink-0 p-1">
+                <X className="size-3.5" />
+              </button>
+            </div>
           )}
         </Card>
 
