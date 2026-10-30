@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FlaskConical, Loader2, Play } from 'lucide-react';
+import { AlertTriangle, FlaskConical, Loader2, Play } from 'lucide-react';
 import { loginRedirect } from '~/lib/auth/login-redirect';
 import { PageLayout } from '@/components/ui/page-layout';
 import { Button } from '@/components/ui/button';
@@ -14,10 +14,12 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { listCrates, rankCandidates, MAX_STRETCH } from '@/lib/dj-lab/crate';
 import type { LabEngine } from '@/lib/dj-lab/engine';
 import { loadVotes } from '@/lib/dj-lab/votes';
-import { useCrate, useLabEngine } from '@/components/dj-lab/useLab';
+import { startLabLog } from '@/lib/dj-lab/log';
+import { useCrate, useHydrated, useLabEngine } from '@/components/dj-lab/useLab';
 import { LabMix } from '@/components/dj-lab/LabMix';
 import { LabAB } from '@/components/dj-lab/LabAB';
 import { LabVotes } from '@/components/dj-lab/LabVotes';
+import { LabLog, useDiedBanner } from '@/components/dj-lab/LabLog';
 import { RecentSets } from '@/components/dj-lab/RecentSets';
 import { TempoWindow } from '@/components/dj-lab/TempoWindow';
 import { cn } from '@/lib/utils';
@@ -71,6 +73,8 @@ function DJLab() {
 
   useEffect(() => watchAppPlayer(engine), [engine]);
   useEffect(() => engine.loadDefaults(), [engine]);
+  useEffect(() => startLabLog(), []);
+  const died = useDiedBanner();
 
   // auto-lock picks the best-ranked crate track
   useEffect(() => {
@@ -111,7 +115,9 @@ function DJLab() {
     if (!tempoManual) engine.setSetBpm(Math.round(p.analysis.bpm * 10) / 10);
     void engine.start(p.song);
   };
-  const voteCount = useMemo(() => loadVotes().length, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  // localStorage only after hydration: the server render has no votes
+  const hydrated = useHydrated();
+  const voteCount = useMemo(() => (hydrated ? loadVotes().length : 0), [hydrated, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <PageLayout
@@ -214,6 +220,20 @@ function DJLab() {
             onChange={(down, up) => engine.setDefaults({ tempoDown: down, tempoUp: up })}
           />
           {snap.message && <p className="text-sm text-muted-foreground">{snap.message}</p>}
+          {died && !live && (
+            <button
+              type="button"
+              onClick={() => setTab('log')}
+              className="flex w-full items-start gap-2 rounded-md bg-destructive/10 p-2 text-left text-sm text-destructive"
+            >
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <span>
+                The last set stopped when the page reloaded mid-set
+                {typeof died.data?.lastBeatAt === 'string' ? ` (around ${new Date(died.data.lastBeatAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}
+                . The phone may have closed it for memory. See the Log tab.
+              </span>
+            </button>
+          )}
         </Card>
 
         <Tabs value={tab} onValueChange={setTab}>
@@ -226,6 +246,9 @@ function DJLab() {
             </TabsTrigger>
             <TabsTrigger value="votes" className="flex-1">
               Votes{voteCount ? ` (${voteCount})` : ''}
+            </TabsTrigger>
+            <TabsTrigger value="log" className="flex-1">
+              Log
             </TabsTrigger>
           </TabsList>
 
@@ -275,6 +298,10 @@ function DJLab() {
 
           <TabsContent value="votes" className="mt-4">
             <LabVotes />
+          </TabsContent>
+
+          <TabsContent value="log" className="mt-4">
+            <LabLog />
           </TabsContent>
         </Tabs>
       </div>

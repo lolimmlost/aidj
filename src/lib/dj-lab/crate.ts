@@ -6,6 +6,7 @@
  */
 import { analyseTrack, ANALYSIS_VERSION, V1_TRUSTED_BPM, dropLevelDb, type TrackAnalysis } from './analysis';
 import { meanOf } from './dsp';
+import { labBusy, labLog } from './log';
 
 export interface LabSong {
   id: string;
@@ -170,13 +171,30 @@ export async function getCachedAnalysis(id: string, hint?: number): Promise<Trac
 export async function analyseSong(song: LabSong, hint: number | undefined, buf?: ArrayBuffer, signal?: AbortSignal): Promise<TrackAnalysis> {
   const cached = await getCachedAnalysis(song.id, hint);
   if (cached) return cached;
-  const data = buf ? buf.slice(0) : await fetchAudio(song.id, signal);
-  const { mono, sr } = await decodeMono(data);
-  // let the page breathe between decode and the ~0.3 s of analysis
-  await new Promise((r) => setTimeout(r, 0));
-  const analysis = analyseTrack(mono, sr, { bpmHint: hint ?? song.bpm });
-  void cachePut(song.id, { analysis, hint: hint ?? song.bpm });
-  return analysis;
+  const label = `${song.artist} – ${song.title}`;
+  const from = buf ? 'lock' : 'scan';
+  labLog('analysing', { song: label, from });
+  const done = labBusy(`analyse ${label}`);
+  const t0 = performance.now();
+  try {
+    const data = buf ? buf.slice(0) : await fetchAudio(song.id, signal);
+    const fileMB = Math.round(data.byteLength / 1e5) / 10;
+    const t1 = performance.now();
+    const { mono, sr } = await decodeMono(data);
+    const t2 = performance.now();
+    // let the page breathe between decode and the ~0.3 s of analysis
+    await new Promise((r) => setTimeout(r, 0));
+    const analysis = analyseTrack(mono, sr, { bpmHint: hint ?? song.bpm });
+    void cachePut(song.id, { analysis, hint: hint ?? song.bpm });
+    labLog('analysed', { song: label, from, fileMB, fetchMs: Math.round(t1 - t0), decodeMs: Math.round(t2 - t1), bpm: analysis.bpm });
+    return analysis;
+  } catch (e) {
+    const err = e as Error;
+    labLog('analyse failed', { song: label, from, error: err.message, name: err.name }, err.name === 'AbortError' ? 'info' : 'warn');
+    throw e;
+  } finally {
+    done();
+  }
 }
 
 /* ---------- candidate ranking ---------- */

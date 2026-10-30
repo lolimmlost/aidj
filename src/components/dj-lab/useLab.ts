@@ -3,6 +3,12 @@ import { getLabEngine } from '@/lib/dj-lab/engine';
 import { analyseSong, loadCrate, type LabSong } from '@/lib/dj-lab/crate';
 import type { TrackAnalysis } from '@/lib/dj-lab/analysis';
 
+const noSubscribe = () => () => {};
+/** false in the server render and during hydration, true after: gate what comes from localStorage */
+export function useHydrated() {
+  return useSyncExternalStore(noSubscribe, () => true, () => false);
+}
+
 export function useLabEngine() {
   const engine = getLabEngine();
   const snap = useSyncExternalStore(engine.subscribe, engine.getSnapshot, engine.getSnapshot);

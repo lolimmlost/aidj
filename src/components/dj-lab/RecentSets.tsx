@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { deleteSet, loadSets, setTime, tracklistText, type SavedSet } from '@/lib/dj-lab/sets';
+import { useHydrated } from './useLab';
 
 const when = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -23,7 +24,9 @@ async function saveAsPlaylist(set: SavedSet) {
 export function RecentSets() {
   const [sets, setSets] = useState<SavedSet[]>(() => loadSets());
   const [open, setOpen] = useState<string | null>(() => loadSets()[0]?.id ?? null);
-  if (!sets.length) return null;
+  // the server render has no sets (localStorage): show them once hydrated, so the two match
+  const hydrated = useHydrated();
+  if (!hydrated || !sets.length) return null;
   return (
     <section className="space-y-2 pt-4">
       <h3 className="text-sm font-semibold">Recent sets</h3>

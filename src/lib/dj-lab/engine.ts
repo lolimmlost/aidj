@@ -11,10 +11,11 @@
  * capped at ±8 %). Separate from the app's player: it pauses that one while it plays.
  */
 import { barAt, barTime, dropLevelDb, type TrackAnalysis } from './analysis';
-import { analyseSong, fetchAudio, monoSegment, type LabSong } from './crate';
+import { analyseSong, fetchAudio, getCachedAnalysis, monoSegment, type LabSong } from './crate';
 import { createDeck, createMaster, disposeDeck, placeTransition, resetGains, scheduleIncoming, scheduleOutgoing, type DeckNodes, type PlacedTransition } from './graph';
 import { measureLock, type LockResult } from './lock';
 import { describeRecipe, planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
+import { labBeat, labBusy, labLog } from './log';
 import { saveSet } from './sets';
 
 export interface LoadedTrack {
@@ -107,7 +108,13 @@ const COMMIT_SEC = 3;
 const TRIM_LIMIT_DB = 6;
 const AUTO_FAIL_LIMIT = 3;
 
+/** a heartbeat for the flight recorder this often while a set runs */
+const BEAT_MS = 5000;
+
 const posAt = (d: LiveDeck, t: number) => d.trackStart + (t - d.ctxStart) * d.rate;
+const mb = (bytes: number) => Math.round(bytes / 1e5) / 10;
+const bufferMB = (b: AudioBuffer) => mb(b.length * b.numberOfChannels * 4);
+const songLabel = (s: LabSong) => `${s.artist} – ${s.title}`;
 const timeAt = (d: LiveDeck, p: number) => d.ctxStart + (p - d.trackStart) / d.rate;
 
 export class LabEngine {
@@ -124,6 +131,10 @@ export class LabEngine {
   private setId = '';
   private setStartedAt = '';
   private timer: ReturnType<typeof setInterval> | null = null;
+  /** tick health: wall/audio clock at the last tick, last heartbeat, last clock-stall report */
+  private lastTick: { wall: number; ctx: number } | null = null;
+  private lastBeat = 0;
+  private lastStall = 0;
   private listeners = new Set<() => void>();
   private snap: EngineSnapshot = {
     status: 'idle',
@@ -197,11 +208,26 @@ export class LabEngine {
   /** Create/resume the AudioContext. Call synchronously inside a tap (iOS). */
   unlockAudio(): AudioContext {
     if (!this.ctx) {
-      this.ctx = new AudioContext({ latencyHint: 'playback' });
-      this.master = createMaster(this.ctx);
+      const ctx = new AudioContext({ latencyHint: 'playback' });
+      this.ctx = ctx;
+      this.master = createMaster(ctx);
       // keep playing with the screen locked where Safari allows it
       const nav = navigator as Navigator & { audioSession?: { type: string } };
       if (nav.audioSession) nav.audioSession.type = 'playback';
+      labLog('audio context', { sampleRate: ctx.sampleRate, state: ctx.state, baseLatency: ctx.baseLatency, audioSession: nav.audioSession?.type });
+      ctx.addEventListener('statechange', () => {
+        const bad = ctx.state !== 'running' && this.snap.status === 'playing';
+        labLog('audio context state', { state: ctx.state, t: ctx.currentTime, status: this.snap.status }, bad ? 'warn' : 'info');
+      });
+      // iOS can leave the context suspended after an interruption (a call, Siri, the lock screen)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible' || this.snap.status !== 'playing' || ctx.state === 'running') return;
+        labLog('resuming audio context on return', { state: ctx.state }, 'warn');
+        ctx.resume().then(
+          () => labLog('audio context resumed', { state: ctx.state }),
+          (e: Error) => labLog('audio context resume failed', { error: e.message }, 'error'),
+        );
+      });
     }
     void this.ctx.resume();
     return this.ctx;
@@ -275,9 +301,43 @@ export class LabEngine {
   /** Fetch + decode for playback; the analysis is the crate scan's cached one when there is one. */
   async loadTrack(song: LabSong): Promise<LoadedTrack> {
     const ctx = this.unlockAudio();
-    const buf = await fetchAudio(song.id);
-    const [buffer, analysis] = await Promise.all([ctx.decodeAudioData(buf.slice(0)), analyseSong(song, undefined, buf)]);
-    return { song, buffer, analysis };
+    const label = songLabel(song);
+    const done = labBusy(`load ${label}`);
+    const t0 = performance.now();
+    try {
+      const buf = await fetchAudio(song.id);
+      const fileMB = mb(buf.byteLength);
+      const t1 = performance.now();
+      // the crate scan has usually analysed it already: then decode the download itself, no copy
+      // (a FLAC is 25–55 MB, and phones run out of memory)
+      const cached = await getCachedAnalysis(song.id);
+      const buffer = await ctx.decodeAudioData(cached ? buf : buf.slice(0));
+      const t2 = performance.now();
+      const analysis = cached ?? (await analyseSong(song, undefined, buf));
+      labLog('loaded', {
+        song: label,
+        fileMB,
+        fetchMs: Math.round(t1 - t0),
+        decodeMs: Math.round(t2 - t1),
+        decodedMB: bufferMB(buffer),
+        sec: Math.round(buffer.duration),
+        sr: buffer.sampleRate,
+        analysis: cached ? 'cached' : 'decoded',
+        heldMB: this.heldMB() + bufferMB(buffer),
+      });
+      return { song, buffer, analysis };
+    } catch (e) {
+      labLog('load failed', { song: label, error: (e as Error).message, ms: Math.round(performance.now() - t0) }, 'warn');
+      throw e;
+    } finally {
+      done();
+    }
+  }
+
+  /** Decoded audio the engine holds (MB): the playing deck, the locked one. */
+  private heldMB(): number {
+    const bufs = new Set([this.cur?.track.buffer, this.nxt?.track.buffer, this.nextTrack?.buffer].filter((b): b is AudioBuffer => !!b));
+    return Math.round([...bufs].reduce((n, b) => n + bufferMB(b), 0) * 10) / 10;
   }
 
   private trimDb(a: TrackAnalysis) {
@@ -295,6 +355,7 @@ export class LabEngine {
     this.setStartedAt = new Date().toISOString();
     this.set({ status: 'loading', message: `Loading ${song.title}…`, history: [], next: undefined, now: undefined });
     const token = ++this.lockToken;
+    labLog('set start', { song: songLabel(song), setBpm: this.snap.setBpm, mode: this.snap.mode, fromBar });
     let track: LoadedTrack;
     try {
       track = await this.loadTrack(song);
@@ -337,6 +398,7 @@ export class LabEngine {
     if (replaced && replaced !== song.id) this.skipped.add(replaced);
     this.cancelNext();
     const token = ++this.lockToken;
+    labLog('lock', { song: songLabel(song), auto });
     this.setNext({ song, state: 'loading', notes: [], plan: undefined, lock: undefined, placed: undefined, analysis: undefined, error: undefined });
     let track: LoadedTrack;
     try {
@@ -400,6 +462,17 @@ export class LabEngine {
     this.nxt = { track, nodes, rate: placed.bRate, ctxStart: placed.bWhen, trackStart: placed.bOffset };
     this.nextTrack = track;
     this.setNext({ song, state: 'locked', analysis: B, plan, lock, placed, notes, error: undefined, recipe });
+    labLog('locked', {
+      song: songLabel(song),
+      kind: plan.kind,
+      bars: plan.N,
+      inSec: Math.round(placed.tEntry - ctx.currentTime),
+      lockMs: lock.p90Ms,
+      verified: lock.verified,
+      choice: recipe ? describeRecipe(recipe) || undefined : undefined,
+      notes: notes.length ? notes.join('; ') : undefined,
+      heldMB: this.heldMB(),
+    });
     this.autoFails = 0;
     if (this.snap.message) this.set({ message: undefined });
   }
@@ -409,6 +482,7 @@ export class LabEngine {
    * AUTO_FAIL_LIMIT in a row (then auto-lock waits for you). A song you picked shows why it failed.
    */
   private failLock(song: LabSong, error: string, auto: boolean) {
+    labLog('lock failed', { song: songLabel(song), error, auto, autoFails: this.autoFails }, 'warn');
     this.skipped.add(song.id);
     if (auto && this.snap.autoLock && this.pickNext && ++this.autoFails < AUTO_FAIL_LIMIT) {
       this.set({ next: undefined, message: `Skipped ${song.title}: ${error}` });
@@ -426,7 +500,10 @@ export class LabEngine {
     const st = this.snap.next?.state;
     if (st === 'committed' || st === 'mixing') return;
     // auto-lock won't pick a song you just unlocked
-    if (this.snap.next) this.skipped.add(this.snap.next.song.id);
+    if (this.snap.next) {
+      labLog('unlock', { song: songLabel(this.snap.next.song) });
+      this.skipped.add(this.snap.next.song.id);
+    }
     this.lockToken++;
     this.cancelNext();
     this.setNext(undefined);
@@ -451,12 +528,14 @@ export class LabEngine {
     if (!track || !this.cur) return;
     const st = this.snap.next?.state;
     if (st === 'committed' || st === 'mixing') return;
+    labLog('relock', { song: songLabel(track.song), recipe: recipe ? describeRecipe(recipe) : undefined });
     this.cancelNext();
     this.schedule(track, { ...this.recipe(), ...recipe });
   }
 
   pause() {
     if (this.ctx && this.snap.status === 'playing') {
+      labLog('pause');
       void this.ctx.suspend();
       this.set({ status: 'paused' });
     }
@@ -464,6 +543,7 @@ export class LabEngine {
 
   resume() {
     if (this.ctx && this.snap.status === 'paused') {
+      labLog('resume', { ctx: this.ctx.state });
       this.onBeforePlay?.();
       void this.ctx.resume();
       this.set({ status: 'playing' });
@@ -471,6 +551,7 @@ export class LabEngine {
   }
 
   stop() {
+    if (this.snap.status !== 'idle') labLog('stop', { tracks: this.snap.history.length });
     const next = this.snap.next;
     if (next?.state === 'mixing' && this.cur && next.placed) {
       this.set({ history: [...this.snap.history, { song: next.song, at: next.placed.bWhen, plan: next.plan, lock: next.lock, from: this.cur.track.song }] });
@@ -484,6 +565,7 @@ export class LabEngine {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.set({ status: 'idle', now: undefined, next: undefined });
+    this.beat();
   }
 
   /** Jump the playing deck to `bars` bars before the locked transition (or forward 16 bars). */
@@ -497,6 +579,7 @@ export class LabEngine {
     const plan = this.snap.next?.plan;
     const target = plan ? barTime(A, plan.entryA - bars) : posAt(cur, ctx.currentTime) + 16 * A.barLen;
     if (target <= posAt(cur, ctx.currentTime) || target >= cur.track.buffer.duration - 1) return;
+    labLog('skip ahead', { from: Math.round(posAt(cur, ctx.currentTime)), to: Math.round(target) });
     // restart A's source at the new position, then re-place B on the new clock
     const old = cur.nodes.src;
     const src = ctx.createBufferSource();
@@ -546,28 +629,69 @@ export class LabEngine {
 
   private startTimer() {
     if (this.timer) clearInterval(this.timer);
+    this.lastTick = null;
     this.timer = setInterval(() => this.tick(), 200);
+  }
+
+  /** Heartbeat for the flight recorder: a page that dies mid-set leaves this behind. */
+  private beat() {
+    this.lastBeat = Date.now();
+    const cur = this.cur;
+    labBeat({
+      status: this.snap.status,
+      song: this.snap.now ? songLabel(this.snap.now.song) : undefined,
+      pos: cur && this.ctx ? Math.round(posAt(cur, this.ctx.currentTime)) : undefined,
+      next: this.snap.next ? `${this.snap.next.state} ${songLabel(this.snap.next.song)}` : undefined,
+      ctx: this.ctx?.state,
+      heldMB: this.heldMB(),
+    });
+  }
+
+  /** Timers stopped (page in the background) or the audio clock stopped while it should run. */
+  private checkHealth(ctx: AudioContext) {
+    const wall = performance.now();
+    const last = this.lastTick;
+    this.lastTick = { wall, ctx: ctx.currentTime };
+    if (wall - this.lastBeat >= BEAT_MS) this.beat();
+    if (!last || this.snap.status !== 'playing') return;
+    const wallGap = (wall - last.wall) / 1000;
+    const ctxGap = ctx.currentTime - last.ctx;
+    if (wallGap > 2) {
+      labLog('timer gap', { wallSec: wallGap, audioSec: ctxGap, ctx: ctx.state, visibility: document.visibilityState }, 'warn');
+    } else if (wallGap > 1 && ctxGap < 0.05 && wall - this.lastStall > 30_000) {
+      this.lastStall = wall;
+      labLog('audio clock stalled', { wallSec: wallGap, audioSec: ctxGap, ctx: ctx.state, visibility: document.visibilityState }, 'warn');
+    }
   }
 
   private tick() {
     const ctx = this.ctx;
     const cur = this.cur;
     if (!ctx || !cur) return;
+    this.checkHealth(ctx);
     const t = ctx.currentTime;
     const next = this.snap.next;
     if (next?.placed && this.nxt) {
-      if (next.state === 'locked' && t >= next.placed.tEntry - COMMIT_SEC) this.setNext({ state: 'committed' });
-      if (next.state !== 'mixing' && t >= next.placed.bWhen) this.setNext({ state: 'mixing' });
+      if (next.state === 'locked' && t >= next.placed.tEntry - COMMIT_SEC) {
+        labLog('committed', { song: songLabel(next.song) });
+        this.setNext({ state: 'committed' });
+      }
+      if (next.state !== 'mixing' && t >= next.placed.bWhen) {
+        labLog('mixing', { song: songLabel(next.song), kind: next.plan?.kind });
+        this.setNext({ state: 'mixing' });
+      }
       if (t >= next.placed.tEnd) this.promote();
       return;
     }
     if (posAt(cur, t) >= cur.track.buffer.duration) {
       // played out with nothing locked
+      labLog('set ended: nothing locked', { song: songLabel(cur.track.song), next: next ? `${next.state} ${songLabel(next.song)}` : undefined }, 'warn');
       disposeDeck(cur.nodes);
       this.cur = null;
       if (this.timer) clearInterval(this.timer);
       this.timer = null;
       this.set({ status: 'idle', now: undefined, message: 'Set ended: nothing was locked next' });
+      this.beat();
     }
   }
 
@@ -580,6 +704,7 @@ export class LabEngine {
     this.cur = nxt;
     this.nxt = null;
     this.nextTrack = null;
+    labLog('now playing', { song: songLabel(nxt.track.song), from: songLabel(cur.track.song), heldMB: this.heldMB() });
     this.set({
       now: { song: nxt.track.song, analysis: nxt.track.analysis, rate: nxt.rate, floorBar: next.plan!.deB },
       next: undefined,
