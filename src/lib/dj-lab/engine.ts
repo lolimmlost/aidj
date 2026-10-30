@@ -124,6 +124,8 @@ export class LabEngine {
   private nxt: LiveDeck | null = null;
   private nextTrack: LoadedTrack | null = null;
   private lockToken = 0;
+  /** the download in flight for the opener or the next song: unlock, a new lock or stop cancels it */
+  private loadAbort: AbortController | null = null;
   private refLevel = 0;
   private skipped = new Set<string>();
   /** auto-picks that failed in a row; auto-lock pauses at AUTO_FAIL_LIMIT */
@@ -299,22 +301,28 @@ export class LabEngine {
     if (this.snap.status === 'idle') this.set({ setBpm: bpm });
   }
 
-  /** Fetch + decode for playback; the analysis is the crate scan's cached one when there is one. */
-  async loadTrack(song: LabSong): Promise<LoadedTrack> {
+  /**
+   * Fetch + decode for playback; the analysis is the crate scan's cached one when there is one.
+   * `signal` cancels the download, and skips the decode if it fires first.
+   */
+  async loadTrack(song: LabSong, signal?: AbortSignal): Promise<LoadedTrack> {
     const ctx = this.unlockAudio();
     const label = songLabel(song);
     const done = labBusy(`load ${label}`);
     const t0 = performance.now();
     try {
-      const buf = await fetchAudio(song.id);
+      const buf = await fetchAudio(song.id, signal);
       const fileMB = mb(buf.byteLength);
       const t1 = performance.now();
       // the crate scan has usually analysed it already: then decode the download itself, no copy
       // (a FLAC is 25–55 MB, and phones run out of memory)
       const cached = await getCachedAnalysis(song.id);
+      signal?.throwIfAborted();
       const buffer = await ctx.decodeAudioData(cached ? buf : buf.slice(0));
       const t2 = performance.now();
+      signal?.throwIfAborted();
       const analysis = cached ?? (await analyseSong(song, undefined, buf));
+      signal?.throwIfAborted();
       labLog('loaded', {
         song: label,
         fileMB,
@@ -328,11 +336,25 @@ export class LabEngine {
       });
       return { song, buffer, analysis };
     } catch (e) {
-      labLog('load failed', { song: label, error: (e as Error).message, ms: Math.round(performance.now() - t0) }, 'warn');
+      const ms = Math.round(performance.now() - t0);
+      if (signal?.aborted) labLog('load cancelled', { song: label, ms });
+      else labLog('load failed', { song: label, error: (e as Error).message, ms }, 'warn');
       throw e;
     } finally {
       done();
     }
+  }
+
+  /** A fresh signal for the next load; cancels the one before. */
+  private newLoad(): AbortSignal {
+    this.abortLoad();
+    this.loadAbort = new AbortController();
+    return this.loadAbort.signal;
+  }
+
+  private abortLoad() {
+    this.loadAbort?.abort();
+    this.loadAbort = null;
   }
 
   /** Decoded audio the engine holds (MB): the playing deck, the locked one. */
@@ -359,9 +381,9 @@ export class LabEngine {
     labLog('set start', { song: songLabel(song), setBpm: this.snap.setBpm, mode: this.snap.mode, fromBar });
     let track: LoadedTrack;
     try {
-      track = await this.loadTrack(song);
+      track = await this.loadTrack(song, this.newLoad());
     } catch (e) {
-      this.set({ status: 'idle', message: `Couldn't load ${song.title}: ${(e as Error).message}` });
+      if (token === this.lockToken) this.set({ status: 'idle', message: `Couldn't load ${song.title}: ${(e as Error).message}` });
       return;
     }
     if (token !== this.lockToken) return;
@@ -403,8 +425,9 @@ export class LabEngine {
     this.setNext({ song, state: 'loading', notes: [], plan: undefined, lock: undefined, placed: undefined, analysis: undefined, error: undefined });
     let track: LoadedTrack;
     try {
-      track = await this.loadTrack(song);
+      track = await this.loadTrack(song, this.newLoad());
     } catch (e) {
+      // a cancelled load (unlocked, replaced, stopped) has a newer token: nothing to report
       if (token === this.lockToken) this.failLock(song, (e as Error).message, auto);
       return;
     }
@@ -511,6 +534,7 @@ export class LabEngine {
   }
 
   private cancelNext() {
+    this.abortLoad();
     if (this.nxt) disposeDeck(this.nxt.nodes);
     this.nxt = null;
     this.nextTrack = null;
@@ -558,6 +582,7 @@ export class LabEngine {
       this.set({ history: [...this.snap.history, { song: next.song, at: next.placed.bWhen, plan: next.plan, lock: next.lock, from: this.cur.track.song }] });
     }
     this.lockToken++;
+    this.abortLoad();
     if (this.nxt) disposeDeck(this.nxt.nodes);
     if (this.cur) disposeDeck(this.cur.nodes);
     this.nxt = null;
