@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, ChevronDown, FlaskConical, Loader2, Play, Settings2 } from 'lucide-react';
 import { loginRedirect } from '~/lib/auth/login-redirect';
 import { PageLayout } from '@/components/ui/page-layout';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -20,6 +19,7 @@ import { LabMix } from '@/components/dj-lab/LabMix';
 import { LabAB } from '@/components/dj-lab/LabAB';
 import { LabVotes } from '@/components/dj-lab/LabVotes';
 import { LabLog, useDiedBanner } from '@/components/dj-lab/LabLog';
+import { LiveBar } from '@/components/dj-lab/LiveBar';
 import { RecentSets } from '@/components/dj-lab/RecentSets';
 import { TempoWindow } from '@/components/dj-lab/TempoWindow';
 import { cn } from '@/lib/utils';
@@ -121,6 +121,12 @@ function DJLab() {
         : [...pool].sort((x, y) => x.analysis.bpm - y.analysis.bpm),
     [pool, snap.setBpm, tempoManual],
   );
+  // a long crate gets a filter
+  const [query, setQuery] = useState('');
+  const shownOpeners = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? openers.filter((p) => `${p.song.title} ${p.song.artist}`.toLowerCase().includes(q)) : openers;
+  }, [openers, query]);
   const startSet = (p: (typeof pool)[number]) => {
     // Auto: the set runs at the opener's own tempo, so it plays unstretched
     if (!tempoManual) engine.setSetBpm(Math.round(p.analysis.bpm * 10) / 10);
@@ -139,6 +145,7 @@ function DJLab() {
       backLabel="DJ Tools"
     >
       <div className="mx-auto max-w-3xl space-y-3">
+        {live && snap.now && <LiveBar engine={engine} snap={snap} />}
         <Card className="space-y-2 p-2.5">
           {live && (
             <button
@@ -233,6 +240,11 @@ function DJLab() {
                 </label>
                 {scanText && <span className="ml-auto tabular-nums">{scanText}</span>}
               </div>
+              {crate.scanning && crate.songs.length > 0 && (
+                <div className="h-1 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={crate.done} aria-valuemax={crate.songs.length} aria-label="Crate analysis">
+                  <div className="h-full rounded-full bg-primary/70 transition-[width]" style={{ width: `${((crate.done + crate.failed) / crate.songs.length) * 100}%` }} />
+                </div>
+              )}
               <TempoWindow
                 down={snap.defaults.tempoDown}
                 up={snap.defaults.tempoUp}
@@ -283,7 +295,21 @@ function DJLab() {
               </p>
             ) : (
               <section className="space-y-2">
-                <h3 className="text-xs font-semibold">Pick the opener</h3>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-xs font-semibold">
+                    Pick the opener{openers.length ? <span className="font-normal text-muted-foreground"> · {openers.length}, slowest first</span> : null}
+                  </h3>
+                </div>
+                {openers.length > 12 && (
+                  <Input
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Filter by title or artist"
+                    aria-label="Filter openers"
+                    className="h-8"
+                  />
+                )}
                 {!crateId && <p className="text-sm text-muted-foreground">Pick a crate first. Its tracks get analysed in the background (once, then cached).</p>}
                 {crateId && !openers.length && !crate.loading && (
                   <p className="text-sm text-muted-foreground">
@@ -293,36 +319,47 @@ function DJLab() {
                 {!tempoManual && openers.length > 0 && (
                   <p className="text-xs text-muted-foreground">The set runs at the opener's tempo. Type a set tempo to stretch everything to it.</p>
                 )}
-                <ul className="divide-y rounded-lg border">
-                  {openers.slice(0, 200).map((p) => (
-                    <li key={p.song.id} className="flex items-center gap-2 px-2 py-1.5">
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{p.song.title}</div>
-                        <div className="truncate text-[11px] text-muted-foreground">
-                          {p.song.artist} · track {p.analysis.bpm.toFixed(1)} BPM
-                          {tempoManual ? ` → plays at ${snap.setBpm} (${stretchPct(snap.setBpm, p.analysis.bpm)})` : ''} · {p.analysis.drops.length} drops
-                        </div>
-                      </div>
-                      <Button size="sm" className="h-7 shrink-0 gap-1 px-2 text-xs" onClick={() => startSet(p)}>
-                        <Play className="size-3" /> Start
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
+                {shownOpeners.length > 0 && (
+                  <ul className="divide-y overflow-hidden rounded-lg border">
+                    {shownOpeners.slice(0, 200).map((p) => (
+                      <li key={p.song.id}>
+                        <button
+                          type="button"
+                          onClick={() => startSet(p)}
+                          className="group flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left transition-colors hover:bg-muted/50 active:bg-muted"
+                          aria-label={`Start a set with ${p.song.title}`}
+                        >
+                          <span className="grid size-7 shrink-0 place-items-center rounded-full border text-muted-foreground transition-colors group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
+                            <Play className="size-3" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium">{p.song.title}</span>
+                            <span className="block truncate text-[11px] text-muted-foreground">
+                              {p.song.artist} · {p.analysis.drops.length} {p.analysis.drops.length === 1 ? 'drop' : 'drops'}
+                              {tempoManual ? ` · plays at ${snap.setBpm} (${stretchPct(snap.setBpm, p.analysis.bpm)})` : ''}
+                            </span>
+                          </span>
+                          <span className="shrink-0 rounded bg-muted px-1.5 text-[11px] leading-5 tabular-nums text-muted-foreground">{p.analysis.bpm.toFixed(1)}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {query && !shownOpeners.length && <p className="text-xs text-muted-foreground">Nothing matches “{query}”.</p>}
                 <RecentSets />
               </section>
             )}
           </TabsContent>
 
-          <TabsContent value="ab" className="mt-4">
+          <TabsContent value="ab" className="mt-3">
             <LabAB engine={engine} snap={snap} pool={pool} />
           </TabsContent>
 
-          <TabsContent value="votes" className="mt-4">
+          <TabsContent value="votes" className="mt-3">
             <LabVotes />
           </TabsContent>
 
-          <TabsContent value="log" className="mt-4">
+          <TabsContent value="log" className="mt-3">
             <LabLog />
           </TabsContent>
         </Tabs>

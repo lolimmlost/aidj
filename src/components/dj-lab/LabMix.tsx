@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react';
-import { Lock, LockOpen, Pause, Play, SkipForward, Square, ThumbsDown, ThumbsUp, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Lock, LockOpen, Square, ThumbsDown, ThumbsUp, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -84,7 +84,7 @@ function LockBadge({ next }: { next: NextInfo }) {
       <CheckCircle2 className="size-3" /> lock {p90}
     </span>
   ) : (
-    <span className="inline-flex items-center gap-0.5 text-destructive" title={`${l.points} points`}>
+    <span className="inline-flex items-center gap-0.5 text-warning" title={`Beat lock not verified (${l.points} points)`}>
       <AlertTriangle className="size-3" /> unverified
     </span>
   );
@@ -142,40 +142,6 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
 
   return (
     <div className="space-y-2.5">
-      {/* transport */}
-      <div className="flex items-center gap-1.5">
-        {snap.status === 'playing' ? (
-          <Button size="sm" onClick={() => engine.pause()} className="h-8 gap-1 px-2.5">
-            <Pause className="size-4" /> Pause
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            onClick={() => {
-              engine.unlockAudio();
-              engine.resume();
-            }}
-            className="h-8 gap-1 px-2.5"
-          >
-            <Play className="size-4" /> Resume
-          </Button>
-        )}
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => engine.skipAhead(6)}
-          disabled={frozen}
-          className="h-8 gap-1 px-2.5"
-          title="Jump to 6 bars before the locked transition (or 16 bars ahead)"
-        >
-          <SkipForward className="size-4" /> {next?.plan ? 'To mix' : '+16'}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => engine.stop()} className="h-8 gap-1 px-2">
-          <Square className="size-4" /> Stop
-        </Button>
-        <span className="ml-auto truncate text-[11px] tabular-nums text-muted-foreground">{snap.history.length} played</span>
-      </div>
-
       {/* deck A */}
       <Card className="space-y-1.5 p-2.5">
         <div className="flex items-center gap-2">
@@ -225,7 +191,7 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
                 </div>
                 <p className="line-clamp-2 text-[11px] text-muted-foreground">{next.plan.how}</p>
                 {next.notes.map((n) => (
-                  <p key={n} className="flex items-center gap-1 text-[11px] text-destructive">
+                  <p key={n} className="flex items-center gap-1 text-[11px] text-warning">
                     <AlertTriangle className="size-3 shrink-0" /> {n}
                   </p>
                 ))}
@@ -267,7 +233,7 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
                       <span key={r} className="rounded bg-muted px-1 text-[10px] leading-4 text-muted-foreground">{r}</span>
                     ))}
                     {c.warnings.map((w) => (
-                      <span key={w} className="rounded bg-destructive/10 px-1 text-[10px] leading-4 text-destructive">{w}</span>
+                      <span key={w} className="rounded bg-warning/10 px-1 text-[10px] leading-4 text-warning">{w}</span>
                     ))}
                   </div>
                 </div>
@@ -289,7 +255,14 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
       {/* history */}
       {snap.history.length > 0 && (
         <section className="space-y-1.5">
-          <h3 className="text-xs font-semibold">This set</h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-xs font-semibold">
+              This set <span className="font-normal text-muted-foreground">· {snap.history.length} played</span>
+            </h3>
+            <Button size="sm" variant="ghost" onClick={() => engine.stop()} className="h-7 gap-1 px-2 text-xs text-muted-foreground">
+              <Square className="size-3" /> End set
+            </Button>
+          </div>
           <ol className="space-y-1">
             {snap.history.map((h, i) => (
               <li key={`${h.song.id}-${i}`} className="flex items-center gap-2 text-xs">

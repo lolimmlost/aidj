@@ -56,7 +56,7 @@ export function LabLog() {
             className={cn(
               'break-words px-2 py-1',
               e.level === 'error' && 'bg-destructive/10 text-destructive',
-              e.level === 'warn' && 'text-amber-600 dark:text-amber-400',
+              e.level === 'warn' && 'text-warning',
               e.sid !== sid && 'opacity-70',
               // a new page load starts below this line
               list[i + 1] && list[i + 1].sid !== e.sid && 'border-b-2 border-b-primary/40',

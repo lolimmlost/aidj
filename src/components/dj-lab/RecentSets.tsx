@@ -23,7 +23,8 @@ async function saveAsPlaylist(set: SavedSet) {
 /** Every Lab set played in this browser, newest first: tracklist, copy, save as a playlist. */
 export function RecentSets() {
   const [sets, setSets] = useState<SavedSet[]>(() => loadSets());
-  const [open, setOpen] = useState<string | null>(() => loadSets()[0]?.id ?? null);
+  // folded: tap a set to see its tracklist
+  const [open, setOpen] = useState<string | null>(null);
   // the server render has no sets (localStorage): show them once hydrated, so the two match
   const hydrated = useHydrated();
   if (!hydrated || !sets.length) return null;
