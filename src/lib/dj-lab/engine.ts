@@ -15,6 +15,7 @@ import { analyseSong, fetchAudio, monoSegment, type LabSong } from './crate';
 import { createDeck, createMaster, disposeDeck, placeTransition, resetGains, scheduleIncoming, scheduleOutgoing, type DeckNodes, type PlacedTransition } from './graph';
 import { measureLock, type LockResult } from './lock';
 import { planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
+import { saveSet } from './sets';
 
 export interface LoadedTrack {
   song: LabSong;
@@ -92,6 +93,8 @@ export class LabEngine {
   private lockToken = 0;
   private refLevel = 0;
   private skipped = new Set<string>();
+  private setId = '';
+  private setStartedAt = '';
   private timer: ReturnType<typeof setInterval> | null = null;
   private listeners = new Set<() => void>();
   private snap: EngineSnapshot = { status: 'idle', setBpm: 126, mode: 'dropchain', autoLock: true, history: [] };
@@ -116,8 +119,33 @@ export class LabEngine {
   getSnapshot = () => this.snap;
 
   private set(patch: Partial<EngineSnapshot>) {
+    const historyChanged = patch.history && patch.history !== this.snap.history;
     this.snap = { ...this.snap, ...patch };
+    if (historyChanged) this.persist(this.snap.history);
     for (const fn of this.listeners) fn();
+  }
+
+  /** Save the set's tracklist (this browser), so Stop or a reload doesn't lose it. */
+  private persist(history: HistoryEntry[]) {
+    if (!this.setId || !history.length) return;
+    const t0 = history[0].at;
+    saveSet({
+      id: this.setId,
+      startedAt: this.setStartedAt,
+      updatedAt: new Date().toISOString(),
+      setBpm: this.snap.setBpm,
+      mode: this.snap.mode,
+      tracks: history.map((h) => ({
+        id: h.song.id,
+        title: h.song.title,
+        artist: h.song.artist,
+        at: Math.max(0, h.at - t0),
+        kind: h.plan?.kind,
+        bars: h.plan?.N,
+        lockMs: h.lock?.p90Ms ?? null,
+        locked: h.lock?.verified,
+      })),
+    });
   }
 
   private setNext(patch: Partial<NextInfo> | undefined) {
@@ -154,10 +182,11 @@ export class LabEngine {
     if (this.snap.status === 'idle') this.set({ setBpm: bpm });
   }
 
-  async loadTrack(song: LabSong, hint?: number): Promise<LoadedTrack> {
+  /** Fetch + decode for playback; the analysis is the crate scan's cached one when there is one. */
+  async loadTrack(song: LabSong): Promise<LoadedTrack> {
     const ctx = this.unlockAudio();
     const buf = await fetchAudio(song.id);
-    const [buffer, analysis] = await Promise.all([ctx.decodeAudioData(buf.slice(0)), analyseSong(song, hint, buf)]);
+    const [buffer, analysis] = await Promise.all([ctx.decodeAudioData(buf.slice(0)), analyseSong(song, undefined, buf)]);
     return { song, buffer, analysis };
   }
 
@@ -170,11 +199,13 @@ export class LabEngine {
     this.stop();
     const ctx = this.unlockAudio();
     this.skipped.clear();
+    this.setId = `${Date.now().toString(36)}`;
+    this.setStartedAt = new Date().toISOString();
     this.set({ status: 'loading', message: `Loading ${song.title}…`, history: [], next: undefined, now: undefined });
     const token = ++this.lockToken;
     let track: LoadedTrack;
     try {
-      track = await this.loadTrack(song, this.snap.setBpm);
+      track = await this.loadTrack(song);
     } catch (e) {
       this.set({ status: 'idle', message: `Couldn't load ${song.title}: ${(e as Error).message}` });
       return;
@@ -209,14 +240,17 @@ export class LabEngine {
     if (!this.cur || !this.ctx) return;
     const st = this.snap.next?.state;
     if (st === 'committed' || st === 'mixing') return;
+    // swapping out the locked song (often the auto-pick) means you didn't want it: don't re-pick it
+    const replaced = this.snap.next?.song.id;
+    if (replaced && replaced !== song.id) this.skipped.add(replaced);
     this.cancelNext();
     const token = ++this.lockToken;
     this.setNext({ song, state: 'loading', notes: [], plan: undefined, lock: undefined, placed: undefined, analysis: undefined, error: undefined });
     let track: LoadedTrack;
     try {
-      track = await this.loadTrack(song, this.snap.setBpm);
+      track = await this.loadTrack(song);
     } catch (e) {
-      if (token === this.lockToken) this.setNext({ state: 'failed', error: (e as Error).message });
+      if (token === this.lockToken) this.failLock(song, (e as Error).message);
       return;
     }
     if (token !== this.lockToken || !this.cur) return;
@@ -231,7 +265,7 @@ export class LabEngine {
     const song = track.song;
     const rateB0 = this.snap.setBpm / B.bpm;
     if (Math.abs(rateB0 - 1) > 0.08) {
-      this.setNext({ state: 'failed', analysis: B, error: `${B.bpm.toFixed(1)} BPM is more than 8 % from the set tempo` });
+      this.failLock(song, `${B.bpm.toFixed(1)} BPM is more than 8 % from the set tempo`);
       return;
     }
     const fromBar = Math.ceil(barAt(A, posAt(cur, ctx.currentTime + LEAD_SEC)));
@@ -243,7 +277,7 @@ export class LabEngine {
       recipe,
     });
     if (!plan) {
-      this.setNext({ state: 'failed', analysis: B, error: 'No exit left in this track for that song' });
+      this.failLock(song, 'No exit left in this track for that song');
       return;
     }
     const lock = lockFor(cur.track, track, plan, cur.rate);
@@ -266,6 +300,18 @@ export class LabEngine {
     this.nxt = { track, nodes, rate: placed.bRate, ctxStart: placed.bWhen, trackStart: placed.bOffset };
     this.nextTrack = track;
     this.setNext({ song, state: 'locked', analysis: B, plan, lock, placed, notes, error: undefined });
+    if (this.snap.message) this.set({ message: undefined });
+  }
+
+  /** A song that can't be locked is skipped; with auto-lock on, the next pick is tried. */
+  private failLock(song: LabSong, error: string) {
+    this.skipped.add(song.id);
+    if (this.snap.autoLock && this.pickNext) {
+      this.set({ next: undefined, message: `Skipped ${song.title}: ${error}` });
+      this.maybeAutoLock();
+    } else {
+      this.setNext({ state: 'failed', error });
+    }
   }
 
   /** Drop the locked song (only before it's committed). */
@@ -312,6 +358,10 @@ export class LabEngine {
   }
 
   stop() {
+    const next = this.snap.next;
+    if (next?.state === 'mixing' && this.cur && next.placed) {
+      this.set({ history: [...this.snap.history, { song: next.song, at: next.placed.bWhen, plan: next.plan, lock: next.lock, from: this.cur.track.song }] });
+    }
     this.lockToken++;
     if (this.nxt) disposeDeck(this.nxt.nodes);
     if (this.cur) disposeDeck(this.cur.nodes);

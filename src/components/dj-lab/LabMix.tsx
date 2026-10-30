@@ -35,9 +35,10 @@ function SongLine({ song, sub }: { song: LabSong; sub?: string }) {
   );
 }
 
+/** The track's own tempo vs the tempo it plays at in the set */
 function tempoLine(a: TrackAnalysis, rate: number) {
   const pct = (rate - 1) * 100;
-  return `${a.bpm.toFixed(1)} → ${(a.bpm * rate).toFixed(1)} BPM (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
+  return `track ${a.bpm.toFixed(1)} BPM → plays at ${(a.bpm * rate).toFixed(1)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
 }
 
 function exitRegions(plan: TransitionPlan): { regions: StripRegion[]; markers: StripMarker[] } {
@@ -225,7 +226,9 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
 
       {/* candidates */}
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold">Up next</h3>
+        <h3 className="text-sm font-semibold">
+          Up next <span className="font-normal text-muted-foreground">· matched to {(now.analysis.bpm * now.rate).toFixed(1)} BPM, the tempo playing now</span>
+        </h3>
         {candidates.length === 0 && <p className="text-sm text-muted-foreground">No analysed track within ±8 % of {snap.setBpm} BPM yet.</p>}
         <ul className="divide-y rounded-lg border">
           {candidates.map((c) => {

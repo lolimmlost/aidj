@@ -32,10 +32,11 @@ export interface CrateState {
 const EMPTY: CrateState = { songs: [], analyses: new Map(), loading: false, scanning: false, done: 0, failed: 0 };
 
 /**
- * Load a crate and analyse its songs one at a time in the background (IndexedDB-cached), tracks
- * tagged near the set tempo first. Yields to a lock in progress, which needs the network more.
+ * Load a crate and analyse its songs one at a time in the background (IndexedDB-cached). Yields to a
+ * lock in progress, which needs the network more. Not keyed on the set tempo: changing it would
+ * re-fetch the whole crate.
  */
-export function useCrate(crateId: string | null, hint: number): CrateState {
+export function useCrate(crateId: string | null): CrateState {
   const [state, setState] = useState<CrateState>(EMPTY);
   useEffect(() => {
     if (!crateId) {
@@ -58,14 +59,13 @@ export function useCrate(crateId: string | null, hint: number): CrateState {
       let done = 0;
       let failed = 0;
       setState({ songs, analyses, loading: false, scanning: true, done, failed });
-      const order = [...songs].sort((a, b) => Math.abs((a.bpm ?? 999) - hint) - Math.abs((b.bpm ?? 999) - hint));
-      for (const song of order) {
+      for (const song of songs) {
         if (cancelled) return;
         while (!cancelled && getLabEngine().getSnapshot().next?.state === 'loading') {
           await new Promise((r) => setTimeout(r, 500));
         }
         try {
-          analyses.set(song.id, await analyseSong(song, hint, undefined, abort.signal));
+          analyses.set(song.id, await analyseSong(song, undefined, undefined, abort.signal));
           done++;
         } catch {
           if (cancelled) return;
@@ -79,7 +79,7 @@ export function useCrate(crateId: string | null, hint: number): CrateState {
       cancelled = true;
       abort.abort();
     };
-  }, [crateId, hint]);
+  }, [crateId]);
   return state;
 }
 

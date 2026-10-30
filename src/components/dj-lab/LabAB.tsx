@@ -71,7 +71,7 @@ export function LabAB({ engine, snap, pool }: { engine: LabEngine; snap: EngineS
   async function load(song: LabSong) {
     const hit = tracks.current.get(song.id);
     if (hit) return hit;
-    const t = await engine.loadTrack(song, snap.setBpm);
+    const t = await engine.loadTrack(song);
     tracks.current.set(song.id, t);
     return t;
   }
@@ -170,7 +170,7 @@ export function LabAB({ engine, snap, pool }: { engine: LabEngine; snap: EngineS
                 <SelectContent>
                   {songs.map((p) => (
                     <SelectItem key={p.song.id} value={p.song.id}>
-                      {p.song.title} · {p.song.artist} · {p.analysis.bpm.toFixed(0)}
+                      {p.song.title} · {p.song.artist} · {p.analysis.bpm.toFixed(1)} BPM
                     </SelectItem>
                   ))}
                 </SelectContent>

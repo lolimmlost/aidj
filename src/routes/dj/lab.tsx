@@ -18,7 +18,13 @@ import { useCrate, useLabEngine } from '@/components/dj-lab/useLab';
 import { LabMix } from '@/components/dj-lab/LabMix';
 import { LabAB } from '@/components/dj-lab/LabAB';
 import { LabVotes } from '@/components/dj-lab/LabVotes';
+import { RecentSets } from '@/components/dj-lab/RecentSets';
 import { cn } from '@/lib/utils';
+
+const stretchPct = (setBpm: number, bpm: number) => {
+  const pct = (setBpm / bpm - 1) * 100;
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+};
 
 export const Route = createFileRoute('/dj/lab')({
   beforeLoad: async ({ context, location }) => {
@@ -45,10 +51,10 @@ function DJLab() {
   const { engine, snap } = useLabEngine();
   const [crateId, setCrateId] = useState<string | null>(null);
   const [tab, setTab] = useState('mix');
+  // set tempo follows the opener unless you type one
+  const [tempoManual, setTempoManual] = useState(false);
   const crates = useQuery({ queryKey: ['dj-lab', 'crates'], queryFn: listCrates, staleTime: 5 * 60_000 });
-  // re-scan only when the set tempo moves far enough to change octave picks (the cache keys on it)
-  const hint = Math.round(snap.setBpm / 8) * 8;
-  const crate = useCrate(crateId, hint);
+  const crate = useCrate(crateId);
   const pool = useMemo(
     () => crate.songs.filter((s) => crate.analyses.has(s.id)).map((s) => ({ song: s, analysis: crate.analyses.get(s.id)! })),
     [crate],
@@ -86,11 +92,18 @@ function DJLab() {
   const live = snap.status !== 'idle';
   const openers = useMemo(
     () =>
-      pool
-        .filter((p) => Math.abs(snap.setBpm / p.analysis.bpm - 1) <= MAX_STRETCH)
-        .sort((x, y) => Math.abs(snap.setBpm / x.analysis.bpm - 1) - Math.abs(snap.setBpm / y.analysis.bpm - 1)),
-    [pool, snap.setBpm],
+      tempoManual
+        ? pool
+            .filter((p) => Math.abs(snap.setBpm / p.analysis.bpm - 1) <= MAX_STRETCH)
+            .sort((x, y) => Math.abs(snap.setBpm / x.analysis.bpm - 1) - Math.abs(snap.setBpm / y.analysis.bpm - 1))
+        : [...pool].sort((x, y) => x.analysis.bpm - y.analysis.bpm),
+    [pool, snap.setBpm, tempoManual],
   );
+  const startSet = (p: (typeof pool)[number]) => {
+    // Auto: the set runs at the opener's own tempo, so it plays unstretched
+    if (!tempoManual) engine.setSetBpm(Math.round(p.analysis.bpm * 10) / 10);
+    void engine.start(p.song);
+  };
   const voteCount = useMemo(() => loadVotes().length, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -121,20 +134,29 @@ function DJLab() {
               </Select>
             </label>
             <label className="space-y-1 text-xs text-muted-foreground">
-              Set tempo
+              <span className="flex items-center justify-between gap-2">
+                Set tempo
+                {tempoManual && !live && (
+                  <button type="button" className="text-primary" onClick={() => setTempoManual(false)}>
+                    auto
+                  </button>
+                )}
+              </span>
               <Input
                 type="number"
                 inputMode="decimal"
                 min={70}
                 max={190}
                 step={1}
-                value={snap.setBpm}
+                value={live || tempoManual ? snap.setBpm : ''}
+                placeholder="Opener's"
                 disabled={live}
                 onChange={(e) => {
                   const v = Number(e.target.value);
+                  setTempoManual(true);
                   if (v >= 70 && v <= 190) engine.setSetBpm(v);
                 }}
-                className="w-24"
+                className="w-28"
               />
             </label>
             <div className="space-y-1 text-xs text-muted-foreground">
@@ -196,23 +218,30 @@ function DJLab() {
                 <h3 className="text-sm font-semibold">Pick the opener</h3>
                 {!crateId && <p className="text-sm text-muted-foreground">Pick a crate first. Its tracks get analysed in the background (once, then cached).</p>}
                 {crateId && !openers.length && !crate.loading && (
-                  <p className="text-sm text-muted-foreground">No analysed track within ±8 % of {snap.setBpm} BPM yet.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {tempoManual ? `No analysed track within ±8 % of ${snap.setBpm} BPM yet.` : 'No analysed tracks yet.'}
+                  </p>
+                )}
+                {!tempoManual && openers.length > 0 && (
+                  <p className="text-xs text-muted-foreground">The set runs at the opener's tempo. Type a set tempo to stretch everything to it.</p>
                 )}
                 <ul className="divide-y rounded-lg border">
-                  {openers.slice(0, 40).map((p) => (
+                  {openers.slice(0, 200).map((p) => (
                     <li key={p.song.id} className="flex items-center gap-3 p-2.5">
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-medium">{p.song.title}</div>
                         <div className="truncate text-xs text-muted-foreground">
-                          {p.song.artist} · {p.analysis.bpm.toFixed(1)} BPM · {p.analysis.drops.length} drops
+                          {p.song.artist} · track {p.analysis.bpm.toFixed(1)} BPM
+                          {tempoManual ? ` → plays at ${snap.setBpm} (${stretchPct(snap.setBpm, p.analysis.bpm)})` : ''} · {p.analysis.drops.length} drops
                         </div>
                       </div>
-                      <Button size="sm" className="shrink-0 gap-1.5" onClick={() => void engine.start(p.song)}>
+                      <Button size="sm" className="shrink-0 gap-1.5" onClick={() => startSet(p)}>
                         <Play className="size-3.5" /> Start set
                       </Button>
                     </li>
                   ))}
                 </ul>
+                <RecentSets />
               </section>
             )}
           </TabsContent>

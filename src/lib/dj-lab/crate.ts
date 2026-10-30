@@ -212,7 +212,8 @@ export function rankCandidates(
     if (Math.abs(stretch) > MAX_STRETCH) continue;
     const reasons: string[] = [];
     const warnings: string[] = [];
-    reasons.push(`${analysis.bpm.toFixed(1)} BPM (${stretch >= 0 ? '+' : ''}${(stretch * 100).toFixed(1)}%)`);
+    // the track's own tempo → the tempo it would play at (what's playing now)
+    reasons.push(`${analysis.bpm.toFixed(1)} → ${opts.setBpm.toFixed(1)} BPM (${stretch >= 0 ? '+' : ''}${(stretch * 100).toFixed(1)}%)`);
     if (opts.mode === 'dropchain' && analysis.drop === null) warnings.push('no clear drop');
     const dBass = bassWeight(analysis) - curBass;
     reasons.push(`bass ${dBass >= 0 ? '+' : ''}${dBass.toFixed(1)} dB`);
