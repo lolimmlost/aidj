@@ -258,7 +258,12 @@ export class LabEngine {
       return;
     }
     if (token !== this.lockToken || !this.cur) return;
-    this.schedule(track, recipe, auto);
+    try {
+      this.schedule(track, recipe, auto);
+    } catch (e) {
+      // scheduling errors (Web Audio automation) fail this lock visibly instead of an unhandled rejection
+      this.failLock(song, `couldn't schedule: ${(e as Error).message}`, auto);
+    }
   }
 
   private schedule(track: LoadedTrack, recipe?: Recipe, auto = false) {
@@ -340,7 +345,13 @@ export class LabEngine {
     if (this.nxt) disposeDeck(this.nxt.nodes);
     this.nxt = null;
     this.nextTrack = null;
-    if (this.cur && this.ctx) resetGains(this.cur.nodes, this.ctx.currentTime);
+    if (this.cur && this.ctx) {
+      try {
+        resetGains(this.cur.nodes, this.ctx.currentTime);
+      } catch (e) {
+        console.warn('[Lab] resetting the exit failed', e);
+      }
+    }
   }
 
   /** Re-plan the locked song with another recipe (A/B winner, or a manual override). */
