@@ -36,6 +36,7 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlayerBar } from './PlayerBar';
 import { QueuePanel } from '@/components/ui/queue-panel';
+import { checkPreviousLabPage } from '@/lib/dj-lab/log';
 import { MobileNav } from '@/components/ui/mobile-nav';
 import { MobileTabBar } from './MobileTabBar';
 import { toast } from '@/lib/toast';
@@ -214,6 +215,12 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const { playlist, currentSongIndex } = useAudioStore();
   const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
+  // the Transition Lab plays through its own engine and pauses this player: the queue button would
+  // only cover the Lab's controls there
+  const onLab = useRouterState({ select: (s) => s.location.pathname.startsWith('/dj/lab') });
+  // a Transition Lab set that died mid-set (iOS kills a page that runs out of memory) is reported
+  // however the app reopens, not only when the Lab does
+  useEffect(() => checkPreviousLabPage(), []);
 
   // Debug panel state with localStorage persistence
   const [showDebugPanel, setShowDebugPanel] = useState(() => {
@@ -285,7 +292,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       </div>
 
       {/* Queue Panel - Slide-out drawer */}
-      <QueuePanel />
+      {!onLab && <QueuePanel />}
 
       {/* Music Taste Debug Panel - Toggle with Ctrl+Shift+D */}
       {showDebugPanel && (

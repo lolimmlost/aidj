@@ -15,7 +15,10 @@ import type { TrackAnalysis } from './analysis';
 import { meanOf, percentile } from './dsp';
 
 export type MixMode = 'dropchain' | 'classic';
-export type TransitionKind = 'chain' | 'swap' | 'droplands' | 'longoutro' | 'intro' | 'cut';
+export type TransitionKind = 'chain' | 'swap' | 'droplands' | 'longoutro' | 'intro' | 'cut' | 'playout';
+
+export type ExitChoice = 'section' | 'next-drop' | 'end';
+export type EntryChoice = 'first-drop' | 'main-drop' | 'intro';
 
 /** Overrides an A/B variant can set; anything left out follows the rules. */
 export interface Recipe {
@@ -29,6 +32,13 @@ export interface Recipe {
   kill?: number;
   /** classic: B comes in at its intro even when its drop is near the start */
   cue?: 'auto' | 'intro';
+  /**
+   * Where A goes out (#375): after this drop section (chain), into its next drop (swap), or played
+   * out to its last beat bar.
+   */
+  exit?: ExitChoice;
+  /** Where B comes in (#375): its earliest drop, its main drop, or from the top */
+  entry?: EntryChoice;
 }
 
 export interface TransitionPlan {
@@ -55,6 +65,8 @@ export interface TransitionPlan {
   lift: number | null;
   breakdown: number | null;
   how: string;
+  /** a requested choice that couldn't be honoured, and what was done instead */
+  unmet?: string;
 }
 
 export interface PlanOptions {
@@ -82,8 +94,21 @@ function dropSectionEnd(A: TrackAnalysis, d: number, hiA: number): number {
   return Math.min(E1, d + floor4(A.last - 1 - d));
 }
 
+/** B's drop to land on for an entry choice; null = from the top (intro) */
+export function entryTarget(B: TrackAnalysis, entry?: EntryChoice): number | null {
+  if (entry === 'intro') return null;
+  const drops = [...B.drops, ...(B.drop !== null ? [B.drop] : [])];
+  if (entry === 'first-drop' && drops.length) return Math.min(...drops);
+  if (entry === 'main-drop' && B.drop !== null) return B.drop;
+  return B.de;
+}
+
+const hasDrops = (t: TrackAnalysis) => t.drops.length > 0 || t.drop !== null;
+
 export function planDropchain(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOptions): TransitionPlan | null {
   const r = opts.recipe ?? {};
+  const forced = r.kind ?? (r.exit === 'section' ? 'chain' : r.exit === 'next-drop' ? 'swap' : undefined);
+  const target = entryTarget(B, r.entry);
   const hiA = percentile(A.el.slice(A.first, A.last + 1), 60);
   const eA = (b: number) => meanOf(A.kw, b, b + 8);
   // A's drop sections from its entry drop on: the first exit that's still ahead of `fromBar` wins
@@ -103,16 +128,18 @@ export function planDropchain(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOpti
       }
     }
     const ruleSwap = nxt.length > 0 && lift !== null && lift <= 1 && brk <= 24;
-    const swap = r.kind ? r.kind === 'swap' && nxt.length > 0 : ruleSwap;
+    const swap = forced ? forced === 'swap' && nxt.length > 0 : ruleSwap;
     const kind: TransitionKind = swap ? 'swap' : 'chain';
     const Dx = swap ? nxt[0] : E1;
     const Nmax = r.bars ?? (swap ? 16 : 8);
     // the opener has no entry blend, so its first exit blend may reach back to bar 0
     const floor = opts.floorBar === 0 && d === sectionStarts[0] ? 0 : d;
-    const N = Math.max(4, Math.min(Nmax, floor4(B.de - B.first), Dx - floor));
+    // B from the top: its own intro, no build length limit; otherwise the build before the chosen drop
+    const N = Math.max(4, Math.min(Nmax, target === null ? Nmax : floor4(target - B.first), Dx - floor));
     const entryA = Dx - N;
     if (entryA < opts.fromBar || Dx > A.nBars - 1) continue;
-    const cueB = Math.max(0, B.de - N);
+    const cueB = target === null ? B.first : Math.max(0, target - N);
+    const into = target === null ? "B's intro" : target === B.de ? "B's drop" : `B's ${target === entryTarget(B, 'first-drop') ? 'first' : 'main'} drop`;
     return {
       mode: 'dropchain',
       kind,
@@ -124,18 +151,25 @@ export function planDropchain(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOpti
       kill: Math.min(kill, N),
       hold: 0,
       endA: entryA + N + 1,
-      deB: B.de,
+      deB: target ?? B.de,
       lift,
       breakdown: nxt.length ? brk : null,
-      how: `${kind}: B's drop on A bar ${Dx - A.first} (${Dx - d} bars after A's drop), ${N}-bar build`,
+      how: `${kind}: ${into} on A bar ${Dx - A.first} (${Dx - d} bars after A's drop), ${N}-bar ${target === null ? 'blend' : 'build'}`,
+      unmet:
+        forced === 'swap' && kind !== 'swap'
+          ? "Into A's next drop isn't possible here (no next drop in range): chained instead"
+          : forced === 'swap' && !ruleSwap
+            ? `Heads-up: ${brk} bars of A's breakdown before that drop${lift !== null && lift > 1 ? `, and that drop is ${lift} dB bigger than this one` : ''} (rule 3)`
+            : undefined,
     };
   }
   return null;
 }
 
 export function planClassic(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOptions): TransitionPlan | null {
-  const r = opts.recipe ?? {};
-  const D = B.drop === null ? null : B.drop - B.first;
+  const r = { ...opts.recipe, ...(opts.recipe?.entry === 'intro' ? { cue: 'intro' as const } : {}) };
+  const dropBar = r.entry ? entryTarget(B, r.entry) : B.drop;
+  const D = dropBar === null ? null : dropBar - B.first;
   let kind: TransitionKind;
   let N: number;
   let cue: number;
@@ -143,12 +177,12 @@ export function planClassic(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOption
   if (r.cue !== 'intro' && D !== null && D <= 16) {
     kind = 'droplands';
     N = Math.max(8, floor4(D));
-    cue = (B.drop as number) - N;
+    cue = (dropBar as number) - N;
     S = N;
   } else if (r.cue !== 'intro' && D !== null && A.outro >= 32 && D <= 96) {
     kind = 'longoutro';
     N = 32;
-    cue = (B.drop as number) - N;
+    cue = (dropBar as number) - N;
     S = N;
   } else {
     kind = 'intro';
@@ -161,7 +195,7 @@ export function planClassic(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOption
     if (kind === 'intro') S = N >= 24 ? 8 : 4;
     else {
       S = N;
-      cue = (B.drop as number) - N;
+      cue = (dropBar as number) - N;
     }
   }
   cue = Math.max(0, cue);
@@ -219,14 +253,73 @@ export function planCut(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOptions): 
   };
 }
 
+/**
+ * Play A out (#375): the blend sits on A's last beat bars. With a drop entry, B's chosen drop lands as
+ * A ends (16-bar build, 32 over a long beats-only outro, shorter if B's build is); with an intro entry,
+ * B's intro rides over A's end (the classic recipe).
+ */
+export function planPlayOut(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOptions): TransitionPlan | null {
+  const r = opts.recipe ?? {};
+  const target = hasDrops(B) ? entryTarget(B, r.entry) : null;
+  const endA = Math.min(A.last + 1, A.nBars);
+  let N: number;
+  let S: number;
+  let cueB: number;
+  if (target === null) {
+    N = r.bars ?? (A.outro >= 32 ? 32 : 8);
+    S = N >= 24 ? 8 : 4;
+    cueB = B.first;
+  } else {
+    N = r.bars ?? Math.max(4, Math.min(A.outro >= 32 ? 32 : 16, floor4(target - B.first)));
+    S = N;
+    cueB = Math.max(0, target - N);
+  }
+  const entryA = endA - N;
+  if (entryA < opts.fromBar || entryA < 0) return null;
+  const onDrop = target !== null;
+  return {
+    mode: opts.mode,
+    kind: 'playout',
+    N,
+    S,
+    entryA,
+    cueB,
+    bass: r.bass ?? (onDrop || N >= 24 ? 'swap' : 'sweep'),
+    // a drop entry keeps the deep pre-drop break (rule 2); an intro blend swaps over one bar
+    kill: Math.min(r.kill ?? (onDrop ? (opts.setBpm > 150 ? 8 : 4) : 1), N),
+    hold: 0,
+    endA: entryA + N + 1,
+    deB: target ?? B.de,
+    lift: null,
+    breakdown: null,
+    how: onDrop
+      ? `play out: B's ${r.entry === 'first-drop' ? 'first drop' : r.entry === 'main-drop' ? 'main drop' : 'drop'} lands as A ends, ${N}-bar build`
+      : `play out: B's intro over A's last ${N} bars`,
+  };
+}
+
 /** The first feasible exit for A into B; dropchain falls back to the classic end-of-track blend, then a cut. */
 export function planTransition(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOptions): TransitionPlan | null {
-  const mode = opts.recipe?.mode ?? opts.mode;
-  if (mode === 'dropchain' && A.drops.length + (A.drop !== null ? 1 : 0) > 0 && B.drop !== null) {
-    const p = planDropchain(A, B, { ...opts, mode });
+  const r = opts.recipe ?? {};
+  const mode = r.mode ?? opts.mode;
+  const o = { ...opts, mode };
+  const notes: string[] = [];
+  if (r.exit === 'end') {
+    const p = planPlayOut(A, B, o);
     if (p) return p;
+    notes.push("Play out isn't possible: A's last beat bar is too close or behind the playhead");
   }
-  return planClassic(A, B, { ...opts, mode }) ?? planCut(A, B, { ...opts, mode });
+  if ((r.entry === 'first-drop' || r.entry === 'main-drop') && !hasDrops(B)) notes.push(`B has no drop to come in on: ${r.entry === 'first-drop' ? 'first' : 'main'} drop ignored`);
+  const withNotes = (p: TransitionPlan | null) => {
+    if (!p) return p;
+    const all = [...notes, ...(p.unmet ? [p.unmet] : [])];
+    return all.length ? { ...p, unmet: all.join('; ') } : p;
+  };
+  if (mode === 'dropchain' && hasDrops(A) && (hasDrops(B) || r.entry === 'intro')) {
+    const p = planDropchain(A, B, o);
+    if (p) return withNotes(p);
+  }
+  return withNotes(planClassic(A, B, o) ?? planCut(A, B, o));
 }
 
 /* ---------- gain curves (shared by the live deck and the offline A/B render) ---------- */
@@ -301,4 +394,18 @@ export function sampleCurve(fn: (bar: number) => number, b0: number, b1: number,
     out[i] = (raw[hi] - raw[lo]) / (hi - lo);
   }
   return out;
+}
+
+/** "play out · first drop · sweep · 16 bars": the picker choices in a recipe, for history and votes */
+export function describeRecipe(r: Recipe): string {
+  const exit = { section: 'after the drop', 'next-drop': "into A's next drop", end: 'play out' } as const;
+  const entry = { 'first-drop': 'first drop', 'main-drop': 'main drop', intro: 'intro' } as const;
+  return [
+    r.exit && exit[r.exit],
+    r.entry && entry[r.entry],
+    r.bass && (r.bass === 'sweep' ? 'sweep' : 'hard swap'),
+    r.bars && `${r.bars} bars`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }

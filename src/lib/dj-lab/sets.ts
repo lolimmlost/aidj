@@ -15,6 +15,8 @@ export interface SavedTrack {
   bars?: number;
   lockMs?: number | null;
   locked?: boolean;
+  /** the picker choices it was mixed with (#375), e.g. "play out · first drop" */
+  choice?: string;
 }
 
 export interface SavedSet {

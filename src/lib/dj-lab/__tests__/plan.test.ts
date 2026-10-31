@@ -97,6 +97,53 @@ describe('planTransition (drop-chain)', () => {
   });
 });
 
+describe('transition choices (#375)', () => {
+  // B with a short first drop at 32 and its main drop at 80 (the one the rules enter on)
+  const TWO_DROPS = { ...B, drop: 80, de: 80 };
+
+  it('plays A out: B lands its drop as A ends', () => {
+    const p = planTransition(SHORT_BREAK, B, { ...opts, recipe: { exit: 'end' } })!;
+    expect(p.kind).toBe('playout');
+    expect(p.entryA + p.S).toBe(SHORT_BREAK.last + 1);
+    expect(p.cueB + p.S).toBe(B.de);
+    expect(p.unmet).toBeUndefined();
+  });
+
+  it('plays A out with B from the top when asked for the intro', () => {
+    const p = planTransition(SHORT_BREAK, B, { ...opts, recipe: { exit: 'end', entry: 'intro' } })!;
+    expect(p.kind).toBe('playout');
+    expect(p.cueB).toBe(B.first);
+  });
+
+  it('says so when play out is no longer possible, and uses the next best exit', () => {
+    const p = planTransition(SHORT_BREAK, B, { ...opts, fromBar: SHORT_BREAK.last, recipe: { exit: 'end' } })!;
+    expect(p.kind).not.toBe('playout');
+    expect(p.unmet).toMatch(/Play out isn't possible/);
+  });
+
+  it("brings B in on its first drop instead of the main one", () => {
+    const rules = planTransition(SHORT_BREAK, TWO_DROPS, opts)!;
+    const first = planTransition(SHORT_BREAK, TWO_DROPS, { ...opts, recipe: { entry: 'first-drop' } })!;
+    expect(rules.cueB + rules.S).toBe(80);
+    expect(first.cueB + first.S).toBe(32);
+    // B's own next exit then counts from that first drop
+    expect(first.deB).toBe(32);
+  });
+
+  it('flags a swap that A has no next drop for', () => {
+    // the swap into bar 80 is behind the playhead; the second drop section has no next drop
+    const p = planTransition(SHORT_BREAK, B, { ...opts, fromBar: 70, recipe: { exit: 'next-drop' } })!;
+    expect(p.kind).toBe('chain');
+    expect(p.unmet).toMatch(/next drop/);
+  });
+
+  it('honours a forced swap over a long breakdown, with a rule-3 heads-up', () => {
+    const p = planTransition(LONG_BREAK, B, { ...opts, recipe: { exit: 'next-drop' } })!;
+    expect(p.kind).toBe('swap');
+    expect(p.unmet).toMatch(/breakdown/);
+  });
+});
+
 describe('band gains', () => {
   const swap = planTransition(SHORT_BREAK, B, opts)!;
 
@@ -135,5 +182,17 @@ describe('rankCandidates', () => {
     );
     expect(ranked.map((c) => c.song.id)).toEqual(['near', 'far']);
     expect(ranked[1].bpmDelta).toBeCloseTo(3);
+  });
+
+  it('keeps to the tempo window (#378): nothing faster than +up % or slower than −down %', () => {
+    const at = (bpm: number) => ({ ...B, bpm, barLen: 240 / bpm });
+    const pool = [125, 127, 128.5, 130, 132].map((bpm) => ({ song: song(String(bpm)), analysis: at(bpm) }));
+    const ids = rankCandidates({ song: song('now'), analysis: at(128) }, pool, {
+      setBpm: 128,
+      played: new Set(),
+      mode: 'dropchain',
+      window: { down: 1, up: 2 },
+    }).map((c) => c.song.id);
+    expect(ids.sort()).toEqual(['127', '128.5', '130']);
   });
 });

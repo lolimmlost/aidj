@@ -6,6 +6,7 @@
  */
 import { analyseTrack, ANALYSIS_VERSION, V1_TRUSTED_BPM, dropLevelDb, type TrackAnalysis } from './analysis';
 import { meanOf } from './dsp';
+import { labBusy, labLog } from './log';
 
 export interface LabSong {
   id: string;
@@ -17,6 +18,9 @@ export interface LabSong {
   /** tagged tempo, if any */
   bpm?: number;
   genre?: string;
+  /** file size in bytes and format, from Navidrome (a FLAC is 25–60 MB) */
+  size?: number;
+  suffix?: string;
 }
 
 export interface CrateInfo {
@@ -34,6 +38,8 @@ interface SubsonicSong {
   duration?: number;
   bpm?: number;
   genre?: string;
+  size?: number;
+  suffix?: string;
   isDir?: boolean;
 }
 
@@ -46,7 +52,15 @@ const toSong = (s: SubsonicSong): LabSong => ({
   duration: s.duration ?? 0,
   bpm: s.bpm || undefined,
   genre: s.genre,
+  size: s.size,
+  suffix: s.suffix,
 });
+
+/** Phones and tablets: iOS kills a page that runs out of memory, without any warning. */
+export function isPhone(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+}
 
 async function subsonic<T>(endpoint: string): Promise<T> {
   const res = await fetch(`/api/navidrome/rest/${endpoint}`, { credentials: 'include' });
@@ -72,21 +86,55 @@ export async function loadCrate(id: string): Promise<LabSong[]> {
   return (r.playlist?.entry ?? []).filter((s) => !s.isDir).map(toSong);
 }
 
-export async function fetchAudio(id: string, signal?: AbortSignal): Promise<ArrayBuffer> {
-  const res = await fetch(`/api/navidrome/stream/${encodeURIComponent(id)}`, { credentials: 'include', signal });
-  if (!res.ok) throw new Error(`stream ${res.status}`);
-  return res.arrayBuffer();
+/**
+ * A whole file as an ArrayBuffer, by XHR and not fetch: a debug console that hooks fetch (Eruda's
+ * Network panel, on whenever the app's debug mode is) reads every response body into a string and
+ * keeps it for the page's lifetime: ~2 bytes per byte downloaded, so the phone killed the page after
+ * 15–25 tracks. Eruda leaves arraybuffer XHRs alone.
+ */
+export function fetchAudio(id: string, signal?: AbortSignal): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const aborted = () => new DOMException('Fetch is aborted', 'AbortError');
+    if (signal?.aborted) return reject(aborted());
+    const xhr = new XMLHttpRequest();
+    const onAbort = () => xhr.abort();
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const done = () => signal?.removeEventListener('abort', onAbort);
+    xhr.open('GET', `/api/navidrome/stream/${encodeURIComponent(id)}`);
+    xhr.responseType = 'arraybuffer';
+    xhr.onload = () => {
+      done();
+      if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as ArrayBuffer);
+      else reject(new Error(`stream ${xhr.status}`));
+    };
+    xhr.onerror = () => {
+      done();
+      reject(new TypeError('Load failed'));
+    };
+    xhr.onabort = () => {
+      done();
+      reject(aborted());
+    };
+    xhr.send();
+  });
+}
+
+let decoder: OfflineAudioContext | null = null;
+/** One context decodes every scanned song (Safari may hold on to each one it's given) */
+function analysisDecoder(): OfflineAudioContext {
+  if (!decoder) {
+    try {
+      decoder = new OfflineAudioContext(1, 1, 11025);
+    } catch {
+      decoder = new OfflineAudioContext(1, 1, 22050);
+    }
+  }
+  return decoder;
 }
 
 /** Decode to mono at a low rate for analysis (11 kHz; 22 kHz where a browser refuses that). */
 export async function decodeMono(buf: ArrayBuffer): Promise<{ mono: Float32Array; sr: number }> {
-  let ctx: OfflineAudioContext;
-  try {
-    ctx = new OfflineAudioContext(1, 1, 11025);
-  } catch {
-    ctx = new OfflineAudioContext(1, 1, 22050);
-  }
-  const ab = await ctx.decodeAudioData(buf);
+  const ab = await analysisDecoder().decodeAudioData(buf);
   const mono = new Float32Array(ab.length);
   for (let c = 0; c < ab.numberOfChannels; c++) {
     const ch = ab.getChannelData(c);
@@ -170,13 +218,30 @@ export async function getCachedAnalysis(id: string, hint?: number): Promise<Trac
 export async function analyseSong(song: LabSong, hint: number | undefined, buf?: ArrayBuffer, signal?: AbortSignal): Promise<TrackAnalysis> {
   const cached = await getCachedAnalysis(song.id, hint);
   if (cached) return cached;
-  const data = buf ? buf.slice(0) : await fetchAudio(song.id, signal);
-  const { mono, sr } = await decodeMono(data);
-  // let the page breathe between decode and the ~0.3 s of analysis
-  await new Promise((r) => setTimeout(r, 0));
-  const analysis = analyseTrack(mono, sr, { bpmHint: hint ?? song.bpm });
-  void cachePut(song.id, { analysis, hint: hint ?? song.bpm });
-  return analysis;
+  const label = `${song.artist} – ${song.title}`;
+  const from = buf ? 'lock' : 'scan';
+  labLog('analysing', { song: label, from });
+  const done = labBusy(`analyse ${label}`);
+  const t0 = performance.now();
+  try {
+    const data = buf ? buf.slice(0) : await fetchAudio(song.id, signal);
+    const fileMB = Math.round(data.byteLength / 1e5) / 10;
+    const t1 = performance.now();
+    const { mono, sr } = await decodeMono(data);
+    const t2 = performance.now();
+    // let the page breathe between decode and the ~0.3 s of analysis
+    await new Promise((r) => setTimeout(r, 0));
+    const analysis = analyseTrack(mono, sr, { bpmHint: hint ?? song.bpm });
+    void cachePut(song.id, { analysis, hint: hint ?? song.bpm });
+    labLog('analysed', { song: label, from, fileMB, fetchMs: Math.round(t1 - t0), decodeMs: Math.round(t2 - t1), bpm: analysis.bpm });
+    return analysis;
+  } catch (e) {
+    const err = e as Error;
+    labLog('analyse failed', { song: label, from, error: err.message, name: err.name }, err.name === 'AbortError' ? 'info' : 'warn');
+    throw e;
+  } finally {
+    done();
+  }
 }
 
 /* ---------- candidate ranking ---------- */
@@ -209,7 +274,13 @@ export const MAX_STRETCH = 0.08;
 export function rankCandidates(
   current: { song: LabSong; analysis: TrackAnalysis },
   pool: { song: LabSong; analysis: TrackAnalysis }[],
-  opts: { setBpm: number; played: Set<string>; mode: 'dropchain' | 'classic' },
+  opts: {
+    setBpm: number;
+    played: Set<string>;
+    mode: 'dropchain' | 'classic';
+    /** tempo window (#378): how much slower / faster the track may be than what's playing, % */
+    window?: { down: number; up: number };
+  },
 ): Candidate[] {
   const out: Candidate[] = [];
   const curBass = bassWeight(current.analysis);
@@ -217,6 +288,8 @@ export function rankCandidates(
     if (song.id === current.song.id || opts.played.has(song.id)) continue;
     const stretch = opts.setBpm / analysis.bpm - 1;
     if (Math.abs(stretch) > MAX_STRETCH) continue;
+    const faster = (analysis.bpm / opts.setBpm - 1) * 100;
+    if (opts.window && (faster > opts.window.up + 1e-9 || faster < -opts.window.down - 1e-9)) continue;
     const reasons: string[] = [];
     const warnings: string[] = [];
     if (opts.mode === 'dropchain' && analysis.drop === null) warnings.push('no clear drop');

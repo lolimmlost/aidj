@@ -131,6 +131,8 @@ export function disposeDeck(deck: DeckNodes) {
   } catch {
     // never started
   }
+  // skipAhead swaps in a new source that isn't in `nodes`: disconnect it too, so nothing keeps the buffer
+  deck.src.disconnect();
   for (const n of deck.nodes) n.disconnect();
 }
 
