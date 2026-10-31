@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { barAt, type TrackAnalysis } from '@/lib/dj-lab/analysis';
-import { rankCandidates, type LabSong } from '@/lib/dj-lab/crate';
+import { genreFamily, rankCandidates, type Candidate, type LabSong } from '@/lib/dj-lab/crate';
 import type { EngineSnapshot, HistoryEntry, LabEngine, NextInfo } from '@/lib/dj-lab/engine';
 import { describeRecipe, type TransitionPlan } from '@/lib/dj-lab/plan';
 import { lockRecord, newId, planRecord, saveVote } from '@/lib/dj-lab/votes';
@@ -109,6 +109,35 @@ function flag(entry: HistoryEntry, thumb: 'up' | 'down', setBpm: number) {
   toast.success(thumb === 'up' ? 'Marked as a good transition' : 'Marked as a bad transition');
 }
 
+const UP_NEXT_ID = 'lab-up-next';
+const PICKS_SHOWN = 4;
+
+/** One genre family's picks, best first; past the first few they fold away. */
+function PickGroup({ genre, picks, children }: { genre: string; picks: Candidate[]; children: (c: Candidate) => ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const shown = open ? picks : picks.slice(0, PICKS_SHOWN);
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex items-center justify-between border-b bg-muted/40 px-2 py-1 text-[11px] font-semibold">
+        {genre}
+        <span className="font-normal tabular-nums text-muted-foreground">{picks.length}</span>
+      </div>
+      <ul className="divide-y">
+        {shown.map((c) => (
+          <li key={c.song.id} className="flex items-center gap-2 px-2 py-1.5">
+            {children(c)}
+          </li>
+        ))}
+      </ul>
+      {picks.length > PICKS_SHOWN && (
+        <button type="button" onClick={() => setOpen((o) => !o)} className="w-full border-t px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/50">
+          {open ? 'Show fewer' : `Show ${picks.length - PICKS_SHOWN} more`}
+        </button>
+      )}
+    </Card>
+  );
+}
+
 export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: EngineSnapshot; pool: Pool }) {
   const live = snap.status === 'playing' || snap.status === 'paused';
   useTicker(live);
@@ -123,20 +152,26 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
             played,
             mode: snap.mode,
             window: { down: snap.defaults.tempoDown, up: snap.defaults.tempoUp },
-          }).slice(0, 12)
+          })
         : [],
     [now, pool, snap.setBpm, played, snap.mode, snap.defaults.tempoDown, snap.defaults.tempoUp],
   );
+  // a card per genre family, in the order of each family's best pick
+  const groups = useMemo(() => {
+    const byGenre = new Map<string, Candidate[]>();
+    for (const c of candidates) {
+      const g = genreFamily(c.song);
+      const list = byGenre.get(g);
+      if (list) list.push(c);
+      else byGenre.set(g, [c]);
+    }
+    return [...byGenre];
+  }, [candidates]);
   const posNow = useMemo(() => () => engine.position('now'), [engine]);
   const posNext = useMemo(() => () => engine.position('next'), [engine]);
   const toBlend = engine.secondsToBlend();
   const frozen = next?.state === 'committed' || next?.state === 'mixing';
   const nowPos = engine.position('now');
-  // Swap: pick a replacement while the locked song holds (unlocking lets auto-lock take over at once).
-  // Open for one locked song: it closes itself once that song is replaced or mixed in.
-  const [swapFor, setSwapFor] = useState<string | null>(null);
-  const swapOpen = !!next && swapFor === next.song.id && !frozen;
-  const swapChoices = next ? candidates.filter((c) => c.song.id !== next.song.id).slice(0, 6) : [];
 
   if (!now) return null;
   const exit = next?.plan ? exitRegions(next.plan) : { regions: [], markers: [] };
@@ -179,13 +214,14 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
                 {next.state === 'loading' ? <Loader2 className="size-3 animate-spin" /> : <Lock className="size-3" />}
                 {STATE_LABEL[next.state]}
               </Badge>
+              {/* unlocking lets auto-lock take the slot at once: Swap keeps this song locked until you pick */}
               <Button
                 size="sm"
-                variant={swapOpen ? 'secondary' : 'ghost'}
+                variant="ghost"
                 disabled={frozen}
-                onClick={() => setSwapFor(swapOpen ? null : next.song.id)}
+                onClick={() => document.getElementById(UP_NEXT_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                 className="h-7 shrink-0 gap-1 px-2 text-xs"
-                title="Pick another song for this transition"
+                title="Pick another song below; this one stays locked until you do"
               >
                 <ArrowLeftRight className="size-3.5" /> Swap
               </Button>
@@ -195,32 +231,6 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
                 </Button>
               )}
             </div>
-            {swapOpen && (
-              <ul className="divide-y rounded-md border">
-                {swapChoices.map((c) => (
-                  <li key={c.song.id}>
-                    <button
-                      type="button"
-                      disabled={next.state === 'loading'}
-                      onClick={() => {
-                        setSwapFor(null);
-                        void engine.lock(c.song);
-                      }}
-                      className="flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-muted/50 disabled:opacity-50"
-                    >
-                      <span className="min-w-0 flex-1 truncate text-xs">
-                        <span className="font-medium">{c.song.title}</span>
-                        <span className="text-muted-foreground"> · {c.song.artist}</span>
-                      </span>
-                      <DeltaChip delta={c.bpmDelta} flat={0.005 * snap.setBpm} title="Track tempo vs the tempo playing now">
-                        {c.analysis.bpm.toFixed(1)}
-                      </DeltaChip>
-                    </button>
-                  </li>
-                ))}
-                {!swapChoices.length && <li className="px-2 py-1.5 text-xs text-muted-foreground">Nothing else fits the tempo window.</li>}
-              </ul>
-            )}
             {next.error && <p className="text-xs text-destructive">{next.error}</p>}
             {next.plan && next.analysis && (
               <>
@@ -246,61 +256,66 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
 
       <TransitionPicker engine={engine} snap={snap} />
 
-      {/* candidates */}
-      <section className="space-y-1.5">
+      {/* candidates, a card per genre family */}
+      <section id={UP_NEXT_ID} className="scroll-mt-32 space-y-1.5">
         <h3 className="text-xs font-semibold">
-          Up next <span className="font-normal text-muted-foreground">· vs {(now.analysis.bpm * now.rate).toFixed(1)} BPM playing</span>
+          Up next{' '}
+          <span className="font-normal text-muted-foreground">
+            · {candidates.length} within the tempo window · vs {(now.analysis.bpm * now.rate).toFixed(1)} BPM playing
+          </span>
         </h3>
         {candidates.length === 0 && (
           <p className="text-xs text-muted-foreground">
             No analysed track between −{snap.defaults.tempoDown} % and +{snap.defaults.tempoUp} % of the playing tempo. Widen the tempo window above.
           </p>
         )}
-        <ul className="divide-y rounded-lg border">
-          {candidates.map((c) => {
-            const isNext = next?.song.id === c.song.id;
-            return (
-              <li key={c.song.id} className="flex items-center gap-2 px-2 py-1.5">
-                <div className="min-w-0 flex-1">
-                  <SongLine song={c.song} />
-                  <div className="mt-0.5 flex flex-wrap gap-1">
-                    <DeltaChip delta={c.bpmDelta} flat={0.005 * snap.setBpm} title="Track tempo vs the tempo playing now">
-                      {c.analysis.bpm.toFixed(1)} BPM {c.bpmDelta >= 0 ? '+' : ''}
-                      {c.bpmDelta.toFixed(1)}
-                    </DeltaChip>
-                    <DeltaChip delta={c.bassDelta} flat={0.5} title="Drop bass vs the playing track's">
-                      bass {c.bassDelta >= 0 ? '+' : ''}
-                      {c.bassDelta.toFixed(1)} dB
-                    </DeltaChip>
-                    {c.reasons.map((r) => (
-                      <span key={r} className="rounded bg-muted px-1 text-[10px] leading-4 text-muted-foreground">{r}</span>
-                    ))}
-                    {c.warnings.map((w) => (
-                      <span key={w} className="rounded bg-warning/10 px-1 text-[10px] leading-4 text-warning">{w}</span>
-                    ))}
+        {groups.map(([genre, picks]) => (
+          <PickGroup key={genre} genre={genre} picks={picks}>
+            {(c) => {
+              const isNext = next?.song.id === c.song.id;
+              return (
+                <>
+                  <div className="min-w-0 flex-1">
+                    <SongLine song={c.song} />
+                    <div className="mt-0.5 flex flex-wrap gap-1">
+                      <DeltaChip delta={c.bpmDelta} flat={0.005 * snap.setBpm} title="Track tempo vs the tempo playing now">
+                        {c.analysis.bpm.toFixed(1)} BPM {c.bpmDelta >= 0 ? '+' : ''}
+                        {c.bpmDelta.toFixed(1)}
+                      </DeltaChip>
+                      <DeltaChip delta={c.bassDelta} flat={0.5} title="Drop bass vs the playing track's">
+                        bass {c.bassDelta >= 0 ? '+' : ''}
+                        {c.bassDelta.toFixed(1)} dB
+                      </DeltaChip>
+                      {c.reasons.map((r) => (
+                        <span key={r} className="rounded bg-muted px-1 text-[10px] leading-4 text-muted-foreground">{r}</span>
+                      ))}
+                      {c.warnings.map((w) => (
+                        <span key={w} className="rounded bg-warning/10 px-1 text-[10px] leading-4 text-warning">{w}</span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant={isNext ? 'secondary' : 'outline'}
-                  disabled={frozen || isNext || next?.state === 'loading'}
-                  onClick={() => void engine.lock(c.song)}
-                  className="h-7 shrink-0 gap-1 px-2 text-xs"
-                >
-                  {next && !isNext && next.state !== 'failed' ? (
-                    <>
-                      <ArrowLeftRight className="size-3" /> Swap
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="size-3" /> {isNext ? 'Locked' : 'Lock'}
-                    </>
-                  )}
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
+                  <Button
+                    size="sm"
+                    variant={isNext ? 'secondary' : 'outline'}
+                    disabled={frozen || isNext || next?.state === 'loading'}
+                    onClick={() => void engine.lock(c.song)}
+                    className="h-7 shrink-0 gap-1 px-2 text-xs"
+                  >
+                    {next && !isNext && next.state !== 'failed' ? (
+                      <>
+                        <ArrowLeftRight className="size-3" /> Swap
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="size-3" /> {isNext ? 'Locked' : 'Lock'}
+                      </>
+                    )}
+                  </Button>
+                </>
+              );
+            }}
+          </PickGroup>
+        ))}
       </section>
 
       {/* history */}

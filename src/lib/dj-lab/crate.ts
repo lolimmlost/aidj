@@ -18,6 +18,8 @@ export interface LabSong {
   /** tagged tempo, if any */
   bpm?: number;
   genre?: string;
+  /** every genre tag, primary first (OpenSubsonic) */
+  genres?: string[];
   /** file size in bytes and format, from Navidrome (a FLAC is 25–60 MB) */
   size?: number;
   suffix?: string;
@@ -38,6 +40,7 @@ interface SubsonicSong {
   duration?: number;
   bpm?: number;
   genre?: string;
+  genres?: { name: string }[];
   size?: number;
   suffix?: string;
   isDir?: boolean;
@@ -52,6 +55,7 @@ const toSong = (s: SubsonicSong): LabSong => ({
   duration: s.duration ?? 0,
   bpm: s.bpm || undefined,
   genre: s.genre,
+  genres: s.genres?.map((g) => g.name).filter(Boolean),
   size: s.size,
   suffix: s.suffix,
 });
@@ -70,6 +74,31 @@ async function subsonic<T>(endpoint: string): Promise<T> {
 }
 
 export const LIKED_CRATE = 'liked';
+
+/**
+ * Broad families for grouping picks: tags are fine-grained ("Deep Tech", "Boom Bap") or not genres at
+ * all (YouTube's "Music", "People & Blogs"). A song's first tag that matches a family decides it.
+ */
+const GENRE_FAMILIES: [string, RegExp][] = [
+  ['House & techno', /house|techno|\btech\b|disco|garage|minimal|trance|electro(?!nic)|^dance$/],
+  ['Bass & EDM', /dubstep|bass|drum|dnb|jungle|edm|hardstyle|riddim|breakbeat|breaks/],
+  ['Hip hop', /hip ?hop|rap\b|boom bap|drill|plugg|trap|grime/],
+  ['Electronic', /electronic|synth|ambient|idm|downtempo|chill|lo-?fi/],
+  ['Soul, funk & R&B', /soul|funk|r&b|rnb|boogie|jazz|blues|gospel/],
+  ['Rock & indie', /rock|indie|punk|metal|shoegaze|grunge|emo\b/],
+  ['Pop & Latin', /pop|latin|reggae|afro/],
+  ['Folk & acoustic', /folk|country|acoustic|singer/],
+];
+export const OTHER_GENRE = 'Other';
+
+export function genreFamily(song: LabSong): string {
+  for (const tag of song.genres?.length ? song.genres : song.genre ? [song.genre] : []) {
+    const t = tag.toLowerCase();
+    const hit = GENRE_FAMILIES.find(([, re]) => re.test(t));
+    if (hit) return hit[0];
+  }
+  return OTHER_GENRE;
+}
 
 /**
  * Longer than this is a DJ set or a show, not a track to mix: the Lab leaves it out. A 2-hour set is
