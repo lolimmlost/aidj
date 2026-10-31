@@ -1,5 +1,5 @@
-import { useMemo, type ReactNode } from 'react';
-import { Lock, LockOpen, Square, ThumbsDown, ThumbsUp, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { ArrowLeftRight, Lock, LockOpen, Square, ThumbsDown, ThumbsUp, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -132,6 +132,11 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
   const toBlend = engine.secondsToBlend();
   const frozen = next?.state === 'committed' || next?.state === 'mixing';
   const nowPos = engine.position('now');
+  // Swap: pick a replacement while the locked song holds (unlocking lets auto-lock take over at once).
+  // Open for one locked song: it closes itself once that song is replaced or mixed in.
+  const [swapFor, setSwapFor] = useState<string | null>(null);
+  const swapOpen = !!next && swapFor === next.song.id && !frozen;
+  const swapChoices = next ? candidates.filter((c) => c.song.id !== next.song.id).slice(0, 6) : [];
 
   if (!now) return null;
   const exit = next?.plan ? exitRegions(next.plan) : { regions: [], markers: [] };
@@ -174,10 +179,48 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
                 {next.state === 'loading' ? <Loader2 className="size-3 animate-spin" /> : <Lock className="size-3" />}
                 {STATE_LABEL[next.state]}
               </Badge>
-              <Button size="icon" variant="ghost" disabled={frozen} onClick={() => engine.unlock()} className="size-7 shrink-0" aria-label="Unlock" title="Unlock">
-                <LockOpen className="size-3.5" />
+              <Button
+                size="sm"
+                variant={swapOpen ? 'secondary' : 'ghost'}
+                disabled={frozen}
+                onClick={() => setSwapFor(swapOpen ? null : next.song.id)}
+                className="h-7 shrink-0 gap-1 px-2 text-xs"
+                title="Pick another song for this transition"
+              >
+                <ArrowLeftRight className="size-3.5" /> Swap
               </Button>
+              {!snap.autoLock && (
+                <Button size="icon" variant="ghost" disabled={frozen} onClick={() => engine.unlock()} className="size-7 shrink-0" aria-label="Unlock" title="Unlock">
+                  <LockOpen className="size-3.5" />
+                </Button>
+              )}
             </div>
+            {swapOpen && (
+              <ul className="divide-y rounded-md border">
+                {swapChoices.map((c) => (
+                  <li key={c.song.id}>
+                    <button
+                      type="button"
+                      disabled={next.state === 'loading'}
+                      onClick={() => {
+                        setSwapFor(null);
+                        void engine.lock(c.song);
+                      }}
+                      className="flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-muted/50 disabled:opacity-50"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-xs">
+                        <span className="font-medium">{c.song.title}</span>
+                        <span className="text-muted-foreground"> · {c.song.artist}</span>
+                      </span>
+                      <DeltaChip delta={c.bpmDelta} flat={0.005 * snap.setBpm} title="Track tempo vs the tempo playing now">
+                        {c.analysis.bpm.toFixed(1)}
+                      </DeltaChip>
+                    </button>
+                  </li>
+                ))}
+                {!swapChoices.length && <li className="px-2 py-1.5 text-xs text-muted-foreground">Nothing else fits the tempo window.</li>}
+              </ul>
+            )}
             {next.error && <p className="text-xs text-destructive">{next.error}</p>}
             {next.plan && next.analysis && (
               <>
@@ -244,7 +287,15 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
                   onClick={() => void engine.lock(c.song)}
                   className="h-7 shrink-0 gap-1 px-2 text-xs"
                 >
-                  <Lock className="size-3" /> {isNext ? 'Locked' : 'Lock'}
+                  {next && !isNext && next.state !== 'failed' ? (
+                    <>
+                      <ArrowLeftRight className="size-3" /> Swap
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="size-3" /> {isNext ? 'Locked' : 'Lock'}
+                    </>
+                  )}
                 </Button>
               </li>
             );
