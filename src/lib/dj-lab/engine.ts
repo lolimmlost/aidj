@@ -10,7 +10,7 @@
  * Vinyl stretch: every track plays at set tempo / its tempo via playbackRate (pitch moves with it,
  * capped at ±8 %). Separate from the app's player: it pauses that one while it plays.
  */
-import { barAt, barTime, dropLevelDb, type TrackAnalysis } from './analysis';
+import { barAt, barTime, dropLevelDb, fitOctave, type TrackAnalysis } from './analysis';
 import { analyseSong, fetchAudio, getCachedAnalysis, isPhone, monoSegment, type LabSong } from './crate';
 import { createDeck, createMaster, disposeDeck, placeTransition, releaseBuffer, resetGains, scheduleIncoming, scheduleOutgoing, type DeckNodes, type PlacedTransition } from './graph';
 import { measureLock, type LockResult } from './lock';
@@ -426,6 +426,8 @@ export class LabEngine {
       return;
     }
     if (token !== this.lockToken) return;
+    // a set tempo near half or double the opener's counts it at that octave
+    track = { ...track, analysis: fitOctave(track.analysis, this.snap.setBpm) };
     const a = track.analysis;
     const rate = this.snap.setBpm / a.bpm;
     if (Math.abs(rate - 1) > 0.08) {
@@ -479,10 +481,12 @@ export class LabEngine {
     }
   }
 
-  private schedule(track: LoadedTrack, recipe?: Recipe, auto = false) {
+  private schedule(loaded: LoadedTrack, recipe?: Recipe, auto = false) {
     const ctx = this.ctx!;
     const cur = this.cur!;
     const A = cur.track.analysis;
+    // a 172 BPM track follows an 86 BPM set counted at half time (and the reverse), as Up next ranked it
+    const track = { ...loaded, analysis: fitOctave(loaded.analysis, this.snap.setBpm) };
     const B = track.analysis;
     const song = track.song;
     const rateB0 = this.snap.setBpm / B.bpm;
@@ -527,6 +531,9 @@ export class LabEngine {
     this.setNext({ song, state: 'locked', analysis: B, plan, lock, placed, notes, error: undefined, recipe });
     labLog('locked', {
       song: songLabel(song),
+      bpm: Math.round(B.bpm * 10) / 10,
+      setBpm: this.snap.setBpm,
+      meter: B.meter,
       kind: plan.kind,
       bars: plan.N,
       inSec: Math.round(placed.tEntry - ctx.currentTime),

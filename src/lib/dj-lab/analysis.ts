@@ -57,6 +57,11 @@ export interface TrackAnalysis {
   drops: number[];
   /** entry drop: where a drop-chain brings this track in (mix_set's De) */
   de: number;
+  /**
+   * Set by fitOctave when the track is counted at half or double its tempo for a set (2: an 86 BPM
+   * track counted at 172, 0.5: a 172 BPM track counted at 86). Never cached.
+   */
+  meter?: number;
 }
 
 export interface AnalyseOptions {
@@ -66,6 +71,80 @@ export interface AnalyseOptions {
 
 export const barTime = (a: Pick<TrackAnalysis, 'bar0' | 'barLen'>, bar: number) => a.bar0 + bar * a.barLen;
 export const barAt = (a: Pick<TrackAnalysis, 'bar0' | 'barLen'>, t: number) => (t - a.bar0) / a.barLen;
+
+/** two bars' dB as one: the mean of their power */
+const powerMean = (x: number, y: number) => 10 * Math.log10((10 ** (x / 10) + 10 ** (y / 10)) / 2);
+
+/**
+ * The same track counted at double or half its tempo: a 172 BPM track mixes into an 86 BPM set with a
+ * bar of its own two bars (and the reverse), and then plays at its own speed. Halving keeps the main
+ * drop on a bar line; per-bar energies pair up (halving) or repeat (doubling).
+ */
+export function remeter(a: TrackAnalysis, meter: 2 | 0.5): TrackAnalysis {
+  const native = a.meter ?? 1;
+  if (meter === 2) {
+    const twice = (arr: number[]) => arr.flatMap((v) => [v, v]);
+    return {
+      ...a,
+      bpm: a.bpm * 2,
+      barLen: a.barLen / 2,
+      nBars: a.nBars * 2,
+      el: twice(a.el),
+      ek: twice(a.ek),
+      eh: twice(a.eh),
+      ef: twice(a.ef),
+      kw: twice(a.kw),
+      first: a.first * 2,
+      last: a.last * 2 + 1,
+      intro: a.intro * 2,
+      outro: a.outro * 2,
+      drop: a.drop === null ? null : a.drop * 2,
+      drops: a.drops.map((d) => d * 2),
+      de: a.de * 2,
+      meter: native * 2,
+    };
+  }
+  // the main drop (or the entry drop) starts a new bar
+  const phase = (((a.drop ?? a.de) % 2) + 2) % 2;
+  const nBars = Math.max(1, Math.floor((a.nBars - phase) / 2));
+  const at = (bar: number) => Math.max(0, Math.min(nBars - 1, Math.floor((bar - phase) / 2)));
+  const pair = (arr: number[]) =>
+    Array.from({ length: nBars }, (_, k) => {
+      const x = arr[phase + 2 * k] ?? -120;
+      return powerMean(x, arr[phase + 2 * k + 1] ?? x);
+    });
+  return {
+    ...a,
+    bpm: a.bpm / 2,
+    bar0: a.bar0 + phase * a.barLen,
+    barLen: a.barLen * 2,
+    nBars,
+    el: pair(a.el),
+    ek: pair(a.ek),
+    eh: pair(a.eh),
+    ef: pair(a.ef),
+    kw: pair(a.kw),
+    first: at(a.first),
+    last: at(a.last),
+    intro: at(a.intro),
+    outro: at(a.outro),
+    drop: a.drop === null ? null : at(a.drop),
+    drops: [...new Set(a.drops.map(at))],
+    de: at(a.de),
+    meter: native / 2,
+  };
+}
+
+/** "half time" / "double time" for a re-metered analysis */
+export const meterName = (a: Pick<TrackAnalysis, 'meter'>) => (a.meter ? (a.meter < 1 ? 'half time' : 'double time') : undefined);
+
+/** The analysis counted at the octave (native, double or half) whose tempo is closest to `bpm`. */
+export function fitOctave(a: TrackAnalysis, bpm: number): TrackAnalysis {
+  const off = (x: number) => Math.abs(Math.log(bpm / x));
+  const best = Math.min(off(a.bpm), off(a.bpm * 2), off(a.bpm / 2));
+  if (best === off(a.bpm)) return a;
+  return remeter(a, best === off(a.bpm * 2) ? 2 : 0.5);
+}
 
 const MIN_BPM = 70;
 const MAX_BPM = 190;

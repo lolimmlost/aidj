@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
-import { barAt, type TrackAnalysis } from '@/lib/dj-lab/analysis';
+import { barAt, meterName, type TrackAnalysis } from '@/lib/dj-lab/analysis';
 import { genreFamily, rankCandidates, type Candidate, type LabSong } from '@/lib/dj-lab/crate';
 import type { EngineSnapshot, HistoryEntry, LabEngine, NextInfo } from '@/lib/dj-lab/engine';
 import { describeRecipe, type TransitionPlan } from '@/lib/dj-lab/plan';
@@ -39,7 +39,8 @@ function SongLine({ song, sub }: { song: LabSong; sub?: string }) {
 /** The track's own tempo → the tempo it plays at in the set */
 function tempoLine(a: TrackAnalysis, rate: number) {
   const pct = Math.round((rate - 1) * 1000) / 10;
-  return `${a.bpm.toFixed(1)} → ${(a.bpm * rate).toFixed(1)} BPM (${pct > 0 ? '+' : ''}${pct === 0 ? '0.0' : pct.toFixed(1)}%)`;
+  const own = a.meter ? `${(a.bpm / a.meter).toFixed(1)} at ${meterName(a)}` : a.bpm.toFixed(1);
+  return `${own} → ${(a.bpm * rate).toFixed(1)} BPM (${pct > 0 ? '+' : ''}${pct === 0 ? '0.0' : pct.toFixed(1)}%)`;
 }
 
 function exitRegions(plan: TransitionPlan): { regions: StripRegion[]; markers: StripMarker[] } {

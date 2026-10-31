@@ -4,7 +4,7 @@
  * A crate is a Navidrome playlist (or Liked songs). Its tracks are analysed in the background
  * (fetch → decode at 11 kHz mono → analyseTrack) and cached in IndexedDB, so a crate is scanned once.
  */
-import { analyseTrack, ANALYSIS_VERSION, V1_TRUSTED_BPM, dropLevelDb, type TrackAnalysis } from './analysis';
+import { analyseTrack, ANALYSIS_VERSION, V1_TRUSTED_BPM, dropLevelDb, fitOctave, meterName, type TrackAnalysis } from './analysis';
 import { meanOf } from './dsp';
 import { labBusy, labLog } from './log';
 
@@ -283,6 +283,7 @@ export async function analyseSong(song: LabSong, hint: number | undefined, buf?:
 
 export interface Candidate {
   song: LabSong;
+  /** counted at the octave closest to the set tempo (fitOctave): `meter` is set when that's half or double time */
   analysis: TrackAnalysis;
   /** stretch to the set tempo, % (negative = the track is faster than what's playing) */
   stretch: number;
@@ -319,14 +320,17 @@ export function rankCandidates(
 ): Candidate[] {
   const out: Candidate[] = [];
   const curBass = bassWeight(current.analysis);
-  for (const { song, analysis } of pool) {
+  for (const { song, analysis: own } of pool) {
     if (song.id === current.song.id || opts.played.has(song.id)) continue;
+    // a 172 BPM track can follow an 86 BPM one (and the reverse), counted at half / double time
+    const analysis = fitOctave(own, opts.setBpm);
     const stretch = opts.setBpm / analysis.bpm - 1;
     if (Math.abs(stretch) > MAX_STRETCH) continue;
     const faster = (analysis.bpm / opts.setBpm - 1) * 100;
     if (opts.window && (faster > opts.window.up + 1e-9 || faster < -opts.window.down - 1e-9)) continue;
     const reasons: string[] = [];
     const warnings: string[] = [];
+    if (analysis.meter) reasons.push(`${meterName(analysis)} · ${own.bpm.toFixed(0)} BPM`);
     if (opts.mode === 'dropchain' && analysis.drop === null) warnings.push('no clear drop');
     const dBass = bassWeight(analysis) - curBass;
     if (dBass < -3) warnings.push('lighter drop');
@@ -339,7 +343,9 @@ export function rankCandidates(
       0.25 * Math.min(1, Math.max(0, (dBass + 3) / 6)) +
       0.15 * Math.min(1, analysis.gridConf / 0.5) +
       0.15 * (sameArtist ? 0 : 1) -
-      (opts.mode === 'dropchain' && analysis.drop === null ? 0.3 : 0);
+      (opts.mode === 'dropchain' && analysis.drop === null ? 0.3 : 0) -
+      // at the same tempo, a track at its own tempo first
+      (analysis.meter ? 0.1 : 0);
     out.push({ song, analysis, stretch: stretch * 100, bpmDelta: analysis.bpm - opts.setBpm, bassDelta: dBass, score, reasons, warnings });
   }
   // closest tempo first (0.5 % steps), then the rest of the score

@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAudioStore } from '@/lib/stores/audio';
 import { isPhone, listCrates, rankCandidates, MAX_STRETCH } from '@/lib/dj-lab/crate';
+import { fitOctave, meterName } from '@/lib/dj-lab/analysis';
 import type { LabEngine } from '@/lib/dj-lab/engine';
 import { loadVotes } from '@/lib/dj-lab/votes';
 import { startLabLog } from '@/lib/dj-lab/log';
@@ -120,6 +121,8 @@ function DJLab() {
     () =>
       tempoManual
         ? pool
+            // a set tempo near half or double a track's still lets it open, counted at that octave
+            .map((p) => ({ ...p, analysis: fitOctave(p.analysis, snap.setBpm) }))
             .filter((p) => Math.abs(snap.setBpm / p.analysis.bpm - 1) <= MAX_STRETCH)
             .sort((x, y) => Math.abs(snap.setBpm / x.analysis.bpm - 1) - Math.abs(snap.setBpm / y.analysis.bpm - 1))
         : [...pool].sort((x, y) => x.analysis.bpm - y.analysis.bpm),
@@ -347,10 +350,10 @@ function DJLab() {
                             <span className="block truncate text-sm font-medium">{p.song.title}</span>
                             <span className="block truncate text-[11px] text-muted-foreground">
                               {p.song.artist} · {p.analysis.drops.length} {p.analysis.drops.length === 1 ? 'drop' : 'drops'}
-                              {tempoManual ? ` · plays at ${snap.setBpm} (${stretchPct(snap.setBpm, p.analysis.bpm)})` : ''}
+                              {tempoManual ? ` · plays at ${snap.setBpm} (${stretchPct(snap.setBpm, p.analysis.bpm)}${p.analysis.meter ? `, ${meterName(p.analysis)}` : ''})` : ''}
                             </span>
                           </span>
-                          <span className="shrink-0 rounded bg-muted px-1.5 text-[11px] leading-5 tabular-nums text-muted-foreground">{p.analysis.bpm.toFixed(1)}</span>
+                          <span className="shrink-0 rounded bg-muted px-1.5 text-[11px] leading-5 tabular-nums text-muted-foreground">{(p.analysis.bpm / (p.analysis.meter ?? 1)).toFixed(1)}</span>
                         </button>
                       </li>
                     ))}
