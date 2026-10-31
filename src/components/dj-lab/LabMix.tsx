@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { ArrowLeftRight, Lock, LockOpen, Square, ThumbsDown, ThumbsUp, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeftRight, Lock, LockOpen, Repeat, Square, ThumbsDown, ThumbsUp, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -111,6 +111,26 @@ function flag(entry: HistoryEntry, thumb: 'up' | 'down', setBpm: number) {
 }
 
 const UP_NEXT_ID = 'lab-up-next';
+
+/** A replayed set: how far it is, and the way back to auto-lock's own picks */
+function ReplayLine({ engine, snap }: { engine: LabEngine; snap: EngineSnapshot }) {
+  const replay = snap.replay;
+  if (!replay) return null;
+  const played = new Set(snap.history.map((h) => h.song.id));
+  const done = replay.songIds.filter((id) => played.has(id)).length;
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-xs">
+      <Repeat className="size-3.5 shrink-0 text-primary" />
+      <span className="min-w-0 flex-1 truncate">
+        Replaying {replay.name} · {done} of {replay.songIds.length}
+        {!snap.autoLock && <span className="text-muted-foreground"> · paused while auto-lock is off</span>}
+      </span>
+      <Button size="sm" variant="ghost" className="h-6 shrink-0 px-2 text-xs" onClick={() => engine.endReplay()}>
+        Back to picks
+      </Button>
+    </div>
+  );
+}
 const PICKS_SHOWN = 4;
 
 /** One genre family's picks, best first; past the first few they fold away. */
@@ -200,6 +220,8 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
           {now.analysis.gridP90Ms !== null ? ` · ±${now.analysis.gridP90Ms.toFixed(0)} ms` : ''} · {now.analysis.downbeat === 'drop' ? 'bars on the drop' : 'bars guessed'}
         </div>
       </Card>
+
+      <ReplayLine engine={engine} snap={snap} />
 
       {/* locked next */}
       <Card className={cn('space-y-1.5 p-2.5', next?.state === 'failed' && 'border-destructive/50')}>

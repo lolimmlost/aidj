@@ -16,7 +16,7 @@ import { createDeck, createMaster, disposeDeck, placeTransition, releaseBuffer, 
 import { measureLock, type LockResult } from './lock';
 import { describeRecipe, planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
 import { labBeat, labBusy, labLog } from './log';
-import { saveSet } from './sets';
+import { cuesOf, saveSet } from './sets';
 
 export interface LoadedTrack {
   song: LabSong;
@@ -79,6 +79,18 @@ export interface HistoryEntry {
   recipe?: Recipe;
 }
 
+/** One song of a set played again, with the choices it came in with last time */
+export interface ReplayEntry {
+  song: LabSong;
+  recipe?: Recipe;
+}
+
+export interface ReplayInfo {
+  name: string;
+  /** every song of the replayed set, opener first */
+  songIds: string[];
+}
+
 export interface EngineSnapshot {
   status: 'idle' | 'loading' | 'playing' | 'paused';
   setBpm: number;
@@ -94,6 +106,8 @@ export interface EngineSnapshot {
   defaults: LabDefaults;
   /** the AudioContext's state ("interrupted" on iOS when a call or another app takes the audio) */
   audio?: string;
+  /** a previous set played again: auto-lock follows its order until it runs out */
+  replay?: ReplayInfo;
 }
 
 /** while a set should be playing but iOS has stopped its audio, try to resume this often */
@@ -151,6 +165,8 @@ export class LabEngine {
   private loadAbort: AbortController | null = null;
   private refLevel = 0;
   private skipped = new Set<string>();
+  /** the rest of a replayed set, in order */
+  private replayQueue: ReplayEntry[] = [];
   /** auto-picks that failed in a row; auto-lock pauses at AUTO_FAIL_LIMIT */
   private autoFails = 0;
   private setId = '';
@@ -223,6 +239,8 @@ export class LabEngine {
         lockMs: h.lock?.p90Ms ?? null,
         locked: h.lock?.verified,
         choice: h.recipe ? describeRecipe(h.recipe) || undefined : undefined,
+        recipe: h.recipe,
+        cues: h.plan ? cuesOf(h.plan) : undefined,
       })),
     });
   }
@@ -406,13 +424,18 @@ export class LabEngine {
     return Math.max(-TRIM_LIMIT_DB, Math.min(TRIM_LIMIT_DB, this.refLevel - dropLevelDb(a)));
   }
 
-  /** Start a set on `song`, from its first bar (or `fromBar`). */
-  async start(song: LabSong, fromBar?: number) {
+  /**
+   * Start a set on `song`, from its first bar (or `fromBar`). With `replay`, auto-lock locks those
+   * songs in order, each with the choices it had last time, then goes back to its own picks.
+   */
+  async start(song: LabSong, fromBar?: number, replay?: { name: string; entries: ReplayEntry[] }) {
     this.stop();
     const ctx = this.unlockAudio();
     this.skipped.clear();
     this.autoFails = 0;
-    this.set({ choices: {}, pinned: [] });
+    this.replayQueue = replay?.entries ?? [];
+    this.set({ choices: {}, pinned: [], replay: replay ? { name: replay.name, songIds: [song.id, ...replay.entries.map((e) => e.song.id)] } : undefined });
+    if (replay) labLog('replay', { set: replay.name, songs: replay.entries.length + 1 });
     this.setId = `${Date.now().toString(36)}`;
     this.setStartedAt = new Date().toISOString();
     this.set({ status: 'loading', message: `Loading ${song.title}…`, history: [], next: undefined, now: undefined });
@@ -474,7 +497,7 @@ export class LabEngine {
     }
     if (token !== this.lockToken || !this.cur) return;
     try {
-      this.schedule(track, { ...this.recipe(), ...recipe }, auto);
+      this.schedule(track, this.planRecipe(song.id, recipe), auto);
     } catch (e) {
       // scheduling errors (Web Audio automation) fail this lock visibly instead of an unhandled rejection
       this.failLock(song, `couldn't schedule: ${(e as Error).message}`, auto);
@@ -601,7 +624,24 @@ export class LabEngine {
     if (st === 'committed' || st === 'mixing') return;
     labLog('relock', { song: songLabel(track.song), recipe: recipe ? describeRecipe(recipe) : undefined });
     this.cancelNext();
-    this.schedule(track, { ...this.recipe(), ...recipe });
+    this.schedule(track, this.planRecipe(track.song.id, recipe));
+  }
+
+  /**
+   * The recipe for locking `songId`: the set defaults and rules, then (in a replay) the choices it
+   * came in with last time, then your choices now, then an explicit recipe (A/B winner).
+   */
+  private planRecipe(songId: string, extra?: Recipe): Recipe {
+    const replayed = this.replayQueue.find((e) => e.song.id === songId)?.recipe;
+    return { ...this.recipe(), ...replayed, ...this.snap.choices, ...extra };
+  }
+
+  /** Stop following the replayed set: auto-lock goes back to its own picks. */
+  endReplay() {
+    if (!this.snap.replay) return;
+    labLog('replay ended', { set: this.snap.replay.name, played: this.snap.history.length });
+    this.replayQueue = [];
+    this.set({ replay: undefined });
   }
 
   pause() {
@@ -814,10 +854,13 @@ export class LabEngine {
 
   /** With auto-lock on and nothing locked, lock the best pick (also called when the crate grows). */
   maybeAutoLock() {
-    if (!this.snap.autoLock || !this.pickNext || !this.snap.now || this.snap.next || this.snap.status !== 'playing') return;
+    if (!this.snap.autoLock || !this.snap.now || this.snap.next || this.snap.status !== 'playing') return;
     if (this.autoFails >= AUTO_FAIL_LIMIT) return;
     const played = new Set([...this.snap.history.map((h) => h.song.id), ...this.skipped]);
-    const song = this.pickNext(this.snap.now, played);
+    // a replay locks its next song not played or skipped yet; once it runs out, the set carries on
+    const queued = this.replayQueue.find((e) => !played.has(e.song.id));
+    if (this.snap.replay && !queued) this.endReplay();
+    const song = queued?.song ?? this.pickNext?.(this.snap.now, played) ?? null;
     if (song) void this.lock(song, undefined, true);
   }
 }

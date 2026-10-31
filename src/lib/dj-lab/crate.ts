@@ -122,6 +122,42 @@ export async function loadCrate(id: string): Promise<LabSong[]> {
   return (r.playlist?.entry ?? []).filter((s) => !s.isDir).map(toSong);
 }
 
+const norm = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+const firstArtist = (a: string) => norm(a.split(/,|&| x | feat\.? | ft\.? /i)[0] ?? a);
+const nameKey = (s: { artist: string; title: string }) => `${firstArtist(s.artist)}|${norm(s.title)}`;
+
+/**
+ * The songs of a saved set, for a replay: from the crate by id, or by artist and title when a retag
+ * gave the file a new id; failing that from the library (a search, then the id). null where nothing
+ * matches. A dead id still answers getSong, so it comes last: a song that won't stream is skipped.
+ */
+export async function findSongs(tracks: { id: string; title: string; artist: string }[], known: LabSong[]): Promise<(LabSong | null)[]> {
+  const byId = new Map(known.map((s) => [s.id, s]));
+  const byName = new Map(known.map((s) => [nameKey(s), s]));
+  const out: (LabSong | null)[] = [];
+  for (const t of tracks) {
+    let song = byId.get(t.id) ?? byName.get(nameKey(t)) ?? null;
+    if (!song) {
+      const r = await subsonic<{ searchResult3?: { song?: SubsonicSong[] } }>(
+        `search3?query=${encodeURIComponent(t.title)}&songCount=20&artistCount=0&albumCount=0`,
+      ).catch(() => null);
+      const hit = r?.searchResult3?.song?.map(toSong).find((s) => nameKey(s) === nameKey(t));
+      song = hit ?? null;
+    }
+    if (!song) {
+      const r = await subsonic<{ song?: SubsonicSong }>(`getSong?id=${encodeURIComponent(t.id)}`).catch(() => null);
+      song = r?.song ? toSong(r.song) : null;
+    }
+    out.push(song);
+  }
+  return out;
+}
+
 /**
  * A whole file as an ArrayBuffer, by XHR and not fetch: a debug console that hooks fetch (Eruda's
  * Network panel, on whenever the app's debug mode is) reads every response body into a string and

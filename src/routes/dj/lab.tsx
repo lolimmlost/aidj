@@ -10,9 +10,10 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAudioStore } from '@/lib/stores/audio';
-import { isPhone, listCrates, rankCandidates, MAX_STRETCH } from '@/lib/dj-lab/crate';
+import { findSongs, isPhone, listCrates, rankCandidates, MAX_STRETCH } from '@/lib/dj-lab/crate';
+import { replayRecipe, setWhen, type SavedSet } from '@/lib/dj-lab/sets';
 import { fitOctave, meterName } from '@/lib/dj-lab/analysis';
-import type { LabEngine } from '@/lib/dj-lab/engine';
+import type { LabEngine, ReplayEntry } from '@/lib/dj-lab/engine';
 import { loadVotes } from '@/lib/dj-lab/votes';
 import { startLabLog } from '@/lib/dj-lab/log';
 import { useCrate, useHydrated, useLabEngine } from '@/components/dj-lab/useLab';
@@ -24,6 +25,7 @@ import { LiveBar } from '@/components/dj-lab/LiveBar';
 import { RecentSets } from '@/components/dj-lab/RecentSets';
 import { TempoWindow } from '@/components/dj-lab/TempoWindow';
 import { cn } from '@/lib/utils';
+import { toast } from '@/lib/toast';
 
 const stretchPct = (setBpm: number, bpm: number) => {
   const pct = (setBpm / bpm - 1) * 100;
@@ -138,6 +140,37 @@ function DJLab() {
     // Auto: the set runs at the opener's own tempo, so it plays unstretched
     if (!tempoManual) engine.setSetBpm(Math.round(p.analysis.bpm * 10) / 10);
     void engine.start(p.song);
+  };
+  // a saved set played again: same songs, order, tempo and mode; auto-lock follows it
+  const [replaying, setReplaying] = useState<string | null>(null);
+  const replaySet = async (set: SavedSet) => {
+    // inside the tap: iOS only lets a tap start the audio
+    engine.unlockAudio();
+    setReplaying(set.id);
+    try {
+      const songs = await findSongs(set.tracks, crate.songs);
+      const entries: ReplayEntry[] = [];
+      set.tracks.forEach((t, i) => {
+        const song = songs[i];
+        if (song && !entries.some((e) => e.song.id === song.id)) entries.push({ song, recipe: replayRecipe(t) });
+      });
+      if (!entries.length) {
+        toast.error("None of that set's songs are in the library any more");
+        return;
+      }
+      const lost = set.tracks.length - entries.length;
+      if (lost) toast.warning(`${lost} of ${set.tracks.length} songs weren't found: the replay skips them`);
+      engine.setMode(set.mode);
+      engine.setSetBpm(set.setBpm);
+      setTempoManual(true);
+      if (!snap.autoLock) engine.setAutoLock(true);
+      const [first, ...rest] = entries;
+      void engine.start(first.song, undefined, { name: setWhen(set.startedAt), entries: rest });
+    } catch (e) {
+      toast.error(`Couldn't replay: ${(e as Error).message}`);
+    } finally {
+      setReplaying(null);
+    }
   };
   // localStorage only after hydration: the server render has no votes
   const voteCount = useMemo(() => (hydrated ? loadVotes().length : 0), [hydrated, tab]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -360,7 +393,7 @@ function DJLab() {
                   </ul>
                 )}
                 {query && !shownOpeners.length && <p className="text-xs text-muted-foreground">Nothing matches “{query}”.</p>}
-                <RecentSets />
+                <RecentSets onReplay={(set) => void replaySet(set)} replaying={replaying} />
               </section>
             )}
           </TabsContent>
