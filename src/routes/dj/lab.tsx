@@ -114,7 +114,7 @@ function DJLab() {
     : crate.error
       ? `Crate failed: ${crate.error}`
       : crate.songs.length
-        ? `${crate.done}/${crate.songs.length} analysed${crate.failed ? `, ${crate.failed} failed` : ''}${crate.waiting ? `, ${crate.waiting} wait for the set to end` : ''}${crate.scanning && !crate.waiting ? '…' : ''}`
+        ? `${crate.done}/${crate.songs.length} analysed${crate.failed ? `, ${crate.failed} failed` : ''}${crate.waiting ? `, ${crate.waiting} wait for the set to end` : ''}${crate.tooLong ? `, ${crate.tooLong} too long to mix` : ''}${crate.scanning && !crate.waiting ? '…' : ''}`
         : '';
   const openers = useMemo(
     () =>

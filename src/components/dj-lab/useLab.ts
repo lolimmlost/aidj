@@ -1,6 +1,8 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { getLabEngine } from '@/lib/dj-lab/engine';
-import { analyseSong, getCachedAnalysis, isPhone, loadCrate, type LabSong } from '@/lib/dj-lab/crate';
+import { analyseSong, getCachedAnalysis, isPhone, loadCrate, MAX_TRACK_SEC, type LabSong } from '@/lib/dj-lab/crate';
+import { labLog } from '@/lib/dj-lab/log';
+import { memTestRunning } from '@/lib/dj-lab/memtest';
 import type { TrackAnalysis } from '@/lib/dj-lab/analysis';
 
 const noSubscribe = () => () => {};
@@ -34,10 +36,12 @@ export interface CrateState {
   failed: number;
   /** songs not analysed yet that wait for the set to end (phones) */
   waiting: number;
+  /** left out: longer than MAX_TRACK_SEC (whole DJ sets) */
+  tooLong: number;
   error?: string;
 }
 
-const EMPTY: CrateState = { songs: [], analyses: new Map(), loading: false, scanning: false, done: 0, failed: 0, waiting: 0 };
+const EMPTY: CrateState = { songs: [], analyses: new Map(), loading: false, scanning: false, done: 0, failed: 0, waiting: 0, tooLong: 0 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** a song whose download a lock cancelled is tried again, this many times */
@@ -78,16 +82,22 @@ export function useCrate(crateId: string | null): CrateState {
         return;
       }
       if (cancelled) return;
+      const tooLong = songs.filter((s) => s.duration > MAX_TRACK_SEC);
+      if (tooLong.length) {
+        songs = songs.filter((s) => s.duration <= MAX_TRACK_SEC);
+        labLog('crate: left out, too long', { songs: tooLong.map((s) => `${s.artist} – ${s.title} (${Math.round(s.duration / 60)} min)`) });
+      }
       const analyses = new Map<string, TrackAnalysis>();
       const queue = [...songs];
       const waiting: LabSong[] = [];
       const tries = new Map<string, number>();
       const pauseForSet = isPhone();
-      const live = () => engine.getSnapshot().status !== 'idle';
+      // a set, or the phone memory test, has the memory
+      const live = () => engine.getSnapshot().status !== 'idle' || memTestRunning();
       let done = 0;
       let failed = 0;
       const publish = (scanning: boolean) => {
-        if (!cancelled) setState({ songs, analyses: new Map(analyses), loading: false, scanning, done, failed, waiting: waiting.length });
+        if (!cancelled) setState({ songs, analyses: new Map(analyses), loading: false, scanning, done, failed, waiting: waiting.length, tooLong: tooLong.length });
       };
       publish(true);
       while (!cancelled && (queue.length || waiting.length)) {

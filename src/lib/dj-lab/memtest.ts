@@ -1,25 +1,28 @@
 /**
- * Phone memory test: download and decode one long track over and over, four ways, to find which way
+ * Phone memory test: download and decode one long track over and over, a few ways, to find which way
  * the phone keeps memory from. Sets died after 15–25 track loads whatever the decks held, and iOS
  * gives a page no way to read its own memory, so the page dying (and the next load's report naming
  * the variant and round) is the measurement. Progress survives the reload; tapping again carries on
- * with the next variant.
+ * with the next variant. The crate scan pauses while it runs (the first run was spoiled by the scan
+ * downloading a 2-hour set).
  */
 import { fetchAudio, type LabSong } from './crate';
+import { createDeck, disposeDeck } from './graph';
 import { labBeat, labLog } from './log';
 
-export type MemVariant = 'fresh' | 'live' | 'shared' | 'shared+fetch';
+export type MemVariant = 'fresh' | 'play' | 'shared';
 /** least suspicious first: a variant that dies tells the most when the ones before it survived */
-export const MEM_VARIANTS: MemVariant[] = ['fresh', 'live', 'shared', 'shared+fetch'];
+export const MEM_VARIANTS: MemVariant[] = ['fresh', 'play', 'shared'];
 export const MEM_LABEL: Record<MemVariant, string> = {
-  fresh: 'new decoder per load',
-  live: 'the playing audio context',
-  shared: 'one shared decoder (the Lab today)',
-  'shared+fetch': 'shared decoder, fetch download',
+  fresh: 'new decoder per load (the Lab now)',
+  play: 'new decoder, then played like a deck',
+  shared: 'one shared decoder (the Lab before)',
 };
-const ROUNDS = 25;
+/** a 7-minute track is ~110 MB decoded: kept every round, that's past what killed the sets */
+export const MEM_ROUNDS = 20;
 const RATE = 32000;
-const KEY = 'aidj:dj-lab:memtest';
+const PLAY_MS = 2000;
+const KEY = 'aidj:dj-lab:memtest2';
 
 export interface MemProgress {
   /** "ok" or "died at round N" */
@@ -47,48 +50,68 @@ export function resetMemTest() {
   save({ results: {} });
 }
 
+let running = false;
+/** the crate scan waits while the test runs */
+export const memTestRunning = () => running;
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** A deck's graph into silence for a moment, then disposed as a set disposes a played-out deck. */
+async function playSilently(ctx: AudioContext, buffer: AudioBuffer) {
+  const mute = ctx.createGain();
+  mute.gain.value = 0;
+  mute.connect(ctx.destination);
+  const deck = createDeck(ctx, buffer, mute);
+  deck.src.start();
+  await sleep(PLAY_MS);
+  disposeDeck(deck);
+  mute.disconnect();
+}
 
 /**
  * Run the variants that haven't finished. A variant that was running when the page died is marked
  * "died at round N" first. `live` must be a running AudioContext (create it in the tap).
  */
 export async function runMemTest(song: LabSong, live: AudioContext, onProgress: (p: MemProgress) => void) {
-  const p = loadMemProgress();
-  if (p.current) {
-    p.results[p.current.variant] = `died at round ${p.current.round}`;
-    labLog('memtest died', { variant: p.current.variant, round: p.current.round, song: p.current.song }, 'error');
-    p.current = undefined;
-    save(p);
-  }
-  const label = `${song.artist} – ${song.title}`;
-  let shared: OfflineAudioContext | null = null;
-  for (const variant of MEM_VARIANTS) {
-    if (p.results[variant]) continue;
-    labLog('memtest start', { variant, song: label, rounds: ROUNDS });
-    for (let round = 1; round <= ROUNDS; round++) {
-      p.current = { variant, round, song: label };
+  running = true;
+  try {
+    const p = loadMemProgress();
+    if (p.current) {
+      p.results[p.current.variant] = `died at round ${p.current.round}`;
+      labLog('memtest died', { variant: p.current.variant, round: p.current.round, song: p.current.song }, 'error');
+      p.current = undefined;
+      save(p);
+    }
+    const label = `${song.artist} – ${song.title}`;
+    let shared: OfflineAudioContext | null = null;
+    for (const variant of MEM_VARIANTS) {
+      if (p.results[variant]) continue;
+      labLog('memtest start', { variant, song: label, rounds: MEM_ROUNDS });
+      for (let round = 1; round <= MEM_ROUNDS; round++) {
+        p.current = { variant, round, song: label };
+        save(p);
+        onProgress({ ...p });
+        labBeat({ status: 'memtest', song: label, next: `${variant} ${round}/${MEM_ROUNDS}` });
+        const t0 = performance.now();
+        const buf = await fetchAudio(song.id);
+        const fileMB = Math.round(buf.byteLength / 1e5) / 10;
+        const ctx = variant === 'shared' ? (shared ??= new OfflineAudioContext(2, 1, RATE)) : new OfflineAudioContext(2, 1, RATE);
+        const decoded = await ctx.decodeAudioData(buf);
+        if (variant === 'play') await playSilently(live, decoded);
+        if (round === 1 || round % 5 === 0) {
+          labLog('memtest round', { variant, round, fileMB, sec: Math.round(decoded.duration), sr: decoded.sampleRate, ms: Math.round(performance.now() - t0) });
+        }
+        await sleep(400);
+      }
+      p.results[variant] = 'ok';
+      p.current = undefined;
       save(p);
       onProgress({ ...p });
-      labBeat({ status: 'memtest', song: label, next: `${variant} ${round}/${ROUNDS}` });
-      const t0 = performance.now();
-      const buf =
-        variant === 'shared+fetch'
-          ? await (await fetch(`/api/navidrome/stream/${encodeURIComponent(song.id)}`, { credentials: 'include' })).arrayBuffer()
-          : await fetchAudio(song.id);
-      const ctx = variant === 'live' ? live : variant === 'fresh' ? new OfflineAudioContext(2, 1, RATE) : (shared ??= new OfflineAudioContext(2, 1, RATE));
-      const decoded = await ctx.decodeAudioData(buf);
-      if (round === 1 || round % 5 === 0) {
-        labLog('memtest round', { variant, round, sec: Math.round(decoded.duration), sr: decoded.sampleRate, ms: Math.round(performance.now() - t0) });
-      }
-      await sleep(400);
+      labLog('memtest passed', { variant, rounds: MEM_ROUNDS });
     }
-    p.results[variant] = 'ok';
-    p.current = undefined;
-    save(p);
-    onProgress({ ...p });
-    labLog('memtest passed', { variant, rounds: ROUNDS });
+    labBeat({ status: 'idle' });
+    labLog('memtest results', p.results as Record<string, unknown>);
+  } finally {
+    running = false;
   }
-  labBeat({ status: 'idle' });
-  labLog('memtest results', p.results as Record<string, unknown>);
 }

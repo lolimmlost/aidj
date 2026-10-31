@@ -120,8 +120,6 @@ const BEAT_MS = 5000;
 
 /** decks decode at this rate on a phone (the AudioContext resamples on playback) */
 const PHONE_DECK_RATE = 32000;
-let phoneCtx: OfflineAudioContext | null = null;
-const phoneDecoder = () => (phoneCtx ??= new OfflineAudioContext(2, 1, PHONE_DECK_RATE));
 
 /** One channel, the average of all: the stereo buffer becomes garbage right away. */
 function toMono(b: AudioBuffer): AudioBuffer {
@@ -353,9 +351,12 @@ export class LabEngine {
       const cached = await getCachedAnalysis(song.id);
       signal?.throwIfAborted();
       // a phone decodes the decks at 32 kHz: ~27 % less memory per deck than 44.1 kHz (a 6-minute
-      // extended mix is ~130 MB at 44.1 kHz), at the cost of the band above 16 kHz; in mono, half again
+      // extended mix is ~130 MB at 44.1 kHz), at the cost of the band above 16 kHz; in mono, half again.
+      // A new decoder each time: one shared decoder was the suspect in the sets that died after 15–25
+      // loads, and the phone memory test ran 14 loads of 110 MB each through new ones without trouble
       const phone = isPhone();
-      const decoded = await (phone ? phoneDecoder() : ctx).decodeAudioData(cached ? buf : buf.slice(0));
+      const decoder = phone ? new OfflineAudioContext(2, 1, PHONE_DECK_RATE) : ctx;
+      const decoded = await decoder.decodeAudioData(cached ? buf : buf.slice(0));
       const buffer = phone && this.snap.defaults.phoneMono ? toMono(decoded) : decoded;
       const t2 = performance.now();
       signal?.throwIfAborted();

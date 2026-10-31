@@ -71,6 +71,12 @@ async function subsonic<T>(endpoint: string): Promise<T> {
 
 export const LIKED_CRATE = 'liked';
 
+/**
+ * Longer than this is a DJ set or a show, not a track to mix: the Lab leaves it out. A 2-hour set is
+ * a 200 MB download and gigabytes decoded; the phone killed the page each time the scan reached one.
+ */
+export const MAX_TRACK_SEC = 20 * 60;
+
 export async function listCrates(): Promise<CrateInfo[]> {
   const r = await subsonic<{ playlists?: { playlist?: { id: string; name: string; songCount: number }[] } }>('getPlaylists');
   const lists = (r.playlists?.playlist ?? []).map((p) => ({ id: p.id, name: p.name, songCount: p.songCount }));
@@ -89,8 +95,8 @@ export async function loadCrate(id: string): Promise<LabSong[]> {
 /**
  * A whole file as an ArrayBuffer, by XHR and not fetch: a debug console that hooks fetch (Eruda's
  * Network panel, on whenever the app's debug mode is) reads every response body into a string and
- * keeps it for the page's lifetime: ~2 bytes per byte downloaded, so the phone killed the page after
- * 15–25 tracks. Eruda leaves arraybuffer XHRs alone.
+ * keeps it for the page's lifetime: ~2 bytes per byte downloaded, a suspect in the sets that died
+ * after 15–25 tracks. Eruda leaves arraybuffer XHRs alone.
  */
 export function fetchAudio(id: string, signal?: AbortSignal): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {

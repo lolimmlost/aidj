@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { clearLabLog, formatEntry, labLogEntries, labLogSid, labLogText, subscribeLabLog, type LabLogEntry } from '@/lib/dj-lab/log';
-import { loadMemProgress, MEM_LABEL, MEM_VARIANTS, resetMemTest, runMemTest, type MemProgress } from '@/lib/dj-lab/memtest';
+import { loadMemProgress, MEM_LABEL, MEM_ROUNDS, MEM_VARIANTS, resetMemTest, runMemTest, type MemProgress } from '@/lib/dj-lab/memtest';
 import type { TrackAnalysis } from '@/lib/dj-lab/analysis';
 import type { LabSong } from '@/lib/dj-lab/crate';
 import type { LabEngine } from '@/lib/dj-lab/engine';
@@ -24,7 +24,7 @@ export function useDiedBanner(): LabLogEntry | null {
 }
 
 /**
- * Which way of loading tracks the phone keeps memory from: one long track loaded 25 times per
+ * Which way of loading tracks the phone keeps memory from: one long track loaded MEM_ROUNDS times per
  * variant. A variant that gets the page killed shows as "died at round N" after the reload.
  */
 function MemTest({ engine, live, pool }: { engine: LabEngine; live: boolean; pool: { song: LabSong; analysis: TrackAnalysis }[] }) {
@@ -65,7 +65,7 @@ function MemTest({ engine, live, pool }: { engine: LabEngine; live: boolean; poo
         </span>
       </div>
       <p className="text-muted-foreground">
-        Loads {longest ? `“${longest.song.title}” (${Math.round(longest.analysis.duration / 60)} min)` : 'the longest analysed track'} 25 times, four ways. If the
+        Loads {longest ? `“${longest.song.title}” (${Math.round(longest.analysis.duration / 60)} min)` : 'the longest analysed track'} {MEM_ROUNDS} times, {MEM_VARIANTS.length} ways. If the
         page reloads, open the Lab and tap Continue: the way that crashed is marked and the test moves on.{live ? ' Stop the set first.' : ''}
       </p>
       <ul className="space-y-0.5">
@@ -76,7 +76,7 @@ function MemTest({ engine, live, pool }: { engine: LabEngine; live: boolean; poo
             <li key={v} className="flex justify-between gap-2">
               <span>{MEM_LABEL[v]}</span>
               <span className={r?.startsWith('died') ? 'text-destructive' : r === 'ok' ? 'text-success' : 'text-muted-foreground'}>
-                {r ?? (now ? (running ? `round ${progress.current!.round}/25` : `died at round ${progress.current!.round}?`) : '–')}
+                {r ?? (now ? (running ? `round ${progress.current!.round}/${MEM_ROUNDS}` : `died at round ${progress.current!.round}?`) : '–')}
               </span>
             </li>
           );
