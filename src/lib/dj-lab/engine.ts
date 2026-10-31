@@ -39,12 +39,12 @@ export interface LabDefaults {
   /** tempo window for the next track (#378): how much slower / faster than what's playing, % */
   tempoDown: number;
   tempoUp: number;
-  /** phones: hold the decks in mono, half the memory (stereo is a choice, not the default) */
+  /** phones: hold the decks in mono, half the memory */
   phoneMono: boolean;
 }
 
 const DEFAULTS_KEY = 'aidj:dj-lab:defaults';
-const NO_DEFAULTS: LabDefaults = { openerPlaysOut: false, preferFirstDrop: false, tempoDown: 4, tempoUp: 4, phoneMono: true };
+const NO_DEFAULTS: LabDefaults = { openerPlaysOut: false, preferFirstDrop: false, tempoDown: 4, tempoUp: 4, phoneMono: false };
 
 export interface NextInfo {
   song: LabSong;

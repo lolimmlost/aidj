@@ -371,7 +371,7 @@ function DJLab() {
           </TabsContent>
 
           <TabsContent value="log" className="mt-3">
-            <LabLog />
+            <LabLog engine={engine} live={live} pool={pool} />
           </TabsContent>
         </Tabs>
       </div>

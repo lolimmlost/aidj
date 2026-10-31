@@ -86,10 +86,37 @@ export async function loadCrate(id: string): Promise<LabSong[]> {
   return (r.playlist?.entry ?? []).filter((s) => !s.isDir).map(toSong);
 }
 
-export async function fetchAudio(id: string, signal?: AbortSignal): Promise<ArrayBuffer> {
-  const res = await fetch(`/api/navidrome/stream/${encodeURIComponent(id)}`, { credentials: 'include', signal });
-  if (!res.ok) throw new Error(`stream ${res.status}`);
-  return res.arrayBuffer();
+/**
+ * A whole file as an ArrayBuffer, by XHR and not fetch: a debug console that hooks fetch (Eruda's
+ * Network panel, on whenever the app's debug mode is) reads every response body into a string and
+ * keeps it for the page's lifetime: ~2 bytes per byte downloaded, so the phone killed the page after
+ * 15–25 tracks. Eruda leaves arraybuffer XHRs alone.
+ */
+export function fetchAudio(id: string, signal?: AbortSignal): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const aborted = () => new DOMException('Fetch is aborted', 'AbortError');
+    if (signal?.aborted) return reject(aborted());
+    const xhr = new XMLHttpRequest();
+    const onAbort = () => xhr.abort();
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const done = () => signal?.removeEventListener('abort', onAbort);
+    xhr.open('GET', `/api/navidrome/stream/${encodeURIComponent(id)}`);
+    xhr.responseType = 'arraybuffer';
+    xhr.onload = () => {
+      done();
+      if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as ArrayBuffer);
+      else reject(new Error(`stream ${xhr.status}`));
+    };
+    xhr.onerror = () => {
+      done();
+      reject(new TypeError('Load failed'));
+    };
+    xhr.onabort = () => {
+      done();
+      reject(aborted());
+    };
+    xhr.send();
+  });
 }
 
 let decoder: OfflineAudioContext | null = null;

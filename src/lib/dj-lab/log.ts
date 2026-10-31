@@ -219,6 +219,8 @@ export function startLabLog() {
     pwa: nav.standalone ?? window.matchMedia?.('(display-mode: standalone)').matches,
     audioSession: nav.audioSession?.type,
     visibility: vis(),
+    // the app's debug console: it hooks fetch and keeps response bodies
+    eruda: 'eruda' in window || undefined,
   });
   document.addEventListener('visibilitychange', () => {
     labLog('visibility', { state: vis() });
