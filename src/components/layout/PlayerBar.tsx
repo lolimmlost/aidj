@@ -15,6 +15,7 @@ import {
   Smartphone,
   Speaker,
   Repeat1,
+  ChevronDown,
 } from 'lucide-react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
@@ -99,7 +100,8 @@ const formatTime = (time: number) => {
  * - usePlayerKeyboardShortcuts: Keyboard shortcuts
  * - usePlaybackStateSync: Store/audio state synchronization
  */
-export function PlayerBar() {
+/** `onCollapse`: the ⌄ button hides the bar (the layout keeps it mounted, so playback goes on) */
+export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
   // Cross-device playback sync (WebSocket + REST)
   usePlaybackSync();
   // House speaker output via Music Assistant (#244)
@@ -426,6 +428,19 @@ export function PlayerBar() {
       aria-label="Play on another device"
     >
       <Speaker className="h-4 w-4" />
+    </Button>
+  );
+
+  const collapseButton = onCollapse && (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-6 w-6 md:h-8 md:w-8 p-0 flex-shrink-0 text-muted-foreground"
+      onClick={onCollapse}
+      title="Hide the player"
+      aria-label="Hide the player"
+    >
+      <ChevronDown className="h-4 w-4" />
     </Button>
   );
 
@@ -1193,6 +1208,7 @@ export function PlayerBar() {
           <span className={cn("text-[10px] font-mono w-8", showRemoteTime ? "text-green-500" : "text-muted-foreground")}>
             -{formatTime(Math.max(0, displayDuration - displayCurrentTime))}
           </span>
+          {collapseButton}
         </div>
 
         {/* Main row: Album art, song info, controls */}
@@ -1530,6 +1546,7 @@ export function PlayerBar() {
           >
             <Maximize2 className="h-4 w-4" />
           </Button>
+          {collapseButton}
         </div>
       </div>
 
