@@ -7,16 +7,21 @@
  * downloading a 2-hour set).
  */
 import { fetchAudio, type LabSong } from './crate';
-import { createDeck, disposeDeck } from './graph';
+import { createDeck, disposeDeck, type DeckNodes } from './graph';
 import { labBeat, labLog } from './log';
 
-export type MemVariant = 'fresh' | 'play' | 'shared';
-/** least suspicious first: a variant that dies tells the most when the ones before it survived */
-export const MEM_VARIANTS: MemVariant[] = ['fresh', 'play', 'shared'];
+export type MemVariant = 'fresh' | 'play' | 'shared' | 'release' | 'reuse';
+/**
+ * Run 2 found it: played decks are what the phone keeps (fresh ran 20, play died at 7). release is
+ * the Lab's fix; reuse is the way out if it isn't enough.
+ */
+export const MEM_VARIANTS: MemVariant[] = ['fresh', 'play', 'shared', 'release', 'reuse'];
 export const MEM_LABEL: Record<MemVariant, string> = {
-  fresh: 'new decoder per load (the Lab now)',
+  fresh: 'new decoder per load',
   play: 'new decoder, then played like a deck',
   shared: 'one shared decoder (the Lab before)',
+  release: 'played, then the deck lets go of it (the Lab now)',
+  reuse: 'played from two reused buffers',
 };
 /** a 7-minute track is ~110 MB decoded: kept every round, that's past what killed the sets */
 export const MEM_ROUNDS = 20;
@@ -56,16 +61,40 @@ export const memTestRunning = () => running;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** A deck's graph into silence for a moment, then disposed as a set disposes a played-out deck. */
-async function playSilently(ctx: AudioContext, buffer: AudioBuffer) {
+/** How a played-out deck was disposed before `release`: the source node keeps its buffer. */
+function disposeKeepingBuffer(deck: DeckNodes) {
+  try {
+    deck.src.stop();
+  } catch {
+    // never started
+  }
+  deck.src.disconnect();
+  for (const n of deck.nodes) n.disconnect();
+}
+
+/** A deck's graph into silence for a moment, then disposed. */
+async function playSilently(ctx: AudioContext, buffer: AudioBuffer, dispose: (deck: DeckNodes) => void) {
   const mute = ctx.createGain();
   mute.gain.value = 0;
   mute.connect(ctx.destination);
   const deck = createDeck(ctx, buffer, mute);
   deck.src.start();
   await sleep(PLAY_MS);
-  disposeDeck(deck);
+  dispose(deck);
   mute.disconnect();
+}
+
+/** Two buffers made once, taking turns: the decoded audio is copied in and never itself played. */
+let reusable: AudioBuffer[] = [];
+let turn = 0;
+function intoReused(decoded: AudioBuffer): AudioBuffer {
+  const [first] = reusable;
+  if (!first || first.length !== decoded.length || first.numberOfChannels !== decoded.numberOfChannels) {
+    reusable = [0, 1].map(() => new AudioBuffer({ numberOfChannels: decoded.numberOfChannels, length: decoded.length, sampleRate: decoded.sampleRate }));
+  }
+  const b = reusable[turn++ % 2];
+  for (let c = 0; c < decoded.numberOfChannels; c++) b.copyToChannel(decoded.getChannelData(c), c);
+  return b;
 }
 
 /**
@@ -97,7 +126,9 @@ export async function runMemTest(song: LabSong, live: AudioContext, onProgress: 
         const fileMB = Math.round(buf.byteLength / 1e5) / 10;
         const ctx = variant === 'shared' ? (shared ??= new OfflineAudioContext(2, 1, RATE)) : new OfflineAudioContext(2, 1, RATE);
         const decoded = await ctx.decodeAudioData(buf);
-        if (variant === 'play') await playSilently(live, decoded);
+        if (variant === 'play') await playSilently(live, decoded, disposeKeepingBuffer);
+        else if (variant === 'release') await playSilently(live, decoded, disposeDeck);
+        else if (variant === 'reuse') await playSilently(live, intoReused(decoded), disposeKeepingBuffer);
         if (round === 1 || round % 5 === 0) {
           labLog('memtest round', { variant, round, fileMB, sec: Math.round(decoded.duration), sr: decoded.sampleRate, ms: Math.round(performance.now() - t0) });
         }

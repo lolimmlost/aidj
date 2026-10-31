@@ -134,6 +134,19 @@ export function disposeDeck(deck: DeckNodes) {
   // skipAhead swaps in a new source that isn't in `nodes`: disconnect it too, so nothing keeps the buffer
   deck.src.disconnect();
   for (const n of deck.nodes) n.disconnect();
+  releaseBuffer(deck.src);
+}
+
+/**
+ * Drop a finished source's hold on its audio. iOS keeps every track that has played: the phone memory
+ * test died after 7 loads of a 188 MB decode that were played, where 20 that weren't played ran fine.
+ */
+export function releaseBuffer(src: AudioBufferSourceNode) {
+  try {
+    src.buffer = null;
+  } catch {
+    // a browser that refuses lets go when the node goes
+  }
 }
 
 /**

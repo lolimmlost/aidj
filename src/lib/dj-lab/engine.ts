@@ -12,7 +12,7 @@
  */
 import { barAt, barTime, dropLevelDb, type TrackAnalysis } from './analysis';
 import { analyseSong, fetchAudio, getCachedAnalysis, isPhone, monoSegment, type LabSong } from './crate';
-import { createDeck, createMaster, disposeDeck, placeTransition, resetGains, scheduleIncoming, scheduleOutgoing, type DeckNodes, type PlacedTransition } from './graph';
+import { createDeck, createMaster, disposeDeck, placeTransition, releaseBuffer, resetGains, scheduleIncoming, scheduleOutgoing, type DeckNodes, type PlacedTransition } from './graph';
 import { measureLock, type LockResult } from './lock';
 import { describeRecipe, planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
 import { labBeat, labBusy, labLog } from './log';
@@ -657,6 +657,10 @@ export class LabEngine {
     } catch {
       // already stopped
     }
+    old.onended = () => {
+      old.disconnect();
+      releaseBuffer(old);
+    };
     src.start(when, target);
     cur.nodes.src = src;
     cur.ctxStart = when;
