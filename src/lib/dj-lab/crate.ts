@@ -80,12 +80,13 @@ export const LIKED_CRATE = 'liked';
  * all (YouTube's "Music", "People & Blogs"). A song's first tag that matches a family decides it.
  */
 const GENRE_FAMILIES: [string, RegExp][] = [
-  ['House & techno', /house|techno|\btech\b|disco|garage|minimal|trance|electro(?!nic)|^dance$/],
-  ['Bass & EDM', /dubstep|bass|drum|dnb|jungle|edm|hardstyle|riddim|breakbeat|breaks/],
-  ['Hip hop', /hip ?hop|rap\b|boom bap|drill|plugg|trap|grime/],
+  // Beatport's names too: "Indie Dance" and "Amapiano" are club music, "Mainstage" and "Hard Dance" festival EDM.
+  ['House & techno', /house|techno|\btech\b|disco|garage|minimal|trance|electro(?!nic)|^dance$|indie dance|amapiano/],
+  ['Bass & EDM', /dubstep|bass|drum|dnb|jungle|edm|hardstyle|riddim|breakbeat|breaks|mainstage|hard dance|\brave\b/],
+  ['Hip hop', /hip[ -]?hop|rap\b|boom bap|drill|plugg|trap|grime|phonk/],
   ['Electronic', /electronic|synth|ambient|idm|downtempo|chill|lo-?fi/],
   ['Soul, funk & R&B', /soul|funk|r&b|rnb|boogie|jazz|blues|gospel/],
-  ['Rock & indie', /rock|indie|punk|metal|shoegaze|grunge|emo\b/],
+  ['Rock & indie', /rock|indie|punk|metal|shoegaze|grunge|emo\b|dark ?wave|new wave|cold ?wave/],
   ['Pop & Latin', /pop|latin|reggae|afro/],
   ['Folk & acoustic', /folk|country|acoustic|singer/],
 ];

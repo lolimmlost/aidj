@@ -13,6 +13,18 @@ describe('genreFamily', () => {
     expect(genreFamily(song('Electronic'))).toBe('Electronic');
   });
 
+  it('reads Last.fm and Beatport spellings', () => {
+    expect(genreFamily(song(undefined, ['india', 'hip-hop']))).toBe('Hip hop');
+    expect(genreFamily(song('phonk'))).toBe('Hip hop');
+    expect(genreFamily(song('Mainstage'))).toBe('Bass & EDM');
+    expect(genreFamily(song('Hard Dance / Hardcore / Neo Rave'))).toBe('Bass & EDM');
+    expect(genreFamily(song('Indie Dance'))).toBe('House & techno');
+    expect(genreFamily(song('Trap / Future Bass'))).toBe('Bass & EDM');
+    expect(genreFamily(song('Hardcore Punk'))).toBe('Rock & indie');
+    expect(genreFamily(song('Darkwave'))).toBe('Rock & indie');
+    expect(genreFamily(song('Synthwave'))).toBe('Electronic');
+  });
+
   it('skips tags that are not genres, then falls back to Other', () => {
     expect(genreFamily(song(undefined, ['Music', 'Indie Rock']))).toBe('Rock & indie');
     expect(genreFamily(song('People & Blogs'))).toBe(OTHER_GENRE);
