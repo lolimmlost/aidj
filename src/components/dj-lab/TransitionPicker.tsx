@@ -35,6 +35,18 @@ const ROWS: { key: ChoiceKey; label: string; title: string; options: Option<Choi
     ],
   },
   {
+    // bass music cuts short: 1–2 bars before the drop at ~140–160 BPM in Juan's BOO 2026 clips
+    key: 'kill',
+    label: 'Cut',
+    title: "Bars with no bass before B's drop (hard swap)",
+    options: [
+      ['1', 1],
+      ['2', 2],
+      ['4', 4],
+      ['8', 8],
+    ],
+  },
+  {
     key: 'bars',
     label: 'Bars',
     title: 'Blend length',
@@ -54,6 +66,8 @@ export function TransitionPicker({ engine, snap }: { engine: LabEngine; snap: En
   const st = snap.next?.state;
   const frozen = st === 'committed' || st === 'mixing';
   const effective = engine.recipe();
+  // the cut only exists on a hard bass swap
+  const sweeping = (snap.choices.bass ?? snap.next?.plan?.bass) === 'sweep';
   return (
     <section className="space-y-1.5 rounded-lg border p-2">
       <div className="flex items-baseline justify-between gap-2">
@@ -69,7 +83,7 @@ export function TransitionPicker({ engine, snap }: { engine: LabEngine; snap: En
         </span>
       </div>
       <div className="space-y-1">
-        {ROWS.map(({ key, label, title, options }) => {
+        {ROWS.filter(({ key }) => !(key === 'kill' && sweeping)).map(({ key, label, title, options }) => {
           const chosen = snap.choices[key];
           const pinned = snap.pinned.includes(key);
           // a default can fill in for "Rules" (opener plays out, first drops): that option gets a dashed ring

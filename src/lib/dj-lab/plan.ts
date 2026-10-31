@@ -404,6 +404,7 @@ export function describeRecipe(r: Recipe): string {
     r.exit && exit[r.exit],
     r.entry && entry[r.entry],
     r.bass && (r.bass === 'sweep' ? 'sweep' : 'hard swap'),
+    r.kill && `${r.kill}-bar cut`,
     r.bars && `${r.bars} bars`,
   ]
     .filter(Boolean)

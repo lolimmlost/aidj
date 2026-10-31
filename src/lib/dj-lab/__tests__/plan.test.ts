@@ -160,6 +160,17 @@ describe('band gains', () => {
     expect(outgoingGains(swap, swap.N + 1)).toEqual({ lo: 0, mid: 0, hi: 0 });
   });
 
+  it('cuts the bass for just 1 or 2 bars when asked', () => {
+    for (const kill of [1, 2]) {
+      const p = planTransition(SHORT_BREAK, B, { ...opts, recipe: { kill } })!;
+      expect(p.kill).toBe(kill);
+      expect(outgoingGains(p, p.S - kill - 0.5).lo).toBe(1);
+      expect(outgoingGains(p, p.S - kill + 0.5).lo).toBe(0);
+      expect(incomingGains(p, p.S - 0.5).lo).toBe(0);
+      expect(incomingGains(p, p.S).lo).toBe(1);
+    }
+  });
+
   it("holds B's build back without a verified lock (rule 1)", () => {
     const held = { ...swap, hold: 4 };
     expect(incomingGains(held, swap.S - 6).mid).toBe(0);
