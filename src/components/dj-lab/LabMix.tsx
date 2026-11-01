@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { ArrowLeftRight, Lock, LockOpen, Repeat, Square, ThumbsDown, ThumbsUp, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeftRight, ListPlus, Lock, LockOpen, Repeat, Square, ThumbsDown, ThumbsUp, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -8,13 +8,14 @@ import { cn } from '@/lib/utils';
 import { barAt, meterName, type TrackAnalysis } from '@/lib/dj-lab/analysis';
 import { genreFamily, rankCandidates, rankJumps, type Candidate, type LabSong } from '@/lib/dj-lab/crate';
 import type { EngineSnapshot, HistoryEntry, LabEngine, NextInfo } from '@/lib/dj-lab/engine';
-import { describeRecipe, type TransitionPlan } from '@/lib/dj-lab/plan';
+import { describeRecipe, planSummary as planLine, type TransitionPlan } from '@/lib/dj-lab/plan';
 import { loadVotes, lockRecord, newId, planRecord, saveVote } from '@/lib/dj-lab/votes';
 import { labLog } from '@/lib/dj-lab/log';
 import { splitByThumbs } from '@/lib/dj-lab/pick';
 import { DeckStrip, type StripMarker, type StripRegion } from './DeckStrip';
 import { fmtTime, useStarredIds, useTicker } from './useLab';
 import { TransitionPicker } from './TransitionPicker';
+import { QueueCard } from './QueueCard';
 
 type Pool = { song: LabSong; analysis: TrackAnalysis }[];
 
@@ -45,10 +46,6 @@ function tempoLine(a: TrackAnalysis, rate: number) {
   return `${own} → ${(a.bpm * rate).toFixed(1)} BPM (${pct > 0 ? '+' : ''}${pct === 0 ? '0.0' : pct.toFixed(1)}%)`;
 }
 
-/** "chain, 16 bars" / "tempo jump 150 → 124": a transition in a few words */
-function planLine(plan: TransitionPlan) {
-  return plan.jump ? `tempo jump ${plan.jump.fromBpm} → ${plan.jump.toBpm.toFixed(1)}` : `${plan.kind}, ${plan.N} bars`;
-}
 
 function exitRegions(plan: TransitionPlan): { regions: StripRegion[]; markers: StripMarker[] } {
   // a jump's B drop isn't on A's bar grid: A just fades out
@@ -174,7 +171,8 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
   useTicker(live);
   const now = snap.now;
   const next = snap.next;
-  const played = useMemo(() => new Set(snap.history.map((h) => h.song.id)), [snap.history]);
+  // played, or queued already (#373): Up next leaves both out
+  const played = useMemo(() => new Set([...snap.history.map((h) => h.song.id), ...snap.queue.map((q) => q.id)]), [snap.history, snap.queue]);
   const starred = useStarredIds();
   // thumbs out of the playing song, read when it starts: you can only give them once its successor has played
   const nowId = now?.song.id;
@@ -313,6 +311,8 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
 
       <TransitionPicker engine={engine} snap={snap} />
 
+      <QueueCard engine={engine} snap={snap} pool={pool} starred={starred} votes={votes} />
+
       {/* candidates, a card per genre family */}
       <section id={UP_NEXT_ID} className="scroll-mt-32 space-y-1.5">
         <h3 className="text-xs font-semibold">
@@ -351,6 +351,17 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
                       ))}
                     </div>
                   </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    disabled={isNext}
+                    onClick={() => engine.enqueue([c.song])}
+                    className="size-7 shrink-0"
+                    aria-label={`Queue ${c.song.title}`}
+                    title="Queue: plays after the locked song and anything queued"
+                  >
+                    <ListPlus className="size-3.5" />
+                  </Button>
                   <Button
                     size="sm"
                     variant={isNext ? 'secondary' : 'outline'}

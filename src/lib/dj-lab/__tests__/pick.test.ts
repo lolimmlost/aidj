@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { rankCandidates, type LabSong } from '../crate';
-import { autoPick, splitByThumbs } from '../pick';
+import { autoPick, likedRun, previewQueue, splitByThumbs } from '../pick';
+import { LabEngine } from '../engine';
 import { importVotes, loadVotes, type LabVote } from '../votes';
 import { track } from './fixtures';
 
@@ -116,5 +117,55 @@ describe('importVotes', () => {
     expect(importVotes([first, second, first]).added).toBe(0);
     expect(loadVotes()).toHaveLength(2);
     expect(() => importVotes({ not: 'a list' })).toThrow('Not a votes export');
+  });
+});
+
+describe('queue (#373)', () => {
+  it('previews each queued transition against the song before it, and moves the set tempo on a jump', () => {
+    const b = song('b');
+    const c = song('c');
+    const d = song('d');
+    const analyses = new Map([
+      ['b', at(127)],
+      ['c', at(150)],
+    ]);
+    const p = previewQueue(cur, [b, c, d], analyses, { setBpm: 126, mode: 'dropchain' });
+    expect(p[0].line).toMatch(/^(chain|swap|playout|cut|intro), \d+ bars$/);
+    expect(p[0].bpm).toBe(126);
+    // 150 is beyond the stretch from 126: a tempo jump, and the set runs at 150 after it
+    expect(p[1].line).toMatch(/^tempo jump 126 → 150/);
+    expect(p[1].bpm).toBe(150);
+    expect(p[2].line).toBe('not analysed yet');
+  });
+
+  it('follows your liked transitions into a run, without repeating or playing what has played', () => {
+    const b = song('b');
+    const c = song('c');
+    const d = song('d');
+    const pool = [entry(b, 126), entry(c, 126), entry(d, 126)];
+    const votes = [flag(NOW, b, 'up'), flag(b, c, 'up'), flag(c, NOW, 'up'), flag(c, d, 'up')];
+    const o = { setBpm: 126, played: new Set<string>(), mode: 'dropchain' as const };
+    expect(likedRun(cur, pool, o, votes).map((s) => s.id)).toEqual(['b', 'c', 'd']);
+    // d played already: the run stops at c
+    expect(likedRun(cur, pool, { ...o, played: new Set(['d']) }, votes).map((s) => s.id)).toEqual(['b', 'c']);
+    expect(likedRun(cur, pool, o, votes, 1).map((s) => s.id)).toEqual(['b']);
+    expect(likedRun(cur, pool, o, [])).toEqual([]);
+  });
+
+  it('keeps a queue in order: add once, move, remove, play next', () => {
+    const e = new LabEngine();
+    const [b, c, d] = [song('b'), song('c'), song('d')];
+    e.enqueue([b, c, b]);
+    e.enqueue([d, c]);
+    expect(e.getSnapshot().queue.map((s) => s.id)).toEqual(['b', 'c', 'd']);
+    e.moveQueued('d', -1);
+    expect(e.getSnapshot().queue.map((s) => s.id)).toEqual(['b', 'd', 'c']);
+    e.moveQueued('b', -1);
+    expect(e.getSnapshot().queue.map((s) => s.id)).toEqual(['b', 'd', 'c']);
+    e.dequeue('d');
+    expect(e.getSnapshot().queue.map((s) => s.id)).toEqual(['b', 'c']);
+    // nothing playing: play next just moves it to the front
+    e.playNext('c');
+    expect(e.getSnapshot().queue.map((s) => s.id)).toEqual(['c', 'b']);
   });
 });

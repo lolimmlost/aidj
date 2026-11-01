@@ -48,6 +48,7 @@ export function LiveBar({ engine, snap }: { engine: LabEngine; snap: EngineSnaps
           <div className="truncate text-sm font-semibold">{now.song.title}</div>
           <div className="truncate text-[11px] text-muted-foreground tabular-nums">
             {(now.analysis.bpm * now.rate).toFixed(1)} BPM · {next ? `next ${next.song.title}` : 'nothing locked next'}
+            {snap.queue.length ? ` + ${snap.queue.length} queued` : ''}
           </div>
         </div>
         <div className="shrink-0 text-right leading-tight">
