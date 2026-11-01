@@ -80,6 +80,7 @@ import { Route as ApiDebugLogsRouteImport } from './routes/api/debug/logs'
 import { Route as ApiDiscoveryFeedIndexRouteImport } from './routes/api/discovery-feed/index'
 import { Route as ApiDiscoveryFeedAnalyticsRouteImport } from './routes/api/discovery-feed/analytics'
 import { Route as ApiDiscoveryFeedInteractionsRouteImport } from './routes/api/discovery-feed/interactions'
+import { Route as ApiDjLabLogRouteImport } from './routes/api/dj/lab-log'
 import { Route as ApiDownloadsQueueRouteImport } from './routes/api/downloads/queue'
 import { Route as ApiDownloadsYoutubeFallbackRouteImport } from './routes/api/downloads/youtube-fallback'
 import { Route as ApiLastfmBackfillRouteImport } from './routes/api/lastfm/backfill'
@@ -568,6 +569,11 @@ const ApiDiscoveryFeedInteractionsRoute =
     path: '/api/discovery-feed/interactions',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiDjLabLogRoute = ApiDjLabLogRouteImport.update({
+  id: '/api/dj/lab-log',
+  path: '/api/dj/lab-log',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDownloadsQueueRoute = ApiDownloadsQueueRouteImport.update({
   id: '/api/downloads/queue',
   path: '/api/downloads/queue',
@@ -1297,6 +1303,7 @@ export interface FileRoutesByFullPath {
   '/api/debug/logs': typeof ApiDebugLogsRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
+  '/api/dj/lab-log': typeof ApiDjLabLogRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
   '/api/downloads/youtube-fallback': typeof ApiDownloadsYoutubeFallbackRoute
   '/api/lastfm/backfill': typeof ApiLastfmBackfillRoute
@@ -1489,6 +1496,7 @@ export interface FileRoutesByTo {
   '/api/debug/logs': typeof ApiDebugLogsRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
+  '/api/dj/lab-log': typeof ApiDjLabLogRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
   '/api/downloads/youtube-fallback': typeof ApiDownloadsYoutubeFallbackRoute
   '/api/lastfm/backfill': typeof ApiLastfmBackfillRoute
@@ -1685,6 +1693,7 @@ export interface FileRoutesById {
   '/api/debug/logs': typeof ApiDebugLogsRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
+  '/api/dj/lab-log': typeof ApiDjLabLogRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
   '/api/downloads/youtube-fallback': typeof ApiDownloadsYoutubeFallbackRoute
   '/api/lastfm/backfill': typeof ApiLastfmBackfillRoute
@@ -1881,6 +1890,7 @@ export interface FileRouteTypes {
     | '/api/debug/logs'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
+    | '/api/dj/lab-log'
     | '/api/downloads/queue'
     | '/api/downloads/youtube-fallback'
     | '/api/lastfm/backfill'
@@ -2073,6 +2083,7 @@ export interface FileRouteTypes {
     | '/api/debug/logs'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
+    | '/api/dj/lab-log'
     | '/api/downloads/queue'
     | '/api/downloads/youtube-fallback'
     | '/api/lastfm/backfill'
@@ -2268,6 +2279,7 @@ export interface FileRouteTypes {
     | '/api/debug/logs'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
+    | '/api/dj/lab-log'
     | '/api/downloads/queue'
     | '/api/downloads/youtube-fallback'
     | '/api/lastfm/backfill'
@@ -2451,6 +2463,7 @@ export interface RootRouteChildren {
   ApiDebugLogsRoute: typeof ApiDebugLogsRoute
   ApiDiscoveryFeedAnalyticsRoute: typeof ApiDiscoveryFeedAnalyticsRoute
   ApiDiscoveryFeedInteractionsRoute: typeof ApiDiscoveryFeedInteractionsRoute
+  ApiDjLabLogRoute: typeof ApiDjLabLogRoute
   ApiDownloadsQueueRoute: typeof ApiDownloadsQueueRoute
   ApiDownloadsYoutubeFallbackRoute: typeof ApiDownloadsYoutubeFallbackRoute
   ApiLastfmBackfillRoute: typeof ApiLastfmBackfillRoute
@@ -3048,6 +3061,13 @@ declare module '@tanstack/react-router' {
       path: '/api/discovery-feed/interactions'
       fullPath: '/api/discovery-feed/interactions'
       preLoaderRoute: typeof ApiDiscoveryFeedInteractionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/dj/lab-log': {
+      id: '/api/dj/lab-log'
+      path: '/api/dj/lab-log'
+      fullPath: '/api/dj/lab-log'
+      preLoaderRoute: typeof ApiDjLabLogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/downloads/queue': {
@@ -4146,6 +4166,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDebugLogsRoute: ApiDebugLogsRoute,
   ApiDiscoveryFeedAnalyticsRoute: ApiDiscoveryFeedAnalyticsRoute,
   ApiDiscoveryFeedInteractionsRoute: ApiDiscoveryFeedInteractionsRoute,
+  ApiDjLabLogRoute: ApiDjLabLogRoute,
   ApiDownloadsQueueRoute: ApiDownloadsQueueRoute,
   ApiDownloadsYoutubeFallbackRoute: ApiDownloadsYoutubeFallbackRoute,
   ApiLastfmBackfillRoute: ApiLastfmBackfillRoute,

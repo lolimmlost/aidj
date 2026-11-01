@@ -8,14 +8,16 @@
  * When A is gone, B becomes the playing deck and the next song can be locked.
  *
  * Vinyl stretch: every track plays at set tempo / its tempo via playbackRate (pitch moves with it,
- * capped at ±8 %). Separate from the app's player: it pauses that one while it plays.
+ * capped at ±8 %). A song further off comes in on a tempo jump (plan.ts planJump): it plays at its own
+ * tempo, which becomes the set tempo. Separate from the app's player: it pauses that one while it plays.
  */
-import { barAt, barTime, dropLevelDb, type TrackAnalysis } from './analysis';
-import { analyseSong, fetchAudio, monoSegment, type LabSong } from './crate';
-import { createDeck, createMaster, disposeDeck, placeTransition, resetGains, scheduleIncoming, scheduleOutgoing, type DeckNodes, type PlacedTransition } from './graph';
+import { barAt, barTime, dropLevelDb, fitOctave, type TrackAnalysis } from './analysis';
+import { analyseSong, fetchAudio, getCachedAnalysis, isPhone, MAX_STRETCH, monoSegment, type LabSong } from './crate';
+import { createDeck, createMaster, disposeDeck, placeTransition, releaseBuffer, resetGains, scheduleIncoming, scheduleOutgoing, type DeckNodes, type PlacedTransition } from './graph';
 import { measureLock, type LockResult } from './lock';
-import { planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
-import { saveSet } from './sets';
+import { describeRecipe, planJump, planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
+import { labBeat, labBusy, labLog } from './log';
+import { cuesOf, saveSet } from './sets';
 
 export interface LoadedTrack {
   song: LabSong;
@@ -25,9 +27,31 @@ export interface LoadedTrack {
 
 export type NextState = 'loading' | 'locked' | 'committed' | 'mixing' | 'failed';
 
+/** The next-transition picker (#375): unset = the rules decide */
+export type Choices = Pick<Recipe, 'exit' | 'entry' | 'bass' | 'bars' | 'kill' | 'depth'>;
+export type ChoiceKey = keyof Choices;
+
+/** Set-wide defaults, kept per device */
+export interface LabDefaults {
+  /** the opener runs to its end before the first transition */
+  openerPlaysOut: boolean;
+  /** next songs come in on their first drop */
+  preferFirstDrop: boolean;
+  /** tempo window for the next track (#378): how much slower / faster than what's playing, % */
+  tempoDown: number;
+  tempoUp: number;
+  /** phones: hold the decks in mono, half the memory */
+  phoneMono: boolean;
+}
+
+const DEFAULTS_KEY = 'aidj:dj-lab:defaults';
+const NO_DEFAULTS: LabDefaults = { openerPlaysOut: false, preferFirstDrop: false, tempoDown: 4, tempoUp: 4, phoneMono: false };
+
 export interface NextInfo {
   song: LabSong;
   state: NextState;
+  /** the recipe it was planned with */
+  recipe?: Recipe;
   analysis?: TrackAnalysis;
   plan?: TransitionPlan;
   lock?: LockResult;
@@ -53,6 +77,19 @@ export interface HistoryEntry {
   plan?: TransitionPlan;
   lock?: LockResult;
   from?: LabSong;
+  recipe?: Recipe;
+}
+
+/** One song of a set played again, with the choices it came in with last time */
+export interface ReplayEntry {
+  song: LabSong;
+  recipe?: Recipe;
+}
+
+export interface ReplayInfo {
+  name: string;
+  /** every song of the replayed set, opener first */
+  songIds: string[];
 }
 
 export interface EngineSnapshot {
@@ -64,7 +101,18 @@ export interface EngineSnapshot {
   next?: NextInfo;
   history: HistoryEntry[];
   message?: string;
+  /** what the next transition should do; cleared after it plays unless pinned */
+  choices: Choices;
+  pinned: ChoiceKey[];
+  defaults: LabDefaults;
+  /** the AudioContext's state ("interrupted" on iOS when a call or another app takes the audio) */
+  audio?: string;
+  /** a previous set played again: auto-lock follows its order until it runs out */
+  replay?: ReplayInfo;
 }
+
+/** while a set should be playing but iOS has stopped its audio, try to resume this often */
+const RESUME_RETRY_MS = 3000;
 
 interface LiveDeck {
   track: LoadedTrack;
@@ -82,7 +130,29 @@ const COMMIT_SEC = 3;
 const TRIM_LIMIT_DB = 6;
 const AUTO_FAIL_LIMIT = 3;
 
+/** a heartbeat for the flight recorder this often while a set runs */
+const BEAT_MS = 5000;
+
+/** decks decode at this rate on a phone (the AudioContext resamples on playback) */
+const PHONE_DECK_RATE = 32000;
+
+/** One channel, the average of all: the stereo buffer becomes garbage right away. */
+function toMono(b: AudioBuffer): AudioBuffer {
+  if (b.numberOfChannels === 1) return b;
+  const mono = new AudioBuffer({ numberOfChannels: 1, length: b.length, sampleRate: b.sampleRate });
+  const out = mono.getChannelData(0);
+  const k = 1 / b.numberOfChannels;
+  for (let c = 0; c < b.numberOfChannels; c++) {
+    const ch = b.getChannelData(c);
+    for (let i = 0; i < out.length; i++) out[i] += ch[i] * k;
+  }
+  return mono;
+}
+
 const posAt = (d: LiveDeck, t: number) => d.trackStart + (t - d.ctxStart) * d.rate;
+const mb = (bytes: number) => Math.round(bytes / 1e5) / 10;
+const bufferMB = (b: AudioBuffer) => mb(b.length * b.numberOfChannels * 4);
+const songLabel = (s: LabSong) => `${s.artist} – ${s.title}`;
 const timeAt = (d: LiveDeck, p: number) => d.ctxStart + (p - d.trackStart) / d.rate;
 
 export class LabEngine {
@@ -92,15 +162,39 @@ export class LabEngine {
   private nxt: LiveDeck | null = null;
   private nextTrack: LoadedTrack | null = null;
   private lockToken = 0;
+  /** the download in flight for the opener or the next song: unlock, a new lock or stop cancels it */
+  private loadAbort: AbortController | null = null;
   private refLevel = 0;
   private skipped = new Set<string>();
+  /** the rest of a replayed set, in order */
+  private replayQueue: ReplayEntry[] = [];
   /** auto-picks that failed in a row; auto-lock pauses at AUTO_FAIL_LIMIT */
   private autoFails = 0;
   private setId = '';
   private setStartedAt = '';
+  /** the set tempo the set started at (a tempo jump moves snap.setBpm) */
+  private startBpm = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
+  /** tick health: wall/audio clock at the last tick, last heartbeat, last clock-stall report */
+  private lastTick: { wall: number; ctx: number } | null = null;
+  /** performance.now() of the last heartbeat (same clock as checkHealth) */
+  private lastBeat = 0;
+  private lastStall = -Infinity;
+  /** last automatic resume attempt, and when the audio stopped (performance.now()) */
+  private lastResumeTry = 0;
+  private lastResumeLog = -Infinity;
+  private audioStoppedAt: number | null = null;
   private listeners = new Set<() => void>();
-  private snap: EngineSnapshot = { status: 'idle', setBpm: 126, mode: 'dropchain', autoLock: true, history: [] };
+  private snap: EngineSnapshot = {
+    status: 'idle',
+    setBpm: 126,
+    mode: 'dropchain',
+    autoLock: true,
+    history: [],
+    choices: {},
+    pinned: [],
+    defaults: NO_DEFAULTS,
+  };
   /** picks the next song when auto-lock is on (the page ranks the crate) */
   private pickNext: ((now: NowInfo, played: Set<string>) => LabSong | null) | null = null;
   /** called before the Lab starts sound, so the app's own player can pause */
@@ -136,7 +230,7 @@ export class LabEngine {
       id: this.setId,
       startedAt: this.setStartedAt,
       updatedAt: new Date().toISOString(),
-      setBpm: this.snap.setBpm,
+      setBpm: this.startBpm || this.snap.setBpm,
       mode: this.snap.mode,
       tracks: history.map((h) => ({
         id: h.song.id,
@@ -147,6 +241,9 @@ export class LabEngine {
         bars: h.plan?.N,
         lockMs: h.lock?.p90Ms ?? null,
         locked: h.lock?.verified,
+        choice: h.recipe ? describeRecipe(h.recipe) || undefined : undefined,
+        recipe: h.recipe,
+        cues: h.plan ? cuesOf(h.plan) : undefined,
       })),
     });
   }
@@ -162,11 +259,31 @@ export class LabEngine {
   /** Create/resume the AudioContext. Call synchronously inside a tap (iOS). */
   unlockAudio(): AudioContext {
     if (!this.ctx) {
-      this.ctx = new AudioContext({ latencyHint: 'playback' });
-      this.master = createMaster(this.ctx);
+      const ctx = new AudioContext({ latencyHint: 'playback' });
+      this.ctx = ctx;
+      this.master = createMaster(ctx);
       // keep playing with the screen locked where Safari allows it
       const nav = navigator as Navigator & { audioSession?: { type: string } };
       if (nav.audioSession) nav.audioSession.type = 'playback';
+      labLog('audio context', { sampleRate: ctx.sampleRate, state: ctx.state, baseLatency: ctx.baseLatency, audioSession: nav.audioSession?.type });
+      ctx.addEventListener('statechange', () => {
+        const bad = ctx.state !== 'running' && this.snap.status === 'playing';
+        const now = performance.now();
+        if (bad && this.audioStoppedAt === null) this.audioStoppedAt = now;
+        const stoppedSec = ctx.state === 'running' && this.audioStoppedAt !== null ? Math.round((now - this.audioStoppedAt) / 100) / 10 : undefined;
+        if (ctx.state === 'running') this.audioStoppedAt = null;
+        labLog('audio context state', { state: ctx.state, t: ctx.currentTime, status: this.snap.status, stoppedSec }, bad ? 'warn' : 'info');
+        this.set({ audio: ctx.state });
+      });
+      // iOS can leave the context suspended after an interruption (a call, Siri, another app's audio)
+      const retry = (why: string) => {
+        if (this.snap.status === 'playing' && ctx.state !== 'running') this.tryResume(ctx, why);
+      };
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') retry('back in view');
+      });
+      window.addEventListener('pageshow', () => retry('page shown'));
+      window.addEventListener('focus', () => retry('focus'));
     }
     void this.ctx.resume();
     return this.ctx;
@@ -180,41 +297,164 @@ export class LabEngine {
     this.set({ autoLock });
   }
 
-  /** The set tempo only changes between sets: every deck plays at it. */
+  /** Read the per-device defaults (client only: call from an effect, so SSR and hydration agree). */
+  loadDefaults() {
+    try {
+      const d = JSON.parse(localStorage.getItem(DEFAULTS_KEY) ?? 'null') as Partial<LabDefaults> | null;
+      if (d) this.set({ defaults: { ...NO_DEFAULTS, ...d } });
+    } catch {
+      // no storage: defaults stay off
+    }
+  }
+
+  setDefaults(patch: Partial<LabDefaults>) {
+    const defaults = { ...this.snap.defaults, ...patch };
+    try {
+      localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults));
+    } catch {
+      // still applies this session
+    }
+    this.set({ defaults });
+    this.replanIfOpen();
+  }
+
+  /** Set (or clear, with undefined) one choice for the next transition; re-plans a locked song in time. */
+  setChoice<K extends ChoiceKey>(key: K, value: Choices[K] | undefined) {
+    const choices: Choices = { ...this.snap.choices };
+    if (value === undefined) delete choices[key];
+    else choices[key] = value;
+    this.set({ choices });
+    this.replanIfOpen();
+  }
+
+  /** 📌 keep a choice for the rest of the set instead of just the next transition */
+  togglePin(key: ChoiceKey) {
+    const pinned = this.snap.pinned.includes(key) ? this.snap.pinned.filter((k) => k !== key) : [...this.snap.pinned, key];
+    this.set({ pinned });
+  }
+
+  /** The recipe the next lock uses: your choices, then the set defaults, then the rules. */
+  recipe(): Recipe {
+    const c = this.snap.choices;
+    const d = this.snap.defaults;
+    const opener = this.snap.history.length <= 1;
+    return {
+      ...c,
+      exit: c.exit ?? (d.openerPlaysOut && opener ? 'end' : undefined),
+      entry: c.entry ?? (d.preferFirstDrop ? 'first-drop' : undefined),
+    };
+  }
+
+  private replanIfOpen() {
+    if (this.snap.next?.state === 'locked' && this.nextTrack) void this.relock();
+  }
+
+  /** You set the tempo between sets (every deck plays at it); mid-set only a tempo jump moves it. */
   setSetBpm(bpm: number) {
     if (this.snap.status === 'idle') this.set({ setBpm: bpm });
   }
 
-  /** Fetch + decode for playback; the analysis is the crate scan's cached one when there is one. */
-  async loadTrack(song: LabSong): Promise<LoadedTrack> {
+  /**
+   * Fetch + decode for playback; the analysis is the crate scan's cached one when there is one.
+   * `signal` cancels the download, and skips the decode if it fires first.
+   */
+  async loadTrack(song: LabSong, signal?: AbortSignal): Promise<LoadedTrack> {
     const ctx = this.unlockAudio();
-    const buf = await fetchAudio(song.id);
-    const [buffer, analysis] = await Promise.all([ctx.decodeAudioData(buf.slice(0)), analyseSong(song, undefined, buf)]);
-    return { song, buffer, analysis };
+    const label = songLabel(song);
+    const done = labBusy(`load ${label}`);
+    const t0 = performance.now();
+    try {
+      const buf = await fetchAudio(song.id, signal);
+      const fileMB = mb(buf.byteLength);
+      const t1 = performance.now();
+      // the crate scan has usually analysed it already: then decode the download itself, no copy
+      // (a FLAC is 25–55 MB, and phones run out of memory)
+      const cached = await getCachedAnalysis(song.id);
+      signal?.throwIfAborted();
+      // a phone decodes the decks at 32 kHz: ~27 % less memory per deck than 44.1 kHz (a 6-minute
+      // extended mix is ~130 MB at 44.1 kHz), at the cost of the band above 16 kHz; in mono, half again.
+      // A new decoder each time: one shared decoder was the suspect in the sets that died after 15–25
+      // loads, and the phone memory test ran 14 loads of 110 MB each through new ones without trouble
+      const phone = isPhone();
+      const decoder = phone ? new OfflineAudioContext(2, 1, PHONE_DECK_RATE) : ctx;
+      const decoded = await decoder.decodeAudioData(cached ? buf : buf.slice(0));
+      const buffer = phone && this.snap.defaults.phoneMono ? toMono(decoded) : decoded;
+      const t2 = performance.now();
+      signal?.throwIfAborted();
+      const analysis = cached ?? (await analyseSong(song, undefined, buf));
+      signal?.throwIfAborted();
+      labLog('loaded', {
+        song: label,
+        fileMB,
+        fetchMs: Math.round(t1 - t0),
+        decodeMs: Math.round(t2 - t1),
+        decodedMB: bufferMB(buffer),
+        sec: Math.round(buffer.duration),
+        sr: buffer.sampleRate,
+        analysis: cached ? 'cached' : 'decoded',
+        heldMB: this.heldMB() + bufferMB(buffer),
+      });
+      return { song, buffer, analysis };
+    } catch (e) {
+      const ms = Math.round(performance.now() - t0);
+      if (signal?.aborted) labLog('load cancelled', { song: label, ms });
+      else labLog('load failed', { song: label, error: (e as Error).message, ms }, 'warn');
+      throw e;
+    } finally {
+      done();
+    }
+  }
+
+  /** A fresh signal for the next load; cancels the one before. */
+  private newLoad(): AbortSignal {
+    this.abortLoad();
+    this.loadAbort = new AbortController();
+    return this.loadAbort.signal;
+  }
+
+  private abortLoad() {
+    this.loadAbort?.abort();
+    this.loadAbort = null;
+  }
+
+  /** Decoded audio the engine holds (MB): the playing deck, the locked one. */
+  private heldMB(): number {
+    const bufs = new Set([this.cur?.track.buffer, this.nxt?.track.buffer, this.nextTrack?.buffer].filter((b): b is AudioBuffer => !!b));
+    return Math.round([...bufs].reduce((n, b) => n + bufferMB(b), 0) * 10) / 10;
   }
 
   private trimDb(a: TrackAnalysis) {
     return Math.max(-TRIM_LIMIT_DB, Math.min(TRIM_LIMIT_DB, this.refLevel - dropLevelDb(a)));
   }
 
-  /** Start a set on `song`, from its first bar (or `fromBar`). */
-  async start(song: LabSong, fromBar?: number) {
+  /**
+   * Start a set on `song`, from its first bar (or `fromBar`). With `replay`, auto-lock locks those
+   * songs in order, each with the choices it had last time, then goes back to its own picks.
+   */
+  async start(song: LabSong, fromBar?: number, replay?: { name: string; entries: ReplayEntry[] }) {
     this.stop();
     const ctx = this.unlockAudio();
     this.skipped.clear();
     this.autoFails = 0;
+    this.replayQueue = replay?.entries ?? [];
+    this.set({ choices: {}, pinned: [], replay: replay ? { name: replay.name, songIds: [song.id, ...replay.entries.map((e) => e.song.id)] } : undefined });
+    if (replay) labLog('replay', { set: replay.name, songs: replay.entries.length + 1 });
     this.setId = `${Date.now().toString(36)}`;
     this.setStartedAt = new Date().toISOString();
+    this.startBpm = this.snap.setBpm;
     this.set({ status: 'loading', message: `Loading ${song.title}…`, history: [], next: undefined, now: undefined });
     const token = ++this.lockToken;
+    labLog('set start', { song: songLabel(song), setBpm: this.snap.setBpm, mode: this.snap.mode, fromBar });
     let track: LoadedTrack;
     try {
-      track = await this.loadTrack(song);
+      track = await this.loadTrack(song, this.newLoad());
     } catch (e) {
-      this.set({ status: 'idle', message: `Couldn't load ${song.title}: ${(e as Error).message}` });
+      if (token === this.lockToken) this.set({ status: 'idle', message: `Couldn't load ${song.title}: ${(e as Error).message}` });
       return;
     }
     if (token !== this.lockToken) return;
+    // a set tempo near half or double the opener's counts it at that octave
+    track = { ...track, analysis: fitOctave(track.analysis, this.snap.setBpm) };
     const a = track.analysis;
     const rate = this.snap.setBpm / a.bpm;
     if (Math.abs(rate - 1) > 0.08) {
@@ -249,66 +489,88 @@ export class LabEngine {
     if (replaced && replaced !== song.id) this.skipped.add(replaced);
     this.cancelNext();
     const token = ++this.lockToken;
+    labLog('lock', { song: songLabel(song), auto });
     this.setNext({ song, state: 'loading', notes: [], plan: undefined, lock: undefined, placed: undefined, analysis: undefined, error: undefined });
     let track: LoadedTrack;
     try {
-      track = await this.loadTrack(song);
+      track = await this.loadTrack(song, this.newLoad());
     } catch (e) {
+      // a cancelled load (unlocked, replaced, stopped) has a newer token: nothing to report
       if (token === this.lockToken) this.failLock(song, (e as Error).message, auto);
       return;
     }
     if (token !== this.lockToken || !this.cur) return;
     try {
-      this.schedule(track, recipe, auto);
+      this.schedule(track, this.planRecipe(song.id, recipe), auto);
     } catch (e) {
       // scheduling errors (Web Audio automation) fail this lock visibly instead of an unhandled rejection
       this.failLock(song, `couldn't schedule: ${(e as Error).message}`, auto);
     }
   }
 
-  private schedule(track: LoadedTrack, recipe?: Recipe, auto = false) {
+  private schedule(loaded: LoadedTrack, recipe?: Recipe, auto = false) {
     const ctx = this.ctx!;
     const cur = this.cur!;
     const A = cur.track.analysis;
+    // a 172 BPM track follows an 86 BPM set counted at half time (and the reverse), as Up next ranked it
+    const fitted = fitOctave(loaded.analysis, this.snap.setBpm);
+    // too far to stretch at any octave: a tempo jump, B at its own tempo and counted as analysed
+    const jump = Math.abs(this.snap.setBpm / fitted.bpm - 1) > MAX_STRETCH;
+    const track = { ...loaded, analysis: jump ? loaded.analysis : fitted };
     const B = track.analysis;
     const song = track.song;
-    const rateB0 = this.snap.setBpm / B.bpm;
-    if (Math.abs(rateB0 - 1) > 0.08) {
-      this.failLock(song, `${B.bpm.toFixed(1)} BPM is more than 8 % from the set tempo`, auto);
-      return;
-    }
     const fromBar = Math.ceil(barAt(A, posAt(cur, ctx.currentTime + LEAD_SEC)));
-    const plan = planTransition(A, B, {
+    const opts = {
       mode: this.snap.mode,
       fromBar,
       floorBar: this.snap.now?.floorBar ?? 0,
       setBpm: this.snap.setBpm,
       recipe,
-    });
+    };
+    const plan = jump ? planJump(A, B, opts) : planTransition(A, B, opts);
     if (!plan) {
       this.failLock(song, 'No exit left in this track for that song', auto);
       return;
     }
-    const lock = lockFor(cur.track, track, plan, cur.rate);
+    // a jump never overlaps the two beats: nothing to lock
+    const lock = jump ? undefined : lockFor(cur.track, track, plan, cur.rate);
     const notes: string[] = [];
-    if (plan.kind === 'chain' && !lock.verified) {
+    if (plan.unmet) notes.push(plan.unmet);
+    // a build over A's beats: a chain, or B's drop landing as A plays out
+    const buildOverBeats = plan.kind === 'chain' || (plan.kind === 'playout' && plan.S === plan.N);
+    if (lock && buildOverBeats && !lock.verified) {
       // rule 1: never overlap two kick lines without a verified lock — hold B's build back
       plan.hold = Math.min(4, plan.N);
       notes.push("Lock unverified: B's build held to the last 4 bars (rule 1)");
-    } else if (plan.bass === 'sweep' && !lock.verified) {
+    } else if (lock && plan.bass === 'sweep' && !lock.verified) {
       notes.push('Lock unverified: the blend overlaps kicks (flam risk)');
     }
-    const useLock = lock.verified || lock.points >= 3 ? lock : null;
+    const useLock = lock && (lock.verified || lock.points >= 3) ? lock : null;
     const tEntry = timeAt(cur, barTime(A, plan.entryA));
     const placed = placeTransition(A, B, plan, tEntry, cur.rate, useLock);
     const nodes = createDeck(ctx, track.buffer, this.master!, this.trimDb(B));
     nodes.src.playbackRate.value = placed.bRate;
-    scheduleIncoming(nodes, plan, tEntry, placed.barSec);
+    scheduleIncoming(nodes, plan, tEntry, placed.barSecB);
     nodes.src.start(placed.bWhen, placed.bOffset);
     scheduleOutgoing(cur.nodes, plan, tEntry, placed.barSec);
     this.nxt = { track, nodes, rate: placed.bRate, ctxStart: placed.bWhen, trackStart: placed.bOffset };
     this.nextTrack = track;
-    this.setNext({ song, state: 'locked', analysis: B, plan, lock, placed, notes, error: undefined });
+    this.setNext({ song, state: 'locked', analysis: B, plan, lock, placed, notes, error: undefined, recipe });
+    labLog('locked', {
+      song: songLabel(song),
+      bpm: Math.round(B.bpm * 10) / 10,
+      setBpm: this.snap.setBpm,
+      meter: B.meter,
+      kind: plan.kind,
+      bars: plan.N,
+      jump: plan.jump ? `${plan.jump.fromBpm} → ${Math.round(plan.jump.toBpm * 10) / 10}` : undefined,
+      inSec: Math.round(placed.tEntry - ctx.currentTime),
+      lockMs: lock?.p90Ms,
+      verified: lock?.verified,
+      choice: recipe ? describeRecipe(recipe) || undefined : undefined,
+      notes: notes.length ? notes.join('; ') : undefined,
+      heldMB: this.heldMB(),
+    });
     this.autoFails = 0;
     if (this.snap.message) this.set({ message: undefined });
   }
@@ -318,6 +580,7 @@ export class LabEngine {
    * AUTO_FAIL_LIMIT in a row (then auto-lock waits for you). A song you picked shows why it failed.
    */
   private failLock(song: LabSong, error: string, auto: boolean) {
+    labLog('lock failed', { song: songLabel(song), error, auto, autoFails: this.autoFails }, 'warn');
     this.skipped.add(song.id);
     if (auto && this.snap.autoLock && this.pickNext && ++this.autoFails < AUTO_FAIL_LIMIT) {
       this.set({ next: undefined, message: `Skipped ${song.title}: ${error}` });
@@ -335,13 +598,17 @@ export class LabEngine {
     const st = this.snap.next?.state;
     if (st === 'committed' || st === 'mixing') return;
     // auto-lock won't pick a song you just unlocked
-    if (this.snap.next) this.skipped.add(this.snap.next.song.id);
+    if (this.snap.next) {
+      labLog('unlock', { song: songLabel(this.snap.next.song) });
+      this.skipped.add(this.snap.next.song.id);
+    }
     this.lockToken++;
     this.cancelNext();
     this.setNext(undefined);
   }
 
   private cancelNext() {
+    this.abortLoad();
     if (this.nxt) disposeDeck(this.nxt.nodes);
     this.nxt = null;
     this.nextTrack = null;
@@ -354,18 +621,42 @@ export class LabEngine {
     }
   }
 
-  /** Re-plan the locked song with another recipe (A/B winner, or a manual override). */
+  /** Re-plan the locked song: with the current choices, or an explicit recipe on top (A/B winner). */
   async relock(recipe?: Recipe) {
     const track = this.nextTrack;
     if (!track || !this.cur) return;
     const st = this.snap.next?.state;
     if (st === 'committed' || st === 'mixing') return;
+    labLog('relock', { song: songLabel(track.song), recipe: recipe ? describeRecipe(recipe) : undefined });
     this.cancelNext();
-    this.schedule(track, recipe);
+    try {
+      this.schedule(track, this.planRecipe(track.song.id, recipe));
+    } catch (e) {
+      // cancelNext already let go of the old deck: fail visibly rather than show "locked" over nothing
+      this.failLock(track.song, `couldn't schedule: ${(e as Error).message}`, false);
+    }
+  }
+
+  /**
+   * The recipe for locking `songId`: the set defaults and rules, then (in a replay) the choices it
+   * came in with last time, then your choices now, then an explicit recipe (A/B winner).
+   */
+  private planRecipe(songId: string, extra?: Recipe): Recipe {
+    const replayed = this.replayQueue.find((e) => e.song.id === songId)?.recipe;
+    return { ...this.recipe(), ...replayed, ...this.snap.choices, ...extra };
+  }
+
+  /** Stop following the replayed set: auto-lock goes back to its own picks. */
+  endReplay() {
+    if (!this.snap.replay) return;
+    labLog('replay ended', { set: this.snap.replay.name, played: this.snap.history.length });
+    this.replayQueue = [];
+    this.set({ replay: undefined });
   }
 
   pause() {
     if (this.ctx && this.snap.status === 'playing') {
+      labLog('pause');
       void this.ctx.suspend();
       this.set({ status: 'paused' });
     }
@@ -373,6 +664,7 @@ export class LabEngine {
 
   resume() {
     if (this.ctx && this.snap.status === 'paused') {
+      labLog('resume', { ctx: this.ctx.state });
       this.onBeforePlay?.();
       void this.ctx.resume();
       this.set({ status: 'playing' });
@@ -380,11 +672,15 @@ export class LabEngine {
   }
 
   stop() {
+    if (this.snap.status !== 'idle') labLog('stop', { tracks: this.snap.history.length });
     const next = this.snap.next;
     if (next?.state === 'mixing' && this.cur && next.placed) {
-      this.set({ history: [...this.snap.history, { song: next.song, at: next.placed.bWhen, plan: next.plan, lock: next.lock, from: this.cur.track.song }] });
+      this.set({
+        history: [...this.snap.history, { song: next.song, at: next.placed.bWhen, plan: next.plan, lock: next.lock, from: this.cur.track.song, recipe: next.recipe }],
+      });
     }
     this.lockToken++;
+    this.abortLoad();
     if (this.nxt) disposeDeck(this.nxt.nodes);
     if (this.cur) disposeDeck(this.cur.nodes);
     this.nxt = null;
@@ -393,6 +689,7 @@ export class LabEngine {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.set({ status: 'idle', now: undefined, next: undefined });
+    this.beat();
   }
 
   /** Jump the playing deck to `bars` bars before the locked transition (or forward 16 bars). */
@@ -406,6 +703,7 @@ export class LabEngine {
     const plan = this.snap.next?.plan;
     const target = plan ? barTime(A, plan.entryA - bars) : posAt(cur, ctx.currentTime) + 16 * A.barLen;
     if (target <= posAt(cur, ctx.currentTime) || target >= cur.track.buffer.duration - 1) return;
+    labLog('skip ahead', { from: Math.round(posAt(cur, ctx.currentTime)), to: Math.round(target) });
     // restart A's source at the new position, then re-place B on the new clock
     const old = cur.nodes.src;
     const src = ctx.createBufferSource();
@@ -418,6 +716,10 @@ export class LabEngine {
     } catch {
       // already stopped
     }
+    old.onended = () => {
+      old.disconnect();
+      releaseBuffer(old);
+    };
     src.start(when, target);
     cur.nodes.src = src;
     cur.ctxStart = when;
@@ -432,7 +734,7 @@ export class LabEngine {
       const placed = placeTransition(A, track.analysis, plan, tEntry, cur.rate, useLock);
       const nodes = createDeck(ctx, track.buffer, this.master!, this.trimDb(track.analysis));
       nodes.src.playbackRate.value = placed.bRate;
-      scheduleIncoming(nodes, plan, tEntry, placed.barSec);
+      scheduleIncoming(nodes, plan, tEntry, placed.barSecB);
       nodes.src.start(placed.bWhen, placed.bOffset);
       scheduleOutgoing(cur.nodes, plan, tEntry, placed.barSec);
       this.nxt = { track, nodes, rate: placed.bRate, ctxStart: placed.bWhen, trackStart: placed.bOffset };
@@ -455,28 +757,87 @@ export class LabEngine {
 
   private startTimer() {
     if (this.timer) clearInterval(this.timer);
+    this.lastTick = null;
     this.timer = setInterval(() => this.tick(), 200);
+  }
+
+  /** Heartbeat for the flight recorder: a page that dies mid-set leaves this behind. */
+  private beat() {
+    this.lastBeat = performance.now();
+    const cur = this.cur;
+    labBeat({
+      status: this.snap.status,
+      song: this.snap.now ? songLabel(this.snap.now.song) : undefined,
+      pos: cur && this.ctx ? Math.round(posAt(cur, this.ctx.currentTime)) : undefined,
+      next: this.snap.next ? `${this.snap.next.state} ${songLabel(this.snap.next.song)}` : undefined,
+      ctx: this.ctx?.state,
+      heldMB: this.heldMB(),
+    });
+  }
+
+  /**
+   * Resume after iOS stopped the audio mid-set. Fails quietly while the interruption lasts (another
+   * app still has the audio); the next try or a tap on the live bar gets it back.
+   */
+  private tryResume(ctx: AudioContext, why: string) {
+    const now = performance.now();
+    this.lastResumeTry = now;
+    // retries every few seconds through a long interruption: log the first, then twice a minute
+    if (why !== 'retry' || now - this.lastResumeLog >= 30_000) {
+      this.lastResumeLog = now;
+      labLog('resuming audio', { why, state: ctx.state }, 'warn');
+    }
+    ctx.resume().catch((e: Error) => labLog('audio resume refused', { why, error: e.message }, 'warn'));
+  }
+
+  /** Timers stopped (page in the background) or the audio clock stopped while it should run. */
+  private checkHealth(ctx: AudioContext) {
+    const wall = performance.now();
+    const last = this.lastTick;
+    this.lastTick = { wall, ctx: ctx.currentTime };
+    if (wall - this.lastBeat >= BEAT_MS) this.beat();
+    if (this.snap.status === 'playing' && ctx.state !== 'running' && wall - this.lastResumeTry >= RESUME_RETRY_MS) {
+      this.tryResume(ctx, 'retry');
+    }
+    if (!last || this.snap.status !== 'playing') return;
+    const wallGap = (wall - last.wall) / 1000;
+    const ctxGap = ctx.currentTime - last.ctx;
+    if (wallGap > 2) {
+      labLog('timer gap', { wallSec: wallGap, audioSec: ctxGap, ctx: ctx.state, visibility: document.visibilityState }, 'warn');
+    } else if (wallGap > 1 && ctxGap < 0.05 && wall - this.lastStall > 30_000) {
+      this.lastStall = wall;
+      labLog('audio clock stalled', { wallSec: wallGap, audioSec: ctxGap, ctx: ctx.state, visibility: document.visibilityState }, 'warn');
+    }
   }
 
   private tick() {
     const ctx = this.ctx;
     const cur = this.cur;
     if (!ctx || !cur) return;
+    this.checkHealth(ctx);
     const t = ctx.currentTime;
     const next = this.snap.next;
     if (next?.placed && this.nxt) {
-      if (next.state === 'locked' && t >= next.placed.tEntry - COMMIT_SEC) this.setNext({ state: 'committed' });
-      if (next.state !== 'mixing' && t >= next.placed.bWhen) this.setNext({ state: 'mixing' });
+      if (next.state === 'locked' && t >= next.placed.tEntry - COMMIT_SEC) {
+        labLog('committed', { song: songLabel(next.song) });
+        this.setNext({ state: 'committed' });
+      }
+      if (next.state !== 'mixing' && t >= next.placed.bWhen) {
+        labLog('mixing', { song: songLabel(next.song), kind: next.plan?.kind });
+        this.setNext({ state: 'mixing' });
+      }
       if (t >= next.placed.tEnd) this.promote();
       return;
     }
     if (posAt(cur, t) >= cur.track.buffer.duration) {
       // played out with nothing locked
+      labLog('set ended: nothing locked', { song: songLabel(cur.track.song), next: next ? `${next.state} ${songLabel(next.song)}` : undefined }, 'warn');
       disposeDeck(cur.nodes);
       this.cur = null;
       if (this.timer) clearInterval(this.timer);
       this.timer = null;
       this.set({ status: 'idle', now: undefined, message: 'Set ended: nothing was locked next' });
+      this.beat();
     }
   }
 
@@ -489,20 +850,33 @@ export class LabEngine {
     this.cur = nxt;
     this.nxt = null;
     this.nextTrack = null;
+    labLog('now playing', { song: songLabel(nxt.track.song), from: songLabel(cur.track.song), heldMB: this.heldMB() });
+    // a tempo jump moves the set to B's tempo: the next songs stretch to that
+    const jump = next.plan?.jump;
+    if (jump) labLog('set tempo', { from: this.snap.setBpm, to: Math.round(jump.toBpm * 10) / 10 });
     this.set({
+      setBpm: jump ? Math.round(jump.toBpm * 10) / 10 : this.snap.setBpm,
       now: { song: nxt.track.song, analysis: nxt.track.analysis, rate: nxt.rate, floorBar: next.plan!.deB },
       next: undefined,
-      history: [...this.snap.history, { song: nxt.track.song, at: next.placed!.bWhen, plan: next.plan, lock: next.lock, from: cur.track.song }],
+      history: [...this.snap.history, { song: nxt.track.song, at: next.placed!.bWhen, plan: next.plan, lock: next.lock, from: cur.track.song, recipe: next.recipe }],
+      // the choices this transition used are spent, unless 📌 pinned; ones changed after it was
+      // committed are for the next transition and stay
+      choices: Object.fromEntries(
+        Object.entries(this.snap.choices).filter(([k, v]) => this.snap.pinned.includes(k as ChoiceKey) || next.recipe?.[k as ChoiceKey] !== v),
+      ) as Choices,
     });
     this.maybeAutoLock();
   }
 
   /** With auto-lock on and nothing locked, lock the best pick (also called when the crate grows). */
   maybeAutoLock() {
-    if (!this.snap.autoLock || !this.pickNext || !this.snap.now || this.snap.next || this.snap.status !== 'playing') return;
+    if (!this.snap.autoLock || !this.snap.now || this.snap.next || this.snap.status !== 'playing') return;
     if (this.autoFails >= AUTO_FAIL_LIMIT) return;
     const played = new Set([...this.snap.history.map((h) => h.song.id), ...this.skipped]);
-    const song = this.pickNext(this.snap.now, played);
+    // a replay locks its next song not played or skipped yet; once it runs out, the set carries on
+    const queued = this.replayQueue.find((e) => !played.has(e.song.id));
+    if (this.snap.replay && !queued) this.endReplay();
+    const song = queued?.song ?? this.pickNext?.(this.snap.now, played) ?? null;
     if (song) void this.lock(song, undefined, true);
   }
 }

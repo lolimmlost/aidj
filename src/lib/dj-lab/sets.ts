@@ -2,7 +2,7 @@
  * Lab sets kept in this browser, so a tracklist survives Stop and reloads (the engine's history is
  * memory-only). Saved on every transition; the newest 20 sets are kept.
  */
-import type { MixMode } from './plan';
+import type { MixMode, Recipe, TransitionPlan } from './plan';
 
 export interface SavedTrack {
   id: string;
@@ -15,6 +15,18 @@ export interface SavedTrack {
   bars?: number;
   lockMs?: number | null;
   locked?: boolean;
+  /** the picker choices it was mixed with (#375), e.g. "play out · first drop" */
+  choice?: string;
+  /** the full recipe it came in with, so a replay mixes it the same way */
+  recipe?: Recipe;
+  /** where the transition sat on both tracks' bar grids, kept for cue-exact replays later */
+  cues?: SavedCues;
+}
+
+export type SavedCues = Pick<TransitionPlan, 'kind' | 'entryA' | 'cueB' | 'N' | 'S' | 'kill' | 'bass' | 'endA' | 'deB'>;
+
+export function cuesOf(p: TransitionPlan): SavedCues {
+  return { kind: p.kind, entryA: p.entryA, cueB: p.cueB, N: p.N, S: p.S, kill: p.kill, bass: p.bass, endA: p.endA, deB: p.deB };
 }
 
 export interface SavedSet {
@@ -70,3 +82,18 @@ export function tracklistText(set: SavedSet): string {
 }
 
 export const setTime = fmt;
+
+/** "Thu, Oct 29, 9:04 PM": how a set is named in the list, its playlist and its replay */
+export const setWhen = (iso: string) =>
+  new Date(iso).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+/**
+ * The recipe to replay a track's entry with. Sets saved before recipes were kept give back their
+ * transition kind and length (the rest is planned fresh).
+ */
+export function replayRecipe(t: SavedTrack): Recipe | undefined {
+  if (t.recipe) return t.recipe;
+  if (t.kind === 'chain' || t.kind === 'swap') return { kind: t.kind, bars: t.bars };
+  return undefined;
+}
+

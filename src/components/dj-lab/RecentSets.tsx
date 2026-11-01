@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { ChevronDown, Copy, ListPlus, Trash2 } from 'lucide-react';
+import { ChevronDown, Copy, ListPlus, Loader2, Repeat, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
-import { deleteSet, loadSets, setTime, tracklistText, type SavedSet } from '@/lib/dj-lab/sets';
-
-const when = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+import { deleteSet, loadSets, setTime, setWhen as when, tracklistText, type SavedSet } from '@/lib/dj-lab/sets';
+import { useHydrated } from './useLab';
 
 async function saveAsPlaylist(set: SavedSet) {
   const ids = [...new Set(set.tracks.map((t) => t.id))];
@@ -19,11 +17,14 @@ async function saveAsPlaylist(set: SavedSet) {
   if (!res.ok) throw new Error(`${res.status}`);
 }
 
-/** Every Lab set played in this browser, newest first: tracklist, copy, save as a playlist. */
-export function RecentSets() {
+/** Every Lab set played in this browser, newest first: tracklist, replay, copy, save as a playlist. */
+export function RecentSets({ onReplay, replaying }: { onReplay?: (set: SavedSet) => void; replaying?: string | null }) {
   const [sets, setSets] = useState<SavedSet[]>(() => loadSets());
-  const [open, setOpen] = useState<string | null>(() => loadSets()[0]?.id ?? null);
-  if (!sets.length) return null;
+  // folded: tap a set to see its tracklist
+  const [open, setOpen] = useState<string | null>(null);
+  // the server render has no sets (localStorage): show them once hydrated, so the two match
+  const hydrated = useHydrated();
+  if (!hydrated || !sets.length) return null;
   return (
     <section className="space-y-2 pt-4">
       <h3 className="text-sm font-semibold">Recent sets</h3>
@@ -51,11 +52,21 @@ export function RecentSets() {
                         <span className="min-w-0 flex-1 truncate">
                           {t.title} <span className="text-muted-foreground">· {t.artist}</span>
                         </span>
-                        {t.kind && <span className="shrink-0 text-xs text-muted-foreground">{t.kind}</span>}
+                        {t.kind && (
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {t.kind}
+                            {t.choice ? ` · ${t.choice}` : ''}
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ol>
                   <div className="flex flex-wrap gap-1.5">
+                    {onReplay && (
+                      <Button size="sm" className="gap-1.5" disabled={!!replaying} onClick={() => onReplay(set)} title="Play this set again in the same order, mixed the same way">
+                        {replaying === set.id ? <Loader2 className="size-3.5 animate-spin" /> : <Repeat className="size-3.5" />} Replay
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"

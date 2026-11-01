@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import type { ReactNode } from "react";
+import { ChevronRight, Disc, ListMusic, Settings, Wand2 } from "lucide-react";
 import { loginRedirect } from "~/lib/auth/login-redirect";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Disc, FlaskConical, ListMusic, Sparkles, Settings } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { PageLayout } from "@/components/ui/page-layout";
+import { AIDJToggle } from "@/components/ai-dj-toggle";
+import { LabHero } from "@/components/dj-lab/LabHero";
 
 export const Route = createFileRoute("/dj/")({
   beforeLoad: async ({ context, location }) => {
@@ -14,127 +16,57 @@ export const Route = createFileRoute("/dj/")({
   component: DJIndex,
 });
 
+/** One row per DJ tool: icon, name, one line, chevron. */
+function ToolRow({ to, icon, title, line }: { to: "/dj/set-builder" | "/dj/settings"; icon: ReactNode; title: string; line: string }) {
+  return (
+    <Link to={to} className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50">
+      <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-primary">{icon}</div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium">{title}</div>
+        <div className="truncate text-xs text-muted-foreground">{line}</div>
+      </div>
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+    </Link>
+  );
+}
+
 function DJIndex() {
   const { user } = Route.useRouteContext();
   return (
-    <PageLayout
-      title="DJ Tools"
-      description="AI-powered mixing and set building"
-      icon={<Disc className="h-5 w-5" />}
-      backLink=""
-    >
-      {/* Feature Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* DJ Settings */}
-        <Link to="/dj/settings">
-          <Card className="h-full cursor-pointer hover:bg-muted/50 transition-colors border-primary/50 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5 text-primary" />
-                DJ Settings
-              </CardTitle>
-              <CardDescription>
-                Configure AI DJ and audio transitions
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>- AI DJ queue threshold & batch size</li>
-                <li>- Crossfade, silence, or reverb transitions</li>
-                <li>- Smart AI-optimized transition timing</li>
-                <li>- Autoplay when playlist ends</li>
-              </ul>
-            </CardContent>
-          </Card>
-        </Link>
+    <PageLayout title="DJ" icon={<Disc className="h-5 w-5" />} backLink="" compact>
+      <div className="mx-auto max-w-3xl space-y-3">
+        {/* the Lab is admin-only while it's a prototype (#345) */}
+        {user?.role === "admin" && <LabHero />}
 
-        {/* Set Builder */}
-        <Link to="/dj/set-builder">
-          <Card className="h-full cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ListMusic className="h-5 w-5 text-primary" />
-                Set Builder
-              </CardTitle>
-              <CardDescription>
-                Create professional DJ sets with energy curves and BPM progression
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>- Choose from set templates (Club Night, Warm-up, Peak Time)</li>
-                <li>- Customize duration, energy profile, BPM range</li>
-                <li>- Export to Navidrome playlist</li>
-                <li>- Save and manage set history</li>
-              </ul>
-            </CardContent>
-          </Card>
-        </Link>
-
-        {/* Transition Lab (#345): admin-only prototype */}
-        {user?.role === 'admin' && (
-          <Link to="/dj/lab">
-            <Card className="h-full cursor-pointer hover:bg-muted/50 transition-colors">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FlaskConical className="h-5 w-5 text-primary" />
-                  Transition Lab
-                </CardTitle>
-                <CardDescription>
-                  Continuous mix that locks the next song, plus blind A/B of transitions
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>- Drop-chain transitions, beat-locked in the browser</li>
-                  <li>- Next song locked and scheduled ahead</li>
-                  <li>- Blind A/B votes, exportable</li>
-                </ul>
-              </CardContent>
-            </Card>
-          </Link>
-        )}
-
-        {/* AI DJ Info Card */}
-        <Card className="h-full bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              AI DJ Mode
-            </CardTitle>
-            <CardDescription>
-              Enable from the dashboard or queue panel
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              AI DJ automatically queues similar songs based on what you're playing.
-              Toggle it on from the dashboard's "Now Playing" section or use the
-              queue panel's AI DJ switch.
-            </p>
-            <div className="mt-4">
-              <Link to="/dashboard">
-                <Button variant="outline" size="sm">
-                  Go to Dashboard
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
+        <Card className="p-3 sm:p-4">
+          <AIDJToggle />
         </Card>
-      </div>
 
-      {/* Pro Tips */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Pro Tips</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground space-y-2">
-          <p><strong>DJ Settings:</strong> Configure crossfade, reverb tail, or silence transitions in DJ Settings for smooth mixes.</p>
-          <p><strong>Smart Transitions:</strong> Enable AI-optimized transitions to automatically adjust timing based on song compatibility.</p>
-          <p><strong>Harmonic Mixing:</strong> Look for the BPM and key badges on recommendations to find compatible tracks.</p>
-          <p><strong>Queue Management:</strong> Use the queue panel to reorder, remove, or shuffle upcoming songs.</p>
-        </CardContent>
-      </Card>
+        <Card className="divide-y overflow-hidden p-0">
+          <ToolRow to="/dj/set-builder" icon={<ListMusic className="size-4" />} title="Set Builder" line="Plan a set: energy curve, BPM path, export as a playlist" />
+          <ToolRow to="/dj/settings" icon={<Settings className="size-4" />} title="DJ Settings" line="Crossfades, AI DJ batch size, autoplay" />
+        </Card>
+
+        <details className="group rounded-xl border px-3 py-2.5 text-sm">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-muted-foreground [&::-webkit-details-marker]:hidden">
+            <Wand2 className="size-4 text-primary" />
+            Tips
+            <ChevronRight className="ml-auto size-4 transition-transform group-open:rotate-90" />
+          </summary>
+          <ul className="mt-2 space-y-1.5 text-xs text-muted-foreground">
+            <li>
+              <span className="font-medium text-foreground">AI DJ</span> keeps the queue going with songs that fit what's playing. Thumbs in the
+              queue panel teach it.
+            </li>
+            <li>
+              <span className="font-medium text-foreground">Smart transitions</span> (DJ Settings) time crossfades to each pair of songs.
+            </li>
+            <li>
+              <span className="font-medium text-foreground">BPM and key badges</span> on recommendations show which songs mix well.
+            </li>
+          </ul>
+        </details>
+      </div>
     </PageLayout>
   );
 }

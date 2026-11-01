@@ -25,6 +25,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Shield,
+  ChevronUp,
 } from 'lucide-react';
 import authClient from '@/lib/auth/auth-client';
 import { MusicTasteDebugPanel } from '@/components/debug/MusicTasteDebugPanel';
@@ -36,6 +37,7 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlayerBar } from './PlayerBar';
 import { QueuePanel } from '@/components/ui/queue-panel';
+import { checkPreviousLabPage } from '@/lib/dj-lab/log';
 import { MobileNav } from '@/components/ui/mobile-nav';
 import { MobileTabBar } from './MobileTabBar';
 import { toast } from '@/lib/toast';
@@ -214,6 +216,25 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const { playlist, currentSongIndex } = useAudioStore();
   const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
+  // the Transition Lab plays through its own engine and pauses this player: the player bar and the
+  // queue button would only cover the Lab's controls there (the bar stays mounted, hidden)
+  const onLab = useRouterState({ select: (s) => s.location.pathname.startsWith('/dj/lab') });
+  // ⌄ on the player bar hides it (still mounted, still playing); a small pill brings it back, and so
+  // does starting playback
+  const [playerCollapsed, setPlayerCollapsed] = useState(false);
+  useEffect(
+    () =>
+      useAudioStore.subscribe((s, prev) => {
+        if (s.isPlaying && !prev.isPlaying) setPlayerCollapsed(false);
+      }),
+    [],
+  );
+  const showPlayer = hasActiveSong && !onLab && !playerCollapsed;
+  const showPlayerPill = hasActiveSong && !onLab && playerCollapsed;
+  const currentSong = hasActiveSong ? playlist[currentSongIndex] : undefined;
+  // a Transition Lab set that died mid-set (iOS kills a page that runs out of memory) is reported
+  // however the app reopens, not only when the Lab does
+  useEffect(() => checkPreviousLabPage(), []);
 
   // Debug panel state with localStorage persistence
   const [showDebugPanel, setShowDebugPanel] = useState(() => {
@@ -252,7 +273,8 @@ export function AppLayout({ children }: AppLayoutProps) {
            Mobile player is taller (~104px) than desktop (h-20 = 80px). */}
       <div className={cn(
         "flex-1 flex overflow-hidden",
-        hasActiveSong && "pb-28 md:pb-20"
+        showPlayer && "pb-28 md:pb-20",
+        showPlayerPill && "pb-14"
       )}>
         {/* Left Sidebar - Navigation & Playlists */}
         <LeftSidebar />
@@ -279,13 +301,25 @@ export function AppLayout({ children }: AppLayoutProps) {
          Unmounting destroys <audio> elements and kills playback. Hide visually instead. */}
       <div className={cn(
         "fixed bottom-[var(--mobile-tabbar-offset,0px)] md:bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl",
-        !hasActiveSong && "hidden"
+        !showPlayer && "hidden"
       )}>
-        <PlayerBar />
+        <PlayerBar onCollapse={() => setPlayerCollapsed(true)} />
       </div>
+      {showPlayerPill && (
+        <Button
+          variant="secondary"
+          size="sm"
+          className="fixed bottom-[calc(var(--mobile-tabbar-offset,0px)+0.75rem)] right-3 z-50 h-9 max-w-[60vw] gap-1.5 rounded-full border shadow-lg md:bottom-4 md:right-4"
+          onClick={() => setPlayerCollapsed(false)}
+          aria-label="Show the player"
+        >
+          <ChevronUp className="h-4 w-4 shrink-0" />
+          <span className="truncate text-xs">{currentSong?.name || currentSong?.title}</span>
+        </Button>
+      )}
 
       {/* Queue Panel - Slide-out drawer */}
-      <QueuePanel />
+      {!onLab && <QueuePanel />}
 
       {/* Music Taste Debug Panel - Toggle with Ctrl+Shift+D */}
       {showDebugPanel && (
