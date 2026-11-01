@@ -389,3 +389,30 @@ export function rankCandidates(
   const step = (c: Candidate) => Math.round(Math.abs(c.stretch) * 2);
   return out.sort((a, b) => step(a) - step(b) || b.score - a.score);
 }
+
+/**
+ * Songs too far from the set tempo to stretch at any octave (beyond ±8 %), for a tempo jump: they play at their
+ * own tempo, which becomes the set tempo. Closest tempo first; never auto-locked.
+ */
+export function rankJumps(
+  current: { song: LabSong; analysis: TrackAnalysis },
+  pool: { song: LabSong; analysis: TrackAnalysis }[],
+  opts: { setBpm: number; played: Set<string>; mode: 'dropchain' | 'classic' },
+): Candidate[] {
+  const out: Candidate[] = [];
+  const curBass = bassWeight(current.analysis);
+  for (const { song, analysis: own } of pool) {
+    if (song.id === current.song.id || opts.played.has(song.id)) continue;
+    if (Math.abs(opts.setBpm / fitOctave(own, opts.setBpm).bpm - 1) <= MAX_STRETCH) continue;
+    // it plays at its own tempo, as analysed
+    const analysis = own;
+    const pct = (analysis.bpm / opts.setBpm - 1) * 100;
+    const reasons = [`jump ${pct > 0 ? '+' : ''}${pct.toFixed(0)} %`];
+    const warnings: string[] = [];
+    if (opts.mode === 'dropchain' && analysis.drop === null) warnings.push('no clear drop');
+    const dBass = bassWeight(analysis) - curBass;
+    if (song.artist.toLowerCase() === current.song.artist.toLowerCase()) warnings.push('same artist');
+    out.push({ song, analysis, stretch: 0, bpmDelta: analysis.bpm - opts.setBpm, bassDelta: dBass, score: -Math.abs(pct), reasons, warnings });
+  }
+  return out.sort((a, b) => b.score - a.score);
+}

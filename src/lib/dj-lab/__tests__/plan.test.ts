@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { TrackAnalysis } from '../analysis';
-import { describeRecipe, FULL_CUT_HZ, incomingGains, lowCutOf, outgoingGains, planTransition } from '../plan';
-import { rankCandidates } from '../crate';
+import { describeRecipe, FULL_CUT_HZ, incomingGains, lowCutOf, outgoingGains, planJump, planTransition, RISE_HZ } from '../plan';
+import { rankCandidates, rankJumps } from '../crate';
+import { placeTransition } from '../graph';
 
 /** A hand-built analysis: per-bar low end from [bars, dB] sections, drops where the low end jumps. */
 function track(sections: [number, number][], opts: Partial<TrackAnalysis> = {}): TrackAnalysis {
@@ -176,11 +177,19 @@ describe('band gains', () => {
     expect(stop.kill).toBe(0.5);
     expect(outgoingGains(stop, stop.S - 0.75).lo).toBe(1);
     expect(outgoingGains(stop, stop.S - 0.25).lo).toBe(0);
-    expect(lowCutOf(stop)).toEqual({ from: stop.S - 0.5, to: stop.S, hz: FULL_CUT_HZ });
+    expect(lowCutOf(stop)).toEqual({ from: stop.S - 0.5, to: stop.S, f0: FULL_CUT_HZ, f1: FULL_CUT_HZ });
     // the default depth is the lows band only, and a sweep has no cut to deepen
     expect(lowCutOf(planTransition(SHORT_BREAK, B, { ...opts, recipe: { kill: 2 } })!)).toBeNull();
     expect(lowCutOf({ ...stop, bass: 'sweep' })).toBeNull();
     expect(describeRecipe({ kill: 0.5, depth: 'full' })).toBe('drop stop (½ bar) · full low cut');
+  });
+
+  it('rises: a high-pass on both decks climbs through the cut into the drop', () => {
+    const rise = planTransition(SHORT_BREAK, B, { ...opts, recipe: { kill: 4, depth: 'rise' } })!;
+    expect(lowCutOf(rise)).toEqual({ from: rise.S - 4, to: rise.S, f0: RISE_HZ[0], f1: RISE_HZ[1] });
+    // the bass band still goes with the cut
+    expect(outgoingGains(rise, rise.S - 2).lo).toBe(0);
+    expect(describeRecipe({ kill: 4, depth: 'rise' })).toBe('4-bar cut · rising filter');
   });
 
   it("holds B's build back without a verified lock (rule 1)", () => {
@@ -217,5 +226,73 @@ describe('rankCandidates', () => {
       window: { down: 1, up: 2 },
     }).map((c) => c.song.id);
     expect(ids.sort()).toEqual(['127', '128.5', '130']);
+  });
+});
+
+describe('tempo jump', () => {
+  // B at 100 BPM: 22 % under a 128 set, too far to stretch
+  const slow = track([[16, -20], [16, -30], [32, -8], [16, -30], [32, -8], [16, -20]], { bpm: 100, barLen: 2.4 });
+
+  it("hands over in A's next breakdown, B's drop after A is gone", () => {
+    const p = planJump(SHORT_BREAK, slow, opts)!;
+    expect(p.kind).toBe('jump');
+    expect(p.entryA).toBe(64);
+    expect(p.N).toBe(8);
+    expect(p.S).toBe(8);
+    expect(p.cueB).toBe(slow.de - 8);
+    // 8 of A's bars at 128 = 6.25 of B's at 100
+    expect(p.jump).toEqual({ fromBpm: 128, toBpm: 100, fadeB: 6.25 });
+    expect(p.how).toContain('128 → 100 BPM');
+  });
+
+  it("drops A's low end at once, crossfades the tops, and holds B's bass for its drop", () => {
+    const p = planJump(SHORT_BREAK, slow, opts)!;
+    expect(outgoingGains(p, -0.5).lo).toBe(1);
+    expect(outgoingGains(p, 0.5).lo).toBe(0);
+    expect(outgoingGains(p, 4).mid).toBeCloseTo(Math.SQRT1_2);
+    expect(outgoingGains(p, 8).hi).toBe(0);
+    expect(incomingGains(p, p.jump!.fadeB).hi).toBe(1);
+    expect(incomingGains(p, p.S - 0.1).lo).toBe(0);
+    expect(incomingGains(p, p.S).lo).toBe(1);
+    // no cut filter on a jump
+    expect(lowCutOf({ ...p, depth: 'full' })).toBeNull();
+  });
+
+  it("plays B at its own tempo from A's bar line", () => {
+    const p = planJump(SHORT_BREAK, slow, opts)!;
+    const placed = placeTransition(SHORT_BREAK, slow, p, 10, 1, null);
+    expect(placed.bRate).toBe(1);
+    expect(placed.barSec).toBe(1.875);
+    expect(placed.barSecB).toBe(2.4);
+    expect(placed.bWhen).toBe(10);
+    // A gone after 8 of its bars (15 s); B's drop plus a bar after 9 of B's (21.6 s)
+    expect(placed.tEnd).toBeCloseTo(31.6);
+  });
+
+  it("uses A's beatless outro to play out, or its last beat bars", () => {
+    const outro = { ...SHORT_BREAK, last: 111 };
+    const p = planJump(outro, slow, { ...opts, recipe: { exit: 'end' } })!;
+    expect(p.entryA).toBe(112);
+    expect(p.how).toContain('beatless outro');
+    const q = planJump(SHORT_BREAK, slow, { ...opts, recipe: { exit: 'end' } })!;
+    expect(q.entryA).toBe(124);
+    expect(q.N).toBe(4);
+    // past those too: from the next bar, so auto-lock's fallback still has a way out
+    const r = planJump(SHORT_BREAK, slow, { ...opts, fromBar: 126, recipe: { exit: 'end' } })!;
+    expect(r.entryA).toBe(126);
+    expect(r.N).toBe(2);
+    expect(planJump(SHORT_BREAK, slow, { ...opts, fromBar: 128 })).toBeNull();
+  });
+
+  it('lists songs out of stretch range, closest tempo first, at their own tempo', () => {
+    const song = (id: string) => ({ id, title: id, artist: id, duration: 200 });
+    const at = (bpm: number) => ({ ...B, bpm, barLen: 240 / bpm });
+    const ids = rankJumps({ song: song('now'), analysis: at(128) }, [128.2, 150, 100, 64].map((bpm) => ({ song: song(String(bpm)), analysis: at(bpm) })), {
+      setBpm: 128,
+      played: new Set(),
+      mode: 'dropchain',
+    }).map((c) => c.song.id);
+    // 64 fits at double time: a normal match, not a jump
+    expect(ids).toEqual(['150', '100']);
   });
 });

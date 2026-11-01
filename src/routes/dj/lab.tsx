@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAudioStore } from '@/lib/stores/audio';
-import { findSongs, isPhone, listCrates, rankCandidates, MAX_STRETCH } from '@/lib/dj-lab/crate';
+import { findSongs, isPhone, listCrates, rankCandidates, rankJumps, MAX_STRETCH } from '@/lib/dj-lab/crate';
 import { replayRecipe, setWhen, type SavedSet } from '@/lib/dj-lab/sets';
 import { fitOctave, meterName } from '@/lib/dj-lab/analysis';
 import type { LabEngine, ReplayEntry } from '@/lib/dj-lab/engine';
@@ -81,17 +81,18 @@ function DJLab() {
   // stays up through the next set until dismissed
   const [diedSeen, setDiedSeen] = useState(false);
 
-  // auto-lock picks the best-ranked crate track
+  // auto-lock picks the best-ranked crate track in the tempo window; when that runs dry, anything it can stretch,
+  // then the closest tempo jump: a small crate used to end the set in silence once every match had played
   useEffect(() => {
-    engine.setPicker(
-      (now, played) =>
-        rankCandidates({ song: now.song, analysis: now.analysis }, pool, {
-          setBpm: snap.setBpm,
-          played,
-          mode: snap.mode,
-          window: { down: snap.defaults.tempoDown, up: snap.defaults.tempoUp },
-        })[0]?.song ?? null,
-    );
+    engine.setPicker((now, played) => {
+      const cur = { song: now.song, analysis: now.analysis };
+      const o = { setBpm: snap.setBpm, played, mode: snap.mode };
+      const pick =
+        rankCandidates(cur, pool, { ...o, window: { down: snap.defaults.tempoDown, up: snap.defaults.tempoUp } })[0] ??
+        rankCandidates(cur, pool, o)[0] ??
+        rankJumps(cur, pool, o)[0];
+      return pick?.song ?? null;
+    });
     // the set may start before the crate is analysed: pick as soon as there's something to pick
     engine.maybeAutoLock();
   }, [engine, pool, snap.setBpm, snap.mode, snap.autoLock, snap.status, snap.now, snap.next, snap.defaults.tempoDown, snap.defaults.tempoUp]);

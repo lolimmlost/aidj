@@ -8,13 +8,14 @@
  * When A is gone, B becomes the playing deck and the next song can be locked.
  *
  * Vinyl stretch: every track plays at set tempo / its tempo via playbackRate (pitch moves with it,
- * capped at ±8 %). Separate from the app's player: it pauses that one while it plays.
+ * capped at ±8 %). A song further off comes in on a tempo jump (plan.ts planJump): it plays at its own
+ * tempo, which becomes the set tempo. Separate from the app's player: it pauses that one while it plays.
  */
 import { barAt, barTime, dropLevelDb, fitOctave, type TrackAnalysis } from './analysis';
-import { analyseSong, fetchAudio, getCachedAnalysis, isPhone, monoSegment, type LabSong } from './crate';
+import { analyseSong, fetchAudio, getCachedAnalysis, isPhone, MAX_STRETCH, monoSegment, type LabSong } from './crate';
 import { createDeck, createMaster, disposeDeck, placeTransition, releaseBuffer, resetGains, scheduleIncoming, scheduleOutgoing, type DeckNodes, type PlacedTransition } from './graph';
 import { measureLock, type LockResult } from './lock';
-import { describeRecipe, planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
+import { describeRecipe, planJump, planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
 import { labBeat, labBusy, labLog } from './log';
 import { cuesOf, saveSet } from './sets';
 
@@ -171,6 +172,8 @@ export class LabEngine {
   private autoFails = 0;
   private setId = '';
   private setStartedAt = '';
+  /** the set tempo the set started at (a tempo jump moves snap.setBpm) */
+  private startBpm = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
   /** tick health: wall/audio clock at the last tick, last heartbeat, last clock-stall report */
   private lastTick: { wall: number; ctx: number } | null = null;
@@ -227,7 +230,7 @@ export class LabEngine {
       id: this.setId,
       startedAt: this.setStartedAt,
       updatedAt: new Date().toISOString(),
-      setBpm: this.snap.setBpm,
+      setBpm: this.startBpm || this.snap.setBpm,
       mode: this.snap.mode,
       tracks: history.map((h) => ({
         id: h.song.id,
@@ -346,7 +349,7 @@ export class LabEngine {
     if (this.snap.next?.state === 'locked' && this.nextTrack) void this.relock();
   }
 
-  /** The set tempo only changes between sets: every deck plays at it. */
+  /** You set the tempo between sets (every deck plays at it); mid-set only a tempo jump moves it. */
   setSetBpm(bpm: number) {
     if (this.snap.status === 'idle') this.set({ setBpm: bpm });
   }
@@ -438,6 +441,7 @@ export class LabEngine {
     if (replay) labLog('replay', { set: replay.name, songs: replay.entries.length + 1 });
     this.setId = `${Date.now().toString(36)}`;
     this.setStartedAt = new Date().toISOString();
+    this.startBpm = this.snap.setBpm;
     this.set({ status: 'loading', message: `Loading ${song.title}…`, history: [], next: undefined, now: undefined });
     const token = ++this.lockToken;
     labLog('set start', { song: songLabel(song), setBpm: this.snap.setBpm, mode: this.snap.mode, fromBar });
@@ -509,44 +513,44 @@ export class LabEngine {
     const cur = this.cur!;
     const A = cur.track.analysis;
     // a 172 BPM track follows an 86 BPM set counted at half time (and the reverse), as Up next ranked it
-    const track = { ...loaded, analysis: fitOctave(loaded.analysis, this.snap.setBpm) };
+    const fitted = fitOctave(loaded.analysis, this.snap.setBpm);
+    // too far to stretch at any octave: a tempo jump, B at its own tempo and counted as analysed
+    const jump = Math.abs(this.snap.setBpm / fitted.bpm - 1) > MAX_STRETCH;
+    const track = { ...loaded, analysis: jump ? loaded.analysis : fitted };
     const B = track.analysis;
     const song = track.song;
-    const rateB0 = this.snap.setBpm / B.bpm;
-    if (Math.abs(rateB0 - 1) > 0.08) {
-      this.failLock(song, `${B.bpm.toFixed(1)} BPM is more than 8 % from the set tempo`, auto);
-      return;
-    }
     const fromBar = Math.ceil(barAt(A, posAt(cur, ctx.currentTime + LEAD_SEC)));
-    const plan = planTransition(A, B, {
+    const opts = {
       mode: this.snap.mode,
       fromBar,
       floorBar: this.snap.now?.floorBar ?? 0,
       setBpm: this.snap.setBpm,
       recipe,
-    });
+    };
+    const plan = jump ? planJump(A, B, opts) : planTransition(A, B, opts);
     if (!plan) {
       this.failLock(song, 'No exit left in this track for that song', auto);
       return;
     }
-    const lock = lockFor(cur.track, track, plan, cur.rate);
+    // a jump never overlaps the two beats: nothing to lock
+    const lock = jump ? undefined : lockFor(cur.track, track, plan, cur.rate);
     const notes: string[] = [];
     if (plan.unmet) notes.push(plan.unmet);
     // a build over A's beats: a chain, or B's drop landing as A plays out
     const buildOverBeats = plan.kind === 'chain' || (plan.kind === 'playout' && plan.S === plan.N);
-    if (buildOverBeats && !lock.verified) {
+    if (lock && buildOverBeats && !lock.verified) {
       // rule 1: never overlap two kick lines without a verified lock — hold B's build back
       plan.hold = Math.min(4, plan.N);
       notes.push("Lock unverified: B's build held to the last 4 bars (rule 1)");
-    } else if (plan.bass === 'sweep' && !lock.verified) {
+    } else if (lock && plan.bass === 'sweep' && !lock.verified) {
       notes.push('Lock unverified: the blend overlaps kicks (flam risk)');
     }
-    const useLock = lock.verified || lock.points >= 3 ? lock : null;
+    const useLock = lock && (lock.verified || lock.points >= 3) ? lock : null;
     const tEntry = timeAt(cur, barTime(A, plan.entryA));
     const placed = placeTransition(A, B, plan, tEntry, cur.rate, useLock);
     const nodes = createDeck(ctx, track.buffer, this.master!, this.trimDb(B));
     nodes.src.playbackRate.value = placed.bRate;
-    scheduleIncoming(nodes, plan, tEntry, placed.barSec);
+    scheduleIncoming(nodes, plan, tEntry, placed.barSecB);
     nodes.src.start(placed.bWhen, placed.bOffset);
     scheduleOutgoing(cur.nodes, plan, tEntry, placed.barSec);
     this.nxt = { track, nodes, rate: placed.bRate, ctxStart: placed.bWhen, trackStart: placed.bOffset };
@@ -559,9 +563,10 @@ export class LabEngine {
       meter: B.meter,
       kind: plan.kind,
       bars: plan.N,
+      jump: plan.jump ? `${plan.jump.fromBpm} → ${Math.round(plan.jump.toBpm * 10) / 10}` : undefined,
       inSec: Math.round(placed.tEntry - ctx.currentTime),
-      lockMs: lock.p90Ms,
-      verified: lock.verified,
+      lockMs: lock?.p90Ms,
+      verified: lock?.verified,
       choice: recipe ? describeRecipe(recipe) || undefined : undefined,
       notes: notes.length ? notes.join('; ') : undefined,
       heldMB: this.heldMB(),
@@ -722,7 +727,7 @@ export class LabEngine {
       const placed = placeTransition(A, track.analysis, plan, tEntry, cur.rate, useLock);
       const nodes = createDeck(ctx, track.buffer, this.master!, this.trimDb(track.analysis));
       nodes.src.playbackRate.value = placed.bRate;
-      scheduleIncoming(nodes, plan, tEntry, placed.barSec);
+      scheduleIncoming(nodes, plan, tEntry, placed.barSecB);
       nodes.src.start(placed.bWhen, placed.bOffset);
       scheduleOutgoing(cur.nodes, plan, tEntry, placed.barSec);
       this.nxt = { track, nodes, rate: placed.bRate, ctxStart: placed.bWhen, trackStart: placed.bOffset };
@@ -839,7 +844,11 @@ export class LabEngine {
     this.nxt = null;
     this.nextTrack = null;
     labLog('now playing', { song: songLabel(nxt.track.song), from: songLabel(cur.track.song), heldMB: this.heldMB() });
+    // a tempo jump moves the set to B's tempo: the next songs stretch to that
+    const jump = next.plan?.jump;
+    if (jump) labLog('set tempo', { from: this.snap.setBpm, to: Math.round(jump.toBpm * 10) / 10 });
     this.set({
+      setBpm: jump ? Math.round(jump.toBpm * 10) / 10 : this.snap.setBpm,
       now: { song: nxt.track.song, analysis: nxt.track.analysis, rate: nxt.rate, floorBar: next.plan!.deB },
       next: undefined,
       history: [...this.snap.history, { song: nxt.track.song, at: next.placed!.bWhen, plan: next.plan, lock: next.lock, from: cur.track.song, recipe: next.recipe }],

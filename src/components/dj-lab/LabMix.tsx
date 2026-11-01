@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { barAt, meterName, type TrackAnalysis } from '@/lib/dj-lab/analysis';
-import { genreFamily, rankCandidates, type Candidate, type LabSong } from '@/lib/dj-lab/crate';
+import { genreFamily, rankCandidates, rankJumps, type Candidate, type LabSong } from '@/lib/dj-lab/crate';
 import type { EngineSnapshot, HistoryEntry, LabEngine, NextInfo } from '@/lib/dj-lab/engine';
 import { describeRecipe, type TransitionPlan } from '@/lib/dj-lab/plan';
 import { lockRecord, newId, planRecord, saveVote } from '@/lib/dj-lab/votes';
@@ -43,7 +43,14 @@ function tempoLine(a: TrackAnalysis, rate: number) {
   return `${own} → ${(a.bpm * rate).toFixed(1)} BPM (${pct > 0 ? '+' : ''}${pct === 0 ? '0.0' : pct.toFixed(1)}%)`;
 }
 
+/** "chain, 16 bars" / "tempo jump 150 → 124": a transition in a few words */
+function planLine(plan: TransitionPlan) {
+  return plan.jump ? `tempo jump ${plan.jump.fromBpm} → ${plan.jump.toBpm.toFixed(1)}` : `${plan.kind}, ${plan.N} bars`;
+}
+
 function exitRegions(plan: TransitionPlan): { regions: StripRegion[]; markers: StripMarker[] } {
+  // a jump's B drop isn't on A's bar grid: A just fades out
+  if (plan.jump) return { regions: [{ from: plan.entryA, to: plan.endA, className: 'bg-primary/25', label: `${plan.N}-bar handover` }], markers: [{ bar: plan.endA, className: 'bg-foreground/70', label: 'A out' }] };
   const regions: StripRegion[] = [{ from: plan.entryA, to: plan.endA, className: 'bg-primary/25', label: `${plan.N}-bar blend` }];
   if (plan.bass === 'swap' && plan.kill > 0) {
     regions.push({ from: plan.entryA + plan.S - plan.kill, to: plan.entryA + plan.S, className: 'bg-destructive/30', label: `${plan.kill}-bar bass kill` });
@@ -52,7 +59,7 @@ function exitRegions(plan: TransitionPlan): { regions: StripRegion[]; markers: S
 }
 
 function entryRegions(plan: TransitionPlan, b: TrackAnalysis): { regions: StripRegion[]; markers: StripMarker[] } {
-  const regions: StripRegion[] = [{ from: plan.cueB, to: plan.cueB + plan.N, className: 'bg-primary/25', label: 'build' }];
+  const regions: StripRegion[] = [{ from: plan.cueB, to: plan.cueB + (plan.jump ? plan.S : plan.N), className: 'bg-primary/25', label: 'build' }];
   if (plan.hold) regions.push({ from: plan.cueB, to: plan.cueB + plan.S - plan.hold, className: 'bg-destructive/20', label: 'held (no lock)' });
   return { regions, markers: [{ bar: plan.cueB + plan.S, className: 'bg-foreground/70', label: 'drop' }, ...b.drops.filter((d) => d > plan.cueB + plan.S).map((d) => ({ bar: d, className: 'bg-foreground/30' }))] };
 }
@@ -177,6 +184,11 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
         : [],
     [now, pool, snap.setBpm, played, snap.mode, snap.defaults.tempoDown, snap.defaults.tempoUp],
   );
+  // too far to stretch: a tempo jump moves the set to their tempo (never auto-locked)
+  const jumps = useMemo(
+    () => (now ? rankJumps({ song: now.song, analysis: now.analysis }, pool, { setBpm: snap.setBpm, played, mode: snap.mode }) : []),
+    [now, pool, snap.setBpm, played, snap.mode],
+  );
   // a card per genre family, in the order of each family's best pick
   const groups = useMemo(() => {
     const byGenre = new Map<string, Candidate[]>();
@@ -232,7 +244,10 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
         ) : (
           <>
             <div className="flex items-center gap-2">
-              <SongLine song={next.song} sub={next.analysis ? tempoLine(next.analysis, snap.setBpm / next.analysis.bpm) : undefined} />
+              <SongLine
+                song={next.song}
+                sub={next.analysis ? tempoLine(next.analysis, (next.plan?.jump?.toBpm ?? snap.setBpm) / next.analysis.bpm) : undefined}
+              />
               <Badge variant={next.state === 'failed' ? 'destructive' : next.state === 'loading' ? 'outline' : 'default'} className="shrink-0 gap-1 px-1.5 text-[11px]">
                 {next.state === 'loading' ? <Loader2 className="size-3 animate-spin" /> : <Lock className="size-3" />}
                 {STATE_LABEL[next.state]}
@@ -260,7 +275,9 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
                 <DeckStrip analysis={next.analysis} {...entryRegions(next.plan, next.analysis)} position={posNext} className="h-10" />
                 <div className="flex items-center gap-1.5 text-[11px] tabular-nums text-muted-foreground">
                   <span className="truncate">
-                    {next.plan.kind} · {next.plan.N} bars · {next.plan.bass === 'sweep' ? 'sweep' : `swap, ${next.plan.kill}-bar kill`}
+                    {next.plan.jump
+                      ? `${planLine(next.plan)} BPM · ${next.plan.N}-bar handover`
+                      : `${next.plan.kind} · ${next.plan.N} bars · ${next.plan.bass === 'sweep' ? 'sweep' : `swap, ${next.plan.kill}-bar kill`}`}
                   </span>
                   <LockBadge next={next} />
                   {toBlend !== null && <span className="ml-auto shrink-0 font-medium text-foreground">{toBlend > 0 ? `mix in ${fmtTime(toBlend)}` : 'mixing'}</span>}
@@ -292,7 +309,7 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
             No analysed track between −{snap.defaults.tempoDown} % and +{snap.defaults.tempoUp} % of the playing tempo. Widen the tempo window above.
           </p>
         )}
-        {groups.map(([genre, picks]) => (
+        {[...groups, ...(jumps.length ? [['Tempo jump · plays at its own tempo', jumps] as const] : [])].map(([genre, picks]) => (
           <PickGroup key={genre} genre={genre} picks={picks}>
             {(c) => {
               const isNext = next?.song.id === c.song.id;
@@ -362,7 +379,7 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
                   </div>
                   {h.plan && (
                     <div className="truncate text-[11px] text-muted-foreground">
-                      {h.plan.kind}, {h.plan.N} bars{h.recipe && describeRecipe(h.recipe) ? ` · ${describeRecipe(h.recipe)}` : ''}
+                      {planLine(h.plan)}{h.recipe && describeRecipe(h.recipe) ? ` · ${describeRecipe(h.recipe)}` : ''}
                       {h.lock ? ` · lock ${h.lock.verified ? '✓' : '✗'} ${h.lock.p90Ms?.toFixed(1) ?? 'n/a'} ms` : ''}
                     </div>
                   )}

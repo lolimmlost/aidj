@@ -8,7 +8,7 @@ import { createDeck, createMaster, placeTransition, scheduleIncoming, scheduleOu
 import type { LockResult } from './lock';
 import { planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
 
-export type Factor = 'bass' | 'length' | 'kind' | 'mode' | 'kill' | 'cut' | 'depth' | 'stop' | 'exit' | 'entry';
+export type Factor = 'bass' | 'length' | 'kind' | 'mode' | 'kill' | 'cut' | 'depth' | 'stop' | 'rise' | 'exit' | 'entry';
 
 export const FACTORS: Record<Factor, { label: string; variants: [string, Recipe][] }> = {
   bass: { label: 'Bass: filter sweep vs hard swap', variants: [['sweep', { bass: 'sweep' }], ['swap', { bass: 'swap' }]] },
@@ -19,6 +19,7 @@ export const FACTORS: Record<Factor, { label: string; variants: [string, Recipe]
   cut: { label: 'Short pre-drop cut: 2 vs 4 bars', variants: [['cut 2', { kill: 2 }], ['cut 4', { kill: 4 }]] },
   depth: { label: 'Pre-drop cut depth: sub only vs full low end', variants: [['sub', { kill: 2, depth: 'sub' }], ['full low', { kill: 2, depth: 'full' }]] },
   stop: { label: 'Drop stop (½ bar) vs 2-bar cut', variants: [['drop stop', { kill: 0.5, depth: 'full' }], ['cut 2', { kill: 2 }]] },
+  rise: { label: 'Into the drop: rising filter vs full low cut', variants: [['rise', { kill: 4, depth: 'rise' }], ['full low', { kill: 4, depth: 'full' }]] },
   exit: { label: 'A: drop-chain exit vs played out', variants: [['drop-chain exit', {}], ['play out', { exit: 'end' }]] },
   entry: { label: 'B: first drop vs main drop', variants: [['first drop', { entry: 'first-drop' }], ['main drop', { entry: 'main-drop' }]] },
 };
@@ -67,14 +68,14 @@ export async function renderVariant(A: LoadedTrack, B: LoadedTrack, setBpm: numb
   const placed = placeTransition(a, B.analysis, plan, tEntry, rateA, useLock);
   const deckB = createDeck(ctx, B.buffer, master, trim(ref - dropLevelDb(B.analysis)));
   deckB.src.playbackRate.value = placed.bRate;
-  scheduleIncoming(deckB, plan, tEntry, placed.barSec);
+  scheduleIncoming(deckB, plan, tEntry, placed.barSecB);
   deckB.src.start(placed.bWhen, placed.bOffset);
   const buffer = await ctx.startRendering();
   return { label, recipe, plan, lock, buffer, entryAt: tEntry, swapAt: tEntry + plan.S * barSec };
 }
 
 const same = (p: TransitionPlan, q: TransitionPlan) =>
-  p.kind === q.kind && p.N === q.N && p.bass === q.bass && p.kill === q.kill && p.entryA === q.entryA && p.cueB === q.cueB && p.hold === q.hold;
+  p.kind === q.kind && p.N === q.N && p.bass === q.bass && p.kill === q.kill && p.depth === q.depth && p.entryA === q.entryA && p.cueB === q.cueB && p.hold === q.hold;
 
 /** Both variants of a factor, or a reason it doesn't apply to this pair. */
 export async function renderPair(A: LoadedTrack, B: LoadedTrack, setBpm: number, mode: MixMode, factor: Factor): Promise<Variant[] | string> {

@@ -49,13 +49,15 @@ const ROWS: { key: ChoiceKey; label: string; title: string; options: Option<Choi
     ],
   },
   {
-    // the clips had both: bass-music DJs killed only the sub, a house DJ cut everything under ~300 Hz
+    // the clips had both: bass-music DJs killed only the sub, a house DJ cut everything under ~300 Hz; Wuki (on CDJs)
+    // and two BOO clips swept a high-pass up through the cut into the drop
     key: 'depth',
     label: 'Depth',
-    title: 'What the cut takes out: the bass band (sub and kick), or everything under 300 Hz on both decks',
+    title: 'What the cut takes out: the bass band (sub and kick), everything under 300 Hz on both decks, or a filter rising 90 → 500 Hz into the drop',
     options: [
       ['Sub', 'sub'],
       ['Full low', 'full'],
+      ['Rise', 'rise'],
     ],
   },
   {
