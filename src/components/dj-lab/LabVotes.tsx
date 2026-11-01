@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Download, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Download, ThumbsDown, ThumbsUp, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { deleteVote, exportVotes, loadVotes, type LabVote } from '@/lib/dj-lab/votes';
+import { toast } from '@/lib/toast';
+import { deleteVote, exportVotes, importVotes, loadVotes, type LabVote } from '@/lib/dj-lab/votes';
 
 const choiceText = (v: LabVote) =>
   v.kind === 'flag'
@@ -13,19 +14,46 @@ const choiceText = (v: LabVote) =>
         ? 'neither'
         : `${v.winner} won`;
 
-/** Every A/B vote and live flag kept in this browser, newest first, with a JSON export. */
+/** Every A/B vote and live flag kept in this browser, newest first, with a JSON export and import. */
 export function LabVotes() {
   const [votes, setVotes] = useState<LabVote[]>(() => loadVotes());
+  const fileRef = useRef<HTMLInputElement>(null);
   const list = [...votes].reverse();
+  async function importFile(f: File) {
+    try {
+      const { all, added } = importVotes(JSON.parse(await f.text()));
+      setVotes(all);
+      toast.success(added ? `Imported ${added} vote${added === 1 ? '' : 's'}` : 'Nothing new in that file');
+    } catch (e) {
+      toast.error(`Import failed: ${(e as Error).message}`);
+    }
+  }
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          {votes.length} saved in this browser. Export to add them to the transition votes and labels.
+          {votes.length} saved in this browser. Your 👍 / 👎 on transitions steer auto-lock. Export to add them to the transition votes and
+          labels; import an export to bring them to another browser.
         </p>
-        <Button size="sm" variant="outline" className="gap-1.5" disabled={!votes.length} onClick={() => exportVotes(votes)}>
-          <Download className="size-4" /> Export JSON
-        </Button>
+        <div className="flex gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) void importFile(f);
+            }}
+          />
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => fileRef.current?.click()}>
+            <Upload className="size-4" /> Import
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" disabled={!votes.length} onClick={() => exportVotes(votes)}>
+            <Download className="size-4" /> Export JSON
+          </Button>
+        </div>
       </div>
       <ul className="divide-y rounded-lg border">
         {list.map((v) => (

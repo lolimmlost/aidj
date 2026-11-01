@@ -74,6 +74,29 @@ export function deleteVote(id: string): LabVote[] {
   return all;
 }
 
+const isVote = (v: unknown): v is LabVote => {
+  const x = v as Partial<LabVote> | null;
+  return typeof x?.id === 'string' && (x.kind === 'flag' || x.kind === 'ab') && typeof x.a?.id === 'string' && typeof x.b?.id === 'string';
+};
+
+/**
+ * Merge an export (from this browser or another) into the saved votes, by id, oldest first. Anything that
+ * isn't a vote is skipped. Your thumbs steer auto-lock (#384), so importing them brings that along.
+ */
+export function importVotes(incoming: unknown): { all: LabVote[]; added: number } {
+  if (!Array.isArray(incoming)) throw new Error('Not a votes export (expected a JSON list)');
+  const have = loadVotes();
+  const ids = new Set(have.map((v) => v.id));
+  const fresh = incoming.filter(isVote).filter((v) => !ids.has(v.id) && ids.add(v.id));
+  const all = [...have, ...fresh].sort((x, y) => x.at.localeCompare(y.at));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(all));
+  } catch {
+    // storage full or blocked: they still show this session
+  }
+  return { all, added: fresh.length };
+}
+
 export function planRecord(p: TransitionPlan): VariantRecord['plan'] {
   return { mode: p.mode, kind: p.kind, N: p.N, S: p.S, bass: p.bass, kill: p.kill, hold: p.hold, entryA: p.entryA, cueB: p.cueB, how: p.how };
 }
