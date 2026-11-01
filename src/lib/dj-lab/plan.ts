@@ -19,6 +19,13 @@ export type TransitionKind = 'chain' | 'swap' | 'droplands' | 'longoutro' | 'int
 
 export type ExitChoice = 'section' | 'next-drop' | 'end';
 export type EntryChoice = 'first-drop' | 'main-drop' | 'intro';
+/** What the pre-drop cut takes out: the lows band (sub and kick), or everything under FULL_CUT_HZ on both decks */
+export type CutDepth = 'sub' | 'full';
+/**
+ * A full low cut high-passes both decks here: in Juan's BOO 2026 clips a house DJ took out everything under
+ * ~300 Hz (kick, bass, low mids) before the drop, where the bass-music cuts only killed the sub.
+ */
+export const FULL_CUT_HZ = 300;
 
 /** Overrides an A/B variant can set; anything left out follows the rules. */
 export interface Recipe {
@@ -28,8 +35,10 @@ export interface Recipe {
   bass?: 'swap' | 'sweep';
   /** blend length in bars */
   bars?: number;
-  /** bars of A's bass kill before B's drop (swap bass) */
+  /** bars of A's bass kill before B's drop (swap bass); ½ is a drop stop */
   kill?: number;
+  /** what the kill takes out (swap bass): the lows band (default) or everything under FULL_CUT_HZ */
+  depth?: CutDepth;
   /** classic: B comes in at its intro even when its drop is near the start */
   cue?: 'auto' | 'intro';
   /**
@@ -55,6 +64,8 @@ export interface TransitionPlan {
   bass: 'swap' | 'sweep';
   /** bars of A's bass kill before S */
   kill: number;
+  /** the kill's depth (swap bass); unset = the lows band only */
+  depth?: CutDepth;
   /** B's top held back until S - hold (chain without a verified lock, rule 1) */
   hold: number;
   /** A's bar where A is gone */
@@ -313,7 +324,8 @@ export function planTransition(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOpt
   const withNotes = (p: TransitionPlan | null) => {
     if (!p) return p;
     const all = [...notes, ...(p.unmet ? [p.unmet] : [])];
-    return all.length ? { ...p, unmet: all.join('; ') } : p;
+    const q = r.depth ? { ...p, depth: r.depth } : p;
+    return all.length ? { ...q, unmet: all.join('; ') } : q;
   };
   if (mode === 'dropchain' && hasDrops(A) && (hasDrops(B) || r.entry === 'intro')) {
     const p = planDropchain(A, B, o);
@@ -372,6 +384,14 @@ export function outgoingGains(p: TransitionPlan, tbo: number): BandGains {
   return { lo, mid: top, hi: top };
 }
 
+/**
+ * A full low cut (swap bass, depth 'full'): both decks high-passed at FULL_CUT_HZ from the kill to B's drop. A stays
+ * filtered until it's gone, so its low mids don't come back under B's drop; B opens up on the drop's downbeat.
+ */
+export function lowCutOf(p: TransitionPlan): { from: number; to: number; hz: number } | null {
+  return p.bass === 'swap' && p.depth === 'full' ? { from: Math.max(0, p.S - p.kill), to: p.S, hz: FULL_CUT_HZ } : null;
+}
+
 /** A's high-pass sweep (sweep bass): 20 → 600 Hz from S-4 to S+4 bars. */
 export function sweepOf(p: TransitionPlan): { from: number; to: number; f0: number; f1: number } | null {
   return p.bass === 'sweep' ? { from: p.S - 4, to: p.S + 4, f0: 20, f1: 600 } : null;
@@ -404,7 +424,8 @@ export function describeRecipe(r: Recipe): string {
     r.exit && exit[r.exit],
     r.entry && entry[r.entry],
     r.bass && (r.bass === 'sweep' ? 'sweep' : 'hard swap'),
-    r.kill && `${r.kill}-bar cut`,
+    r.kill && (r.kill === 0.5 ? 'drop stop (½ bar)' : `${r.kill}-bar cut`),
+    r.depth === 'full' && 'full low cut',
     r.bars && `${r.bars} bars`,
   ]
     .filter(Boolean)

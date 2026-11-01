@@ -8,7 +8,7 @@ import { createDeck, createMaster, placeTransition, scheduleIncoming, scheduleOu
 import type { LockResult } from './lock';
 import { planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
 
-export type Factor = 'bass' | 'length' | 'kind' | 'mode' | 'kill' | 'cut' | 'exit' | 'entry';
+export type Factor = 'bass' | 'length' | 'kind' | 'mode' | 'kill' | 'cut' | 'depth' | 'stop' | 'exit' | 'entry';
 
 export const FACTORS: Record<Factor, { label: string; variants: [string, Recipe][] }> = {
   bass: { label: 'Bass: filter sweep vs hard swap', variants: [['sweep', { bass: 'sweep' }], ['swap', { bass: 'swap' }]] },
@@ -17,6 +17,8 @@ export const FACTORS: Record<Factor, { label: string; variants: [string, Recipe]
   mode: { label: "Recipe: drop-chain vs classic (B's intro over A's end)", variants: [['drop-chain', { mode: 'dropchain' }], ['classic', { mode: 'classic' }]] },
   kill: { label: 'Pre-drop bass kill: 4 vs 8 bars', variants: [['kill 4', { kill: 4 }], ['kill 8', { kill: 8 }]] },
   cut: { label: 'Short pre-drop cut: 2 vs 4 bars', variants: [['cut 2', { kill: 2 }], ['cut 4', { kill: 4 }]] },
+  depth: { label: 'Pre-drop cut depth: sub only vs full low end', variants: [['sub', { kill: 2, depth: 'sub' }], ['full low', { kill: 2, depth: 'full' }]] },
+  stop: { label: 'Drop stop (½ bar) vs 2-bar cut', variants: [['drop stop', { kill: 0.5, depth: 'full' }], ['cut 2', { kill: 2 }]] },
   exit: { label: 'A: drop-chain exit vs played out', variants: [['drop-chain exit', {}], ['play out', { exit: 'end' }]] },
   entry: { label: 'B: first drop vs main drop', variants: [['first drop', { entry: 'first-drop' }], ['main drop', { entry: 'main-drop' }]] },
 };

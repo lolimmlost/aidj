@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TrackAnalysis } from '../analysis';
-import { incomingGains, outgoingGains, planTransition } from '../plan';
+import { describeRecipe, FULL_CUT_HZ, incomingGains, lowCutOf, outgoingGains, planTransition } from '../plan';
 import { rankCandidates } from '../crate';
 
 /** A hand-built analysis: per-bar low end from [bars, dB] sections, drops where the low end jumps. */
@@ -169,6 +169,18 @@ describe('band gains', () => {
       expect(incomingGains(p, p.S - 0.5).lo).toBe(0);
       expect(incomingGains(p, p.S).lo).toBe(1);
     }
+  });
+
+  it('stops the bass for half a bar (drop stop) and can cut the whole low end', () => {
+    const stop = planTransition(SHORT_BREAK, B, { ...opts, recipe: { kill: 0.5, depth: 'full' } })!;
+    expect(stop.kill).toBe(0.5);
+    expect(outgoingGains(stop, stop.S - 0.75).lo).toBe(1);
+    expect(outgoingGains(stop, stop.S - 0.25).lo).toBe(0);
+    expect(lowCutOf(stop)).toEqual({ from: stop.S - 0.5, to: stop.S, hz: FULL_CUT_HZ });
+    // the default depth is the lows band only, and a sweep has no cut to deepen
+    expect(lowCutOf(planTransition(SHORT_BREAK, B, { ...opts, recipe: { kill: 2 } })!)).toBeNull();
+    expect(lowCutOf({ ...stop, bass: 'sweep' })).toBeNull();
+    expect(describeRecipe({ kill: 0.5, depth: 'full' })).toBe('drop stop (½ bar) · full low cut');
   });
 
   it("holds B's build back without a verified lock (rule 1)", () => {

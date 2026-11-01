@@ -27,7 +27,7 @@ export interface LoadedTrack {
 export type NextState = 'loading' | 'locked' | 'committed' | 'mixing' | 'failed';
 
 /** The next-transition picker (#375): unset = the rules decide */
-export type Choices = Pick<Recipe, 'exit' | 'entry' | 'bass' | 'bars' | 'kill'>;
+export type Choices = Pick<Recipe, 'exit' | 'entry' | 'bass' | 'bars' | 'kill' | 'depth'>;
 export type ChoiceKey = keyof Choices;
 
 /** Set-wide defaults, kept per device */

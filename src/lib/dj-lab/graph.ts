@@ -8,7 +8,7 @@
  * That's mix_set.py's band split; its gain curves come from plan.ts.
  */
 import { barTime, type TrackAnalysis } from './analysis';
-import { incomingGains, outgoingGains, sampleCurve, sweepOf, type BandGains, type TransitionPlan } from './plan';
+import { incomingGains, lowCutOf, outgoingGains, sampleCurve, sweepOf, type BandGains, type TransitionPlan } from './plan';
 
 export interface BandStage {
   lo: GainNode;
@@ -186,6 +186,15 @@ export function scheduleOutgoing(deck: DeckNodes, plan: TransitionPlan, tEntry: 
       f.frequency.exponentialRampToValueAtTime(sw.f1, tEntry + sw.to * barSec);
     }
   }
+  const cut = lowCutOf(plan);
+  if (cut) {
+    // into the cut over 1/32 bar, like the band gains' smoothing; A keeps it until it's gone
+    const t0 = tEntry + cut.from * barSec;
+    for (const f of deck.hp) {
+      f.frequency.setValueAtTime(BYPASS_HZ, Math.max(tEntry, t0 - barSec / 32));
+      f.frequency.exponentialRampToValueAtTime(cut.hz, t0);
+    }
+  }
 }
 
 /** B's side: silent until its cue, then the band fade-ins up to the swap and a bar past it. */
@@ -196,6 +205,16 @@ export function scheduleIncoming(deck: DeckNodes, plan: TransitionPlan, tEntry: 
   deck.in.hi.gain.value = g0.hi;
   // run the curves until every band is fully up (a swept bass finishes 4 bars after the swap)
   curve(deck.in, (b) => incomingGains(plan, b), 0, Math.max(plan.N, plan.S + 4) + 2, tEntry, barSec);
+  const cut = lowCutOf(plan);
+  if (cut) {
+    // B's low end stays out until its drop, then opens on the downbeat (over 1/32 bar: no click)
+    const tS = tEntry + cut.to * barSec;
+    for (const f of deck.hp) {
+      f.frequency.value = cut.hz;
+      f.frequency.setValueAtTime(cut.hz, Math.max(tEntry, tS - barSec / 32));
+      f.frequency.exponentialRampToValueAtTime(BYPASS_HZ, tS);
+    }
+  }
 }
 
 export interface PlacedTransition {

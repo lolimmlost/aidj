@@ -35,15 +35,27 @@ const ROWS: { key: ChoiceKey; label: string; title: string; options: Option<Choi
     ],
   },
   {
-    // bass music cuts short: 1–2 bars before the drop at ~140–160 BPM in Juan's BOO 2026 clips
+    // bass music cuts short: 1–2 bars before the drop at ~140–160 BPM in Juan's BOO 2026 clips; ½ is the drop stop
+    // (about a second of no bass, then a harder drop) caught twice in them
     key: 'kill',
     label: 'Cut',
-    title: "Bars with no bass before B's drop (hard swap)",
+    title: "Bars with no bass before B's drop (hard swap); ½ = drop stop",
     options: [
+      ['½', 0.5],
       ['1', 1],
       ['2', 2],
       ['4', 4],
       ['8', 8],
+    ],
+  },
+  {
+    // the clips had both: bass-music DJs killed only the sub, a house DJ cut everything under ~300 Hz
+    key: 'depth',
+    label: 'Depth',
+    title: 'What the cut takes out: the bass band (sub and kick), or everything under 300 Hz on both decks',
+    options: [
+      ['Sub', 'sub'],
+      ['Full low', 'full'],
     ],
   },
   {
@@ -83,7 +95,7 @@ export function TransitionPicker({ engine, snap }: { engine: LabEngine; snap: En
         </span>
       </div>
       <div className="space-y-1">
-        {ROWS.filter(({ key }) => !(key === 'kill' && sweeping)).map(({ key, label, title, options }) => {
+        {ROWS.filter(({ key }) => !((key === 'kill' || key === 'depth') && sweeping)).map(({ key, label, title, options }) => {
           const chosen = snap.choices[key];
           const pinned = snap.pinned.includes(key);
           // a default can fill in for "Rules" (opener plays out, first drops): that option gets a dashed ring
