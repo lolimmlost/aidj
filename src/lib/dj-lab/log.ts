@@ -55,6 +55,8 @@ let store: Stored | null = null;
 let started = false;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushing = false;
+/** highest seq of the batch a flush has in flight: the beacon leaves those to it */
+let inFlight = 0;
 const listeners = new Set<() => void>();
 /** what is being fetched/decoded right now, for the heartbeat */
 const busy = new Map<number, string>();
@@ -149,6 +151,7 @@ async function flush() {
   const batch = unsent().slice(0, BATCH);
   if (!batch.length) return;
   flushing = true;
+  inFlight = batch[batch.length - 1].seq;
   try {
     const res = await fetch(ENDPOINT, {
       method: 'POST',
@@ -157,7 +160,8 @@ async function flush() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ entries: batch, ua: navigator.userAgent }),
     });
-    if (res.ok) {
+    // a 4xx won't change on a retry (signed out, not an admin): drop the batch
+    if (res.ok || (res.status >= 400 && res.status < 500)) {
       const s = load();
       s.sent = Math.max(s.sent, batch[batch.length - 1].seq);
       save();
@@ -166,13 +170,16 @@ async function flush() {
     // offline or the page is going away: the next flush (or the next page load) sends it
   } finally {
     flushing = false;
+    inFlight = 0;
   }
   if (unsent().length) scheduleFlush(FLUSH_MS);
 }
 
 /** pagehide / hidden: hand what's left to the browser, which sends it even if the page dies. */
 function beacon() {
-  const batch = unsent().slice(-BATCH);
+  const batch = unsent()
+    .filter((e) => e.seq > inFlight)
+    .slice(-BATCH);
   if (!batch.length || !navigator.sendBeacon) return;
   const ok = navigator.sendBeacon(ENDPOINT, new Blob([JSON.stringify({ entries: batch, ua: navigator.userAgent })], { type: 'application/json' }));
   if (ok) {
@@ -184,10 +191,6 @@ function beacon() {
 
 const vis = () => (typeof document !== 'undefined' ? document.visibilityState : 'unknown');
 
-/**
- * Once per page load: report a previous page that died mid-set, log the device, and watch the page
- * lifecycle and uncaught errors. Safe to call more than once.
- */
 /**
  * A page that died mid-set left a "playing" heartbeat that was never closed: log it (once) and send it.
  * The app calls this on every load, so reopening on any page reports it, not only on the Lab.
@@ -207,6 +210,10 @@ export function checkPreviousLabPage() {
   }
 }
 
+/**
+ * Once per page load: report a previous page that died mid-set, log the device, and watch the page
+ * lifecycle and uncaught errors. Safe to call more than once.
+ */
 export function startLabLog() {
   if (!isBrowser() || started) return;
   started = true;

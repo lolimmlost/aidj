@@ -629,7 +629,12 @@ export class LabEngine {
     if (st === 'committed' || st === 'mixing') return;
     labLog('relock', { song: songLabel(track.song), recipe: recipe ? describeRecipe(recipe) : undefined });
     this.cancelNext();
-    this.schedule(track, this.planRecipe(track.song.id, recipe));
+    try {
+      this.schedule(track, this.planRecipe(track.song.id, recipe));
+    } catch (e) {
+      // cancelNext already let go of the old deck: fail visibly rather than show "locked" over nothing
+      this.failLock(track.song, `couldn't schedule: ${(e as Error).message}`, false);
+    }
   }
 
   /**
@@ -670,7 +675,9 @@ export class LabEngine {
     if (this.snap.status !== 'idle') labLog('stop', { tracks: this.snap.history.length });
     const next = this.snap.next;
     if (next?.state === 'mixing' && this.cur && next.placed) {
-      this.set({ history: [...this.snap.history, { song: next.song, at: next.placed.bWhen, plan: next.plan, lock: next.lock, from: this.cur.track.song }] });
+      this.set({
+        history: [...this.snap.history, { song: next.song, at: next.placed.bWhen, plan: next.plan, lock: next.lock, from: this.cur.track.song, recipe: next.recipe }],
+      });
     }
     this.lockToken++;
     this.abortLoad();

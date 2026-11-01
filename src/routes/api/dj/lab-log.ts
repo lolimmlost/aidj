@@ -35,7 +35,9 @@ export async function POST({ request }: { request: Request }) {
     const sid = String(e.sid ?? '?').slice(0, 12);
     const level = typeof e.level === 'string' ? e.level : 'info';
     const data = e.data && typeof e.data === 'object' ? ' ' + JSON.stringify(e.data) : '';
-    console.log(`🎛️ [LAB ${sid}] ${t}${ICON[level] ?? ''} #${Number(e.seq) || 0} ${String(e.ev ?? '').slice(0, 80)}${data}`.slice(0, MAX_LINE));
+    const line = `🎛️ [LAB ${sid}] ${t}${ICON[level] ?? ''} #${Number(e.seq) || 0} ${String(e.ev ?? '').slice(0, 80)}${data}`;
+    // one event per line: a client can't start a fake one
+    console.log(line.replace(/[\r\n]+/g, ' ').slice(0, MAX_LINE));
   }
   return new Response(null, { status: 204 });
 }

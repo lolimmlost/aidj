@@ -75,4 +75,40 @@ describe('Lab flight recorder', () => {
     await vi.advanceTimersByTimeAsync(10_000);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('drops a batch the server refuses instead of retrying it forever', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Forbidden', { status: 403 })));
+    const a = await freshLog();
+    a.labLog('lock failed', { song: 'A' }, 'warn');
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries after a server error', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 502 })));
+    const a = await freshLog();
+    a.labLog('lock failed', { song: 'A' }, 'warn');
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it("the pagehide beacon leaves a flush's batch to it (those lines used to land twice)", async () => {
+    let answer: (r: Response) => void = () => {};
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((r) => (answer = r))));
+    const sendBeacon = vi.fn(() => true);
+    vi.stubGlobal('navigator', { ...navigator, sendBeacon });
+    const a = await freshLog();
+    a.startLabLog();
+    a.labLog('mixing', { song: 'B' }, 'warn');
+    // the flush is in flight with every event so far
+    await vi.advanceTimersByTimeAsync(10);
+    const sent = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]!.body)).entries.map((e: { seq: number }) => e.seq);
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false }));
+    // earlier tests' page loads still listen on this window: this load's beacon is the last one
+    const beaconed = JSON.parse(await (sendBeacon.mock.calls.at(-1) as unknown as [string, Blob])[1].text()).entries.map((e: { seq: number }) => e.seq);
+    expect(beaconed.some((s: number) => sent.includes(s))).toBe(false);
+    // only what came after: the pagehide itself
+    expect(beaconed).toHaveLength(1);
+    answer(new Response(null, { status: 204 }));
+  });
 });
