@@ -1,4 +1,4 @@
-import { AlertTriangle, Pause, Play, SkipForward } from 'lucide-react';
+import { AlertTriangle, Check, Circle, Loader2, Pause, Play, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { barTime } from '@/lib/dj-lab/analysis';
@@ -55,6 +55,7 @@ export function LiveBar({ engine, snap }: { engine: LabEngine; snap: EngineSnaps
           <div className={cn('text-sm font-semibold tabular-nums', frozen && 'text-primary')}>{countdown}</div>
           <div className="text-[10px] text-muted-foreground">{next?.state === 'mixing' ? '' : 'to the mix'}</div>
         </div>
+        <RecButton engine={engine} snap={snap} />
         <Button
           size="icon"
           variant="ghost"
@@ -82,5 +83,48 @@ export function LiveBar({ engine, snap }: { engine: LabEngine; snap: EngineSnaps
         {mixAt !== null && <div className="absolute -top-0.5 h-2 w-0.5 rounded bg-foreground" style={{ left: pct(mixAt / dur) }} title="Mix starts" />}
       </div>
     </div>
+  );
+}
+
+/** Record the set as it plays (#391): ● and the time while it records; tap again to stop and save. */
+function RecButton({ engine, snap }: { engine: LabEngine; snap: EngineSnapshot }) {
+  const r = snap.recording;
+  const live = r && !r.saving && !r.file && !r.error;
+  if (r?.saving) {
+    return (
+      <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground" title="Uploading the last of the recording">
+        <Loader2 className="size-3.5 animate-spin" /> saving
+      </span>
+    );
+  }
+  if (live) {
+    const sec = Math.floor(engine.recordingSeconds() ?? 0);
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          if (window.confirm('Stop recording? It is saved with the tracklist.')) void engine.stopRecording();
+        }}
+        className="flex shrink-0 items-center gap-1 rounded-full bg-destructive/10 px-2 py-1 text-[11px] font-semibold tabular-nums text-destructive"
+        aria-label="Stop recording"
+        title={r.pending ? `${r.pending} chunks waiting to upload` : 'Recording: tap to stop and save'}
+      >
+        <span className="size-2 animate-pulse rounded-full bg-destructive" />
+        {fmtTime(sec)}
+        {r.pending > 2 ? ` · ${r.pending}↑` : ''}
+      </button>
+    );
+  }
+  return (
+    <Button
+      size="icon"
+      variant="ghost"
+      className="size-8 shrink-0"
+      onClick={() => engine.startRecording()}
+      aria-label="Record the set"
+      title={r?.file ? `Last recording saved (${r.file}). Tap to record again` : r?.error ? `Last recording failed: ${r.error}` : 'Record the set as it plays'}
+    >
+      {r?.file ? <Check className="size-4 text-primary" /> : r?.error ? <AlertTriangle className="size-4 text-warning" /> : <Circle className="size-4 fill-destructive text-destructive" />}
+    </Button>
   );
 }

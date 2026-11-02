@@ -96,9 +96,10 @@ export function createDeck(ctx: BaseAudioContext, buffer: AudioBuffer, dest: Aud
 
 /**
  * Master bus: headroom for two overlapping decks → compressor → trim (Chrome's compressor adds its
- * own makeup gain) → soft clip that's linear below 0.8 and never passes 0.98. Returns its input.
+ * own makeup gain) → soft clip that's linear below 0.8 and never passes 0.98. Returns its input, and its
+ * output (what the speakers get) for a live-set recording (#391).
  */
-export function createMaster(ctx: BaseAudioContext): GainNode {
+export function createMaster(ctx: BaseAudioContext): { input: GainNode; output: AudioNode } {
   const input = ctx.createGain();
   input.gain.value = 0.6;
   const comp = ctx.createDynamicsCompressor();
@@ -123,7 +124,7 @@ export function createMaster(ctx: BaseAudioContext): GainNode {
   comp.connect(trim);
   trim.connect(clip);
   clip.connect(ctx.destination);
-  return input;
+  return { input, output: clip };
 }
 
 export function disposeDeck(deck: DeckNodes) {

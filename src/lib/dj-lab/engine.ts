@@ -17,6 +17,7 @@ import { createDeck, createMaster, disposeDeck, placeTransition, releaseBuffer, 
 import { measureLock, type LockResult } from './lock';
 import { describeRecipe, planJump, planTransition, type MixMode, type Recipe, type TransitionPlan } from './plan';
 import { labBeat, labBusy, labLog } from './log';
+import { recordingSupported, SetRecorder, type TrackStart } from './record';
 import { cuesOf, saveSet } from './sets';
 
 export interface LoadedTrack {
@@ -116,6 +117,8 @@ export interface EngineSnapshot {
    * locked when the one before it takes over, auto-lock on or off (you picked it).
    */
   queue: LabSong[];
+  /** the live set being recorded (#391), or the last one saved / failed */
+  recording?: { id: string; startedAt: number; chunks: number; pending: number; saving?: boolean; file?: string; error?: string };
 }
 
 /** while a set should be playing but iOS has stopped its audio, try to resume this often */
@@ -165,6 +168,9 @@ const timeAt = (d: LiveDeck, p: number) => d.ctxStart + (p - d.trackStart) / d.r
 export class LabEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  /** what the speakers get (after the compressor and soft clip): a recording taps it */
+  private masterOut: AudioNode | null = null;
+  private recorder: SetRecorder | null = null;
   private cur: LiveDeck | null = null;
   private nxt: LiveDeck | null = null;
   private nextTrack: LoadedTrack | null = null;
@@ -271,7 +277,9 @@ export class LabEngine {
     if (!this.ctx) {
       const ctx = new AudioContext({ latencyHint: 'playback' });
       this.ctx = ctx;
-      this.master = createMaster(ctx);
+      const master = createMaster(ctx);
+      this.master = master.input;
+      this.masterOut = master.output;
       // keep playing with the screen locked where Safari allows it
       const nav = navigator as Navigator & { audioSession?: { type: string } };
       if (nav.audioSession) nav.audioSession.type = 'playback';
@@ -727,8 +735,54 @@ export class LabEngine {
     void this.lock(song, undefined, false, true);
   }
 
+  /** Record the set as it plays (#391): the master output, uploaded as it goes. */
+  startRecording() {
+    if (this.recorder || !this.ctx || !this.masterOut || this.snap.status === 'idle') return;
+    if (!recordingSupported()) {
+      this.set({ message: "This browser can't record audio" });
+      return;
+    }
+    try {
+      const rec = new SetRecorder(this.ctx, this.masterOut, () => this.syncRecording());
+      this.recorder = rec;
+      this.syncRecording();
+    } catch (e) {
+      labLog('recording failed to start', { error: (e as Error).message }, 'warn');
+      this.set({ recording: undefined, message: `Couldn't record: ${(e as Error).message}` });
+    }
+  }
+
+  /** Stop recording and save it with the tracklist: each song with the second it started in the recording. */
+  async stopRecording() {
+    const rec = this.recorder;
+    if (!rec) return;
+    this.recorder = null;
+    const tracklist: TrackStart[] = [];
+    for (const h of this.snap.history) {
+      const at = h.at - rec.ctxStart;
+      const song = `${h.song.artist} – ${h.song.title}`;
+      // the song playing when the recording started opens its tracklist at 0
+      if (at <= 0) tracklist.splice(0, tracklist.length, { at: 0, song });
+      else tracklist.push({ at: Math.round(at), song });
+    }
+    this.set({ recording: { id: rec.id, startedAt: rec.startedAt, chunks: rec.chunks, pending: rec.pending, saving: true } });
+    const out = await rec.stop(tracklist);
+    this.set({ recording: { id: rec.id, startedAt: rec.startedAt, chunks: rec.chunks, pending: rec.pending, ...out } });
+  }
+
+  /** Seconds recorded so far, on the audio clock (it stands still while the set is paused), or null. */
+  recordingSeconds(): number | null {
+    return this.recorder && this.ctx ? Math.max(0, this.ctx.currentTime - this.recorder.ctxStart) : null;
+  }
+
+  private syncRecording() {
+    const rec = this.recorder;
+    if (rec) this.set({ recording: { id: rec.id, startedAt: rec.startedAt, chunks: rec.chunks, pending: rec.pending } });
+  }
+
   pause() {
     if (this.ctx && this.snap.status === 'playing') {
+      this.recorder?.pause();
       labLog('pause');
       void this.ctx.suspend();
       this.set({ status: 'paused' });
@@ -737,6 +791,7 @@ export class LabEngine {
 
   resume() {
     if (this.ctx && this.snap.status === 'paused') {
+      this.recorder?.resume();
       labLog('resume', { ctx: this.ctx.state });
       this.onBeforePlay?.();
       void this.ctx.resume();
@@ -746,6 +801,8 @@ export class LabEngine {
 
   stop() {
     if (this.snap.status !== 'idle') labLog('stop', { tracks: this.snap.history.length });
+    // the set's over: so is its recording (saved with the tracklist so far)
+    if (this.recorder) void this.stopRecording();
     const next = this.snap.next;
     if (next?.state === 'mixing' && this.cur && next.placed) {
       this.set({

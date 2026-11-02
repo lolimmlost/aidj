@@ -57,7 +57,7 @@ export async function renderVariant(A: LoadedTrack, B: LoadedTrack, setBpm: numb
   const tEntry = pre * barSec;
   const len = (pre + Math.max(plan.N + 1, plan.S + 4) + POST_BARS) * barSec;
   const ctx = new OfflineAudioContext(2, Math.ceil(len * SR), SR);
-  const master = createMaster(ctx);
+  const master = createMaster(ctx).input;
   const ref = dropLevelDb(a);
   const trim = (x: number) => Math.max(-6, Math.min(6, x));
   const deckA = createDeck(ctx, A.buffer, master, 0);
