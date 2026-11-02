@@ -273,6 +273,10 @@ function DJLab() {
                   <Switch checked={snap.defaults.openerPlaysOut} onCheckedChange={(v) => engine.setDefaults({ openerPlaysOut: v })} />
                   Opener plays out
                 </label>
+                <label className="flex items-center gap-1.5" title="Short builds (8 bars at most) and a 2-bar cut before each drop. Off: 16-bar swaps and a 4-bar cut">
+                  <Switch checked={snap.defaults.hard} onCheckedChange={(v) => engine.setDefaults({ hard: v })} />
+                  Hard
+                </label>
                 <label className="flex items-center gap-1.5" title="Next songs come in on their first drop instead of their main drop">
                   <Switch checked={snap.defaults.preferFirstDrop} onCheckedChange={(v) => engine.setDefaults({ preferFirstDrop: v })} />
                   1st drops

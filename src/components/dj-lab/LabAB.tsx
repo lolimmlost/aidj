@@ -155,7 +155,7 @@ export function LabAB({ engine, snap, pool }: { engine: LabEngine; snap: EngineS
       setBusy('Loading both tracks…');
       const [ta, tb] = await Promise.all([load(A), load(B)]);
       setBusy('Rendering both variants…');
-      const res = await renderPair(ta, tb, snap.setBpm, snap.mode, factor);
+      const res = await renderPair(ta, tb, snap.setBpm, snap.mode, factor, snap.defaults.hard);
       if (typeof res === 'string') {
         toast.info(res);
         return;

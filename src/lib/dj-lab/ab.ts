@@ -39,14 +39,14 @@ const SR = 44100;
 const PRE_BARS = 8;
 const POST_BARS = 8;
 
-/** Plan A → B as if A came in at its entry drop (an A/B isn't tied to the live position). */
-export function planVariant(A: LoadedTrack, B: LoadedTrack, mode: MixMode, setBpm: number, recipe: Recipe) {
-  return planTransition(A.analysis, B.analysis, { mode, fromBar: 0, floorBar: A.analysis.de, setBpm, recipe });
+/** Plan A → B as if A came in at its entry drop (an A/B isn't tied to the live position), with the set's hard default. */
+export function planVariant(A: LoadedTrack, B: LoadedTrack, mode: MixMode, setBpm: number, recipe: Recipe, hard = false) {
+  return planTransition(A.analysis, B.analysis, { mode, fromBar: 0, floorBar: A.analysis.de, setBpm, recipe, hard });
 }
 
 /** Render one variant: 8 bars of A before the blend, the blend, 8 bars of B after it. */
-export async function renderVariant(A: LoadedTrack, B: LoadedTrack, setBpm: number, label: string, recipe: Recipe, mode: MixMode): Promise<Variant | null> {
-  const plan = planVariant(A, B, mode, setBpm, recipe);
+export async function renderVariant(A: LoadedTrack, B: LoadedTrack, setBpm: number, label: string, recipe: Recipe, mode: MixMode, hard = false): Promise<Variant | null> {
+  const plan = planVariant(A, B, mode, setBpm, recipe, hard);
   if (!plan) return null;
   const a = A.analysis;
   const rateA = setBpm / a.bpm;
@@ -78,10 +78,10 @@ const same = (p: TransitionPlan, q: TransitionPlan) =>
   p.kind === q.kind && p.N === q.N && p.bass === q.bass && p.kill === q.kill && p.depth === q.depth && p.entryA === q.entryA && p.cueB === q.cueB && p.hold === q.hold;
 
 /** Both variants of a factor, or a reason it doesn't apply to this pair. */
-export async function renderPair(A: LoadedTrack, B: LoadedTrack, setBpm: number, mode: MixMode, factor: Factor): Promise<Variant[] | string> {
+export async function renderPair(A: LoadedTrack, B: LoadedTrack, setBpm: number, mode: MixMode, factor: Factor, hard = false): Promise<Variant[] | string> {
   const out: Variant[] = [];
   for (const [label, recipe] of FACTORS[factor].variants) {
-    const v = await renderVariant(A, B, setBpm, label, recipe, mode);
+    const v = await renderVariant(A, B, setBpm, label, recipe, mode, hard);
     if (!v) return `No ${label} transition fits this pair`;
     out.push(v);
   }

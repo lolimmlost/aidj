@@ -89,7 +89,7 @@ export function previewQueue(
   from: { song: LabSong; analysis: TrackAnalysis } | undefined,
   queue: LabSong[],
   analyses: Map<string, TrackAnalysis>,
-  opts: { setBpm: number; mode: MixMode },
+  opts: { setBpm: number; mode: MixMode; hard?: boolean },
 ): QueuePreview[] {
   let bpm = opts.setBpm;
   let A = from ? fitOctave(from.analysis, bpm) : undefined;
@@ -105,7 +105,7 @@ export function previewQueue(
     const prev = A;
     A = B;
     if (!prev) return { song, line: 'after a song not analysed yet', bpm };
-    const o = { mode: opts.mode, fromBar: prev.de, floorBar: prev.de, setBpm: bpm };
+    const o = { mode: opts.mode, fromBar: prev.de, floorBar: prev.de, setBpm: bpm, hard: opts.hard };
     const plan = jump ? planJump(prev, B, o) : planTransition(prev, B, o);
     if (plan?.jump) bpm = Math.round(plan.jump.toBpm * 10) / 10;
     return { song, plan: plan ?? undefined, line: plan ? planSummary(plan) : 'no exit left in the song before', bpm };

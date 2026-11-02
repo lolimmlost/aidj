@@ -102,7 +102,16 @@ export interface PlanOptions {
   /** the set tempo during the blend */
   setBpm: number;
   recipe?: Recipe;
+  /**
+   * Hard transitions (a set default, on unless switched off): builds of 8 bars at most and a 2-bar cut before
+   * B's drop (4 above 150 BPM). Juan, live: long swaps were "too lax", "kinda lost energy", "should not be a
+   * slow sweep"; every short chain landed. A recipe's own bars / kill still win.
+   */
+  hard?: boolean;
 }
+
+/** bars of A's bass cut before B's drop, when the recipe doesn't say */
+const defaultKill = (o: PlanOptions) => (o.hard ? (o.setBpm > 150 ? 4 : 2) : o.setBpm > 150 ? 8 : 4);
 
 const floor4 = (n: number) => Math.floor(n / 4) * 4;
 
@@ -138,7 +147,7 @@ export function planDropchain(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOpti
   // A's drop sections from its entry drop on: the first exit that's still ahead of `fromBar` wins
   const base = opts.floorBar > 0 ? opts.floorBar : A.de;
   const sectionStarts = [...new Set([base, ...A.drops.filter((d) => d > base)])].sort((x, y) => x - y);
-  const kill = r.kill ?? (opts.setBpm > 150 ? 8 : 4);
+  const kill = r.kill ?? defaultKill(opts);
   for (const d of sectionStarts) {
     const nxt = A.drops.filter((x) => d + 32 <= x && x <= d + 96 && x <= A.last - 1);
     const E1 = dropSectionEnd(A, d, hiA);
@@ -155,7 +164,7 @@ export function planDropchain(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOpti
     const swap = forced ? forced === 'swap' && nxt.length > 0 : ruleSwap;
     const kind: TransitionKind = swap ? 'swap' : 'chain';
     const Dx = swap ? nxt[0] : E1;
-    const Nmax = r.bars ?? (swap ? 16 : 8);
+    const Nmax = r.bars ?? (swap && !opts.hard ? 16 : 8);
     // the opener has no entry blend, so its first exit blend may reach back to bar 0
     const floor = opts.floorBar === 0 && d === sectionStarts[0] ? 0 : d;
     // B from the top: its own intro, no build length limit; otherwise the build before the chosen drop
@@ -294,7 +303,7 @@ export function planPlayOut(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOption
     S = N >= 24 ? 8 : 4;
     cueB = B.first;
   } else {
-    N = r.bars ?? Math.max(4, Math.min(A.outro >= 32 ? 32 : 16, floor4(target - B.first)));
+    N = r.bars ?? Math.max(4, Math.min(opts.hard ? 8 : A.outro >= 32 ? 32 : 16, floor4(target - B.first)));
     S = N;
     cueB = Math.max(0, target - N);
   }
@@ -310,7 +319,7 @@ export function planPlayOut(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOption
     cueB,
     bass: r.bass ?? (onDrop || N >= 24 ? 'swap' : 'sweep'),
     // a drop entry keeps the deep pre-drop break (rule 2); an intro blend swaps over one bar
-    kill: Math.min(r.kill ?? (onDrop ? (opts.setBpm > 150 ? 8 : 4) : 1), N),
+    kill: Math.min(r.kill ?? (onDrop ? defaultKill(opts) : 1), N),
     hold: 0,
     endA: entryA + N + 1,
     deB: target ?? B.de,

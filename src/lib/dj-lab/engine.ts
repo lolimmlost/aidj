@@ -42,10 +42,12 @@ export interface LabDefaults {
   tempoUp: number;
   /** phones: hold the decks in mono, half the memory */
   phoneMono: boolean;
+  /** hard transitions: builds of 8 bars at most, a 2-bar cut before each drop (plan.ts PlanOptions.hard) */
+  hard: boolean;
 }
 
 const DEFAULTS_KEY = 'aidj:dj-lab:defaults';
-const NO_DEFAULTS: LabDefaults = { openerPlaysOut: false, preferFirstDrop: false, tempoDown: 4, tempoUp: 4, phoneMono: false };
+const NO_DEFAULTS: LabDefaults = { openerPlaysOut: false, preferFirstDrop: false, tempoDown: 4, tempoUp: 4, phoneMono: false, hard: true };
 
 export interface NextInfo {
   song: LabSong;
@@ -544,6 +546,7 @@ export class LabEngine {
       floorBar: this.snap.now?.floorBar ?? 0,
       setBpm: this.snap.setBpm,
       recipe,
+      hard: this.snap.defaults.hard,
     };
     const plan = jump ? planJump(A, B, opts) : planTransition(A, B, opts);
     if (!plan) {
