@@ -3,15 +3,15 @@
  * never holds a whole set (a 2-hour set at 192 kbps is ~170 MB). A `finish` call joins the chunks into one file
  * next to a JSON with the tracklist. Admin only, like the Lab.
  *
- * Files go to LAB_RECORDINGS_DIR (default /app/recordings): give the container a persistent volume there, or a
- * redeploy loses them.
+ * Files go to LAB_RECORDINGS_DIR, default /storage/recordings: /storage is the app's persistent Coolify mount
+ * (/data/coolify/applications/aidj on .227). Anywhere else in the container, a redeploy loses them.
  */
 import { createFileRoute } from '@tanstack/react-router';
 import { mkdir, readdir, readFile, rm, writeFile, appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { auth } from '~/lib/auth/auth';
 
-const DIR = process.env.LAB_RECORDINGS_DIR || '/app/recordings';
+const DIR = process.env.LAB_RECORDINGS_DIR || '/storage/recordings';
 /** a chunk is ~240 KB at 192 kbps; anything far bigger isn't one */
 const MAX_CHUNK = 8 * 1024 * 1024;
 const EXT: Record<string, string> = { 'audio/mp4': 'm4a', 'audio/webm': 'webm', 'audio/ogg': 'ogg' };
