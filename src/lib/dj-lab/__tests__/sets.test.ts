@@ -22,7 +22,10 @@ describe('replayRecipe', () => {
 describe('cuesOf', () => {
   it('keeps where the transition sat on both bar grids', () => {
     const plan = { mode: 'dropchain', kind: 'swap', N: 8, S: 8, entryA: 96, cueB: 24, bass: 'swap', kill: 2, hold: 0, endA: 104, deB: 32, lift: null, breakdown: null, how: 'x' } as TransitionPlan;
-    expect(cuesOf(plan)).toEqual({ kind: 'swap', entryA: 96, cueB: 24, N: 8, S: 8, kill: 2, bass: 'swap', endA: 104, deB: 32 });
+    expect(cuesOf(plan)).toEqual({ kind: 'swap', entryA: 96, cueB: 24, N: 8, S: 8, kill: 2, bass: 'swap', endA: 104, deB: 32, hold: 0 });
+    // a tempo jump keeps its tempos, so an offline render (#392) can play B at its own tempo
+    const jump = { ...plan, kind: 'jump', jump: { fromBpm: 126, toBpm: 150, fadeB: 6 } } as TransitionPlan;
+    expect(cuesOf(jump).jump).toEqual({ fromBpm: 126, toBpm: 150, fadeB: 6 });
   });
 });
 

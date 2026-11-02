@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAudioStore } from '@/lib/stores/audio';
 import { findSongs, isPhone, listCrates, MAX_STRETCH } from '@/lib/dj-lab/crate';
-import { replayRecipe, setWhen, type SavedSet } from '@/lib/dj-lab/sets';
+import { replayRecipe, setWhen, syncSets, type SavedSet } from '@/lib/dj-lab/sets';
 import { fitOctave, meterName } from '@/lib/dj-lab/analysis';
 import type { LabEngine, ReplayEntry } from '@/lib/dj-lab/engine';
 import { loadVotes } from '@/lib/dj-lab/votes';
@@ -77,6 +77,8 @@ function DJLab() {
   useEffect(() => watchAppPlayer(engine), [engine]);
   useEffect(() => engine.loadDefaults(), [engine]);
   useEffect(() => startLabLog(), []);
+  // a copy of every saved set on the server, for offline renders (#392)
+  useEffect(() => syncSets(), []);
 
   // auto-lock: a transition you liked first, then the best pick in the tempo window, and so on (autoPick)
   const starred = useStarredIds();

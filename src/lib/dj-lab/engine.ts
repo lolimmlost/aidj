@@ -260,6 +260,8 @@ export class LabEngine {
         choice: h.recipe ? describeRecipe(h.recipe) || undefined : undefined,
         recipe: h.recipe,
         cues: h.plan ? cuesOf(h.plan) : undefined,
+        // the lock correction B was placed with (placeTransition uses one when verified or 3+ points)
+        ...(h.lock && (h.lock.verified || h.lock.points >= 3) ? { lockShift: h.lock.shift, lockDrift: h.lock.drift } : {}),
       })),
     });
   }
