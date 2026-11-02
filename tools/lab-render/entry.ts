@@ -64,7 +64,17 @@ type Emit = (b64: string) => Promise<void>;
  * transition played before it existed: an 8-bar build and a 2-bar cut (4 above 150 BPM), B's drop on the same A bar,
  * so B and everything after it keep their live timing.
  */
-export type Fixes = Record<number, { hard?: boolean }>;
+export type Fixes = Record<number, { hard?: boolean; cut?: boolean }>;
+
+/**
+ * A hard cut over (Juan, Live Set 2 at 32:00, Feels Better -> Welcome Home: "should be a hard cut over"): no build
+ * layered over A; A runs whole to B's drop, then B at full and A gone within the bar. Same drop, same timing after.
+ */
+function cutOver(p: TransitionPlan): TransitionPlan {
+  if (p.jump) return p;
+  const drop = p.entryA + p.S;
+  return { ...p, N: 0, S: 0, entryA: drop, cueB: p.cueB + p.S, kill: 0, hold: 0, endA: drop + 1, how: `${p.how}, cut over` };
+}
 
 /** A plan made harder in place: the build starts later, the drop stays where it was. */
 function harden(p: TransitionPlan, setBpm: number): TransitionPlan {
@@ -176,6 +186,7 @@ export async function renderSet(set: SavedSet, bpmTags: Record<string, number | 
     }
     if (!plan) throw new Error(`no transition into ${label(t)}`);
     if (fixes[k]?.hard) plan = harden(plan, setBpm);
+    if (fixes[k]?.cut) plan = cutOver(plan);
     // the beat lock: as saved, else measured on the decoded audio the way the engine does
     let lock: { shift: number; drift: number } | null = null;
     let lockNote = 'none';
@@ -215,7 +226,7 @@ export async function renderSet(set: SavedSet, bpmTags: Record<string, number | 
       kind: plan.kind,
       bars: plan.N,
       at: Math.round(p.bWhen),
-      planned: fixes[k]?.hard ? (`${planned}, made hard` as 'cues') : planned,
+      planned: fixes[k]?.cut ? (`${planned}, cut over` as 'cues') : fixes[k]?.hard ? (`${planned}, made hard` as 'cues') : planned,
       lock: lockNote,
       jump: plan.jump ? `${plan.jump.fromBpm} → ${round1(plan.jump.toBpm)}` : undefined,
     });
