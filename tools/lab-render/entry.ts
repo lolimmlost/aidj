@@ -59,6 +59,20 @@ export interface RenderReport {
 
 type Emit = (b64: string) => Promise<void>;
 
+/**
+ * Fixes for transitions Juan flagged, by the index of the song they bring in. `hard`: the Lab's Hard default on a
+ * transition played before it existed: an 8-bar build and a 2-bar cut (4 above 150 BPM), B's drop on the same A bar,
+ * so B and everything after it keep their live timing.
+ */
+export type Fixes = Record<number, { hard?: boolean }>;
+
+/** A plan made harder in place: the build starts later, the drop stays where it was. */
+function harden(p: TransitionPlan, setBpm: number): TransitionPlan {
+  if (p.jump || p.N <= 8 || !['swap', 'chain', 'playout'].includes(p.kind)) return { ...p, kill: Math.min(p.kill, setBpm > 150 ? 4 : 2) };
+  const cut = p.N - 8;
+  return { ...p, N: 8, S: p.S - cut, entryA: p.entryA + cut, cueB: p.cueB + cut, kill: Math.min(p.kill, setBpm > 150 ? 4 : 2), hold: Math.min(p.hold, 4), how: `${p.how}, made hard` };
+}
+
 const label = (t: SavedTrack) => `${t.artist} – ${t.title}`;
 const round1 = (v: number) => Math.round(v * 10) / 10;
 
@@ -112,7 +126,7 @@ async function renderWindow(decks: Deck[], w0: number, w1: number, emit: Emit) {
   }
 }
 
-export async function renderSet(set: SavedSet, bpmTags: Record<string, number | undefined>, emit: Emit, maxTracks = Infinity): Promise<RenderReport> {
+export async function renderSet(set: SavedSet, bpmTags: Record<string, number | undefined>, emit: Emit, maxTracks = Infinity, fixes: Fixes = {}): Promise<RenderReport> {
   const tracks = set.tracks.slice(0, maxTracks);
   let setBpm = set.setBpm;
   const report: RenderReport = { tracks: tracks.length, seconds: 0, windows: 0, transitions: [], tracklist: [] };
@@ -161,6 +175,7 @@ export async function renderSet(set: SavedSet, bpmTags: Record<string, number | 
       plan = jump ? planJump(A, B.analysis, o) : planTransition(A, B.analysis, o);
     }
     if (!plan) throw new Error(`no transition into ${label(t)}`);
+    if (fixes[k]?.hard) plan = harden(plan, setBpm);
     // the beat lock: as saved, else measured on the decoded audio the way the engine does
     let lock: { shift: number; drift: number } | null = null;
     let lockNote = 'none';
@@ -200,7 +215,7 @@ export async function renderSet(set: SavedSet, bpmTags: Record<string, number | 
       kind: plan.kind,
       bars: plan.N,
       at: Math.round(p.bWhen),
-      planned,
+      planned: fixes[k]?.hard ? (`${planned}, made hard` as 'cues') : planned,
       lock: lockNote,
       jump: plan.jump ? `${plan.jump.fromBpm} → ${round1(plan.jump.toBpm)}` : undefined,
     });

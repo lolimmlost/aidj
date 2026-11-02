@@ -1,5 +1,6 @@
 // Offline render of a saved Lab set through the Lab's own engine (#392).
-// node tools/lab-render/render.mjs <set.json> <out.wav> [--tracks N] [--cache DIR]
+// node tools/lab-render/render.mjs <set.json> <out.wav> [--tracks N] [--cache DIR] [--hard 19,27]
+// --hard: song numbers (1-based, as in the tracklist) whose transition in gets the Lab's Hard default, drop unmoved.
 // Env: NAVIDROME_URL (default http://10.0.0.30:4533), NN / NP (Navidrome user / password) to fetch the songs.
 // Writes <out.wav> (44.1 kHz 16-bit stereo) and <out.wav>.json (the report: transitions as planned, tracklist).
 import { build } from 'esbuild';
@@ -17,6 +18,8 @@ const opt = (name, dflt) => {
 };
 const maxTracks = Number(opt('tracks', Infinity));
 const cache = opt('cache', path.join(here, '.cache'));
+const fixes = {};
+for (const n of String(opt('hard', '')).split(',').filter(Boolean)) fixes[Number(n) - 1] = { hard: true };
 const [setFile, outFile] = args;
 if (!setFile || !outFile) {
   console.error('usage: render.mjs <set.json> <out.wav> [--tracks N] [--cache DIR]');
@@ -78,8 +81,8 @@ await page.exposeFunction('emitPCM', (b64) => {
 await page.goto('http://lab.local/');
 const t0 = Date.now();
 const report = await page.evaluate(
-  ({ set, bpmTags, maxTracks }) => window.renderSet(set, bpmTags, (b64) => window.emitPCM(b64), maxTracks),
-  { set, bpmTags, maxTracks: Number.isFinite(maxTracks) ? maxTracks : 1e9 },
+  ({ set, bpmTags, maxTracks, fixes }) => window.renderSet(set, bpmTags, (b64) => window.emitPCM(b64), maxTracks, fixes),
+  { set, bpmTags, maxTracks: Number.isFinite(maxTracks) ? maxTracks : 1e9, fixes },
 );
 await browser.close();
 
