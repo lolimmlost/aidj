@@ -109,6 +109,11 @@ export interface EngineSnapshot {
   audio?: string;
   /** a previous set played again: auto-lock follows its order until it runs out */
   replay?: ReplayInfo;
+  /**
+   * Songs to play after the locked one, in order (#373). Only the locked song is decoded; each queued one is
+   * locked when the one before it takes over, auto-lock on or off (you picked it).
+   */
+  queue: LabSong[];
 }
 
 /** while a set should be playing but iOS has stopped its audio, try to resume this often */
@@ -168,6 +173,8 @@ export class LabEngine {
   private skipped = new Set<string>();
   /** the rest of a replayed set, in order */
   private replayQueue: ReplayEntry[] = [];
+  /** the locked song came off the queue: replacing it puts it back in front, failing moves on to the next */
+  private lockedFromQueue: string | null = null;
   /** auto-picks that failed in a row; auto-lock pauses at AUTO_FAIL_LIMIT */
   private autoFails = 0;
   private setId = '';
@@ -194,6 +201,7 @@ export class LabEngine {
     choices: {},
     pinned: [],
     defaults: NO_DEFAULTS,
+    queue: [],
   };
   /** picks the next song when auto-lock is on (the page ranks the crate) */
   private pickNext: ((now: NowInfo, played: Set<string>) => LabSong | null) | null = null;
@@ -437,7 +445,7 @@ export class LabEngine {
     this.skipped.clear();
     this.autoFails = 0;
     this.replayQueue = replay?.entries ?? [];
-    this.set({ choices: {}, pinned: [], replay: replay ? { name: replay.name, songIds: [song.id, ...replay.entries.map((e) => e.song.id)] } : undefined });
+    this.set({ choices: {}, pinned: [], queue: [], replay: replay ? { name: replay.name, songIds: [song.id, ...replay.entries.map((e) => e.song.id)] } : undefined });
     if (replay) labLog('replay', { set: replay.name, songs: replay.entries.length + 1 });
     this.setId = `${Date.now().toString(36)}`;
     this.setStartedAt = new Date().toISOString();
@@ -480,13 +488,23 @@ export class LabEngine {
   }
 
   /** Lock `song` as the next track: decode, plan, check the lock, schedule. */
-  async lock(song: LabSong, recipe?: Recipe, auto = false) {
+  async lock(song: LabSong, recipe?: Recipe, auto = false, fromQueue = false) {
     if (!this.cur || !this.ctx) return;
     const st = this.snap.next?.state;
     if (st === 'committed' || st === 'mixing') return;
-    // swapping out the locked song (often the auto-pick) means you didn't want it: don't re-pick it
-    const replaced = this.snap.next?.song.id;
-    if (replaced && replaced !== song.id) this.skipped.add(replaced);
+    const replaced = this.snap.next?.song;
+    let queue = this.snap.queue.filter((q) => q.id !== song.id);
+    if (replaced && replaced.id !== song.id) {
+      // a queued song you lock past goes back to the front of the queue
+      if (this.lockedFromQueue === replaced.id) {
+        if (!queue.some((q) => q.id === replaced.id)) queue = [replaced, ...queue];
+      } else if (!queue.some((q) => q.id === replaced.id)) {
+        // swapping out the locked song (often the auto-pick) means you didn't want it: don't re-pick it
+        this.skipped.add(replaced.id);
+      }
+    }
+    if (queue.length !== this.snap.queue.length || queue.some((q, i) => q !== this.snap.queue[i])) this.set({ queue });
+    this.lockedFromQueue = fromQueue ? song.id : null;
     this.cancelNext();
     const token = ++this.lockToken;
     labLog('lock', { song: songLabel(song), auto });
@@ -582,7 +600,9 @@ export class LabEngine {
   private failLock(song: LabSong, error: string, auto: boolean) {
     labLog('lock failed', { song: songLabel(song), error, auto, autoFails: this.autoFails }, 'warn');
     this.skipped.add(song.id);
-    if (auto && this.snap.autoLock && this.pickNext && ++this.autoFails < AUTO_FAIL_LIMIT) {
+    // a queued song that can't lock gives its turn to the next queued one
+    const fromQueue = this.lockedFromQueue === song.id;
+    if (auto && (fromQueue || (this.snap.autoLock && this.pickNext)) && ++this.autoFails < AUTO_FAIL_LIMIT) {
       this.set({ next: undefined, message: `Skipped ${song.title}: ${error}` });
       this.maybeAutoLock();
       return;
@@ -652,6 +672,56 @@ export class LabEngine {
     labLog('replay ended', { set: this.snap.replay.name, played: this.snap.history.length });
     this.replayQueue = [];
     this.set({ replay: undefined });
+  }
+
+  /** Queue songs after the locked one (#373). With nothing locked, the first locks at once. */
+  enqueue(songs: LabSong[]) {
+    const taken = new Set([this.snap.now?.song.id, this.snap.next?.song.id, ...this.snap.queue.map((q) => q.id)]);
+    const add = songs.filter((s, i) => !taken.has(s.id) && songs.findIndex((x) => x.id === s.id) === i);
+    if (!add.length) return;
+    // queuing a song you skipped earlier means you want it after all
+    for (const s of add) this.skipped.delete(s.id);
+    this.set({ queue: [...this.snap.queue, ...add] });
+    labLog('queue', { add: add.map(songLabel), queued: this.snap.queue.length });
+    this.maybeAutoLock();
+  }
+
+  dequeue(id: string) {
+    const song = this.snap.queue.find((q) => q.id === id);
+    if (!song) return;
+    labLog('dequeue', { song: songLabel(song) });
+    this.set({ queue: this.snap.queue.filter((q) => q.id !== id) });
+  }
+
+  /** Move a queued song up (-1) or down (+1). */
+  moveQueued(id: string, by: -1 | 1) {
+    const q = [...this.snap.queue];
+    const i = q.findIndex((s) => s.id === id);
+    const j = i + by;
+    if (i < 0 || j < 0 || j >= q.length) return;
+    [q[i], q[j]] = [q[j], q[i]];
+    this.set({ queue: q });
+  }
+
+  /**
+   * Play a queued song next: it takes the locked song's place while there's still time (that one goes back to
+   * the front of the queue); once the blend is committed it moves to the front of the queue.
+   */
+  playNext(id: string) {
+    const song = this.snap.queue.find((q) => q.id === id);
+    if (!song) return;
+    const st = this.snap.next?.state;
+    const rest = this.snap.queue.filter((q) => q.id !== id);
+    if (st === 'committed' || st === 'mixing' || !this.cur) {
+      this.set({ queue: [song, ...rest] });
+      return;
+    }
+    const displaced = this.snap.next?.song;
+    labLog('play next', { song: songLabel(song), displaced: displaced ? songLabel(displaced) : undefined });
+    this.set({ queue: displaced && displaced.id !== id ? [displaced, ...rest] : rest });
+    // the displaced song is queued now, so lock() won't count it as skipped
+    this.lockedFromQueue = null;
+    void this.lock(song, undefined, false, true);
   }
 
   pause() {
@@ -868,11 +938,20 @@ export class LabEngine {
     this.maybeAutoLock();
   }
 
-  /** With auto-lock on and nothing locked, lock the best pick (also called when the crate grows). */
+  /**
+   * With nothing locked: lock the front of the queue, or with auto-lock on the best pick (also called when the
+   * crate grows).
+   */
   maybeAutoLock() {
-    if (!this.snap.autoLock || !this.snap.now || this.snap.next || this.snap.status !== 'playing') return;
+    if (!this.snap.now || this.snap.next || this.snap.status !== 'playing') return;
     if (this.autoFails >= AUTO_FAIL_LIMIT) return;
     const played = new Set([...this.snap.history.map((h) => h.song.id), ...this.skipped]);
+    const front = this.snap.queue.find((s) => !played.has(s.id));
+    if (front) {
+      void this.lock(front, undefined, true, true);
+      return;
+    }
+    if (!this.snap.autoLock) return;
     // a replay locks its next song not played or skipped yet; once it runs out, the set carries on
     const queued = this.replayQueue.find((e) => !played.has(e.song.id));
     if (this.snap.replay && !queued) this.endReplay();

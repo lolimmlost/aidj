@@ -537,3 +537,8 @@ export function describeRecipe(r: Recipe): string {
     .filter(Boolean)
     .join(' · ');
 }
+
+/** "chain, 16 bars" / "tempo jump 150 → 124": a transition in a few words */
+export function planSummary(plan: TransitionPlan): string {
+  return plan.jump ? `tempo jump ${plan.jump.fromBpm} → ${plan.jump.toBpm.toFixed(1)}` : `${plan.kind}, ${plan.N} bars`;
+}
