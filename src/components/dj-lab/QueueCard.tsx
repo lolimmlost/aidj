@@ -25,7 +25,10 @@ export function QueueCard({ engine, snap, pool, starred, votes }: { engine: LabE
     [next, now],
   );
   const setBpm = next?.plan?.jump ? Math.round(next.plan.jump.toBpm * 10) / 10 : snap.setBpm;
-  const previews = useMemo(() => previewQueue(from, snap.queue, analyses, { setBpm, mode: snap.mode }), [from, snap.queue, analyses, setBpm, snap.mode]);
+  const previews = useMemo(
+    () => previewQueue(from, snap.queue, analyses, { setBpm, mode: snap.mode, hard: snap.defaults.hard }),
+    [from, snap.queue, analyses, setBpm, snap.mode, snap.defaults.hard],
+  );
   // a liked run carries on from the end of the queue
   const run = useMemo(() => {
     const last = snap.queue.at(-1);

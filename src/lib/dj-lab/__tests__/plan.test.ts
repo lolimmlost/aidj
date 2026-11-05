@@ -41,6 +41,23 @@ describe('planTransition (drop-chain)', () => {
     expect(planTransition(SHORT_BREAK, B, { ...opts, setBpm: 155 })!.kill).toBe(8);
   });
 
+  it('hard: an 8-bar build and a 2-bar cut (4 above 150 BPM); a recipe still wins', () => {
+    const soft = planTransition(SHORT_BREAK, B, opts)!;
+    const p = planTransition(SHORT_BREAK, B, { ...opts, hard: true })!;
+    expect(p.kind).toBe(soft.kind);
+    expect(p.N).toBe(8);
+    expect(p.kill).toBe(2);
+    // B's drop still lands where it would: only the build and the cut get shorter
+    expect(p.entryA + p.S).toBe(soft.entryA + soft.S);
+    expect(planTransition(SHORT_BREAK, B, { ...opts, setBpm: 155, hard: true })!.kill).toBe(4);
+    const r = planTransition(SHORT_BREAK, B, { ...opts, hard: true, recipe: { bars: 16, kill: 4 } })!;
+    expect([r.N, r.kill]).toEqual([16, 4]);
+    const out = planTransition(SHORT_BREAK, B, { ...opts, hard: true, recipe: { exit: 'end' } })!;
+    expect(out.kind).toBe('playout');
+    expect(out.N).toBeLessThanOrEqual(8);
+    expect(out.kill).toBe(2);
+  });
+
   it('honours a recipe override', () => {
     const p = planTransition(SHORT_BREAK, B, { ...opts, recipe: { kind: 'chain', bass: 'sweep' } })!;
     expect(p.kind).toBe('chain');
