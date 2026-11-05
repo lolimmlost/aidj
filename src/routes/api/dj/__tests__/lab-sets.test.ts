@@ -26,6 +26,14 @@ describe('lab-sets route (#392)', () => {
     expect(JSON.parse(await readFile(join(dir, 'mh2abc1.json'), 'utf8')).tracks).toHaveLength(2);
   });
 
+  it('stores the ids Navidrome uses since 0.64, even from a set saved on a phone before it', async () => {
+    const set = { id: 'mh2abc3', setBpm: 126, tracks: [{ id: 'Ld68uROqjc2Cjj8mahjvGG', at: 0 }, { id: '5Yjtp9r5wAmh3EMg4PP8eh', at: 70 }] };
+    expect((await post(set)).status).toBe(204);
+    const saved = JSON.parse(await readFile(join(dir, 'mh2abc3.json'), 'utf8'));
+    expect(saved.tracks.map((t: { id: string }) => t.id)).toEqual(['5Yjtp9r5wAmh3EMg4PP8eh', '5Yjtp9r5wAmh3EMg4PP8eh']);
+    expect(saved.setBpm).toBe(126);
+  });
+
   it('is for admins only and refuses what is not a set', async () => {
     getSession.mockResolvedValueOnce({ user: { role: 'user' } });
     expect((await post({ id: 'mh2abc1', tracks: [] })).status).toBe(403);

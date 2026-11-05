@@ -7,6 +7,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { recordSongPlay } from '../../../lib/services/listening-history';
 import { auth } from '../../../lib/auth/auth';
+import { canonicalNavidromeId } from '@/lib/utils/navidrome-id';
 
 export const Route = createFileRoute("/api/listening-history/record")({
   server: {
@@ -38,7 +39,7 @@ export const Route = createFileRoute("/api/listening-history/record")({
 
       // Record the song play (convert durations to integers for database)
       await recordSongPlay(session.user.id, {
-        songId: body.songId,
+        songId: canonicalNavidromeId(body.songId),
         artist: body.artist,
         title: body.title,
         album: body.album || null,

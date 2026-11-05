@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 import { getAuthToken, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
 import { requireSession } from '@/lib/utils/api-response';
+import { canonicalNavidromeId } from '@/lib/utils/navidrome-id';
 
 export const Route = createFileRoute("/api/navidrome/stream/id/id")({
   server: {
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/api/navidrome/stream/id/id")({
     }
 
     // @ts-expect-error Params not typed
-    const songId = params.id;
+    const songId = canonicalNavidromeId(params.id);
     
     console.log('Stream request - songId:', songId);
     console.log('Stream auth - subsonicToken exists:', !!subsonicToken);

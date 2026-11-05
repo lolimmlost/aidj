@@ -3,6 +3,7 @@ import { getConfig } from '@/lib/config/config';
 import { getAuthToken, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
 import { requireSession } from '@/lib/utils/api-response';
 import { createHash } from 'crypto';
+import { canonicalNavidromeId } from '@/lib/utils/navidrome-id';
 
 export const Route = createFileRoute("/api/navidrome/stream/$id")({
   server: {
@@ -26,7 +27,8 @@ export const Route = createFileRoute("/api/navidrome/stream/$id")({
       return new Response('Not authenticated', { status: 401 });
     }
 
-    const { id: songId } = params;
+    // an id cached before Navidrome 0.64 re-encoded it streams too
+    const songId = canonicalNavidromeId(params.id);
     
     console.log('Song ID from params:', songId);
     

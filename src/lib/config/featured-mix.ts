@@ -1,3 +1,5 @@
+import { canonicalNavidromeId } from '@/lib/utils/navidrome-id';
+
 /**
  * The AIDJ mix highlighted at the top of the dashboard (#351).
  *
@@ -9,7 +11,9 @@
  * Override at build time with `VITE_FEATURED_MIX_ID`;
  * an empty value turns the card off. An id Navidrome doesn't know hides the card too.
  */
-const DEFAULT_FEATURED_MIX_ID = 'nJ8RdgWBwcjCSRftJ0vBMg';
+const DEFAULT_FEATURED_MIX_ID = '4dvmasUmxxRMo19zUgh70T'; // nJ8RdgWBwcjCSRftJ0vBMg before Navidrome 0.64 re-encoded ids
 
-export const FEATURED_MIX_ID: string =
-  import.meta.env.VITE_FEATURED_MIX_ID ?? DEFAULT_FEATURED_MIX_ID;
+/** An override set before Navidrome 0.64 is converted to the id Navidrome uses now. */
+export const FEATURED_MIX_ID: string = canonicalNavidromeId(
+  import.meta.env.VITE_FEATURED_MIX_ID ?? DEFAULT_FEATURED_MIX_ID,
+);

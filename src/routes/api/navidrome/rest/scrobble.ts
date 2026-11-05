@@ -13,6 +13,7 @@ import { getConfig } from '../../../../lib/config/config';
 import { getAuthToken, subsonicToken, subsonicSalt } from '../../../../lib/services/navidrome';
 import { ensureNavidromeUser } from '../../../../lib/services/navidrome-users';
 import { requireSession, unauthorizedResponse } from '../../../../lib/utils/api-response';
+import { canonicalizeIdParams } from '@/lib/utils/navidrome-id';
 
 export const Route = createFileRoute("/api/navidrome/rest/scrobble")({
   server: {
@@ -41,6 +42,7 @@ export const Route = createFileRoute("/api/navidrome/rest/scrobble")({
       requestUrl.searchParams.forEach((value, key) => {
         url.searchParams.set(key, value);
       });
+      canonicalizeIdParams(url.searchParams);
 
       try {
         const creds = await ensureNavidromeUser(session.user.id, session.user.name, session.user.email);

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 import { getAuthToken, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
 import { createHash } from 'crypto';
+import { canonicalNavidromeId } from '@/lib/utils/navidrome-id';
 
 export const Route = createFileRoute("/api/navidrome/stream/id")({
   server: {
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/api/navidrome/stream/id")({
     // Extract song ID directly from URL path (last segment)
     const url = new URL(request.url);
     const pathSegments = url.pathname.split('/').filter(Boolean);
-    const songId = pathSegments[pathSegments.length - 1];
+    const songId = canonicalNavidromeId(pathSegments[pathSegments.length - 1]);
     
     console.log('Extracted song ID from path:', songId);
     
