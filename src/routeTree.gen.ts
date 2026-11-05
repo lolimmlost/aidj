@@ -82,6 +82,7 @@ import { Route as ApiDiscoveryFeedAnalyticsRouteImport } from './routes/api/disc
 import { Route as ApiDiscoveryFeedInteractionsRouteImport } from './routes/api/discovery-feed/interactions'
 import { Route as ApiDjLabLogRouteImport } from './routes/api/dj/lab-log'
 import { Route as ApiDjLabRecordingRouteImport } from './routes/api/dj/lab-recording'
+import { Route as ApiDjLabSetsRouteImport } from './routes/api/dj/lab-sets'
 import { Route as ApiDownloadsQueueRouteImport } from './routes/api/downloads/queue'
 import { Route as ApiDownloadsYoutubeFallbackRouteImport } from './routes/api/downloads/youtube-fallback'
 import { Route as ApiLastfmBackfillRouteImport } from './routes/api/lastfm/backfill'
@@ -578,6 +579,11 @@ const ApiDjLabLogRoute = ApiDjLabLogRouteImport.update({
 const ApiDjLabRecordingRoute = ApiDjLabRecordingRouteImport.update({
   id: '/api/dj/lab-recording',
   path: '/api/dj/lab-recording',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDjLabSetsRoute = ApiDjLabSetsRouteImport.update({
+  id: '/api/dj/lab-sets',
+  path: '/api/dj/lab-sets',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDownloadsQueueRoute = ApiDownloadsQueueRouteImport.update({
@@ -1311,6 +1317,7 @@ export interface FileRoutesByFullPath {
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/dj/lab-log': typeof ApiDjLabLogRoute
   '/api/dj/lab-recording': typeof ApiDjLabRecordingRoute
+  '/api/dj/lab-sets': typeof ApiDjLabSetsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
   '/api/downloads/youtube-fallback': typeof ApiDownloadsYoutubeFallbackRoute
   '/api/lastfm/backfill': typeof ApiLastfmBackfillRoute
@@ -1505,6 +1512,7 @@ export interface FileRoutesByTo {
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/dj/lab-log': typeof ApiDjLabLogRoute
   '/api/dj/lab-recording': typeof ApiDjLabRecordingRoute
+  '/api/dj/lab-sets': typeof ApiDjLabSetsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
   '/api/downloads/youtube-fallback': typeof ApiDownloadsYoutubeFallbackRoute
   '/api/lastfm/backfill': typeof ApiLastfmBackfillRoute
@@ -1703,6 +1711,7 @@ export interface FileRoutesById {
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
   '/api/dj/lab-log': typeof ApiDjLabLogRoute
   '/api/dj/lab-recording': typeof ApiDjLabRecordingRoute
+  '/api/dj/lab-sets': typeof ApiDjLabSetsRoute
   '/api/downloads/queue': typeof ApiDownloadsQueueRoute
   '/api/downloads/youtube-fallback': typeof ApiDownloadsYoutubeFallbackRoute
   '/api/lastfm/backfill': typeof ApiLastfmBackfillRoute
@@ -1901,6 +1910,7 @@ export interface FileRouteTypes {
     | '/api/discovery-feed/interactions'
     | '/api/dj/lab-log'
     | '/api/dj/lab-recording'
+    | '/api/dj/lab-sets'
     | '/api/downloads/queue'
     | '/api/downloads/youtube-fallback'
     | '/api/lastfm/backfill'
@@ -2095,6 +2105,7 @@ export interface FileRouteTypes {
     | '/api/discovery-feed/interactions'
     | '/api/dj/lab-log'
     | '/api/dj/lab-recording'
+    | '/api/dj/lab-sets'
     | '/api/downloads/queue'
     | '/api/downloads/youtube-fallback'
     | '/api/lastfm/backfill'
@@ -2292,6 +2303,7 @@ export interface FileRouteTypes {
     | '/api/discovery-feed/interactions'
     | '/api/dj/lab-log'
     | '/api/dj/lab-recording'
+    | '/api/dj/lab-sets'
     | '/api/downloads/queue'
     | '/api/downloads/youtube-fallback'
     | '/api/lastfm/backfill'
@@ -2477,6 +2489,7 @@ export interface RootRouteChildren {
   ApiDiscoveryFeedInteractionsRoute: typeof ApiDiscoveryFeedInteractionsRoute
   ApiDjLabLogRoute: typeof ApiDjLabLogRoute
   ApiDjLabRecordingRoute: typeof ApiDjLabRecordingRoute
+  ApiDjLabSetsRoute: typeof ApiDjLabSetsRoute
   ApiDownloadsQueueRoute: typeof ApiDownloadsQueueRoute
   ApiDownloadsYoutubeFallbackRoute: typeof ApiDownloadsYoutubeFallbackRoute
   ApiLastfmBackfillRoute: typeof ApiLastfmBackfillRoute
@@ -3088,6 +3101,13 @@ declare module '@tanstack/react-router' {
       path: '/api/dj/lab-recording'
       fullPath: '/api/dj/lab-recording'
       preLoaderRoute: typeof ApiDjLabRecordingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/dj/lab-sets': {
+      id: '/api/dj/lab-sets'
+      path: '/api/dj/lab-sets'
+      fullPath: '/api/dj/lab-sets'
+      preLoaderRoute: typeof ApiDjLabSetsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/downloads/queue': {
@@ -4188,6 +4208,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDiscoveryFeedInteractionsRoute: ApiDiscoveryFeedInteractionsRoute,
   ApiDjLabLogRoute: ApiDjLabLogRoute,
   ApiDjLabRecordingRoute: ApiDjLabRecordingRoute,
+  ApiDjLabSetsRoute: ApiDjLabSetsRoute,
   ApiDownloadsQueueRoute: ApiDownloadsQueueRoute,
   ApiDownloadsYoutubeFallbackRoute: ApiDownloadsYoutubeFallbackRoute,
   ApiLastfmBackfillRoute: ApiLastfmBackfillRoute,
