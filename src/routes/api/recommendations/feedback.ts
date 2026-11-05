@@ -14,6 +14,7 @@ import {
   jsonResponse,
 } from '../../../lib/utils/api-response';
 import { parseArtistTitle } from '@/lib/utils/song-artist-title';
+import { canonicalNavidromeId } from '../../../lib/utils/navidrome-id';
 
 // Zod schema for feedback validation
 const FeedbackSchema = z.object({
@@ -27,7 +28,7 @@ const FeedbackSchema = z.object({
     'ai_dj_skip', 'ai_dj_listen_through',
   ]).optional().default('recommendation'),
   recommendationCacheId: z.number().int().positive().optional(),
-  songId: z.string().optional(), // Navidrome song ID for starring and storage
+  songId: z.string().optional().transform((id) => (id === undefined ? undefined : canonicalNavidromeId(id))), // Navidrome song ID for starring and storage
 });
 
 // Exported GET handler for testing
@@ -42,7 +43,10 @@ export const GET = withAuthAndErrorHandling(
     }
 
     // Parse comma-separated song IDs
-    const songIds = songIdsParam.split(',').map(id => id.trim()).filter(Boolean);
+    const requested = songIdsParam.split(',').map(id => id.trim()).filter(Boolean);
+    // stored ids are post-0.64; answer under the id the client asked with
+    const asked = new Map(requested.map((id) => [canonicalNavidromeId(id), id]));
+    const songIds = [...asked.keys()];
 
     if (songIds.length === 0) {
       return errorResponse('INVALID_SONG_IDS', 'At least one songId is required', { status: 400 });
@@ -66,7 +70,7 @@ export const GET = withAuthAndErrorHandling(
     const feedbackMap: Record<string, 'thumbs_up' | 'thumbs_down'> = {};
     for (const record of feedbackRecords) {
       if (record.songId) {
-        feedbackMap[record.songId] = record.feedbackType;
+        feedbackMap[asked.get(record.songId) ?? record.songId] = record.feedbackType;
       }
     }
 
@@ -85,7 +89,7 @@ export const GET = withAuthAndErrorHandling(
           inArray(likedSongsSync.songId, songIds)
         )
       );
-    const liked = likedRecords.map(r => r.songId);
+    const liked = likedRecords.map(r => asked.get(r.songId) ?? r.songId);
 
     return jsonResponse({ feedback: feedbackMap, liked });
   },

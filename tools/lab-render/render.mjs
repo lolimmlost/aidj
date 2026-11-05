@@ -28,6 +28,27 @@ if (!setFile || !outFile) {
   process.exit(2);
 }
 const set = JSON.parse(fs.readFileSync(setFile, 'utf8'));
+// A set played before Navidrome 0.64 names its songs by ids Navidrome re-encoded (navidrome#5824): a 22-char id over
+// 2^128 became the base62 of the MD5 of the old id (src/lib/utils/navidrome-id.ts does the same for the app).
+const B62 = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const canonicalId = (id) => {
+  if (typeof id !== 'string' || id.length !== 22) return id;
+  let v = 0n;
+  for (const c of id) {
+    const d = B62.indexOf(c);
+    if (d < 0) return id;
+    v = v * 62n + BigInt(d);
+  }
+  if (v < 1n << 128n) return id;
+  let n = BigInt(`0x${createHash('md5').update(id).digest('hex')}`);
+  let out = '';
+  while (n > 0n) {
+    out = B62[Number(n % 62n)] + out;
+    n /= 62n;
+  }
+  return out.padStart(22, '0');
+};
+for (const t of set.tracks) t.id = canonicalId(t.id);
 const tracks = set.tracks.slice(0, maxTracks);
 const NURL = process.env.NAVIDROME_URL || 'http://10.0.0.30:4533';
 const { NN, NP } = process.env;
@@ -49,7 +70,9 @@ for (const t of tracks) {
   if (!fs.existsSync(file)) {
     const res = await fetch(subsonic('stream', { id: t.id, format: 'raw' }));
     const buf = Buffer.from(await res.arrayBuffer());
-    if (!res.ok || (res.headers.get('content-type') || '').includes('xml')) throw new Error(`stream ${t.id} (${t.artist} – ${t.title}): ${res.status}`);
+    // Navidrome answers a song it doesn't know with a 200 and a Subsonic error (JSON here), never cache that as audio
+    const type = res.headers.get('content-type') || '';
+    if (!res.ok || type.includes('xml') || type.includes('json')) throw new Error(`stream ${t.id} (${t.artist} – ${t.title}): ${res.status} ${buf.subarray(0, 200).toString()}`);
     fs.writeFileSync(file, buf);
     console.log(`fetched ${t.artist} – ${t.title} (${(buf.length / 1e6).toFixed(1)} MB)`);
   }

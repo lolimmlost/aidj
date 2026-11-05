@@ -17,6 +17,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getConfig } from '@/lib/config/config';
 import { getAuthToken, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
 import { errorResponse, requireSession, unauthorizedResponse } from '@/lib/utils/api-response';
+import { canonicalizeIdParams } from '@/lib/utils/navidrome-id';
 
 /** Subsonic endpoints that are user-scoped and need per-user credentials */
 const USER_SCOPED_ENDPOINTS = [
@@ -98,6 +99,8 @@ export const Route = createFileRoute("/api/navidrome/rest/$")({
           originalUrl.searchParams.forEach((value, key) => {
             url.searchParams.set(key, value);
           });
+          // ids cached before Navidrome 0.64 re-encoded them (queues, playlists in a phone's storage)
+          canonicalizeIdParams(url.searchParams);
 
           // For user-scoped endpoints, try per-user creds
           if (isUserScopedEndpoint(endpoint)) {

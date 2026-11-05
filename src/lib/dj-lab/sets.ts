@@ -3,6 +3,7 @@
  * memory-only). Saved on every transition; the newest 20 sets are kept. Each is also copied to the server
  * (/storage/sets), so a set can be rendered offline with its cues (#392).
  */
+import { canonicalNavidromeId } from '@/lib/utils/navidrome-id';
 import type { MixMode, Recipe, TransitionPlan } from './plan';
 
 export interface SavedTrack {
@@ -47,7 +48,9 @@ const KEEP = 20;
 
 export function loadSets(): SavedSet[] {
   try {
-    return JSON.parse(localStorage.getItem(KEY) ?? '[]') as SavedSet[];
+    const sets = JSON.parse(localStorage.getItem(KEY) ?? '[]') as SavedSet[];
+    // sets saved before Navidrome 0.64 re-encoded its ids name their songs by the old ids
+    return sets.map((s) => ({ ...s, tracks: s.tracks.map((t) => ({ ...t, id: canonicalNavidromeId(t.id) })) }));
   } catch {
     return [];
   }

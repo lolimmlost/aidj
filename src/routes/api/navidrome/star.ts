@@ -16,11 +16,12 @@ import {
   successResponse,
   errorResponse,
 } from '../../../lib/utils/api-response';
+import { canonicalNavidromeId } from '@/lib/utils/navidrome-id';
 
 const POST = withAuthAndErrorHandling(
   async ({ request, session }) => {
     const url = new URL(request.url);
-    const songId = url.searchParams.get('id');
+    const songId = canonicalNavidromeId(url.searchParams.get('id'));
 
     if (!songId) {
       return errorResponse('MISSING_REQUIRED_FIELD', 'Song ID required', { status: 400 });
@@ -43,7 +44,7 @@ const POST = withAuthAndErrorHandling(
 const DELETE = withAuthAndErrorHandling(
   async ({ request, session }) => {
     const url = new URL(request.url);
-    const songId = url.searchParams.get('id');
+    const songId = canonicalNavidromeId(url.searchParams.get('id'));
 
     if (!songId) {
       return errorResponse('MISSING_REQUIRED_FIELD', 'Song ID required', { status: 400 });

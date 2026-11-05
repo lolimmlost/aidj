@@ -3,6 +3,7 @@ import { ServiceError } from '../../../lib/utils';
 import { getConfig } from '@/lib/config/config';
 import { getAuthToken, token, clientId, subsonicToken, subsonicSalt } from '@/lib/services/navidrome';
 import { requireSession } from '@/lib/utils/api-response';
+import { canonicalNavidromeId, canonicalizeIdParams } from '@/lib/utils/navidrome-id';
 
 export const Route = createFileRoute("/api/navidrome/[./path]")({
   server: {
@@ -28,8 +29,10 @@ export const Route = createFileRoute("/api/navidrome/[./path]")({
         return new Response('Stream path handled by specific route', { status: 404 });
       }
 
-      const url = new URL(`${config.navidromeUrl}/${path}`);
+      // ids cached before Navidrome 0.64 re-encoded them, in the path (/api/song/<id>) or the query
+      const url = new URL(`${config.navidromeUrl}/${path.split('/').map((seg: string) => canonicalNavidromeId(seg)).join('/')}`);
       url.search = new URL(request.url).search;
+      canonicalizeIdParams(url.searchParams);
 
       // For Subsonic API endpoints (/rest/*), add subsonic auth params
       const isSubsonicApi = path.startsWith('rest/');
@@ -119,8 +122,10 @@ export const Route = createFileRoute("/api/navidrome/[./path]")({
         await getAuthToken();
       }
 
-      const url = new URL(`${config.navidromeUrl}/${path}`);
+      // ids cached before Navidrome 0.64 re-encoded them, in the path (/api/song/<id>) or the query
+      const url = new URL(`${config.navidromeUrl}/${path.split('/').map((seg: string) => canonicalNavidromeId(seg)).join('/')}`);
       url.search = new URL(request.url).search;
+      canonicalizeIdParams(url.searchParams);
 
       const headers = new Headers();
       headers.set('Content-Type', 'application/json');
