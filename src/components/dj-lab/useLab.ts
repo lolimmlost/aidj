@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getLabEngine } from '@/lib/dj-lab/engine';
-import { analyseSong, getCachedAnalysis, isPhone, loadCrate, MAX_TRACK_SEC, type LabSong } from '@/lib/dj-lab/crate';
+import { analyseSong, getCachedAnalysis, isPhone, loadCrate, loadStarredIds, MAX_TRACK_SEC, type LabSong } from '@/lib/dj-lab/crate';
 import { labLog } from '@/lib/dj-lab/log';
 import { memTestRunning } from '@/lib/dj-lab/memtest';
 import type { TrackAnalysis } from '@/lib/dj-lab/analysis';
@@ -46,6 +47,14 @@ const EMPTY: CrateState = { songs: [], analyses: new Map(), loading: false, scan
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** a song whose download a lock cancelled is tried again, this many times */
 const MAX_TRIES = 3;
+
+const NO_STARS = new Set<string>();
+
+/** Ids of your liked songs, for their head start in the ranking (#385). Empty until loaded, or if it fails. */
+export function useStarredIds(): Set<string> {
+  const q = useQuery({ queryKey: ['dj-lab', 'starred'], queryFn: loadStarredIds, staleTime: 5 * 60_000 });
+  return q.data ?? NO_STARS;
+}
 
 /**
  * Load a crate and analyse its songs one at a time in the background (IndexedDB-cached). Not keyed

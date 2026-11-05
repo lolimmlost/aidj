@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, ChevronDown, FlaskConical, Loader2, Play, Settings2, X } from 'lucide-react';
+import { ChevronDown, FlaskConical, Loader2, Play, Settings2 } from 'lucide-react';
 import { loginRedirect } from '~/lib/auth/login-redirect';
 import { PageLayout } from '@/components/ui/page-layout';
 import { Card } from '@/components/ui/card';
@@ -10,17 +10,17 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAudioStore } from '@/lib/stores/audio';
-import { findSongs, isPhone, listCrates, rankCandidates, rankJumps, MAX_STRETCH } from '@/lib/dj-lab/crate';
+import { findSongs, isPhone, listCrates, MAX_STRETCH } from '@/lib/dj-lab/crate';
 import { replayRecipe, setWhen, type SavedSet } from '@/lib/dj-lab/sets';
 import { fitOctave, meterName } from '@/lib/dj-lab/analysis';
 import type { LabEngine, ReplayEntry } from '@/lib/dj-lab/engine';
 import { loadVotes } from '@/lib/dj-lab/votes';
-import { startLabLog } from '@/lib/dj-lab/log';
-import { useCrate, useHydrated, useLabEngine } from '@/components/dj-lab/useLab';
+import { labLog, startLabLog } from '@/lib/dj-lab/log';
+import { autoPick } from '@/lib/dj-lab/pick';
+import { useCrate, useHydrated, useLabEngine, useStarredIds } from '@/components/dj-lab/useLab';
 import { LabMix } from '@/components/dj-lab/LabMix';
 import { LabAB } from '@/components/dj-lab/LabAB';
 import { LabVotes } from '@/components/dj-lab/LabVotes';
-import { LabLog, useDiedBanner } from '@/components/dj-lab/LabLog';
 import { LiveBar } from '@/components/dj-lab/LiveBar';
 import { RecentSets } from '@/components/dj-lab/RecentSets';
 import { TempoWindow } from '@/components/dj-lab/TempoWindow';
@@ -77,25 +77,24 @@ function DJLab() {
   useEffect(() => watchAppPlayer(engine), [engine]);
   useEffect(() => engine.loadDefaults(), [engine]);
   useEffect(() => startLabLog(), []);
-  const died = useDiedBanner();
-  // stays up through the next set until dismissed
-  const [diedSeen, setDiedSeen] = useState(false);
 
-  // auto-lock picks the best-ranked crate track in the tempo window; when that runs dry, anything it can stretch,
-  // then the closest tempo jump: a small crate used to end the set in silence once every match had played
+  // auto-lock: a transition you liked first, then the best pick in the tempo window, and so on (autoPick)
+  const starred = useStarredIds();
   useEffect(() => {
     engine.setPicker((now, played) => {
-      const cur = { song: now.song, analysis: now.analysis };
-      const o = { setBpm: snap.setBpm, played, mode: snap.mode };
-      const pick =
-        rankCandidates(cur, pool, { ...o, window: { down: snap.defaults.tempoDown, up: snap.defaults.tempoUp } })[0] ??
-        rankCandidates(cur, pool, o)[0] ??
-        rankJumps(cur, pool, o)[0];
+      const pick = autoPick(
+        { song: now.song, analysis: now.analysis },
+        pool,
+        { setBpm: snap.setBpm, played, mode: snap.mode, window: { down: snap.defaults.tempoDown, up: snap.defaults.tempoUp }, liked: starred },
+        // read at each pick: a thumb you just gave counts
+        loadVotes(),
+      );
+      if (pick) labLog('auto pick', { song: `${pick.song.artist} – ${pick.song.title}`, why: pick.why, likedSong: starred.has(pick.song.id) || undefined });
       return pick?.song ?? null;
     });
     // the set may start before the crate is analysed: pick as soon as there's something to pick
     engine.maybeAutoLock();
-  }, [engine, pool, snap.setBpm, snap.mode, snap.autoLock, snap.status, snap.now, snap.next, snap.defaults.tempoDown, snap.defaults.tempoUp]);
+  }, [engine, pool, starred, snap.setBpm, snap.mode, snap.autoLock, snap.status, snap.now, snap.next, snap.defaults.tempoDown, snap.defaults.tempoUp]);
 
   const chooseCrate = (id: string) => {
     setCrateId(id);
@@ -300,19 +299,6 @@ function DJLab() {
             </>
           )}
           {snap.message && <p className="text-xs text-muted-foreground">{snap.message}</p>}
-          {died && !diedSeen && (
-            <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
-              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-              <button type="button" onClick={() => setTab('log')} className="min-w-0 flex-1 text-left">
-                The last set stopped when the page reloaded mid-set
-                {typeof died.data?.lastBeatAt === 'string' ? ` (around ${new Date(died.data.lastBeatAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : ''}
-                . The phone likely closed it for memory; the details went to the server log. See the Log tab.
-              </button>
-              <button type="button" onClick={() => setDiedSeen(true)} aria-label="Dismiss" className="-m-1 shrink-0 p-1">
-                <X className="size-3.5" />
-              </button>
-            </div>
-          )}
         </Card>
 
         <Tabs value={tab} onValueChange={setTab}>
@@ -325,9 +311,6 @@ function DJLab() {
             </TabsTrigger>
             <TabsTrigger value="votes" className="flex-1">
               Votes{voteCount ? ` (${voteCount})` : ''}
-            </TabsTrigger>
-            <TabsTrigger value="log" className="flex-1">
-              Log
             </TabsTrigger>
           </TabsList>
 
@@ -405,10 +388,6 @@ function DJLab() {
 
           <TabsContent value="votes" className="mt-3">
             <LabVotes />
-          </TabsContent>
-
-          <TabsContent value="log" className="mt-3">
-            <LabLog engine={engine} live={live} pool={pool} />
           </TabsContent>
         </Tabs>
       </div>

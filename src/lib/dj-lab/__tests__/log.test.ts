@@ -52,6 +52,19 @@ describe('Lab flight recorder', () => {
     expect(e.labLogEntries().some((x) => x.ev === 'previous page died mid-set')).toBe(false);
   });
 
+  it('writes events to the console in debug mode only, for Eruda', async () => {
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const a = await freshLog();
+    a.labLog('lock', { song: 'A' });
+    expect(debug).not.toHaveBeenCalled();
+    localStorage.setItem('debug', 'true');
+    const b = await freshLog();
+    b.labLog('flag', { thumb: 'up' });
+    expect(debug).toHaveBeenCalledTimes(1);
+    expect(debug.mock.calls[0][0]).toMatch(/^🎛️ .* flag thumb=up$/);
+    debug.mockRestore();
+  });
+
   it('names what was being decoded in the heartbeat', async () => {
     const a = await freshLog();
     const done = a.labBusy('analyse Dash Berlin – Janeiro');

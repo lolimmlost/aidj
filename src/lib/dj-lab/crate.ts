@@ -122,6 +122,12 @@ export async function loadCrate(id: string): Promise<LabSong[]> {
   return (r.playlist?.entry ?? []).filter((s) => !s.isDir).map(toSong);
 }
 
+/** Ids of your liked (starred) songs. The flat getStarred: getStarred2 groups and caps. */
+export async function loadStarredIds(): Promise<Set<string>> {
+  const r = await subsonic<{ starred?: { song?: { id: string }[] } }>('getStarred');
+  return new Set((r.starred?.song ?? []).map((s) => s.id));
+}
+
 const norm = (s: string) =>
   s
     .toLowerCase()
@@ -129,7 +135,8 @@ const norm = (s: string) =>
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 const firstArtist = (a: string) => norm(a.split(/,|&| x | feat\.? | ft\.? /i)[0] ?? a);
-const nameKey = (s: { artist: string; title: string }) => `${firstArtist(s.artist)}|${norm(s.title)}`;
+/** A song by first artist and title, for matching across a retag (which can give the file a new id) */
+export const nameKey = (s: { artist: string; title: string }) => `${firstArtist(s.artist)}|${norm(s.title)}`;
 
 /**
  * The songs of a saved set, for a replay: from the crate by id, or by artist and title when a retag
@@ -331,6 +338,8 @@ export interface Candidate {
   score: number;
   reasons: string[];
   warnings: string[];
+  /** your net thumb on the playing song → this one (#384), when there is one */
+  thumb?: 'up' | 'down';
 }
 
 /** Low end of the entry drop relative to its loudness: "how hard it hits" once levels are matched. */
@@ -339,10 +348,14 @@ export function bassWeight(a: TrackAnalysis): number {
 }
 
 export const MAX_STRETCH = 0.08;
+/** a liked song ranks as if this many 0.5 % tempo steps closer (#385) */
+const LIKED_HEAD_START = 2;
+export const LIKED_SONG = '♥ liked';
 
 /**
  * Next-song candidates for the playing track, by the A/B rules: tempo within ±8 % (vinyl stretch),
  * a drop to chain into, energy up or level (never a weaker drop, rule 3), clean grid, new artist.
+ * A liked song ranks as if 1 % closer in tempo.
  */
 export function rankCandidates(
   current: { song: LabSong; analysis: TrackAnalysis },
@@ -353,6 +366,8 @@ export function rankCandidates(
     mode: 'dropchain' | 'classic';
     /** tempo window (#378): how much slower / faster the track may be than what's playing, % */
     window?: { down: number; up: number };
+    /** ids of liked songs (#385) */
+    liked?: Set<string>;
   },
 ): Candidate[] {
   const out: Candidate[] = [];
@@ -367,6 +382,7 @@ export function rankCandidates(
     if (opts.window && (faster > opts.window.up + 1e-9 || faster < -opts.window.down - 1e-9)) continue;
     const reasons: string[] = [];
     const warnings: string[] = [];
+    if (opts.liked?.has(song.id)) reasons.push(LIKED_SONG);
     if (analysis.meter) reasons.push(`${meterName(analysis)} · ${own.bpm.toFixed(0)} BPM`);
     if (opts.mode === 'dropchain' && analysis.drop === null) warnings.push('no clear drop');
     const dBass = bassWeight(analysis) - curBass;
@@ -385,8 +401,8 @@ export function rankCandidates(
       (analysis.meter ? 0.1 : 0);
     out.push({ song, analysis, stretch: stretch * 100, bpmDelta: analysis.bpm - opts.setBpm, bassDelta: dBass, score, reasons, warnings });
   }
-  // closest tempo first (0.5 % steps), then the rest of the score
-  const step = (c: Candidate) => Math.round(Math.abs(c.stretch) * 2);
+  // closest tempo first (0.5 % steps, a liked song 1 % ahead), then the rest of the score
+  const step = (c: Candidate) => Math.round(Math.abs(c.stretch) * 2) - (opts.liked?.has(c.song.id) ? LIKED_HEAD_START : 0);
   return out.sort((a, b) => step(a) - step(b) || b.score - a.score);
 }
 

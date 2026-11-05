@@ -9,9 +9,11 @@ import { barAt, meterName, type TrackAnalysis } from '@/lib/dj-lab/analysis';
 import { genreFamily, rankCandidates, rankJumps, type Candidate, type LabSong } from '@/lib/dj-lab/crate';
 import type { EngineSnapshot, HistoryEntry, LabEngine, NextInfo } from '@/lib/dj-lab/engine';
 import { describeRecipe, type TransitionPlan } from '@/lib/dj-lab/plan';
-import { lockRecord, newId, planRecord, saveVote } from '@/lib/dj-lab/votes';
+import { loadVotes, lockRecord, newId, planRecord, saveVote } from '@/lib/dj-lab/votes';
+import { labLog } from '@/lib/dj-lab/log';
+import { splitByThumbs } from '@/lib/dj-lab/pick';
 import { DeckStrip, type StripMarker, type StripRegion } from './DeckStrip';
-import { fmtTime, useTicker } from './useLab';
+import { fmtTime, useStarredIds, useTicker } from './useLab';
 import { TransitionPicker } from './TransitionPicker';
 
 type Pool = { song: LabSong; analysis: TrackAnalysis }[];
@@ -114,6 +116,7 @@ function flag(entry: HistoryEntry, thumb: 'up' | 'down', setBpm: number) {
     tags: [],
     note: '',
   });
+  labLog('flag', { a: `${entry.from.artist} – ${entry.from.title}`, b: `${entry.song.artist} – ${entry.song.title}`, thumb, kind: entry.plan.kind });
   toast.success(thumb === 'up' ? 'Marked as a good transition' : 'Marked as a bad transition');
 }
 
@@ -172,6 +175,10 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
   const now = snap.now;
   const next = snap.next;
   const played = useMemo(() => new Set(snap.history.map((h) => h.song.id)), [snap.history]);
+  const starred = useStarredIds();
+  // thumbs out of the playing song, read when it starts: you can only give them once its successor has played
+  const nowId = now?.song.id;
+  const votes = useMemo(() => (nowId ? loadVotes() : []), [nowId]);
   const candidates = useMemo(
     () =>
       now
@@ -180,9 +187,19 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
             played,
             mode: snap.mode,
             window: { down: snap.defaults.tempoDown, up: snap.defaults.tempoUp },
+            liked: starred,
           })
         : [],
-    [now, pool, snap.setBpm, played, snap.mode, snap.defaults.tempoDown, snap.defaults.tempoUp],
+    [now, pool, snap.setBpm, played, snap.mode, snap.defaults.tempoDown, snap.defaults.tempoUp, starred],
+  );
+  // transitions you liked out of the playing song, anywhere they can stretch to: auto-lock takes these first (#384)
+  const likedAfter = useMemo(
+    () =>
+      now
+        ? splitByThumbs(rankCandidates({ song: now.song, analysis: now.analysis }, pool, { setBpm: snap.setBpm, played, mode: snap.mode, liked: starred }), now.song, votes)
+            .liked
+        : [],
+    [now, pool, snap.setBpm, played, snap.mode, starred, votes],
   );
   // too far to stretch: a tempo jump moves the set to their tempo (never auto-locked)
   const jumps = useMemo(
@@ -192,14 +209,14 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
   // a card per genre family, in the order of each family's best pick
   const groups = useMemo(() => {
     const byGenre = new Map<string, Candidate[]>();
-    for (const c of candidates) {
+    for (const c of now ? splitByThumbs(candidates, now.song, votes).rest : []) {
       const g = genreFamily(c.song);
       const list = byGenre.get(g);
       if (list) list.push(c);
       else byGenre.set(g, [c]);
     }
-    return [...byGenre];
-  }, [candidates]);
+    return [...(likedAfter.length ? ([['Liked after this', likedAfter]] as const) : []), ...byGenre];
+  }, [candidates, likedAfter, now, votes]);
   const posNow = useMemo(() => () => engine.position('now'), [engine]);
   const posNext = useMemo(() => () => engine.position('next'), [engine]);
   const toBlend = engine.secondsToBlend();

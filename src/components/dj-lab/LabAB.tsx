@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Play, Square, Shuffle, Wand2 } from 'lucide-react';
+import { ChevronDown, Loader2, Play, Square, Shuffle, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/lib/toast';
@@ -13,6 +14,72 @@ import type { EngineSnapshot, LabEngine, LoadedTrack } from '@/lib/dj-lab/engine
 import { FACTORS, renderPair, type Factor, type Variant } from '@/lib/dj-lab/ab';
 import { QUICK_TAGS, lockRecord, newId, planRecord, saveVote, type VoteChoice } from '@/lib/dj-lab/votes';
 import { fmtTime } from './useLab';
+
+/**
+ * Pick a crate track: a field that opens a search box and the list right under it. Not a Select: with
+ * a whole crate in it, the menu opened above the field and wouldn't scroll on an iPhone (PWA).
+ */
+export function TrackPicker({
+  label,
+  songs,
+  value,
+  onPick,
+}: {
+  label: string;
+  songs: { song: LabSong; analysis: TrackAnalysis }[];
+  value?: LabSong;
+  onPick: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const shown = q ? songs.filter((p) => `${p.song.title} ${p.song.artist}`.toLowerCase().includes(q)) : songs;
+  return (
+    <div className="min-w-0 space-y-1 text-xs text-muted-foreground">
+      <span>{label}</span>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex h-9 w-full min-w-0 items-center gap-2 rounded-md border bg-transparent px-3 text-left text-sm text-foreground shadow-xs"
+      >
+        <span className={cn('min-w-0 flex-1 truncate', !value && 'text-muted-foreground')}>{value ? `${value.title} · ${value.artist}` : 'Pick a track'}</span>
+        <ChevronDown className={cn('size-4 shrink-0 opacity-50 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="space-y-1.5 rounded-md border p-1.5">
+          <Input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by title or artist" aria-label={`Filter ${label}`} className="h-8" />
+          {/* a plain scrolling list: touch scrolls it natively */}
+          <ul className="max-h-64 overflow-y-auto overscroll-contain">
+            {shown.map((p) => (
+              <li key={p.song.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onPick(p.song.id);
+                    setOpen(false);
+                    setQuery('');
+                  }}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted/50 active:bg-muted',
+                    value?.id === p.song.id && 'bg-muted',
+                  )}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-foreground">{p.song.title}</span>
+                    <span className="block truncate text-[11px]">{p.song.artist}</span>
+                  </span>
+                  <span className="shrink-0 tabular-nums">{p.analysis.bpm.toFixed(1)}</span>
+                </button>
+              </li>
+            ))}
+            {!shown.length && <li className="px-2 py-1.5">Nothing matches “{query}”.</li>}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 type Pool = { song: LabSong; analysis: TrackAnalysis }[];
 
@@ -161,21 +228,7 @@ export function LabAB({ engine, snap, pool }: { engine: LabEngine; snap: EngineS
               ['B (in)', bId, setBId],
             ] as const
           ).map(([label, value, set]) => (
-            <label key={label} className="block min-w-0 space-y-1 text-xs text-muted-foreground">
-              {label}
-              <Select value={value} onValueChange={(v) => set(v)}>
-                <SelectTrigger className="w-full min-w-0 *:data-[slot=select-value]:block *:data-[slot=select-value]:truncate">
-                  <SelectValue placeholder="Pick a track" />
-                </SelectTrigger>
-                <SelectContent>
-                  {songs.map((p) => (
-                    <SelectItem key={p.song.id} value={p.song.id}>
-                      {p.song.title} · {p.song.artist} · {p.analysis.bpm.toFixed(1)} BPM
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
+            <TrackPicker key={label} label={label} songs={songs} value={value ? byId(value) : undefined} onPick={set} />
           ))}
         </div>
         <label className="block min-w-0 space-y-1 text-xs text-muted-foreground">

@@ -6,6 +6,9 @@
  * iOS kills a page that uses too much memory without firing any event. While a set plays the engine
  * leaves a heartbeat in localStorage; the next page load finds a heartbeat that says "playing" and
  * was never closed cleanly, and logs that the previous page died, with what it was doing.
+ *
+ * The Lab has no log panel: in the app's debug mode (Eruda, `localStorage.debug`) every event is also
+ * written to the console, where Eruda shows it.
  */
 
 export type LogLevel = 'info' | 'warn' | 'error';
@@ -64,6 +67,19 @@ let busySeq = 0;
 
 const isBrowser = () => typeof window !== 'undefined';
 
+let mirror: boolean | null = null;
+/** debug mode (Eruda) is read once per page load, as Eruda is */
+function debugMode(): boolean {
+  if (mirror === null) {
+    try {
+      mirror = localStorage.getItem('debug') === 'true';
+    } catch {
+      mirror = false;
+    }
+  }
+  return mirror;
+}
+
 function load(): Stored {
   if (store) return store;
   try {
@@ -91,9 +107,12 @@ export function labLog(ev: string, data?: Record<string, unknown>, level: LogLev
   if (!isBrowser()) return;
   const s = load();
   const clean = data ? Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined).map(([k, v]) => [k, round(v)])) : undefined;
+  const entry: LabLogEntry = { seq: ++s.seq, t: Date.now(), sid, ev, level, data: clean };
   // a new array each time, so useSyncExternalStore sees the change
-  s.entries = [...s.entries, { seq: ++s.seq, t: Date.now(), sid, ev, level, data: clean }].slice(-KEEP);
+  s.entries = [...s.entries, entry].slice(-KEEP);
   save();
+  // console.debug: Eruda shows it, and the debug mode's console streaming (log/info/warn/error) doesn't send it twice
+  if (debugMode()) console.debug(`🎛️ ${formatEntry(entry)}`);
   for (const fn of listeners) fn();
   scheduleFlush(level === 'info' ? FLUSH_MS : 0);
 }
