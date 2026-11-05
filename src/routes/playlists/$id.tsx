@@ -261,7 +261,6 @@ function SongRowContent({
   index,
   isCurrentSong,
   isPlaying,
-  onPlayFromSong,
   onAddSongToQueue,
   onRemoveSong,
   onToggleStar,
@@ -311,11 +310,12 @@ function SongRowContent({
         )}
       </div>
 
-      {/* Song Info - clickable with proper touch target */}
+      {/* Song Info: the row plays on a tap anywhere (the button keeps keyboard focus; its click bubbles to the row).
+          Never narrower than ~6rem, so the artist / album columns can't squeeze the title away */}
       <button
         type="button"
-        onClick={() => onPlayFromSong(index)}
-        className="min-w-0 flex-1 text-left py-0.5 min-h-[36px] sm:min-h-[32px] flex flex-col justify-center overflow-hidden"
+        aria-label={`Play ${title}`}
+        className="min-w-[6rem] flex-1 text-left py-0.5 min-h-[36px] sm:min-h-[32px] flex flex-col justify-center overflow-hidden"
       >
         {/* Mobile: single line with title + artist */}
         <div className={cn("text-sm sm:hidden", isCurrentSong && "text-primary")}>
@@ -335,8 +335,8 @@ function SongRowContent({
         {artist}
       </span>
 
-      {/* Album */}
-      <span className="hidden sm:block text-sm text-muted-foreground truncate w-24 md:w-32 lg:w-40 shrink min-w-0">
+      {/* Album - from md (between sm and md it left the title no room) */}
+      <span className="hidden md:block text-sm text-muted-foreground truncate w-32 lg:w-40 shrink min-w-0">
         {song.album || '—'}
       </span>
 
@@ -354,13 +354,15 @@ function SongRowContent({
         })}
       </span>
 
-      {/* Star toggle - desktop hover only (accessible via menu on mobile) */}
+      {/* Star toggle: always there on phones (there was no other way to like a song here); hover-revealed on desktop */}
       <Button
         variant="ghost"
         size="sm"
+        aria-label={song.starred ? `Unlike ${title}` : `Like ${title}`}
+        aria-pressed={!!song.starred}
         className={cn(
-          "h-8 w-8 p-0 shrink-0 transition-opacity hidden sm:inline-flex",
-          song.starred ? "opacity-100 text-rose-500 hover:text-rose-600" : "opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-rose-500"
+          "h-9 w-9 sm:h-8 sm:w-8 p-0 shrink-0 transition-opacity inline-flex",
+          song.starred ? "opacity-100 text-rose-500 hover:text-rose-600" : "text-muted-foreground/60 sm:opacity-0 sm:group-hover:opacity-100 hover:text-rose-500"
         )}
         onClick={(e) => { e.stopPropagation(); onToggleStar(song.songId, !!song.starred); }}
       >
@@ -443,8 +445,9 @@ function PlainSongRow(props: SongRowProps) {
   return (
     <div
       data-song-id={props.song.songId}
+      onClick={() => props.onPlayFromSong(props.index)}
       className={cn(
-        "group flex items-center gap-3 px-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors min-w-0",
+        "group flex items-center gap-3 px-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors min-w-0 cursor-pointer",
         props.isCurrentSong && "bg-primary/10 border-l-2 border-l-primary"
       )}
     >
@@ -476,8 +479,9 @@ function SortableSongRow(props: SongRowProps) {
       ref={setNodeRef}
       style={style}
       data-song-id={props.song.songId}
+      onClick={() => props.onPlayFromSong(props.index)}
       className={cn(
-        "group flex items-center gap-3 px-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors min-w-0",
+        "group flex items-center gap-3 px-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors min-w-0 cursor-pointer",
         props.isCurrentSong && "bg-primary/10 border-l-2 border-l-primary",
         isDragging && "opacity-50 bg-accent shadow-lg"
       )}
@@ -488,6 +492,7 @@ function SortableSongRow(props: SongRowProps) {
           <div
             {...attributes}
             {...listeners}
+            onClick={(e) => e.stopPropagation()}
             className="cursor-grab active:cursor-grabbing touch-none shrink-0 w-6 flex items-center justify-center opacity-0 group-hover:opacity-100"
           >
             <GripVertical className="h-4 w-4 text-muted-foreground/50" />
@@ -571,7 +576,7 @@ function PlaylistSongsList({
         <span className="w-8 shrink-0" /> {/* Art space */}
         <span className="flex-1 min-w-0">Title</span>
         <span className="w-24 md:w-32 lg:w-40 shrink min-w-0">Artist</span>
-        <span className="w-24 md:w-32 lg:w-40 shrink min-w-0">Album</span>
+        <span className="hidden md:block w-32 lg:w-40 shrink min-w-0">Album</span>
         <span className="w-12 text-right shrink-0">Time</span>
         <span className="hidden lg:block w-28 text-right shrink-0">Added</span>
         <span className="w-[6.5rem] shrink-0" /> {/* Star + Play next + Actions space */}
