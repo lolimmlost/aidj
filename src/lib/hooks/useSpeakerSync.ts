@@ -93,11 +93,11 @@ export async function startSpeakerPlayback(
   const out = useSpeakerOutput.getState();
 
   out.setConnecting(true);
-  // Silence the phone before the speaker starts so the two never overlap.
-  if (audio.isPlaying) {
-    audio.markUserPause();
-    audio.setIsPlaying(false);
-  }
+  // Silence the phone before the speaker starts so the two never overlap. The pause counts as the user's even
+  // when the store already said paused: the decks' recovery then leaves an element that's still sounding paused.
+  audio.markUserPause();
+  if (audio.isPlaying) audio.setIsPlaying(false);
+  let picked: string | undefined;
   try {
     await api('/api/speakers/play', {
       playerId: speaker.id,
@@ -108,6 +108,9 @@ export async function startSpeakerPlayback(
     lostCount = 0;
     out.setActive(speaker);
     if (announce) toast.success(`Playing on ${speaker.name}`);
+    // A song picked while the speaker was starting (it can take ~6s) was held back from the phone; play it there now.
+    const now = useAudioStore.getState();
+    picked = now.playlist[now.currentSongIndex]?.id;
   } catch (err) {
     toast.error(`Couldn't play on ${speaker.name}`, {
       description: err instanceof Error ? err.message : undefined,
@@ -116,6 +119,7 @@ export async function startSpeakerPlayback(
     out.setConnecting(false);
     pollNow?.();
   }
+  if (picked && picked !== current.id) await startSpeakerPlayback(speaker, 0, { announce: false });
 }
 
 /** Stop the speaker and make the phone the player again. */
@@ -316,22 +320,28 @@ export function useSpeakerSync(): void {
     };
   }, [activeId]);
 
-  // Anything that starts local playback while a speaker is active goes to the
-  // speaker instead. Runs synchronously inside the store update, so the decks
-  // never see isPlaying=true.
-  useEffect(() => {
-    return useAudioStore.subscribe((state, prev) => {
-      if (!state.isPlaying || prev.isPlaying) return;
-      const { active, connecting, status } = useSpeakerOutput.getState();
-      if (!active || connecting) return;
-      useAudioStore.setState({ isPlaying: false });
-      const song = state.playlist[state.currentSongIndex];
-      if (!song) return;
-      if (song.id === status?.currentSongId) {
-        void controlSpeaker('play');
-      } else {
-        void startSpeakerPlayback(active, 0);
-      }
-    });
-  }, []);
+  // Anything that starts local playback while a speaker is active goes to the speaker instead.
+  useEffect(() => useAudioStore.subscribe(redirectLocalPlay), []);
+}
+
+/**
+ * Store listener: send a local start to the speaker. Runs synchronously inside the store update, so the decks never
+ * see isPlaying=true. While a hand-off is still starting the speaker (`connecting`; `active` isn't set until the
+ * speaker answers) the phone stays silent too, and the hand-off plays the song picked meanwhile once it lands:
+ * letting those through is how a song tapped just after choosing the speaker played on the phone and the speaker
+ * both (Juan, 2026-11-06). Exported for tests.
+ */
+export function redirectLocalPlay(state: ReturnType<typeof useAudioStore.getState>, prev: ReturnType<typeof useAudioStore.getState>) {
+  if (!state.isPlaying || prev.isPlaying) return;
+  const { active, connecting, status } = useSpeakerOutput.getState();
+  if (!active && !connecting) return;
+  useAudioStore.setState({ isPlaying: false });
+  if (connecting || !active) return;
+  const song = state.playlist[state.currentSongIndex];
+  if (!song) return;
+  if (song.id === status?.currentSongId) {
+    void controlSpeaker('play');
+  } else {
+    void startSpeakerPlayback(active, 0);
+  }
 }
