@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
+import { useSpeakerOutput } from '@/lib/stores/speaker-output';
 import { hasRealSong, type SetActiveDeckOptions } from './useDualDeckAudio';
 
 export interface UsePlaybackStateSyncOptions {
@@ -73,7 +74,13 @@ export function usePlaybackStateSync({
       if (!audio.paused) {
         const userPauseAt = useAudioStore.getState()._userPauseAt;
         const isRecentUserPause = userPauseAt > 0 && (Date.now() - userPauseAt) < 3000;
-        if (isRecentUserPause) {
+        // A house speaker is playing (or starting to): the phone is only the remote, so a deck still sounding here
+        // is a stray, never the reality to sync the store to
+        const speaker = useSpeakerOutput.getState();
+        if (speaker.active || speaker.connecting) {
+          console.log('🎮 [STORE] Speaker is the player — pausing local audio element');
+          audio.pause();
+        } else if (isRecentUserPause) {
           console.log('🎮 [STORE] Intentional pause detected — pausing audio element');
           audio.pause();
         } else {
@@ -86,6 +93,7 @@ export function usePlaybackStateSync({
       // don't accept the pause — re-enable playback so the watchdog can recover.
       // BUT: if the user intentionally paused within the last 3 seconds, respect it.
       if (audio.paused && audio.networkState === HTMLMediaElement.NETWORK_LOADING
+          && !useSpeakerOutput.getState().active && !useSpeakerOutput.getState().connecting
           && audio.currentTime > 0 && hasRealSong(audio)
           && lastProgressTimeRef.current > 0
           && (Date.now() - lastProgressTimeRef.current) < 10000) {
