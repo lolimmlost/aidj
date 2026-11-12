@@ -746,8 +746,34 @@ export function PlaylistList({ onAddToQueue }: PlaylistListProps) {
         <ListMusic className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
         <h2 className="text-xl font-semibold mb-2">No playlists yet</h2>
         <p className="text-muted-foreground mb-4">
-          Create your first playlist or sync from Navidrome
+          Create your first playlist, import one (Spotify/Exportify CSV, M3U…), or sync from Navidrome
         </p>
+        <div className="flex justify-center gap-2">
+          <Button
+            onClick={() => setImportDialogOpen(true)}
+            variant="outline"
+            size="sm"
+            className="min-h-[44px]"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Import
+          </Button>
+          <Button
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending || !navidromeAvailable}
+            variant="outline"
+            size="sm"
+            className="min-h-[44px]"
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+            {syncMutation.isPending ? 'Syncing...' : 'Sync'}
+          </Button>
+        </div>
+        <PlaylistImportDialog
+          open={importDialogOpen}
+          onOpenChange={setImportDialogOpen}
+          onSuccess={handleImportSuccess}
+        />
       </div>
     );
   }
