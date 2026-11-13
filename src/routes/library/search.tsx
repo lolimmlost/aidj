@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NavidromeErrorBoundary } from '@/components/navidrome-error-boundary';
-import { Search as SearchIcon, Plus, Download, CheckCircle2, AlertCircle, X, Clock, Play, Disc3, MoreHorizontal, ListPlus, Radio } from 'lucide-react';
+import { Search as SearchIcon, Plus, Download, CheckCircle2, AlertCircle, X, Clock, Play, Disc3, MoreHorizontal, ListPlus, Radio, Music, User } from 'lucide-react';
 import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
 import { AddToQueueButton } from '@/components/playlists/AddToQueueButton';
 import {
@@ -25,6 +25,8 @@ import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { useArtistMetadata, useAddArtistToLibrary } from '@/lib/hooks/useArtistMetadata';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
+import type { Song } from '@/lib/types/song';
+import { addRecent, loadRecent, saveRecent as storeRecent, type RecentEntry } from '@/lib/utils/recent-searches';
 
 export const Route = createFileRoute('/library/search')({
   validateSearch: (search: Record<string, unknown>): { q?: string } => ({
@@ -37,9 +39,6 @@ export const Route = createFileRoute('/library/search')({
   },
   component: SearchPage,
 });
-
-const RECENT_KEY = 'aidj.search.recent';
-const MAX_RECENT = 10;
 
 const TABS = [
   { id: 'all', label: 'All' },
@@ -57,23 +56,23 @@ function SearchPage() {
   const query = q ?? '';
   const { playSong, setAIUserActionInProgress } = useAudioStore();
   const [tab, setTab] = useState<Tab>('all');
-  const [recent, setRecent] = useState<string[]>([]);
+  const { user } = Route.useRouteContext();
+  const userId = user?.id;
+  const [recent, setRecent] = useState<RecentEntry[]>([]);
   const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(RECENT_KEY);
-      if (raw) setRecent(JSON.parse(raw));
-    } catch { /* ignore */ }
-  }, []);
+    if (!userId) return;
+    setRecent(loadRecent(localStorage, userId));
+  }, [userId]);
 
-  const saveRecent = (next: string[]) => {
+  const saveRecent = (next: RecentEntry[]) => {
     setRecent(next);
-    try {
-      localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-    } catch { /* ignore */ }
+    if (userId) storeRecent(localStorage, userId, next);
   };
+
+  const recordRecent = (entry: RecentEntry) => saveRecent(addRecent(recent, entry));
 
   // Auto-save recent search after typing pause
   useEffect(() => {
@@ -81,7 +80,7 @@ function SearchPage() {
     const term = query.trim();
     if (!term) return;
     commitTimer.current = setTimeout(() => {
-      saveRecent([term, ...recent.filter((r) => r.toLowerCase() !== term.toLowerCase())].slice(0, MAX_RECENT));
+      recordRecent({ kind: 'query', term });
     }, 1200);
     return () => {
       if (commitTimer.current) clearTimeout(commitTimer.current);
@@ -184,9 +183,35 @@ function SearchPage() {
   const handleSongClick = (songId: string) => {
     const song = songs.find(s => s.id === songId);
     if (!song) return;
+    recordRecent({ kind: 'song', song });
+    playRecentSong(song);
+  };
+
+  const playRecentSong = (song: Song) => {
     setAIUserActionInProgress(true);
-    playSong(songId, [song]);
+    playSong(song.id, [song]);
     setTimeout(() => setAIUserActionInProgress(false), 1000);
+  };
+
+  const openRecent = (entry: RecentEntry) => {
+    switch (entry.kind) {
+      case 'query':
+        setQuery(entry.term);
+        break;
+      case 'song':
+        playRecentSong(entry.song);
+        break;
+      case 'artist':
+        navigate({ to: '/library/artists/$id', params: { id: entry.id } });
+        break;
+      case 'album':
+        if (entry.artistId) {
+          navigate({ to: '/library/artists/$id/albums/$albumId', params: { id: entry.artistId, albumId: entry.id } });
+        } else {
+          setQuery(entry.name);
+        }
+        break;
+    }
   };
 
   const showArtists = tab === 'all' || tab === 'artists';
@@ -323,11 +348,15 @@ function SearchPage() {
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
                       {matchedArtists.map((artist) => (
-                        <ArtistCard
+                        <div
                           key={artist.id}
-                          artist={artist}
-                          savedImageUrl={allArtistImages[artist.name.toLowerCase()]}
-                        />
+                          onClickCapture={() => recordRecent({ kind: 'artist', id: artist.id, name: artist.name })}
+                        >
+                          <ArtistCard
+                            artist={artist}
+                            savedImageUrl={allArtistImages[artist.name.toLowerCase()]}
+                          />
+                        </div>
                       ))}
                     </div>
                   </section>
@@ -355,13 +384,13 @@ function SearchPage() {
                     {tab === 'all' ? (
                       <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         {matchedAlbums.slice(0, 8).map((album, i) => (
-                          <AlbumResultCard key={album.id} album={album} index={i} variant="scroll" />
+                          <AlbumResultCard key={album.id} album={album} index={i} variant="scroll" onOpen={() => recordRecent({ kind: 'album', id: album.id, name: album.name, artist: album.artist, artistId: album.artistId })} />
                         ))}
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                         {matchedAlbums.map((album, i) => (
-                          <AlbumResultCard key={album.id} album={album} index={i} />
+                          <AlbumResultCard key={album.id} album={album} index={i} onOpen={() => recordRecent({ kind: 'album', id: album.id, name: album.name, artist: album.artist, artistId: album.artistId })} />
                         ))}
                       </div>
                     )}
@@ -409,30 +438,30 @@ function SearchPage() {
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {recent.map((term) => (
+                    {recent.map((entry) => (
                       <button
-                        key={term}
-                        onClick={() => setQuery(term)}
+                        key={recentEntryKey(entry)}
+                        onClick={() => openRecent(entry)}
                         className="group flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/30 px-3.5 py-1.5 text-sm transition-all hover:bg-muted/60 hover:border-border"
                       >
-                        <Clock className="h-3 w-3 text-muted-foreground" />
-                        <span>{term}</span>
+                        <RecentEntryIcon entry={entry} />
+                        <span>{recentEntryLabel(entry)}</span>
                         <span
                           role="button"
                           tabIndex={0}
                           onClick={(e) => {
                             e.stopPropagation();
-                            saveRecent(recent.filter((r) => r !== term));
+                            saveRecent(recent.filter((r) => r !== entry));
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault();
                               e.stopPropagation();
-                              saveRecent(recent.filter((r) => r !== term));
+                              saveRecent(recent.filter((r) => r !== entry));
                             }
                           }}
                           className="ml-0.5 rounded-full p-0.5 text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 hover:text-foreground transition-all"
-                          aria-label={`Remove ${term}`}
+                          aria-label={`Remove ${recentEntryLabel(entry)}`}
                         >
                           <X className="h-3 w-3" />
                         </span>
@@ -602,13 +631,53 @@ function SongRow({
 
 // --- Album result card ---
 
+function recentEntryKey(entry: RecentEntry): string {
+  switch (entry.kind) {
+    case 'query':
+      return `query:${entry.term.toLowerCase()}`;
+    case 'song':
+      return `song:${entry.song.id}`;
+    default:
+      return `${entry.kind}:${entry.id}`;
+  }
+}
+
+function recentEntryLabel(entry: RecentEntry): string {
+  switch (entry.kind) {
+    case 'query':
+      return entry.term;
+    case 'song':
+      return entry.song.artist ? `${entry.song.name} · ${entry.song.artist}` : entry.song.name;
+    case 'artist':
+      return entry.name;
+    case 'album':
+      return entry.artist ? `${entry.name} · ${entry.artist}` : entry.name;
+  }
+}
+
+function RecentEntryIcon({ entry }: { entry: RecentEntry }) {
+  const className = 'h-3 w-3 text-muted-foreground';
+  switch (entry.kind) {
+    case 'query':
+      return <Clock className={className} />;
+    case 'song':
+      return <Music className={className} />;
+    case 'artist':
+      return <User className={className} />;
+    case 'album':
+      return <Disc3 className={className} />;
+  }
+}
+
 function AlbumResultCard({
   album,
   variant = 'grid',
+  onOpen,
 }: {
   album: { id: string; name: string; artist: string; artistId?: string };
   index?: number;
   variant?: 'grid' | 'scroll';
+  onOpen?: () => void;
 }) {
   const coverUrl = getCoverArtUrl(album.id, 300) ?? '';
 
@@ -616,6 +685,7 @@ function AlbumResultCard({
     <Link
       to={album.artistId ? '/library/artists/$id/albums/$albumId' : '/library/search'}
       params={album.artistId ? { id: album.artistId, albumId: album.id } : undefined}
+      onClick={onOpen}
       className={cn(
         'group flex flex-col gap-3 text-left rounded-xl p-2 -m-2 transition-colors hover:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
         variant === 'scroll' && 'w-40 shrink-0 sm:w-44',
