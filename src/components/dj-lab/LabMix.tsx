@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { barAt, meterName, type TrackAnalysis } from '@/lib/dj-lab/analysis';
-import { genreFamily, rankCandidates, rankJumps, type Candidate, type LabSong } from '@/lib/dj-lab/crate';
+import { genreFamily, lastJump, rankCandidates, rankJumps, type Candidate, type LabSong } from '@/lib/dj-lab/crate';
 import type { EngineSnapshot, HistoryEntry, LabEngine, NextInfo } from '@/lib/dj-lab/engine';
 import { describeRecipe, planSummary as planLine, type TransitionPlan } from '@/lib/dj-lab/plan';
 import { loadVotes, lockRecord, newId, planRecord, saveVote } from '@/lib/dj-lab/votes';
@@ -199,10 +199,11 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
         : [],
     [now, pool, snap.setBpm, played, snap.mode, starred, votes],
   );
-  // too far to stretch: a tempo jump moves the set to their tempo (never auto-locked)
+  // too far to stretch: a tempo jump moves the set to their tempo (auto-lock's last resort). In auto-lock's
+  // order: the ones that keep the direction of the set's last jump first (#390)
   const jumps = useMemo(
-    () => (now ? rankJumps({ song: now.song, analysis: now.analysis }, pool, { setBpm: snap.setBpm, played, mode: snap.mode }) : []),
-    [now, pool, snap.setBpm, played, snap.mode],
+    () => (now ? rankJumps({ song: now.song, analysis: now.analysis }, pool, { setBpm: snap.setBpm, played, mode: snap.mode, last: lastJump(snap.history) }) : []),
+    [now, pool, snap.setBpm, played, snap.mode, snap.history],
   );
   // a card per genre family, in the order of each family's best pick
   const groups = useMemo(() => {
