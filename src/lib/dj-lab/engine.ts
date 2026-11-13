@@ -28,6 +28,9 @@ export interface LoadedTrack {
 
 export type NextState = 'loading' | 'locked' | 'committed' | 'mixing' | 'failed';
 
+/** Auto-lock's song picker: the song to lock next, and what to log about the pick once it locks (#383, #390). */
+export type Picker = (now: NowInfo, played: Set<string>) => { song: LabSong; log?: Record<string, unknown> } | null;
+
 /** The next-transition picker (#375): unset = the rules decide */
 export type Choices = Pick<Recipe, 'exit' | 'entry' | 'bass' | 'bars' | 'kill' | 'depth'>;
 export type ChoiceKey = keyof Choices;
@@ -212,11 +215,13 @@ export class LabEngine {
     queue: [],
   };
   /** picks the next song when auto-lock is on (the page ranks the crate) */
-  private pickNext: ((now: NowInfo, played: Set<string>) => LabSong | null) | null = null;
+  private pickNext: Picker | null = null;
+  /** where auto-lock's last pick stood in its ranking, for that song's `locked` line in the flight recorder */
+  private pickLog: { id: string; data: Record<string, unknown> } | null = null;
   /** called before the Lab starts sound, so the app's own player can pause */
   private onBeforePlay: (() => void) | null = null;
 
-  setPicker(fn: (now: NowInfo, played: Set<string>) => LabSong | null) {
+  setPicker(fn: Picker) {
     this.pickNext = fn;
   }
 
@@ -518,6 +523,8 @@ export class LabEngine {
     if (queue.length !== this.snap.queue.length || queue.some((q, i) => q !== this.snap.queue[i])) this.set({ queue });
     this.lockedFromQueue = fromQueue ? song.id : null;
     this.cancelNext();
+    // a song you lock yourself wasn't ranked
+    if (!auto) this.pickLog = null;
     const token = ++this.lockToken;
     labLog('lock', { song: songLabel(song), auto });
     this.setNext({ song, state: 'loading', notes: [], plan: undefined, lock: undefined, placed: undefined, analysis: undefined, error: undefined });
@@ -601,6 +608,8 @@ export class LabEngine {
       choice: recipe ? describeRecipe(recipe) || undefined : undefined,
       notes: notes.length ? notes.join('; ') : undefined,
       heldMB: this.heldMB(),
+      // an auto-pick: the track's own tempo, the set tempo it was ranked against, its rank
+      ...(this.pickLog?.id === song.id ? this.pickLog.data : undefined),
     });
     this.autoFails = 0;
     if (this.snap.message) this.set({ message: undefined });
@@ -1007,6 +1016,7 @@ export class LabEngine {
   maybeAutoLock() {
     if (!this.snap.now || this.snap.next || this.snap.status !== 'playing') return;
     if (this.autoFails >= AUTO_FAIL_LIMIT) return;
+    this.pickLog = null;
     const played = new Set([...this.snap.history.map((h) => h.song.id), ...this.skipped]);
     const front = this.snap.queue.find((s) => !played.has(s.id));
     if (front) {
@@ -1017,7 +1027,9 @@ export class LabEngine {
     // a replay locks its next song not played or skipped yet; once it runs out, the set carries on
     const queued = this.replayQueue.find((e) => !played.has(e.song.id));
     if (this.snap.replay && !queued) this.endReplay();
-    const song = queued?.song ?? this.pickNext?.(this.snap.now, played) ?? null;
+    const pick = queued ? null : (this.pickNext?.(this.snap.now, played) ?? null);
+    const song = queued?.song ?? pick?.song ?? null;
+    if (pick?.log) this.pickLog = { id: pick.song.id, data: pick.log };
     if (song) void this.lock(song, undefined, true);
   }
 }
