@@ -26,6 +26,7 @@ import {
   PanelLeftOpen,
   Shield,
   ChevronUp,
+  ListTodo,
 } from 'lucide-react';
 import authClient from '@/lib/auth/auth-client';
 import { MusicTasteDebugPanel } from '@/components/debug/MusicTasteDebugPanel';
@@ -567,6 +568,13 @@ function LeftSidebar() {
                 icon={<Download className="h-4 w-4" />}
                 label="Downloads"
                 active={currentPath.startsWith('/downloads')}
+                collapsed={isCollapsed}
+              />
+              <NavItem
+                to="/tasks"
+                icon={<ListTodo className="h-4 w-4" />}
+                label="Tasks"
+                active={currentPath.startsWith('/tasks')}
                 collapsed={isCollapsed}
               />
             </nav>
