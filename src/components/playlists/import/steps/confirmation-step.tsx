@@ -51,12 +51,19 @@ interface ConfirmationStepProps {
   playlistName: string;
   onReviewClick?: () => void;
   reviewStats?: ReviewStats;
+  /** Songs not auto-matched but worth downloading: unreviewed or skipped review songs. */
+  extraDownloadSongs?: UnmatchedSong[];
 }
 
-export function ConfirmationStep({ importResult, playlistName, onReviewClick, reviewStats }: ConfirmationStepProps) {
+export function ConfirmationStep({ importResult, playlistName, onReviewClick, reviewStats, extraDownloadSongs = [] }: ConfirmationStepProps) {
   const { matchReport, createdPlaylistId } = importResult;
   const hasWarnings = matchReport.summary.noMatch > 0 || importResult.parseWarnings.length > 0;
-  const hasUnmatchedSongs = matchReport.summary.noMatch > 0;
+  // Everything that isn't in the playlist and could be downloaded: no-match + review leftovers.
+  const unmatchedSongs: UnmatchedSong[] = [...(importResult.unmatchedSongs || []), ...extraDownloadSongs];
+  const missingCount = unmatchedSongs.length;
+  const hasUnmatchedSongs = missingCount > 0;
+  const matchedTotal = matchReport.summary.matched + (reviewStats?.reviewed || 0);
+  const mostlyMissing = matchReport.summary.total > 0 && matchedTotal < matchReport.summary.total / 2;
 
   const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -68,11 +75,6 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
   // Lidarr = album-based acquisition; YouTube = per-song MeTube fallback (#145),
   // for the misses Lidarr can't get (e.g. "artist has 0 albums").
   const [downloadService, setDownloadService] = useState<'lidarr' | 'youtube'>('lidarr');
-
-  // Mock unmatched songs list (in real implementation, this would come from importResult)
-  const unmatchedSongs: UnmatchedSong[] = importResult.unmatchedSongs || [
-    // Placeholder - these would come from the actual match results
-  ];
 
   const handleOpenDownloadDialog = () => {
     // Select all songs by default
@@ -237,14 +239,26 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
     <div className="space-y-4 md:space-y-6">
       {/* Success Message */}
       <div className="text-center py-3 md:py-4">
-        <div className="mx-auto w-10 h-10 md:w-14 md:h-14 rounded-full bg-green-500/10 flex items-center justify-center mb-2 md:mb-3">
-          <CheckCircle2 className="h-5 w-5 md:h-7 md:w-7 text-green-500" />
+        <div className={`mx-auto w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center mb-2 md:mb-3 ${
+          mostlyMissing ? 'bg-yellow-500/10' : 'bg-green-500/10'
+        }`}>
+          {mostlyMissing ? (
+            <AlertTriangle className="h-5 w-5 md:h-7 md:w-7 text-yellow-500" />
+          ) : (
+            <CheckCircle2 className="h-5 w-5 md:h-7 md:w-7 text-green-500" />
+          )}
         </div>
-        <h3 className="text-sm md:text-lg font-semibold text-green-700 dark:text-green-400">
-          Import Complete!
+        <h3 className={`text-sm md:text-lg font-semibold ${
+          mostlyMissing ? 'text-yellow-700 dark:text-yellow-400' : 'text-green-700 dark:text-green-400'
+        }`}>
+          {mostlyMissing
+            ? `Only ${matchedTotal} of ${matchReport.summary.total} songs are in your library`
+            : 'Import Complete!'}
         </h3>
         <p className="text-xs md:text-sm text-muted-foreground mt-0.5 md:mt-1">
-          Your playlist has been successfully imported
+          {hasUnmatchedSongs
+            ? `${missingCount} song${missingCount !== 1 ? 's' : ''} aren't in your library yet. Download them below, rescan, then import again to add them.`
+            : 'Your playlist has been successfully imported'}
         </p>
       </div>
 
@@ -319,15 +333,15 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
           </div>
         )}
 
-        {matchReport.summary.noMatch > 0 && (
+        {hasUnmatchedSongs && (
           <div className={`p-2 md:p-3 rounded-lg border text-center ${
             hasQueuedDownloads ? 'bg-green-500/10 border-green-500/20' : 'bg-card'
           }`}>
             <p className={`text-base md:text-xl font-bold ${hasQueuedDownloads ? 'text-green-600 dark:text-green-400' : ''}`}>
-              {hasQueuedDownloads ? queuedCount : matchReport.summary.noMatch}
+              {hasQueuedDownloads ? queuedCount : missingCount}
             </p>
             <p className="text-[10px] md:text-xs text-muted-foreground">
-              {hasQueuedDownloads ? 'Queued' : 'Not Found'}
+              {hasQueuedDownloads ? 'Queued' : 'Not in library'}
             </p>
           </div>
         )}
@@ -361,8 +375,11 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
                 </>
               ) : (
                 <>
-                  <span className="font-medium">{matchReport.summary.noMatch} songs</span>
-                  <span className="text-muted-foreground"> not found</span>
+                  <span className="font-medium">{missingCount} song{missingCount !== 1 ? 's' : ''}</span>
+                  <span className="text-muted-foreground"> not in your library</span>
+                  <span className="text-muted-foreground block text-[10px] md:text-xs mt-0.5">
+                    Send them to Lidarr (full albums) or YouTube (single tracks).
+                  </span>
                 </>
               )}
             </p>
@@ -380,7 +397,7 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
             }}
           >
             <Download className="mr-1 h-3 w-3 md:h-4 md:w-4" />
-            {hasQueuedDownloads ? 'Re-download' : downloadFailed ? 'Retry' : 'Download'}
+            {hasQueuedDownloads ? 'Re-download' : downloadFailed ? 'Retry' : 'Download missing'}
           </Button>
         </div>
       )}
