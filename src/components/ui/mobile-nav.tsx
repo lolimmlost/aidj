@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
-import { Menu, X, Music, Search, Settings, Download, LayoutDashboard, BarChart3, Clock, ListMusic, Sparkles, User, LogOut, Shield } from 'lucide-react';
+import { Menu, X, Music, Search, Settings, Download, LayoutDashboard, BarChart3, Clock, ListMusic, Sparkles, User, LogOut, Shield, ListTodo, TrendingUp } from 'lucide-react';
 import { Button } from './button';
 import { cn } from '@/lib/utils';
 import authClient from '@/lib/auth/auth-client';
@@ -22,6 +22,8 @@ function getPageTitle(path: string): string {
   if (path.startsWith('/music-identity')) return 'Music Identity';
   if (path.startsWith('/settings')) return 'Settings';
   if (path.startsWith('/admin')) return 'Admin';
+  if (path.startsWith('/tasks')) return 'Tasks';
+  if (path.startsWith('/dashboard/library-growth')) return 'Library Growth';
   if (path.startsWith('/dj')) return 'DJ';
   return 'AIDJ';
 }
@@ -151,6 +153,13 @@ export function MobileNav() {
               onClick={closeMenu}
               active={currentPath.startsWith('/downloads')}
             />
+            <NavLink
+              to="/tasks"
+              icon={<ListTodo className="h-5 w-5" />}
+              label="Tasks"
+              onClick={closeMenu}
+              active={currentPath.startsWith('/tasks')}
+            />
 
             <NavSectionLabel label="Insights" />
             <NavLink
@@ -173,6 +182,13 @@ export function MobileNav() {
               label="Music Identity"
               onClick={closeMenu}
               active={currentPath.startsWith('/music-identity')}
+            />
+            <NavLink
+              to="/dashboard/library-growth"
+              icon={<TrendingUp className="h-5 w-5" />}
+              label="Library Growth"
+              onClick={closeMenu}
+              active={currentPath.includes('/library-growth')}
             />
 
             <NavSectionLabel label="System" />
