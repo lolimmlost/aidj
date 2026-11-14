@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /$
+Allow: /assets/
+Allow: /og-image.png
+Allow: /favicon.ico
+Allow: /manifest.json
+Allow: /icons/
+Allow: /music-identity/share/
+Allow: /playlists/join/
+Allow: /invite
+Disallow: /
