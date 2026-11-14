@@ -20,7 +20,7 @@ export type MatchConfidence = 'exact' | 'high' | 'low' | 'none';
 /**
  * Download Service Types
  */
-export type DownloadService = 'lidarr' | 'metube';
+export type DownloadService = 'lidarr' | 'metube' | 'both';
 
 /**
  * Playlist Export/Import Job Status
@@ -198,18 +198,14 @@ export const playlistDownloadJobs = pgTable("playlist_download_jobs", {
   failedItems: integer("failed_items").default(0),
 
   // Queue details
-  downloadQueue: jsonb("download_queue").$type<DownloadQueueItem[]>(),
+  // The route stores just the requested songs; per-item progress fields on DownloadQueueItem are unused.
+  downloadQueue: jsonb("download_queue").$type<Array<Pick<DownloadQueueItem, 'title' | 'artist' | 'album'>>>(),
 
   // Files that need manual organization (for MeTube)
-  pendingOrganization: jsonb("pending_organization").$type<{
-    files: Array<{
-      path: string;
-      suggestedPath: string;
-      title: string;
-      artist: string;
-    }>;
-    organized: boolean;
-  }>(),
+  pendingOrganization: jsonb("pending_organization").$type<Array<{
+    title: string;
+    artist: string;
+  }>>(),
 
   // Error handling
   errorMessage: text("error_message"),

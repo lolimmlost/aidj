@@ -452,6 +452,7 @@ async function unmonitorOtherAlbums(
 // Helper function to find the best matching album for a song
 function findBestAlbumMatch(
   albums: Array<{
+    id: number;
     title: string;
     foreignAlbumId: string;
     artist?: { foreignArtistId: string; artistName: string };
