@@ -6,6 +6,49 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ---
 
+## [1.6.0-rc.1] — 2026-11-15
+
+Release candidate. Everything merged to `main` since 1.5.0.
+
+### New Contributors
+- [@Yumejichi](https://github.com/Yumejichi) made their first contribution — Tasks and mobile Library Growth nav links (#408). Thank you!
+
+### Added
+- **DJ Transition Lab** (`/dj/lab`) — continuous mix that locks the next song, blind A/B, transition picker, tempo window + tempo jumps, hard transitions by default (8-bar build, 2-bar cut), queue-after-lock, liked transitions, live set recording, and offline rendering of saved sets (#367, #380, #387–#389, #393, #394)
+- **Transition learning** — schema, scoring service, mining in profile recompute, and a flag-gated re-ranker in the blended scorer, with offline holdout validation
+- **House speakers via Music Assistant** — play the AI DJ on speakers and hand back to the phone (#244, #246, #247)
+- **YouTube (MeTube) fallback** — per-song downloads from import review, auto-retry, N-way concurrency, a result matcher, and dedup guards against re-downloading library tracks (#145, #131, #231)
+- **Playlists mirror to Navidrome** as real playlists (#178, #200)
+- Mobile bottom tab bar, View Transitions (Now Playing sheet, art morphs), like burst + double-tap to like + haptics, per-page tab titles (#283, #289, #278, #287)
+- Sleep timer (#171), spread shuffle everywhere (#249), scrobble at threshold as a setting (#248)
+- Share link previews unfurl with album/artist cover (#361); featured mix card on the dashboard (#351)
+- Chosic CSV exports recognized in playlist import (#204)
+- PWA-safe debug toggle (5-tap on the brand/title bar)
+
+### Changed
+- **Liked Songs** rebuilt around Navidrome stars: one `setSongLiked()` write-through, a deterministic Liked Songs playlist, server-authoritative feedback broadcast over WebSocket (#124, #130, #138, #139)
+- One transactional `repointSongId` owns every song-id move (#221, #254); one canonical artist/title parser (#219)
+- Playlist radio uses representative seeds plus a share of the playlist's own tracks (#309)
+- Dead code removed: unreachable download, search and matcher paths; dead components and CSS (#253, #261, #262)
+- Repo polish: MIT license, community files, accurate README (#317)
+
+### Fixed
+- **Navidrome 0.64** — ids cached before the 0.64 re-encode keep working (#397)
+- Speakers: a song picked during handoff no longer also plays on the phone (#398)
+- Playback: frozen-clock deadlock recovery (#170); radio after a cold iOS launch (#311); muted decks after a mid-crossfade pick (#296)
+- Auth: 2FA enables properly, login asks for the code, email OTP, only configured social logins (#316); login returns to the link you opened (#341)
+- Playlists: deleted playlists no longer resurrect on sync (#160); sync dupes (#127); Import and Sync shown with no playlists (#400); like from the playlist view on phones (#395); import gets its own rate-limit bucket (#128)
+- Discovery "pending" badge no longer counts every suggestion ever made (#312)
+- Library reconciliation scheduler starts on prod boot; Tasks trigger works (#267)
+- UI: blurred backdrop over sidebars (#289), queue panel safe-area inset (#304), desktop speaker button placement (#331), Tasks + mobile Library Growth nav links (#408)
+
+### Security
+- Signed-in users no longer get Navidrome admin rights (#364); Navidrome proxies require a session (#363)
+- `/api/config` no longer leaks credentials to unauthenticated callers (#245)
+- Patched TanStack Start reflected XSS (GHSA-qx66-fv34-fjm8, #332), vite dev-server advisories (#344), seroval/source-map-js (#315), and in-range npm audit advisories (#195); npm-audit CI gate enforces high/critical (#198, #269)
+
+---
+
 ## [1.5.0] — 2026-08-03
 
 ### Added
