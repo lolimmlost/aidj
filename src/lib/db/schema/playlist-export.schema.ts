@@ -20,7 +20,13 @@ export type MatchConfidence = 'exact' | 'high' | 'low' | 'none';
 /**
  * Download Service Types
  */
-export type DownloadService = 'lidarr' | 'metube' | 'both';
+export type DownloadService = 'lidarr' | 'metube';
+
+/**
+ * Service a download *job* ran with: 'both' = Lidarr first, MeTube for its misses.
+ * A single queued item is always one service, so items keep DownloadService.
+ */
+export type DownloadJobService = DownloadService | 'both';
 
 /**
  * Playlist Export/Import Job Status
@@ -187,7 +193,7 @@ export const playlistDownloadJobs = pgTable("playlist_download_jobs", {
     .references(() => playlistImportJobs.id, { onDelete: "set null" }),
 
   // Download configuration
-  service: text("service").$type<DownloadService>().notNull(),
+  service: text("service").$type<DownloadJobService>().notNull(),
 
   // Status tracking
   status: text("status").$type<ExportImportStatus>().notNull().default('pending'),
