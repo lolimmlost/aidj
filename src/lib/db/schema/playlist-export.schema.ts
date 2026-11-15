@@ -207,7 +207,7 @@ export const playlistDownloadJobs = pgTable("playlist_download_jobs", {
   // The route stores just the requested songs; per-item progress fields on DownloadQueueItem are unused.
   downloadQueue: jsonb("download_queue").$type<Array<Pick<DownloadQueueItem, 'title' | 'artist' | 'album'>>>(),
 
-  // Files that need manual organization (for MeTube)
+  // Songs sent to MeTube by this job; their files land outside Lidarr and need retagging/organizing
   pendingOrganization: jsonb("pending_organization").$type<Array<{
     title: string;
     artist: string;
