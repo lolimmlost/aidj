@@ -2,10 +2,19 @@
  * Lidarr downloader helper — shared by the /api/downloads/queue route and scripts.
  *
  * For each song: find the artist (add + monitor if missing), find the album that
- * contains the song, monitor ONLY that album, and trigger an AlbumSearch.
- * Lidarr here has no indexers; Soularr polls wanted/missing, which excludes albums
- * of unmonitored artists — so the artist must be monitored too, not just the album.
- * Lidarr cannot monitor a single track, so the song is only used to pick the album.
+ * contains the song, monitor that album, and trigger an AlbumSearch.
+ *
+ * Monitoring rules:
+ * - The artist must be monitored too, not just the album: Lidarr's wanted/missing
+ *   list leaves out albums of unmonitored artists.
+ * - Albums that were already monitored stay monitored. Only albums this run did not
+ *   ask for and that weren't monitored before it (e.g. ones a RefreshArtist turned
+ *   on) are unmonitored, so an artist's whole discography isn't pulled.
+ * - Lidarr cannot monitor a single track; the song is only used to pick the album.
+ *
+ * In the current deployment Lidarr has no indexers or download clients: Soularr
+ * polls wanted/missing and fetches from Soulseek, so the AlbumSearch is a no-op
+ * there and a wanted album is what actually triggers the download.
  */
 
 // Helper function to queue songs to Lidarr
@@ -59,6 +68,10 @@ export async function queueToLidarr(songs: { title: string; artist: string; albu
   } catch {
     // Continue with defaults
   }
+
+  // Per artist: album ids that must stay monitored — the ones already monitored
+  // when this run first saw the artist, plus every album this run monitored.
+  const keepMonitored = new Map<number, Set<number>>();
 
   for (const song of songs) {
     try {
@@ -253,6 +266,13 @@ export async function queueToLidarr(songs: { title: string; artist: string; albu
         const artistAlbums = await artistAlbumsResponse.json();
         console.log(`[Lidarr Queue] Artist has ${artistAlbums.length} albums in library`);
 
+        if (!keepMonitored.has(libraryArtistId)) {
+          keepMonitored.set(
+            libraryArtistId,
+            new Set(artistAlbums.filter((a: { monitored: boolean }) => a.monitored).map((a: { id: number }) => a.id))
+          );
+        }
+
         // Find the best matching album using our scoring algorithm
         targetLibraryAlbum = findBestAlbumMatch(artistAlbums, song);
 
@@ -278,8 +298,8 @@ export async function queueToLidarr(songs: { title: string; artist: string; albu
           }),
         });
 
-        // Unmonitor all other albums to prevent full discography downloads
-        await unmonitorOtherAlbums(lidarrUrl, lidarrApiKey, libraryArtistId!, targetLibraryAlbum.id);
+        // Unmonitor albums nobody asked for (keeps previously monitored + this run's)
+        await unmonitorOtherAlbums(lidarrUrl, lidarrApiKey, libraryArtistId!, targetLibraryAlbum.id, keepMonitored);
 
         // Trigger album search
         await fetch(`${lidarrUrl}/api/v1/command`, {
@@ -346,8 +366,8 @@ export async function queueToLidarr(songs: { title: string; artist: string; albu
               }),
             });
 
-            // Unmonitor all other albums to prevent full discography downloads
-            await unmonitorOtherAlbums(lidarrUrl, lidarrApiKey, libraryArtistId!, foundAlbum.id);
+            // Unmonitor albums nobody asked for (keeps previously monitored + this run's)
+            await unmonitorOtherAlbums(lidarrUrl, lidarrApiKey, libraryArtistId!, foundAlbum.id, keepMonitored);
 
             // Trigger album search
             await fetch(`${lidarrUrl}/api/v1/command`, {
@@ -416,13 +436,22 @@ async function unmonitorCompletedAlbums(lidarrUrl: string, lidarrApiKey: string)
   }
 }
 
-// Unmonitor all albums for an artist except the target album
-async function unmonitorOtherAlbums(
+// Unmonitor an artist's albums that nobody asked for. Keeps the target, every
+// album this run already monitored, and every album that was monitored before the
+// run touched the artist. Without a snapshot of the latter, unmonitors nothing.
+export async function unmonitorOtherAlbums(
   lidarrUrl: string,
   lidarrApiKey: string,
   artistId: number,
-  targetAlbumId: number
+  targetAlbumId: number,
+  keepMonitored: Map<number, Set<number>>
 ) {
+  const keep = keepMonitored.get(artistId);
+  if (!keep) {
+    console.log(`[Lidarr Queue] No monitored-album snapshot for artist ${artistId}; leaving other albums alone`);
+    return;
+  }
+  keep.add(targetAlbumId);
   try {
     const response = await fetch(
       `${lidarrUrl}/api/v1/album?artistId=${artistId}`,
@@ -432,7 +461,7 @@ async function unmonitorOtherAlbums(
 
     const albums = await response.json();
     const toUnmonitor = albums.filter(
-      (a: { id: number; monitored: boolean }) => a.id !== targetAlbumId && a.monitored
+      (a: { id: number; monitored: boolean }) => a.monitored && !keep.has(a.id)
     );
 
     for (const album of toUnmonitor) {
