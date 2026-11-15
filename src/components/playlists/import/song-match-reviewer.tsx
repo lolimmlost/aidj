@@ -53,7 +53,8 @@ interface SongMatchReviewerProps {
   onOpenChange: (open: boolean) => void;
   importJobId: string;
   matchResults: SongMatchResult[];
-  onComplete: (stats: ReviewStats) => void;
+  /** `skippedSongs` = songs the user didn't pick a match for; the caller offers them for download. */
+  onComplete: (stats: ReviewStats, skippedSongs: SongMatchResult['originalSong'][]) => void;
 }
 
 export function SongMatchReviewer({
@@ -141,10 +142,13 @@ export function SongMatchReviewer({
         });
       } else {
         toast.info('Review complete', {
-          description: 'All songs were skipped',
+          description: 'No matches picked. You can send these songs to download next.',
         });
       }
-      onComplete({ reviewed, skipped });
+      const skippedSongs = pendingReviewSongs
+        .filter((_, i) => !reviewedMatches.get(i))
+        .map((r) => r.originalSong);
+      onComplete({ reviewed, skipped }, skippedSongs);
       onOpenChange(false);
     },
     onError: (error: Error) => {
@@ -215,7 +219,7 @@ export function SongMatchReviewer({
         <DialogHeader className="space-y-0.5 pb-1">
           <DialogTitle className="text-sm">Review Song Matches</DialogTitle>
           <DialogDescription className="text-[11px]">
-            Review and confirm matches for songs that need manual verification
+            We found possible matches in your library but weren&apos;t sure. Pick the right one, or choose &quot;Not in my library&quot; and you can download the song next.
           </DialogDescription>
         </DialogHeader>
 
@@ -257,7 +261,7 @@ export function SongMatchReviewer({
 
         {/* Matches */}
         <div className="min-h-0 flex-1 flex flex-col space-y-1">
-          <Label className="text-[11px] shrink-0">Select Best Match</Label>
+          <Label className="text-[11px] shrink-0">Which of these is the same song?</Label>
           <div className="rounded-md border min-h-0 flex-1 overflow-y-auto">
             <RadioGroup
               value={selectedMatch?.platformId || ''}
@@ -270,8 +274,8 @@ export function SongMatchReviewer({
                 {currentSong.matches.length === 0 ? (
                   <div className="text-center py-3 text-muted-foreground">
                     <XCircle className="h-5 w-5 mx-auto mb-1 opacity-50" />
-                    <p className="text-[11px]">No matches found</p>
-                    <p className="text-[10px]">This song will be skipped</p>
+                    <p className="text-[11px]">Nothing like this in your library</p>
+                    <p className="text-[10px]">Choose &quot;Not in my library&quot; below to download it instead</p>
                   </div>
                 ) : (
                   currentSong.matches.map((match) => (
@@ -316,7 +320,10 @@ export function SongMatchReviewer({
                   onClick={() => handleSelectMatch(null)}
                 >
                   <RadioGroupItem value="" id="skip" className="h-3 w-3" />
-                  <p className="text-xs text-muted-foreground">Skip this song</p>
+                  <div>
+                    <p className="text-xs font-medium">None of these / not in my library</p>
+                    <p className="text-[10px] text-muted-foreground">Leave it out of the playlist for now. You can download it next.</p>
+                  </div>
                 </div>
               </div>
             </RadioGroup>
@@ -343,7 +350,7 @@ export function SongMatchReviewer({
               disabled={confirmMutation.isPending}
               className="h-7 text-[11px]"
             >
-              Skip All
+              Skip the rest
             </Button>
 
             {currentIndex < pendingReviewSongs.length - 1 ? (

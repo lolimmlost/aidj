@@ -230,6 +230,8 @@ export function PlaylistImportDialog({
   const [isValidating, setIsValidating] = useState(false);
   const [showReviewer, setShowReviewer] = useState(false);
   const [reviewStats, setReviewStats] = useState<{ reviewed: number; skipped: number } | null>(null);
+  // Songs the user skipped in the reviewer; offered for download on the confirmation step.
+  const [reviewSkippedSongs, setReviewSkippedSongs] = useState<Array<{ title: string; artist: string; album?: string }>>([]);
   const [importMode, setImportMode] = useState<'file' | 'url' | 'spotify_oauth'>('file');
   const [sourceUrl, setSourceUrl] = useState('');
   const [spotifyPlaylistId, setSpotifyPlaylistId] = useState<string | null>(null);
@@ -591,6 +593,7 @@ export function PlaylistImportDialog({
     setIsValidating(false);
     setShowReviewer(false);
     setReviewStats(null);
+    setReviewSkippedSongs([]);
     setImportMode('file');
     setSourceUrl('');
     setSpotifyPlaylistId(null);
@@ -724,6 +727,13 @@ export function PlaylistImportDialog({
               importResult={importResult}
               playlistName={playlistName}
               reviewStats={reviewStats || undefined}
+              extraDownloadSongs={
+                reviewStats
+                  ? reviewSkippedSongs
+                  : (importResult.matchResults || [])
+                      .filter((r) => r.status === 'pending_review')
+                      .map((r) => ({ title: r.originalSong.title, artist: r.originalSong.artist, album: r.originalSong.album }))
+              }
               onReviewClick={
                 importResult?.matchReport?.summary?.pendingReview && importResult.matchReport.summary.pendingReview > 0 && !reviewStats
                   ? () => setShowReviewer(true)
@@ -791,9 +801,10 @@ export function PlaylistImportDialog({
           onOpenChange={setShowReviewer}
           importJobId={importJobId}
           matchResults={importJobData.data.importJob.matchResults}
-          onComplete={(stats) => {
+          onComplete={(stats, skippedSongs) => {
             setShowReviewer(false);
             setReviewStats(stats);
+            setReviewSkippedSongs(skippedSongs);
             // Move to confirmation step after review
             setCurrentStep('confirmation');
           }}
