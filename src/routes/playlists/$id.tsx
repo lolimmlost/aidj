@@ -3,7 +3,8 @@ import { loginRedirect } from '~/lib/auth/login-redirect';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query';
 import { toast } from '@/lib/toast';
-import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type ReactNode, type RefObject } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useScrollSafeMenu } from '@/lib/hooks/useScrollSafeMenu';
 import {
   ListMusic, Play, Trash2, X, Plus, Shuffle,
@@ -503,6 +504,11 @@ function SortableSongRow(props: SongRowProps) {
   );
 }
 
+/** Imperative handle so the page can jump to a row that may not be rendered yet. */
+export interface PlaylistSongsListHandle {
+  scrollToIndex: (index: number, align?: 'start' | 'center') => void;
+}
+
 interface VirtualizedPlaylistSongsProps {
   songs: PlaylistSong[];
   currentSongId?: string;
@@ -516,7 +522,11 @@ interface VirtualizedPlaylistSongsProps {
   onStartRadioFromSong: (songId: string) => void;
   isRemovePending: boolean;
   disableDnD?: boolean;
+  handleRef?: RefObject<PlaylistSongsListHandle | null>;
 }
+
+/** Row height estimate (py-1.5 + 32px art); real heights are measured. */
+const SONG_ROW_ESTIMATE = 44;
 
 function PlaylistSongsList({
   songs,
@@ -531,6 +541,7 @@ function PlaylistSongsList({
   onStartRadioFromSong,
   isRemovePending,
   disableDnD,
+  handleRef,
 }: VirtualizedPlaylistSongsProps) {
   // Disable DnD on mobile — TouchSensor intercepts taps and wastes space
   const [isDesktop, setIsDesktop] = useState(() =>
@@ -544,18 +555,58 @@ function PlaylistSongsList({
     return () => mq.removeEventListener('change', handler);
   }, []);
 
+  // Rows are virtualized against the app shell's scroll container (the Radix
+  // ScrollArea viewport in AppLayout), so a 4,000-song playlist only mounts the
+  // rows on screen instead of crashing the tab.
+  const listRef = useRef<HTMLDivElement>(null);
+  const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const viewport = list.closest<HTMLElement>('[data-radix-scroll-area-viewport]');
+    setScrollEl(viewport);
+    if (!viewport) return;
+    // Offset of the list's top within the scroll content; content above it
+    // (header, search bar) can change height, so re-measure on resize.
+    const measure = () => {
+      const offset = list.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop;
+      setScrollMargin((prev) => (Math.abs(prev - offset) > 0.5 ? offset : prev));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(viewport);
+    if (viewport.firstElementChild) ro.observe(viewport.firstElementChild);
+    return () => ro.disconnect();
+  }, []);
+
+  const virtualizer = useVirtualizer({
+    count: songs.length,
+    getScrollElement: () => scrollEl,
+    estimateSize: () => SONG_ROW_ESTIMATE,
+    overscan: 12,
+    scrollMargin,
+    getItemKey: (index) => songs[index].id,
+  });
+
+  useEffect(() => {
+    if (!handleRef) return;
+    handleRef.current = {
+      scrollToIndex: (index, align = 'start') => virtualizer.scrollToIndex(index, { align }),
+    };
+    return () => { handleRef.current = null; };
+  }, [handleRef, virtualizer]);
+
   // Auto-scroll to now-playing song on mount
   const scrolledRef = useRef(false);
   useEffect(() => {
-    if (scrolledRef.current || !currentSongId) return;
-    const el = document.querySelector(`[data-song-id="${globalThis.CSS.escape(currentSongId)}"]`);
-    if (el) {
-      scrolledRef.current = true;
-      requestAnimationFrame(() => {
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      });
-    }
-  }, [currentSongId, songs]);
+    if (scrolledRef.current || !currentSongId || !scrollEl) return;
+    const idx = songs.findIndex((s) => s.songId === currentSongId);
+    if (idx < 0) return;
+    scrolledRef.current = true;
+    requestAnimationFrame(() => virtualizer.scrollToIndex(idx, { align: 'center' }));
+  }, [currentSongId, songs, scrollEl, virtualizer]);
 
   const sharedRowProps = {
     isPlaying,
@@ -566,6 +617,35 @@ function PlaylistSongsList({
     onStartRadioFromSong,
     isRemovePending,
   };
+
+  const useDnD = isDesktop && !disableDnD;
+  const songIds = useMemo(() => songs.map((s) => s.id), [songs]);
+  const virtualRows = virtualizer.getVirtualItems();
+
+  const rows = (
+    <div ref={listRef} className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+      {virtualRows.map((vr) => {
+        const song = songs[vr.index];
+        const Row = useDnD ? SortableSongRow : PlainSongRow;
+        return (
+          <div
+            key={vr.key}
+            data-index={vr.index}
+            ref={virtualizer.measureElement}
+            className="absolute left-0 top-0 w-full"
+            style={{ transform: `translateY(${vr.start - virtualizer.options.scrollMargin}px)` }}
+          >
+            <Row
+              song={song}
+              index={vr.index}
+              isCurrentSong={song.songId === currentSongId}
+              {...sharedRowProps}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="overflow-hidden">
@@ -582,42 +662,21 @@ function PlaylistSongsList({
         <span className="w-[6.5rem] shrink-0" /> {/* Star + Play next + Actions space */}
       </div>
 
-      <div>
-        {isDesktop && !disableDnD ? (
-          /* Desktop: DnD-enabled sortable rows */
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={onDragEnd}
-          >
-            <SortableContext
-              items={songs.map((s) => s.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              {songs.map((song, index) => (
-                <SortableSongRow
-                  key={song.id}
-                  song={song}
-                  index={index}
-                  isCurrentSong={song.songId === currentSongId}
-                  {...sharedRowProps}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
-        ) : (
-          /* Plain rows — no DnD (mobile or when filtering/sorting) */
-          songs.map((song, index) => (
-            <PlainSongRow
-              key={song.id}
-              song={song}
-              index={index}
-              isCurrentSong={song.songId === currentSongId}
-              {...sharedRowProps}
-            />
-          ))
-        )}
-      </div>
+      {useDnD ? (
+        /* Desktop: DnD-enabled sortable rows */
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={onDragEnd}
+        >
+          <SortableContext items={songIds} strategy={verticalListSortingStrategy}>
+            {rows}
+          </SortableContext>
+        </DndContext>
+      ) : (
+        /* Plain rows — no DnD (mobile or when filtering/sorting) */
+        rows
+      )}
     </div>
   );
 }
@@ -656,6 +715,7 @@ function PlaylistDetailPage() {
   const [sortField, setSortField] = useState<SortField>('custom');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const songListRef = useRef<HTMLDivElement>(null);
+  const songListHandleRef = useRef<PlaylistSongsListHandle | null>(null);
 
   // Check if this is a special playlist type
   const isLikedSongsPlaylist = id === 'liked-songs';
@@ -984,23 +1044,15 @@ function PlaylistDetailPage() {
   }, [filteredSongs, sortField]);
 
   const handleLetterSelect = useCallback((letter: string) => {
-    if (!songListRef.current) return;
     const sortByTitle = sortField === 'title' || sortField === 'custom';
-
-    for (const song of filteredSongs) {
+    const idx = filteredSongs.findIndex((song) => {
       const [artist, title] = extractArtistTitle(song.songArtistTitle);
       const text = sortByTitle ? title : sortField === 'artist' ? artist : (song.album || title);
       const first = text.trim().charAt(0).toUpperCase();
-      const match = letter === '#' ? (first < 'A' || first > 'Z') : first === letter;
-
-      if (match) {
-        const el = songListRef.current.querySelector(`[data-song-id="${song.songId}"]`);
-        if (el) {
-          el.scrollIntoView({ block: 'start', behavior: 'smooth' });
-          break;
-        }
-      }
-    }
+      return letter === '#' ? (first < 'A' || first > 'Z') : first === letter;
+    });
+    // Rows are virtualized, so jump by index rather than querying the DOM.
+    if (idx >= 0) songListHandleRef.current?.scrollToIndex(idx, 'start');
   }, [filteredSongs, sortField]);
 
   const handleSortChange = (field: SortField) => {
@@ -1365,6 +1417,7 @@ function PlaylistDetailPage() {
                     onStartRadioFromSong={(songId) => { void startRadio({ kind: 'song', songId }); }}
                     isRemovePending={removeSongMutation.isPending}
                     disableDnD={isFiltered}
+                    handleRef={songListHandleRef}
                   />
 
                   {/* Alphabet rail — mobile only, when 20+ songs */}
