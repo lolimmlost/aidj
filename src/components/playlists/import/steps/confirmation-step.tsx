@@ -182,49 +182,20 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
       } catch {
         throw new Error('Invalid response from server - expected JSON');
       }
-      const result = data.data;
+      // The route answers 202 right away and queues to Lidarr in the background,
+      // so it can only tell us how many songs it accepted — not how many Lidarr
+      // found. (It used to be read as `result.queued`, which is undefined here.)
+      const result = data.data as { totalSongs: number; status: string };
+      const accepted = result.totalSongs ?? songsToDownload.length;
 
-      // Check if anything was actually queued
-      if (result.queued === 0) {
-        const errorTitle = 'No songs could be queued';
-        let errorDescription = 'No matching albums found in Lidarr. The artists or albums may not be in MusicBrainz.';
-
-        if (result.errors?.length > 0) {
-          const relevantErrors = result.errors.filter((e: string) =>
-            !e.includes('songs queued')
-          );
-          if (relevantErrors.length > 0) {
-            errorDescription = relevantErrors[0];
-          }
-        }
-
-        toast.error(errorTitle, {
-          description: errorDescription,
-          duration: 8000,
-        });
-
-        // Mark as failed and close dialog
-        setDownloadFailed(true);
-        setDownloadErrorMessage(errorDescription);
-        setDownloadDialogOpen(false);
-        return;
-      }
-
-      if (result.failed > 0) {
-        toast.warning(`${result.queued} queued, ${result.failed} failed`, {
-          description: result.errors?.slice(0, 2).join('; ') || 'Some songs were not found in Lidarr',
-          duration: 8000,
-        });
-      } else {
-        toast.success(`${result.queued} songs queued for download`, {
-          description: 'Rescan your library after downloads finish, then re-import to match the new songs.',
-          duration: 8000,
-        });
-      }
+      toast.success(`Sending ${accepted} songs to Lidarr`, {
+        description: 'This runs in the background. Some songs may not be found. Rescan your library after downloads finish, then re-import to match the new songs.',
+        duration: 8000,
+      });
 
       // Mark downloads as queued
       setHasQueuedDownloads(true);
-      setQueuedCount(result.queued);
+      setQueuedCount(accepted);
       setDownloadDialogOpen(false);
     } catch (error) {
       toast.error('Download failed', {
@@ -341,7 +312,7 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
               {hasQueuedDownloads ? queuedCount : missingCount}
             </p>
             <p className="text-[10px] md:text-xs text-muted-foreground">
-              {hasQueuedDownloads ? 'Queued' : 'Not in library'}
+              {hasQueuedDownloads ? 'Sent' : 'Not in library'}
             </p>
           </div>
         )}
@@ -363,7 +334,7 @@ export function ConfirmationStep({ importResult, playlistName, onReviewClick, re
             <p className="text-xs md:text-sm">
               {hasQueuedDownloads ? (
                 <>
-                  <span className="font-medium text-green-600 dark:text-green-400">{queuedCount} songs queued</span>
+                  <span className="font-medium text-green-600 dark:text-green-400">{queuedCount} songs sent</span>
                   <span className="text-muted-foreground"> for download</span>
                 </>
               ) : downloadFailed ? (
