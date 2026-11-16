@@ -23,6 +23,12 @@ export type MatchConfidence = 'exact' | 'high' | 'low' | 'none';
 export type DownloadService = 'lidarr' | 'metube';
 
 /**
+ * Service a download *job* ran with: 'both' = Lidarr first, MeTube for its misses.
+ * A single queued item is always one service, so items keep DownloadService.
+ */
+export type DownloadJobService = DownloadService | 'both';
+
+/**
  * Playlist Export/Import Job Status
  */
 export type ExportImportStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
@@ -187,7 +193,7 @@ export const playlistDownloadJobs = pgTable("playlist_download_jobs", {
     .references(() => playlistImportJobs.id, { onDelete: "set null" }),
 
   // Download configuration
-  service: text("service").$type<DownloadService>().notNull(),
+  service: text("service").$type<DownloadJobService>().notNull(),
 
   // Status tracking
   status: text("status").$type<ExportImportStatus>().notNull().default('pending'),
@@ -198,18 +204,14 @@ export const playlistDownloadJobs = pgTable("playlist_download_jobs", {
   failedItems: integer("failed_items").default(0),
 
   // Queue details
-  downloadQueue: jsonb("download_queue").$type<DownloadQueueItem[]>(),
+  // The route stores just the requested songs; per-item progress fields on DownloadQueueItem are unused.
+  downloadQueue: jsonb("download_queue").$type<Array<Pick<DownloadQueueItem, 'title' | 'artist' | 'album'>>>(),
 
-  // Files that need manual organization (for MeTube)
-  pendingOrganization: jsonb("pending_organization").$type<{
-    files: Array<{
-      path: string;
-      suggestedPath: string;
-      title: string;
-      artist: string;
-    }>;
-    organized: boolean;
-  }>(),
+  // Songs sent to MeTube by this job; their files land outside Lidarr and need retagging/organizing
+  pendingOrganization: jsonb("pending_organization").$type<Array<{
+    title: string;
+    artist: string;
+  }>>(),
 
   // Error handling
   errorMessage: text("error_message"),
