@@ -82,13 +82,20 @@ jobs:
             "GHSA-392p-2q2v-4372",
             "GHSA-g38m-r43w-p2q7",
             "GHSA-fmh4-wcc4-5jm3",
-            "GHSA-qq9h-g4jm-xgf3"
+            "GHSA-qq9h-g4jm-xgf3",
+            "GHSA-965c-763c-88jm",
+            "GHSA-r4xp-prcw-77qf",
+            "GHSA-q84f-53jg-9ppm"
           ]'
           # pw9m (critical), 9h47, 86j7: oidcProvider / mcp plugins — not used
           # 7w99, 392p: @better-auth/oauth-provider — not used
           # g38m: OAuth account auto-link — social providers unset in prod
           # fmh4: organization plugin — not used
           # qq9h: magic-link / email-OTP sign-in — not used
+          # 965c (critical): OAuth state accepted as a magic-link token — magicLink plugin not used
+          # r4xp: oAuthProxy plugin — not used
+          # q84f: deviceAuthorization plugin — not used
+          # (all three added 2026-11-15; fixed in better-auth >=1.7.7, see the 1.7 upgrade)
 
           # Every high/critical advisory not on the allowlist fails the gate,
           # so a new one in ANY package (better-auth included) still turns it red.
