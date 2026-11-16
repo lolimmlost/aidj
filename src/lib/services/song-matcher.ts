@@ -144,6 +144,142 @@ export function stripLeadingArtistPrefix(title: string, artist: string): string 
 }
 
 /**
+ * Tags that make it a different recording (remix, live take, instrumental, …).
+ * Anything else in a version-looking segment — remaster, single/radio/LP edit,
+ * 12" version, extended mix, bonus track, a year — is treated as the same song.
+ */
+const SIGNIFICANT_VERSION =
+  /\b(?:remix|rmx|live|acoustic|instrumental|demo|slowed|sped|reverb|nightcore|cover|karaoke|vip|bootleg|flip|rework|unplugged|interlude|acapella|a cappella)\b/;
+/** Release/length variants: same song for matching purposes. */
+const RELEASE_VARIANT =
+  /\b(?:remaster(?:ed)?|remasterizado|deluxe|edition|edit|version|versi[oó]n|mix|single|bonus|explicit|clean|dirty|mono|stereo|original|extended|lp|album|radio|street|\d{4}|\d+)\b/;
+const FEAT_LEAD = /^(?:feat|ft|featuring|with)\b/;
+
+export interface ParsedTitle {
+  /** Normalized title with feat credits and version tags removed. */
+  base: string;
+  /** Normalized significant version tag(s), e.g. "oliverse remix"; '' for the original. */
+  version: string;
+}
+
+/**
+ * Split a raw title into base title + version tag, BEFORE punctuation is
+ * normalized away (normalizeString turns "(" and " - " into spaces, which is why
+ * the old normalizeTitle regexes never matched anything).
+ *
+ *   "She's My Collar (feat. Kali Uchis)"             → base "she s my collar", version ""
+ *   "After Life - Oliverse Remix"                    → base "after life", version "oliverse remix"
+ *   "I'll Be Missing You (feat. X) - 2014 Remaster"  → base "i ll be missing you", version ""
+ *   "X (with 2 Chainz & Saudi)"                      → base "x", version ""
+ *
+ * Featured artists never count against a match — albums often list them only in
+ * the artist field. A remix that ADDS features ("Surround Sound (KAYTRANADA Remix)")
+ * still differs from the original through its version tag.
+ */
+export function parseTitle(raw: string): ParsedTitle {
+  let rest = raw || '';
+  const versions: string[] = [];
+
+  const classify = (segment: string): 'feat' | 'ignore' | 'version' | 'keep' => {
+    const n = normalizeString(segment);
+    if (!n) return 'ignore';
+    if (FEAT_LEAD.test(n)) return 'feat';
+    if (SIGNIFICANT_VERSION.test(n)) return 'version';
+    if (RELEASE_VARIANT.test(n)) return 'ignore';
+    return 'keep';
+  };
+
+  // Bracketed segments: (feat. X), [Live], (Oliverse remix)
+  rest = rest.replace(/\s*[([]([^)\]]*)[)\]]/g, (whole, inner: string) => {
+    const kind = classify(inner);
+    if (kind === 'version') versions.push(normalizeString(inner));
+    return kind === 'keep' ? whole : ' ';
+  });
+
+  // Trailing " - X" segments (any dash), peeled from the end: "Song - Oliverse Remix - 2014 Remaster"
+  for (;;) {
+    const m = rest.match(/^(.*\S)\s+[-–—]\s+([^-–—]+)$/);
+    if (!m) break;
+    const kind = classify(m[2]);
+    if (kind === 'keep') break;
+    if (kind === 'version') versions.push(normalizeString(m[2]));
+    rest = m[1];
+  }
+
+  // Inline feat without brackets: "Song feat. X"
+  rest = rest.replace(/\s+(?:feat\.?|ft\.?|featuring)\s+.*$/i, '');
+
+  // Inline trailing remix/VIP word with no separator: "Get Stupid Remix", "Wobble Master Vip"
+  let base = normalizeString(rest);
+  const inline = base.match(/^(.+?)\s+(remix|rmx|vip)$/);
+  if (inline) {
+    base = inline[1];
+    versions.push(inline[2] === 'rmx' ? 'remix' : inline[2]);
+  }
+
+  return { base, version: versions.sort().join(' ') };
+}
+
+/**
+ * Title similarity on base titles. `versionMismatch` is set when one side is a
+ * remix/live/instrumental/etc. and the other isn't (or they're different remixes);
+ * the similarity is halved and the caller must not auto-match.
+ */
+export function titleMatch(a: string, b: string): { similarity: number; versionMismatch: boolean } {
+  const pa = parseTitle(a);
+  const pb = parseTitle(b);
+  // Also compare with spaces removed: "2am" vs "2 AM", "UFO" vs "U.F.O."
+  const base = Math.max(
+    stringSimilarity(pa.base, pb.base),
+    stringSimilarity(pa.base.replace(/ /g, ''), pb.base.replace(/ /g, ''))
+  );
+  const coreTokens = (v: string) =>
+    new Set(v.split(' ').filter((t) => t && !RELEASE_VARIANT.test(t)));
+  const ta = coreTokens(pa.version);
+  const tb = coreTokens(pb.version);
+  // Same version when the significant words agree: "acoustic version" == "acoustic",
+  // "Oliverse Remix" == "oliverse remix"; "KAYTRANADA remix" != "" (the original).
+  const subset = (x: Set<string>, y: Set<string>) => [...x].every((t) => y.has(t));
+  const sameVersion =
+    (ta.size === 0 && tb.size === 0) ||
+    (ta.size > 0 && tb.size > 0 && (subset(ta, tb) || subset(tb, ta) || stringSimilarity(pa.version, pb.version) >= 0.8));
+  return sameVersion ? { similarity: base, versionMismatch: false } : { similarity: base * 0.5, versionMismatch: true };
+}
+
+export function titleMatchSimilarity(a: string, b: string): number {
+  return titleMatch(a, b).similarity;
+}
+
+/** Below these, album/duration agreement alone must not push a candidate to auto-match. */
+const AUTO_MATCH_MIN_TITLE = 0.8;
+const AUTO_MATCH_MIN_ARTIST = 0.8;
+
+/** Split a multi-artist credit: "Gorillaz;Kali Uchis", "ScHoolboy Q, 2 Chainz, Saudi", "A feat. B". */
+export function splitArtists(artist: string): string[] {
+  return (artist || '')
+    .split(/\s*(?:;|,|\/|&|\+|\bx\b|\bfeat\.?|\bft\.?|\bfeaturing\b|\bwith\b|\band\b|\bvs\.?)\s*/i)
+    .map((a) => normalizeArtist(a))
+    .filter(Boolean);
+}
+
+/**
+ * Artist similarity that understands credit lists. Spotify lists every
+ * performer ("DJ Jazzy Jeff;Jazzyfatnastees;The Roots") while the library file
+ * usually carries just the album artist ("The Roots"). Every artist on the
+ * shorter side being present on the longer side counts as a full match.
+ */
+export function artistMatchSimilarity(a: string, b: string): number {
+  const whole = stringSimilarity(normalizeArtist(a), normalizeArtist(b));
+  const la = splitArtists(a);
+  const lb = splitArtists(b);
+  if (la.length === 0 || lb.length === 0) return whole;
+  const [small, big] = la.length <= lb.length ? [la, lb] : [lb, la];
+  const coverage =
+    small.reduce((sum, x) => sum + Math.max(...big.map((y) => stringSimilarity(x, y))), 0) / small.length;
+  return Math.max(whole, coverage);
+}
+
+/**
  * Calculate match score between two songs
  */
 export function calculateMatchScore(
@@ -158,32 +294,22 @@ export function calculateMatchScore(
     return { score: 100, confidence: 'exact', reason: 'ISRC code match' };
   }
 
-  // Title similarity (40% weight). Also try the candidate title with a leading
-  // "Artist - " prefix stripped, so a polluted YouTube-rip title still matches.
-  // Feat/version info is only dropped on THIS recovery path (a candidate that had
-  // an artist prefix) — normal titles keep it, so remix/feat versions stay distinct.
+  // Title similarity (40% weight). Feat credits are ignored and version tags
+  // (remix/live/…) must agree. Also try the candidate with a leading "Artist - "
+  // prefix stripped, so a polluted YouTube-rip title still matches.
   const candidateStripped = stripLeadingArtistPrefix(candidate.title, candidate.artist);
-  let titleSimilarity = stringSimilarity(
-    normalizeTitle(source.title),
-    normalizeTitle(candidate.title)
-  );
+  let title = titleMatch(source.title, candidate.title);
   if (candidateStripped !== candidate.title) {
-    const dropFeat = (t: string) =>
-      t.replace(/\s*[([]\s*(feat|ft|featuring|with)\.?\s[^)\]]*[)\]]/gi, '');
-    titleSimilarity = Math.max(
-      titleSimilarity,
-      stringSimilarity(normalizeTitle(dropFeat(source.title)), normalizeTitle(dropFeat(candidateStripped)))
-    );
+    const stripped = titleMatch(source.title, candidateStripped);
+    if (stripped.similarity > title.similarity) title = stripped;
   }
+  const titleSimilarity = title.similarity;
   score += titleSimilarity * 40;
   if (titleSimilarity > 0.9) reasons.push('Title matches closely');
   else if (titleSimilarity > 0.7) reasons.push('Title similar');
 
   // Artist similarity (40% weight)
-  const artistSimilarity = stringSimilarity(
-    normalizeArtist(source.artist),
-    normalizeArtist(candidate.artist)
-  );
+  const artistSimilarity = artistMatchSimilarity(source.artist, candidate.artist);
   score += artistSimilarity * 40;
   if (artistSimilarity > 0.9) reasons.push('Artist matches closely');
   else if (artistSimilarity > 0.7) reasons.push('Artist similar');
@@ -207,6 +333,32 @@ export function calculateMatchScore(
     } else if (durationDiff <= 10) {
       score += 5;
       reasons.push('Duration close');
+    }
+  }
+
+  // Gate auto-matching: a matching album + duration must not carry a different
+  // artist ("Tornillo - Morena" → "Panache Savage - Morena"), a different title
+  // ("Mona June" → "Mona Lisa") or a different version ("E. Coli" → "E Coli
+  // (instrumental)") past review. Such candidates stay at 'low' at most.
+  // Strong evidence: same album (not just a single named after the song) AND
+  // same length. That vouches for artist aliases ("Mos Def" / "Yasiin Bey",
+  // "RÜFÜS DU SOL" / "RÜFÜS") and looser titles ("Kush & Corinthians" /
+  // "Kush & Corinthians (His Pain)"), but never for a different version.
+  const albumIsJustTitle =
+    !!source.album && stringSimilarity(parseTitle(source.album).base, parseTitle(source.title).base) > 0.8;
+  const strongEvidence =
+    !!source.album && !!candidate.album && !albumIsJustTitle &&
+    stringSimilarity(normalizeString(source.album), normalizeString(candidate.album)) > 0.8 &&
+    !!source.duration && !!candidate.duration && Math.abs(source.duration - candidate.duration) <= 3;
+  const autoMatchable =
+    !title.versionMismatch &&
+    ((titleSimilarity >= AUTO_MATCH_MIN_TITLE && artistSimilarity >= AUTO_MATCH_MIN_ARTIST) ||
+      (strongEvidence && titleSimilarity >= 0.9) ||
+      (strongEvidence && titleSimilarity >= 0.6 && artistSimilarity >= AUTO_MATCH_MIN_ARTIST));
+  if (!autoMatchable) {
+    if (score >= 70) {
+      score = 69;
+      reasons.push(title.versionMismatch ? 'Different version' : 'Needs review');
     }
   }
 
