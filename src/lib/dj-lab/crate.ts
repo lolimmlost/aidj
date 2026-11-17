@@ -348,14 +348,28 @@ export function bassWeight(a: TrackAnalysis): number {
 }
 
 export const MAX_STRETCH = 0.08;
-/** a liked song ranks as if this many 0.5 % tempo steps closer (#385) */
-const LIKED_HEAD_START = 2;
+/** candidates rank by tempo in steps this wide, %: inside a step the rest of the score decides (#383) */
+const TEMPO_STEP = 2;
+/** a liked song ranks as if this much closer in tempo, % (#385) */
+const LIKED_HEAD_START = 1;
 export const LIKED_SONG = '♥ liked';
+
+export interface TempoBounds {
+  down: number;
+  up: number;
+}
+
+/**
+ * Where a tempo window aims, in % faster than the set tempo: its middle (#383). −0 … +8 % aims at +4 %,
+ * ±4 % at the set tempo. Ranking by distance to the set tempo made every pick the slowest one allowed.
+ */
+export const windowTarget = (w?: TempoBounds) => (w ? (w.up - w.down) / 2 : 0);
 
 /**
  * Next-song candidates for the playing track, by the A/B rules: tempo within ±8 % (vinyl stretch),
  * a drop to chain into, energy up or level (never a weaker drop, rule 3), clean grid, new artist.
- * A liked song ranks as if 1 % closer in tempo.
+ * Ranked by how far the track's tempo is from where the tempo window aims (its middle; the set tempo
+ * without one) in 2 % steps, then by score. A liked song ranks as if 1 % closer in tempo.
  */
 export function rankCandidates(
   current: { song: LabSong; analysis: TrackAnalysis },
@@ -365,12 +379,15 @@ export function rankCandidates(
     played: Set<string>;
     mode: 'dropchain' | 'classic';
     /** tempo window (#378): how much slower / faster the track may be than what's playing, % */
-    window?: { down: number; up: number };
+    window?: TempoBounds;
     /** ids of liked songs (#385) */
     liked?: Set<string>;
   },
 ): Candidate[] {
   const out: Candidate[] = [];
+  /** tempo distance to the window's target per candidate, % */
+  const off = new Map<Candidate, number>();
+  const target = windowTarget(opts.window);
   const curBass = bassWeight(current.analysis);
   for (const { song, analysis: own } of pool) {
     if (song.id === current.song.id || opts.played.has(song.id)) continue;
@@ -391,31 +408,57 @@ export function rankCandidates(
     if (Math.abs(stretch) > 0.04) warnings.push('big stretch (pitch shifts)');
     const sameArtist = song.artist.toLowerCase() === current.song.artist.toLowerCase();
     if (sameArtist) warnings.push('same artist');
+    const away = Math.abs(faster - target) - (opts.liked?.has(song.id) ? LIKED_HEAD_START : 0);
     const score =
-      0.45 * (1 - Math.abs(stretch) / MAX_STRETCH) +
+      0.45 * Math.max(0, 1 - away / (MAX_STRETCH * 100)) +
       0.25 * Math.min(1, Math.max(0, (dBass + 3) / 6)) +
       0.15 * Math.min(1, analysis.gridConf / 0.5) +
       0.15 * (sameArtist ? 0 : 1) -
       (opts.mode === 'dropchain' && analysis.drop === null ? 0.3 : 0) -
       // at the same tempo, a track at its own tempo first
       (analysis.meter ? 0.1 : 0);
-    out.push({ song, analysis, stretch: stretch * 100, bpmDelta: analysis.bpm - opts.setBpm, bassDelta: dBass, score, reasons, warnings });
+    const c: Candidate = { song, analysis, stretch: stretch * 100, bpmDelta: analysis.bpm - opts.setBpm, bassDelta: dBass, score, reasons, warnings };
+    off.set(c, away);
+    out.push(c);
   }
-  // closest tempo first (0.5 % steps, a liked song 1 % ahead), then the rest of the score
-  const step = (c: Candidate) => Math.round(Math.abs(c.stretch) * 2) - (opts.liked?.has(c.song.id) ? LIKED_HEAD_START : 0);
+  // closest to the window's target first, in steps wide enough that the score decides between near matches
+  const step = (c: Candidate) => Math.round(off.get(c)! / TEMPO_STEP);
   return out.sort((a, b) => step(a) - step(b) || b.score - a.score);
+}
+
+/** The set's last tempo jump (#390): which way it went, and how many songs have come in since. */
+export interface LastJump {
+  dir: 'up' | 'down';
+  since: number;
+}
+
+/** after a tempo jump, a jump the other way ranks last until this many more songs have come in at the new tempo */
+export const JUMP_SETTLE = 4;
+export const JUMP_TURNS_BACK = 'turns the tempo back';
+
+/** The last tempo jump of a set's history (the engine's, or any list of how each song came in). */
+export function lastJump(history: { plan?: { jump?: { fromBpm: number; toBpm: number } } }[]): LastJump | undefined {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const j = history[i].plan?.jump;
+    if (j) return { dir: j.toBpm >= j.fromBpm ? 'up' : 'down', since: history.length - 1 - i };
+  }
+  return undefined;
 }
 
 /**
  * Songs too far from the set tempo to stretch at any octave (beyond ±8 %), for a tempo jump: they play at their
- * own tempo, which becomes the set tempo. Closest tempo first; never auto-locked.
+ * own tempo, which becomes the set tempo. Closest tempo first, but a jump keeps the direction of the one before
+ * it (#390): until JUMP_SETTLE songs have followed that one, jumps that turn back rank after all the others,
+ * and carry a warning. Auto-lock's last resort.
  */
 export function rankJumps(
   current: { song: LabSong; analysis: TrackAnalysis },
   pool: { song: LabSong; analysis: TrackAnalysis }[],
-  opts: { setBpm: number; played: Set<string>; mode: 'dropchain' | 'classic' },
+  opts: { setBpm: number; played: Set<string>; mode: 'dropchain' | 'classic'; last?: LastJump },
 ): Candidate[] {
   const out: Candidate[] = [];
+  const back = new Set<Candidate>();
+  const held = opts.last && opts.last.since < JUMP_SETTLE ? opts.last.dir : undefined;
   const curBass = bassWeight(current.analysis);
   for (const { song, analysis: own } of pool) {
     if (song.id === current.song.id || opts.played.has(song.id)) continue;
@@ -425,10 +468,14 @@ export function rankJumps(
     const pct = (analysis.bpm / opts.setBpm - 1) * 100;
     const reasons = [`jump ${pct > 0 ? '+' : ''}${pct.toFixed(0)} %`];
     const warnings: string[] = [];
+    const turns = held !== undefined && (pct > 0 ? 'up' : 'down') !== held;
+    if (turns) warnings.push(JUMP_TURNS_BACK);
     if (opts.mode === 'dropchain' && analysis.drop === null) warnings.push('no clear drop');
     const dBass = bassWeight(analysis) - curBass;
     if (song.artist.toLowerCase() === current.song.artist.toLowerCase()) warnings.push('same artist');
-    out.push({ song, analysis, stretch: 0, bpmDelta: analysis.bpm - opts.setBpm, bassDelta: dBass, score: -Math.abs(pct), reasons, warnings });
+    const c: Candidate = { song, analysis, stretch: 0, bpmDelta: analysis.bpm - opts.setBpm, bassDelta: dBass, score: -Math.abs(pct), reasons, warnings };
+    if (turns) back.add(c);
+    out.push(c);
   }
-  return out.sort((a, b) => b.score - a.score);
+  return out.sort((a, b) => Number(back.has(a)) - Number(back.has(b)) || b.score - a.score);
 }
