@@ -133,14 +133,39 @@ export function normalizeTitle(title: string): string {
  * prefix shares a token with the artist, so genuine "A - B" titles are left alone.
  */
 export function stripLeadingArtistPrefix(title: string, artist: string): string {
-  const m = title.match(/^(.{1,60}?)\s[-—–]\s(.+)$/);
-  if (!m) return title;
+  return splitArtistPrefix(title, [artist])?.rest ?? title;
+}
+
+/**
+ * Split "Artist - Title" / "Artist: Title" when the prefix overlaps one of the
+ * given artists (token overlap, or the same letters ignoring spaces — channel
+ * names like "dirtybrunetteVEVO"). Returns null for a genuine "A - B" title.
+ */
+export function splitArtistPrefix(title: string, artists: string[]): { prefix: string; rest: string } | null {
+  const m = title.match(/^(.{1,60}?)(?:\s[-—–]|:)\s(.+)$/);
+  if (!m) return null;
   const prefix = normalizeArtist(m[1]);
-  const art = normalizeArtist(artist);
-  if (!prefix || !art) return title;
-  const artistTokens = new Set(art.split(' ').filter(Boolean));
-  const overlaps = prefix.split(' ').filter(Boolean).some((t) => artistTokens.has(t));
-  return overlaps ? m[2] : title;
+  if (!prefix) return null;
+  const prefixTokens = prefix.split(' ').filter(Boolean);
+  const squash = (x: string) => x.replace(/ /g, '');
+  for (const artist of artists) {
+    const art = normalizeArtist(cleanChannelName(artist || ''));
+    if (!art) continue;
+    const artistTokens = new Set(art.split(' ').filter(Boolean));
+    if (prefixTokens.some((t) => artistTokens.has(t)) || squash(prefix) === squash(art)) {
+      return { prefix: m[1].trim(), rest: m[2] };
+    }
+  }
+  return null;
+}
+
+/** "dirtybrunetteVEVO" → "dirtybrunette", "Aminé - Topic" → "Aminé", "Fazer Official" → "Fazer". */
+export function cleanChannelName(artist: string): string {
+  return artist
+    .replace(/\s*-\s*topic\s*$/i, '')
+    .replace(/(?<=\S)\s*vevo\s*$/i, '')
+    .replace(/(?<=\S)\s+official\s*$/i, '')
+    .trim();
 }
 
 /**
@@ -149,11 +174,14 @@ export function stripLeadingArtistPrefix(title: string, artist: string): string 
  * 12" version, extended mix, bonus track, a year — is treated as the same song.
  */
 const SIGNIFICANT_VERSION =
-  /\b(?:remix|rmx|live|acoustic|instrumental|demo|slowed|sped|reverb|nightcore|cover|karaoke|vip|bootleg|flip|rework|unplugged|interlude|acapella|a cappella)\b/;
+  /\b(?:remix|rmx|live|acoustic|instrumental|demo|slowed|sped|reverb|nightcore|cover|karaoke|vip|bootleg|flip|rework|unplugged|acapella|a cappella)\b/;
 /** Release/length variants: same song for matching purposes. */
 const RELEASE_VARIANT =
-  /\b(?:remaster(?:ed)?|remasterizado|deluxe|edition|edit|version|versi[oó]n|mix|single|bonus|explicit|clean|dirty|mono|stereo|original|extended|lp|album|radio|street|\d{4}|\d+)\b/;
-const FEAT_LEAD = /^(?:feat|ft|featuring|with)\b/;
+  /\b(?:remaster(?:ed)?|remasterizado|deluxe|edition|edit|version|versi[oó]n|mix|mixed|single|ep|interlude|bonus|explicit|clean|dirty|mono|stereo|original|extended|lp|album|radio|street|\d{4}|\d+)\b/;
+const FEAT_LEAD = /^(?:feat|ft|featuring|with|vocals by)\b/;
+/** YouTube upload noise: "(Official Video)", "(Audio)", "(Prod. by X)", "[HD]". */
+const VIDEO_NOISE =
+  /^(?:official|audio|video|visuali[sz]er|lyrics?|music video|mv|hd|hq|4k|prod|produced|out now|free download)\b|\b(?:official (?:music )?video|official audio|lyric video|visuali[sz]er)\b/;
 
 export interface ParsedTitle {
   /** Normalized title with feat credits and version tags removed. */
@@ -184,6 +212,7 @@ export function parseTitle(raw: string): ParsedTitle {
     const n = normalizeString(segment);
     if (!n) return 'ignore';
     if (FEAT_LEAD.test(n)) return 'feat';
+    if (VIDEO_NOISE.test(n)) return 'ignore';
     if (SIGNIFICANT_VERSION.test(n)) return 'version';
     if (RELEASE_VARIANT.test(n)) return 'ignore';
     return 'keep';
@@ -269,7 +298,11 @@ export function splitArtists(artist: string): string[] {
  * shorter side being present on the longer side counts as a full match.
  */
 export function artistMatchSimilarity(a: string, b: string): number {
-  const whole = stringSimilarity(normalizeArtist(a), normalizeArtist(b));
+  a = cleanChannelName(a);
+  b = cleanChannelName(b);
+  const na = normalizeArtist(a);
+  const nb = normalizeArtist(b);
+  const whole = Math.max(stringSimilarity(na, nb), stringSimilarity(na.replace(/ /g, ''), nb.replace(/ /g, '')));
   const la = splitArtists(a);
   const lb = splitArtists(b);
   if (la.length === 0 || lb.length === 0) return whole;
@@ -277,6 +310,43 @@ export function artistMatchSimilarity(a: string, b: string): number {
   const coverage =
     small.reduce((sum, x) => sum + Math.max(...big.map((y) => stringSimilarity(x, y))), 0) / small.length;
   return Math.max(whole, coverage);
+}
+
+/**
+ * "NITTI" vs "Nitti Gritti": one name is the other's leading words. Could be an
+ * alias or a different act ("Tay" / "Tay Zonday"), so it is only ever accepted
+ * with an exact title and matching duration — see calculateMatchScore.
+ */
+export function isArtistNamePrefix(a: string, b: string): boolean {
+  const names = (x: string) => splitArtists(cleanChannelName(x)).map((n) => n.split(' ').filter(Boolean));
+  for (const x of names(a)) {
+    for (const y of names(b)) {
+      const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+      if (short.length > 0 && short.length < long.length && short.every((t, i) => long[i] === t)) return true;
+    }
+  }
+  return false;
+}
+
+const CREDIT_CONNECTORS = new Set(['feat', 'ft', 'featuring', 'x', 'and', 'with', 'vs']);
+
+/**
+ * Drop "(…)" and trailing " - …" segments that only list credited artists:
+ * "Big Rocks (Offset feat. Young Thug)", "Never Recover (Lil Baby & Gunna, Drake)",
+ * "September - Throttle x Earth, Wind & Fire". Spotify puts these in the title;
+ * the library file usually doesn't.
+ */
+export function stripCreditSegments(title: string, artists: string[]): string {
+  const credit = new Set(artists.flatMap((a) => splitArtists(a)).flatMap((n) => n.split(' ')).filter(Boolean));
+  if (credit.size === 0) return title;
+  const isCredit = (segment: string) => {
+    const tokens = normalizeString(segment).split(' ').filter((t) => t && !CREDIT_CONNECTORS.has(t));
+    return tokens.length > 0 && tokens.every((t) => credit.has(t));
+  };
+  let out = title.replace(/\s*\(([^)]*)\)/g, (whole, inner: string) => (isCredit(inner) ? ' ' : whole));
+  const m = out.match(/^(.*\S)\s+[-–—]\s+([^-–—]+)$/);
+  if (m && isCredit(m[2])) out = m[1];
+  return out.replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -297,10 +367,14 @@ export function calculateMatchScore(
   // Title similarity (40% weight). Feat credits are ignored and version tags
   // (remix/live/…) must agree. Also try the candidate with a leading "Artist - "
   // prefix stripped, so a polluted YouTube-rip title still matches.
-  const candidateStripped = stripLeadingArtistPrefix(candidate.title, candidate.artist);
-  let title = titleMatch(source.title, candidate.title);
-  if (candidateStripped !== candidate.title) {
-    const stripped = titleMatch(source.title, candidateStripped);
+  // The prefix may name the uploader's channel artist or the requested artist
+  // ("Beast Coast - Snow In The Stadium" uploaded by "FlatbushZombies TV").
+  const split = splitArtistPrefix(candidate.title, [candidate.artist, source.artist]);
+  const credits = [source.artist, candidate.artist];
+  const sourceTitle = stripCreditSegments(source.title, credits);
+  let title = titleMatch(sourceTitle, stripCreditSegments(candidate.title, credits));
+  if (split) {
+    const stripped = titleMatch(sourceTitle, stripCreditSegments(split.rest, credits));
     if (stripped.similarity > title.similarity) title = stripped;
   }
   const titleSimilarity = title.similarity;
@@ -309,7 +383,12 @@ export function calculateMatchScore(
   else if (titleSimilarity > 0.7) reasons.push('Title similar');
 
   // Artist similarity (40% weight)
-  const artistSimilarity = artistMatchSimilarity(source.artist, candidate.artist);
+  // A rip whose title starts with the requested artist credits them even when
+  // the uploader is a channel.
+  const artistSimilarity = Math.max(
+    artistMatchSimilarity(source.artist, candidate.artist),
+    split ? artistMatchSimilarity(source.artist, split.prefix) : 0
+  );
   score += artistSimilarity * 40;
   if (artistSimilarity > 0.9) reasons.push('Artist matches closely');
   else if (artistSimilarity > 0.7) reasons.push('Artist similar');
@@ -350,11 +429,20 @@ export function calculateMatchScore(
     !!source.album && !!candidate.album && !albumIsJustTitle &&
     stringSimilarity(normalizeString(source.album), normalizeString(candidate.album)) > 0.8 &&
     !!source.duration && !!candidate.duration && Math.abs(source.duration - candidate.duration) <= 3;
+  const durationMatches =
+    !!source.duration && !!candidate.duration && Math.abs(source.duration - candidate.duration) <= 3;
+  const nameAlias =
+    titleSimilarity >= 0.95 && durationMatches && isArtistNamePrefix(source.artist, candidate.artist);
   const autoMatchable =
     !title.versionMismatch &&
     ((titleSimilarity >= AUTO_MATCH_MIN_TITLE && artistSimilarity >= AUTO_MATCH_MIN_ARTIST) ||
       (strongEvidence && titleSimilarity >= 0.9) ||
-      (strongEvidence && titleSimilarity >= 0.6 && artistSimilarity >= AUTO_MATCH_MIN_ARTIST));
+      (strongEvidence && titleSimilarity >= 0.6 && artistSimilarity >= AUTO_MATCH_MIN_ARTIST) ||
+      nameAlias);
+  if (nameAlias && !title.versionMismatch && score < 75) {
+    score = 75;
+    reasons.push('Artist name alias, title and length match');
+  }
   if (!autoMatchable) {
     if (score >= 70) {
       score = 69;

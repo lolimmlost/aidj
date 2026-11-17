@@ -148,4 +148,42 @@ describe('feat credits and artist lists', () => {
     const req = src('Wild Wild West (feat. Gunna)', 'Offset;Gunna');
     expect(['high', 'exact']).not.toContain(score(req, cand('Pushin P', 'Gunna')).confidence);
   });
+
+  // Real pending_review cases from the 2026-11-16 re-import (YouTube rips in the library).
+  it.each([
+    [src('CANTU', 'Aminé', 'ONEPOINTFIVE'), cand('Aminé - CANTU (Audio)', 'Aminé')],
+    [src('Wasi', 'Fazer', 'Wasi'), cand('Fazer - Wasi (Official Video)', 'Fazer')],
+    [src('Kinda Like You', 'Devvy Dub', 'Kinda Like You'), cand('Devvy Dub - Kinda Like You (Official Visualizer)', 'Devvy Dub')],
+    [src('HeadRight', 'DaNamesLB', 'HeadRight'), cand('DaNamesLB: "HeadRight" (Prod. by 46 Brock)', 'DaNamesLB')],
+    [src('sidekick', 'dirty brunette', 'sidekick'), cand('dirty brunette - sidekick', 'dirtybrunetteVEVO')],
+    [src('Haul (feat. Mohna) - Mixed', 'Christian Löffler;Mohna', 'Global Underground: Adapt (Mixed)'), cand('Haul', 'Christian Löffler')],
+    [
+      src('Snow In The Stadium (feat. Erick The Architect, Meechy Darko, Kirk Knight, CJ Fly & Issa Gold)', 'Beast Coast;Joey Bada$$;Flatbush Zombies;Erick the Architect', 'Escape From New York'),
+      cand('Beast Coast - "Snow In The Stadium" (Produced by Erick The Architect)', 'FlatbushZombies TV'),
+    ],
+  ])('auto-matches a YouTube-rip upload %#', (s, c) => {
+    expect(['high', 'exact']).toContain(score(s, c).confidence);
+  });
+
+  it('accepts a leading-words artist alias only with exact title and length', () => {
+    const req = src('Cold Day in Hell', 'NITTI;Dr. Fresch', 'Cold Day in Hell');
+    const lib = cand('Cold Day in Hell', 'Nitti Gritti');
+    expect(['high', 'exact']).toContain(score({ ...req, duration: 144 }, { ...lib, duration: 145 }).confidence);
+    expect(['high', 'exact']).not.toContain(score(req, lib).confidence);
+    // Same shape, different act: lengths differ, so it stays in review
+    expect(['high', 'exact']).not.toContain(
+      score({ ...src('I MIGHT', 'Tay GMBO'), duration: 150 }, { ...cand('I MIGHT', 'Tay Zonday'), duration: 210 }).confidence
+    );
+  });
+
+  it('keeps a live request away from the studio recording', () => {
+    const r = score(src('The Thunder Rolls - Live', 'Garth Brooks', 'Live in Germany 1995'), cand('The Thunder Rolls', 'Garth Brooks'));
+    expect(['high', 'exact']).not.toContain(r.confidence);
+  });
+
+  it('does not strip a title word that merely looks like video noise', () => {
+    expect(parseTitle('Video Games').base).toBe('video games');
+    expect(parseTitle('Video Games (Official Video)').base).toBe('video games');
+  });
 });
+
