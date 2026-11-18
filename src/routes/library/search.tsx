@@ -22,12 +22,14 @@ import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { ArtistCard } from '@/components/library/ArtistsList';
 import { AlbumArt, getCoverArtUrl } from '@/components/ui/album-art';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
-import { useArtistMetadata, useAddArtistToLibrary } from '@/lib/hooks/useArtistMetadata';
+import { useArtistMetadata, useAddArtistToLibrary, ServiceRestartingError } from '@/lib/hooks/useArtistMetadata';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import type { Song } from '@/lib/types/song';
 import type { RecentEntry } from '@/lib/utils/recent-searches';
 import { useRecentSearches } from '@/lib/hooks/useRecentSearches';
+import { findLibraryArtistByName } from '@/lib/utils/artist-name-match';
+import { compactName, searchVariants } from '@/lib/utils/search-variants';
 
 export const Route = createFileRoute('/library/search')({
   validateSearch: (search: Record<string, unknown>): { q?: string } => ({
@@ -49,12 +51,22 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 
+/** Pause after the last keystroke before the search runs. */
+const SEARCH_DEBOUNCE_MS = 300;
+
 type ArtistWithCounts = { id: string; name: string; albumCount?: number; songCount?: number };
 
 function SearchPage() {
   const navigate = useNavigate({ from: '/library/search' });
   const { q } = Route.useSearch();
+  // `query` is the committed search (in the URL, drives every fetch).
   const query = q ?? '';
+  // `input` is what's in the box. It updates synchronously on each keystroke;
+  // binding the box straight to the URL made React re-assert the old value
+  // while the navigation was in flight, which threw the cursor to the end
+  // when you typed mid-word. The URL catches up after a pause.
+  const [input, setInput] = useState(query);
+  const committedRef = useRef(query);
   const { playSong, setAIUserActionInProgress } = useAudioStore();
   const [tab, setTab] = useState<Tab>('all');
   const { user } = Route.useRouteContext();
@@ -72,16 +84,54 @@ function SearchPage() {
     if (!query.trim()) setTab('all');
   }, [query]);
 
-  const setQuery = (value: string) => {
+  const commitQuery = (value: string) => {
+    const next = value.trim().length > 0 ? value : '';
+    if (next === committedRef.current) return;
+    committedRef.current = next;
     navigate({
-      search: () => (value.trim().length > 0 ? { q: value } : {}),
+      search: () => (next ? { q: next } : {}),
       replace: true,
     });
   };
 
+  // Programmatic changes (recent entry, clear, "Did you mean"): box + URL now.
+  const setQuery = (value: string) => {
+    setInput(value);
+    commitQuery(value);
+  };
+
+  // Typing: commit after the user pauses.
+  useEffect(() => {
+    const id = setTimeout(() => commitQuery(input), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps, @eslint-react/exhaustive-deps -- commitQuery only reads a ref + navigate
+  }, [input]);
+
+  // URL changed from outside (back/forward, a link with ?q=): follow it.
+  useEffect(() => {
+    if (query !== committedRef.current) {
+      committedRef.current = query;
+      setInput(query);
+    }
+  }, [query]);
+
   const { data: songs = [], isLoading: isLoadingSongs, error } = useQuery({
     queryKey: ['search', query],
-    queryFn: () => search(query.trim(), 0, 50),
+    // Also search the query's number spellings ("two pac" → "2pac",
+    // "21 pilots" → "twenty one pilots"); Navidrome only matches literal tokens.
+    queryFn: async () => {
+      const q = query.trim();
+      const variants = searchVariants(q);
+      const [main, ...extra] = await Promise.all([
+        search(q, 0, 50),
+        ...variants.map((v) => search(v, 0, 50).catch(() => [] as Song[])),
+      ]);
+      if (extra.length === 0) return main;
+      const seen = new Set(main.map((s) => s.id));
+      const merged = [...main];
+      for (const list of extra) for (const s of list) if (!seen.has(s.id)) { seen.add(s.id); merged.push(s); }
+      return merged.slice(0, 50);
+    },
     enabled: query.trim().length > 0,
   });
 
@@ -108,10 +158,16 @@ function SearchPage() {
     const needle = query.trim().toLowerCase();
     if (!needle) return [];
     const runtimeArtists = allArtists as ArtistWithCounts[];
+    // Spacing/punctuation-blind, and the number spellings too: "2 pac" and
+    // "two pac" both find 2Pac. Short compact needles would match too much.
+    const compactNeedles = [needle, ...searchVariants(needle)].map(compactName).filter((n) => n.length >= 3);
 
     const matching = runtimeArtists.filter((a) => {
       const hasMusic = (a.albumCount ?? 0) > 0 || (a.songCount ?? 0) > 0;
-      return hasMusic && a.name.toLowerCase().includes(needle);
+      if (!hasMusic) return false;
+      if (a.name.toLowerCase().includes(needle)) return true;
+      const name = compactName(a.name);
+      return compactNeedles.some((n) => name.includes(n));
     });
 
     const byName = new Map<string, ArtistWithCounts>();
@@ -151,7 +207,7 @@ function SearchPage() {
   const { data: feedbackData } = useSongFeedback(songIds);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setQuery(e.target.value);
+    setInput(e.target.value);
   };
 
   const handleSongClick = (songId: string) => {
@@ -214,8 +270,9 @@ function SearchPage() {
                 ref={inputRef}
                 type="text"
                 placeholder="Songs, artists, albums..."
-                value={query}
+                value={input}
                 onChange={handleInputChange}
+                onKeyDown={(e) => { if (e.key === 'Enter') commitQuery(input); }}
                 className={cn(
                   'w-full rounded-xl border border-border/60 bg-muted/40 pl-10 pr-10 py-3 text-base outline-none transition-all',
                   'placeholder:text-muted-foreground/60',
@@ -223,7 +280,7 @@ function SearchPage() {
                 )}
                 aria-label="Search library"
               />
-              {hasQuery && (
+              {input.length > 0 && (
                 <button
                   onClick={() => { setQuery(''); inputRef.current?.focus(); }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
@@ -303,7 +360,11 @@ function SearchPage() {
                 ))}
               </div>
             ) : songs.length === 0 && matchedArtists.length === 0 && matchedAlbums.length === 0 ? (
-              <ArtistAddFallback query={query.trim()} />
+              <ArtistAddFallback
+                query={query.trim()}
+                libraryArtists={allArtists as ArtistWithCounts[]}
+                onSearchName={setQuery}
+              />
             ) : (
               <div aria-live="polite" className="space-y-8">
                 {/* Artists section */}
@@ -697,7 +758,15 @@ function AlbumResultCard({
 
 // --- Aurral fallback for unknown artists ---
 
-function ArtistAddFallback({ query }: { query: string }) {
+function ArtistAddFallback({
+  query,
+  libraryArtists,
+  onSearchName,
+}: {
+  query: string;
+  libraryArtists: readonly ArtistWithCounts[];
+  onSearchName: (name: string) => void;
+}) {
   const { data: metadata, isLoading, isError, error, refetch, isFetching } = useArtistMetadata(query, {
     enabled: query.length > 0,
   });
@@ -746,16 +815,24 @@ function ArtistAddFallback({ query }: { query: string }) {
 
   if (isError) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
+    const restarting = error instanceof ServiceRestartingError;
     return (
-      <Card className="border-destructive/30">
+      <Card className={restarting ? 'border-amber-500/30' : 'border-destructive/30'}>
         <CardContent className="p-8 sm:p-12 text-center space-y-3">
-          <AlertCircle className="h-10 w-10 mx-auto text-destructive opacity-80" />
-          <h3 className="font-semibold text-lg">MusicBrainz lookup unavailable</h3>
+          {restarting ? (
+            <Clock className="h-10 w-10 mx-auto text-amber-600 dark:text-amber-400 opacity-80" />
+          ) : (
+            <AlertCircle className="h-10 w-10 mx-auto text-destructive opacity-80" />
+          )}
+          <h3 className="font-semibold text-lg">
+            {restarting ? 'Download service is restarting' : 'MusicBrainz lookup unavailable'}
+          </h3>
           <p className="text-sm text-muted-foreground">
-            Couldn't reach the metadata service. "{query}" isn't in your library and
-            we can't offer to add it right now.
+            {restarting
+              ? `"${query}" isn't in your library. The lookup service that finds and downloads new artists isn't responding right now. It restarts itself within a few minutes, so try again shortly.`
+              : `Couldn't reach the metadata service. "${query}" isn't in your library and we can't offer to add it right now.`}
           </p>
-          <p className="text-xs text-muted-foreground font-mono break-all">{msg}</p>
+          {!restarting && <p className="text-xs text-muted-foreground font-mono break-all">{msg}</p>}
           <Button
             variant="outline"
             size="sm"
@@ -785,6 +862,43 @@ function ArtistAddFallback({ query }: { query: string }) {
           <p className="text-xs text-muted-foreground">
             Try different keywords, check spelling, or search by the artist's official name.
           </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // MusicBrainz resolves aliases the library search can't ("21 pilots" →
+  // "Twenty One Pilots"). If the resolved artist is already in the library,
+  // point there instead of offering to download it again.
+  const inLibrary = findLibraryArtistByName(libraryArtists, metadata.artistName);
+  if (inLibrary) {
+    return (
+      <Card className="border-green-500/30">
+        <CardContent className="p-6 sm:p-8 space-y-4 text-center sm:text-left">
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <CheckCircle2 className="h-8 w-8 flex-shrink-0 text-green-600 dark:text-green-400" />
+            <div className="min-w-0 space-y-1">
+              <h3 className="font-semibold text-lg">
+                Did you mean <span className="break-words">{inLibrary.name}</span>?
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Nothing in your library matches "{query}", but MusicBrainz knows it as{' '}
+                {metadata.artistName}, and that artist is already in your library.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap justify-center sm:justify-start gap-2">
+            <Button asChild size="sm">
+              <Link to="/library/artists/$id" params={{ id: inLibrary.id }}>
+                <User className="h-4 w-4 mr-1.5" />
+                Open {inLibrary.name}
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => onSearchName(inLibrary.name)}>
+              <SearchIcon className="h-4 w-4 mr-1.5" />
+              Search "{inLibrary.name}"
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
