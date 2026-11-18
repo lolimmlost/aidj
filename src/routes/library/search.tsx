@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils';
 import type { Song } from '@/lib/types/song';
 import type { RecentEntry } from '@/lib/utils/recent-searches';
 import { useRecentSearches } from '@/lib/hooks/useRecentSearches';
+import { findLibraryArtistByName } from '@/lib/utils/artist-name-match';
 
 export const Route = createFileRoute('/library/search')({
   validateSearch: (search: Record<string, unknown>): { q?: string } => ({
@@ -303,7 +304,11 @@ function SearchPage() {
                 ))}
               </div>
             ) : songs.length === 0 && matchedArtists.length === 0 && matchedAlbums.length === 0 ? (
-              <ArtistAddFallback query={query.trim()} />
+              <ArtistAddFallback
+                query={query.trim()}
+                libraryArtists={allArtists as ArtistWithCounts[]}
+                onSearchName={setQuery}
+              />
             ) : (
               <div aria-live="polite" className="space-y-8">
                 {/* Artists section */}
@@ -697,7 +702,15 @@ function AlbumResultCard({
 
 // --- Aurral fallback for unknown artists ---
 
-function ArtistAddFallback({ query }: { query: string }) {
+function ArtistAddFallback({
+  query,
+  libraryArtists,
+  onSearchName,
+}: {
+  query: string;
+  libraryArtists: readonly ArtistWithCounts[];
+  onSearchName: (name: string) => void;
+}) {
   const { data: metadata, isLoading, isError, error, refetch, isFetching } = useArtistMetadata(query, {
     enabled: query.length > 0,
   });
@@ -793,6 +806,43 @@ function ArtistAddFallback({ query }: { query: string }) {
           <p className="text-xs text-muted-foreground">
             Try different keywords, check spelling, or search by the artist's official name.
           </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // MusicBrainz resolves aliases the library search can't ("21 pilots" →
+  // "Twenty One Pilots"). If the resolved artist is already in the library,
+  // point there instead of offering to download it again.
+  const inLibrary = findLibraryArtistByName(libraryArtists, metadata.artistName);
+  if (inLibrary) {
+    return (
+      <Card className="border-green-500/30">
+        <CardContent className="p-6 sm:p-8 space-y-4 text-center sm:text-left">
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <CheckCircle2 className="h-8 w-8 flex-shrink-0 text-green-600 dark:text-green-400" />
+            <div className="min-w-0 space-y-1">
+              <h3 className="font-semibold text-lg">
+                Did you mean <span className="break-words">{inLibrary.name}</span>?
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Nothing in your library matches "{query}", but MusicBrainz knows it as{' '}
+                {metadata.artistName}, and that artist is already in your library.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap justify-center sm:justify-start gap-2">
+            <Button asChild size="sm">
+              <Link to="/library/artists/$id" params={{ id: inLibrary.id }}>
+                <User className="h-4 w-4 mr-1.5" />
+                Open {inLibrary.name}
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => onSearchName(inLibrary.name)}>
+              <SearchIcon className="h-4 w-4 mr-1.5" />
+              Search "{inLibrary.name}"
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
