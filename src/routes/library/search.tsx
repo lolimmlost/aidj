@@ -29,6 +29,7 @@ import type { Song } from '@/lib/types/song';
 import type { RecentEntry } from '@/lib/utils/recent-searches';
 import { useRecentSearches } from '@/lib/hooks/useRecentSearches';
 import { findLibraryArtistByName } from '@/lib/utils/artist-name-match';
+import { compactName, searchVariants } from '@/lib/utils/search-variants';
 
 export const Route = createFileRoute('/library/search')({
   validateSearch: (search: Record<string, unknown>): { q?: string } => ({
@@ -82,7 +83,21 @@ function SearchPage() {
 
   const { data: songs = [], isLoading: isLoadingSongs, error } = useQuery({
     queryKey: ['search', query],
-    queryFn: () => search(query.trim(), 0, 50),
+    // Also search the query's number spellings ("two pac" → "2pac",
+    // "21 pilots" → "twenty one pilots"); Navidrome only matches literal tokens.
+    queryFn: async () => {
+      const q = query.trim();
+      const variants = searchVariants(q);
+      const [main, ...extra] = await Promise.all([
+        search(q, 0, 50),
+        ...variants.map((v) => search(v, 0, 50).catch(() => [] as Song[])),
+      ]);
+      if (extra.length === 0) return main;
+      const seen = new Set(main.map((s) => s.id));
+      const merged = [...main];
+      for (const list of extra) for (const s of list) if (!seen.has(s.id)) { seen.add(s.id); merged.push(s); }
+      return merged.slice(0, 50);
+    },
     enabled: query.trim().length > 0,
   });
 
@@ -109,10 +124,16 @@ function SearchPage() {
     const needle = query.trim().toLowerCase();
     if (!needle) return [];
     const runtimeArtists = allArtists as ArtistWithCounts[];
+    // Spacing/punctuation-blind, and the number spellings too: "2 pac" and
+    // "two pac" both find 2Pac. Short compact needles would match too much.
+    const compactNeedles = [needle, ...searchVariants(needle)].map(compactName).filter((n) => n.length >= 3);
 
     const matching = runtimeArtists.filter((a) => {
       const hasMusic = (a.albumCount ?? 0) > 0 || (a.songCount ?? 0) > 0;
-      return hasMusic && a.name.toLowerCase().includes(needle);
+      if (!hasMusic) return false;
+      if (a.name.toLowerCase().includes(needle)) return true;
+      const name = compactName(a.name);
+      return compactNeedles.some((n) => name.includes(n));
     });
 
     const byName = new Map<string, ArtistWithCounts>();
