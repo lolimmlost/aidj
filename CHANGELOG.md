@@ -8,52 +8,118 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ## [1.6.0-rc.2] — 2026-11-18
 
-Release candidate. Everything merged to `main` since 1.5.0. Replaces rc.1, which was never tagged; rc.2 adds the import, matcher, search and privacy work merged since (#411–#421, #399, #342).
+> **Release candidate.** Everything merged to `main` since 1.5.0, about 100 PRs. It replaces rc.1, which was never tagged.
 
-### New Contributors
-- [@Yumejichi](https://github.com/Yumejichi) made their first contribution — Tasks and mobile Library Growth nav links (#408). Thank you!
-- [@Robalexg](https://github.com/Robalexg) made their first contribution — recent searches per user, including clicked songs, artists and albums (#399). Thank you!
-- [@RichardGabelman](https://github.com/RichardGabelman) made their first contribution — keep the app out of search engines (#418). Thank you!
+### ✨ Highlights
+
+- 🎛️ **DJ Transition Lab.** A continuous mix that locks the next song, beat-matches inside a tempo window and learns from the transitions you like. It can record live sets and render saved ones offline.
+- 🔊 **House speakers.** Send the AI DJ to your Music Assistant speakers and hand playback back to your phone.
+- ❤️ **Liked Songs, rebuilt.** Navidrome stars are the single source of truth, and every device stays in sync.
+- 📥 **Get the songs you're missing.** Import review sends unmatched songs to Lidarr or YouTube (MeTube), and a stricter matcher stops duplicate downloads.
+- 🔎 **Smarter search.** Recent searches are kept per user. "Did you mean …?" catches artists you already own, "two pac" finds 2Pac, and typing no longer fights you.
 
 ### Added
-- **DJ Transition Lab** (`/dj/lab`) — continuous mix that locks the next song, blind A/B, transition picker, tempo window + tempo jumps, hard transitions by default (8-bar build, 2-bar cut), queue-after-lock, liked transitions, live set recording, and offline rendering of saved sets (#367, #380, #387–#389, #393, #394)
-- **Transition learning** — schema, scoring service, mining in profile recompute, and a flag-gated re-ranker in the blended scorer, with offline holdout validation
-- **House speakers via Music Assistant** — play the AI DJ on speakers and hand back to the phone (#244, #246, #247)
-- **YouTube (MeTube) fallback** — per-song downloads from import review, auto-retry, N-way concurrency, a result matcher, and dedup guards against re-downloading library tracks (#145, #131, #231)
-- **Playlists mirror to Navidrome** as real playlists (#178, #200)
-- Mobile bottom tab bar, View Transitions (Now Playing sheet, art morphs), like burst + double-tap to like + haptics, per-page tab titles (#283, #289, #278, #287)
-- Sleep timer (#171), spread shuffle everywhere (#249), scrobble at threshold as a setting (#248)
-- Share link previews unfurl with album/artist cover (#361); featured mix card on the dashboard (#351)
-- Chosic CSV exports recognized in playlist import (#204)
-- PWA-safe debug toggle (5-tap on the brand/title bar)
-- **Search:** recent searches are kept per user and include the songs, artists and albums you open (#399); "Did you mean …?" when MusicBrainz resolves a search to an artist already in your library, and number spellings find the artist ("two pac" → 2Pac, "21 pilots" → twenty one pilots) (#342)
-- **Import:** clearer review prompts, and unmatched or skipped songs can be sent to download (#411); Lidarr downloader helper and a manual queue script (#412)
-- Search engines index only the landing page (`robots.txt` + `noindex`) (#418)
+
+**DJ & playback**
+- DJ Transition Lab (`/dj/lab`)
+  - Lock-next, blind A/B and a transition picker
+  - Tempo window and tempo jumps; hard transitions by default (8-bar build, 2-bar cut)
+  - Queue-after-lock and liked transitions
+  - Live set recording and offline rendering of saved sets
+  - (#367, #380, #387–#389, #393, #394)
+- Transition learning: transitions are mined from your listening and feed a flag-gated re-ranker in the recommendation scorer, validated offline on held-out data
+- House speakers via Music Assistant (#244, #246, #247)
+- Sleep timer (#171), spread shuffle everywhere (#249), scrobble at a threshold you set (#248)
+
+**Search**
+- Recent searches are kept per user and include the songs, artists and albums you open (#399)
+- **Did you mean …?** When MusicBrainz resolves a search to an artist already in your library ("21 pilots" → twenty one pilots), you get a link to it instead of a download offer (#342)
+- Number spellings find the artist: "two pac" and "2 pac" → 2Pac, "twenty one" ↔ "21". Artist matching ignores spaces and punctuation, so "acdc" finds AC/DC (#342)
+
+**Library & import**
+- YouTube (MeTube) fallback (#131, #145, #231)
+  - Per-song downloads from import review, with auto-retry and parallel downloads
+  - A result matcher, plus guards against re-downloading songs already in the library
+- Import review has clearer prompts, and unmatched or skipped songs can be sent to download (#411)
+- Lidarr downloader helper and a manual queue script (#412)
+- Playlists mirror to Navidrome as real playlists (#178, #200)
+- Chosic CSV exports are recognized in playlist import (#204)
+
+**Look & feel**
+- Mobile bottom tab bar, View Transitions (Now Playing sheet, album-art morphs), like burst + double-tap to like + haptics, and per-page tab titles (#278, #283, #287, #289)
+- Share links unfurl with the album or artist cover (#361), and a featured mix card on the dashboard (#351)
+- A PWA-safe debug toggle: tap the title bar 5 times
+
+**Privacy**
+- Search engines index only the landing page, via `robots.txt` and `noindex` (#418)
 
 ### Changed
-- **Liked Songs** rebuilt around Navidrome stars: one `setSongLiked()` write-through, a deterministic Liked Songs playlist, server-authoritative feedback broadcast over WebSocket (#124, #130, #138, #139)
-- One transactional `repointSongId` owns every song-id move (#221, #254); one canonical artist/title parser (#219)
+
+- **Liked Songs** rebuilt around Navidrome stars (#124, #130, #138, #139)
+  - One `setSongLiked()` write-through
+  - A deterministic Liked Songs playlist
+  - Server-authoritative feedback broadcast over WebSocket
+- One transactional `repointSongId` owns every song-id move (#221, #254), and one canonical artist/title parser (#219)
 - Playlist radio uses representative seeds plus a share of the playlist's own tracks (#309)
-- Dead code removed: unreachable download, search and matcher paths; dead components and CSS (#253, #261, #262)
-- Repo polish: MIT license, community files, accurate README (#317)
+- Unreachable download, search and matcher paths, dead components and dead CSS are removed (#253, #261, #262)
+- Repo polish: MIT license, community files and an accurate README (#317)
 
 ### Fixed
-- **Navidrome 0.64** — ids cached before the 0.64 re-encode keep working (#397)
-- Speakers: a song picked during handoff no longer also plays on the phone (#398)
-- Playback: frozen-clock deadlock recovery (#170); radio after a cold iOS launch (#311); muted decks after a mid-crossfade pick (#296)
-- Auth: 2FA enables properly, login asks for the code, email OTP, only configured social logins (#316); login returns to the link you opened (#341)
-- Playlists: deleted playlists no longer resurrect on sync (#160); sync dupes (#127); Import and Sync shown with no playlists (#400); like from the playlist view on phones (#395); import gets its own rate-limit bucket (#128)
-- Discovery "pending" badge no longer counts every suggestion ever made (#312)
-- Library reconciliation scheduler starts on prod boot; Tasks trigger works (#267)
-- UI: blurred backdrop over sidebars (#289), queue panel safe-area inset (#304), desktop speaker button placement (#331), Tasks + mobile Library Growth nav links (#408)
-- Matcher: feat credits ignored, artist lists compared, auto-matches gated (#419); YouTube-rip uploads and credit-only title segments match (#421)
-- Huge playlists no longer crash the page — the song list is virtualized (#420); no more "undefined songs queued" toast after Download missing (#415)
-- Search: a hung Aurral says "Download service is restarting" instead of hiding the artist for 24 h (#336, #342); typing mid-word no longer throws the cursor to the end, and the search waits for a pause instead of running per keystroke (#342)
+
+**Playback & speakers**
+- Navidrome 0.64: ids cached before the 0.64 re-encode keep working (#397)
+- A song picked during speaker hand-off no longer also plays on the phone (#398)
+- Recovery from a frozen playback clock (#170); radio after a cold iOS launch (#311); muted decks after a mid-crossfade pick (#296)
+
+**Search & matching**
+- When Aurral hangs, search says "Download service is restarting" instead of hiding the artist for 24 h (#336, #342)
+- Typing mid-word no longer throws the cursor to the end, and search waits for a pause instead of running on every keystroke (#342)
+- Matcher (#419, #421)
+  - Ignores feat credits and compares artist lists
+  - Gates auto-matches
+  - Matches YouTube-rip uploads and credit-only title segments
+
+**Playlists & import**
+- Huge playlists no longer crash the page, because the song list is virtualized (#420)
+- Deleted playlists no longer come back on sync (#160), and sync no longer duplicates songs (#127)
+- Import and Sync no longer show when you have no playlists (#400)
+- You can like songs from the playlist view on phones (#395)
+- Import has its own rate-limit bucket (#128)
+- No more "undefined songs queued" toast after Download missing (#415)
+
+**Account & app**
+- 2FA (#316)
+  - Enabling it works, and login asks for the code
+  - Email OTP
+  - Only configured social logins are shown
+- Login returns you to the link you opened (#341)
+- The Discovery "pending" badge no longer counts every suggestion ever made (#312)
+- The library reconciliation scheduler starts on prod boot, and the Tasks trigger works (#267)
+- UI fixes
+  - Blurred backdrop over sidebars (#289)
+  - Queue panel respects the safe-area inset (#304)
+  - Desktop speaker button placement (#331)
+  - Tasks and mobile Library Growth nav links (#408)
 
 ### Security
-- Signed-in users no longer get Navidrome admin rights (#364); Navidrome proxies require a session (#363)
+
+- Signed-in users no longer get Navidrome admin rights (#364), and the Navidrome proxies require a session (#363)
 - `/api/config` no longer leaks credentials to unauthenticated callers (#245)
-- Patched TanStack Start reflected XSS (GHSA-qx66-fv34-fjm8, #332), vite dev-server advisories (#344), seroval/source-map-js (#315), and in-range npm audit advisories (#195); npm-audit CI gate enforces high/critical (#198, #269); undici and zod bumped, security gate green (#414)
+- Patched advisories
+  - TanStack Start reflected XSS, GHSA-qx66-fv34-fjm8 (#332)
+  - vite dev-server (#344)
+  - seroval and source-map-js (#315)
+  - undici and zod (#414)
+  - in-range npm audit findings (#195)
+- The npm-audit CI gate enforces high and critical findings, and it's green (#198, #269, #414)
+
+### 🙌 New Contributors
+
+- [@Yumejichi](https://github.com/Yumejichi): Tasks and mobile Library Growth nav links (#408)
+- [@Robalexg](https://github.com/Robalexg): recent searches per user (#399)
+- [@RichardGabelman](https://github.com/RichardGabelman): keep the app out of search engines (#418)
+
+Thank you all!
 
 ---
 
