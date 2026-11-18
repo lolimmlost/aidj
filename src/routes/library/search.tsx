@@ -26,7 +26,8 @@ import { useArtistMetadata, useAddArtistToLibrary } from '@/lib/hooks/useArtistM
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import type { Song } from '@/lib/types/song';
-import { addRecent, loadRecent, saveRecent as storeRecent, type RecentEntry } from '@/lib/utils/recent-searches';
+import type { RecentEntry } from '@/lib/utils/recent-searches';
+import { useRecentSearches } from '@/lib/hooks/useRecentSearches';
 
 export const Route = createFileRoute('/library/search')({
   validateSearch: (search: Record<string, unknown>): { q?: string } => ({
@@ -58,35 +59,8 @@ function SearchPage() {
   const [tab, setTab] = useState<Tab>('all');
   const { user } = Route.useRouteContext();
   const userId = user?.id;
-  const [recent, setRecent] = useState<RecentEntry[]>([]);
-  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { recent, recordRecent, removeRecent, clearRecent } = useRecentSearches(userId, query);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!userId) return;
-    setRecent(loadRecent(localStorage, userId));
-  }, [userId]);
-
-  const saveRecent = (next: RecentEntry[]) => {
-    setRecent(next);
-    if (userId) storeRecent(localStorage, userId, next);
-  };
-
-  const recordRecent = (entry: RecentEntry) => saveRecent(addRecent(recent, entry));
-
-  // Auto-save recent search after typing pause
-  useEffect(() => {
-    if (commitTimer.current) clearTimeout(commitTimer.current);
-    const term = query.trim();
-    if (!term) return;
-    commitTimer.current = setTimeout(() => {
-      recordRecent({ kind: 'query', term });
-    }, 1200);
-    return () => {
-      if (commitTimer.current) clearTimeout(commitTimer.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
 
   // Auto-focus search input on mount
   useEffect(() => {
@@ -431,7 +405,7 @@ function SearchPage() {
                       Recent searches
                     </h2>
                     <button
-                      onClick={() => saveRecent([])}
+                      onClick={clearRecent}
                       className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                     >
                       Clear all
@@ -451,13 +425,13 @@ function SearchPage() {
                           tabIndex={0}
                           onClick={(e) => {
                             e.stopPropagation();
-                            saveRecent(recent.filter((r) => r !== entry));
+                            removeRecent(entry);
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault();
                               e.stopPropagation();
-                              saveRecent(recent.filter((r) => r !== entry));
+                              removeRecent(entry);
                             }
                           }}
                           className="ml-0.5 rounded-full p-0.5 text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 hover:text-foreground transition-all"
