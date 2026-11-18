@@ -62,6 +62,10 @@ export const Route = createRootRouteWithContext<{
         name: "author",
         content: "AIDJ",
       },
+      {
+        name: "robots",
+        content: "noindex",
+      },
       // PWA - iOS specific
       {
         name: "apple-mobile-web-app-capable",

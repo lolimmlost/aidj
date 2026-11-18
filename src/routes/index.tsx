@@ -15,6 +15,7 @@ export const Route = createFileRoute('/')({
       throw redirect({ to: '/dashboard' });
     }
   },
+  head: () => ({ meta: [{ name: "robots", content: "index, follow" }] }),
 });
 
 function Home() {
