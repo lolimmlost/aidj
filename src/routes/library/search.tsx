@@ -51,12 +51,22 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 
+/** Pause after the last keystroke before the search runs. */
+const SEARCH_DEBOUNCE_MS = 300;
+
 type ArtistWithCounts = { id: string; name: string; albumCount?: number; songCount?: number };
 
 function SearchPage() {
   const navigate = useNavigate({ from: '/library/search' });
   const { q } = Route.useSearch();
+  // `query` is the committed search (in the URL, drives every fetch).
   const query = q ?? '';
+  // `input` is what's in the box. It updates synchronously on each keystroke;
+  // binding the box straight to the URL made React re-assert the old value
+  // while the navigation was in flight, which threw the cursor to the end
+  // when you typed mid-word. The URL catches up after a pause.
+  const [input, setInput] = useState(query);
+  const committedRef = useRef(query);
   const { playSong, setAIUserActionInProgress } = useAudioStore();
   const [tab, setTab] = useState<Tab>('all');
   const { user } = Route.useRouteContext();
@@ -74,12 +84,36 @@ function SearchPage() {
     if (!query.trim()) setTab('all');
   }, [query]);
 
-  const setQuery = (value: string) => {
+  const commitQuery = (value: string) => {
+    const next = value.trim().length > 0 ? value : '';
+    if (next === committedRef.current) return;
+    committedRef.current = next;
     navigate({
-      search: () => (value.trim().length > 0 ? { q: value } : {}),
+      search: () => (next ? { q: next } : {}),
       replace: true,
     });
   };
+
+  // Programmatic changes (recent entry, clear, "Did you mean"): box + URL now.
+  const setQuery = (value: string) => {
+    setInput(value);
+    commitQuery(value);
+  };
+
+  // Typing: commit after the user pauses.
+  useEffect(() => {
+    const id = setTimeout(() => commitQuery(input), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps, @eslint-react/exhaustive-deps -- commitQuery only reads a ref + navigate
+  }, [input]);
+
+  // URL changed from outside (back/forward, a link with ?q=): follow it.
+  useEffect(() => {
+    if (query !== committedRef.current) {
+      committedRef.current = query;
+      setInput(query);
+    }
+  }, [query]);
 
   const { data: songs = [], isLoading: isLoadingSongs, error } = useQuery({
     queryKey: ['search', query],
@@ -173,7 +207,7 @@ function SearchPage() {
   const { data: feedbackData } = useSongFeedback(songIds);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setQuery(e.target.value);
+    setInput(e.target.value);
   };
 
   const handleSongClick = (songId: string) => {
@@ -236,8 +270,9 @@ function SearchPage() {
                 ref={inputRef}
                 type="text"
                 placeholder="Songs, artists, albums..."
-                value={query}
+                value={input}
                 onChange={handleInputChange}
+                onKeyDown={(e) => { if (e.key === 'Enter') commitQuery(input); }}
                 className={cn(
                   'w-full rounded-xl border border-border/60 bg-muted/40 pl-10 pr-10 py-3 text-base outline-none transition-all',
                   'placeholder:text-muted-foreground/60',
@@ -245,7 +280,7 @@ function SearchPage() {
                 )}
                 aria-label="Search library"
               />
-              {hasQuery && (
+              {input.length > 0 && (
                 <button
                   onClick={() => { setQuery(''); inputRef.current?.focus(); }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
