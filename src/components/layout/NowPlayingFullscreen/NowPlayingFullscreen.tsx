@@ -258,7 +258,7 @@ export function NowPlayingFullscreen({
       >
         {/* Persistent header — chevron + mode pill + expand */}
         {!isExpanded && (
-          <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] py-3">
+          <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] py-3 short-landscape:py-1 short-landscape:pt-1 short-landscape:pl-[max(1rem,env(safe-area-inset-left))] short-landscape:pr-[max(1rem,env(safe-area-inset-right))]">
             <Button
               variant="ghost"
               size="sm"
@@ -289,11 +289,13 @@ export function NowPlayingFullscreen({
             position stable regardless of mode-column content.
             When expanded, mode content fills the entire surface. */}
         <div className={cn(
-          "flex-1 flex flex-col lg:flex-row justify-center mx-auto w-full min-h-0",
+          "flex-1 flex flex-col lg:flex-row short-landscape:flex-row justify-center mx-auto w-full min-h-0",
           isExpanded
             ? "items-stretch p-0"
             : cn(
                 "px-6 sm:px-8 lg:px-16 gap-6 sm:gap-8 lg:gap-16 max-w-6xl",
+                // Landscape phone: side-by-side, clear of the notch/home bar
+                "short-landscape:gap-8 short-landscape:py-1 short-landscape:pl-[max(1.5rem,env(safe-area-inset-left))] short-landscape:pr-[max(1.5rem,env(safe-area-inset-right))]",
                 mode === 'art' ? "items-center" : "items-stretch"
               )
         )}>
@@ -323,10 +325,11 @@ export function NowPlayingFullscreen({
           {!isExpanded && (
             <div className={cn(
               "w-full lg:flex-1 lg:max-w-md flex flex-col items-center gap-6 sm:gap-8",
+              "short-landscape:flex-1 short-landscape:max-w-md short-landscape:min-w-0 short-landscape:gap-3 short-landscape:justify-center",
               mode !== 'art' && "justify-center"
             )}>
               {/* Song info — title links to album page (song info context); artist links to artist page */}
-              <div className="w-full text-center lg:text-left">
+              <div className="w-full text-center lg:text-left short-landscape:text-left">
                 {artistId && currentSong.albumId ? (
                   <Link
                     to="/library/artists/$id/albums/$albumId"
@@ -501,7 +504,7 @@ export function NowPlayingFullscreen({
           </div>
         )}
 
-        {!isExpanded && <div className="h-8 pb-[env(safe-area-inset-bottom)]" />}
+        {!isExpanded && <div className="h-8 short-landscape:h-3 pb-[env(safe-area-inset-bottom)]" />}
       </div>
     </div>,
     document.body

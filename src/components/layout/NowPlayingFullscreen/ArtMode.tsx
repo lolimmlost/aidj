@@ -155,7 +155,10 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
         "relative overflow-visible touch-pan-y",
         expanded
           ? "flex-1 flex items-center justify-center"
-          : "w-[75vw] sm:w-[60vw] md:w-[50vw] lg:w-auto lg:flex-1 max-w-[500px] aspect-square mx-auto lg:mx-0 flex-shrink-0"
+          : "w-[75vw] sm:w-[60vw] md:w-[50vw] lg:w-auto lg:flex-1 max-w-[500px] aspect-square mx-auto lg:mx-0 flex-shrink-0",
+        // Landscape phone: size by the short side so the square fits
+        // between the header and bottom spacer (≈5rem total).
+        !expanded && "short-landscape:w-[min(45vw,calc(100dvh-5.5rem))] short-landscape:mx-0"
       )}
       onTouchStart={handleArtTouchStart}
       onTouchMove={handleArtTouchMove}
