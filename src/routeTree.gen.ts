@@ -52,7 +52,6 @@ import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as TasksIndexRouteImport } from './routes/tasks/index'
 import { Route as ApiAdminStatsRouteImport } from './routes/api/admin/stats'
 import { Route as ApiAiDjRecommendationsRouteImport } from './routes/api/ai-dj/recommendations'
-import { Route as ApiAurralAddArtistRouteImport } from './routes/api/aurral/add-artist'
 import { Route as ApiAurralDiscoverRouteImport } from './routes/api/aurral/discover'
 import { Route as ApiAurralDownloadsRouteImport } from './routes/api/aurral/downloads'
 import { Route as ApiAurralMetadataRouteImport } from './routes/api/aurral/metadata'
@@ -99,6 +98,8 @@ import { Route as ApiLibraryTopArtistsRouteImport } from './routes/api/library/t
 import { Route as ApiLidarrAddRouteImport } from './routes/api/lidarr/add'
 import { Route as ApiLidarrCancelRouteImport } from './routes/api/lidarr/cancel'
 import { Route as ApiLidarrHistoryRouteImport } from './routes/api/lidarr/history'
+import { Route as ApiLidarrRequestRouteImport } from './routes/api/lidarr/request'
+import { Route as ApiLidarrRequestStatusRouteImport } from './routes/api/lidarr/request-status'
 import { Route as ApiLidarrSearchRouteImport } from './routes/api/lidarr/search'
 import { Route as ApiLidarrSearchAlbumRouteImport } from './routes/api/lidarr/search-album'
 import { Route as ApiLidarrStatusRouteImport } from './routes/api/lidarr/status'
@@ -421,11 +422,6 @@ const ApiAiDjRecommendationsRoute = ApiAiDjRecommendationsRouteImport.update({
   path: '/api/ai-dj/recommendations',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAurralAddArtistRoute = ApiAurralAddArtistRouteImport.update({
-  id: '/api/aurral/add-artist',
-  path: '/api/aurral/add-artist',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAurralDiscoverRoute = ApiAurralDiscoverRouteImport.update({
   id: '/api/aurral/discover',
   path: '/api/aurral/discover',
@@ -668,6 +664,16 @@ const ApiLidarrCancelRoute = ApiLidarrCancelRouteImport.update({
 const ApiLidarrHistoryRoute = ApiLidarrHistoryRouteImport.update({
   id: '/api/lidarr/history',
   path: '/api/lidarr/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLidarrRequestRoute = ApiLidarrRequestRouteImport.update({
+  id: '/api/lidarr/request',
+  path: '/api/lidarr/request',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLidarrRequestStatusRoute = ApiLidarrRequestStatusRouteImport.update({
+  id: '/api/lidarr/request-status',
+  path: '/api/lidarr/request-status',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLidarrSearchRoute = ApiLidarrSearchRouteImport.update({
@@ -1288,7 +1294,6 @@ export interface FileRoutesByFullPath {
   '/tasks/': typeof TasksIndexRoute
   '/api/admin/stats': typeof ApiAdminStatsRoute
   '/api/ai-dj/recommendations': typeof ApiAiDjRecommendationsRoute
-  '/api/aurral/add-artist': typeof ApiAurralAddArtistRoute
   '/api/aurral/discover': typeof ApiAurralDiscoverRoute
   '/api/aurral/downloads': typeof ApiAurralDownloadsRoute
   '/api/aurral/metadata': typeof ApiAurralMetadataRoute
@@ -1334,6 +1339,8 @@ export interface FileRoutesByFullPath {
   '/api/lidarr/add': typeof ApiLidarrAddRoute
   '/api/lidarr/cancel': typeof ApiLidarrCancelRoute
   '/api/lidarr/history': typeof ApiLidarrHistoryRoute
+  '/api/lidarr/request': typeof ApiLidarrRequestRoute
+  '/api/lidarr/request-status': typeof ApiLidarrRequestStatusRoute
   '/api/lidarr/search': typeof ApiLidarrSearchRoute
   '/api/lidarr/search-album': typeof ApiLidarrSearchAlbumRoute
   '/api/lidarr/status': typeof ApiLidarrStatusRoute
@@ -1483,7 +1490,6 @@ export interface FileRoutesByTo {
   '/tasks': typeof TasksIndexRoute
   '/api/admin/stats': typeof ApiAdminStatsRoute
   '/api/ai-dj/recommendations': typeof ApiAiDjRecommendationsRoute
-  '/api/aurral/add-artist': typeof ApiAurralAddArtistRoute
   '/api/aurral/discover': typeof ApiAurralDiscoverRoute
   '/api/aurral/downloads': typeof ApiAurralDownloadsRoute
   '/api/aurral/metadata': typeof ApiAurralMetadataRoute
@@ -1529,6 +1535,8 @@ export interface FileRoutesByTo {
   '/api/lidarr/add': typeof ApiLidarrAddRoute
   '/api/lidarr/cancel': typeof ApiLidarrCancelRoute
   '/api/lidarr/history': typeof ApiLidarrHistoryRoute
+  '/api/lidarr/request': typeof ApiLidarrRequestRoute
+  '/api/lidarr/request-status': typeof ApiLidarrRequestStatusRoute
   '/api/lidarr/search': typeof ApiLidarrSearchRoute
   '/api/lidarr/search-album': typeof ApiLidarrSearchAlbumRoute
   '/api/lidarr/status': typeof ApiLidarrStatusRoute
@@ -1682,7 +1690,6 @@ export interface FileRoutesById {
   '/tasks/': typeof TasksIndexRoute
   '/api/admin/stats': typeof ApiAdminStatsRoute
   '/api/ai-dj/recommendations': typeof ApiAiDjRecommendationsRoute
-  '/api/aurral/add-artist': typeof ApiAurralAddArtistRoute
   '/api/aurral/discover': typeof ApiAurralDiscoverRoute
   '/api/aurral/downloads': typeof ApiAurralDownloadsRoute
   '/api/aurral/metadata': typeof ApiAurralMetadataRoute
@@ -1728,6 +1735,8 @@ export interface FileRoutesById {
   '/api/lidarr/add': typeof ApiLidarrAddRoute
   '/api/lidarr/cancel': typeof ApiLidarrCancelRoute
   '/api/lidarr/history': typeof ApiLidarrHistoryRoute
+  '/api/lidarr/request': typeof ApiLidarrRequestRoute
+  '/api/lidarr/request-status': typeof ApiLidarrRequestStatusRoute
   '/api/lidarr/search': typeof ApiLidarrSearchRoute
   '/api/lidarr/search-album': typeof ApiLidarrSearchAlbumRoute
   '/api/lidarr/status': typeof ApiLidarrStatusRoute
@@ -1881,7 +1890,6 @@ export interface FileRouteTypes {
     | '/tasks/'
     | '/api/admin/stats'
     | '/api/ai-dj/recommendations'
-    | '/api/aurral/add-artist'
     | '/api/aurral/discover'
     | '/api/aurral/downloads'
     | '/api/aurral/metadata'
@@ -1927,6 +1935,8 @@ export interface FileRouteTypes {
     | '/api/lidarr/add'
     | '/api/lidarr/cancel'
     | '/api/lidarr/history'
+    | '/api/lidarr/request'
+    | '/api/lidarr/request-status'
     | '/api/lidarr/search'
     | '/api/lidarr/search-album'
     | '/api/lidarr/status'
@@ -2076,7 +2086,6 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/api/admin/stats'
     | '/api/ai-dj/recommendations'
-    | '/api/aurral/add-artist'
     | '/api/aurral/discover'
     | '/api/aurral/downloads'
     | '/api/aurral/metadata'
@@ -2122,6 +2131,8 @@ export interface FileRouteTypes {
     | '/api/lidarr/add'
     | '/api/lidarr/cancel'
     | '/api/lidarr/history'
+    | '/api/lidarr/request'
+    | '/api/lidarr/request-status'
     | '/api/lidarr/search'
     | '/api/lidarr/search-album'
     | '/api/lidarr/status'
@@ -2274,7 +2285,6 @@ export interface FileRouteTypes {
     | '/tasks/'
     | '/api/admin/stats'
     | '/api/ai-dj/recommendations'
-    | '/api/aurral/add-artist'
     | '/api/aurral/discover'
     | '/api/aurral/downloads'
     | '/api/aurral/metadata'
@@ -2320,6 +2330,8 @@ export interface FileRouteTypes {
     | '/api/lidarr/add'
     | '/api/lidarr/cancel'
     | '/api/lidarr/history'
+    | '/api/lidarr/request'
+    | '/api/lidarr/request-status'
     | '/api/lidarr/search'
     | '/api/lidarr/search-album'
     | '/api/lidarr/status'
@@ -2460,7 +2472,6 @@ export interface RootRouteChildren {
   TasksIndexRoute: typeof TasksIndexRoute
   ApiAdminStatsRoute: typeof ApiAdminStatsRoute
   ApiAiDjRecommendationsRoute: typeof ApiAiDjRecommendationsRoute
-  ApiAurralAddArtistRoute: typeof ApiAurralAddArtistRoute
   ApiAurralDiscoverRoute: typeof ApiAurralDiscoverRoute
   ApiAurralDownloadsRoute: typeof ApiAurralDownloadsRoute
   ApiAurralMetadataRoute: typeof ApiAurralMetadataRoute
@@ -2506,6 +2517,8 @@ export interface RootRouteChildren {
   ApiLidarrAddRoute: typeof ApiLidarrAddRoute
   ApiLidarrCancelRoute: typeof ApiLidarrCancelRoute
   ApiLidarrHistoryRoute: typeof ApiLidarrHistoryRoute
+  ApiLidarrRequestRoute: typeof ApiLidarrRequestRoute
+  ApiLidarrRequestStatusRoute: typeof ApiLidarrRequestStatusRoute
   ApiLidarrSearchRoute: typeof ApiLidarrSearchRoute
   ApiLidarrSearchAlbumRoute: typeof ApiLidarrSearchAlbumRoute
   ApiLidarrStatusRoute: typeof ApiLidarrStatusRoute
@@ -2893,13 +2906,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAiDjRecommendationsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/aurral/add-artist': {
-      id: '/api/aurral/add-artist'
-      path: '/api/aurral/add-artist'
-      fullPath: '/api/aurral/add-artist'
-      preLoaderRoute: typeof ApiAurralAddArtistRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/aurral/discover': {
       id: '/api/aurral/discover'
       path: '/api/aurral/discover'
@@ -3220,6 +3226,20 @@ declare module '@tanstack/react-router' {
       path: '/api/lidarr/history'
       fullPath: '/api/lidarr/history'
       preLoaderRoute: typeof ApiLidarrHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/lidarr/request': {
+      id: '/api/lidarr/request'
+      path: '/api/lidarr/request'
+      fullPath: '/api/lidarr/request'
+      preLoaderRoute: typeof ApiLidarrRequestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/lidarr/request-status': {
+      id: '/api/lidarr/request-status'
+      path: '/api/lidarr/request-status'
+      fullPath: '/api/lidarr/request-status'
+      preLoaderRoute: typeof ApiLidarrRequestStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/lidarr/search': {
@@ -4178,7 +4198,6 @@ const rootRouteChildren: RootRouteChildren = {
   TasksIndexRoute: TasksIndexRoute,
   ApiAdminStatsRoute: ApiAdminStatsRoute,
   ApiAiDjRecommendationsRoute: ApiAiDjRecommendationsRoute,
-  ApiAurralAddArtistRoute: ApiAurralAddArtistRoute,
   ApiAurralDiscoverRoute: ApiAurralDiscoverRoute,
   ApiAurralDownloadsRoute: ApiAurralDownloadsRoute,
   ApiAurralMetadataRoute: ApiAurralMetadataRoute,
@@ -4225,6 +4244,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLidarrAddRoute: ApiLidarrAddRoute,
   ApiLidarrCancelRoute: ApiLidarrCancelRoute,
   ApiLidarrHistoryRoute: ApiLidarrHistoryRoute,
+  ApiLidarrRequestRoute: ApiLidarrRequestRoute,
+  ApiLidarrRequestStatusRoute: ApiLidarrRequestStatusRoute,
   ApiLidarrSearchRoute: ApiLidarrSearchRoute,
   ApiLidarrSearchAlbumRoute: ApiLidarrSearchAlbumRoute,
   ApiLidarrStatusRoute: ApiLidarrStatusRoute,

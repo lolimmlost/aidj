@@ -121,9 +121,13 @@ function RecommendationCard({ rec, artistImages }: { rec: { id: string; name: st
     addArtist.mutate(
       { mbid: rec.id, artistName: rec.name },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
+          if (result.outcome === 'not_found') {
+            toast.error(result.message);
+            return;
+          }
           setAdded(true);
-          toast.success(`Added ${rec.name} to library`);
+          toast.success(result.message);
         },
         onError: (err) => {
           toast.error(err.message || 'Failed to add artist');

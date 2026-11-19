@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NavidromeErrorBoundary } from '@/components/navidrome-error-boundary';
-import { Search as SearchIcon, Plus, Download, CheckCircle2, AlertCircle, X, Clock, Play, Disc3, MoreHorizontal, ListPlus, Radio, Music, User } from 'lucide-react';
+import { Search as SearchIcon, Plus, CheckCircle2, AlertCircle, X, Clock, Play, Disc3, MoreHorizontal, ListPlus, Radio, Music, User } from 'lucide-react';
 import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
 import { AddToQueueButton } from '@/components/playlists/AddToQueueButton';
 import {
@@ -22,7 +22,8 @@ import { SongFeedbackButtons } from '@/components/library/SongFeedbackButtons';
 import { ArtistCard } from '@/components/library/ArtistsList';
 import { AlbumArt, getCoverArtUrl } from '@/components/ui/album-art';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
-import { useArtistMetadata, useAddArtistToLibrary, ServiceRestartingError } from '@/lib/hooks/useArtistMetadata';
+import { useArtistMetadata, ServiceRestartingError } from '@/lib/hooks/useArtistMetadata';
+import { ArtistRequestPanel } from '@/components/library/ArtistRequestPanel';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import type { Song } from '@/lib/types/song';
@@ -770,7 +771,6 @@ function ArtistAddFallback({
   const { data: metadata, isLoading, isError, error, refetch, isFetching } = useArtistMetadata(query, {
     enabled: query.length > 0,
   });
-  const addArtist = useAddArtistToLibrary();
 
   const [elapsed, setElapsed] = useState(0);
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -904,26 +904,10 @@ function ArtistAddFallback({
     );
   }
 
-  const alreadyMonitored = metadata.lidarrMonitored;
   const topGenres = metadata.genres.slice(0, 3);
   const formedLabel = metadata.formedYear ? `formed ${metadata.formedYear}` : null;
   const countryLabel = metadata.country ?? null;
   const details = [countryLabel, formedLabel].filter(Boolean).join(' · ');
-
-  const handleAdd = () => {
-    if (!metadata.mbid) return;
-    addArtist.mutate(
-      { mbid: metadata.mbid, artistName: metadata.artistName },
-      {
-        onSuccess: () => {
-          toast.success(`${metadata.artistName} queued for download via Lidarr`);
-        },
-        onError: (err) => {
-          toast.error(`Failed to add artist: ${err.message}`);
-        },
-      },
-    );
-  };
 
   return (
     <Card className="border-primary/30">
@@ -971,41 +955,12 @@ function ArtistAddFallback({
           </div>
         </div>
 
-        <div className="pt-1 border-t">
-          {alreadyMonitored ? (
-            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-2">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span>Already monitored in Lidarr — songs will appear as they download.</span>
-            </div>
-          ) : addArtist.isSuccess ? (
-            <div className="flex items-center justify-center gap-2 text-sm text-green-600 dark:text-green-400 py-2">
-              <CheckCircle2 className="h-4 w-4" />
-              <span>Queued for download. Lidarr will notify when it finishes.</span>
-            </div>
-          ) : (
-            <div className="flex flex-col sm:flex-row items-center gap-3">
-              <p className="text-xs text-muted-foreground flex-1 text-center sm:text-left">
-                Add to Lidarr to monitor this artist and auto-download new releases.
-              </p>
-              <Button
-                onClick={handleAdd}
-                disabled={addArtist.isPending}
-                className="min-h-[44px] w-full sm:w-auto"
-              >
-                {addArtist.isPending ? (
-                  <>
-                    <Download className="h-4 w-4 mr-2 animate-pulse" />
-                    Adding…
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add to Lidarr
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
+        <div className="pt-4 border-t">
+          <ArtistRequestPanel
+            mbid={metadata.mbid!}
+            artistName={metadata.artistName}
+            releaseGroups={metadata.releaseGroups}
+          />
         </div>
       </CardContent>
     </Card>
