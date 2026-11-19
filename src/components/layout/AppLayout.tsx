@@ -37,6 +37,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAudioStore } from '@/lib/stores/audio';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlayerBar } from './PlayerBar';
+import { createPlayerRevealWatcher } from './player-reveal';
 import { QueuePanel } from '@/components/ui/queue-panel';
 import { checkPreviousLabPage } from '@/lib/dj-lab/log';
 import { MobileNav } from '@/components/ui/mobile-nav';
@@ -221,15 +222,10 @@ export function AppLayout({ children }: AppLayoutProps) {
   // queue button would only cover the Lab's controls there (the bar stays mounted, hidden)
   const onLab = useRouterState({ select: (s) => s.location.pathname.startsWith('/dj/lab') });
   // ⌄ on the player bar hides it (still mounted, still playing); a small pill brings it back, and so
-  // does starting playback
+  // does the user starting a new song. Not every isPlaying flip: automatic restarts (recovery, the
+  // Transition Lab handing the audio back and forth) kept un-minimizing it (#438).
   const [playerCollapsed, setPlayerCollapsed] = useState(false);
-  useEffect(
-    () =>
-      useAudioStore.subscribe((s, prev) => {
-        if (s.isPlaying && !prev.isPlaying) setPlayerCollapsed(false);
-      }),
-    [],
-  );
+  useEffect(() => useAudioStore.subscribe(createPlayerRevealWatcher(() => setPlayerCollapsed(false))), []);
   const showPlayer = hasActiveSong && !onLab && !playerCollapsed;
   const showPlayerPill = hasActiveSong && !onLab && playerCollapsed;
   const currentSong = hasActiveSong ? playlist[currentSongIndex] : undefined;

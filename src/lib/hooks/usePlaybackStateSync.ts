@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
 import { useSpeakerOutput } from '@/lib/stores/speaker-output';
+import { externalAudioOwner } from '@/lib/utils/audio-owner';
 import { hasRealSong, type SetActiveDeckOptions } from './useDualDeckAudio';
 
 export interface UsePlaybackStateSyncOptions {
@@ -70,6 +71,14 @@ export function usePlaybackStateSync({
 
     // Only handle pause immediately; play is handled by canplay listener or when ready
     if (!isPlaying) {
+      // The Transition Lab owns the audio (#438): take the pause as given. Every branch
+      // below second-guesses a pause (re-sync to a deck still sounding, stall / interruption
+      // auto-resume). Restarting the player here pauses the Lab, and the Lab taking the
+      // audio back reads as the next interruption: an endless play/pause loop on iOS.
+      if (externalAudioOwner()) {
+        if (!audio.paused) audio.pause();
+        return;
+      }
       // DEFENSIVE: Store says pause but audio element is still playing
       if (!audio.paused) {
         const userPauseAt = useAudioStore.getState()._userPauseAt;
@@ -117,6 +126,7 @@ export function usePlaybackStateSync({
         const savedTime = storeState.currentTime;
         const resumeOnReload = () => {
           audio.removeEventListener('canplay', resumeOnReload);
+          if (externalAudioOwner()) return; // the Lab took the audio meanwhile (#438)
           if (savedTime > 0 && isFinite(savedTime)) {
             audio.currentTime = savedTime;
           }
@@ -159,8 +169,8 @@ export function usePlaybackStateSync({
           // Delay resume to let the interrupting app (Siri) finish
           setTimeout(() => {
             const currentState = useAudioStore.getState();
-            // Only resume if still not playing and no user pause occurred since
-            if (!currentState.isPlaying && !(currentState._userPauseAt > userPauseAt)) {
+            // Only resume if still not playing, no user pause occurred since, and the Lab didn't take the audio (#438)
+            if (!currentState.isPlaying && !(currentState._userPauseAt > userPauseAt) && !externalAudioOwner()) {
               checkAndResumeAudioContext().then(() => {
                 audio.play()
                   .then(() => {
@@ -201,6 +211,8 @@ export function usePlaybackStateSync({
 
       // eslint-disable-next-line @eslint-react/web-api-no-leaked-timeout -- one-shot delay inside event handler, no cleanup needed
       setTimeout(() => {
+        // The Transition Lab owns the audio: nothing to recover, and restarting the player would pause the Lab (#438)
+        if (externalAudioOwner()) return;
         // Use currentTime > 0 as the PRIMARY signal for which deck was playing
         const deckAHasProgress = deckA.currentTime > 0 && hasRealSong(deckA);
         const deckBHasProgress = deckB.currentTime > 0 && hasRealSong(deckB);
