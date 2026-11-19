@@ -185,7 +185,8 @@ export function useAddArtistToLibrary() {
 
 // ─── Lidarr requests (#436) ──────────────────────────────────────────────────
 
-export type LidarrRequestOutcome = 'monitored' | 'already_monitored' | 'in_library' | 'pending' | 'not_found';
+/** 'unavailable' is final (Lidarr can't get it); only 'pending' is rechecked. */
+export type LidarrRequestOutcome = 'monitored' | 'already_monitored' | 'in_library' | 'pending' | 'unavailable' | 'not_found';
 export type LidarrAlbumState = 'in_library' | 'partial' | 'wanted' | 'not_monitored';
 
 export interface LidarrRequestResult {
@@ -195,6 +196,8 @@ export interface LidarrRequestResult {
   lidarrAlbumId?: number;
   releaseGroupId?: string;
   releaseTitle?: string;
+  /** Set when Lidarr files the release under another, lead artist (a collab). */
+  filedUnder?: { mbid: string; artistName: string; lidarrArtistId: number };
 }
 
 export interface LidarrRequestStatus {
@@ -202,7 +205,8 @@ export interface LidarrRequestStatus {
   lidarrArtistId?: number;
   artistMonitored: boolean;
   followingNewReleases: boolean;
-  albums: Record<string, { state: LidarrAlbumState; title: string; trackFiles: number; tracks: number }>;
+  /** Includes collabs requested from this card that Lidarr files under their lead (filedUnder). */
+  albums: Record<string, { state: LidarrAlbumState; title: string; trackFiles: number; tracks: number; filedUnder?: string }>;
   /** 'artist' for follows, else release-group id → distinct requesters. */
   requests: Record<string, { users: number; byMe: boolean }>;
 }

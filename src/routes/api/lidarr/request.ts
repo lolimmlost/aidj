@@ -87,12 +87,13 @@ const POST = withAuthAndErrorHandling(
       console.warn('[lidarr-request] failed to record request:', err instanceof Error ? err.message : err);
     }
     if (result.lidarrArtistId !== undefined) {
-      const monitored = result.outcome === 'monitored' || result.outcome === 'already_monitored';
+      // A collab queued under its lead artist leaves this artist's own flag as it was.
+      const monitored = result.artistMonitored ?? (result.outcome === 'monitored' || result.outcome === 'already_monitored');
       await refreshCachedLidarrState(body.mbid, result.lidarrArtistId, monitored).catch(err =>
         console.warn('[lidarr-request] failed to refresh metadata cache:', err instanceof Error ? err.message : err));
     }
 
-    console.log(`[lidarr-request] ${session.user.id} ${mode} "${input.artistName}"${result.releaseTitle ? ` / "${result.releaseTitle}"` : ''} → ${result.outcome}`);
+    console.log(`[lidarr-request] ${session.user.id} ${mode} "${input.artistName}"${result.releaseTitle ? ` / "${result.releaseTitle}"` : ''}${result.filedUnder ? ` (filed under "${result.filedUnder.artistName}")` : ''} → ${result.outcome}`);
     return successResponse(result);
   },
   {

@@ -19,7 +19,7 @@ const releases = [
 
 type Status = {
   inLidarr: boolean; artistMonitored: boolean; followingNewReleases: boolean;
-  albums: Record<string, { state: string; title: string; trackFiles: number; tracks: number }>;
+  albums: Record<string, { state: string; title: string; trackFiles: number; tracks: number; filedUnder?: string }>;
   requests: Record<string, { users: number; byMe: boolean }>;
 };
 
@@ -108,6 +108,26 @@ describe('ArtistRequestPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: /find/i }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(input).toHaveValue('Foo');
+  });
+
+  it('an unavailable release is an error toast', async () => {
+    mockFetch(emptyStatus, { outcome: 'unavailable', message: `Lidarr's database doesn't have "STAR", so it can't download it.` });
+    renderPanel();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Get STAR' })).toBeEnabled());
+    await userEvent.click(screen.getByRole('button', { name: 'Get STAR' }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(`Lidarr's database doesn't have "STAR", so it can't download it.`));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it('shows the lead artist a collab is filed under', async () => {
+    mockFetch({
+      ...emptyStatus,
+      albums: { 'rg-star': { state: 'wanted', title: 'STAR', trackFiles: 0, tracks: 1, filedUnder: 'DUMMFÖUND' } },
+    });
+    renderPanel();
+    const row = (await screen.findByText('STAR')).closest('li')!;
+    await waitFor(() => expect(within(row).getByText(/filed under DUMMFÖUND/)).toBeInTheDocument());
+    expect(within(row).getByText(/waiting for download/i)).toBeInTheDocument();
   });
 
   it('says so when Lidarr is not configured', async () => {
