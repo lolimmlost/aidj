@@ -33,6 +33,9 @@ describe('Lab flight recorder', () => {
     a.labBeat({ status: 'playing', song: 'A – One', pos: 200, heldMB: 290 });
     const b = await freshLog();
     b.startLabLog();
+    // a fresh heartbeat might still be beating in another window: it waits for the next beat first
+    expect(b.labLogEntries().some((e) => e.ev === 'previous page died mid-set')).toBe(false);
+    await vi.advanceTimersByTimeAsync(b.CONFIRM_MS);
     const died = b.labLogEntries().filter((e) => e.ev === 'previous page died mid-set');
     expect(died).toHaveLength(1);
     expect(died[0].data).toMatchObject({ prevSid: a.labLogSid(), status: 'playing', song: 'A – One', heldMB: 290 });
@@ -50,6 +53,47 @@ describe('Lab flight recorder', () => {
     const e = await freshLog();
     e.startLabLog();
     expect(e.labLogEntries().some((x) => x.ev === 'previous page died mid-set')).toBe(false);
+  });
+
+  it('calls an old heartbeat dead at once, and keeps it to resume from (#439)', async () => {
+    const a = await freshLog();
+    a.labBeat({ status: 'paused', song: 'A – One', songId: 'a1', pos: 134, setId: 'set1', setBpm: 84.6, mode: 'dropchain', next: 'locked B – Two', nextId: 'b2' });
+    vi.setSystemTime(Date.now() + a.ALIVE_MS + 1000);
+    const b = await freshLog();
+    b.checkPreviousLabPage();
+    expect(b.labLogEntries().filter((e) => e.ev === 'previous page died mid-set')).toHaveLength(1);
+    const { loadResumePoint } = await import('../resume');
+    expect(loadResumePoint()).toMatchObject({ reason: 'died', sid: a.labLogSid(), songId: 'a1', pos: 134, setId: 'set1', setBpm: 84.6, mode: 'dropchain', nextId: 'b2' });
+  });
+
+  it("doesn't call a page dead that beats again: its set is open in another window (#439)", async () => {
+    const a = await freshLog();
+    a.labBeat({ status: 'paused', song: 'A – One', songId: 'a1', pos: 134 });
+    const b = await freshLog();
+    b.checkPreviousLabPage();
+    // the other window keeps beating, and its write reaches this one as a storage event
+    vi.setSystemTime(Date.now() + 5000);
+    a.labBeat({ status: 'paused', song: 'A – One', songId: 'a1', pos: 134 });
+    window.dispatchEvent(new StorageEvent('storage', { key: 'aidj:dj-lab:beat' }));
+    const evs = b.labLogEntries().map((e) => e.ev);
+    expect(evs).toContain('set still open in another window');
+    await vi.advanceTimersByTimeAsync(b.CONFIRM_MS);
+    expect(b.labLogEntries().some((e) => e.ev === 'previous page died mid-set')).toBe(false);
+    const { loadResumePoint } = await import('../resume');
+    expect(loadResumePoint()).toMatchObject({ reason: 'other-window', sid: a.labLogSid(), songId: 'a1' });
+  });
+
+  it('also finds the next beat without a storage event, when its wait runs out', async () => {
+    const a = await freshLog();
+    a.labBeat({ status: 'playing', song: 'A – One' });
+    const b = await freshLog();
+    b.checkPreviousLabPage();
+    vi.setSystemTime(Date.now() + 5000);
+    a.labBeat({ status: 'playing', song: 'A – One' });
+    await vi.advanceTimersByTimeAsync(b.CONFIRM_MS);
+    const evs = b.labLogEntries().map((e) => e.ev);
+    expect(evs).toContain('set still open in another window');
+    expect(evs).not.toContain('previous page died mid-set');
   });
 
   it('writes events to the console in debug mode only, for Eruda', async () => {

@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, FlaskConical, Loader2, Play, Settings2 } from 'lucide-react';
 import { loginRedirect } from '~/lib/auth/login-redirect';
@@ -10,12 +10,14 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAudioStore } from '@/lib/stores/audio';
-import { findSongs, isPhone, listCrates, MAX_STRETCH } from '@/lib/dj-lab/crate';
-import { replayRecipe, setWhen, syncSets, type SavedSet } from '@/lib/dj-lab/sets';
+import { findSongs, getCachedAnalysis, isPhone, listCrates, MAX_STRETCH } from '@/lib/dj-lab/crate';
+import { loadSets, replayRecipe, setWhen, syncSets, type SavedSet } from '@/lib/dj-lab/sets';
 import { fitOctave, meterName } from '@/lib/dj-lab/analysis';
 import type { LabEngine, ReplayEntry } from '@/lib/dj-lab/engine';
 import { loadVotes } from '@/lib/dj-lab/votes';
-import { labLog, startLabLog } from '@/lib/dj-lab/log';
+import { labLog, labLogSid, startLabLog } from '@/lib/dj-lab/log';
+import { announceTakeOver, clearResumePoint, onTakeOver, resumeSnapshot, subscribeResume, type ResumePoint } from '@/lib/dj-lab/resume';
+import { planResume } from '@/lib/dj-lab/resume-plan';
 import { autoPick } from '@/lib/dj-lab/pick';
 import { useCrate, useHydrated, useLabEngine, useStarredIds } from '@/components/dj-lab/useLab';
 import { LabMix } from '@/components/dj-lab/LabMix';
@@ -23,6 +25,7 @@ import { LabAB } from '@/components/dj-lab/LabAB';
 import { LabVotes } from '@/components/dj-lab/LabVotes';
 import { LiveBar } from '@/components/dj-lab/LiveBar';
 import { RecentSets } from '@/components/dj-lab/RecentSets';
+import { ResumeBanner } from '@/components/dj-lab/ResumeBanner';
 import { TempoWindow } from '@/components/dj-lab/TempoWindow';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
@@ -53,6 +56,18 @@ function watchAppPlayer(engine: LabEngine) {
   });
 }
 
+let takeOverWatched = false;
+/** Another window of the app resumed this set (#439): stop this copy, so it never plays twice. */
+function watchTakeOver(engine: LabEngine) {
+  if (takeOverWatched) return;
+  takeOverWatched = true;
+  onTakeOver(labLogSid(), () => {
+    if (engine.getSnapshot().status === 'idle') return;
+    labLog('set moved to another window');
+    engine.stop();
+  });
+}
+
 function DJLab() {
   const { engine, snap } = useLabEngine();
   const [crateId, setCrateId] = useState<string | null>(null);
@@ -75,6 +90,7 @@ function DJLab() {
   }, []);
 
   useEffect(() => watchAppPlayer(engine), [engine]);
+  useEffect(() => watchTakeOver(engine), [engine]);
   useEffect(() => engine.loadDefaults(), [engine]);
   useEffect(() => startLabLog(), []);
   // a copy of every saved set on the server, for offline renders (#392)
@@ -141,6 +157,7 @@ function DJLab() {
   const startSet = (p: (typeof pool)[number]) => {
     // Auto: the set runs at the opener's own tempo, so it plays unstretched
     if (!tempoManual) engine.setSetBpm(Math.round(p.analysis.bpm * 10) / 10);
+    clearResumePoint();
     void engine.start(p.song);
   };
   // a saved set played again: same songs, order, tempo and mode; auto-lock follows it
@@ -167,11 +184,42 @@ function DJLab() {
       setTempoManual(true);
       if (!snap.autoLock) engine.setAutoLock(true);
       const [first, ...rest] = entries;
+      clearResumePoint();
       void engine.start(first.song, undefined, { name: setWhen(set.startedAt), entries: rest });
     } catch (e) {
       toast.error(`Couldn't replay: ${(e as Error).message}`);
     } finally {
       setReplaying(null);
+    }
+  };
+  // the page went away mid-set, or the set is open in another window (#439): offer to pick it back up
+  const resumePoint = useSyncExternalStore(subscribeResume, resumeSnapshot, () => null);
+  const [resuming, setResuming] = useState(false);
+  const resumeSet = async (point: ResumePoint) => {
+    // inside the tap: iOS only lets a tap start the audio
+    engine.unlockAudio();
+    setResuming(true);
+    try {
+      const plan = await planResume(point, crate.songs, { findSongs, getCachedAnalysis, loadSets, setWhen });
+      if (!plan) {
+        toast.error("Couldn't find the song that was playing");
+        return;
+      }
+      // the other window stops its copy first, so the set never plays twice
+      announceTakeOver(labLogSid());
+      labLog('resume set', { reason: point.reason, song: point.song, pos: point.pos, fromBar: plan.fromBar, next: plan.entries[0] && `${plan.entries[0].song.artist} – ${plan.entries[0].song.title}` });
+      if (plan.mode) engine.setMode(plan.mode);
+      if (plan.setBpm) {
+        engine.setSetBpm(plan.setBpm);
+        setTempoManual(true);
+      }
+      if (plan.entries.length && !snap.autoLock) engine.setAutoLock(true);
+      clearResumePoint();
+      void engine.start(plan.song, plan.fromBar, plan.entries.length ? { name: plan.name, entries: plan.entries } : undefined);
+    } catch (e) {
+      toast.error(`Couldn't resume: ${(e as Error).message}`);
+    } finally {
+      setResuming(false);
     }
   };
   // localStorage only after hydration: the server render has no votes
@@ -186,6 +234,9 @@ function DJLab() {
       backLabel="DJ Tools"
     >
       <div className="mx-auto max-w-3xl space-y-3">
+        {!live && resumePoint && (
+          <ResumeBanner point={resumePoint} busy={resuming} onResume={() => void resumeSet(resumePoint)} onDismiss={clearResumePoint} />
+        )}
         {live && snap.now && <LiveBar engine={engine} snap={snap} />}
         <Card className="space-y-2 p-2.5">
           {live && (
