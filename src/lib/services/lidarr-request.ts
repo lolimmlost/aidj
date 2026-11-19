@@ -14,16 +14,23 @@
  *
  * Rules:
  *  - Never unmonitor anything. A second user's pick must not cancel the first's.
+ *  - Verify every write by re-reading it. Lidarr's post-add actions (~1-3 s after an add) and
+ *    RefreshArtist both save a stale copy of a just-added artist, which silently resets
+ *    monitored=false and un-monitors every album. A single PUT "succeeds" and is then undone,
+ *    which is exactly the #435 symptom (success shown, nothing downloads).
  *  - Never lower an artist's monitorNewItems ('all' stays 'all').
  *  - Singles/EPs are invisible under the default "Standard" metadata profile
  *    (studio albums only). When someone asks for one, only THAT artist moves to a
  *    widened copy of its profile ("<name> + Singles/EPs"), then Lidarr refreshes it.
  *    The default profile is never touched: it would pull singles for every artist.
  */
+import { ServiceError } from '../utils';
 import {
+  LIDARR_REQUEST_TIMEOUT_MS,
   addArtist,
   createMetadataProfile,
   findArtistByMbid,
+  getArtistRecord,
   getMetadataProfiles,
   listArtistAlbums,
   lookupArtistByMbid,
@@ -98,6 +105,9 @@ export function __setSleepForTests(fn: (ms: number) => Promise<void>) {
   sleep = fn;
 }
 
+const SETTLE_MS = 800;       // existing artist: let a concurrent refresh finish before re-reading
+const SETTLE_NEW_MS = 1500;  // just added: Lidarr's post-add actions are still to come
+const VERIFY_ATTEMPTS = 4;
 const POLL_INTERVAL_MS = 2000;
 const POLL_NEW_ARTIST = 6;   // ~12 s for a freshly added artist's albums to appear
 const POLL_AFTER_REFRESH = 6; // ~12 s after a RefreshArtist
@@ -121,28 +131,74 @@ export function normalizeTitle(s: string): string {
     .trim();
 }
 
+const isTimeout = (err: unknown) => err instanceof ServiceError && err.code === 'LIDARR_TIMEOUT_ERROR';
+
+/** Reads are idempotent: retry once when Lidarr stalls (it can for seconds right after an add). */
+async function retryRead<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!isTimeout(err)) throw err;
+    console.warn('[lidarr-request] Lidarr read timed out, retrying once');
+    return fn();
+  }
+}
+
+type ArtistChanges = Partial<Pick<LidarrArtistRecord, 'monitored' | 'monitorNewItems' | 'metadataProfileId'>>;
+
+/**
+ * PUT the changes, wait, re-read, and repeat until Lidarr is actually holding them.
+ * Each retry PUTs the freshly read copy, never a stale one.
+ */
+async function applyArtistChanges(artist: LidarrArtistRecord, changes: ArtistChanges, settleMs: number): Promise<LidarrArtistRecord> {
+  let current = artist;
+  for (let attempt = 1; attempt <= VERIFY_ATTEMPTS; attempt++) {
+    await updateArtist(current, changes);
+    await sleep(settleMs);
+    current = await retryRead(() => getArtistRecord(artist.id));
+    if ((Object.keys(changes) as Array<keyof ArtistChanges>).every(k => current[k] === changes[k])) return current;
+    console.warn(`[lidarr-request] "${artist.artistName}": Lidarr reverted ${Object.keys(changes).join('/')} (attempt ${attempt}/${VERIFY_ATTEMPTS})`);
+  }
+  throw new ServiceError('LIDARR_NOT_APPLIED', `Lidarr kept reverting the settings for ${artist.artistName}`);
+}
+
+/** Monitor one album and confirm it stayed monitored (the post-add actions un-monitor everything). */
+async function monitorAlbumVerified(artistId: number, albumId: number, settleMs: number): Promise<LidarrAlbumRecord> {
+  for (let attempt = 1; attempt <= VERIFY_ATTEMPTS; attempt++) {
+    await setAlbumsMonitored([albumId], true);
+    await sleep(settleMs);
+    const album = (await retryRead(() => listArtistAlbums(artistId))).find(a => a.id === albumId);
+    if (album?.monitored) return album;
+    console.warn(`[lidarr-request] album ${albumId}: Lidarr reverted monitored (attempt ${attempt}/${VERIFY_ATTEMPTS})`);
+  }
+  throw new ServiceError('LIDARR_NOT_APPLIED', 'Lidarr kept reverting the album to unmonitored');
+}
+
 /** Find (or add) the artist in Lidarr. Adds it monitored with nothing else monitored. */
 async function ensureArtist(mbid: string, artistName: string): Promise<{ artist: LidarrArtistRecord; added: boolean } | null> {
-  const existing = await findArtistByMbid(mbid);
+  const existing = await retryRead(() => findArtistByMbid(mbid));
   if (existing) return { artist: existing, added: false };
 
   const lookedUp = await lookupArtistByMbid(mbid);
   if (!lookedUp) return null;
   console.log(`[lidarr-request] adding "${artistName}" (${mbid}) to Lidarr`);
-  await addArtist(lookedUp, { monitorAll: false });
+  const created = await addArtist(lookedUp, { monitorAll: false, timeoutMs: LIDARR_REQUEST_TIMEOUT_MS });
 
-  for (let i = 0; i < 3; i++) {
-    const added = await findArtistByMbid(mbid);
-    if (added) return { artist: added, added: true };
-    await sleep(POLL_INTERVAL_MS);
+  // Use the record the add returned and re-read it by id. Listing the whole library right
+  // after an add is what timed out on prod (a 10 MB read while Lidarr was refreshing).
+  let id = created?.id;
+  for (let i = 0; id === undefined && i < 3; i++) {
+    id = (await retryRead(() => findArtistByMbid(mbid)))?.id;
+    if (id === undefined) await sleep(POLL_INTERVAL_MS);
   }
-  return null;
+  if (id === undefined) return null;
+  return { artist: await retryRead(() => getArtistRecord(id)), added: true };
 }
 
 async function pollForAlbum(artistId: number, releaseGroupId: string, attempts: number): Promise<LidarrAlbumRecord | null> {
   for (let i = 0; i < attempts; i++) {
     await sleep(POLL_INTERVAL_MS);
-    const album = (await listArtistAlbums(artistId)).find(a => a.foreignAlbumId === releaseGroupId);
+    const album = (await retryRead(() => listArtistAlbums(artistId))).find(a => a.foreignAlbumId === releaseGroupId);
     if (album) return album;
   }
   return null;
@@ -156,7 +212,7 @@ function allowedPrimaryTypes(profile: LidarrMetadataProfile): Set<string> {
  * Make sure the artist's metadata profile shows `releaseType`. Returns true if it
  * changed the artist's profile. Reuses "<profile> + Singles/EPs" if it exists.
  */
-async function widenProfileFor(artist: LidarrArtistRecord, releaseType: string): Promise<boolean> {
+async function widenProfileFor(artist: LidarrArtistRecord, releaseType: string, settleMs: number): Promise<boolean> {
   const type = releaseType.toLowerCase();
   if (!(type in PRIMARY_TYPE_IDS)) return false;
 
@@ -184,7 +240,7 @@ async function widenProfileFor(artist: LidarrArtistRecord, releaseType: string):
     return false; // someone edited it by hand; don't fight them
   }
 
-  await updateArtist(artist, { metadataProfileId: widened.id });
+  await applyArtistChanges(artist, { metadataProfileId: widened.id }, settleMs);
   console.log(`[lidarr-request] "${artist.artistName}" → metadata profile "${widenedName}"`);
   return true;
 }
@@ -196,15 +252,16 @@ async function requestRelease(
 ): Promise<RequestResult> {
   const base = { lidarrArtistId: artist.id, releaseGroupId: input.releaseGroupId };
   const title = input.releaseTitle ?? 'this release';
+  const settle = added ? SETTLE_NEW_MS : SETTLE_MS;
 
-  let album = (await listArtistAlbums(artist.id)).find(a => a.foreignAlbumId === input.releaseGroupId) ?? null;
+  let album = (await retryRead(() => listArtistAlbums(artist.id))).find(a => a.foreignAlbumId === input.releaseGroupId) ?? null;
   if (!album && added) {
     album = await pollForAlbum(artist.id, input.releaseGroupId, POLL_NEW_ARTIST);
   }
   if (!album && !input.recheck) {
     // Hidden by the metadata profile (singles/EPs), or Lidarr hasn't refreshed yet.
-    const latest = (await findArtistByMbid(input.mbid)) ?? artist;
-    await widenProfileFor(latest, input.releaseType ?? 'album');
+    const latest = await retryRead(() => getArtistRecord(artist.id));
+    await widenProfileFor(latest, input.releaseType ?? 'album', settle);
     await refreshArtist(artist.id);
     album = await pollForAlbum(artist.id, input.releaseGroupId, POLL_AFTER_REFRESH);
   }
@@ -217,7 +274,7 @@ async function requestRelease(
     };
   }
 
-  const fresh = (await findArtistByMbid(input.mbid)) ?? artist;
+  const fresh = await retryRead(() => getArtistRecord(artist.id));
   const state = albumState(album, fresh.monitored);
   const result = { ...base, lidarrAlbumId: album.id, releaseTitle: album.title };
 
@@ -228,8 +285,8 @@ async function requestRelease(
     return { ...result, outcome: 'already_monitored', message: `"${album.title}" is already waiting to download.` };
   }
 
-  if (!fresh.monitored) await updateArtist(fresh, { monitored: true });
-  await setAlbumsMonitored([album.id], true);
+  if (!fresh.monitored) await applyArtistChanges(fresh, { monitored: true }, settle);
+  await monitorAlbumVerified(artist.id, album.id, settle);
   await searchForAlbum(album.id);
   return {
     ...result,
@@ -306,10 +363,11 @@ export async function requestFromLidarr(
         message: `Already following ${artist.artistName}. New releases download automatically.`,
       };
     }
-    await updateArtist(artist, {
-      monitored: true,
-      monitorNewItems: artist.monitorNewItems === 'all' ? 'all' : 'new',
-    });
+    await applyArtistChanges(
+      artist,
+      { monitored: true, monitorNewItems: artist.monitorNewItems === 'all' ? 'all' : 'new' },
+      added ? SETTLE_NEW_MS : SETTLE_MS,
+    );
     return {
       outcome: 'monitored',
       lidarrArtistId: artist.id,
