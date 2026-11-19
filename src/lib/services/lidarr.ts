@@ -1136,7 +1136,9 @@ export interface LidarrMetadataProfile {
 
 /** The artist with this MusicBrainz id, or null if Lidarr doesn't have it. Throws if Lidarr is down. */
 export async function findArtistByMbid(mbid: string): Promise<LidarrArtistRecord | null> {
-  const artists = await apiFetch<LidarrArtistRecord[]>('/artist');
+  // ?mbId= returns just that artist (3 KB, ~10 ms vs 10 MB for the full list).
+  // The .find also covers a Lidarr that ignores the filter and returns everything.
+  const artists = await apiFetch<LidarrArtistRecord[]>(`/artist?mbId=${encodeURIComponent(mbid)}`);
   return artists.find(a => a.foreignArtistId === mbid) ?? null;
 }
 
