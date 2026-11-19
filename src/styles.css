@@ -8,6 +8,8 @@
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant landscape (@media (orientation: landscape));
+/* Phones turned sideways: wide but too short for the portrait stack. */
+@custom-variant short-landscape (@media (orientation: landscape) and (max-height: 500px));
 
 @theme inline {
   /* Custom screen for very wide displays (1920p / 4K). Default Tailwind tops

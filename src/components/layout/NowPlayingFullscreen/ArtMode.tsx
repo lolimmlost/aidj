@@ -155,7 +155,12 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
         "relative overflow-visible touch-pan-y",
         expanded
           ? "flex-1 flex items-center justify-center"
-          : "w-[75vw] sm:w-[60vw] md:w-[50vw] lg:w-auto lg:flex-1 max-w-[500px] aspect-square mx-auto lg:mx-0 flex-shrink-0"
+          : "w-[75vw] sm:w-[60vw] md:w-[50vw] lg:w-auto lg:flex-1 max-w-[500px] aspect-square mx-auto lg:mx-0 flex-shrink-0",
+        // Landscape phone: fill the row's real height and let aspect-square set
+        // the width, so the square fits exactly between the header and the
+        // bottom safe area whatever their heights. (A guessed
+        // min(45vw, 100dvh - 5.5rem) cut the art's bottom off on an iPhone 11.)
+        !expanded && "short-landscape:h-full short-landscape:w-auto short-landscape:max-w-[50%] short-landscape:mx-0"
       )}
       onTouchStart={handleArtTouchStart}
       onTouchMove={handleArtTouchMove}
