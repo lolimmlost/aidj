@@ -19,6 +19,7 @@ import { describeRecipe, planJump, planTransition, type MixMode, type Recipe, ty
 import { labBeat, labBusy, labLog } from './log';
 import { recordingSupported, SetRecorder, type TrackStart } from './record';
 import { cuesOf, saveSet } from './sets';
+import { CtxStateLog } from './ctx-state-log';
 
 export interface LoadedTrack {
   song: LabSong;
@@ -199,6 +200,7 @@ export class LabEngine {
   private lastResumeTry = 0;
   private lastResumeLog = -Infinity;
   private audioStoppedAt: number | null = null;
+  private ctxStateLog = new CtxStateLog();
   private listeners = new Set<() => void>();
   private snap: EngineSnapshot = {
     status: 'idle',
@@ -292,7 +294,11 @@ export class LabEngine {
         if (bad && this.audioStoppedAt === null) this.audioStoppedAt = now;
         const stoppedSec = ctx.state === 'running' && this.audioStoppedAt !== null ? Math.round((now - this.audioStoppedAt) / 100) / 10 : undefined;
         if (ctx.state === 'running') this.audioStoppedAt = null;
-        labLog('audio context state', { state: ctx.state, t: ctx.currentTime, status: this.snap.status, stoppedSec }, bad ? 'warn' : 'info');
+        // log changes; fold the repeats iOS fires on every refused resume (#438)
+        const repeats = this.ctxStateLog.next(`${ctx.state}|${this.snap.status}`, now);
+        if (repeats !== null) {
+          labLog('audio context state', { state: ctx.state, t: ctx.currentTime, status: this.snap.status, stoppedSec, repeats: repeats || undefined }, bad ? 'warn' : 'info');
+        }
         this.set({ audio: ctx.state });
       });
       // iOS can leave the context suspended after an interruption (a call, Siri, another app's audio)

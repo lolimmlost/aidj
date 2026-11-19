@@ -9,13 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAudioStore } from '@/lib/stores/audio';
 import { findSongs, isPhone, listCrates, MAX_STRETCH } from '@/lib/dj-lab/crate';
 import { replayRecipe, setWhen, syncSets, type SavedSet } from '@/lib/dj-lab/sets';
 import { fitOctave, meterName } from '@/lib/dj-lab/analysis';
-import type { LabEngine, ReplayEntry } from '@/lib/dj-lab/engine';
+import type { ReplayEntry } from '@/lib/dj-lab/engine';
 import { loadVotes } from '@/lib/dj-lab/votes';
 import { labLog, startLabLog } from '@/lib/dj-lab/log';
+import { watchAppPlayer } from '@/lib/dj-lab/app-player';
 import { autoPick } from '@/lib/dj-lab/pick';
 import { useCrate, useHydrated, useLabEngine, useStarredIds } from '@/components/dj-lab/useLab';
 import { LabMix } from '@/components/dj-lab/LabMix';
@@ -41,17 +41,6 @@ export const Route = createFileRoute('/dj/lab')({
 });
 
 const CRATE_KEY = 'aidj:dj-lab:crate';
-
-let appPlayerWatched = false;
-/** The Lab and the app's player never play over each other. */
-function watchAppPlayer(engine: LabEngine) {
-  engine.setOnBeforePlay(() => useAudioStore.getState().setIsPlaying(false));
-  if (appPlayerWatched) return;
-  appPlayerWatched = true;
-  useAudioStore.subscribe((s, prev) => {
-    if (s.isPlaying && !prev.isPlaying && engine.getSnapshot().status === 'playing') engine.pause();
-  });
-}
 
 function DJLab() {
   const { engine, snap } = useLabEngine();
