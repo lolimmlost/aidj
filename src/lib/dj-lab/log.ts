@@ -5,11 +5,16 @@
  *
  * iOS kills a page that uses too much memory without firing any event. While a set plays the engine
  * leaves a heartbeat in localStorage; the next page load finds a heartbeat that says "playing" and
- * was never closed cleanly, and logs that the previous page died, with what it was doing.
+ * was never closed cleanly, and logs that the previous page died, with what it was doing. A fresh
+ * heartbeat may also belong to a page that is still alive in another window of the app (#439): the
+ * check waits for its next beat before calling it dead. Either way the Lab can offer to resume.
  *
  * The Lab has no log panel: in the app's debug mode (Eruda, `localStorage.debug`) every event is also
  * written to the console, where Eruda shows it.
  */
+
+import type { MixMode } from './plan';
+import { saveResumePoint } from './resume';
 
 export type LogLevel = 'info' | 'warn' | 'error';
 
@@ -35,6 +40,12 @@ export interface LabBeat {
   heldMB?: number;
   /** what was being fetched/decoded */
   busy?: string;
+  /** what a resume needs (#439): the saved set, the playing and the locked song, the set's tempo and recipe */
+  setId?: string;
+  songId?: string;
+  nextId?: string;
+  setBpm?: number;
+  mode?: MixMode;
   /** set by pagehide: the page went away on purpose (reload, close, navigate) */
   clean?: boolean;
 }
@@ -210,23 +221,75 @@ function beacon() {
 
 const vis = () => (typeof document !== 'undefined' ? document.visibilityState : 'unknown');
 
+/** A heartbeat younger than this may come from a page that is still alive in another window (#439). */
+export const ALIVE_MS = 20_000;
+/** How long to wait for that page's next heartbeat (the engine beats every 5 s). */
+export const CONFIRM_MS = 12_000;
+let checked = false;
+
+function readBeat(): LabBeat | null {
+  try {
+    return JSON.parse(localStorage.getItem(BEAT_KEY) ?? 'null') as LabBeat | null;
+  } catch {
+    return null;
+  }
+}
+
+function reportDied(prev: LabBeat) {
+  const { sid: prevSid, t, ...rest } = prev;
+  labLog('previous page died mid-set', { prevSid, lastBeatAgoSec: Math.round((Date.now() - t) / 1000), lastBeatAt: new Date(t).toISOString(), path: location.pathname, ...rest }, 'error');
+  // reported once
+  markClean(prevSid);
+  saveResumePoint(prev, 'died');
+}
+
 /**
- * A page that died mid-set left a "playing" heartbeat that was never closed: log it (once) and send it.
- * The app calls this on every load, so reopening on any page reports it, not only on the Lab.
+ * A page that died mid-set left a "playing" heartbeat that was never closed: log it (once) and send it,
+ * and keep it as a resume point. The app calls this on every load, so reopening on any page reports
+ * it, not only on the Lab.
+ *
+ * A heartbeat a few seconds old is not proof: on 2026-11-19 a second copy of the app reported the
+ * Lab page dead while it kept playing hidden for ten more minutes. So a fresh one is only called dead
+ * if it doesn't beat again within CONFIRM_MS; if it does, its set is open in another window.
  */
 export function checkPreviousLabPage() {
-  if (!isBrowser()) return;
-  try {
-    const prev = JSON.parse(localStorage.getItem(BEAT_KEY) ?? 'null') as LabBeat | null;
-    if (prev && prev.sid !== sid && !prev.clean && prev.status !== 'idle') {
-      const { sid: prevSid, t, ...rest } = prev;
-      labLog('previous page died mid-set', { prevSid, lastBeatAgoSec: Math.round((Date.now() - t) / 1000), lastBeatAt: new Date(t).toISOString(), path: location.pathname, ...rest }, 'error');
-      // reported once
-      markClean(prevSid);
-    }
-  } catch {
-    // ignore
+  if (!isBrowser() || checked) return;
+  checked = true;
+  const prev = readBeat();
+  if (!prev || prev.sid === sid || prev.clean || prev.status === 'idle') return;
+  if (Date.now() - prev.t >= ALIVE_MS) {
+    reportDied(prev);
+    return;
   }
+  let settled = false;
+  const finish = () => {
+    settled = true;
+    clearTimeout(timer);
+    window.removeEventListener('storage', onStorage);
+  };
+  /** the other page beat again (or closed): it's alive */
+  const look = () => {
+    const now = readBeat();
+    if (settled || !now || now.sid !== prev.sid) return;
+    if (now.clean) finish();
+    else if (now.t > prev.t) {
+      finish();
+      labLog('set still open in another window', { prevSid: now.sid, status: now.status, song: now.song, pos: now.pos, path: location.pathname }, 'warn');
+      saveResumePoint(now, 'other-window');
+    }
+  };
+  // another window's writes arrive as storage events; the timer reads it once more in any case
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === BEAT_KEY) look();
+  };
+  window.addEventListener('storage', onStorage);
+  const timer = setTimeout(() => {
+    look();
+    if (settled) return;
+    finish();
+    const now = readBeat();
+    reportDied(now && now.sid === prev.sid ? now : prev);
+  }, CONFIRM_MS);
 }
 
 /**
