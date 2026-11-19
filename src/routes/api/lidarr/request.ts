@@ -67,15 +67,17 @@ const POST = withAuthAndErrorHandling(
       },
     });
 
-    // Bookkeeping must not turn a successful Lidarr request into an error.
+    // Bookkeeping must not turn a successful Lidarr request into an error, and the
+    // two writes are independent: a failed log insert must not skip the cache refresh.
     try {
       await recordRequest(session.user.id, input, result);
-      if (result.lidarrArtistId !== undefined) {
-        const monitored = result.outcome === 'monitored' || result.outcome === 'already_monitored';
-        await refreshCachedLidarrState(body.mbid, result.lidarrArtistId, monitored);
-      }
     } catch (err) {
-      console.warn('[lidarr-request] failed to record request:', err);
+      console.warn('[lidarr-request] failed to record request:', err instanceof Error ? err.message : err);
+    }
+    if (result.lidarrArtistId !== undefined) {
+      const monitored = result.outcome === 'monitored' || result.outcome === 'already_monitored';
+      await refreshCachedLidarrState(body.mbid, result.lidarrArtistId, monitored).catch(err =>
+        console.warn('[lidarr-request] failed to refresh metadata cache:', err instanceof Error ? err.message : err));
     }
 
     console.log(`[lidarr-request] ${session.user.id} ${mode} "${input.artistName}"${result.releaseTitle ? ` / "${result.releaseTitle}"` : ''} → ${result.outcome}`);
