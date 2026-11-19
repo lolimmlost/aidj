@@ -1188,6 +1188,70 @@ export async function listArtistAlbums(artistId: number): Promise<LidarrAlbumRec
   return reqFetch<LidarrAlbumRecord[]>(`/album?artistId=${artistId}`);
 }
 
+/** An album with the artist Lidarr files it under (GET /album?foreignAlbumId= includes it). */
+export type LidarrAlbumWithArtist = LidarrAlbumRecord & {
+  artist?: { artistName: string; foreignArtistId: string; monitored: boolean };
+};
+
+/** The album with this MusicBrainz release-group id, under whichever artist holds it, or null. */
+export async function findAlbumByForeignId(releaseGroupId: string): Promise<LidarrAlbumWithArtist | null> {
+  const albums = await reqFetch<LidarrAlbumWithArtist[]>(`/album?foreignAlbumId=${encodeURIComponent(releaseGroupId)}`);
+  return albums.find(a => a.foreignAlbumId === releaseGroupId) ?? null;
+}
+
+/** Who Lidarr's metadata server files a release group under. */
+export type ReleaseOwnerLookup =
+  | { kind: 'found'; title: string; albumType?: string; secondaryTypes: string[]; artistMbid: string; artistName: string }
+  /** The metadata server answered: it has no such release. */
+  | { kind: 'none' }
+  /** 503 / hang / network: the metadata server failed, which is not an answer. Ask again later. */
+  | { kind: 'unknown'; reason: string };
+
+const OWNER_LOOKUP_TIMEOUT_MS = 10_000; // it answers in ~0.3 s; a hang means it's failing
+const NO_RETRY: RetryConfig = { ...DEFAULT_RETRY_CONFIG, maxRetries: 0 };
+
+function secondaryTypeNames(types: unknown): string[] {
+  if (!Array.isArray(types)) return [];
+  return types
+    .map(t => (typeof t === 'string' ? t : (t as { name?: unknown } | null)?.name))
+    .filter((t): t is string => typeof t === 'string' && t.length > 0);
+}
+
+/**
+ * Ask Lidarr's metadata server (SkyHook) who a MusicBrainz release group belongs to. Lidarr files a
+ * release only under its FIRST credited artist, so a collab led by someone else never appears under
+ * the artist you searched: RLGN's "SHEEPSTEP" is Ilya Gadaev's, "PANITA" is DUMMFÖUND's.
+ * `200 []` is a real "no such release". A 503 or a hang is the metadata server failing (both seen on
+ * prod 2026-11-19), not an answer.
+ */
+export async function lookupReleaseOwner(releaseGroupId: string): Promise<ReleaseOwnerLookup> {
+  let results: unknown;
+  try {
+    results = await apiFetch(
+      `/album/lookup?term=${encodeURIComponent(`lidarr:${releaseGroupId}`)}`,
+      {},
+      NO_RETRY,
+      OWNER_LOOKUP_TIMEOUT_MS,
+    );
+  } catch (err) {
+    return { kind: 'unknown', reason: err instanceof Error ? err.message : String(err) };
+  }
+  if (!Array.isArray(results)) return { kind: 'unknown', reason: 'unexpected response' };
+  const album = (results as Array<LidarrAlbum & { artist?: { artistName?: string; foreignArtistId?: string } }>)
+    .find(a => a.foreignAlbumId === releaseGroupId);
+  if (!album) return { kind: 'none' };
+  const artist = album.artist;
+  if (!artist?.foreignArtistId || !artist.artistName) return { kind: 'unknown', reason: 'lookup returned no artist' };
+  return {
+    kind: 'found',
+    title: album.title,
+    albumType: album.albumType,
+    secondaryTypes: secondaryTypeNames(album.secondaryTypes),
+    artistMbid: artist.foreignArtistId,
+    artistName: artist.artistName,
+  };
+}
+
 /** Monitor (or unmonitor) albums with the bulk endpoint. */
 export async function setAlbumsMonitored(albumIds: number[], monitored: boolean): Promise<void> {
   await reqFetch('/album/monitor', {

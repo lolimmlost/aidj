@@ -16,7 +16,11 @@ import { user } from './auth.schema';
  *
  * outcome is what happened at request time:
  *  'monitored' | 'already_monitored' | 'in_library' | 'pending' (Lidarr is still
- *  loading the release) | 'not_found' | 'failed'
+ *  loading the release, or its metadata server didn't answer) | 'unavailable' (Lidarr's metadata
+ *  server answered: it can't get this release) | 'not_found' | 'failed'
+ *
+ * For a collab Lidarr files under another lead artist, release_group_id / lidarr_album_id point at
+ * the album under that lead; lidarr_artist_id stays this (searched) artist.
  */
 export const artistRequests = pgTable('artist_requests', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),

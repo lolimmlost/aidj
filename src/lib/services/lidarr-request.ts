@@ -19,6 +19,10 @@
  *    monitored=false and un-monitors every album. A single PUT "succeeds" and is then undone,
  *    which is exactly the #435 symptom (success shown, nothing downloads).
  *  - Never lower an artist's monitorNewItems ('all' stays 'all').
+ *  - Lidarr files a release only under its FIRST credited artist. A collab led by someone else
+ *    (RLGN's "SHEEPSTEP" is Ilya Gadaev's) never appears under the artist you searched, so before
+ *    touching any profile we ask Lidarr's metadata server who owns the release, and get it under
+ *    that lead artist instead (added with nothing else monitored).
  *  - Singles/EPs are invisible under the default "Standard" metadata profile
  *    (studio albums only). When someone asks for one, only THAT artist moves to a
  *    widened copy of its profile ("<name> + Singles/EPs"), then Lidarr refreshes it.
@@ -29,11 +33,13 @@ import {
   LIDARR_REQUEST_TIMEOUT_MS,
   addArtist,
   createMetadataProfile,
+  findAlbumByForeignId,
   findArtistByMbid,
   getArtistRecord,
   getMetadataProfiles,
   listArtistAlbums,
   lookupArtistByMbid,
+  lookupReleaseOwner,
   refreshArtist,
   searchForAlbum,
   setAlbumsMonitored,
@@ -41,6 +47,7 @@ import {
   type LidarrAlbumRecord,
   type LidarrArtistRecord,
   type LidarrMetadataProfile,
+  type ReleaseOwnerLookup,
 } from './lidarr';
 
 export type RequestMode = 'artist' | 'release' | 'song';
@@ -49,7 +56,8 @@ export type RequestOutcome =
   | 'monitored'          // we just set it to download
   | 'already_monitored'  // it was already wanted
   | 'in_library'         // Lidarr already has every track
-  | 'pending'            // Lidarr is still loading the release; ask again shortly
+  | 'pending'            // Lidarr is still loading the release, or its metadata server didn't answer; ask again shortly
+  | 'unavailable'        // Lidarr's metadata server answered: it can't get this release (don't recheck)
   | 'not_found';         // couldn't find the artist / release / song
 
 export interface ReleaseGroupRef {
@@ -81,6 +89,10 @@ export interface RequestResult {
   lidarrAlbumId?: number;
   releaseGroupId?: string;
   releaseTitle?: string;
+  /** This (searched) artist's monitored flag after the request, for the metadata cache. */
+  artistMonitored?: boolean;
+  /** Set when Lidarr files the release under another, lead artist (a collab). */
+  filedUnder?: { mbid: string; artistName: string; lidarrArtistId: number };
 }
 
 export type AlbumState = 'in_library' | 'partial' | 'wanted' | 'not_monitored';
@@ -92,7 +104,16 @@ export interface ArtistRequestStatus {
   /** monitorNewItems is 'new' or 'all' and the artist is monitored. */
   followingNewReleases: boolean;
   /** Keyed by MusicBrainz release-group id. Only albums Lidarr knows about. */
-  albums: Record<string, { state: AlbumState; title: string; trackFiles: number; tracks: number }>;
+  albums: Record<string, AlbumStatus>;
+}
+
+export interface AlbumStatus {
+  state: AlbumState;
+  title: string;
+  trackFiles: number;
+  tracks: number;
+  /** The lead artist Lidarr files a collab under, when it isn't the artist on the card. */
+  filedUnder?: string;
 }
 
 // Lidarr's primary album type ids (same in every install).
@@ -245,25 +266,171 @@ async function widenProfileFor(artist: LidarrArtistRecord, releaseType: string, 
   return true;
 }
 
+const settleFor = (justAdded: boolean) => (justAdded ? SETTLE_NEW_MS : SETTLE_MS);
+
+/** Secondary types (Live, Compilation, Mixtape/Street…) the artist's current profile filters out. */
+async function blockedSecondaryTypes(holderId: number, secondaryTypes: string[]): Promise<string[]> {
+  if (secondaryTypes.length === 0) return [];
+  const [profiles, holder] = await Promise.all([getMetadataProfiles(), retryRead(() => getArtistRecord(holderId))]);
+  const profile = profiles.find(p => p.id === holder.metadataProfileId);
+  if (!profile) return [];
+  const allowed = new Set(profile.secondaryAlbumTypes.filter(t => t.allowed).map(t => t.albumType.name.toLowerCase()));
+  return secondaryTypes.filter(t => !allowed.has(t.toLowerCase()));
+}
+
+/**
+ * The release belongs to `holder` but isn't listed: widen the holder's profile if its type is
+ * hidden, refresh, and poll. A recheck refreshes only if the profile had to change (a refresh
+ * already ran otherwise).
+ */
+async function revealAlbum(
+  holder: LidarrArtistRecord,
+  releaseGroupId: string,
+  albumType: string,
+  recheck: boolean,
+  settleMs: number,
+): Promise<LidarrAlbumRecord | null> {
+  const latest = await retryRead(() => getArtistRecord(holder.id));
+  const widened = await widenProfileFor(latest, albumType, settleMs);
+  if (recheck && !widened) return pollForAlbum(holder.id, releaseGroupId, 1);
+  await refreshArtist(holder.id);
+  return pollForAlbum(holder.id, releaseGroupId, POLL_AFTER_REFRESH);
+}
+
+/** Monitor an album that is listed under `holder` (this artist, or the collab's lead), verified. */
+async function monitorListedAlbum(
+  holder: LidarrArtistRecord,
+  album: LidarrAlbumRecord,
+  settleMs: number,
+  result: Omit<RequestResult, 'outcome' | 'message'>,
+  lead: { name: string; added: boolean } | null,
+): Promise<RequestResult> {
+  const fresh = await retryRead(() => getArtistRecord(holder.id));
+  const state = albumState(album, fresh.monitored);
+  const t = `"${album.title}"`;
+  const under = lead ? ` (filed under ${lead.name})` : '';
+  const done = { ...result, lidarrAlbumId: album.id, releaseTitle: album.title };
+
+  if (state === 'in_library') return { ...done, outcome: 'in_library', message: `${t}${under} is already in the library.` };
+  if (state === 'wanted' || state === 'partial') {
+    return { ...done, outcome: 'already_monitored', message: `${t}${under} is already waiting to download.` };
+  }
+
+  if (!fresh.monitored) await applyArtistChanges(fresh, { monitored: true }, settleMs);
+  await monitorAlbumVerified(holder.id, album.id, settleMs);
+  await searchForAlbum(album.id);
+  const message = !lead
+    ? `${t} is monitored and waiting for download.`
+    : lead.added
+      ? `${t} is filed under ${lead.name} in Lidarr. Added ${lead.name} (nothing else) and queued it.`
+      : `${t} is filed under ${lead.name} in Lidarr. Queued it there.`;
+  return {
+    ...done,
+    // the searched artist only turns monitored when the album is its own
+    ...(lead ? {} : { artistMonitored: true }),
+    outcome: 'monitored',
+    message,
+  };
+}
+
+/** A collab Lidarr files under another artist: get it there, adding the lead with nothing else monitored. */
+async function requestUnderLead(
+  artist: LidarrArtistRecord,
+  owner: Extract<ReleaseOwnerLookup, { kind: 'found' }>,
+  input: RequestInput & { releaseGroupId: string },
+): Promise<RequestResult> {
+  const base = { lidarrArtistId: artist.id, releaseGroupId: input.releaseGroupId, artistMonitored: artist.monitored };
+  console.log(`[lidarr-request] "${owner.title}" is filed under "${owner.artistName}" (${owner.artistMbid}), not "${artist.artistName}"`);
+
+  const lead = await ensureArtist(owner.artistMbid, owner.artistName);
+  if (!lead) {
+    return {
+      ...base,
+      outcome: 'not_found',
+      releaseTitle: owner.title,
+      message: `"${owner.title}" is filed under ${owner.artistName} in Lidarr, but Lidarr couldn't add ${owner.artistName}.`,
+    };
+  }
+  const leadName = lead.artist.artistName;
+  const leadBase = { ...base, filedUnder: { mbid: owner.artistMbid, artistName: leadName, lidarrArtistId: lead.artist.id } };
+  const settle = settleFor(lead.added);
+
+  let album = (await retryRead(() => listArtistAlbums(lead.artist.id))).find(a => a.foreignAlbumId === input.releaseGroupId) ?? null;
+  if (!album && lead.added) album = await pollForAlbum(lead.artist.id, input.releaseGroupId, POLL_NEW_ARTIST);
+  if (!album) {
+    album = await revealAlbum(lead.artist, input.releaseGroupId, owner.albumType ?? input.releaseType ?? 'album', !!input.recheck, settle);
+  }
+  if (!album) {
+    const blocked = await blockedSecondaryTypes(lead.artist.id, owner.secondaryTypes);
+    if (blocked.length) {
+      return {
+        ...leadBase,
+        outcome: 'unavailable',
+        releaseTitle: owner.title,
+        message: `"${owner.title}" is filed under ${leadName} and is a ${blocked.join(' / ')} release, which their Lidarr profile skips.`,
+      };
+    }
+    return {
+      ...leadBase,
+      outcome: 'pending',
+      releaseTitle: owner.title,
+      message: `"${owner.title}" is filed under ${leadName} in Lidarr. Still loading their releases; checking again shortly.`,
+    };
+  }
+  return monitorListedAlbum(lead.artist, album, settle, leadBase, { name: leadName, added: lead.added });
+}
+
 async function requestRelease(
   artist: LidarrArtistRecord,
   added: boolean,
   input: RequestInput & { releaseGroupId: string },
 ): Promise<RequestResult> {
-  const base = { lidarrArtistId: artist.id, releaseGroupId: input.releaseGroupId };
+  const base = { lidarrArtistId: artist.id, releaseGroupId: input.releaseGroupId, artistMonitored: artist.monitored };
   const title = input.releaseTitle ?? 'this release';
-  const settle = added ? SETTLE_NEW_MS : SETTLE_MS;
+  const settle = settleFor(added);
 
   let album = (await retryRead(() => listArtistAlbums(artist.id))).find(a => a.foreignAlbumId === input.releaseGroupId) ?? null;
-  if (!album && added) {
-    album = await pollForAlbum(artist.id, input.releaseGroupId, POLL_NEW_ARTIST);
+  if (album) return monitorListedAlbum(artist, album, settle, base, null);
+
+  // Not listed under this artist. Before touching any profile, ask who the release belongs to.
+  const owner = await lookupReleaseOwner(input.releaseGroupId);
+  if (owner.kind === 'none') {
+    return {
+      ...base,
+      outcome: 'unavailable',
+      releaseTitle: input.releaseTitle,
+      message: `Lidarr's database doesn't have "${title}", so it can't download it.`,
+    };
   }
-  if (!album && !input.recheck) {
+  if (owner.kind === 'found' && owner.artistMbid !== input.mbid) {
+    return requestUnderLead(artist, owner, input);
+  }
+
+  // It's this artist's (or the metadata server didn't answer and we can't tell yet).
+  if (added) album = await pollForAlbum(artist.id, input.releaseGroupId, POLL_NEW_ARTIST);
+  if (!album && owner.kind === 'unknown') {
+    console.warn(`[lidarr-request] owner lookup failed for "${title}" (${input.releaseGroupId}): ${owner.reason}`);
+    return {
+      ...base,
+      outcome: 'pending',
+      releaseTitle: input.releaseTitle,
+      message: `Lidarr's metadata server isn't answering about "${title}" right now. Checking again shortly.`,
+    };
+  }
+  if (!album && owner.kind === 'found') {
     // Hidden by the metadata profile (singles/EPs), or Lidarr hasn't refreshed yet.
-    const latest = await retryRead(() => getArtistRecord(artist.id));
-    await widenProfileFor(latest, input.releaseType ?? 'album', settle);
-    await refreshArtist(artist.id);
-    album = await pollForAlbum(artist.id, input.releaseGroupId, POLL_AFTER_REFRESH);
+    album = await revealAlbum(artist, input.releaseGroupId, owner.albumType ?? input.releaseType ?? 'album', !!input.recheck, settle);
+    if (!album) {
+      const blocked = await blockedSecondaryTypes(artist.id, owner.secondaryTypes);
+      if (blocked.length) {
+        return {
+          ...base,
+          outcome: 'unavailable',
+          releaseTitle: owner.title,
+          message: `"${owner.title}" is a ${blocked.join(' / ')} release, which ${artist.artistName}'s Lidarr profile skips.`,
+        };
+      }
+    }
   }
   if (!album) {
     return {
@@ -273,26 +440,7 @@ async function requestRelease(
       message: `Lidarr is still loading ${input.artistName}'s releases. "${title}" will be checked again shortly.`,
     };
   }
-
-  const fresh = await retryRead(() => getArtistRecord(artist.id));
-  const state = albumState(album, fresh.monitored);
-  const result = { ...base, lidarrAlbumId: album.id, releaseTitle: album.title };
-
-  if (state === 'in_library') {
-    return { ...result, outcome: 'in_library', message: `"${album.title}" is already in the library.` };
-  }
-  if (state === 'wanted' || state === 'partial') {
-    return { ...result, outcome: 'already_monitored', message: `"${album.title}" is already waiting to download.` };
-  }
-
-  if (!fresh.monitored) await applyArtistChanges(fresh, { monitored: true }, settle);
-  await monitorAlbumVerified(artist.id, album.id, settle);
-  await searchForAlbum(album.id);
-  return {
-    ...result,
-    outcome: 'monitored',
-    message: `"${album.title}" is monitored and waiting for download.`,
-  };
+  return monitorListedAlbum(artist, album, settle, base, null);
 }
 
 /** Resolve a song title to one of the artist's release groups. */
@@ -360,6 +508,7 @@ export async function requestFromLidarr(
       return {
         outcome: 'already_monitored',
         lidarrArtistId: artist.id,
+        artistMonitored: true,
         message: `Already following ${artist.artistName}. New releases download automatically.`,
       };
     }
@@ -371,6 +520,7 @@ export async function requestFromLidarr(
     return {
       outcome: 'monitored',
       lidarrArtistId: artist.id,
+      artistMonitored: true,
       message: `Following ${artist.artistName}. New releases will download. Pick a release to get older music.`,
     };
   }
@@ -402,4 +552,28 @@ export async function getArtistRequestStatus(mbid: string): Promise<ArtistReques
     followingNewReleases: artist.monitored && (artist.monitorNewItems === 'new' || artist.monitorNewItems === 'all'),
     albums,
   };
+}
+
+const MAX_FILED_ELSEWHERE = 25;
+
+/**
+ * State of releases requested from this artist's card that Lidarr files under another (lead)
+ * artist: GET /album?foreignAlbumId= finds them wherever they live (verified on prod 2026-11-19).
+ */
+export async function getAlbumsFiledElsewhere(releaseGroupIds: string[]): Promise<Record<string, AlbumStatus>> {
+  const found = await Promise.all(
+    releaseGroupIds.slice(0, MAX_FILED_ELSEWHERE).map(rg => findAlbumByForeignId(rg).catch(() => null)),
+  );
+  const albums: Record<string, AlbumStatus> = {};
+  for (const album of found) {
+    if (!album) continue;
+    albums[album.foreignAlbumId] = {
+      state: albumState(album, album.artist?.monitored ?? false),
+      title: album.title,
+      trackFiles: album.statistics?.trackFileCount ?? 0,
+      tracks: album.statistics?.totalTrackCount ?? album.statistics?.trackCount ?? 0,
+      filedUnder: album.artist?.artistName,
+    };
+  }
+  return albums;
 }

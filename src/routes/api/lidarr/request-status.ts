@@ -26,13 +26,17 @@ const GET = withAuthAndErrorHandling(
       return errorResponse('VALIDATION_ERROR', 'mbid is required', { status: 400 });
     }
 
-    const { getArtistRequestStatus } = await import('../../../lib/services/lidarr-request');
+    const { getArtistRequestStatus, getAlbumsFiledElsewhere } = await import('../../../lib/services/lidarr-request');
     const { getRequestSummary } = await import('../../../lib/services/artist-requests');
     const [status, requests] = await Promise.all([
       getArtistRequestStatus(mbid),
       getRequestSummary(mbid, session.user.id).catch(() => ({})),
     ]);
-    return successResponse({ ...status, requests });
+    // Collabs requested from this card live under their lead artist in Lidarr (#436): look those
+    // up by release-group id so the card shows their real state instead of offering Get again.
+    const elsewhere = Object.keys(requests).filter(key => key !== 'artist' && !(key in status.albums));
+    const filedElsewhere = elsewhere.length ? await getAlbumsFiledElsewhere(elsewhere).catch(() => ({})) : {};
+    return successResponse({ ...status, albums: { ...filedElsewhere, ...status.albums }, requests });
   },
   {
     service: 'lidarr',

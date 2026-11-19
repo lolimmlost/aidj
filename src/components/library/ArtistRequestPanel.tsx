@@ -53,8 +53,10 @@ function requestedLabel(req: { users: number; byMe: boolean } | undefined): stri
   return `Requested by ${others} other${others > 1 ? 's' : ''}`;
 }
 
+const isFailure = (result: LidarrRequestResult) => result.outcome === 'not_found' || result.outcome === 'unavailable';
+
 function notify(result: LidarrRequestResult) {
-  if (result.outcome === 'not_found') toast.error(result.message);
+  if (isFailure(result)) toast.error(result.message);
   else toast.success(result.message);
 }
 
@@ -136,7 +138,7 @@ export function ArtistRequestPanel({
       {
         onSuccess: (result) => {
           notify(result);
-          if (result.outcome !== 'not_found') setSongTitle('');
+          if (!isFailure(result)) setSongTitle('');
         },
         onError: err => toast.error(err.message),
       },
@@ -205,7 +207,9 @@ export function ArtistRequestPanel({
                         <div className="flex-1 min-w-0">
                           <p className="text-sm truncate">{rg.title}</p>
                           <p className="text-xs text-muted-foreground truncate">
-                            {[rg.firstReleaseDate?.slice(0, 4), req].filter(Boolean).join(' · ')}
+                            {[rg.firstReleaseDate?.slice(0, 4), album?.filedUnder && `filed under ${album.filedUnder}`, req]
+                              .filter(Boolean)
+                              .join(' · ')}
                           </p>
                         </div>
                         {showBadge ? (

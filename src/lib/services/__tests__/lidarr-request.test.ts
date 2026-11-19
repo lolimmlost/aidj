@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ServiceError } from '../../utils';
-import type { LidarrAlbumRecord, LidarrArtistRecord, LidarrMetadataProfile } from '../lidarr';
+import type { LidarrAlbumRecord, LidarrArtistRecord, LidarrMetadataProfile, ReleaseOwnerLookup } from '../lidarr';
 
 // In-memory Lidarr. Each test seeds it; the mocked API reads/writes it.
 const lidarr = vi.hoisted(() => ({
@@ -18,6 +18,11 @@ const lidarr = vi.hoisted(() => ({
   clobberAlbum: 0,
   /** The next N artist reads by MBID stall (LIDARR_TIMEOUT_ERROR). */
   timeoutNext: 0,
+  /** Artists not in Lidarr yet (by MBID) and their releases, as the metadata server knows them. */
+  catalog: {} as Record<string, { artist: LidarrArtistRecord; albums: LidarrAlbumRecord[] }>,
+  /** Metadata-server answers that override the ones derived from the data above. */
+  owners: {} as Record<string, ReleaseOwnerLookup>,
+  nextId: 900,
 }));
 
 vi.mock('../lidarr', () => ({
@@ -34,11 +39,37 @@ vi.mock('../lidarr', () => ({
     if (!found) throw new Error(`no artist ${id}`);
     return { ...found };
   }),
-  lookupArtistByMbid: vi.fn(async () => lidarr.lookup),
+  lookupArtistByMbid: vi.fn(async (mbid: string) =>
+    lidarr.catalog[mbid]?.artist ?? (lidarr.lookup?.foreignArtistId === mbid ? lidarr.lookup : null)),
   addArtist: vi.fn(async (a: LidarrArtistRecord) => {
-    const created = { ...a, id: 900, monitored: true, monitorNewItems: 'none' as const, metadataProfileId: 1, qualityProfileId: 1 };
+    const id = lidarr.nextId++;
+    const created = { ...a, id, monitored: true, monitorNewItems: 'none' as const, metadataProfileId: 1, qualityProfileId: 1 };
     lidarr.artists.push(created);
+    // the refresh loads the catalog's releases; "Standard" hides singles/EPs until widened + refreshed
+    for (const al of lidarr.catalog[a.foreignArtistId]?.albums ?? []) {
+      const placed = { ...al, artistId: id };
+      (al.albumType === 'EP' || al.albumType === 'Single' ? lidarr.hiddenUntilRefresh : lidarr.albums).push(placed);
+    }
     return { ...created };
+  }),
+  lookupReleaseOwner: vi.fn(async (rg: string): Promise<ReleaseOwnerLookup> => {
+    if (lidarr.owners[rg]) return lidarr.owners[rg];
+    const placed = [...lidarr.albums, ...lidarr.hiddenUntilRefresh].find(a => a.foreignAlbumId === rg);
+    const holder = placed && lidarr.artists.find(a => a.id === placed.artistId);
+    if (placed && holder) {
+      return { kind: 'found', title: placed.title, albumType: placed.albumType, secondaryTypes: placed.secondaryTypes ?? [], artistMbid: holder.foreignArtistId, artistName: holder.artistName };
+    }
+    for (const [mbid, entry] of Object.entries(lidarr.catalog)) {
+      const al = entry.albums.find(a => a.foreignAlbumId === rg);
+      if (al) return { kind: 'found', title: al.title, albumType: al.albumType, secondaryTypes: al.secondaryTypes ?? [], artistMbid: mbid, artistName: entry.artist.artistName };
+    }
+    return { kind: 'none' };
+  }),
+  findAlbumByForeignId: vi.fn(async (rg: string) => {
+    const al = lidarr.albums.find(a => a.foreignAlbumId === rg);
+    if (!al) return null;
+    const holder = lidarr.artists.find(a => a.id === al.artistId);
+    return { ...al, artist: holder && { artistName: holder.artistName, foreignArtistId: holder.foreignArtistId, monitored: holder.monitored } };
   }),
   updateArtist: vi.fn(async (artist: LidarrArtistRecord, changes: Partial<LidarrArtistRecord>) => {
     const i = lidarr.artists.findIndex(a => a.id === artist.id);
@@ -68,13 +99,14 @@ vi.mock('../lidarr', () => ({
   refreshArtist: vi.fn(async (id: number) => {
     lidarr.refreshed.push(id);
     lidarr.albums.push(...lidarr.hiddenUntilRefresh.filter(a => a.artistId === id));
-    lidarr.hiddenUntilRefresh = [];
+    lidarr.hiddenUntilRefresh = lidarr.hiddenUntilRefresh.filter(a => a.artistId !== id);
   }),
 }));
 
 import {
   requestFromLidarr,
   getArtistRequestStatus,
+  getAlbumsFiledElsewhere,
   resolveSongRelease,
   albumState,
   __setSleepForTests,
@@ -84,6 +116,8 @@ import * as api from '../lidarr';
 const MBID = '780269c0-0000-4000-8000-000000000000';
 const RG_ALBUM = '2494f053-262a-4a4e-9cae-8e87272cef6e';
 const RG_SINGLE = '9601211c-83e5-4ec8-8816-8c3bc4a6a592';
+const LEAD_MBID = '0ee4c949-13ea-4f04-9975-7b5cec7b81d4';
+const RG_COLLAB = 'ebf58806-a454-4a55-9e1b-850e3deb676b';
 
 function artist(over: Partial<LidarrArtistRecord> = {}): LidarrArtistRecord {
   return {
@@ -124,6 +158,9 @@ beforeEach(() => {
   lidarr.clobberArtist = 0;
   lidarr.clobberAlbum = 0;
   lidarr.timeoutNext = 0;
+  lidarr.catalog = {};
+  lidarr.owners = {};
+  lidarr.nextId = 900;
   __setSleepForTests(async () => {});
 });
 
@@ -237,6 +274,8 @@ describe('requestFromLidarr — release mode (#436)', () => {
 
   it("returns pending when Lidarr still hasn't listed the release; a recheck doesn't refresh again", async () => {
     lidarr.artists = [artist()];
+    // the metadata server knows it as this artist's single; Lidarr just hasn't listed it yet
+    lidarr.owners[RG_SINGLE] = { kind: 'found', title: 'STAR', albumType: 'Single', secondaryTypes: [], artistMbid: MBID, artistName: '千葉雄喜' };
     const r = await requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'release', releaseGroupId: RG_SINGLE, releaseType: 'Single' });
     expect(r).toMatchObject({ outcome: 'pending', releaseGroupId: RG_SINGLE });
     expect(lidarr.refreshed).toHaveLength(1);
@@ -327,6 +366,78 @@ describe('verified writes and Lidarr stalls (#435)', () => {
     lidarr.timeoutNext = 2;
     await expect(requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'artist' }))
       .rejects.toMatchObject({ code: 'LIDARR_TIMEOUT_ERROR' });
+  });
+});
+
+describe('collabs and releases Lidarr can\'t get (#436)', () => {
+  const lead = (over: Partial<LidarrArtistRecord> = {}) =>
+    artist({ id: 0, artistName: 'Ilya Gadaev', foreignArtistId: LEAD_MBID, ...over });
+
+  it('gets a collab under its lead artist: adds the lead with nothing else monitored', async () => {
+    lidarr.artists = [artist()];
+    lidarr.catalog[LEAD_MBID] = {
+      artist: lead(),
+      albums: [
+        album({ id: 777, title: 'SHEEPSTEP', foreignAlbumId: RG_COLLAB, albumType: 'EP' }),
+        album({ id: 778, title: 'Lead Album', foreignAlbumId: 'lead-album', albumType: 'Album' }),
+      ],
+    };
+    const r = await requestFromLidarr({ mbid: MBID, artistName: 'RLGN', mode: 'release', releaseGroupId: RG_COLLAB, releaseTitle: 'SHEEPSTEP', releaseType: 'EP' });
+
+    expect(r).toMatchObject({ outcome: 'monitored', lidarrArtistId: 2503, lidarrAlbumId: 777, artistMonitored: false, filedUnder: { mbid: LEAD_MBID, artistName: 'Ilya Gadaev' } });
+    expect(r.message).toBe('"SHEEPSTEP" is filed under Ilya Gadaev in Lidarr. Added Ilya Gadaev (nothing else) and queued it.');
+    const leadRec = lidarr.artists.find(a => a.foreignArtistId === LEAD_MBID)!;
+    expect(leadRec).toMatchObject({ monitored: true, monitorNewItems: 'none' });
+    expect(leadRec.metadataProfileId).toBe(lidarr.profiles.find(p => p.name === 'Standard + Singles/EPs')!.id);
+    // the searched artist is untouched: no profile change, no refresh, still unmonitored
+    expect(lidarr.artists.find(a => a.id === 2503)).toMatchObject({ metadataProfileId: 1, monitored: false });
+    expect(lidarr.refreshed).toEqual([leadRec.id]);
+    expect(lidarr.albums.filter(a => a.monitored).map(a => a.id)).toEqual([777]);
+    expect(lidarr.searched).toEqual([777]);
+  });
+
+  it('queues a collab under a lead already in Lidarr without adding anyone', async () => {
+    lidarr.artists = [artist(), lead({ id: 3000, monitored: true })];
+    lidarr.albums = [album({ id: 555, title: 'PANITA', artistId: 3000, foreignAlbumId: RG_COLLAB, albumType: 'Single' })];
+    const r = await requestFromLidarr({ mbid: MBID, artistName: 'RLGN', mode: 'release', releaseGroupId: RG_COLLAB });
+    expect(r).toMatchObject({ outcome: 'monitored', lidarrAlbumId: 555 });
+    expect(r.message).toBe('"PANITA" is filed under Ilya Gadaev in Lidarr. Queued it there.');
+    expect(api.addArtist).not.toHaveBeenCalled();
+    expect(api.createMetadataProfile).not.toHaveBeenCalled();
+  });
+
+  it("says unavailable, and widens nothing, when Lidarr's database has no such release", async () => {
+    lidarr.artists = [artist()];
+    const r = await requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'release', releaseGroupId: RG_SINGLE, releaseTitle: 'Ghost', releaseType: 'Single' });
+    expect(r.outcome).toBe('unavailable');
+    expect(r.message).toBe(`Lidarr's database doesn't have "Ghost", so it can't download it.`);
+    expect(api.createMetadataProfile).not.toHaveBeenCalled();
+    expect(lidarr.refreshed).toEqual([]);
+  });
+
+  it('treats a failing metadata server as "try again", not "doesn\'t exist", and touches no profile', async () => {
+    lidarr.artists = [artist()];
+    lidarr.owners[RG_SINGLE] = { kind: 'unknown', reason: 'API fetch error after 0 retries: API request failed: 503 Service Unavailable' };
+    const r = await requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'release', releaseGroupId: RG_SINGLE, releaseTitle: 'SHEEPSTEP', releaseType: 'EP' });
+    expect(r).toMatchObject({ outcome: 'pending', releaseGroupId: RG_SINGLE });
+    expect(api.createMetadataProfile).not.toHaveBeenCalled();
+    expect(lidarr.refreshed).toEqual([]);
+  });
+
+  it('says unavailable when the release is a secondary type the profile skips', async () => {
+    lidarr.artists = [artist()];
+    lidarr.owners[RG_SINGLE] = { kind: 'found', title: 'Live at X', albumType: 'Album', secondaryTypes: ['Live'], artistMbid: MBID, artistName: '千葉雄喜' };
+    const r = await requestFromLidarr({ mbid: MBID, artistName: '千葉雄喜', mode: 'release', releaseGroupId: RG_SINGLE });
+    expect(r.outcome).toBe('unavailable');
+    expect(r.message).toBe(`"Live at X" is a Live release, which 千葉雄喜's Lidarr profile skips.`);
+  });
+
+  it("reports a collab's state under its lead, with the lead's monitored flag", async () => {
+    lidarr.artists = [lead({ id: 3000, monitored: true })];
+    lidarr.albums = [album({ id: 555, title: 'PANITA', artistId: 3000, foreignAlbumId: RG_COLLAB, monitored: true })];
+    expect(await getAlbumsFiledElsewhere([RG_COLLAB, 'not-in-lidarr'])).toEqual({
+      [RG_COLLAB]: { state: 'wanted', title: 'PANITA', trackFiles: 0, tracks: 10, filedUnder: 'Ilya Gadaev' },
+    });
   });
 });
 
