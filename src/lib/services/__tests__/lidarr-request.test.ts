@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ServiceError } from '../../utils';
 import type { LidarrAlbumRecord, LidarrArtistRecord, LidarrMetadataProfile } from '../lidarr';
 
 // In-memory Lidarr. Each test seeds it; the mocked API reads/writes it.
@@ -12,23 +13,50 @@ const lidarr = vi.hoisted(() => ({
   searched: [] as number[],
   refreshed: [] as number[],
   monitorCalls: [] as Array<{ ids: number[]; monitored: boolean }>,
+  /** Lidarr's post-add actions undoing our write: the next N artist / album writes are reverted. */
+  clobberArtist: 0,
+  clobberAlbum: 0,
+  /** The next N artist reads by MBID stall (LIDARR_TIMEOUT_ERROR). */
+  timeoutNext: 0,
 }));
 
 vi.mock('../lidarr', () => ({
-  findArtistByMbid: vi.fn(async (mbid: string) => lidarr.artists.find(a => a.foreignArtistId === mbid) ?? null),
+  LIDARR_REQUEST_TIMEOUT_MS: 30000,
+  findArtistByMbid: vi.fn(async (mbid: string) => {
+    if (lidarr.timeoutNext > 0) {
+      lidarr.timeoutNext--;
+      throw new ServiceError('LIDARR_TIMEOUT_ERROR', 'API request timed out (5000ms limit)');
+    }
+    return lidarr.artists.find(a => a.foreignArtistId === mbid) ?? null;
+  }),
+  getArtistRecord: vi.fn(async (id: number) => {
+    const found = lidarr.artists.find(a => a.id === id);
+    if (!found) throw new Error(`no artist ${id}`);
+    return { ...found };
+  }),
   lookupArtistByMbid: vi.fn(async () => lidarr.lookup),
   addArtist: vi.fn(async (a: LidarrArtistRecord) => {
-    lidarr.artists.push({ ...a, id: 900, monitored: true, monitorNewItems: 'none', metadataProfileId: 1, qualityProfileId: 1 });
+    const created = { ...a, id: 900, monitored: true, monitorNewItems: 'none' as const, metadataProfileId: 1, qualityProfileId: 1 };
+    lidarr.artists.push(created);
+    return { ...created };
   }),
   updateArtist: vi.fn(async (artist: LidarrArtistRecord, changes: Partial<LidarrArtistRecord>) => {
     const i = lidarr.artists.findIndex(a => a.id === artist.id);
     lidarr.artists[i] = { ...lidarr.artists[i], ...changes };
+    if (lidarr.clobberArtist > 0) {
+      lidarr.clobberArtist--;
+      lidarr.artists[i] = { ...lidarr.artists[i], monitored: false };
+    }
     return lidarr.artists[i];
   }),
   listArtistAlbums: vi.fn(async (id: number) => lidarr.albums.filter(a => a.artistId === id)),
   setAlbumsMonitored: vi.fn(async (ids: number[], monitored: boolean) => {
     lidarr.monitorCalls.push({ ids, monitored });
     for (const a of lidarr.albums) if (ids.includes(a.id)) a.monitored = monitored;
+    if (lidarr.clobberAlbum > 0) {
+      lidarr.clobberAlbum--;
+      for (const a of lidarr.albums) if (ids.includes(a.id)) a.monitored = false;
+    }
   }),
   searchForAlbum: vi.fn(async (id: number) => { lidarr.searched.push(id); return true; }),
   getMetadataProfiles: vi.fn(async () => lidarr.profiles),
@@ -93,6 +121,9 @@ beforeEach(() => {
   lidarr.searched = [];
   lidarr.refreshed = [];
   lidarr.monitorCalls = [];
+  lidarr.clobberArtist = 0;
+  lidarr.clobberAlbum = 0;
+  lidarr.timeoutNext = 0;
   __setSleepForTests(async () => {});
 });
 
@@ -244,6 +275,58 @@ describe('requestFromLidarr — song mode', () => {
     );
     expect(r.outcome).toBe('not_found');
     expect(lidarr.monitorCalls).toEqual([]);
+  });
+});
+
+describe('verified writes and Lidarr stalls (#435)', () => {
+  it('re-applies a follow that Lidarr reverts right after an add (post-add actions)', async () => {
+    lidarr.lookup = artist();
+    lidarr.clobberArtist = 1; // the first PUT is undone, like prod's RLGN
+    const r = await requestFromLidarr({ mbid: MBID, artistName: 'RLGN', mode: 'artist' });
+    expect(r.outcome).toBe('monitored');
+    expect(api.updateArtist).toHaveBeenCalledTimes(2);
+    expect(lidarr.artists[0]).toMatchObject({ monitored: true, monitorNewItems: 'new' });
+  });
+
+  it("does not list the whole library after an add (that read timed out on prod)", async () => {
+    lidarr.lookup = artist();
+    await requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'artist' });
+    expect(api.findArtistByMbid).toHaveBeenCalledTimes(1); // only the initial miss
+    expect(api.getArtistRecord).toHaveBeenCalled();
+  });
+
+  it('gives up with LIDARR_NOT_APPLIED rather than report a follow that did not stick', async () => {
+    lidarr.artists = [artist()];
+    lidarr.clobberArtist = 99;
+    await expect(requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'artist' }))
+      .rejects.toMatchObject({ code: 'LIDARR_NOT_APPLIED' });
+    expect(api.updateArtist).toHaveBeenCalledTimes(4);
+  });
+
+  it('re-monitors an album that Lidarr un-monitors after the first write', async () => {
+    lidarr.artists = [artist({ monitored: true })];
+    lidarr.albums = [album()];
+    lidarr.clobberAlbum = 1;
+    const r = await requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'release', releaseGroupId: RG_ALBUM });
+    expect(r.outcome).toBe('monitored');
+    expect(lidarr.monitorCalls).toHaveLength(2);
+    expect(lidarr.albums[0].monitored).toBe(true);
+    expect(lidarr.searched).toEqual([31631]);
+  });
+
+  it('retries a stalled read once', async () => {
+    lidarr.artists = [artist()];
+    lidarr.timeoutNext = 1;
+    const r = await requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'artist' });
+    expect(r.outcome).toBe('monitored');
+    expect(api.findArtistByMbid).toHaveBeenCalledTimes(2);
+  });
+
+  it('surfaces a read that stalls twice as LIDARR_TIMEOUT_ERROR', async () => {
+    lidarr.artists = [artist()];
+    lidarr.timeoutNext = 2;
+    await expect(requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'artist' }))
+      .rejects.toMatchObject({ code: 'LIDARR_TIMEOUT_ERROR' });
   });
 });
 

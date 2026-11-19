@@ -5,6 +5,7 @@ import {
   errorResponse,
   serviceUnavailableResponse,
 } from '../../../lib/utils/api-response';
+import { ServiceError } from '../../../lib/utils';
 
 const MBID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -58,14 +59,25 @@ const POST = withAuthAndErrorHandling(
       recheck: body.recheck === true,
     } as const;
 
-    const result = await requestFromLidarr(input, {
-      lookupAlbum: async (artist, song) => {
-        if (!config.lastfmApiKey) return null;
-        const { getLastFmClient } = await import('../../../lib/services/lastfm');
-        const info = await getLastFmClient(config.lastfmApiKey)?.getTrackInfo(artist, song).catch(() => null);
-        return info?.album ?? null;
-      },
-    });
+    let result;
+    try {
+      result = await requestFromLidarr(input, {
+        lookupAlbum: async (artist, song) => {
+          if (!config.lastfmApiKey) return null;
+          const { getLastFmClient } = await import('../../../lib/services/lastfm');
+          const info = await getLastFmClient(config.lastfmApiKey)?.getTrackInfo(artist, song).catch(() => null);
+          return info?.album ?? null;
+        },
+      });
+    } catch (err) {
+      // A stalled Lidarr is not a bug to show raw ("API request timed out (5000ms limit)").
+      // The flow is idempotent: whatever was already added is kept and a retry carries on.
+      if (err instanceof ServiceError && (err.code === 'LIDARR_TIMEOUT_ERROR' || err.code === 'LIDARR_NOT_APPLIED')) {
+        console.warn(`[lidarr-request] ${err.code} for "${input.artistName}": ${err.message}`);
+        return serviceUnavailableResponse(err.code, 'Lidarr is slow to respond right now. Try again in a minute; anything already added is kept.');
+      }
+      throw err;
+    }
 
     // Bookkeeping must not turn a successful Lidarr request into an error, and the
     // two writes are independent: a failed log insert must not skip the cache refresh.
