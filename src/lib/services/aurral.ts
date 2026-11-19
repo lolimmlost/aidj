@@ -375,13 +375,8 @@ async function fetchMusicBrainzCoreInfo(mbid: string): Promise<{
   }
 }
 
-/** Add artist to Lidarr via Aurral */
-export async function addArtistToLibrary(mbid: string, artistName: string): Promise<{ queued: boolean; foreignArtistId: string; artistName: string }> {
-  return aurralFetch('/api/library/artists', {
-    method: 'POST',
-    body: JSON.stringify({ foreignArtistId: mbid, artistName }),
-  });
-}
+// Adding artists goes through AIDJ's own Lidarr request flow (lidarr-request.ts), not
+// Aurral: Aurral added them with nothing monitored, so nothing ever downloaded (#435).
 
 /** Fetch Lidarr download queue via Aurral */
 export async function getDownloads(): Promise<unknown[]> {

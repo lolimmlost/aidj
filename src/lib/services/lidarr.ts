@@ -1109,3 +1109,87 @@ export async function clearDownloadHistory(): Promise<boolean> {
     return false;
   }
 }
+// ─── Request primitives (#435/#436) ──────────────────────────────────────────
+// Unlike the helpers above, these THROW on API errors. The request flow must
+// tell "Lidarr said no such artist" apart from "Lidarr didn't answer", or it
+// would try to re-add an artist that is already there.
+
+/** An artist as Lidarr stores it, with the fields a PUT needs. */
+export type LidarrArtistRecord = LidarrArtist & {
+  monitored: boolean;
+  monitorNewItems?: 'all' | 'new' | 'none';
+  metadataProfileId: number;
+  qualityProfileId: number;
+  rootFolderPath?: string;
+  path?: string;
+};
+
+export type LidarrAlbumRecord = LidarrAlbum & { monitored: boolean };
+
+export interface LidarrMetadataProfile {
+  id: number;
+  name: string;
+  primaryAlbumTypes: Array<{ albumType: { id: number; name: string }; allowed: boolean }>;
+  secondaryAlbumTypes: Array<{ albumType: { id: number; name: string }; allowed: boolean }>;
+  releaseStatuses: Array<{ releaseStatus: { id: number; name: string }; allowed: boolean }>;
+}
+
+/** The artist with this MusicBrainz id, or null if Lidarr doesn't have it. Throws if Lidarr is down. */
+export async function findArtistByMbid(mbid: string): Promise<LidarrArtistRecord | null> {
+  const artists = await apiFetch<LidarrArtistRecord[]>('/artist');
+  return artists.find(a => a.foreignArtistId === mbid) ?? null;
+}
+
+/** Look an artist up on MusicBrainz (through Lidarr) by exact MBID. */
+export async function lookupArtistByMbid(mbid: string): Promise<LidarrArtist | null> {
+  const results = await apiFetch<LidarrArtist[]>(
+    `/artist/lookup?term=${encodeURIComponent(`lidarr:${mbid}`)}`,
+    {},
+    DEFAULT_RETRY_CONFIG,
+    15000,
+  );
+  return results.find(a => a.foreignArtistId === mbid) ?? null;
+}
+
+/** PUT the whole artist back with some fields changed. */
+export async function updateArtist(
+  artist: LidarrArtistRecord,
+  changes: Partial<Pick<LidarrArtistRecord, 'monitored' | 'monitorNewItems' | 'metadataProfileId'>>,
+): Promise<LidarrArtistRecord> {
+  return apiFetch<LidarrArtistRecord>(`/artist/${artist.id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ ...artist, ...changes }),
+  });
+}
+
+/** Albums Lidarr knows for an artist. Throws if Lidarr is down. */
+export async function listArtistAlbums(artistId: number): Promise<LidarrAlbumRecord[]> {
+  return apiFetch<LidarrAlbumRecord[]>(`/album?artistId=${artistId}`);
+}
+
+/** Monitor (or unmonitor) albums with the bulk endpoint. */
+export async function setAlbumsMonitored(albumIds: number[], monitored: boolean): Promise<void> {
+  await apiFetch('/album/monitor', {
+    method: 'PUT',
+    body: JSON.stringify({ albumIds, monitored }),
+  });
+}
+
+export async function getMetadataProfiles(): Promise<LidarrMetadataProfile[]> {
+  return apiFetch<LidarrMetadataProfile[]>('/metadataprofile');
+}
+
+export async function createMetadataProfile(profile: Omit<LidarrMetadataProfile, 'id'>): Promise<LidarrMetadataProfile> {
+  return apiFetch<LidarrMetadataProfile>('/metadataprofile', {
+    method: 'POST',
+    body: JSON.stringify(profile),
+  });
+}
+
+/** Ask Lidarr to re-read the artist from MusicBrainz (applies a new metadata profile). */
+export async function refreshArtist(artistId: number): Promise<void> {
+  await apiFetch('/command', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'RefreshArtist', artistId }),
+  });
+}

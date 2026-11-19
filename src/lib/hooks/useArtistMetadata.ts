@@ -167,28 +167,123 @@ export function useAurralDownloads(enabled = true) {
 
 // ─── Add Artist to Library ───────────────────────────────────────────────────
 
+/**
+ * Follow an artist in Lidarr: monitored, future releases download (#435).
+ * Goes through AIDJ's Lidarr request flow, not Aurral — Aurral added artists
+ * with nothing monitored, so nothing ever downloaded.
+ */
 export function useAddArtistToLibrary() {
-  const queryClient = useQueryClient();
+  const request = useLidarrRequest();
+  return {
+    ...request,
+    mutate: (
+      { mbid, artistName }: { mbid: string; artistName: string },
+      options?: Parameters<typeof request.mutate>[1],
+    ) => request.mutate({ mbid, artistName, mode: 'artist' }, options),
+  };
+}
 
+// ─── Lidarr requests (#436) ──────────────────────────────────────────────────
+
+export type LidarrRequestOutcome = 'monitored' | 'already_monitored' | 'in_library' | 'pending' | 'not_found';
+export type LidarrAlbumState = 'in_library' | 'partial' | 'wanted' | 'not_monitored';
+
+export interface LidarrRequestResult {
+  outcome: LidarrRequestOutcome;
+  message: string;
+  lidarrArtistId?: number;
+  lidarrAlbumId?: number;
+  releaseGroupId?: string;
+  releaseTitle?: string;
+}
+
+export interface LidarrRequestStatus {
+  inLidarr: boolean;
+  lidarrArtistId?: number;
+  artistMonitored: boolean;
+  followingNewReleases: boolean;
+  albums: Record<string, { state: LidarrAlbumState; title: string; trackFiles: number; tracks: number }>;
+  /** 'artist' for follows, else release-group id → distinct requesters. */
+  requests: Record<string, { users: number; byMe: boolean }>;
+}
+
+export interface LidarrRequestInput {
+  mbid: string;
+  artistName: string;
+  mode: 'artist' | 'release' | 'song';
+  releaseGroupId?: string;
+  songTitle?: string;
+}
+
+async function postLidarrRequest(input: LidarrRequestInput & { recheck?: boolean }): Promise<LidarrRequestResult> {
+  const res = await fetch('/api/lidarr/request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const json = await res.json().catch(() => null) as { data?: LidarrRequestResult; message?: string } | null;
+  if (!res.ok || !json?.data) throw new Error(json?.message ?? `Request failed (HTTP ${res.status})`);
+  return json.data;
+}
+
+const RECHECK_DELAYS_MS = [8000, 15000, 30000];
+
+/**
+ * Ask Lidarr for an artist / release / song. A 'pending' answer (Lidarr still
+ * loading the release, e.g. after widening the profile for a single) is
+ * re-checked a few times before giving up.
+ */
+export function useLidarrRequest() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ mbid, artistName }: { mbid: string; artistName: string }) => {
-      const res = await fetch('/api/aurral/add-artist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mbid, artistName }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: 'Failed to add artist' })) as { code?: string; message: string };
-        if (err.code === 'AURRAL_UNAVAILABLE') throw new ServiceRestartingError(err.message);
-        throw new Error(err.message);
+    mutationFn: async (input: LidarrRequestInput): Promise<LidarrRequestResult> => {
+      let result = await postLidarrRequest(input);
+      for (const delay of RECHECK_DELAYS_MS) {
+        if (result.outcome !== 'pending') break;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        result = await postLidarrRequest({
+          ...input,
+          mode: result.releaseGroupId ? 'release' : input.mode,
+          releaseGroupId: result.releaseGroupId ?? input.releaseGroupId,
+          recheck: true,
+        });
       }
-      return res.json();
+      if (result.outcome === 'pending') {
+        return {
+          ...result,
+          outcome: 'not_found',
+          message: `Lidarr hasn't listed "${result.releaseTitle ?? 'this release'}" yet. Try again in a few minutes.`,
+        };
+      }
+      return result;
     },
-    onSuccess: () => {
-      // Invalidate relevant queries
+    onSettled: (_data, _err, input) => {
+      queryClient.invalidateQueries({ queryKey: ['lidarr-request-status', input.mbid] });
+      queryClient.invalidateQueries({ queryKey: ['artist-metadata'] });
       queryClient.invalidateQueries({ queryKey: ['aurral-recent'] });
-      queryClient.invalidateQueries({ queryKey: ['aurral-downloads'] });
       queryClient.invalidateQueries({ queryKey: ['aurral-discover'] });
     },
+  });
+}
+
+/** Live Lidarr state for an artist not in the library yet. Polls while something is downloading. */
+export function useLidarrRequestStatus(mbid: string | null | undefined) {
+  return useQuery({
+    queryKey: ['lidarr-request-status', mbid],
+    queryFn: async (): Promise<LidarrRequestStatus | null> => {
+      const res = await fetch(`/api/lidarr/request-status?mbid=${encodeURIComponent(mbid!)}`);
+      if (res.status === 503) return null; // Lidarr not configured
+      if (!res.ok) throw new Error(`Lidarr status failed (HTTP ${res.status})`);
+      const json = await res.json() as { data: LidarrRequestStatus };
+      return json.data;
+    },
+    enabled: !!mbid,
+    staleTime: 15 * 1000,
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) => {
+      const albums = Object.values(query.state.data?.albums ?? {});
+      return albums.some(a => a.state === 'wanted' || a.state === 'partial') ? 60 * 1000 : false;
+    },
+    retry: 1,
   });
 }
