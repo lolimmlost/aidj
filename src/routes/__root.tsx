@@ -5,6 +5,7 @@ import {
   HeadContent,
   Outlet,
   Scripts,
+  ScriptOnce,
   useRouterState,
 } from "@tanstack/react-router";
 
@@ -21,6 +22,8 @@ import { useAudioStore } from "~/lib/stores/audio";
 import { useServiceWorker } from "~/lib/hooks/useServiceWorker";
 import { useEruda } from "~/lib/hooks/useEruda";
 import { useDocumentTitle } from "~/lib/hooks/useDocumentTitle";
+import { usePageLog } from "~/lib/hooks/usePageLog";
+import { BOOT_SCRIPT } from "~/lib/utils/boot-watchdog";
 
 // Default link-preview image (#361). Absolute: unfurlers (iMessage, Discord, Slack) skip relative og:image URLs.
 const OG_IMAGE = `${(import.meta.env.VITE_BASE_URL ?? "").replace(/\/+$/, "")}/og-image.png`;
@@ -156,6 +159,9 @@ function RootComponent() {
   // Per-route tab title, or the playing track (#287)
   useDocumentTitle();
 
+  // How this page started, what it goes through, and other copies of the app open next to it (#446)
+  usePageLog();
+
   // Use new AppLayout for main app routes (dashboard, library, playlists, dj, settings, music-identity)
   const useNewLayout = currentPath.startsWith('/dashboard') ||
                        currentPath.startsWith('/library') ||
@@ -207,6 +213,8 @@ function RootDocument({ children }: { readonly children: React.ReactNode }) {
     // suppress since we're updating the "dark" class in ThemeProvider
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* First in <head>: reports a page whose app never starts, even one stuck behind its stylesheet (#446) */}
+        <ScriptOnce>{BOOT_SCRIPT}</ScriptOnce>
         <HeadContent />
       </head>
       <body>
