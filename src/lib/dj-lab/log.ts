@@ -53,7 +53,20 @@ interface Stored {
   entries: LabLogEntry[];
 }
 
-const sid = Math.random().toString(36).slice(2, 8);
+/** What the boot script in the page's <head> knows (src/lib/utils/boot-watchdog.ts, #446). */
+interface BootPage {
+  id: string;
+  /** when the HTML was parsed that far */
+  t0: number;
+  /** set when the app is running: the watchdog then stays quiet */
+  started?: number;
+  /** set when the watchdog reported the app as not started */
+  stalled?: number;
+}
+const bootPage = (): BootPage | undefined =>
+  typeof window === 'undefined' ? undefined : (window as Window & { __aidjPage?: BootPage }).__aidjPage;
+// the boot script names the page as its HTML parses, so its report and this log share the id
+const sid = bootPage()?.id ?? Math.random().toString(36).slice(2, 8);
 let store: Stored | null = null;
 let started = false;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -237,17 +250,73 @@ export function startLabLog() {
   if (!isBrowser() || started) return;
   started = true;
   checkPreviousLabPage();
+  startPageLog();
+}
+
+const LAST_LOAD_KEY = 'aidj:page:last-load';
+let pageLogStarted = false;
+
+/** The page's address as the referrer gives it: a path on this site, "elsewhere", or nothing. */
+function referrerPath(): string | undefined {
+  if (!document.referrer) return undefined;
+  try {
+    const u = new URL(document.referrer);
+    return u.origin === location.origin ? u.pathname : 'elsewhere';
+  } catch {
+    return undefined;
+  }
+}
+
+/** How this page started, for the "page load" event. */
+function pageLoadInfo(): Record<string, unknown> {
   const nav = navigator as Navigator & { deviceMemory?: number; audioSession?: { type: string }; standalone?: boolean };
-  labLog('page load', {
+  const timing =
+    typeof performance !== 'undefined' && typeof performance.getEntriesByType === 'function'
+      ? (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)
+      : undefined;
+  const now = Date.now();
+  const boot = bootPage();
+  if (boot) boot.started = now;
+  // the previous page load in this storage, by any copy of the app
+  let prev: { sid?: string; t?: number; path?: string } | null = null;
+  try {
+    prev = JSON.parse(localStorage.getItem(LAST_LOAD_KEY) ?? 'null');
+    localStorage.setItem(LAST_LOAD_KEY, JSON.stringify({ sid, t: now, path: location.pathname }));
+  } catch {
+    // storage blocked
+  }
+  return {
+    path: location.pathname,
+    // navigate (a launch, a link, an address), reload, back_forward or prerender
+    nav: timing?.type,
+    from: referrerPath(),
+    visibility: vis(),
+    // from the HTML being parsed to the app running; a slow one may already have been reported as stuck
+    bootMs: boot ? now - boot.t0 : undefined,
+    stallReported: boot?.stalled ? true : undefined,
+    ttfbMs: timing && timing.responseStart > 0 ? Math.round(timing.responseStart) : undefined,
+    prevLoad: prev?.sid ? { sid: prev.sid, agoSec: Math.round((now - (prev.t ?? now)) / 1000), path: prev.path } : undefined,
+    // Chrome only: the browser threw this tab away to save memory and loaded it again
+    discarded: (document as Document & { wasDiscarded?: boolean }).wasDiscarded || undefined,
     ua: navigator.userAgent,
     deviceMemoryGB: nav.deviceMemory,
     cores: navigator.hardwareConcurrency,
     pwa: nav.standalone ?? window.matchMedia?.('(display-mode: standalone)').matches,
     audioSession: nav.audioSession?.type,
-    visibility: vis(),
     // the app's debug console: it hooks fetch and keeps response bodies
     eruda: 'eruda' in window || undefined,
-  });
+  };
+}
+
+/**
+ * Once per page load, on every page (#446): log how the page started, then its lifecycle and uncaught
+ * errors. On iOS more than one copy of the app can run at once (#443); with this each copy's own trail
+ * reaches the server log under its page id. The Lab calls it too. Safe to call more than once.
+ */
+export function startPageLog() {
+  if (!isBrowser() || pageLogStarted) return;
+  pageLogStarted = true;
+  labLog('page load', pageLoadInfo());
   document.addEventListener('visibilitychange', () => {
     labLog('visibility', { state: vis() });
     if (vis() === 'hidden') beacon();
@@ -295,6 +364,12 @@ export function clearLabLog() {
 }
 
 export const labLogSid = () => sid;
+/**
+ * This page load's id, app-wide (#446): the same one as `🎛️ [LAB <id>]`, the debug console's
+ * `[CLIENT] [<id>]` and the playback socket's `page=<id>`, so one copy of the app can be followed
+ * through all three.
+ */
+export const pageId = labLogSid;
 
 const clock = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour12: false }) + `.${String(t % 1000).padStart(3, '0')}`;
 

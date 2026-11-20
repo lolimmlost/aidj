@@ -16,11 +16,21 @@ const lastHeartbeat = new WeakMap<WebSocket, number>();
 // Track which deviceId each ws represents (captured from first message carrying one)
 const wsDeviceIds = new WeakMap<WebSocket, string>();
 
+// Which copy of the app (page load) each ws belongs to, for the log only (#446). Copies of the app in
+// one browser share a deviceId (#443), so the device alone can't say which page holds which socket.
+const wsPageIds = new WeakMap<WebSocket, string>();
+const pageTag = (ws: WebSocket) => {
+  const page = wsPageIds.get(ws);
+  return page ? ` page=${page}` : '';
+};
+
 // Message types
 interface PlaybackMessage {
   type: 'state_update' | 'transfer' | 'command' | 'sync_request' | 'heartbeat' | 'feedback_update' | 'feedback_refresh';
   payload?: Record<string, unknown>;
   deviceId: string;
+  /** the sending page load's id (#446): logged, never used to route */
+  pageId?: string;
 }
 
 interface PlaybackCommand {
@@ -61,7 +71,7 @@ export function setupPlaybackWebSocket(
     wss.clients.forEach((ws: WebSocket) => {
       const last = lastHeartbeat.get(ws) || 0;
       if (now - last > HEARTBEAT_TIMEOUT) {
-        console.log('[WS] Terminating dead connection');
+        console.log(`[WS] Terminating dead connection${pageTag(ws)}`);
         ws.terminate();
       }
     });
@@ -100,15 +110,18 @@ export function setupPlaybackWebSocket(
 
         // Capture the deviceId this ws represents so we can detect a stale
         // active-device entry when the connection closes.
+        if (typeof message.pageId === 'string' && !wsPageIds.has(ws) && /^[a-z0-9]{1,12}$/i.test(message.pageId)) {
+          wsPageIds.set(ws, message.pageId);
+        }
         if (message.deviceId && !wsDeviceIds.has(ws)) {
           wsDeviceIds.set(ws, message.deviceId);
-          console.log(`[WS RX] user=${userId} device=${message.deviceId} bound to socket (first message)`);
+          console.log(`[WS RX] user=${userId} device=${message.deviceId}${pageTag(ws)} bound to socket (first message)`);
         }
 
         // Compact RX summary so the transfer/command/state flow is traceable
         // in the log. Pulls only the fields that matter for diagnosis.
         const fromDevice = message.deviceId ?? '?';
-        let summary = `type=${message.type} from=${fromDevice}`;
+        let summary = `type=${message.type} from=${fromDevice}${pageTag(ws)}`;
         if (message.type === 'transfer') {
           const p = message.payload as { targetDeviceId?: string; targetDeviceName?: string; play?: boolean } | undefined;
           summary += ` target=${p?.targetDeviceId ?? '?'} targetName=${JSON.stringify(p?.targetDeviceName ?? null)} play=${p?.play ?? '?'}`;
@@ -187,7 +200,7 @@ export function setupPlaybackWebSocket(
     ws.on('close', async () => {
       connections.get(userId)?.delete(ws);
       const remaining = connections.get(userId)?.size || 0;
-      console.log(`[WS] User ${userId} disconnected (${remaining} remaining)`);
+      console.log(`[WS] User ${userId} disconnected${pageTag(ws)} (${remaining} remaining)`);
 
       // If the closing device was the active player, clear server-side state
       // so other devices drop out of remote-control mode with a dead target.

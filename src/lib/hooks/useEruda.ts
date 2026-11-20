@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { pageId } from '@/lib/dj-lab/log';
 
 declare global {
   interface Window {
@@ -54,6 +55,8 @@ function flushLogs() {
         ...log,
         userAgent: navigator.userAgent,
         url: window.location.href,
+        // which copy of the app sent it (#446): the server prints it as [CLIENT] [<page>]
+        page: pageId(),
       }),
     }).catch(() => {
       // Ignore send failures

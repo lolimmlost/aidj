@@ -9,7 +9,9 @@ import { createFileRoute } from "@tanstack/react-router";
 
 export async function POST({ request }: { request: Request }) {
   try {
-    const { level, args, timestamp, userAgent, url } = await request.json();
+    const { level, args, timestamp, userAgent, url, page } = await request.json();
+    // the copy of the app that sent it (#446), as the flight recorder names it: `[LAB <page>]`
+    const pageTag = typeof page === 'string' && /^[a-z0-9]{1,12}$/i.test(page) ? ` [${page}]` : '';
 
     const time = new Date(timestamp).toLocaleTimeString();
     const prefix = {
@@ -20,7 +22,7 @@ export async function POST({ request }: { request: Request }) {
     }[level as string] || '📱';
 
     // Print to server console
-    console.log(`${prefix} [${time}] [CLIENT] ${args.join(' ')}`);
+    console.log(`${prefix} [${time}] [CLIENT]${pageTag} ${args.join(' ')}`);
 
     // Log extra context for errors
     if (level === 'error') {
