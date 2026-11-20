@@ -37,9 +37,9 @@ const BROWSERS: Array<[RegExp, string]> = [
 /** "iPhone iOS 18.7" / "Firefox 140 Linux": enough to tell the devices apart. */
 export function shortUserAgent(ua: string | undefined): string {
   if (!ua) return '?';
+  // the home-screen app and a Safari tab send the same agent: the page's own "page load" says which (pwa)
   const ios = ua.match(/(iPhone|iPad)[^)]*OS (\d+)_(\d+)/);
-  // the home-screen app's agent has no "Safari/…" at the end; a Safari tab's does
-  if (ios) return `${ios[1]} iOS ${ios[2]}.${ios[3]}${/ Safari\//.test(ua) ? ' Safari' : ''}`;
+  if (ios) return `${ios[1]} iOS ${ios[2]}.${ios[3]}`;
   const os = ua.match(/Android \d+/)?.[0] ?? (/Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '');
   for (const [re, name] of BROWSERS) {
     const m = ua.match(re);

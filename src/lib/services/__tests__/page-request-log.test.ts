@@ -62,7 +62,7 @@ describe('page request log (#446)', () => {
 
   it('shortens the user agent to the device and browser', () => {
     expect(shortUserAgent(IPHONE_PWA)).toBe('iPhone iOS 18.7');
-    expect(shortUserAgent(IPHONE_SAFARI)).toBe('iPhone iOS 18.7 Safari');
+    expect(shortUserAgent(IPHONE_SAFARI)).toBe('iPhone iOS 18.7');
     expect(shortUserAgent(FIREFOX)).toBe('Firefox 140 Linux');
     expect(shortUserAgent(EDGE)).toBe('Edge 131 Windows');
     expect(shortUserAgent(undefined)).toBe('?');
