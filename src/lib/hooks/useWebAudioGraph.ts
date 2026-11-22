@@ -1,5 +1,6 @@
 import { useRef, useCallback, useState, useEffect } from 'react';
 import { useAudioStore } from '@/lib/stores/audio';
+import { externalAudioOwner } from '@/lib/utils/audio-owner';
 
 export interface WebAudioGraph {
   audioContextRef: React.RefObject<AudioContext | null>;
@@ -269,7 +270,7 @@ export function useWebAudioGraph(): WebAudioGraph {
       const deckB = deckBElementRef.current;
       const eitherDeckPlaying = (deckA && !deckA.paused) || (deckB && !deckB.paused);
 
-      if ((isPlaying || eitherDeckPlaying) && !recentlyUserPaused()) {
+      if ((isPlaying || eitherDeckPlaying) && !recentlyUserPaused() && !externalAudioOwner()) {
         console.log(`[WEB AUDIO] Health check: context "${state}" but audio should be playing — resuming`);
         ctx.resume().catch((err) =>
           console.warn('[WEB AUDIO] Health check resume failed:', (err as Error).message));
@@ -344,6 +345,19 @@ export function useWebAudioGraph(): WebAudioGraph {
       const state = ctx.state as string; // iOS adds 'interrupted'
 
       if (state === 'interrupted' || state === 'suspended') {
+        // The Transition Lab owns the audio (#438): leave this context be. Resuming it takes
+        // iOS's audio session from the Lab's context, and the Lab resuming takes it back,
+        // a tug-of-war rather than a recovery. Nothing was playing here to recover.
+        if (externalAudioOwner()) {
+          wasPlayingBeforeInterruptRef.current = false;
+          if (resumeIntervalRef.current) {
+            clearInterval(resumeIntervalRef.current);
+            resumeIntervalRef.current = null;
+          }
+          console.log(`[WEB AUDIO] Context ${state} while the Lab owns the audio — not resuming`);
+          return;
+        }
+
         // Cancel any pending wasPlaying clear — we're back in interrupt
         if (clearWasPlayingTimerRef.current) {
           clearTimeout(clearWasPlayingTimerRef.current);
@@ -411,7 +425,8 @@ export function useWebAudioGraph(): WebAudioGraph {
           resumeIntervalRef.current = null;
         }
 
-        const shouldResume = (wasPlayingBeforeInterruptRef.current || useAudioStore.getState().isPlaying) && !recentlyUserPaused();
+        const shouldResume = (wasPlayingBeforeInterruptRef.current || useAudioStore.getState().isPlaying)
+          && !recentlyUserPaused() && !externalAudioOwner(); // the Lab owns the audio: don't restart the player (#438)
         if (recentlyUserPaused()) {
           console.log('[WEB AUDIO] Recovery suppressed — recent user pause');
         }
@@ -564,6 +579,9 @@ export function useWebAudioGraph(): WebAudioGraph {
       const visDA = deckAElementRef.current;
       const visDB = deckBElementRef.current;
       console.log(`[WEB AUDIO] Visibility returned, context ${state} sampleRate=${ctx.sampleRate} pbA=${visDA?.playbackRate ?? '?'} pbB=${visDB?.playbackRate ?? '?'}`);
+
+      // The Transition Lab owns the audio: leave this context alone (#438)
+      if (externalAudioOwner()) return;
 
       if (state === 'suspended' || state === 'interrupted') {
         console.log(`[WEB AUDIO] Context ${state} — attempting resume`);
