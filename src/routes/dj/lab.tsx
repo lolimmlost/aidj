@@ -18,7 +18,7 @@ import { labLog, labLogSid, startLabLog } from '@/lib/dj-lab/log';
 import { announceTakeOver, clearResumePoint, onTakeOver, resumeSnapshot, subscribeResume, type ResumePoint } from '@/lib/dj-lab/resume';
 import { planResume } from '@/lib/dj-lab/resume-plan';
 import { watchAppPlayer } from '@/lib/dj-lab/app-player';
-import { autoPick } from '@/lib/dj-lab/pick';
+import { autoPicker } from '@/lib/dj-lab/pick';
 import { useCrate, useHydrated, useLabEngine, useStarredIds } from '@/components/dj-lab/useLab';
 import { LabMix } from '@/components/dj-lab/LabMix';
 import { LabAB } from '@/components/dj-lab/LabAB';
@@ -88,17 +88,8 @@ function DJLab() {
   // auto-lock: a transition you liked first, then the best pick in the tempo window, and so on (autoPick)
   const starred = useStarredIds();
   useEffect(() => {
-    engine.setPicker((now, played) => {
-      const pick = autoPick(
-        { song: now.song, analysis: now.analysis },
-        pool,
-        { setBpm: snap.setBpm, played, mode: snap.mode, window: { down: snap.defaults.tempoDown, up: snap.defaults.tempoUp }, liked: starred },
-        // read at each pick: a thumb you just gave counts
-        loadVotes(),
-      );
-      if (pick) labLog('auto pick', { song: `${pick.song.artist} – ${pick.song.title}`, why: pick.why, likedSong: starred.has(pick.song.id) || undefined });
-      return pick?.song ?? null;
-    });
+    // the picker reads the engine's state at each pick, not this render's copy of it (see autoPicker, #390)
+    engine.setPicker(autoPicker(engine.getSnapshot, pool, starred));
     // the set may start before the crate is analysed: pick as soon as there's something to pick
     engine.maybeAutoLock();
   }, [engine, pool, starred, snap.setBpm, snap.mode, snap.autoLock, snap.status, snap.now, snap.next, snap.defaults.tempoDown, snap.defaults.tempoUp]);
