@@ -21,6 +21,7 @@ import { db } from './src/lib/db';
 import { user } from './src/lib/db/schema';
 import { eq, asc } from 'drizzle-orm';
 import { initializeReconciliation } from './src/lib/services/library-reconciliation';
+import { logPageRequest } from './src/lib/services/page-request-log';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -86,6 +87,8 @@ async function start() {
 
     // Static files first, then SSR/API handler
     handler = (req, res) => {
+      // every HTML page request in the log, so a launch stuck on a white screen shows (#446)
+      logPageRequest(req, res);
       serve(req, res, () => ssrHandler(req, res));
     };
     console.log('[Server] Loaded handler from dist/server/server.js');

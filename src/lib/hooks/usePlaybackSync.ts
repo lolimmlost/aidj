@@ -12,6 +12,7 @@ import { useEffect, useRef, useMemo } from 'react';
 import { useAudioStore } from '../stores/audio';
 import { createReconnectingWebSocket } from '../utils/websocket';
 import { getDeviceInfo } from '../utils/device';
+import { pageId } from '../dj-lab/log';
 import { toSyncSong } from '../types/sync';
 import type { PlaybackStateResponse } from '../types/sync';
 
@@ -496,6 +497,8 @@ export function usePlaybackSync(): void {
         ws.send(JSON.stringify({
           type: 'sync_request',
           deviceId: deviceInfo.deviceId,
+          // which copy of the app this socket belongs to, for the server log only (#446)
+          pageId: pageId(),
         }));
         // Also fetch from DB in case no other device is online to respond
         fetchAndReconcileState();
@@ -606,6 +609,7 @@ export function usePlaybackSync(): void {
         ws.send(JSON.stringify({
           type: 'heartbeat',
           deviceId: deviceInfo.deviceId,
+          pageId: pageId(),
         }));
       }
     }, HEARTBEAT_INTERVAL_MS);
