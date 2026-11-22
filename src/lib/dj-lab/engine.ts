@@ -295,9 +295,11 @@ export class LabEngine {
         const stoppedSec = ctx.state === 'running' && this.audioStoppedAt !== null ? Math.round((now - this.audioStoppedAt) / 100) / 10 : undefined;
         if (ctx.state === 'running') this.audioStoppedAt = null;
         // log changes; fold the repeats iOS fires on every refused resume (#438)
-        const repeats = this.ctxStateLog.next(`${ctx.state}|${this.snap.status}`, now);
-        if (repeats !== null) {
-          labLog('audio context state', { state: ctx.state, t: ctx.currentTime, status: this.snap.status, stoppedSec, repeats: repeats || undefined }, bad ? 'warn' : 'info');
+        const fold = this.ctxStateLog.next(`${ctx.state}|${this.snap.status}`, now);
+        if (fold) {
+          // e.g. "413× suspended|paused": what was left out since the last line, which may be another state
+          const folded = fold.folded ? `${fold.folded}× ${fold.of}` : undefined;
+          labLog('audio context state', { state: ctx.state, t: ctx.currentTime, status: this.snap.status, stoppedSec, folded }, bad ? 'warn' : 'info');
         }
         this.set({ audio: ctx.state });
       });
