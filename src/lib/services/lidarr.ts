@@ -375,12 +375,15 @@ export async function search(query: string): Promise<{ artists: Artist[]; albums
 // Alias for backward compatibility
 export const searchArtist = searchArtists;
 
-export async function addArtist(artist: LidarrArtist, options?: { monitorAll?: boolean }): Promise<void> {
+export async function addArtist(
+  artist: LidarrArtist,
+  options?: { monitorAll?: boolean; timeoutMs?: number },
+): Promise<LidarrArtistRecord | undefined> {
   try {
     const config = getConfig();
 
     // Get root folder to use default settings
-    const rootFolders = await apiFetch('/rootFolder') as Array<{
+    const rootFolders = await apiFetch('/rootFolder', {}, DEFAULT_RETRY_CONFIG, options?.timeoutMs) as Array<{
       id: number;
       path: string;
       defaultQualityProfileId: number;
@@ -416,20 +419,25 @@ export async function addArtist(artist: LidarrArtist, options?: { monitorAll?: b
     const addedArtist = await apiFetch('/artist', {
       method: 'POST',
       body: JSON.stringify(artistPayload),
-    }) as LidarrArtist & { id: number; monitored: boolean };
+    }, DEFAULT_RETRY_CONFIG, options?.timeoutMs) as LidarrArtist & { id: number; monitored: boolean };
+    let saved = addedArtist as unknown as LidarrArtistRecord;
 
     // Lidarr can override monitored=true when addOptions.monitor='none'
-    // Explicitly ensure artist is monitored after adding
+    // Explicitly ensure artist is monitored after adding.
+    // NOTE: this does not stick on its own. Lidarr's post-add actions run ~1-3 s later and can reset
+    // monitored=false again (seen on prod, #435). Callers that need it must re-read and re-apply
+    // (see applyArtistChanges in lidarr-request.ts).
     if (addedArtist?.id && !addedArtist.monitored) {
       console.log(`[Lidarr] Artist "${artist.artistName}" added unmonitored, explicitly enabling monitoring...`);
-      await apiFetch(`/artist/${addedArtist.id}`, {
+      saved = await apiFetch<LidarrArtistRecord>(`/artist/${addedArtist.id}`, {
         method: 'PUT',
         body: JSON.stringify({
           ...addedArtist,
           monitored: true,
         }),
-      });
+      }, DEFAULT_RETRY_CONFIG, options?.timeoutMs);
     }
+    return saved;
   } catch (error) {
     console.error('Error adding artist:', error);
     throw new ServiceError('LIDARR_API_ERROR', `Failed to add artist: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1108,4 +1116,165 @@ export async function clearDownloadHistory(): Promise<boolean> {
     console.error('Error clearing download history:', error);
     return false;
   }
+}
+// ─── Request primitives (#435/#436) ──────────────────────────────────────────
+// apiFetch's default timeout is 5 s on the server, which is too short right after Lidarr adds an
+// artist (a full-library read stalled past it on prod). Everything here gets 30 s.
+// Unlike the helpers above, these THROW on API errors. The request flow must
+// tell "Lidarr said no such artist" apart from "Lidarr didn't answer", or it
+// would try to re-add an artist that is already there.
+
+export const LIDARR_REQUEST_TIMEOUT_MS = 30_000;
+const reqFetch = <T>(endpoint: string, init: RequestInit = {}) =>
+  apiFetch<T>(endpoint, init, DEFAULT_RETRY_CONFIG, LIDARR_REQUEST_TIMEOUT_MS);
+
+/** An artist as Lidarr stores it, with the fields a PUT needs. */
+export type LidarrArtistRecord = LidarrArtist & {
+  monitored: boolean;
+  monitorNewItems?: 'all' | 'new' | 'none';
+  metadataProfileId: number;
+  qualityProfileId: number;
+  rootFolderPath?: string;
+  path?: string;
+};
+
+export type LidarrAlbumRecord = LidarrAlbum & { monitored: boolean };
+
+export interface LidarrMetadataProfile {
+  id: number;
+  name: string;
+  primaryAlbumTypes: Array<{ albumType: { id: number; name: string }; allowed: boolean }>;
+  secondaryAlbumTypes: Array<{ albumType: { id: number; name: string }; allowed: boolean }>;
+  releaseStatuses: Array<{ releaseStatus: { id: number; name: string }; allowed: boolean }>;
+}
+
+/** One artist by Lidarr id (cheap; use this to re-read after a write). */
+export async function getArtistRecord(id: number): Promise<LidarrArtistRecord> {
+  return reqFetch<LidarrArtistRecord>(`/artist/${id}`);
+}
+
+/** The artist with this MusicBrainz id, or null if Lidarr doesn't have it. Throws if Lidarr is down. */
+export async function findArtistByMbid(mbid: string): Promise<LidarrArtistRecord | null> {
+  // ?mbId= returns just that artist (3 KB, ~10 ms vs 10 MB for the full list).
+  // The .find also covers a Lidarr that ignores the filter and returns everything.
+  const artists = await reqFetch<LidarrArtistRecord[]>(`/artist?mbId=${encodeURIComponent(mbid)}`);
+  return artists.find(a => a.foreignArtistId === mbid) ?? null;
+}
+
+/** Look an artist up on MusicBrainz (through Lidarr) by exact MBID. */
+export async function lookupArtistByMbid(mbid: string): Promise<LidarrArtist | null> {
+  const results = await apiFetch<LidarrArtist[]>(
+    `/artist/lookup?term=${encodeURIComponent(`lidarr:${mbid}`)}`,
+    {},
+    DEFAULT_RETRY_CONFIG,
+    LIDARR_REQUEST_TIMEOUT_MS,
+  );
+  return results.find(a => a.foreignArtistId === mbid) ?? null;
+}
+
+/** PUT the whole artist back with some fields changed. */
+export async function updateArtist(
+  artist: LidarrArtistRecord,
+  changes: Partial<Pick<LidarrArtistRecord, 'monitored' | 'monitorNewItems' | 'metadataProfileId'>>,
+): Promise<LidarrArtistRecord> {
+  return reqFetch<LidarrArtistRecord>(`/artist/${artist.id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ ...artist, ...changes }),
+  });
+}
+
+/** Albums Lidarr knows for an artist. Throws if Lidarr is down. */
+export async function listArtistAlbums(artistId: number): Promise<LidarrAlbumRecord[]> {
+  return reqFetch<LidarrAlbumRecord[]>(`/album?artistId=${artistId}`);
+}
+
+/** An album with the artist Lidarr files it under (GET /album?foreignAlbumId= includes it). */
+export type LidarrAlbumWithArtist = LidarrAlbumRecord & {
+  artist?: { artistName: string; foreignArtistId: string; monitored: boolean };
+};
+
+/** The album with this MusicBrainz release-group id, under whichever artist holds it, or null. */
+export async function findAlbumByForeignId(releaseGroupId: string): Promise<LidarrAlbumWithArtist | null> {
+  const albums = await reqFetch<LidarrAlbumWithArtist[]>(`/album?foreignAlbumId=${encodeURIComponent(releaseGroupId)}`);
+  return albums.find(a => a.foreignAlbumId === releaseGroupId) ?? null;
+}
+
+/** Who Lidarr's metadata server files a release group under. */
+export type ReleaseOwnerLookup =
+  | { kind: 'found'; title: string; albumType?: string; secondaryTypes: string[]; artistMbid: string; artistName: string }
+  /** The metadata server answered: it has no such release. */
+  | { kind: 'none' }
+  /** 503 / hang / network: the metadata server failed, which is not an answer. Ask again later. */
+  | { kind: 'unknown'; reason: string };
+
+const OWNER_LOOKUP_TIMEOUT_MS = 10_000; // it answers in ~0.3 s; a hang means it's failing
+const NO_RETRY: RetryConfig = { ...DEFAULT_RETRY_CONFIG, maxRetries: 0 };
+
+function secondaryTypeNames(types: unknown): string[] {
+  if (!Array.isArray(types)) return [];
+  return types
+    .map(t => (typeof t === 'string' ? t : (t as { name?: unknown } | null)?.name))
+    .filter((t): t is string => typeof t === 'string' && t.length > 0);
+}
+
+/**
+ * Ask Lidarr's metadata server (SkyHook) who a MusicBrainz release group belongs to. Lidarr files a
+ * release only under its FIRST credited artist, so a collab led by someone else never appears under
+ * the artist you searched: RLGN's "SHEEPSTEP" is Ilya Gadaev's, "PANITA" is DUMMFÖUND's.
+ * `200 []` is a real "no such release". A 503 or a hang is the metadata server failing (both seen on
+ * prod 2026-11-19), not an answer.
+ */
+export async function lookupReleaseOwner(releaseGroupId: string): Promise<ReleaseOwnerLookup> {
+  let results: unknown;
+  try {
+    results = await apiFetch(
+      `/album/lookup?term=${encodeURIComponent(`lidarr:${releaseGroupId}`)}`,
+      {},
+      NO_RETRY,
+      OWNER_LOOKUP_TIMEOUT_MS,
+    );
+  } catch (err) {
+    return { kind: 'unknown', reason: err instanceof Error ? err.message : String(err) };
+  }
+  if (!Array.isArray(results)) return { kind: 'unknown', reason: 'unexpected response' };
+  const album = (results as Array<LidarrAlbum & { artist?: { artistName?: string; foreignArtistId?: string } }>)
+    .find(a => a.foreignAlbumId === releaseGroupId);
+  if (!album) return { kind: 'none' };
+  const artist = album.artist;
+  if (!artist?.foreignArtistId || !artist.artistName) return { kind: 'unknown', reason: 'lookup returned no artist' };
+  return {
+    kind: 'found',
+    title: album.title,
+    albumType: album.albumType,
+    secondaryTypes: secondaryTypeNames(album.secondaryTypes),
+    artistMbid: artist.foreignArtistId,
+    artistName: artist.artistName,
+  };
+}
+
+/** Monitor (or unmonitor) albums with the bulk endpoint. */
+export async function setAlbumsMonitored(albumIds: number[], monitored: boolean): Promise<void> {
+  await reqFetch('/album/monitor', {
+    method: 'PUT',
+    body: JSON.stringify({ albumIds, monitored }),
+  });
+}
+
+export async function getMetadataProfiles(): Promise<LidarrMetadataProfile[]> {
+  return reqFetch<LidarrMetadataProfile[]>('/metadataprofile');
+}
+
+export async function createMetadataProfile(profile: Omit<LidarrMetadataProfile, 'id'>): Promise<LidarrMetadataProfile> {
+  return reqFetch<LidarrMetadataProfile>('/metadataprofile', {
+    method: 'POST',
+    body: JSON.stringify(profile),
+  });
+}
+
+/** Ask Lidarr to re-read the artist from MusicBrainz (applies a new metadata profile). */
+export async function refreshArtist(artistId: number): Promise<void> {
+  await reqFetch('/command', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'RefreshArtist', artistId }),
+  });
 }
