@@ -46,7 +46,9 @@ export function saveResumePoint(beat: LabBeat, reason: ResumeReason) {
 export function loadResumePoint(now = Date.now()): ResumePoint | null {
   try {
     const p = JSON.parse(localStorage.getItem(KEY) ?? 'null') as ResumePoint | null;
-    if (!p || typeof p.savedAt !== 'number' || now - p.savedAt > RESUME_MAX_AGE_MS) return null;
+    // aged from the set's last heartbeat, not from the offer: a page found dead days later is a
+    // days-old set
+    if (!p || typeof p.t !== 'number' || now - p.t > RESUME_MAX_AGE_MS) return null;
     return p.song || p.songId ? p : null;
   } catch {
     return null;

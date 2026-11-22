@@ -14,7 +14,7 @@
  */
 
 import type { MixMode } from './plan';
-import { saveResumePoint } from './resume';
+import { clearResumePoint, loadResumePoint, saveResumePoint } from './resume';
 
 export type LogLevel = 'info' | 'warn' | 'error';
 
@@ -238,6 +238,8 @@ const vis = () => (typeof document !== 'undefined' ? document.visibilityState : 
 export const ALIVE_MS = 20_000;
 /** How long to wait for that page's next heartbeat (the engine beats every 5 s). */
 export const CONFIRM_MS = 12_000;
+/** Once that page is known to be alive, how often the offer catches up with its set. */
+export const FOLLOW_MS = 5_000;
 let checked = false;
 
 function readBeat(): LabBeat | null {
@@ -263,7 +265,8 @@ function reportDied(prev: LabBeat) {
  *
  * A heartbeat a few seconds old is not proof: on 2026-11-19 a second copy of the app reported the
  * Lab page dead while it kept playing hidden for ten more minutes. So a fresh one is only called dead
- * if it doesn't beat again within CONFIRM_MS; if it does, its set is open in another window.
+ * if it doesn't beat again within CONFIRM_MS; if it does, its set is open in another window, and the
+ * offer follows that set from then on: the banner shows where it is now, and a move picks it up there.
  */
 export function checkPreviousLabPage() {
   if (!isBrowser() || checked) return;
@@ -274,32 +277,57 @@ export function checkPreviousLabPage() {
     reportDied(prev);
     return;
   }
-  let settled = false;
-  const finish = () => {
-    settled = true;
+  let alive = false;
+  let stopped = false;
+  let lastT = prev.t;
+  let follow: ReturnType<typeof setInterval> | undefined;
+  const stop = () => {
+    stopped = true;
     clearTimeout(timer);
+    clearInterval(follow);
     window.removeEventListener('storage', onStorage);
   };
-  /** the other page beat again (or closed): it's alive */
+  /**
+   * Read that page's latest heartbeat. Beating again means it's alive; from then on each new beat
+   * moves the offer along, until the offer is taken up or dismissed, the set ends there, or that
+   * page goes away on purpose.
+   */
   const look = () => {
     const now = readBeat();
-    if (settled || !now || now.sid !== prev.sid) return;
-    if (now.clean) finish();
-    else if (now.t > prev.t) {
-      finish();
-      labLog('set still open in another window', { prevSid: now.sid, status: now.status, song: now.song, pos: now.pos, path: location.pathname }, 'warn');
-      saveResumePoint(now, 'other-window');
+    if (stopped || !now || now.sid !== prev.sid) return;
+    if (now.clean) {
+      stop();
+      return;
     }
+    if (now.t <= lastT) return;
+    lastT = now.t;
+    if (now.status === 'idle') {
+      // the set ended there (stopped, or played out): nothing left to move
+      stop();
+      if (alive && loadResumePoint()?.sid === prev.sid) clearResumePoint();
+      return;
+    }
+    if (!alive) {
+      alive = true;
+      clearTimeout(timer);
+      follow = setInterval(look, FOLLOW_MS);
+      labLog('set still open in another window', { prevSid: now.sid, status: now.status, song: now.song, pos: now.pos, path: location.pathname }, 'warn');
+    } else if (loadResumePoint()?.sid !== prev.sid) {
+      // taken up, dismissed, or a new set started
+      stop();
+      return;
+    }
+    saveResumePoint(now, 'other-window');
   };
-  // another window's writes arrive as storage events; the timer reads it once more in any case
+  // another window's writes arrive as storage events; the timer, then the follow, read it as well
   const onStorage = (e: StorageEvent) => {
     if (e.key === BEAT_KEY) look();
   };
   window.addEventListener('storage', onStorage);
   const timer = setTimeout(() => {
     look();
-    if (settled) return;
-    finish();
+    if (alive || stopped) return;
+    stop();
     const now = readBeat();
     reportDied(now && now.sid === prev.sid ? now : prev);
   }, CONFIRM_MS);

@@ -23,7 +23,7 @@ describe('resume point (#439)', () => {
   it('keeps what the lost page was playing, without the clean flag, until it goes stale', () => {
     const changed = vi.fn();
     const off = subscribeResume(changed);
-    saveResumePoint({ sid: 'n2t1sn', t: 1, status: 'paused', song: 'A – One', songId: 'a1', pos: 134, clean: true }, 'died');
+    saveResumePoint({ sid: 'n2t1sn', t: Date.now(), status: 'paused', song: 'A – One', songId: 'a1', pos: 134, clean: true }, 'died');
     expect(changed).toHaveBeenCalledTimes(1);
     const p = loadResumePoint();
     expect(p).toMatchObject({ reason: 'died', sid: 'n2t1sn', song: 'A – One', songId: 'a1', pos: 134 });
@@ -36,7 +36,7 @@ describe('resume point (#439)', () => {
   });
 
   it('hands useSyncExternalStore the same object until the offer changes', () => {
-    saveResumePoint({ sid: 'n2t1sn', t: 1, status: 'paused', song: 'A – One' }, 'died');
+    saveResumePoint({ sid: 'n2t1sn', t: Date.now(), status: 'paused', song: 'A – One' }, 'died');
     const first = resumeSnapshot();
     expect(first).toMatchObject({ song: 'A – One' });
     expect(resumeSnapshot()).toBe(first);
@@ -44,8 +44,16 @@ describe('resume point (#439)', () => {
     expect(resumeSnapshot()).toBeNull();
   });
 
+  it("ages an offer from the set's last heartbeat, not from when the offer was made", () => {
+    // a page found dead three days after it went: the offer is made now, the set is three days old
+    saveResumePoint({ sid: 'old', t: Date.now() - 3 * 24 * 60 * 60 * 1000, status: 'playing', song: 'A – One' }, 'died');
+    expect(loadResumePoint()).toBeNull();
+    saveResumePoint({ sid: 'recent', t: Date.now() - 60_000, status: 'playing', song: 'A – One' }, 'died');
+    expect(loadResumePoint()).toMatchObject({ sid: 'recent' });
+  });
+
   it('has nothing to offer for a heartbeat without a song', () => {
-    saveResumePoint({ sid: 'x', t: 1, status: 'loading' }, 'died');
+    saveResumePoint({ sid: 'x', t: Date.now(), status: 'loading' }, 'died');
     expect(loadResumePoint()).toBeNull();
   });
 });

@@ -83,6 +83,59 @@ describe('Lab flight recorder', () => {
     expect(loadResumePoint()).toMatchObject({ reason: 'other-window', sid: a.labLogSid(), songId: 'a1' });
   });
 
+  it('the offer follows the set while the other window plays it, and stays down once dismissed (#439)', async () => {
+    const a = await freshLog();
+    a.labBeat({ status: 'playing', song: 'A – One', songId: 'a1', pos: 10 });
+    const b = await freshLog();
+    b.checkPreviousLabPage();
+    const { clearResumePoint, loadResumePoint } = await import('../resume');
+    vi.setSystemTime(Date.now() + 5000);
+    a.labBeat({ status: 'playing', song: 'A – One', songId: 'a1', pos: 15 });
+    window.dispatchEvent(new StorageEvent('storage', { key: 'aidj:dj-lab:beat' }));
+    expect(loadResumePoint()).toMatchObject({ reason: 'other-window', songId: 'a1', pos: 15 });
+    // minutes later the other window is two songs on: "Move it here" must pick the set up there
+    vi.setSystemTime(Date.now() + 4 * 60_000);
+    a.labBeat({ status: 'playing', song: 'C – Three', songId: 'c3', pos: 42 });
+    await vi.advanceTimersByTimeAsync(b.FOLLOW_MS);
+    expect(loadResumePoint()).toMatchObject({ reason: 'other-window', song: 'C – Three', songId: 'c3', pos: 42 });
+    // dismissed: the next beats don't bring it back
+    clearResumePoint();
+    vi.setSystemTime(Date.now() + 5000);
+    a.labBeat({ status: 'playing', song: 'C – Three', songId: 'c3', pos: 47 });
+    await vi.advanceTimersByTimeAsync(3 * b.FOLLOW_MS);
+    expect(loadResumePoint()).toBeNull();
+  });
+
+  it('takes the offer down when the set ends in the other window', async () => {
+    const a = await freshLog();
+    a.labBeat({ status: 'playing', song: 'A – One', songId: 'a1', pos: 10 });
+    const b = await freshLog();
+    b.checkPreviousLabPage();
+    const { loadResumePoint } = await import('../resume');
+    vi.setSystemTime(Date.now() + 5000);
+    a.labBeat({ status: 'playing', song: 'A – One', songId: 'a1', pos: 15 });
+    window.dispatchEvent(new StorageEvent('storage', { key: 'aidj:dj-lab:beat' }));
+    expect(loadResumePoint()).not.toBeNull();
+    // the engine's stop (or a set that played out) writes one last, idle beat
+    vi.setSystemTime(Date.now() + 5000);
+    a.labBeat({ status: 'idle' });
+    await vi.advanceTimersByTimeAsync(b.FOLLOW_MS);
+    expect(loadResumePoint()).toBeNull();
+  });
+
+  it("doesn't call a page dead that went away on purpose while it waited", async () => {
+    const a = await freshLog();
+    a.startLabLog();
+    a.labBeat({ status: 'playing', song: 'A – One', songId: 'a1' });
+    const b = await freshLog();
+    b.checkPreviousLabPage();
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false }));
+    await vi.advanceTimersByTimeAsync(b.CONFIRM_MS);
+    expect(b.labLogEntries().some((e) => e.ev === 'previous page died mid-set')).toBe(false);
+    const { loadResumePoint } = await import('../resume');
+    expect(loadResumePoint()).toBeNull();
+  });
+
   it('also finds the next beat without a storage event, when its wait runs out', async () => {
     const a = await freshLog();
     a.labBeat({ status: 'playing', song: 'A – One' });
