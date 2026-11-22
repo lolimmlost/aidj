@@ -904,6 +904,12 @@ export class LabEngine {
       next: this.snap.next ? `${this.snap.next.state} ${songLabel(this.snap.next.song)}` : undefined,
       ctx: this.ctx?.state,
       heldMB: this.heldMB(),
+      // what a resume needs if this page goes (#439)
+      setId: this.setId || undefined,
+      songId: this.snap.now?.song.id,
+      nextId: this.snap.next && this.snap.next.state !== 'failed' ? this.snap.next.song.id : undefined,
+      setBpm: this.snap.status === 'idle' ? undefined : this.snap.setBpm,
+      mode: this.snap.status === 'idle' ? undefined : this.snap.mode,
     });
   }
 
