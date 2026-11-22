@@ -42,6 +42,9 @@ vi.mock('../lidarr', () => ({
   lookupArtistByMbid: vi.fn(async (mbid: string) =>
     lidarr.catalog[mbid]?.artist ?? (lidarr.lookup?.foreignArtistId === mbid ? lidarr.lookup : null)),
   addArtist: vi.fn(async (a: LidarrArtistRecord) => {
+    if (lidarr.artists.some(x => x.foreignArtistId === a.foreignArtistId)) {
+      throw new ServiceError('LIDARR_API_ERROR', 'Failed to add artist: API request failed: 400 Bad Request');
+    }
     const id = lidarr.nextId++;
     const created = { ...a, id, monitored: true, monitorNewItems: 'none' as const, metadataProfileId: 1, qualityProfileId: 1 };
     lidarr.artists.push(created);
@@ -90,8 +93,10 @@ vi.mock('../lidarr', () => ({
     }
   }),
   searchForAlbum: vi.fn(async (id: number) => { lidarr.searched.push(id); return true; }),
-  getMetadataProfiles: vi.fn(async () => lidarr.profiles),
+  // a fresh list per read, as over HTTP: a profile made after the read isn't in it
+  getMetadataProfiles: vi.fn(async () => [...lidarr.profiles]),
   createMetadataProfile: vi.fn(async (p: Omit<LidarrMetadataProfile, 'id'>) => {
+    if (lidarr.profiles.some(x => x.name === p.name)) throw new ServiceError('LIDARR_API_ERROR', 'API request failed: 400 Bad Request');
     const created = { ...p, id: 10 + lidarr.profiles.length };
     lidarr.profiles.push(created);
     return created;
@@ -228,6 +233,25 @@ describe('requestFromLidarr — release mode (#436)', () => {
     lidarr.albums = [album({ monitored: true })];
     expect((await requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'release', releaseGroupId: RG_ALBUM })).outcome).toBe('already_monitored');
     expect(lidarr.searched).toEqual([]);
+  });
+
+  it('gets an album that has some files but that nothing is fetching (it said "already waiting")', async () => {
+    const some = { trackFileCount: 4, trackCount: 10, totalTrackCount: 10, sizeOnDisk: 1, percentOfTracks: 40 };
+    lidarr.artists = [artist({ monitored: true })];
+    lidarr.albums = [album({ statistics: some })];
+    const r = await requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'release', releaseGroupId: RG_ALBUM });
+    expect(r.outcome).toBe('monitored');
+    expect(lidarr.albums[0].monitored).toBe(true);
+    expect(lidarr.searched).toEqual([31631]);
+
+    // a monitored album under an unmonitored artist: Lidarr isn't fetching the rest either
+    lidarr.artists = [artist({ monitored: false })];
+    lidarr.albums = [album({ monitored: true, statistics: some })];
+    lidarr.searched = [];
+    const r2 = await requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'release', releaseGroupId: RG_ALBUM });
+    expect(r2.outcome).toBe('monitored');
+    expect(lidarr.artists[0].monitored).toBe(true);
+    expect(lidarr.searched).toEqual([31631]);
   });
 
   it('treats a monitored album under an UNmonitored artist as not wanted (the #435 state)', async () => {
@@ -441,17 +465,64 @@ describe('collabs and releases Lidarr can\'t get (#436)', () => {
   });
 });
 
+describe('one request at a time (#437 review)', () => {
+  it('Follow and Get pressed together on an artist Lidarr lacks: one add, and both land', async () => {
+    lidarr.catalog[MBID] = { artist: artist(), albums: [album()] };
+    const [follow, get] = await Promise.all([
+      requestFromLidarr({ mbid: MBID, artistName: '千葉雄喜', mode: 'artist' }),
+      requestFromLidarr({ mbid: MBID, artistName: '千葉雄喜', mode: 'release', releaseGroupId: RG_ALBUM, releaseType: 'Album' }),
+    ]);
+    expect(api.addArtist).toHaveBeenCalledOnce();
+    expect(follow.outcome).toBe('monitored');
+    expect(get).toMatchObject({ outcome: 'monitored', releaseTitle: 'Eien' });
+    expect(lidarr.artists).toHaveLength(1);
+    expect(lidarr.artists[0]).toMatchObject({ monitored: true, monitorNewItems: 'new' });
+    expect(lidarr.albums[0].monitored).toBe(true);
+  });
+
+  it('two singles at once from different artists share one widened profile', async () => {
+    const OTHER = 'aaaaaaaa-0000-4000-8000-000000000000';
+    const RG_OTHER = 'bbbbbbbb-0000-4000-8000-000000000000';
+    lidarr.artists = [artist(), artist({ id: 2504, foreignArtistId: OTHER, artistName: 'Other' })];
+    lidarr.hiddenUntilRefresh = [
+      album({ id: 5, foreignAlbumId: RG_SINGLE }),
+      album({ id: 6, artistId: 2504, foreignAlbumId: RG_OTHER }),
+    ];
+    const results = await Promise.all([
+      requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'release', releaseGroupId: RG_SINGLE, releaseType: 'Single' }),
+      requestFromLidarr({ mbid: OTHER, artistName: 'Other', mode: 'release', releaseGroupId: RG_OTHER, releaseType: 'Single' }),
+    ]);
+    expect(results.map(r => r.outcome)).toEqual(['monitored', 'monitored']);
+    expect(api.createMetadataProfile).toHaveBeenCalledOnce();
+    const widened = lidarr.profiles.find(p => p.name === 'Standard + Singles/EPs')!;
+    expect(lidarr.artists.map(a => a.metadataProfileId)).toEqual([widened.id, widened.id]);
+  });
+
+  it('a failed request does not hold up the next one', async () => {
+    lidarr.timeoutNext = 2; // the first request's artist read stalls twice: it fails
+    const [first, second] = await Promise.allSettled([
+      requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'artist' }),
+      (lidarr.artists = [artist()], requestFromLidarr({ mbid: MBID, artistName: 'x', mode: 'artist' })),
+    ]);
+    expect(first.status).toBe('rejected');
+    expect(second).toMatchObject({ status: 'fulfilled', value: { outcome: 'monitored' } });
+  });
+});
+
 describe('getArtistRequestStatus', () => {
   it('reports the artist and each album state keyed by release group', async () => {
     lidarr.artists = [artist({ monitored: true, monitorNewItems: 'new' })];
     lidarr.albums = [
       album({ monitored: true }),
-      album({ id: 2, foreignAlbumId: RG_SINGLE, statistics: { trackFileCount: 1, trackCount: 3, totalTrackCount: 3, sizeOnDisk: 1, percentOfTracks: 33 } }),
+      album({ id: 2, foreignAlbumId: RG_SINGLE, monitored: true, statistics: { trackFileCount: 1, trackCount: 3, totalTrackCount: 3, sizeOnDisk: 1, percentOfTracks: 33 } }),
+      album({ id: 3, foreignAlbumId: RG_COLLAB, statistics: { trackFileCount: 2, trackCount: 8, totalTrackCount: 8, sizeOnDisk: 1, percentOfTracks: 25 } }),
     ];
     const s = await getArtistRequestStatus(MBID);
     expect(s).toMatchObject({ inLidarr: true, artistMonitored: true, followingNewReleases: true });
     expect(s.albums[RG_ALBUM].state).toBe('wanted');
     expect(s.albums[RG_SINGLE]).toMatchObject({ state: 'partial', trackFiles: 1, tracks: 3 });
+    // some files but not monitored: nothing more is coming, so the card offers Get
+    expect(s.albums[RG_COLLAB]).toMatchObject({ state: 'not_monitored', trackFiles: 2, tracks: 8 });
   });
 
   it('reports an absent artist', async () => {

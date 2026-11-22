@@ -129,7 +129,7 @@ export function ArtistRequestPanel({
     );
   };
 
-  const handleSong = (e: React.FormEvent) => {
+  const handleSong = (e: React.SyntheticEvent) => {
     e.preventDefault();
     const title = songTitle.trim();
     if (!title) return;
@@ -207,7 +207,13 @@ export function ArtistRequestPanel({
                         <div className="flex-1 min-w-0">
                           <p className="text-sm truncate">{rg.title}</p>
                           <p className="text-xs text-muted-foreground truncate">
-                            {[rg.firstReleaseDate?.slice(0, 4), album?.filedUnder && `filed under ${album.filedUnder}`, req]
+                            {[
+                              rg.firstReleaseDate?.slice(0, 4),
+                              album?.filedUnder && `filed under ${album.filedUnder}`,
+                              // some files, and nothing fetching the rest: Get finishes it
+                              album?.state === 'not_monitored' && album.trackFiles > 0 && `${album.trackFiles}/${album.tracks} in library`,
+                              req,
+                            ]
                               .filter(Boolean)
                               .join(' · ')}
                           </p>

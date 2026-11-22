@@ -137,9 +137,10 @@ export function albumState(album: LidarrAlbumRecord, artistMonitored: boolean): 
   const files = album.statistics?.trackFileCount ?? 0;
   const total = album.statistics?.totalTrackCount ?? album.statistics?.trackCount ?? 0;
   if (total > 0 && files >= total) return 'in_library';
-  if (files > 0) return 'partial';
-  if (album.monitored && artistMonitored) return 'wanted';
-  return 'not_monitored';
+  // Lidarr fetches the rest only while the album AND its artist are monitored. Some files alone
+  // don't mean more is coming: that album still needs a Get.
+  if (!(album.monitored && artistMonitored)) return 'not_monitored';
+  return files > 0 ? 'partial' : 'wanted';
 }
 
 export function normalizeTitle(s: string): string {
@@ -150,6 +151,19 @@ export function normalizeTitle(s: string): string {
     .replace(/\s*[([][^)\]]*(remaster|deluxe|edition|version)[^)\]]*[)\]]/g, '')
     .replace(/[\s\p{P}]+/gu, ' ')
     .trim();
+}
+
+/**
+ * One request at a time, server-wide. Two at once (Follow and Get pressed together, or two users)
+ * would both add an artist Lidarr doesn't have yet (the second add is a 400), PUT whole artist
+ * records over each other's changes, and both create the same "+ Singles/EPs" profile. Requests
+ * are rare and take seconds, so the wait costs little.
+ */
+let queue: Promise<unknown> = Promise.resolve();
+function oneAtATime<T>(fn: () => Promise<T>): Promise<T> {
+  const run = queue.then(fn);
+  queue = run.catch(() => undefined);
+  return run;
 }
 
 const isTimeout = (err: unknown) => err instanceof ServiceError && err.code === 'LIDARR_TIMEOUT_ERROR';
@@ -495,7 +509,10 @@ export async function requestFromLidarr(
       releaseType: rg.primaryType,
     });
   }
+  return oneAtATime(() => requestArtistOrRelease(input));
+}
 
+async function requestArtistOrRelease(input: RequestInput): Promise<RequestResult> {
   const ensured = await ensureArtist(input.mbid, input.artistName);
   if (!ensured) {
     return { outcome: 'not_found', message: `Lidarr couldn't find ${input.artistName} on MusicBrainz.` };

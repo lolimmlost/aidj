@@ -89,6 +89,19 @@ describe('ArtistRequestPanel', () => {
     expect(screen.getByRole('button', { name: 'Get 億万長者' })).toBeInTheDocument();
   });
 
+  it('offers Get for a release with some files that nothing is fetching, and says how much is there', async () => {
+    mockFetch({
+      ...emptyStatus,
+      inLidarr: true,
+      albums: { 'rg-album': { state: 'not_monitored', title: 'Eien', trackFiles: 4, tracks: 10 } },
+    });
+    renderPanel();
+    const row = (await screen.findByText('Eien')).closest('li')!;
+    await waitFor(() => expect(within(row).getByText(/4\/10 in library/)).toBeInTheDocument());
+    expect(within(row).getByRole('button', { name: 'Get Eien' })).toBeInTheDocument();
+    expect(within(row).queryByText(/downloading/i)).not.toBeInTheDocument();
+  });
+
   it('Get posts a release request and reports the outcome', async () => {
     const fetchMock = mockFetch(emptyStatus, { outcome: 'monitored', message: '"STAR" is monitored and waiting for download.' });
     renderPanel();
