@@ -4,7 +4,7 @@
  * A launch can sit on a white screen with nothing in the server log (2026-11-20: three reopens of
  * the iPhone PWA before one loaded, #443). Logging that runs inside the app can't report it: the
  * app is what didn't start. So this small script runs inline in the page's <head>, ahead of the
- * stylesheet and the app's scripts. It names the page (`window.__aidjPage.id`, which the flight
+ * app's scripts. It names the page (`window.__aidjPage.id`, which the flight
  * recorder then uses as its page id), notes resources that fail to load and early errors, and if
  * the app hasn't marked itself started after BOOT_STALL_MS, it sends one "app did not start"
  * event with what it can see to the flight recorder's endpoint, where it lands in the server log
@@ -12,6 +12,12 @@
  *
  * If the app does start later, its "page load" event carries the same id, `bootMs` and
  * `stallReported: true`.
+ *
+ * Two things it can't see. It runs only once the stylesheet has loaded: TanStack gives the
+ * stylesheet link precedence "default", so React hoists it to the top of <head>, and an inline
+ * script waits for a stylesheet above it. A page stuck on its stylesheet is not reported; its
+ * `[PAGE]` server line still shows that the HTML went out (src/lib/services/page-request-log.ts).
+ * And the endpoint takes only the admin's reports, like the Lab, so a signed-out page's is dropped.
  *
  * Plain ES5 with no imports: it runs before any bundle.
  */

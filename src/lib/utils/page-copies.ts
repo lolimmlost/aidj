@@ -41,6 +41,8 @@ const COLLECT_MS = 1500;
 interface CopyMessage {
   type: 'hello' | 'here';
   from: string;
+  /** on 'here': the copy whose hello it answers */
+  to?: string;
   info?: CopyInfo;
 }
 
@@ -68,10 +70,13 @@ export function watchPageCopies(opts: WatchCopiesOptions): () => void {
   const onMessage = (e: MessageEvent) => {
     const msg = e.data as unknown;
     if (!isCopyMessage(msg) || msg.from === opts.id) return;
+    // every copy hears every answer: one to another copy's hello is not about this one
+    // (an answer without `to` comes from a copy that predates it: take it)
+    if (msg.type === 'here' && msg.to !== undefined && msg.to !== opts.id) return;
     if (msg.type === 'hello') {
       // a copy opened while this one is alive: answer it, and say so in this copy's own log
       const me = info();
-      ch.postMessage({ type: 'here', from: opts.id, info: me } satisfies CopyMessage);
+      ch.postMessage({ type: 'here', from: opts.id, to: msg.from, info: me } satisfies CopyMessage);
       opts.log('another copy opened', { other: msg.from, otherPath: msg.info?.path, otherVisibility: msg.info?.visibility, ...me }, 'warn');
     } else if (collecting) {
       answers.set(msg.from, { id: msg.from, ...msg.info });

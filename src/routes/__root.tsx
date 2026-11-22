@@ -213,7 +213,7 @@ function RootDocument({ children }: { readonly children: React.ReactNode }) {
     // suppress since we're updating the "dark" class in ThemeProvider
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* First in <head>: reports a page whose app never starts, even one stuck behind its stylesheet (#446) */}
+        {/* Reports a page whose app never starts (#446). React hoists the stylesheet above it: see boot-watchdog.ts for what it misses */}
         <ScriptOnce>{BOOT_SCRIPT}</ScriptOnce>
         <HeadContent />
       </head>
