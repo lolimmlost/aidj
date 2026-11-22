@@ -71,6 +71,29 @@ describe('watchPageCopies (#446)', () => {
     expect(log).toHaveBeenCalledWith('other copy answered late', { id: 'sleeper', path: '/dj/lab', visibility: 'hidden' }, 'warn');
   });
 
+  it('a copy hears only the answers to its own hello, not the ones meant for a third copy', () => {
+    const open = channelHub();
+    const aLog = vi.fn<CopyLog>();
+    const bLog = vi.fn<CopyLog>();
+    const cLog = vi.fn<CopyLog>();
+    watchPageCopies({ id: 'a', channel: open(), log: aLog, describe: () => ({ path: '/dashboard' }) });
+    vi.advanceTimersByTime(1500);
+    watchPageCopies({ id: 'b', channel: open(), log: bLog, describe: () => ({ path: '/library' }) });
+    vi.advanceTimersByTime(1500);
+    aLog.mockClear();
+    bLog.mockClear();
+    // a third copy opens: a and b both answer it on the one channel, so each hears the other's answer
+    watchPageCopies({ id: 'c', channel: open(), log: cLog, describe: () => ({ path: '/dj/lab' }) });
+    vi.advanceTimersByTime(1500);
+    expect(aLog.mock.calls.map(([ev]) => ev)).toEqual(['another copy opened']);
+    expect(bLog.mock.calls.map(([ev]) => ev)).toEqual(['another copy opened']);
+    expect(cLog).toHaveBeenCalledWith(
+      'other copies open',
+      { count: 2, copies: [expect.objectContaining({ id: 'a', path: '/dashboard' }), expect.objectContaining({ id: 'b', path: '/library' })] },
+      'warn',
+    );
+  });
+
   it('ignores its own messages and anything that is not a copy message', () => {
     const open = channelHub();
     const log = vi.fn<CopyLog>();
