@@ -220,6 +220,7 @@ const MARQUEE_MIN_MOVE_MS = 1200;
 const MARQUEE_HOLD_MS = 5000; // still at the start, between passes
 const MARQUEE_END_HOLD_MS = 1500; // still at the end so the tail can be read
 const MARQUEE_FIRST_DELAY_MS = 2000; // first pass after mount (rows mount while scrolling)
+const MARQUEE_FADE_PX = 24; // right-edge fade on titles that don't fit
 
 /**
  * Text that scrolls horizontally when content overflows its container: slides
@@ -235,8 +236,10 @@ function MarqueeText({ children }: { children: ReactNode }) {
     const outer = outerRef.current;
     const inner = innerRef.current;
     if (!outer || !inner) return;
-    const diff = inner.scrollWidth - outer.clientWidth;
-    setOverflow(diff > 1 ? diff : 0);
+    // Text width without the fade padding, which is only added once it overflows.
+    const padding = parseFloat(getComputedStyle(inner).paddingRight) || 0;
+    const diff = inner.scrollWidth - padding - outer.clientWidth;
+    setOverflow(diff > 1 ? diff + MARQUEE_FADE_PX : 0);
   }, []);
 
   useEffect(() => {
@@ -272,9 +275,18 @@ function MarqueeText({ children }: { children: ReactNode }) {
     return () => animation.cancel();
   }, [overflow]);
 
+  // A long title fades out at the right edge instead of being cut mid-letter.
+  // The padding (counted in the overflow) lets the tail clear the fade when scrolled.
+  const fade = overflow > 0
+    ? `linear-gradient(to right, #000 calc(100% - ${MARQUEE_FADE_PX}px), transparent)`
+    : undefined;
   return (
-    <div ref={outerRef} className="overflow-hidden whitespace-nowrap">
-      <span ref={innerRef} className="inline-block">
+    <div
+      ref={outerRef}
+      className="overflow-hidden whitespace-nowrap"
+      style={fade ? { maskImage: fade, WebkitMaskImage: fade } : undefined}
+    >
+      <span ref={innerRef} className="inline-block" style={overflow > 0 ? { paddingRight: MARQUEE_FADE_PX } : undefined}>
         {children}
       </span>
     </div>
