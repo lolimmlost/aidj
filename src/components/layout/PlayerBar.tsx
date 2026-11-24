@@ -1232,9 +1232,10 @@ export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
               </div>
             </div>
 
-            {/* Song Info — single-line: Title · Artist. Inline children flow as one text run, so `truncate` on the parent yields a single clean ellipsis instead of two stacked rows. */}
+            {/* Song Info — two lines, title over artist (same as the playlist rows, #454).
+                Each line is its own block so it truncates on its own. */}
             <div className="min-w-0 flex-1">
-              <div className={cn("text-sm truncate", showRemoteTime && "text-green-500")}>
+              <div className={cn("text-sm leading-tight truncate", showRemoteTime && "text-green-500")}>
                 {currentSong.artistId && currentSong.albumId ? (
                   <Link
                     to="/library/artists/$id/albums/$albumId"
@@ -1253,18 +1254,19 @@ export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
                     {currentSong.name || currentSong.title}
                   </span>
                 )}
-                <span className={cn("mx-1.5", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>·</span>
+              </div>
+              <div className={cn("text-xs leading-tight truncate mt-0.5", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>
                 {currentSong.artistId ? (
                   <Link
                     to="/library/artists/$id"
                     params={{ id: currentSong.artistId! }}
-                    className={cn("active:text-primary transition-colors", showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}
+                    className="active:text-primary transition-colors"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {currentSong.artist || 'Unknown'}
                   </Link>
                 ) : (
-                  <span className={cn(showRemoteTime ? "text-green-500/70" : "text-muted-foreground")}>{currentSong.artist || 'Unknown'}</span>
+                  <span>{currentSong.artist || 'Unknown'}</span>
                 )}
               </div>
               {showRemoteTime && (
@@ -1362,12 +1364,15 @@ export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
               className="rounded-md"
             />
           </div>
+          {/* min-h-0 on the block links: styles.css gives touch-device links a 44px
+              min-height, which stacked to 88px and pushed the title out of the
+              80px bar (iPhone landscape uses this layout). */}
           <div className="min-w-0">
             {currentSong.artistId && currentSong.albumId ? (
               <Link
                 to="/library/artists/$id/albums/$albumId"
                 params={{ id: currentSong.artistId!, albumId: currentSong.albumId }}
-                className={cn("font-display font-semibold truncate text-sm block hover:underline", showRemoteTime && "text-green-500")}
+                className={cn("font-display font-semibold truncate text-sm block min-h-0 hover:underline", showRemoteTime && "text-green-500")}
                 title="View album"
               >
                 {currentSong.name || currentSong.title}
@@ -1381,7 +1386,7 @@ export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
               <Link
                 to="/library/artists/$id"
                 params={{ id: currentSong.artistId! }}
-                className={cn("text-xs truncate block hover:underline", showRemoteTime ? "text-green-500/70" : "text-muted-foreground hover:text-foreground")}
+                className={cn("text-xs truncate block min-h-0 hover:underline", showRemoteTime ? "text-green-500/70" : "text-muted-foreground hover:text-foreground")}
               >
                 {currentSong.artist || 'Unknown'}
               </Link>
