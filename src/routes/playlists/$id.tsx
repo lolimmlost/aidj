@@ -213,9 +213,19 @@ function AlphabetRail({
   );
 }
 
+// Marquee timing (#450): one pass out and back, then a long hold so a list of
+// long titles isn't a wall of moving text.
+const MARQUEE_SPEED_PX_PER_S = 40;
+const MARQUEE_MIN_MOVE_MS = 1200;
+const MARQUEE_HOLD_MS = 5000; // still at the start, between passes
+const MARQUEE_END_HOLD_MS = 1500; // still at the end so the tail can be read
+const MARQUEE_FIRST_DELAY_MS = 2000; // first pass after mount (rows mount while scrolling)
+const MARQUEE_FADE_PX = 24; // right-edge fade on titles that don't fit
+
 /**
- * Text that scrolls horizontally when content overflows its container.
- * Pauses at each end so the user can read. No-ops when text fits.
+ * Text that scrolls horizontally when content overflows its container: slides
+ * to the end, holds, slides back, then holds ~5 s before the next pass. No-ops
+ * when text fits or the user prefers reduced motion.
  */
 function MarqueeText({ children }: { children: ReactNode }) {
   const outerRef = useRef<HTMLDivElement>(null);
@@ -226,28 +236,57 @@ function MarqueeText({ children }: { children: ReactNode }) {
     const outer = outerRef.current;
     const inner = innerRef.current;
     if (!outer || !inner) return;
-    const diff = inner.scrollWidth - outer.clientWidth;
-    setOverflow(diff > 1 ? diff : 0);
+    // Text width without the fade padding, which is only added once it overflows.
+    const padding = parseFloat(getComputedStyle(inner).paddingRight) || 0;
+    const diff = inner.scrollWidth - padding - outer.clientWidth;
+    setOverflow(diff > 1 ? diff + MARQUEE_FADE_PX : 0);
   }, []);
 
   useEffect(() => {
-
     measure();
     const ro = new ResizeObserver(measure);
     if (outerRef.current) ro.observe(outerRef.current);
     return () => ro.disconnect();
   }, [measure, children]);
 
+  // The hold is a fixed time while the move time scales with the overflow, so
+  // keyframe offsets are computed per row (CSS percentages can't express it).
+  useEffect(() => {
+    const inner = innerRef.current;
+    if (!inner || overflow <= 0 || typeof inner.animate !== 'function') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+    const move = Math.max(MARQUEE_MIN_MOVE_MS, (overflow / MARQUEE_SPEED_PX_PER_S) * 1000);
+    const total = MARQUEE_HOLD_MS + move + MARQUEE_END_HOLD_MS + move;
+    const at = (ms: number) => ms / total;
+    const start = 'translateX(0)';
+    const end = `translateX(-${overflow}px)`;
+    const animation = inner.animate(
+      [
+        { transform: start, offset: 0 },
+        { transform: start, offset: at(MARQUEE_HOLD_MS), easing: 'ease-in-out' },
+        { transform: end, offset: at(MARQUEE_HOLD_MS + move) },
+        { transform: end, offset: at(MARQUEE_HOLD_MS + move + MARQUEE_END_HOLD_MS), easing: 'ease-in-out' },
+        { transform: start, offset: 1 },
+      ],
+      // Negative delay = start partway into the opening hold.
+      { duration: total, iterations: Infinity, delay: MARQUEE_FIRST_DELAY_MS - MARQUEE_HOLD_MS },
+    );
+    return () => animation.cancel();
+  }, [overflow]);
+
+  // A long title fades out at the right edge instead of being cut mid-letter.
+  // The padding (counted in the overflow) lets the tail clear the fade when scrolled.
+  const fade = overflow > 0
+    ? `linear-gradient(to right, #000 calc(100% - ${MARQUEE_FADE_PX}px), transparent)`
+    : undefined;
   return (
-    <div ref={outerRef} className="overflow-hidden whitespace-nowrap">
-      <span
-        ref={innerRef}
-        className="inline-block"
-        style={overflow > 0 ? {
-          animation: `marquee-scroll ${3 + overflow * 0.04}s linear infinite`,
-          ['--marquee-distance' as string]: `-${overflow}px`,
-        } : undefined}
-      >
+    <div
+      ref={outerRef}
+      className="overflow-hidden whitespace-nowrap"
+      style={fade ? { maskImage: fade, WebkitMaskImage: fade } : undefined}
+    >
+      <span ref={innerRef} className="inline-block" style={overflow > 0 ? { paddingRight: MARQUEE_FADE_PX } : undefined}>
         {children}
       </span>
     </div>
@@ -287,16 +326,16 @@ function SongRowContent({
       </span>
 
       {/* Album Art Thumbnail */}
-      <div className="relative w-8 h-8 shrink-0">
+      <div className="relative w-11 h-11 shrink-0">
         {song.albumId ? (
           <img
-            src={`/api/navidrome/rest/getCoverArt?id=${song.albumId}&size=80`}
+            src={`/api/navidrome/rest/getCoverArt?id=${song.albumId}&size=96`}
             alt=""
-            className="w-8 h-8 rounded shrink-0 object-cover bg-muted"
+            className="w-11 h-11 rounded shrink-0 object-cover bg-muted"
             loading="lazy"
           />
         ) : (
-          <div className="w-8 h-8 rounded shrink-0 bg-muted flex items-center justify-center">
+          <div className="w-11 h-11 rounded shrink-0 bg-muted flex items-center justify-center">
             <Music2 className="h-3.5 w-3.5 text-muted-foreground/50" />
           </div>
         )}
@@ -316,25 +355,16 @@ function SongRowContent({
       <button
         type="button"
         aria-label={`Play ${title}`}
-        className="min-w-[6rem] flex-1 text-left py-0.5 min-h-[36px] sm:min-h-[32px] flex flex-col justify-center overflow-hidden"
+        className="min-w-[6rem] flex-1 text-left py-0.5 min-h-[44px] flex flex-col justify-center overflow-hidden"
       >
-        {/* Mobile: single line with title + artist */}
-        <div className={cn("text-sm sm:hidden", isCurrentSong && "text-primary")}>
-          <MarqueeText>
-            <span className="font-medium">{title}</span>
-            <span className="text-muted-foreground"> — {artist}</span>
-          </MarqueeText>
+        {/* Two lines on every screen: title (scrolls if long) over artist */}
+        <div className={cn("text-[15px] sm:text-sm leading-snug font-medium", isCurrentSong && "text-primary")}>
+          <MarqueeText>{title}</MarqueeText>
         </div>
-        {/* Desktop: title only (artist is a separate column) */}
-        <div className={cn("hidden sm:block text-sm font-medium truncate", isCurrentSong && "text-primary")}>
-          {title}
+        <div className="text-[13px] sm:text-xs leading-snug text-muted-foreground truncate">
+          {artist}
         </div>
       </button>
-
-      {/* Artist - desktop only (separate column) */}
-      <span className="hidden sm:block text-sm text-muted-foreground truncate w-24 md:w-32 lg:w-40 shrink min-w-0">
-        {artist}
-      </span>
 
       {/* Album - from md (between sm and md it left the title no room) */}
       <span className="hidden md:block text-sm text-muted-foreground truncate w-32 lg:w-40 shrink min-w-0">
@@ -525,8 +555,8 @@ interface VirtualizedPlaylistSongsProps {
   handleRef?: RefObject<PlaylistSongsListHandle | null>;
 }
 
-/** Row height estimate (py-1.5 + 32px art); real heights are measured. */
-const SONG_ROW_ESTIMATE = 44;
+/** Row height estimate (py-1.5 + 44px art); real heights are measured. */
+const SONG_ROW_ESTIMATE = 56;
 
 function PlaylistSongsList({
   songs,
@@ -653,9 +683,8 @@ function PlaylistSongsList({
       <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b border-border/50">
         <span className="w-6 shrink-0" /> {/* Drag handle space */}
         <span className="w-8 text-right shrink-0">#</span>
-        <span className="w-8 shrink-0" /> {/* Art space */}
+        <span className="w-11 shrink-0" /> {/* Art space */}
         <span className="flex-1 min-w-0">Title</span>
-        <span className="w-24 md:w-32 lg:w-40 shrink min-w-0">Artist</span>
         <span className="hidden md:block w-32 lg:w-40 shrink min-w-0">Album</span>
         <span className="w-12 text-right shrink-0">Time</span>
         <span className="hidden lg:block w-28 text-right shrink-0">Added</span>
