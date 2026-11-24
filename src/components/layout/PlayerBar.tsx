@@ -1364,12 +1364,15 @@ export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
               className="rounded-md"
             />
           </div>
+          {/* min-h-0 on the block links: styles.css gives touch-device links a 44px
+              min-height, which stacked to 88px and pushed the title out of the
+              80px bar (iPhone landscape uses this layout). */}
           <div className="min-w-0">
             {currentSong.artistId && currentSong.albumId ? (
               <Link
                 to="/library/artists/$id/albums/$albumId"
                 params={{ id: currentSong.artistId!, albumId: currentSong.albumId }}
-                className={cn("font-display font-semibold truncate text-sm block hover:underline", showRemoteTime && "text-green-500")}
+                className={cn("font-display font-semibold truncate text-sm block min-h-0 hover:underline", showRemoteTime && "text-green-500")}
                 title="View album"
               >
                 {currentSong.name || currentSong.title}
@@ -1383,7 +1386,7 @@ export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
               <Link
                 to="/library/artists/$id"
                 params={{ id: currentSong.artistId! }}
-                className={cn("text-xs truncate block hover:underline", showRemoteTime ? "text-green-500/70" : "text-muted-foreground hover:text-foreground")}
+                className={cn("text-xs truncate block min-h-0 hover:underline", showRemoteTime ? "text-green-500/70" : "text-muted-foreground hover:text-foreground")}
               >
                 {currentSong.artist || 'Unknown'}
               </Link>
