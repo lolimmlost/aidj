@@ -17,6 +17,8 @@
  * there and a wanted album is what actually triggers the download.
  */
 
+import { primaryArtist as getPrimaryArtist } from '../utils/primary-artist';
+
 // Helper function to queue songs to Lidarr
 // This searches for the specific album containing the song, not the entire artist discography
 export async function queueToLidarr(songs: { title: string; artist: string; album?: string }[]) {
@@ -78,7 +80,7 @@ export async function queueToLidarr(songs: { title: string; artist: string; albu
       console.log(`[Lidarr Queue] Processing: ${song.artist} - ${song.title}${song.album ? ` (Album: ${song.album})` : ''}`);
 
       // Step 1: Extract primary artist (handle collaborations like "Artist1, Artist2" or "Artist1;Artist2")
-      const primaryArtist = song.artist.split(/[,;]/)[0].trim();
+      const primaryArtist = getPrimaryArtist(song.artist);
       if (primaryArtist !== song.artist) {
         console.log(`[Lidarr Queue] Primary artist: ${primaryArtist} (from "${song.artist}")`);
       }
@@ -495,7 +497,7 @@ function findBestAlbumMatch(
   const songTitle = song.title.toLowerCase();
   const songAlbum = song.album?.toLowerCase();
   // Extract primary artist from collaborations for better matching
-  const primaryArtist = song.artist.split(/[,;]/)[0].trim().toLowerCase();
+  const primaryArtist = getPrimaryArtist(song.artist).toLowerCase();
 
   // Score each album
   const scored = albums.map(album => {

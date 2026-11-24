@@ -20,6 +20,7 @@
 
 import * as metube from './metube';
 import type { MeTubeDownload } from './metube';
+import { primaryArtist as getPrimaryArtist } from '../utils/primary-artist';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -131,13 +132,12 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Build a clean YouTube search query from a track. Uses the primary artist
- * (drops `;`/`,`-joined collaborators, which hurt search) and strips noisy
+ * (drops `;`/`,`-joined collaborators, which hurt search, but keeps comma names
+ * like "Tyler, The Creator" whole, #424) and strips noisy
  * qualifiers that rarely appear in YouTube titles.
  */
 export function normalizeSearchQuery(track: FallbackTrack): string {
-  const primaryArtist = (track.artist || '')
-    .split(/[;,]/)[0]
-    .trim();
+  const primaryArtist = getPrimaryArtist(track.artist);
 
   const cleanTitle = (track.title || '')
     .replace(/\s*\((?:with|feat\.?|ft\.?|featuring)\s+[^)]+\)/gi, '')
@@ -320,7 +320,7 @@ export function verifyDownload(
 
   const got = normalizeForCompare(resultTitle);
   const wantTitle = normalizeForCompare(track.title);
-  const wantArtist = normalizeForCompare((track.artist || '').split(/[;,]/)[0]);
+  const wantArtist = normalizeForCompare(getPrimaryArtist(track.artist));
   const titleScore = got.includes(wantTitle) && wantTitle.length > 0 ? 1 : tokenOverlap(wantTitle, got);
 
   // The resolved title is nothing BUT the wanted title AND the artist is written
@@ -406,7 +406,7 @@ export function itemLikelyMatchesTrack(
   const got = normalizeForCompare(item.title || item.filename || '');
   if (!got) return false;
   const wantTitle = normalizeForCompare(track.title);
-  const wantArtist = normalizeForCompare((track.artist || '').split(/[;,]/)[0]);
+  const wantArtist = normalizeForCompare(getPrimaryArtist(track.artist));
   if (!wantTitle) return false;
 
   const titleOverlap = got.includes(wantTitle) ? 1 : tokenOverlap(wantTitle, got);
@@ -573,7 +573,7 @@ export function libraryMatch(track: FallbackTrack, song: LibSong): boolean {
   const gotTitle = normalizeForCompare(song.title || song.name || '');
   const wantTitle = normalizeForCompare(track.title);
   if (!gotTitle || !wantTitle) return false;
-  const wantArtist = normalizeForCompare((track.artist || '').split(/[;,]/)[0]);
+  const wantArtist = normalizeForCompare(getPrimaryArtist(track.artist));
 
   const titleOk =
     gotTitle.includes(wantTitle) || wantTitle.includes(gotTitle) || tokenOverlap(wantTitle, gotTitle) >= 0.6;
@@ -670,7 +670,7 @@ async function findInLibrary(track: FallbackTrack): Promise<LibraryHit | null> {
   };
   try {
     const { search } = await import('./navidrome');
-    const primaryArtist = (track.artist || '').split(/[;,]/)[0].trim();
+    const primaryArtist = getPrimaryArtist(track.artist);
     const query = normalizeSearchQuery(track); // "<primary artist> <clean title>"
     const results = (await search(query).catch(() => [])) as LibSong[];
     // Prefer an unambiguous hit over an ambiguous one from the same result set,
