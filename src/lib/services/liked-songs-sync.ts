@@ -27,6 +27,7 @@ import { getNavidromeUserCreds } from './navidrome-users';
 import type { SubsonicCreds } from './navidrome-users';
 import { broadcastFeedbackChange, broadcastFeedbackRefresh } from './feedback-broadcast';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
+import { syncPlaylistRows } from './playlist-rows-db';
 
 // ============================================================================
 // Types
@@ -599,35 +600,30 @@ export async function rebuildLikedSongsPlaylist(
       })
       .returning();
     likedPlaylist = newPlaylist;
-  } else {
-    await db
-      .update(userPlaylists)
-      .set({
-        name: LIKED_SONGS_NAME,
-        lastSynced: new Date(),
-        songCount: starredSongs.length,
-        totalDuration: starredSongs.reduce((sum, s) => sum + parseInt(s.duration || '0'), 0),
-        updatedAt: new Date(),
-      })
-      .where(eq(userPlaylists.id, likedPlaylist.id));
   }
+
+  // Keep each song's added_at = when it was liked: Navidrome's star time when
+  // it has one, else the date we already stored (#429). Unchanged rows are left alone.
+  const plan = await syncPlaylistRows(
+    likedPlaylist.id,
+    starredSongs.map((song) => ({
+      songId: song.id,
+      songArtistTitle: formatArtistTitle(song.artist, song.title),
+      addedAt: song.starredAt ? new Date(song.starredAt) : null,
+    })),
+    { positionBase: 1 },
+  );
 
   await db
-    .delete(playlistSongs)
-    .where(eq(playlistSongs.playlistId, likedPlaylist.id));
-
-  if (starredSongs.length > 0) {
-    await db.insert(playlistSongs).values(
-      starredSongs.map((song, index) => ({
-        id: crypto.randomUUID(),
-        playlistId: likedPlaylist.id,
-        songId: song.id,
-        songArtistTitle: formatArtistTitle(song.artist, song.title),
-        position: index + 1,
-        addedAt: new Date(),
-      }))
-    );
-  }
+    .update(userPlaylists)
+    .set({
+      name: LIKED_SONGS_NAME,
+      lastSynced: new Date(),
+      songCount: starredSongs.length,
+      totalDuration: starredSongs.reduce((sum, s) => sum + parseInt(s.duration || '0'), 0),
+      ...(plan.contentChanged ? { updatedAt: new Date() } : {}),
+    })
+    .where(eq(userPlaylists.id, likedPlaylist.id));
 
   console.log(`✅ Rebuilt Liked Songs playlist: ${starredSongs.length} songs`);
   // Coalesced refresh so any device viewing hearts re-pulls from the rebuilt set.

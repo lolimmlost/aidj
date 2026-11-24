@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { syncNavidromePlaylists, needsSync } from '../playlist-sync';
 import * as navidrome from '../navidrome';
 import { db } from '@/lib/db';
+import { syncPlaylistRows } from '../playlist-rows-db';
 // Schema imports removed - unused in test file
 
 // Mock the navidrome service
@@ -14,6 +15,12 @@ vi.mock('../navidrome', () => ({
 vi.mock('../navidrome-users', () => ({
   getNavidromeUserCreds: vi.fn().mockResolvedValue(null),
 }));
+
+// Row diffing has its own tests (playlist-rows.test.ts); here it reports a change.
+vi.mock('../playlist-rows-db', () => ({
+  syncPlaylistRows: vi.fn(),
+}));
+const changedPlan = { rows: [], contentChanged: true, needsWrite: true, added: 1, removed: 0 };
 
 // Mock the database
 vi.mock('@/lib/db', () => ({
@@ -34,6 +41,7 @@ vi.mock('@/lib/db', () => ({
 describe('Playlist Sync Service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(syncPlaylistRows).mockResolvedValue(changedPlan);
   });
 
   describe('syncNavidromePlaylists', () => {
@@ -150,6 +158,34 @@ describe('Playlist Sync Service', () => {
       expect(result.updated).toBe(1);
       expect(result.deleted).toBe(0);
       expect(result.errors).toHaveLength(0);
+    });
+
+    it('a duration-only drift with unchanged songs does not touch updated_at (#429)', async () => {
+      vi.mocked(syncPlaylistRows).mockResolvedValue({ ...changedPlan, contentChanged: false, needsWrite: false, added: 0 });
+      vi.mocked(navidrome.getPlaylists).mockResolvedValue([
+        { id: 'nav-pl-1', name: 'Same', songCount: 10, duration: 601, owner: 'u', public: false, created: '', changed: '' },
+      ]);
+      vi.mocked(navidrome.getPlaylist).mockResolvedValue({
+        id: 'nav-pl-1', name: 'Same', songCount: 10, duration: 601, owner: 'u', public: false, created: '', changed: '', entry: [],
+      });
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([
+            { id: 'local-pl-1', userId: 'user-123', name: 'Same', navidromeId: 'nav-pl-1', songCount: 10, totalDuration: 600 },
+          ]),
+        }),
+      });
+      const set = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+      (db.update as ReturnType<typeof vi.fn>).mockReturnValue({ set });
+
+      const result = await syncNavidromePlaylists('user-123');
+
+      expect(result.updated).toBe(0);
+      expect(set).toHaveBeenCalledTimes(1);
+      const patch = set.mock.calls[0][0];
+      expect(patch.totalDuration).toBe(601);
+      expect(patch.lastSynced).toBeInstanceOf(Date);
+      expect(patch).not.toHaveProperty('updatedAt');
     });
 
     it('should re-link by name instead of inserting when the Navidrome id changed (#127)', async () => {

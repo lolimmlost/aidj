@@ -1,11 +1,13 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { userPlaylists, playlistSongs } from '@/lib/db/schema/playlists.schema';
+import { userPlaylists } from '@/lib/db/schema/playlists.schema';
 import { getPlaylists, getPlaylist, type NavidromePlaylist, type NavidromePlaylistWithSongs } from './navidrome';
 import { getNavidromeUserCreds } from './navidrome-users';
 import { DELETED_FROM_NAVIDROME_PREFIX, stripDeletedMarker } from './playlist-deleted-marker';
 import { ServiceError } from '../utils';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
+import { syncPlaylistRows } from './playlist-rows-db';
+import type { PlaylistRowsPlan } from './playlist-rows';
 
 /**
  * Sync result interface
@@ -64,12 +66,18 @@ export async function syncNavidromePlaylists(userId: string): Promise<SyncResult
 
         if (localPlaylist) {
           claimedLocalIds.add(localPlaylist.id);
-          // Playlist exists locally - check if it needs updating
+          // Playlist exists locally - check if it needs updating. Count or
+          // duration drift is only a hint: a retag can shift durations by a
+          // second, so the rows decide whether the playlist really changed (#429).
+          const nameChanged = localPlaylist.name !== navidromePlaylist.name;
           if (
+            nameChanged ||
             localPlaylist.songCount !== navidromePlaylist.songCount ||
             localPlaylist.totalDuration !== navidromePlaylist.duration
           ) {
-            // Update local playlist
+            const plan = await syncPlaylistSongs(localPlaylist.id, navidromePlaylist.id, userCreds ?? undefined);
+            const changed = nameChanged || plan.contentChanged;
+
             await db
               .update(userPlaylists)
               .set({
@@ -77,15 +85,14 @@ export async function syncNavidromePlaylists(userId: string): Promise<SyncResult
                 songCount: navidromePlaylist.songCount,
                 totalDuration: navidromePlaylist.duration,
                 lastSynced: new Date(),
-                updatedAt: new Date(),
+                ...(changed ? { updatedAt: new Date() } : {}),
               })
               .where(eq(userPlaylists.id, localPlaylist.id));
 
-            // Fetch full playlist with songs to update playlistSongs table
-            await syncPlaylistSongs(localPlaylist.id, navidromePlaylist.id, userCreds ?? undefined);
-
-            result.updated++;
-            console.log(`✅ Updated playlist "${navidromePlaylist.name}"`);
+            if (changed) {
+              result.updated++;
+              console.log(`✅ Updated playlist "${navidromePlaylist.name}" (+${plan.added} −${plan.removed})`);
+            }
           } else {
             // Just update lastSynced timestamp
             await db
@@ -108,6 +115,9 @@ export async function syncNavidromePlaylists(userId: string): Promise<SyncResult
               // Drop the stale id so step 4 doesn't then treat this row as deleted.
               localPlaylistsByNavidromeId.delete(existingByName.navidromeId);
             }
+            const plan = await syncPlaylistSongs(existingByName.id, navidromePlaylist.id, userCreds ?? undefined);
+            const description = stripDeletedMarker(existingByName.description);
+            const changed = plan.contentChanged || description !== existingByName.description;
             await db
               .update(userPlaylists)
               .set({
@@ -115,13 +125,12 @@ export async function syncNavidromePlaylists(userId: string): Promise<SyncResult
                 name: navidromePlaylist.name,
                 songCount: navidromePlaylist.songCount,
                 totalDuration: navidromePlaylist.duration,
-                description: stripDeletedMarker(existingByName.description),
+                description,
                 lastSynced: new Date(),
-                updatedAt: new Date(),
+                ...(changed ? { updatedAt: new Date() } : {}),
               })
               .where(eq(userPlaylists.id, existingByName.id));
 
-            await syncPlaylistSongs(existingByName.id, navidromePlaylist.id, userCreds ?? undefined);
             claimedLocalIds.add(existingByName.id);
             result.updated++;
             console.log(`🔗 Re-linked playlist "${navidromePlaylist.name}" to Navidrome id ${navidromePlaylist.id}`);
@@ -202,28 +211,27 @@ async function addNavidromePlaylist(userId: string, navidromePlaylist: Navidrome
 }
 
 /**
- * Sync playlist songs from Navidrome to local database
+ * Sync playlist songs from Navidrome to local database. Keeps each surviving
+ * song's added_at and only rewrites rows that differ (#429).
  */
-async function syncPlaylistSongs(localPlaylistId: string, navidromePlaylistId: string, creds?: import('./navidrome-users').SubsonicCreds): Promise<void> {
+async function syncPlaylistSongs(
+  localPlaylistId: string,
+  navidromePlaylistId: string,
+  creds?: import('./navidrome-users').SubsonicCreds,
+): Promise<PlaylistRowsPlan> {
   try {
-    // Fetch full playlist with songs from Navidrome
     const navidromePlaylist: NavidromePlaylistWithSongs = await getPlaylist(navidromePlaylistId, creds);
-
-    // Delete existing songs for this playlist
-    await db.delete(playlistSongs).where(eq(playlistSongs.playlistId, localPlaylistId));
-
-    // Add new songs
-    if (navidromePlaylist.entry && navidromePlaylist.entry.length > 0) {
-      const songsToInsert = navidromePlaylist.entry.map((song, index) => ({
-        playlistId: localPlaylistId,
+    const plan = await syncPlaylistRows(
+      localPlaylistId,
+      (navidromePlaylist.entry ?? []).map((song) => ({
         songId: song.id,
         songArtistTitle: formatArtistTitle(song.artist, song.title),
-        position: index,
-      }));
-
-      await db.insert(playlistSongs).values(songsToInsert);
-      console.log(`🎵 Synced ${songsToInsert.length} songs for playlist ${localPlaylistId}`);
+      })),
+    );
+    if (plan.needsWrite) {
+      console.log(`🎵 Synced ${plan.rows.length} songs for playlist ${localPlaylistId} (+${plan.added} −${plan.removed})`);
     }
+    return plan;
   } catch (error) {
     console.error(`Failed to sync songs for playlist ${localPlaylistId}:`, error);
     throw error;

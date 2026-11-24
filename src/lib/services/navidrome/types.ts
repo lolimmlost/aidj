@@ -116,6 +116,8 @@ export interface SubsonicSong {
   playCount?: number;
   rating?: number;
   loved?: boolean;
+  /** ISO time the user starred the song (getStarred2 `starred` / native `starredAt`). */
+  starredAt?: string;
   bitrate?: number;
   // DJ-related metadata (from ID3 tags if available)
   bpm?: number;           // Beats per minute (TBPM tag)
