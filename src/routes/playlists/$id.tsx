@@ -213,9 +213,18 @@ function AlphabetRail({
   );
 }
 
+// Marquee timing (#450): one pass out and back, then a long hold so a list of
+// long titles isn't a wall of moving text.
+const MARQUEE_SPEED_PX_PER_S = 40;
+const MARQUEE_MIN_MOVE_MS = 1200;
+const MARQUEE_HOLD_MS = 5000; // still at the start, between passes
+const MARQUEE_END_HOLD_MS = 1500; // still at the end so the tail can be read
+const MARQUEE_FIRST_DELAY_MS = 2000; // first pass after mount (rows mount while scrolling)
+
 /**
- * Text that scrolls horizontally when content overflows its container.
- * Pauses at each end so the user can read. No-ops when text fits.
+ * Text that scrolls horizontally when content overflows its container: slides
+ * to the end, holds, slides back, then holds ~5 s before the next pass. No-ops
+ * when text fits or the user prefers reduced motion.
  */
 function MarqueeText({ children }: { children: ReactNode }) {
   const outerRef = useRef<HTMLDivElement>(null);
@@ -231,23 +240,41 @@ function MarqueeText({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-
     measure();
     const ro = new ResizeObserver(measure);
     if (outerRef.current) ro.observe(outerRef.current);
     return () => ro.disconnect();
   }, [measure, children]);
 
+  // The hold is a fixed time while the move time scales with the overflow, so
+  // keyframe offsets are computed per row (CSS percentages can't express it).
+  useEffect(() => {
+    const inner = innerRef.current;
+    if (!inner || overflow <= 0 || typeof inner.animate !== 'function') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+    const move = Math.max(MARQUEE_MIN_MOVE_MS, (overflow / MARQUEE_SPEED_PX_PER_S) * 1000);
+    const total = MARQUEE_HOLD_MS + move + MARQUEE_END_HOLD_MS + move;
+    const at = (ms: number) => ms / total;
+    const start = 'translateX(0)';
+    const end = `translateX(-${overflow}px)`;
+    const animation = inner.animate(
+      [
+        { transform: start, offset: 0 },
+        { transform: start, offset: at(MARQUEE_HOLD_MS), easing: 'ease-in-out' },
+        { transform: end, offset: at(MARQUEE_HOLD_MS + move) },
+        { transform: end, offset: at(MARQUEE_HOLD_MS + move + MARQUEE_END_HOLD_MS), easing: 'ease-in-out' },
+        { transform: start, offset: 1 },
+      ],
+      // Negative delay = start partway into the opening hold.
+      { duration: total, iterations: Infinity, delay: MARQUEE_FIRST_DELAY_MS - MARQUEE_HOLD_MS },
+    );
+    return () => animation.cancel();
+  }, [overflow]);
+
   return (
     <div ref={outerRef} className="overflow-hidden whitespace-nowrap">
-      <span
-        ref={innerRef}
-        className="inline-block"
-        style={overflow > 0 ? {
-          animation: `marquee-scroll ${3 + overflow * 0.04}s linear infinite`,
-          ['--marquee-distance' as string]: `-${overflow}px`,
-        } : undefined}
-      >
+      <span ref={innerRef} className="inline-block">
         {children}
       </span>
     </div>

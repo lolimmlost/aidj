@@ -605,18 +605,6 @@
     }
   }
 
-  @keyframes marquee-scroll {
-    0%, 10% {
-      transform: translateX(0);
-    }
-    45%, 55% {
-      transform: translateX(var(--marquee-distance, -100px));
-    }
-    90%, 100% {
-      transform: translateX(0);
-    }
-  }
-
   /* ── Integration Cards ── */
   .integration-card {
     @apply relative rounded-2xl border border-border/50 p-5 backdrop-blur-sm
