@@ -314,16 +314,16 @@ function SongRowContent({
       </span>
 
       {/* Album Art Thumbnail */}
-      <div className="relative w-11 h-11 sm:w-8 sm:h-8 shrink-0">
+      <div className="relative w-11 h-11 shrink-0">
         {song.albumId ? (
           <img
             src={`/api/navidrome/rest/getCoverArt?id=${song.albumId}&size=96`}
             alt=""
-            className="w-11 h-11 sm:w-8 sm:h-8 rounded shrink-0 object-cover bg-muted"
+            className="w-11 h-11 rounded shrink-0 object-cover bg-muted"
             loading="lazy"
           />
         ) : (
-          <div className="w-11 h-11 sm:w-8 sm:h-8 rounded shrink-0 bg-muted flex items-center justify-center">
+          <div className="w-11 h-11 rounded shrink-0 bg-muted flex items-center justify-center">
             <Music2 className="h-3.5 w-3.5 text-muted-foreground/50" />
           </div>
         )}
@@ -343,25 +343,16 @@ function SongRowContent({
       <button
         type="button"
         aria-label={`Play ${title}`}
-        className="min-w-[6rem] flex-1 text-left py-0.5 min-h-[36px] sm:min-h-[32px] flex flex-col justify-center overflow-hidden"
+        className="min-w-[6rem] flex-1 text-left py-0.5 min-h-[44px] flex flex-col justify-center overflow-hidden"
       >
-        {/* Mobile: two lines, title (scrolls if long) over artist */}
-        <div className={cn("text-[15px] leading-snug font-medium sm:hidden", isCurrentSong && "text-primary")}>
+        {/* Two lines on every screen: title (scrolls if long) over artist */}
+        <div className={cn("text-[15px] sm:text-sm leading-snug font-medium", isCurrentSong && "text-primary")}>
           <MarqueeText>{title}</MarqueeText>
         </div>
-        <div className="text-[13px] leading-snug text-muted-foreground truncate sm:hidden">
+        <div className="text-[13px] sm:text-xs leading-snug text-muted-foreground truncate">
           {artist}
         </div>
-        {/* Desktop: title only (artist is a separate column) */}
-        <div className={cn("hidden sm:block text-sm font-medium truncate", isCurrentSong && "text-primary")}>
-          {title}
-        </div>
       </button>
-
-      {/* Artist - desktop only (separate column) */}
-      <span className="hidden sm:block text-sm text-muted-foreground truncate w-24 md:w-32 lg:w-40 shrink min-w-0">
-        {artist}
-      </span>
 
       {/* Album - from md (between sm and md it left the title no room) */}
       <span className="hidden md:block text-sm text-muted-foreground truncate w-32 lg:w-40 shrink min-w-0">
@@ -552,7 +543,7 @@ interface VirtualizedPlaylistSongsProps {
   handleRef?: RefObject<PlaylistSongsListHandle | null>;
 }
 
-/** Row height estimate (phones: py-1.5 + 44px art; desktop 32px art); real heights are measured. */
+/** Row height estimate (py-1.5 + 44px art); real heights are measured. */
 const SONG_ROW_ESTIMATE = 56;
 
 function PlaylistSongsList({
@@ -680,9 +671,8 @@ function PlaylistSongsList({
       <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b border-border/50">
         <span className="w-6 shrink-0" /> {/* Drag handle space */}
         <span className="w-8 text-right shrink-0">#</span>
-        <span className="w-8 shrink-0" /> {/* Art space */}
+        <span className="w-11 shrink-0" /> {/* Art space */}
         <span className="flex-1 min-w-0">Title</span>
-        <span className="w-24 md:w-32 lg:w-40 shrink min-w-0">Artist</span>
         <span className="hidden md:block w-32 lg:w-40 shrink min-w-0">Album</span>
         <span className="w-12 text-right shrink-0">Time</span>
         <span className="hidden lg:block w-28 text-right shrink-0">Added</span>
