@@ -314,16 +314,16 @@ function SongRowContent({
       </span>
 
       {/* Album Art Thumbnail */}
-      <div className="relative w-8 h-8 shrink-0">
+      <div className="relative w-11 h-11 sm:w-8 sm:h-8 shrink-0">
         {song.albumId ? (
           <img
-            src={`/api/navidrome/rest/getCoverArt?id=${song.albumId}&size=80`}
+            src={`/api/navidrome/rest/getCoverArt?id=${song.albumId}&size=96`}
             alt=""
-            className="w-8 h-8 rounded shrink-0 object-cover bg-muted"
+            className="w-11 h-11 sm:w-8 sm:h-8 rounded shrink-0 object-cover bg-muted"
             loading="lazy"
           />
         ) : (
-          <div className="w-8 h-8 rounded shrink-0 bg-muted flex items-center justify-center">
+          <div className="w-11 h-11 sm:w-8 sm:h-8 rounded shrink-0 bg-muted flex items-center justify-center">
             <Music2 className="h-3.5 w-3.5 text-muted-foreground/50" />
           </div>
         )}
@@ -345,12 +345,12 @@ function SongRowContent({
         aria-label={`Play ${title}`}
         className="min-w-[6rem] flex-1 text-left py-0.5 min-h-[36px] sm:min-h-[32px] flex flex-col justify-center overflow-hidden"
       >
-        {/* Mobile: single line with title + artist */}
-        <div className={cn("text-sm sm:hidden", isCurrentSong && "text-primary")}>
-          <MarqueeText>
-            <span className="font-medium">{title}</span>
-            <span className="text-muted-foreground"> — {artist}</span>
-          </MarqueeText>
+        {/* Mobile: two lines, title (scrolls if long) over artist */}
+        <div className={cn("text-[15px] leading-snug font-medium sm:hidden", isCurrentSong && "text-primary")}>
+          <MarqueeText>{title}</MarqueeText>
+        </div>
+        <div className="text-[13px] leading-snug text-muted-foreground truncate sm:hidden">
+          {artist}
         </div>
         {/* Desktop: title only (artist is a separate column) */}
         <div className={cn("hidden sm:block text-sm font-medium truncate", isCurrentSong && "text-primary")}>
@@ -552,8 +552,8 @@ interface VirtualizedPlaylistSongsProps {
   handleRef?: RefObject<PlaylistSongsListHandle | null>;
 }
 
-/** Row height estimate (py-1.5 + 32px art); real heights are measured. */
-const SONG_ROW_ESTIMATE = 44;
+/** Row height estimate (phones: py-1.5 + 44px art; desktop 32px art); real heights are measured. */
+const SONG_ROW_ESTIMATE = 56;
 
 function PlaylistSongsList({
   songs,
