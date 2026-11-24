@@ -123,7 +123,7 @@ export async function getStarredSongs(creds?: SubsonicCreds): Promise<SubsonicSo
     const starredSongs = data['subsonic-response']?.starred2?.song || [];
     console.log(`⭐ Fetched ${starredSongs.length} starred songs from Navidrome (Subsonic)`);
 
-    return starredSongs.map((song: { id: string; title?: string; name?: string; artist?: string; album?: string; albumId?: string; duration?: number; track?: number }) => ({
+    return starredSongs.map((song: { id: string; title?: string; name?: string; artist?: string; album?: string; albumId?: string; duration?: number; track?: number; starred?: string }) => ({
       id: song.id,
       title: song.title || song.name || '',
       artist: song.artist || '',
@@ -131,6 +131,7 @@ export async function getStarredSongs(creds?: SubsonicCreds): Promise<SubsonicSo
       albumId: song.albumId || '',
       duration: song.duration?.toString() || '0',
       track: song.track?.toString() || '0',
+      starredAt: song.starred,
     }));
   } catch (error) {
     console.error('Failed to fetch starred songs from Navidrome:', error);
@@ -146,6 +147,7 @@ interface NativeSong {
   albumId?: string;
   duration?: number;
   trackNumber?: number;
+  starredAt?: string;
 }
 
 /**
@@ -183,6 +185,7 @@ async function fetchStarredSongsNative(missing: boolean | undefined = false): Pr
         albumId: song.albumId || '',
         duration: song.duration?.toString() || '0',
         track: song.trackNumber?.toString() || '0',
+        starredAt: song.starredAt,
       });
     }
 
