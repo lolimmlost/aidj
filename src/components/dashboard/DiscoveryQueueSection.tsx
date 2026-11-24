@@ -24,12 +24,12 @@ export function DiscoveryQueueSection() {
         onClick={() => setCollapsed(!collapsed)}
         className="flex items-center gap-3 text-left group"
       >
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center">
-          <Compass className="w-5 h-5 text-emerald-500" />
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-(--aidj-emerald)/20 to-(--aidj-cyan)/20 flex items-center justify-center">
+          <Compass className="w-5 h-5 text-(--aidj-emerald)" />
         </div>
         <div>
-          <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-            <span className="bg-gradient-to-r from-emerald-500 to-cyan-500 bg-clip-text text-transparent">
+          <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+            <span className="bg-gradient-to-r from-(--aidj-emerald) to-(--aidj-cyan) bg-clip-text text-transparent">
               Discovery Queue
             </span>
             <span className="badge-success text-[10px]">Live</span>

@@ -92,10 +92,10 @@ function RecentlyAddedSection() {
 
   return (
     <div className="space-y-3">
-      <h3 className="font-semibold text-base flex items-center gap-2">
-        <Clock className="h-4 w-4 text-emerald-500" />
+      <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+        <Clock className="h-4 w-4 text-(--aidj-emerald)" />
         Recently Added to Library
-      </h3>
+      </h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {displayed.map((artist) => (
           <div key={artist.id} className="flex flex-col items-center gap-2 text-center">
@@ -163,7 +163,7 @@ function RecommendationCard({ rec, artistImages }: { rec: { id: string; name: st
             size="sm"
             className={cn(
               'h-8 w-8 p-0 flex-shrink-0',
-              added && 'text-emerald-500'
+              added && 'text-success'
             )}
             onClick={handleAdd}
             disabled={addArtist.isPending || added}
@@ -202,10 +202,10 @@ export function AurralDiscoverySection() {
   if (isLoading) {
     return (
       <div className="space-y-3">
-        <h3 className="font-semibold text-base flex items-center gap-2">
+        <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
           <Compass className="h-4 w-4 text-primary" />
           Discover New Artists
-        </h3>
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={`skeleton-${i}`} className="flex items-center gap-3 p-4 rounded-lg border animate-pulse">
@@ -224,10 +224,10 @@ export function AurralDiscoverySection() {
   if (!discovery) {
     return (
       <div className="space-y-3">
-        <h3 className="font-semibold text-base flex items-center gap-2">
+        <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
           <Compass className="h-4 w-4 text-primary" />
           Discover New Artists
-        </h3>
+        </h2>
         <div className="flex flex-col items-center justify-center py-8 text-center rounded-lg border border-dashed border-border bg-muted/20">
           <Compass className="h-8 w-8 text-muted-foreground/40 mb-2" />
           <p className="text-sm text-muted-foreground">Artist discovery unavailable</p>
@@ -247,10 +247,10 @@ export function AurralDiscoverySection() {
       {/* Recommendations */}
       {recs.length > 0 && (
         <div className="space-y-3">
-          <h3 className="font-semibold text-base flex items-center gap-2">
+          <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
             <Compass className="h-4 w-4 text-primary" />
             Recommended for You
-          </h3>
+          </h2>
           {discovery.topGenres && discovery.topGenres.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {discovery.topGenres.slice(0, 5).map((genre) => (
@@ -271,10 +271,10 @@ export function AurralDiscoverySection() {
       {/* Trending */}
       {trending.length > 0 && (
         <div className="space-y-3">
-          <h3 className="font-semibold text-base flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-amber-500" />
+          <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-(--aidj-amber)" />
             Trending
-          </h3>
+          </h2>
           <div className="flex flex-wrap gap-2">
             {trending.map((artist) => (
               <Badge

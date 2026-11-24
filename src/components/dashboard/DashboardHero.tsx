@@ -10,7 +10,7 @@ import { loadPlaylistIntoQueue } from '@/lib/utils/playlist-helpers';
 
 function getTimeIcon(hour: number) {
   if (hour < 6) return <Moon className="h-7 w-7 sm:h-8 sm:w-8 text-indigo-400" />;
-  if (hour < 12) return <Sun className="h-7 w-7 sm:h-8 sm:w-8 text-amber-400" />;
+  if (hour < 12) return <Sun className="h-7 w-7 sm:h-8 sm:w-8 text-(--aidj-amber)" />;
   if (hour < 18) return <CloudSun className="h-7 w-7 sm:h-8 sm:w-8 text-orange-400" />;
   if (hour < 21) return <Sunset className="h-7 w-7 sm:h-8 sm:w-8 text-rose-400" />;
   return <Moon className="h-7 w-7 sm:h-8 sm:w-8 text-indigo-400" />;
@@ -88,7 +88,7 @@ export function DashboardHero({
     retry: false,
   });
 
-  const timeIcon = hour != null ? getTimeIcon(hour) : <Sun className="h-7 w-7 sm:h-8 sm:w-8 text-amber-400" />;
+  const timeIcon = hour != null ? getTimeIcon(hour) : <Sun className="h-7 w-7 sm:h-8 sm:w-8 text-(--aidj-amber)" />;
   const greeting = hour != null ? getGreeting(hour) : 'Welcome';
 
   return (
@@ -154,7 +154,7 @@ export function DashboardHero({
             )}
             {aiDJEnabled && (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
                 <span className="text-xs font-medium text-primary">AI DJ Active</span>
               </div>
             )}
@@ -197,7 +197,7 @@ export function DashboardHero({
         )}
         {aiDJEnabled && (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
             <span className="text-xs font-medium text-primary">AI DJ</span>
           </div>
         )}
@@ -239,8 +239,8 @@ function StatPill({ label, value, color, compact = false, delta }: StatPillProps
         <span
           className={cn(
             'flex items-center gap-0.5 text-xs font-medium',
-            delta != null && delta > 0 && 'text-emerald-600 dark:text-emerald-400',
-            delta != null && delta < 0 && 'text-red-500 dark:text-red-400',
+            delta != null && delta > 0 && 'text-success',
+            delta != null && delta < 0 && 'text-destructive',
             delta === 0 && 'text-muted-foreground'
           )}
         >
@@ -296,7 +296,7 @@ function NowPlayingWidget({ song, isPlaying, onTogglePlay }: NowPlayingWidgetPro
           {isPlaying && (
             <div
               className="absolute inset-0 rounded-full pulse-ring"
-              style={{ backgroundColor: colors ? `${colors.primary}15` : 'var(--primary-10, rgba(var(--primary), 0.1))' }}
+              style={{ backgroundColor: colors ? `${colors.primary}15` : 'color-mix(in oklch, var(--primary) 10%, transparent)' }}
             />
           )}
         </div>
