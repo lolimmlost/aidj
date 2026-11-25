@@ -48,6 +48,10 @@ export function useWebAudioGraph(): WebAudioGraph {
   const gainARef = useRef<GainNode | null>(null);
   const gainBRef = useRef<GainNode | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
+  /** Whether masterGain → destination is wired right now. The interrupt
+   *  handler cuts it; every reconnect sets it back. Tracked because gain
+   *  alone can't tell a cut graph from a playing one. */
+  const masterConnectedRef = useRef(false);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -117,6 +121,7 @@ export function useWebAudioGraph(): WebAudioGraph {
       merge.connect(masterGain);
       merge.connect(analyser);
       masterGain.connect(ctx.destination);
+      masterConnectedRef.current = true;
 
       gainA.gain.value = 1.0;
       gainB.gain.value = 0.0;
@@ -245,6 +250,47 @@ export function useWebAudioGraph(): WebAudioGraph {
     }
     return true;
   }, []);
+
+  // --- Output self-heal: context running, music playing, output cut ---
+  //
+  // iOS can deliver the interrupt/running pair so the disconnect lands after
+  // the reconnect (seen 2026-11-25: 'instant restore' logged before 'masterGain
+  // disconnected'). The context then reads 'running', the element plays, and
+  // nothing is heard until some later interrupt happens to reconnect it (a
+  // visibility change). Nothing calls ctx.resume() here (that stole the iOS
+  // session in #170); it only rewires our own node inside a running context.
+  useEffect(() => {
+    if (!isInitialized) return;
+    const heal = (why: string) => {
+      const ctx = audioContextRef.current;
+      const master = masterGainRef.current;
+      if (!ctx || !master || masterConnectedRef.current) return;
+      if ((ctx.state as string) !== 'running') return;
+      const deckA = deckAElementRef.current;
+      const deckB = deckBElementRef.current;
+      const playing = (d: HTMLAudioElement | null) =>
+        !!d && !d.paused && !!d.currentSrc && d.networkState !== HTMLMediaElement.NETWORK_EMPTY;
+      if (!useAudioStore.getState().isPlaying && !playing(deckA) && !playing(deckB)) return;
+      console.log(`[WEB AUDIO] Output was cut while playing (${why}) — reconnecting masterGain`);
+      const userVolume = useAudioStore.getState().volume ?? 1.0;
+      try { master.gain.cancelScheduledValues(0); } catch { /* none */ }
+      master.gain.setValueAtTime(0.001, ctx.currentTime);
+      try { master.connect(ctx.destination); } catch { /* already connected */ }
+      masterConnectedRef.current = true;
+      master.gain.exponentialRampToValueAtTime(Math.max(userVolume, 0.001), ctx.currentTime + 0.25);
+    };
+    const id = setInterval(() => heal('check'), 2000);
+    // Pressing play (or a new song starting) heals at once, not on the next tick.
+    const unsub = useAudioStore.subscribe((st, prev) => {
+      if (st.isPlaying && (!prev.isPlaying || st.currentSongIndex !== prev.currentSongIndex)) {
+        setTimeout(() => heal('play'), 300);
+      }
+    });
+    return () => {
+      clearInterval(id);
+      unsub();
+    };
+  }, [isInitialized]);
 
   // --- Periodic AudioContext health check ---
   //
@@ -399,6 +445,7 @@ export function useWebAudioGraph(): WebAudioGraph {
           const m = masterGainRef.current;
           if (m) {
             try { m.disconnect(); } catch { /* already disconnected */ }
+            masterConnectedRef.current = false;
           }
         }
 
@@ -479,6 +526,7 @@ export function useWebAudioGraph(): WebAudioGraph {
           if (masterFast) {
             try { masterFast.gain.cancelScheduledValues(0); } catch { /* no scheduled values */ }
             try { masterFast.connect(ctx.destination); } catch { /* already connected */ }
+            masterConnectedRef.current = true;
             const userVolume = useAudioStore.getState().volume ?? 1.0;
             masterFast.gain.setValueAtTime(userVolume, ctx.currentTime);
           }
@@ -512,6 +560,7 @@ export function useWebAudioGraph(): WebAudioGraph {
           try { master.gain.cancelScheduledValues(0); } catch { /* no scheduled values */ }
           master.gain.setValueAtTime(0, ctx.currentTime);
           try { master.connect(ctx.destination); } catch { /* already connected */ }
+          masterConnectedRef.current = true;
         }
 
         // 3. Restore element volumes after brief settle (graph is now connected,
@@ -612,8 +661,8 @@ export function useWebAudioGraph(): WebAudioGraph {
           console.log('[WEB AUDIO] Recovery suppressed — recent user pause');
         }
 
-        // Check if masterGain is disconnected (gain=0 is our signal from interrupted handler)
-        const needsReconnect = master && master.gain.value === 0;
+        // masterGain cut off (the interrupted handler disconnects it) or left at 0
+        const needsReconnect = master && (!masterConnectedRef.current || master.gain.value === 0);
 
         if (needsReconnect && shouldBeAudible) {
           const visInterruptDuration = interruptedAtRef.current > 0
@@ -625,6 +674,7 @@ export function useWebAudioGraph(): WebAudioGraph {
           try { master.gain.cancelScheduledValues(0); } catch { /* no scheduled values */ }
           master.gain.setValueAtTime(0, ctx.currentTime);
           try { master.connect(ctx.destination); } catch { /* already connected */ }
+          masterConnectedRef.current = true;
 
           // Ensure store says playing
           if (!useAudioStore.getState().isPlaying) {
