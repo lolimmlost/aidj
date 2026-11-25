@@ -368,7 +368,12 @@ export function useWebAudioGraph(): WebAudioGraph {
         const storeState = useAudioStore.getState();
         const deckA = deckAElementRef.current;
         const deckB = deckBElementRef.current;
-        const eitherPlaying = (deckA && !deckA.paused) || (deckB && !deckB.paused);
+        // Only a deck with a song in it counts. On visibility return something play()s the empty
+        // spare deck (src=NONE, networkState EMPTY); counting it as "playing" re-armed recovery
+        // after a user pause, and the next interrupt resumed the song you had paused.
+        const deckHasMusic = (d: HTMLAudioElement | null) =>
+          !!d && !d.paused && !!d.currentSrc && d.networkState !== HTMLMediaElement.NETWORK_EMPTY;
+        const eitherPlaying = deckHasMusic(deckA) || deckHasMusic(deckB);
         if ((storeState.isPlaying || eitherPlaying) && !recentlyUserPaused()) {
           wasPlayingBeforeInterruptRef.current = true;
         }
