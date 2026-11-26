@@ -41,6 +41,14 @@ const getAuthConfig = createServerOnlyFn(() =>
         httpOnly: true,
         path: "/",
       },
+      // better-auth 1.6+ ignores multi-hop X-Forwarded-For, so behind Cloudflare + Traefik every
+      // user would share one rate-limit bucket (one person's failed logins lock out everyone) and
+      // session IPs would be blank. Cloudflare's header is the real client; else strip our own
+      // private-network proxy hops. Same setup as mc-server-list (666f0d6).
+      ipAddress: {
+        ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"],
+        trustedProxies: ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "::1/128", "fc00::/7"],
+      },
     },
 
     // https://www.better-auth.com/docs/integrations/tanstack#usage-tips

@@ -99,9 +99,10 @@ export function SecuritySettings() {
     setTwoFactorError("");
     if (!requirePassword("set up two-factor")) return;
     setIsSubmitting(true);
-    const { data, error } = await authClient.twoFactor.enable({ password: twoFactorPassword });
+    // better-auth 1.7 can enrol an authenticator app or email codes; this screen sets up the app.
+    const { data, error } = await authClient.twoFactor.enable({ password: twoFactorPassword, method: "totp" });
     setIsSubmitting(false);
-    if (error || !data) {
+    if (error || !data || data.method !== "totp") {
       setTwoFactorError(twoFactorErrorMessage(error));
       return;
     }
