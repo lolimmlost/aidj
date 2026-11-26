@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { ArtistsList } from '@/components/library/ArtistsList';
 import { GlassArtistsList } from '@/components/library/GlassArtistsList';
-import { useIsPhone } from '@/components/glass/GlassSheet';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
 
 export const Route = createFileRoute('/library/artists/')({
@@ -9,8 +8,7 @@ export const Route = createFileRoute('/library/artists/')({
 });
 
 function ArtistsPage() {
-  // Glass UI on phones: the A–Z list (desktop keeps the card grid for now)
+  // Glass design: the A–Z list at every size (a centred column on wider screens)
   const glass = useGlassUi();
-  const phone = useIsPhone();
-  return glass && phone ? <GlassArtistsList /> : <ArtistsList />;
+  return glass ? <GlassArtistsList /> : <ArtistsList />;
 }

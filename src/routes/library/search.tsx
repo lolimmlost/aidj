@@ -280,7 +280,7 @@ function SearchPage() {
 
   return (
     <NavidromeErrorBoundary>
-      <div className={cn("min-h-screen bg-background pb-24 md:pb-20", glass && "glass-page glass-home relative")}>
+      <div className={cn("min-h-screen bg-background pb-24 md:pb-20", glass && "glass-page glass-home relative md:bg-transparent")}>
         {glass && <GlassBackdrop className="md:hidden" />}
         {/* Ambient backdrop */}
         <div aria-hidden className={cn("pointer-events-none fixed inset-0 -z-10 overflow-hidden", glass && "max-md:hidden")}>

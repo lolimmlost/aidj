@@ -195,7 +195,7 @@ function AlbumDetail() {
   return (
     <>
     {glass && (
-      <div className="glass-page glass-home relative min-h-screen px-4 pb-28 pt-[calc(env(safe-area-inset-top)+var(--top-bar)+0.5rem)] md:hidden">
+      <div className="glass-page glass-home relative min-h-screen px-4 pb-28 pt-[calc(env(safe-area-inset-top)+var(--top-bar)+0.5rem)] md:mx-auto md:max-w-3xl md:px-8 md:pt-8">
         <GlassBackdrop className="md:hidden" />
         {isLoading ? (
           <div className="flex justify-center py-24"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
@@ -214,7 +214,7 @@ function AlbumDetail() {
         )}
       </div>
     )}
-    <div className={cn("min-h-screen bg-background pb-24 md:pb-20", glass && "max-md:hidden")}>
+    <div className={cn("min-h-screen bg-background pb-24 md:pb-20", glass && "hidden")}>
       {/* Ambient backdrop from album art */}
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         {!coverError && (

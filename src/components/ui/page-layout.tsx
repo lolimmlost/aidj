@@ -50,7 +50,7 @@ export function PageLayout({
     <div className={cn(
       'min-h-screen bg-background',
       !fullWidth && 'pb-24 md:pb-20', // Space for audio player
-      glass && 'glass-page glass-home relative',
+      glass && 'glass-page glass-home relative md:bg-transparent', // wider screens: the app-wide glow shows through
       className
     )}>
       {glass && <GlassBackdrop className="md:hidden" />}

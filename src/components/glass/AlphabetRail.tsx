@@ -60,7 +60,7 @@ export function AlphabetRail({
     // (--mini-player-h, AppLayout); the rail sits centred in it at its own
     // height, so every letter is on screen and touch maps to letters exactly.
     <div
-      className="pointer-events-none fixed right-0.5 z-30 flex items-center"
+      className="pointer-events-none fixed right-0.5 z-30 flex items-center md:hidden"
       style={{
         top: 'calc(env(safe-area-inset-top) + var(--top-bar) + 4rem)',
         bottom: 'calc(var(--mobile-tabbar-offset, 0px) + var(--mini-player-h, 0px) + 0.5rem)',
