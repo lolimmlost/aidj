@@ -1246,3 +1246,84 @@
     animation: none !important;
   }
 }
+/* The Low motion toggle (useLowMotion) stills them on its own, whatever the system says. */
+html[data-low-motion] .rainbow-ring,
+html[data-low-motion] .beat-dot[data-beat] {
+  animation: none !important;
+}
+
+/* Glass full player: the art as a record. Turns once a bar (33⅓ rpm without a tempo) and, with a tempo,
+   ducks on each kick and swells back before the next — a sidechain pump. beat-sync.ts sets the timing. */
+.np-spin {
+  animation: np-spin 1.8s linear infinite;
+  animation-play-state: paused;
+}
+.np-pump[data-beat] {
+  animation: np-pump 0.5s cubic-bezier(0.55, 0, 0.15, 1) infinite;
+  animation-play-state: paused;
+}
+.np-lyric-in {
+  animation: np-lyric-in 260ms ease-out;
+}
+@keyframes np-lyric-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+html[data-low-motion] .np-lyric-in {
+  animation: none;
+}
+.np-flash {
+  /* the kick's highlight: a glow ring and a brighter disc that fade as the pump swells back */
+  background: radial-gradient(circle, rgb(255 255 255 / 0.28), rgb(255 255 255 / 0.08) 60%, transparent 72%);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.55), 0 0 36px 10px color-mix(in oklch, var(--primary) 70%, transparent);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: np-flash 0.5s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+  animation-play-state: paused;
+  pointer-events: none;
+}
+.np-flash-sm {
+  box-shadow: 0 0 0 1.5px rgb(255 255 255 / 0.6), 0 0 14px 4px color-mix(in oklch, var(--primary) 75%, transparent);
+}
+@keyframes np-flash {
+  0% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    opacity: 0;
+  }
+}
+.np-vinyl[data-playing] .np-flash,
+.np-vinyl[data-playing] .np-spin,
+.np-vinyl[data-playing] .np-pump[data-beat] {
+  animation-play-state: running;
+}
+@keyframes np-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes np-pump {
+  0% {
+    transform: scale(var(--np-duck, 0.95));
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.np-grooves {
+  background: repeating-radial-gradient(circle, rgb(0 0 0 / 0.16) 0 1px, transparent 1px 3px);
+  box-shadow: inset 0 0 0 8px rgb(10 10 14 / 0.85), inset 0 0 0 9px rgb(255 255 255 / 0.08);
+  mix-blend-mode: multiply;
+}
+.np-grooves-sm {
+  background: repeating-radial-gradient(circle, rgb(0 0 0 / 0.18) 0 1px, transparent 1px 2.5px);
+  box-shadow: inset 0 0 0 3px rgb(10 10 14 / 0.85);
+}
+.np-shine {
+  background: conic-gradient(from 20deg, transparent 0 30deg, rgb(255 255 255 / 0.2) 45deg, transparent 62deg 205deg, rgb(255 255 255 / 0.12) 220deg, transparent 238deg);
+  pointer-events: none;
+}

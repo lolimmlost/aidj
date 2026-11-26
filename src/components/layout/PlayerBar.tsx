@@ -58,6 +58,7 @@ import { LikeHeart, type LikeEffect } from '@/components/player/LikeHeart';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
 import { useIsPhone } from '@/components/glass/GlassSheet';
 import { Waveform } from '@/components/glass/Waveform';
+import { MiniVinyl } from '@/components/glass/MiniVinyl';
 
 /**
  * Spend a user gesture on an idle deck so a later play() isn't refused by
@@ -1265,13 +1266,22 @@ export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
             showRemoteTime && "ring-1 ring-green-500/60 bg-green-500/5 px-2 py-1"
           )}>
             <div onClick={() => openFullscreen()} className="cursor-pointer relative group/art" style={{ viewTransitionName: showFullscreen ? undefined : 'np-art' }}>
-              <AlbumArt
-                albumId={currentSong.albumId}
-                songId={currentSong.id}
-                artist={currentSong.artist}
-                size="md"
-                isPlaying={isPlaying || isRemotePlaying}
-              />
+              {glass ? (
+                <MiniVinyl
+                  songId={currentSong.id}
+                  albumId={currentSong.albumId}
+                  artist={currentSong.artist}
+                  playing={isPlaying || isRemotePlaying}
+                />
+              ) : (
+                <AlbumArt
+                  albumId={currentSong.albumId}
+                  songId={currentSong.id}
+                  artist={currentSong.artist}
+                  size="md"
+                  isPlaying={isPlaying || isRemotePlaying}
+                />
+              )}
               {/* Tap indicator — subtle expand icon */}
               <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-active/art:bg-black/30 transition-colors rounded-md">
                 <Maximize2 className="h-3 w-3 text-white/0 group-active/art:text-white/80 transition-colors" />

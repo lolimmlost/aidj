@@ -45,7 +45,7 @@ import { useAudioStore } from '@/lib/stores/audio';
  */
 const CUSTOM_LYRICS_KEY = 'aidj-custom-lyrics';
 
-function getCustomLyrics(songId: string): string | null {
+export function getCustomLyrics(songId: string): string | null {
   try {
     const stored = localStorage.getItem(CUSTOM_LYRICS_KEY);
     if (stored) {
