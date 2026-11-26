@@ -104,7 +104,7 @@ export function PageLayout({
                   <h1 className={cn(
                     'font-bold tracking-tight text-foreground',
                     compact ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl',
-                    glass && 'max-md:text-[30px] max-md:font-extrabold max-md:leading-tight max-md:tracking-[-0.03em]',
+                    glass && 'max-md:text-[26px] max-md:font-extrabold max-md:leading-8 max-md:tracking-[-0.03em]',
                   )}>
                     {title}
                   </h1>
