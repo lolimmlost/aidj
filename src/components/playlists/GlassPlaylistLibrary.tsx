@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { lazy, memo, Suspense, useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
@@ -8,12 +8,14 @@ import {
 import { GlassBackdrop } from '@/components/glass/GlassBackdrop';
 import { GlassSheet, SheetLabel, SheetRow } from '@/components/glass/GlassSheet';
 import { getCoverArtUrl } from '@/components/ui/album-art';
-import { PlaylistExportDialog } from './export/playlist-export-dialog';
-import { PlaylistImportDialog } from './import/playlist-import-dialog';
-import { SmartPlaylistEditor } from './smart-playlist-editor';
 import { useAudioStore } from '@/lib/stores/audio';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
+
+// Opened rarely: fetched on first open instead of shipping with the page.
+const PlaylistExportDialog = lazy(() => import('./export/playlist-export-dialog').then((m) => ({ default: m.PlaylistExportDialog })));
+const PlaylistImportDialog = lazy(() => import('./import/playlist-import-dialog').then((m) => ({ default: m.PlaylistImportDialog })));
+const SmartPlaylistEditor = lazy(() => import('./smart-playlist-editor').then((m) => ({ default: m.SmartPlaylistEditor })));
 
 interface Playlist {
   id: string;
@@ -125,6 +127,41 @@ function RoundButton({ label, onClick, children, pressed }: { label: string; onC
     </button>
   );
 }
+
+const subOf = (p: Playlist) => `${KIND_LABEL[kindOf(p)]} · ${songsLabel(countOf(p))}`;
+
+/** Memoized so opening a sheet doesn't re-render every row. */
+const PlaylistRow = memo(function PlaylistRow({ p, onMore }: { p: Playlist; onMore: (p: Playlist) => void }) {
+  return (
+    <li className="flex items-center gap-1">
+      <Link to="/playlists/$id" params={{ id: p.id }} className="flex min-w-0 flex-1 items-center gap-3 py-1.5 [-webkit-tap-highlight-color:transparent]">
+        <Cover p={p} className="size-14 rounded-lg" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-semibold">{displayName(p)}</span>
+          <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">{subOf(p)}</span>
+        </span>
+      </Link>
+      <button
+        type="button"
+        aria-label={`More for ${displayName(p)}`}
+        onClick={() => onMore(p)}
+        className="-mr-2 grid size-11 shrink-0 place-items-center rounded-full text-muted-foreground [-webkit-tap-highlight-color:transparent]"
+      >
+        <MoreHorizontal className="size-5" />
+      </button>
+    </li>
+  );
+});
+
+const PlaylistTile = memo(function PlaylistTile({ p }: { p: Playlist }) {
+  return (
+    <Link to="/playlists/$id" params={{ id: p.id }} className="block min-w-0 [-webkit-tap-highlight-color:transparent]">
+      <Cover p={p} className="aspect-square w-full rounded-xl" iconClass="size-8" />
+      <div className="mt-1.5 truncate text-[13px] font-semibold">{displayName(p)}</div>
+      <div className="truncate text-xs text-muted-foreground">{songsLabel(countOf(p))}</div>
+    </Link>
+  );
+});
 
 /**
  * Glass UI (phones): My Playlists as a library — Liked Songs pinned, filter
@@ -310,8 +347,10 @@ export function GlassPlaylistLibrary() {
     });
 
   const grid = prefs.view === 'grid';
-  const items: Playlist[] = [...(showLiked && liked ? [liked] : []), ...shown];
-  const sub = (p: Playlist) => `${KIND_LABEL[kindOf(p)]} · ${songsLabel(countOf(p))}`;
+  const items = useMemo(() => (showLiked && liked ? [liked, ...shown] : shown), [showLiked, liked, shown]);
+  /** A row action's icon, or a spinner while that action loads the songs. */
+  const busyIcon = (key: string, Icon: ComponentType<{ className?: string }>) =>
+    busy === key ? <Loader2 className="size-5 animate-spin" /> : <Icon className="size-5" />;
 
   return (
     <div className="glass-page glass-home relative min-h-screen bg-background pb-28">
@@ -405,41 +444,11 @@ export function GlassPlaylistLibrary() {
 
         {grid ? (
           <div className="mt-1 grid grid-cols-3 gap-x-3 gap-y-4">
-            {items.map((p) => (
-              <div key={p.id} className="relative min-w-0">
-                <Link to="/playlists/$id" params={{ id: p.id }} className="block [-webkit-tap-highlight-color:transparent]">
-                  <Cover p={p} className="aspect-square w-full rounded-xl" iconClass="size-8" />
-                  <div className="mt-1.5 truncate text-[13px] font-semibold">{displayName(p)}</div>
-                  <div className="truncate text-xs text-muted-foreground">{songsLabel(countOf(p))}</div>
-                </Link>
-              </div>
-            ))}
+            {items.map((p) => <PlaylistTile key={p.id} p={p} />)}
           </div>
         ) : (
           <ul className="mt-1">
-            {items.map((p) => (
-              <li key={p.id} className="flex items-center gap-1">
-                <Link
-                  to="/playlists/$id"
-                  params={{ id: p.id }}
-                  className="flex min-w-0 flex-1 items-center gap-3 py-1.5 [-webkit-tap-highlight-color:transparent]"
-                >
-                  <Cover p={p} className="size-14 rounded-lg" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-semibold">{displayName(p)}</span>
-                    <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">{sub(p)}</span>
-                  </span>
-                </Link>
-                <button
-                  type="button"
-                  aria-label={`More for ${displayName(p)}`}
-                  onClick={() => setActionFor(p)}
-                  className="-mr-2 grid size-11 shrink-0 place-items-center rounded-full text-muted-foreground [-webkit-tap-highlight-color:transparent]"
-                >
-                  <MoreHorizontal className="size-5" />
-                </button>
-              </li>
-            ))}
+            {items.map((p) => <PlaylistRow key={p.id} p={p} onMore={setActionFor} />)}
           </ul>
         )}
       </div>
@@ -525,15 +534,15 @@ export function GlassPlaylistLibrary() {
         open={!!actionFor}
         onOpenChange={(o) => !o && closeActions()}
         title={actionFor ? displayName(actionFor) : ''}
-        subtitle={actionFor ? sub(actionFor) : undefined}
+        subtitle={actionFor ? subOf(actionFor) : undefined}
         description="Playlist actions"
       >
         {actionFor && (
           <>
-            <SheetRow icon={busy === 'play' ? <Loader2 className="size-5 animate-spin" /> : <Play className="size-5" />} title="Play" disabled={!!busy} onClick={() => playNow(actionFor)} />
-            <SheetRow icon={busy === 'shuffle' ? <Loader2 className="size-5 animate-spin" /> : <Shuffle className="size-5" />} title="Shuffle" disabled={!!busy} onClick={() => shufflePlay(actionFor)} />
-            <SheetRow icon={busy === 'next' ? <Loader2 className="size-5 animate-spin" /> : <ListPlus className="size-5" />} title="Play next" disabled={!!busy} onClick={() => enqueue(actionFor, 'next')} />
-            <SheetRow icon={busy === 'end' ? <Loader2 className="size-5 animate-spin" /> : <ListMusic className="size-5" />} title="Add to queue" disabled={!!busy} onClick={() => enqueue(actionFor, 'end')} />
+            <SheetRow icon={busyIcon('play', Play)} title="Play" disabled={!!busy} onClick={() => playNow(actionFor)} />
+            <SheetRow icon={busyIcon('shuffle', Shuffle)} title="Shuffle" disabled={!!busy} onClick={() => shufflePlay(actionFor)} />
+            <SheetRow icon={busyIcon('next', ListPlus)} title="Play next" disabled={!!busy} onClick={() => enqueue(actionFor, 'next')} />
+            <SheetRow icon={busyIcon('end', ListMusic)} title="Add to queue" disabled={!!busy} onClick={() => enqueue(actionFor, 'end')} />
             <SheetRow
               icon={<Download className="size-5" />}
               title="Export"
@@ -558,23 +567,22 @@ export function GlassPlaylistLibrary() {
         )}
       </GlassSheet>
 
-      <SmartPlaylistEditor open={smartOpen} onOpenChange={setSmartOpen} trigger={<span hidden />} />
-      <PlaylistImportDialog
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ['playlists'] });
-          toast.success('Playlist imported');
-        }}
-      />
-      {exportFor && (
-        <PlaylistExportDialog
-          open
-          onOpenChange={(o) => !o && setExportFor(null)}
-          playlistId={exportFor.id}
-          playlistName={exportFor.name}
-        />
-      )}
+      <Suspense fallback={null}>
+        {smartOpen && <SmartPlaylistEditor open onOpenChange={setSmartOpen} trigger={<span hidden />} />}
+        {importOpen && (
+          <PlaylistImportDialog
+            open
+            onOpenChange={setImportOpen}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['playlists'] });
+              toast.success('Playlist imported');
+            }}
+          />
+        )}
+        {exportFor && (
+          <PlaylistExportDialog open onOpenChange={(o) => !o && setExportFor(null)} playlistId={exportFor.id} playlistName={exportFor.name} />
+        )}
+      </Suspense>
     </div>
   );
 }

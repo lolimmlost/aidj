@@ -217,8 +217,8 @@ interface AppLayoutProps {
  * - Bottom: Fixed audio player bar
  */
 export function AppLayout({ children }: AppLayoutProps) {
-  const { playlist, currentSongIndex } = useAudioStore();
-  const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
+  // narrow selectors: the shell must not re-render on every playback tick
+  const hasActiveSong = useAudioStore((s) => s.playlist.length > 0 && s.currentSongIndex >= 0);
   // the Transition Lab plays through its own engine and pauses this player: the player bar and the
   // queue button would only cover the Lab's controls there (the bar stays mounted, hidden)
   const onLab = useRouterState({ select: (s) => s.location.pathname.startsWith('/dj/lab') });
@@ -244,7 +244,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     };
   }, []);
   const showPlayerPill = hasActiveSong && !onLab && playerCollapsed;
-  const currentSong = hasActiveSong ? playlist[currentSongIndex] : undefined;
+  const currentSong = useAudioStore((s) => (s.currentSongIndex >= 0 ? s.playlist[s.currentSongIndex] : undefined));
   // a Transition Lab set that died mid-set (iOS kills a page that runs out of memory) is reported
   // however the app reopens, not only when the Lab does
   useEffect(() => checkPreviousLabPage(), []);
@@ -769,8 +769,12 @@ function LeftSidebar() {
  * Non-critical sidebar data is fetched after the main content renders.
  */
 function RightSidebar() {
-  const { playlist, currentSongIndex, isPlaying, playNow, addToQueueEnd } = useAudioStore();
+  const playlist = useAudioStore((s) => s.playlist);
+  const currentSongIndex = useAudioStore((s) => s.currentSongIndex);
   const currentSong = playlist[currentSongIndex];
+  const isPlaying = useAudioStore((s) => s.isPlaying);
+  const playNow = useAudioStore((s) => s.playNow);
+  const addToQueueEnd = useAudioStore((s) => s.addToQueueEnd);
 
   // Deferred loading: Wait before fetching non-critical sidebar data
   const shouldFetchSidebarData = useDeferredRender(800);
@@ -952,7 +956,7 @@ function RightSidebar() {
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); playNow(song.id, { id: song.id, name: song.name, artist: song.artist, url: song.url, albumId: song.albumId || '', duration: 0, track: 0 }); }} title="Play now">
                         <Play className="h-3.5 w-3.5" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); addToQueueEnd({ id: song.id, name: song.name, artist: song.artist, url: song.url, albumId: song.albumId || '', duration: 0, track: 0 }); toast.success(`Added "${song.name}" to queue`); }} title="Add to queue">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); addToQueueEnd([{ id: song.id, name: song.name, artist: song.artist, url: song.url, albumId: song.albumId || '', duration: 0, track: 0 }]); toast.success(`Added "${song.name}" to queue`); }} title="Add to queue">
                         <ListPlus className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -1011,7 +1015,7 @@ function RightSidebar() {
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); playNow(song.id, song); }} title="Play now">
                           <Play className="h-3.5 w-3.5" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); addToQueueEnd(song); toast.success(`Added "${song.name || song.title}" to queue`); }} title="Add to queue">
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary" onClick={(e) => { e.stopPropagation(); addToQueueEnd([song]); toast.success(`Added "${song.name || song.title}" to queue`); }} title="Add to queue">
                           <ListPlus className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -1053,7 +1057,8 @@ interface Recommendation {
 }
 
 const RecommendationsSection = memo(function RecommendationsSection({ recommendations }: { recommendations: Recommendation[] }) {
-  const { addToQueueEnd, addPlaylist } = useAudioStore();
+  const addToQueueEnd = useAudioStore((s) => s.addToQueueEnd);
+  const addPlaylist = useAudioStore((s) => s.addPlaylist);
 
   const handleAddToQueue = useCallback((rec: Recommendation) => {
     if (rec.actualSong || (rec.songId && rec.url)) {
@@ -1066,7 +1071,7 @@ const RecommendationsSection = memo(function RecommendationsSection({ recommenda
         duration: 0,
         track: 0,
       };
-      addToQueueEnd(song);
+      addToQueueEnd([song]);
       toast.success(`Added to queue: ${song.name}`);
     } else {
       toast.error('Song not available in library');

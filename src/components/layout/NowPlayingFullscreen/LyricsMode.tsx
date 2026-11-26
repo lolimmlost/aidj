@@ -4,7 +4,7 @@
  * search workflows, but without the portal/header chrome since the
  * NowPlayingFullscreen chassis provides those.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Music,
   Loader2,
@@ -139,7 +139,7 @@ const detectChorusLines = (lyrics: LyricLine[]): Set<number> => {
  * glass: phones get the glass treatment (left-aligned display type, a fade at
  * the top and bottom, quieter toolbar). onSeek: tap a synced line to jump to it.
  */
-export function LyricsMode({ expanded, glass, onSeek }: { expanded?: boolean; glass?: boolean; onSeek?: (time: number) => void }) {
+function LyricsModeImpl({ expanded, glass, onSeek }: { expanded?: boolean; glass?: boolean; onSeek?: (time: number) => void }) {
   const { playlist, currentSongIndex, currentTime, isPlaying } = useAudioStore();
   const song = playlist[currentSongIndex] || null;
 
@@ -732,3 +732,6 @@ export function LyricsMode({ expanded, glass, onSeek }: { expanded?: boolean; gl
     </div>
   );
 }
+
+/** Memoized: the player bar re-renders on every playback tick, this only when its props change. */
+export const LyricsMode = memo(LyricsModeImpl);

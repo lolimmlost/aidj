@@ -30,11 +30,10 @@ import {
 import { setLowMotion, useLowMotion } from '@/lib/hooks/useLowMotion';
 import { toast } from '@/lib/toast';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
-import { Waveform } from '@/components/glass/Waveform';
 import { useIsPhone } from '@/components/glass/GlassSheet';
 import { GlassAddToPlaylistSheet } from '@/components/glass/GlassAddToPlaylistSheet';
 import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
+import { Scrubber } from './Scrubber';
 import { getCoverArtUrl } from '@/components/ui/album-art';
 import { cn } from '@/lib/utils';
 import { AIDJToggle } from '@/components/ai-dj-toggle';
@@ -54,12 +53,6 @@ import type { NowPlayingFullscreenProps, NPMode } from './types';
 const isModifiedClick = (e: React.MouseEvent) =>
   e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
 
-const formatTime = (time: number) => {
-  if (!isFinite(time) || time < 0) return '0:00';
-  const minutes = Math.floor(time / 60);
-  const seconds = Math.floor(time % 60);
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-};
 
 export function NowPlayingFullscreen({
   isOpen,
@@ -438,31 +431,7 @@ export function NowPlayingFullscreen({
               )}
               </div>
 
-              {/* Scrubber */}
-              <div className="w-full space-y-2">
-                {glass && (
-                  <Waveform
-                    seed={currentSong.id}
-                    current={isFinite(currentTime) ? currentTime : 0}
-                    duration={isFinite(duration) && duration > 0 ? duration : 0}
-                    onSeek={onSeek}
-                    playedClassName="bg-primary"
-                    unplayedClassName="bg-white/20"
-                    className="h-8 md:hidden short-landscape:hidden"
-                  />
-                )}
-                <Slider
-                  value={[isFinite(currentTime) ? currentTime : 0]}
-                  max={isFinite(duration) && duration > 0 ? duration : 100}
-                  step={0.1}
-                  onValueChange={([v]) => onSeek(v)}
-                  className={cn("w-full [&_[data-slot=slider-track]]:bg-white/20 [&_[data-slot=slider-thumb]]:border-white [&_[data-slot=slider-thumb]]:bg-white", glass && "max-md:hidden short-landscape:flex")}
-                />
-                <div className="flex justify-between">
-                  <span className="text-xs font-mono text-white/50">{formatTime(currentTime)}</span>
-                  <span className="text-xs font-mono text-white/50">-{formatTime(Math.max(0, duration - currentTime))}</span>
-                </div>
-              </div>
+              <Scrubber songId={currentSong.id} currentTime={currentTime} duration={duration} onSeek={onSeek} glass={glass} />
 
               {/* Transport */}
               <div className="flex items-center justify-center gap-4 sm:gap-6 w-full">
