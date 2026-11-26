@@ -6,6 +6,7 @@ type CardProps = React.HTMLAttributes<HTMLDivElement> & { ref?: React.Ref<HTMLDi
 const Card = ({ className, ref, ...props }: CardProps) => (
   <div
     ref={ref}
+    data-slot="card"
     className={cn(
       "rounded-xl border bg-card text-card-foreground shadow-sm",
       className

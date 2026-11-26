@@ -27,6 +27,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { cn } from '@/lib/utils';
 
 interface SortableQueueItemProps {
   song: { id: string; title?: string; name?: string; artist?: string };
@@ -341,6 +343,7 @@ export function QueuePanel() {
     aiDJRecommendationReasons,
   } = useAudioStore();
   const queuePanelOpen = useAudioStore(s => s.queuePanelOpen);
+  const glass = useGlassUi();
   const toggleQueuePanel = useAudioStore(s => s.toggleQueuePanel);
   const isRadioSession = useAudioStore(s => s.isRadioSession);
   const saveRadioAsPlaylist = useAudioStore(s => s.saveRadioAsPlaylist);
@@ -634,7 +637,14 @@ export function QueuePanel() {
     // Landscape mode: slightly lower to accommodate reduced player height
     // Below md: clear the ~6rem mobile player, which sits on the tab bar
     return (
-      <div className="fixed bottom-[calc(6.75rem+var(--mobile-tabbar-offset,0px))] right-2 md:right-4 z-50 md:bottom-[calc(5rem+1rem)] landscape:max-md:bottom-[calc(3.5rem+0.5rem+var(--mobile-tabbar-offset,0px))]">
+      <div
+        className={cn(
+          "fixed bottom-[calc(6.75rem+var(--mobile-tabbar-offset,0px))] right-2 md:right-4 z-50 md:bottom-[calc(5rem+1rem)] landscape:max-md:bottom-[calc(3.5rem+0.5rem+var(--mobile-tabbar-offset,0px))]",
+          // glass UI: the queue button is in the mini player on phones
+          glass && "max-md:hidden",
+        )}
+        style={{ viewTransitionName: 'queue-fab' }}
+      >
         <Button
           onClick={() => setIsOpen(true)}
           variant="outline"

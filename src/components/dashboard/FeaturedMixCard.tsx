@@ -9,7 +9,7 @@ import { FEATURED_MIX_ID } from '@/lib/config/featured-mix';
 import { mixDisplayTitle, parseMixTracklist } from '@/lib/utils/mix-tracklist';
 import { cn } from '@/lib/utils';
 
-interface MixSong {
+export interface MixSong {
   id: string;
   title: string;
   album?: string;
@@ -23,7 +23,7 @@ interface MixSong {
 
 const PREVIEW_TRACKS = 6;
 
-function useMixSong(id: string) {
+export function useMixSong(id: string) {
   return useQuery({
     queryKey: ['featured-mix', id],
     enabled: !!id,

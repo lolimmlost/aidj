@@ -16,6 +16,7 @@ import {
   Speaker,
   Repeat1,
   ChevronDown,
+  ListMusic,
 } from 'lucide-react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,8 @@ import { haptic } from '@/lib/utils/haptics';
 import { dismissAutoplayPrompt, registerAudioUnlocker } from '@/lib/utils/audio-unlock';
 import { canViewTransition, suppressTransitionNames, waitForImage, withViewTransition, withViewTransitionAsync } from '@/lib/utils/view-transition';
 import { LikeHeart, type LikeEffect } from '@/components/player/LikeHeart';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { Waveform } from '@/components/glass/Waveform';
 
 /**
  * Spend a user gesture on an idle deck so a later play() isn't refused by
@@ -102,6 +105,10 @@ const formatTime = (time: number) => {
  */
 /** `onCollapse`: the ⌄ button hides the bar (the layout keeps it mounted, so playback goes on) */
 export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
+  // Glass UI prototype: frosted card + waveform progress on mobile.
+  const glass = useGlassUi();
+  const upcomingCount = useAudioStore((s) => s.getUpcomingQueue().length);
+  const toggleQueuePanel = useAudioStore((s) => s.toggleQueuePanel);
   // Cross-device playback sync (WebSocket + REST)
   usePlaybackSync();
   // House speaker output via Music Assistant (#244)
@@ -1196,23 +1203,55 @@ export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
   return (
     <>
       {/* Mobile Layout */}
-      <div className="md:hidden px-3 py-2 space-y-2">
-        {/* Progress bar at top */}
-        <div className="flex items-center gap-2">
+      <div className={cn(
+        "md:hidden px-3 py-2",
+        // glass: the card carries the view-transition name (see AppLayout) so its blur samples the page
+        glass ? "glass-surface mx-2 mb-2 flex flex-col gap-2 rounded-[22px] px-3.5 pt-3 pb-2.5 [view-transition-name:player-bar]" : "space-y-2",
+      )}>
+        {/* Progress: a slider on top, or (glass) a waveform under the song row */}
+        <div className={cn("flex items-center gap-2", glass && "order-last")}>
           <span className={cn("text-[10px] font-mono w-8 text-right", showRemoteTime ? "text-green-500" : "text-muted-foreground")}>
             {formatTime(displayCurrentTime)}
           </span>
-          <Slider
-            value={[isFinite(displayCurrentTime) ? displayCurrentTime : 0]}
-            max={isFinite(displayDuration) && displayDuration > 0 ? displayDuration : 100}
-            step={0.1}
-            onValueChange={([newValue]) => seek(newValue)}
-            className={cn("flex-1 h-1", showRemoteTime && "[&_[data-slot=slider-range]]:bg-green-500 [&_[data-slot=slider-thumb]]:border-green-500")}
-            disabled={showRemoteTime}
-          />
+          {glass ? (
+            <Waveform
+              seed={currentSong.id}
+              current={displayCurrentTime}
+              duration={displayDuration}
+              onSeek={seek}
+              disabled={showRemoteTime}
+              playedClassName={showRemoteTime ? "bg-green-500" : "bg-primary"}
+              className="flex-1"
+            />
+          ) : (
+            <Slider
+              value={[isFinite(displayCurrentTime) ? displayCurrentTime : 0]}
+              max={isFinite(displayDuration) && displayDuration > 0 ? displayDuration : 100}
+              step={0.1}
+              onValueChange={([newValue]) => seek(newValue)}
+              className={cn("flex-1 h-1", showRemoteTime && "[&_[data-slot=slider-range]]:bg-green-500 [&_[data-slot=slider-thumb]]:border-green-500")}
+              disabled={showRemoteTime}
+            />
+          )}
           <span className={cn("text-[10px] font-mono w-8", showRemoteTime ? "text-green-500" : "text-muted-foreground")}>
             -{formatTime(Math.max(0, displayDuration - displayCurrentTime))}
           </span>
+          {glass && (
+            // Glass UI: the queue lives in the player instead of a floating button
+            <button
+              type="button"
+              onClick={toggleQueuePanel}
+              aria-label={`Queue${upcomingCount > 0 ? `, ${upcomingCount} up next` : ''}`}
+              className="relative grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground [-webkit-tap-highlight-color:transparent] active:bg-foreground/10"
+            >
+              <ListMusic className="h-4 w-4" />
+              {upcomingCount > 0 && (
+                <span aria-hidden className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                  {upcomingCount > 99 ? '99+' : upcomingCount}
+                </span>
+              )}
+            </button>
+          )}
           {collapseButton}
         </div>
 
