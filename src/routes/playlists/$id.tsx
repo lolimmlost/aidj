@@ -9,7 +9,7 @@ import { useScrollSafeMenu } from '@/lib/hooks/useScrollSafeMenu';
 import {
   ListMusic, Play, Trash2, X, Plus, Shuffle,
   Heart, Sparkles, MoreHorizontal, Music2, Pause, GripVertical,
-  Users, SkipForward, Search, ArrowUpDown, ArrowUp, ArrowDown
+  Users, SkipForward, Search, ArrowUpDown, ArrowUp, ArrowDown, ListStart, ListEnd
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -41,6 +41,8 @@ import { StartRadioButton } from '@/components/radio/StartRadioButton';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
 import { getCoverArtUrl } from '@/components/ui/album-art';
 import { GlassPlaylistHeader } from '@/components/playlists/GlassPlaylistHeader';
+import { AlphabetRail } from '@/components/glass/AlphabetRail';
+import { GlassSheet, SheetRow } from '@/components/glass/GlassSheet';
 import { SongActionSheet, type ActionSheetSong } from '@/components/glass/SongActionSheet';
 import {
   DndContext,
@@ -124,13 +126,13 @@ function formatDuration(seconds?: number | null) {
 
 type SortField = 'custom' | 'title' | 'artist' | 'album' | 'dateAdded' | 'duration';
 
-const SORT_OPTIONS: Array<{ value: SortField; label: string }> = [
+const SORT_OPTIONS: Array<{ value: SortField; label: string; asc?: string; desc?: string }> = [
   { value: 'custom', label: 'Custom Order' },
-  { value: 'title', label: 'Title' },
-  { value: 'artist', label: 'Artist' },
-  { value: 'album', label: 'Album' },
-  { value: 'dateAdded', label: 'Date Added' },
-  { value: 'duration', label: 'Duration' },
+  { value: 'title', label: 'Title', asc: 'A–Z', desc: 'Z–A' },
+  { value: 'artist', label: 'Artist', asc: 'A–Z', desc: 'Z–A' },
+  { value: 'album', label: 'Album', asc: 'A–Z', desc: 'Z–A' },
+  { value: 'dateAdded', label: 'Date Added', asc: 'Oldest first', desc: 'Newest first' },
+  { value: 'duration', label: 'Duration', asc: 'Shortest first', desc: 'Longest first' },
 ];
 
 // Display wrapper over the canonical parser. The UI wants a visible
@@ -154,72 +156,8 @@ function getSortValue(song: PlaylistSong, field: SortField): string | number {
   }
 }
 
-const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
-
-function AlphabetRail({
-  availableLetters,
-  onLetterSelect,
-}: {
-  availableLetters: Set<string>;
-  onLetterSelect: (letter: string) => void;
-}) {
-  const railRef = useRef<HTMLDivElement>(null);
-  const activeRef = useRef(false);
-
-  const getLetterFromTouch = useCallback((clientY: number) => {
-    if (!railRef.current) return null;
-    const rect = railRef.current.getBoundingClientRect();
-    const y = clientY - rect.top;
-    const idx = Math.floor((y / rect.height) * ALPHABET.length);
-    return ALPHABET[Math.max(0, Math.min(idx, ALPHABET.length - 1))];
-  }, []);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    activeRef.current = true;
-    const letter = getLetterFromTouch(e.touches[0].clientY);
-    if (letter && availableLetters.has(letter)) onLetterSelect(letter);
-  }, [getLetterFromTouch, availableLetters, onLetterSelect]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!activeRef.current) return;
-    e.preventDefault();
-    const letter = getLetterFromTouch(e.touches[0].clientY);
-    if (letter && availableLetters.has(letter)) onLetterSelect(letter);
-  }, [getLetterFromTouch, availableLetters, onLetterSelect]);
-
-  const handleTouchEnd = useCallback(() => {
-    activeRef.current = false;
-  }, []);
-
-  return (
-    <div
-      ref={railRef}
-      className="fixed right-0.5 flex flex-col items-center justify-center z-30 select-none touch-none py-1"
-      style={{ top: '30%', bottom: '15%' }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
-      {ALPHABET.map((letter) => (
-        <button
-          key={letter}
-          type="button"
-          className={cn(
-            'w-5 text-[9px] font-semibold leading-none py-[2px] rounded-sm transition-colors',
-            availableLetters.has(letter)
-              ? 'text-primary hover:bg-primary/10'
-              : 'text-muted-foreground/30 pointer-events-none'
-          )}
-          onClick={() => {
-            if (availableLetters.has(letter)) onLetterSelect(letter);
-          }}
-        >
-          {letter}
-        </button>
-      ))}
-    </div>
-  );
-}
+/** Sorts where the list runs in letter order, so a letter rail means something. */
+const ALPHA_SORTS = new Set<SortField>(['title', 'artist', 'album']);
 
 // Marquee timing (#450): one pass out and back, then a long hold so a list of
 // long titles isn't a wall of moving text.
@@ -785,6 +723,8 @@ function PlaylistDetailPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('custom');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [glassMoreOpen, setGlassMoreOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const songListRef = useRef<HTMLDivElement>(null);
   const songListHandleRef = useRef<PlaylistSongsListHandle | null>(null);
 
@@ -1103,7 +1043,7 @@ function PlaylistDetailPage() {
 
   const availableLetters = useMemo(() => {
     const letters = new Set<string>();
-    const sortByTitle = sortField === 'title' || sortField === 'custom';
+    const sortByTitle = sortField === 'title';
     for (const song of filteredSongs) {
       const [artist, title] = extractArtistTitle(song.songArtistTitle);
       const text = sortByTitle ? title : sortField === 'artist' ? artist : (song.album || title);
@@ -1115,7 +1055,7 @@ function PlaylistDetailPage() {
   }, [filteredSongs, sortField]);
 
   const handleLetterSelect = useCallback((letter: string) => {
-    const sortByTitle = sortField === 'title' || sortField === 'custom';
+    const sortByTitle = sortField === 'title';
     const idx = filteredSongs.findIndex((song) => {
       const [artist, title] = extractArtistTitle(song.songArtistTitle);
       const text = sortByTitle ? title : sortField === 'artist' ? artist : (song.album || title);
@@ -1238,6 +1178,36 @@ function PlaylistDetailPage() {
     return { songId: ps.songId, title, artist, albumId: ps.albumId, artistId: ps.artistId, starred: isLikedView || !!ps.starred };
   };
   const findPlaylistSong = (songId: string) => playlist.songs.find((x) => x.songId === songId);
+
+  // Glass phones: the playlist's ⋯ as a bottom sheet (moreMenu is the desktop dropdown).
+  const canDelete = !isLikedSongsPlaylist && !playlist.isLikedSongs && !isSmartPlaylist;
+  const glassMoreSheet = glass && (
+    <GlassSheet
+      open={glassMoreOpen}
+      onOpenChange={(o) => { setGlassMoreOpen(o); if (!o) setConfirmDelete(false); }}
+      title={isLikedSongsPlaylist || playlist.isLikedSongs ? 'Liked Songs' : playlist.name}
+      subtitle={`${playlist.songs.length} song${playlist.songs.length === 1 ? '' : 's'}`}
+      description="Playlist actions"
+    >
+      <SheetRow icon={<Shuffle className="size-5" />} title="Shuffle play" disabled={playlist.songs.length === 0} onClick={() => { handleShufflePlay(); setGlassMoreOpen(false); }} />
+      <SheetRow icon={<ListStart className="size-5" />} title="Play next" disabled={playlist.songs.length === 0} onClick={() => { handleAddToQueue('next'); setGlassMoreOpen(false); }} />
+      <SheetRow icon={<ListEnd className="size-5" />} title="Add to queue" disabled={playlist.songs.length === 0} onClick={() => { handleAddToQueue('end'); setGlassMoreOpen(false); }} />
+      {canDelete && (
+        <SheetRow
+          icon={<Trash2 className="size-5" />}
+          title={confirmDelete ? 'Tap again to delete' : 'Delete playlist'}
+          sub={confirmDelete ? 'This can’t be undone' : undefined}
+          tone="destructive"
+          active={confirmDelete}
+          onClick={() => {
+            if (!confirmDelete) return setConfirmDelete(true);
+            setGlassMoreOpen(false);
+            handleDeletePlaylist();
+          }}
+        />
+      )}
+    </GlassSheet>
+  );
 
   const moreMenu = (
           <DropdownMenu>
@@ -1420,6 +1390,7 @@ function PlaylistDetailPage() {
                 onSearchChange={setSearchQuery}
                 sortOptions={SORT_OPTIONS}
                 sortField={sortField}
+                sortDirection={sortDirection}
                 onSortChange={handleSortChange}
                 onPlay={handleGlassPlay}
                 onShuffle={handleShufflePlay}
@@ -1435,7 +1406,14 @@ function PlaylistDetailPage() {
                       variant="ghost"
                       className="glass-flat size-11 rounded-full p-0"
                     />
-                    <span className="glass-flat grid size-11 place-items-center rounded-full [&_button]:size-11 [&_button]:rounded-full">{moreMenu}</span>
+                    <button
+                      type="button"
+                      aria-label="More"
+                      onClick={() => setGlassMoreOpen(true)}
+                      className="glass-flat grid size-11 place-items-center rounded-full [-webkit-tap-highlight-color:transparent]"
+                    >
+                      <MoreHorizontal className="size-5" />
+                    </button>
                   </>
                 }
               />
@@ -1547,12 +1525,14 @@ function PlaylistDetailPage() {
                     onMore={setActionSong}
                   />
 
-                  {/* Alphabet rail — mobile only, when 20+ songs */}
-                  {filteredSongs.length >= 20 && (
+                  {/* Alphabet rail — mobile only, 20+ songs, and only when the
+                      list is in letter order (title / artist / album sort) */}
+                  {filteredSongs.length >= 20 && ALPHA_SORTS.has(sortField) && (
                     <div className="sm:hidden">
                       <AlphabetRail
                         availableLetters={availableLetters}
                         onLetterSelect={handleLetterSelect}
+                        reversed={sortDirection === 'desc'}
                       />
                     </div>
                   )}
@@ -1562,6 +1542,7 @@ function PlaylistDetailPage() {
           </div>
         </div>
 
+        {glassMoreSheet}
         {glass && (
           <SongActionSheet
             song={actionSong ? toSheetSong(actionSong) : null}

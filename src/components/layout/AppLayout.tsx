@@ -229,6 +229,20 @@ export function AppLayout({ children }: AppLayoutProps) {
   const glass = useGlassUi();
   useEffect(() => useAudioStore.subscribe(createPlayerRevealWatcher(() => setPlayerCollapsed(false))), []);
   const showPlayer = hasActiveSong && !onLab && !playerCollapsed;
+  // Publishes the player's real height as --mini-player-h on <html> so the
+  // content above it (and fixed things like the A–Z rail) can clear it.
+  const measureMiniPlayer = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return;
+    const root = document.documentElement;
+    const set = () => root.style.setProperty('--mini-player-h', `${el.offsetHeight}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty('--mini-player-h');
+    };
+  }, []);
   const showPlayerPill = hasActiveSong && !onLab && playerCollapsed;
   const currentSong = hasActiveSong ? playlist[currentSongIndex] : undefined;
   // a Transition Lab set that died mid-set (iOS kills a page that runs out of memory) is reported
@@ -272,7 +286,10 @@ export function AppLayout({ children }: AppLayoutProps) {
            Mobile player is taller (~104px) than desktop (h-20 = 80px). */}
       <div className={cn(
         "flex-1 flex overflow-hidden",
-        showPlayer && "pb-28 md:pb-20",
+        // the mini player's measured height (--mini-player-h, below): it
+        // grows with the glass card's progress row, so a fixed pb cut the
+        // last rows off under it
+        showPlayer && "pb-[var(--mini-player-h,7rem)] md:pb-20",
         showPlayerPill && "pb-14"
       )}>
         {/* Left Sidebar - Navigation & Playlists */}
@@ -299,7 +316,7 @@ export function AppLayout({ children }: AppLayoutProps) {
          sits on top of the tab bar (--mobile-tabbar-offset, see MobileTabBar). */}
       {/* CRITICAL: Always render PlayerBar to preserve audio elements across state changes.
          Unmounting destroys <audio> elements and kills playback. Hide visually instead. */}
-      <div className={cn(
+      <div ref={measureMiniPlayer} className={cn(
         "fixed bottom-[var(--mobile-tabbar-offset,0px)] md:bottom-0 left-0 right-0 z-50",
         // glass UI: the mobile bar is a floating frosted card, so no strip behind it
         glass ? "md:border-t md:bg-background/95 md:backdrop-blur-xl" : "border-t bg-background/95 backdrop-blur-xl",

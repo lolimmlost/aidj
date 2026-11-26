@@ -1,5 +1,7 @@
-import { Radio } from 'lucide-react';
+import { Loader2, Radio } from 'lucide-react';
 import { useState } from 'react';
+import { GlassSheet, SheetLabel, useIsPhone } from '@/components/glass/GlassSheet';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -54,6 +56,10 @@ export function StartRadioButton({
   className,
 }: StartRadioButtonProps) {
   const startRadio = useAudioStore((s) => s.startRadio);
+  // Glass UI on phones: the options open as a bottom sheet instead of a dropdown.
+  const glass = useGlassUi();
+  const phone = useIsPhone();
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [variety, setVariety] = useState<ArtistVariety>('medium');
   const [length, setLength] = useState<LengthChoice>(null);
   const [busy, setBusy] = useState(false);
@@ -124,6 +130,92 @@ export function StartRadioButton({
       </DropdownMenuItem>
     </DropdownMenuContent>
   );
+
+  if (glass && phone) {
+    const VARIETY: Array<{ value: ArtistVariety; label: string; sub: string }> = [
+      { value: 'low', label: 'Low', sub: 'Mostly this artist' },
+      { value: 'medium', label: 'Medium', sub: 'Balanced mix' },
+      { value: 'high', label: 'High', sub: 'Adventurous' },
+    ];
+    const choice = (on: boolean) =>
+      cn(
+        'flex flex-col items-center justify-center rounded-2xl text-center [-webkit-tap-highlight-color:transparent] active:bg-foreground/10',
+        on ? 'bg-primary text-primary-foreground' : 'glass-flat',
+      );
+    return (
+      <>
+        <Button
+          size={size}
+          variant={variant}
+          disabled={busy}
+          aria-label={size === 'icon' ? label : undefined}
+          title={size === 'icon' ? label : undefined}
+          className={cn(size !== 'icon' && 'gap-2', className)}
+          onClick={() => setSheetOpen(true)}
+        >
+          <Radio className="size-4" />
+          {size !== 'icon' && label}
+        </Button>
+        <GlassSheet
+          open={sheetOpen}
+          onOpenChange={setSheetOpen}
+          title="Start radio"
+          subtitle="Songs like these, played as one long mix"
+          description="Choose how long the radio runs and start it"
+          footer={
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                void run().then(() => setSheetOpen(false), () => {});
+              }}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-60"
+            >
+              {busy ? <Loader2 className="size-5 animate-spin" /> : <Radio className="size-5" />}
+              {busy ? 'Starting…' : 'Start radio'}
+            </button>
+          }
+        >
+          <SheetLabel>LENGTH</SheetLabel>
+          <div className="grid grid-cols-3 gap-2 px-1">
+            {LENGTH_OPTIONS.map((o) => (
+              <button
+                key={o.tag}
+                type="button"
+                aria-pressed={length === o.value}
+                onClick={() => setLength(o.value)}
+                className={cn(choice(length === o.value), 'h-[60px]', o.value === 180 && 'col-span-2')}
+              >
+                <span className="text-[15px] font-semibold">{o.value === 180 ? 'Journey' : o.label}</span>
+                {o.value === 180 && <span className="text-[11px] opacity-75">3+ hours</span>}
+                {o.value == null && <span className="text-[11px] opacity-75">about 40 songs</span>}
+              </button>
+            ))}
+          </div>
+          {showVariety && (
+            <>
+              <SheetLabel>ARTIST VARIETY</SheetLabel>
+              <div className="grid grid-cols-3 gap-2 px-1">
+                {VARIETY.map((v) => (
+                  <button
+                    key={v.value}
+                    type="button"
+                    aria-pressed={variety === v.value}
+                    onClick={() => setVariety(v.value)}
+                    className={cn(choice(variety === v.value), 'h-[60px]')}
+                  >
+                    <span className="text-[15px] font-semibold">{v.label}</span>
+                    <span className="text-[11px] opacity-75">{v.sub}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          <div className="h-2" />
+        </GlassSheet>
+      </>
+    );
+  }
 
   if (size === 'icon') {
     return (

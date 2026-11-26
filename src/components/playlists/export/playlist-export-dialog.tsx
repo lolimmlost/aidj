@@ -126,7 +126,7 @@ export function PlaylistExportDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent sheet className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Export Playlist</DialogTitle>
           <DialogDescription>

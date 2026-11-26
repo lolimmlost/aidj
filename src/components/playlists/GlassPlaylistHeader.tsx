@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Link } from '@tanstack/react-router';
-import { Check, Pause, Play, Plus, Search, Shuffle, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Pause, Play, Plus, Search, Shuffle, X } from 'lucide-react';
+import { GlassSheet } from '@/components/glass/GlassSheet';
 import { useDynamicColors } from '@/hooks/useDynamicColors';
 import { cn } from '@/lib/utils';
 
 interface SortOption<T extends string> {
   value: T;
   label: string;
+  /** How each direction reads ("A–Z", "Newest first"); none = no direction (custom order). */
+  asc?: string;
+  desc?: string;
 }
 
 interface GlassPlaylistHeaderProps<T extends string> {
@@ -19,6 +22,8 @@ interface GlassPlaylistHeaderProps<T extends string> {
   onSearchChange: (q: string) => void;
   sortOptions: SortOption<T>[];
   sortField: T;
+  sortDirection: 'asc' | 'desc';
+  /** Picking the current field again flips its direction. */
   onSortChange: (field: T) => void;
   onPlay: () => void;
   onShuffle: () => void;
@@ -36,7 +41,7 @@ interface GlassPlaylistHeaderProps<T extends string> {
  * centred title and the Play button takes over, so only one is ever visible.
  */
 export function GlassPlaylistHeader<T extends string>({
-  name, meta, coverUrl, searchQuery, onSearchChange, sortOptions, sortField, onSortChange,
+  name, meta, coverUrl, searchQuery, onSearchChange, sortOptions, sortField, sortDirection, onSortChange,
   onPlay, onShuffle, isPlayingThis, disabled, leftActions, showAddSongs,
 }: GlassPlaylistHeaderProps<T>) {
   const barRef = useRef<HTMLDivElement>(null);
@@ -71,6 +76,11 @@ export function GlassPlaylistHeader<T extends string>({
       if (frame) cancelAnimationFrame(frame);
     };
   }, []);
+
+  const current = sortOptions.find((o) => o.value === sortField);
+  const sorted = !!current?.asc;
+  const dirLabel = sorted ? (sortDirection === 'asc' ? current?.asc : current?.desc) : undefined;
+  const SortIcon = !sorted ? ArrowUpDown : sortDirection === 'asc' ? ArrowUp : ArrowDown;
 
   const playIcon = isPlayingThis ? <Pause className="size-5 fill-current" /> : <Play className="ml-0.5 size-5 fill-current" />;
   const playLabel = isPlayingThis ? 'Pause' : `Play ${name}`;
@@ -129,8 +139,17 @@ export function GlassPlaylistHeader<T extends string>({
               </button>
             )}
           </label>
-          <button type="button" onClick={() => setSortOpen(true)} className="glass-flat rounded-xl px-4 text-[15px] font-bold">
-            Sort
+          <button
+            type="button"
+            onClick={() => setSortOpen(true)}
+            aria-label={`Sort: ${current?.label ?? 'Custom'}${dirLabel ? `, ${dirLabel}` : ''}`}
+            className={cn(
+              'glass-flat flex max-w-[45%] shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-[15px] font-bold [-webkit-tap-highlight-color:transparent]',
+              sorted && 'text-primary',
+            )}
+          >
+            <SortIcon className="size-4 shrink-0" aria-hidden />
+            <span className="truncate">{sorted ? current?.label : 'Sort'}</span>
           </button>
         </div>
 
@@ -190,31 +209,36 @@ export function GlassPlaylistHeader<T extends string>({
         )}
       </div>
 
-      <DialogPrimitive.Root open={sortOpen} onOpenChange={setSortOpen}>
-        <DialogPrimitive.Portal>
-          <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-black/45" />
-          <DialogPrimitive.Content className="glass-surface fixed inset-x-2 bottom-2 z-[71] rounded-[26px] bg-background/85 px-3 pb-[calc(0.875rem+env(safe-area-inset-bottom))] pt-2 dark:bg-[rgb(22_20_32/0.86)] data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom">
-            <span aria-hidden className="mx-auto mb-2.5 mt-1 block h-1 w-9 rounded-full bg-foreground/25" />
-            <DialogPrimitive.Title className="mx-1.5 mb-1.5 font-display text-lg font-bold">Sort by</DialogPrimitive.Title>
-            <DialogPrimitive.Description className="sr-only">Choose how songs are ordered</DialogPrimitive.Description>
-            {sortOptions.map((o) => (
-              <button
-                key={o.value}
-                type="button"
-                aria-pressed={o.value === sortField}
-                onClick={() => {
-                  onSortChange(o.value);
-                  setSortOpen(false);
-                }}
-                className="flex h-[50px] w-full items-center justify-between rounded-xl px-2 text-left text-[15px] active:bg-foreground/10"
-              >
-                <span className={cn(o.value === sortField && 'text-primary')}>{o.label}</span>
-                {o.value === sortField && <Check className="size-[18px] text-primary" />}
-              </button>
-            ))}
-          </DialogPrimitive.Content>
-        </DialogPrimitive.Portal>
-      </DialogPrimitive.Root>
+      <GlassSheet open={sortOpen} onOpenChange={setSortOpen} title="Sort by" description="Choose how songs are ordered">
+        {sortOptions.map((o) => {
+          const on = o.value === sortField;
+          const dir = o.asc && o.desc ? (on ? (sortDirection === 'asc' ? o.asc : o.desc) : null) : null;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              aria-pressed={on}
+              onClick={() => {
+                onSortChange(o.value);
+                // A new field closes the sheet; the same one flips and stays so you see it.
+                if (!on || !o.asc) setSortOpen(false);
+              }}
+              className={cn(
+                'flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl px-3 text-left [-webkit-tap-highlight-color:transparent] active:bg-foreground/10',
+                on && 'bg-primary/10',
+              )}
+            >
+              <span className="min-w-0">
+                <span className={cn('block truncate text-[15px] font-semibold', on && 'text-primary')}>{o.label}</span>
+                {dir != null && <span className="block text-[13px] text-muted-foreground">{dir} · tap to flip</span>}
+              </span>
+              {on && (dir == null ? null : sortDirection === 'asc'
+                ? <ArrowUp className="size-5 shrink-0 text-primary" />
+                : <ArrowDown className="size-5 shrink-0 text-primary" />)}
+            </button>
+          );
+        })}
+      </GlassSheet>
     </>
   );
 }
