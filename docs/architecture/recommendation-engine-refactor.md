@@ -675,8 +675,7 @@ AFTER:  2 new files
 
 - [Platypush Music Automation Article](https://blog.platypush.tech/) - Inspiration for this approach
 - [Last.fm API Documentation](https://www.last.fm/api)
-- [Story 7.2: Last.fm Integration](../stories/epic-7.story-7.2.lastfm-integration.md)
-- [Story 7.3: Discovery Pipeline](../stories/epic-7.story-7.3.discovery-pipeline.md)
+- Story 7.2 (Last.fm integration) and 7.3 (discovery pipeline): planning docs removed in the 1.6.0 cleanup; see git history before it.
 
 ---
 

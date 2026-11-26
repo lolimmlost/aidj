@@ -9,13 +9,15 @@
 | Name | aidj-music-interface |
 | Stack | React 19 + TanStack Start/Router + Vite + Drizzle ORM + PostgreSQL + Zustand |
 | UI | Radix UI + Tailwind CSS 4 + shadcn/ui + Lucide icons |
-| Auth | better-auth (email/password + GitHub/Google OAuth) |
+| Auth | better-auth, pinned exact (email/password, 2FA by authenticator app or email code; GitHub/Google OAuth only when their env vars are set) |
 | Dev port | 3003 (`npm run dev`) |
 | WS port | same server (vite plugin) |
 | Build | `npm run build` (node-server target) or `npm run build:cloudflare` |
-| Test | `npm test` (vitest), `npm run test:e2e` (playwright) |
+| Test | `npm test` (vitest, `src/**` only; CI runs it). `npm run test:e2e` (Playwright) runs locally only, not in CI |
 | DB | `npm run db` (drizzle-kit), `npm run db:studio` |
-| Deploy target | Node.js (`node-server`) or Cloudflare Pages |
+| Deploy target | Prod: Docker image (`Dockerfile`, Node 26) on Coolify, deployed from `main`. Alternative: Cloudflare Pages |
+| Migrations | `drizzle/*.sql`. **Not run on deploy**: apply new ones to prod by hand before deploying |
+| UI design | Classic, plus the glass design (phones) behind a switch: `useGlassUi()` / `setGlassUi()`, `?glass=1`. Recipe: `docs/design/glass-ui-recipe.md` |
 
 ## Architecture Overview
 
@@ -36,12 +38,12 @@
 
 | System | Key Files | Risk |
 |--------|-----------|------|
-| Audio store | `src/lib/stores/audio.ts` (1,859 lines) | Manages ALL playback state, queue, AI DJ, crossfade, autoplay, cross-device sync timestamps |
+| Audio store | `src/lib/stores/audio.ts` (~2,100 lines) | Manages ALL playback state, queue, AI DJ, crossfade, autoplay, cross-device sync timestamps |
 | Dual-deck audio | `src/lib/hooks/useDualDeckAudio.ts`, `useCrossfade.ts` | Two HTMLAudioElement instances for gapless crossfade. Break = no playback |
 | Playback state sync | `usePlaybackStateSync.ts` | iOS screen lock recovery, visibility change handling, stall recovery |
 | Cross-device sync | `playback-websocket.ts`, `usePlaybackSync.ts` | WebSocket per-field timestamp conflict resolution |
 | Recommendation engine | `blended-recommendation-scorer.ts` (orchestrator), `compound-scoring.ts`, `skip-scoring.ts`, `dj-match-scorer.ts` | Multi-signal scoring, artist fatigue, blocklists |
-| Navidrome service | `src/lib/services/navidrome.ts` (2,069 lines) | ALL library data, search, streaming. Break = app is useless |
+| Navidrome service | `src/lib/services/navidrome/` (`core`, `library`, `playlists`, `discovery`, `metadata`, `user-features`; ~2,200 lines) | ALL library data, search, streaming. Break = app is useless |
 | Per-user Navidrome | `src/lib/services/navidrome-users.ts` | Per-user account creation via native REST API, credential caching |
 
 ## Auth & Session Handling
@@ -121,3 +123,5 @@ Radix UI's `ScrollArea.Viewport` injects a child `<div style="display: table">` 
 - Do NOT use `require()` in client code (ESM-only, `"type": "module"`)
 - Do NOT modify the WebSocket vite plugin without testing cross-device sync on multiple browsers
 - Do NOT use Subsonic `createUser` endpoint — Navidrome does not implement it. Use native REST API (`POST /api/user`) via `navidrome-users.ts`
+- Do NOT loosen the exact `better-auth` pin or bump it without testing sign-in (password, and a 2FA email code) against a copy of prod's auth tables: 1.7.2 broke every email sign-in for 3 days (Sept 2026). New better-auth schema columns need a hand-applied migration before the deploy
+- Do NOT deploy code that needs a new `drizzle/*.sql` migration before that migration is on prod (migrations don't run on deploy)

@@ -153,7 +153,7 @@
 | Styling | [Tailwind CSS v4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) + [Radix UI](https://www.radix-ui.com/) |
 | State | [Zustand](https://zustand.docs.pmnd.rs/) (9 stores with persistence) |
 | Database | [PostgreSQL](https://www.postgresql.org/) + [Drizzle ORM](https://orm.drizzle.team/) (22 schemas, 30 migrations) |
-| Auth | [Better Auth](https://www.better-auth.com/) (email/password + GitHub + Google OAuth) |
+| Auth | [Better Auth](https://www.better-auth.com/) (email/password, two-factor by authenticator app or email code, optional GitHub / Google OAuth) |
 | Charts | [Recharts](https://recharts.org/) |
 | Audio | Web Audio API, dual-deck crossfade engine |
 | Real-time | WebSocket (cross-device sync, collaborative playlists) |
@@ -184,7 +184,7 @@
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 20+ (the production image runs Node 26)
 - PostgreSQL
 - Navidrome instance
 
@@ -208,7 +208,7 @@ docker build -t aidj .
 docker run -d --name aidj -p 3003:3003 --env-file .env aidj   # serves on :3003 (override with -e PORT=…)
 ```
 
-Deployment notes (Node server, Cloudflare Pages, Coolify) live in [docs/deployment/](docs/deployment/).
+Database migrations don't run on deploy: apply new `drizzle/*.sql` files to the production database before deploying the code that needs them. For Cloudflare Pages as an alternative target, see [docs/deployment/](docs/deployment/).
 
 Optional services (Last.fm, Lidarr, MeTube, Ollama, Aurral) can be configured later in Settings.
 
