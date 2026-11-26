@@ -173,7 +173,7 @@ export function GlassHome() {
     <div className="glass-home relative min-h-[100dvh]">
       <GlassBackdrop />
 
-      <div className="relative px-[18px] pt-[calc(env(safe-area-inset-top)+3.75rem)] pb-6">
+      <div className="relative px-[18px] pt-[calc(env(safe-area-inset-top)+var(--top-bar)+0.75rem)] pb-6">
         <header className="flex items-end justify-between pb-3">
           <div className="flex flex-col gap-1">
             {stats && (

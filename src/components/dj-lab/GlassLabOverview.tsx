@@ -416,7 +416,7 @@ export function GlassLabOverview({ engine, snap, pool, crateName }: { engine: La
     <div className="space-y-2.5">
       {/* Floating set-tempo pill (top right, stays while you scroll) */}
       <div
-        className="glass-surface fixed right-3 top-[calc(env(safe-area-inset-top)+3.4rem)] z-30 flex items-center gap-2 rounded-full py-1 pl-2.5 pr-3 shadow-lg"
+        className="glass-surface fixed right-3 top-[calc(env(safe-area-inset-top)+var(--top-bar)+0.4rem)] z-30 flex items-center gap-2 rounded-full py-1 pl-2.5 pr-3 shadow-lg"
         role="status"
         aria-label={`Live set${crateName ? ` from ${crateName}` : ''}, ${snap.history.length} tracks, ${Math.round(snap.setBpm)} BPM`}
       >

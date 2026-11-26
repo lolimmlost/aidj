@@ -195,7 +195,7 @@ function AlbumDetail() {
   return (
     <>
     {glass && (
-      <div className="glass-page glass-home relative min-h-screen px-4 pb-28 pt-[calc(env(safe-area-inset-top)+3.5rem)] md:hidden">
+      <div className="glass-page glass-home relative min-h-screen px-4 pb-28 pt-[calc(env(safe-area-inset-top)+var(--top-bar)+0.5rem)] md:hidden">
         <GlassBackdrop className="md:hidden" />
         {isLoading ? (
           <div className="flex justify-center py-24"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>

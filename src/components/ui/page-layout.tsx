@@ -59,7 +59,7 @@ export function PageLayout({
         glass && 'relative',
         // On mobile: push content below the fixed top bar (safe-area + 3rem bar height)
         // On desktop: just safe-area is enough (no top bar)
-        'pt-[calc(env(safe-area-inset-top)+3.5rem)] md:pt-[env(safe-area-inset-top)]',
+        'pt-[calc(env(safe-area-inset-top)+var(--top-bar)+0.5rem)] md:pt-[env(safe-area-inset-top)]',
         !fullWidth && [
           'px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6',
           // Default ladder: 1280 → 1600 (2xl) → 1900 (3xl).
@@ -77,7 +77,7 @@ export function PageLayout({
           compact && !title && 'mb-2 sm:mb-3',
           fullWidth && 'px-3 sm:px-4 lg:px-6'
         )}>
-          {/* Back Navigation - hidden on mobile where hamburger menu provides navigation */}
+          {/* Back Navigation - hidden on classic mobile where the hamburger menu provides navigation */}
           {backLink && (
             <Link
               to={backLink}
@@ -85,6 +85,16 @@ export function PageLayout({
             >
               <ChevronLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
               <span>{backLabel}</span>
+            </Link>
+          )}
+          {/* Glass phones have no top bar: "‹ Parent" is part of the page and scrolls away with it */}
+          {glass && backLink && (
+            <Link
+              to={backLink}
+              className="-ml-1.5 -mt-1 flex h-11 w-fit items-center gap-0.5 pr-2 text-[15px] font-semibold text-foreground/80 [-webkit-tap-highlight-color:transparent] md:hidden"
+            >
+              <ChevronLeft className="size-[18px]" strokeWidth={2.4} />
+              {backLabel === 'Dashboard' ? 'Home' : backLabel}
             </Link>
           )}
 

@@ -1281,7 +1281,7 @@ function PlaylistDetailPage() {
     <PageLayout
       title=""
       backLink="/playlists"
-      backLabel="Playlists"
+      backLabel="Library"
       compact
       fullWidth
       className="px-3 sm:px-4 lg:px-6"

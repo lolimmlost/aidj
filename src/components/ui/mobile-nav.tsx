@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { Menu, X, Music, Search, Settings, Download, LayoutDashboard, BarChart3, Clock, ListMusic, Sparkles, User, LogOut, Shield, ListTodo, TrendingUp, Layers } from 'lucide-react';
 import { Button } from './button';
@@ -59,12 +59,20 @@ export function MobileNav() {
   const debugTap = useDebugTapToggle();
   const glass = useGlassUi();
 
+  // glass phones have no top bar: pages read --top-bar (styles.css) to sit right under the status bar
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-glass-ui', glass);
+  }, [glass]);
+
   const handleSignOut = async () => {
     closeMenu();
     await authClient.signOut();
     queryClient.clear();
     navigate({ to: '/login' });
   };
+
+  // glass: no bar at all; the menu is the You tab's sheet (MobileTabBar), back is in the page
+  if (glass) return null;
 
   return (
     <>

@@ -62,7 +62,7 @@ export function AlphabetRail({
     <div
       className="pointer-events-none fixed right-0.5 z-30 flex items-center"
       style={{
-        top: 'calc(env(safe-area-inset-top) + 7rem)',
+        top: 'calc(env(safe-area-inset-top) + var(--top-bar) + 4rem)',
         bottom: 'calc(var(--mobile-tabbar-offset, 0px) + var(--mini-player-h, 0px) + 0.5rem)',
       }}
     >

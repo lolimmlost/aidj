@@ -291,7 +291,7 @@ function SearchPage() {
 
         {/* Sticky search header */}
         <header className={cn(
-          "sticky top-0 z-30 border-b border-border/50 bg-background/80 backdrop-blur-xl pt-[calc(env(safe-area-inset-top)+3.5rem)] md:pt-[env(safe-area-inset-top)]",
+          "sticky top-0 z-30 border-b border-border/50 bg-background/80 backdrop-blur-xl pt-[calc(env(safe-area-inset-top)+var(--top-bar)+0.5rem)] md:pt-[env(safe-area-inset-top)]",
           glass && "max-md:border-transparent max-md:bg-background/40",
         )}>
           <div className={cn("mx-auto w-full max-w-7xl 2xl:max-w-[1600px] 3xl:max-w-[1900px] px-4 sm:px-6 lg:px-8 pt-4 pb-3 sm:pt-5 sm:pb-4", glass && "max-md:pt-0 max-md:pb-2")}>
