@@ -6,6 +6,7 @@ import {
   ChevronLeft, ChevronRight, Disc3, Heart, ListEnd, ListPlus, ListStart, MinusCircle, Radio, User,
 } from 'lucide-react';
 import { getCoverArtUrl } from '@/components/ui/album-art';
+import { useGlassSheetFlag, useSheetDrag } from '@/components/glass/GlassSheet';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 
@@ -75,6 +76,10 @@ export function SongActionSheet({
     onOpenChange(false);
     setView('main');
   };
+  // Same sheet behaviour as GlassSheet: drag the header (or pull the list
+  // down from its top) to dismiss, tap the grabber to close.
+  const { sheetRef, listRef, headerHandlers } = useSheetDrag(close);
+  useGlassSheetFlag(open);
   const run = (fn: () => void) => () => {
     fn();
     close();
@@ -99,17 +104,27 @@ export function SongActionSheet({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-black/45 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Overlay className="glass-sheet-overlay fixed inset-0 z-[70] bg-black/45" />
         <DialogPrimitive.Content
+          ref={sheetRef}
           className={cn(
-            'glass-surface fixed inset-x-2 bottom-2 z-[71] max-h-[80dvh] overflow-y-auto rounded-[26px] px-3 pb-[calc(0.875rem+env(safe-area-inset-bottom))] pt-2',
+            'glass-sheet glass-surface fixed inset-x-2 bottom-2 z-[71] flex max-h-[80dvh] flex-col rounded-[26px] px-3 pt-2',
             'bg-background/85 dark:bg-[rgb(22_20_32/0.86)]',
-            'data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom data-[state=open]:duration-300',
           )}
         >
-          <span aria-hidden className="mx-auto mb-2.5 mt-1 block h-1 w-9 rounded-full bg-foreground/25" />
           {song && (
             <>
+              {/* Drag zone: grabber + song header */}
+              <div className="-mx-3 -mt-2 shrink-0 touch-none select-none px-3" {...headerHandlers}>
+                <button
+                  type="button"
+                  data-grabber
+                  onClick={(e) => { if (e.detail === 0) close(); }}
+                  aria-label="Close"
+                  className="flex h-6 w-full items-center justify-center [-webkit-tap-highlight-color:transparent]"
+                >
+                  <span aria-hidden className="block h-1.5 w-10 rounded-full bg-foreground/30" />
+                </button>
               <div className="mb-1.5 flex items-center gap-3 border-b border-foreground/10 px-1.5 pb-3">
                 {song.albumId ? (
                   <img src={getCoverArtUrl(song.albumId, 96) ?? undefined} alt="" className="size-12 shrink-0 rounded-md bg-muted object-cover" />
@@ -121,6 +136,9 @@ export function SongActionSheet({
                   <DialogPrimitive.Description className="truncate text-[13px] text-muted-foreground">{song.artist}</DialogPrimitive.Description>
                 </div>
               </div>
+              </div>
+
+              <div ref={listRef} className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-[calc(0.875rem+env(safe-area-inset-bottom))]">
 
               {view === 'main' ? (
                 <div className="flex flex-col">
@@ -183,6 +201,7 @@ export function SongActionSheet({
                   ))}
                 </div>
               )}
+              </div>
             </>
           )}
         </DialogPrimitive.Content>

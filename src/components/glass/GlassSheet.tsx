@@ -251,9 +251,11 @@ export function SheetRow({ icon, title, sub, trailing, onClick, active, disabled
   onClick?: () => void;
   active?: boolean;
   disabled?: boolean;
-  tone?: 'success' | 'primary';
+  /** destructive is always red, the others colour only while `active`. */
+  tone?: 'success' | 'primary' | 'destructive';
 }) {
-  const toneText = tone === 'success' ? 'text-success' : tone === 'primary' ? 'text-primary' : '';
+  const toneText = tone === 'success' ? 'text-success' : tone === 'primary' ? 'text-primary' : tone === 'destructive' ? 'text-destructive' : '';
+  const lit = active || tone === 'destructive';
   return (
     <button
       type="button"
@@ -261,12 +263,12 @@ export function SheetRow({ icon, title, sub, trailing, onClick, active, disabled
       disabled={disabled}
       className={cn(
         'flex min-h-14 w-full items-center gap-3 rounded-2xl px-2 py-1.5 text-left [-webkit-tap-highlight-color:transparent] active:bg-foreground/10 disabled:opacity-50',
-        active && (tone === 'success' ? 'bg-success/10' : 'bg-primary/10'),
+        active && (tone === 'success' ? 'bg-success/10' : tone === 'destructive' ? 'bg-destructive/10' : 'bg-primary/10'),
       )}
     >
-      <span className={cn('grid size-10 shrink-0 place-items-center rounded-xl glass-flat', active ? toneText : 'text-muted-foreground')}>{icon}</span>
+      <span className={cn('grid size-10 shrink-0 place-items-center rounded-xl glass-flat', lit ? toneText : 'text-muted-foreground')}>{icon}</span>
       <span className="min-w-0 flex-1">
-        <span className={cn('block truncate text-[15px] font-semibold', active && toneText)}>{title}</span>
+        <span className={cn('block truncate text-[15px] font-semibold', lit && toneText)}>{title}</span>
         {sub != null && <span className="block truncate text-[13px] text-muted-foreground">{sub}</span>}
       </span>
       {trailing}

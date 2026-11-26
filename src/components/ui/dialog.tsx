@@ -3,6 +3,8 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"
 
 import { cn } from "~/lib/utils"
+import { useIsPhone, useSheetDrag } from "@/components/glass/GlassSheet"
+import { useGlassUi } from "@/lib/hooks/useGlassUi"
 
 function Dialog({
   ...props
@@ -48,10 +50,23 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  sheet = false,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  /** Glass UI on phones: show as the shared bottom sheet (grabber, drag down
+   *  or tap the grabber to close) instead of a centred dialog. */
+  sheet?: boolean
 }) {
+  const glass = useGlassUi()
+  const phone = useIsPhone()
+  if (sheet && glass && phone) {
+    return (
+      <SheetDialogContent className={className} showCloseButton={showCloseButton} {...props}>
+        {children}
+      </SheetDialogContent>
+    )
+  }
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -73,6 +88,62 @@ function DialogContent({
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  )
+}
+
+/** The `sheet` form of DialogContent (glass phones). The caller's classes go
+ *  first so the sheet's position, size and surface win over a dialog's. */
+function SheetDialogContent({
+  className,
+  children,
+  showCloseButton,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Content> & { showCloseButton?: boolean }) {
+  // Closing goes through Radix's own Close so the dialog's onOpenChange runs
+  // exactly as it does for the × (cleanup, confirmations).
+  const closeRef = React.useRef<HTMLButtonElement>(null)
+  const close = React.useCallback(() => closeRef.current?.click(), [])
+  const { sheetRef, headerHandlers } = useSheetDrag(close)
+  return (
+    <DialogPortal data-slot="dialog-portal">
+      <DialogPrimitive.Overlay data-slot="dialog-overlay" className="glass-sheet-overlay fixed inset-0 z-[70] bg-black/50" />
+      <DialogPrimitive.Content
+        ref={sheetRef}
+        data-slot="dialog-content"
+        className={cn(
+          className,
+          "glass-sheet glass-surface fixed inset-x-2 bottom-2 top-auto left-auto z-[71] flex w-auto max-w-none translate-x-0 translate-y-0 flex-col gap-4 overflow-y-auto overscroll-contain rounded-[26px] border-white/10 bg-background/85 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-0 text-foreground shadow-none sm:max-w-none dark:bg-[rgb(22_20_32/0.88)]",
+          "max-h-[calc(100dvh-env(safe-area-inset-top)-3rem)] min-h-0",
+          // sheet heading like GlassSheet: left, 22px display, clear of the ×
+          "[&_[data-slot=dialog-header]]:-mt-2 [&_[data-slot=dialog-header]]:pr-10 [&_[data-slot=dialog-header]]:text-left [&_[data-slot=dialog-title]]:font-display [&_[data-slot=dialog-title]]:text-[22px] [&_[data-slot=dialog-title]]:font-extrabold [&_[data-slot=dialog-title]]:leading-7 [&_[data-slot=dialog-title]]:tracking-[-0.02em]"
+        )}
+        {...props}
+      >
+        <div className="-mx-4 shrink-0 touch-none select-none px-4" {...headerHandlers}>
+          <button
+            type="button"
+            data-grabber
+            onClick={(e) => { if (e.detail === 0) close() }}
+            aria-label="Close"
+            className="flex h-6 w-full items-center justify-center [-webkit-tap-highlight-color:transparent]"
+          >
+            <span aria-hidden className="block h-1.5 w-10 rounded-full bg-foreground/30" />
+          </button>
+        </div>
+        {children}
+        <DialogPrimitive.Close
+          ref={closeRef}
+          data-slot="dialog-close"
+          className={cn(
+            "absolute right-3 top-3 grid size-9 place-items-center rounded-full text-muted-foreground",
+            !showCloseButton && "sr-only"
+          )}
+        >
+          <XIcon className="size-5" />
+          <span className="sr-only">Close</span>
+        </DialogPrimitive.Close>
       </DialogPrimitive.Content>
     </DialogPortal>
   )

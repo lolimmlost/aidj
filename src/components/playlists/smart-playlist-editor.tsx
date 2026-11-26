@@ -500,7 +500,7 @@ export function SmartPlaylistEditor({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
+      <DialogContent sheet className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
         <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>Create Smart Playlist</DialogTitle>

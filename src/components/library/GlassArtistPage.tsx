@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Play, Radio, Shuffle } from 'lucide-react';
+import { Play, Shuffle } from 'lucide-react';
+import { StartRadioButton } from '@/components/radio/StartRadioButton';
 import { getArtists } from '@/lib/services/navidrome';
 import type { Album, Song } from '@/lib/services/navidrome/types';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -58,7 +59,6 @@ export function GlassArtistPage({ artistId, name, albums, songs, metadata, image
 
   const playSong = useAudioStore((s) => s.playSong);
   const playShuffled = useAudioStore((s) => s.playShuffled);
-  const startRadio = useAudioStore((s) => s.startRadio);
   const storePlaylist = useAudioStore((s) => s.playlist);
   const currentSongIndex = useAudioStore((s) => s.currentSongIndex);
   const currentSongId = useMemo(() => storePlaylist[currentSongIndex]?.id, [storePlaylist, currentSongIndex]);
@@ -103,7 +103,6 @@ export function GlassArtistPage({ artistId, name, albums, songs, metadata, image
     playShuffled(songs);
     toast.success(`Shuffling ${songs.length} songs`);
   };
-  const radio = () => void startRadio({ kind: 'artist', artistId });
 
   const songRow = (s: Song, list: Song[], sub?: React.ReactNode) => (
     <GlassSongRow key={s.id} song={s} playing={s.id === currentSongId} onPlay={() => play(s, list)} onMore={() => sheet.open(s)} sub={sub} />
@@ -160,9 +159,14 @@ export function GlassArtistPage({ artistId, name, albums, songs, metadata, image
       </div>
 
       <div className="mt-1 flex h-14 items-center gap-1">
-        <button type="button" onClick={radio} aria-label={`Start ${name} radio`} className="grid size-11 place-items-center rounded-full text-foreground/80">
-          <Radio className="size-[22px]" />
-        </button>
+        {/* opens the Start radio sheet (length + artist variety), like the other pages */}
+        <StartRadioButton
+          seed={{ kind: 'artist', artistId }}
+          label={`Start ${name} radio`}
+          size="icon"
+          variant="ghost"
+          className="size-11 rounded-full p-0 text-foreground/80 [&_svg]:size-[22px]"
+        />
         <span className="flex-1" />
         <button type="button" onClick={shuffle} aria-label="Shuffle" className="grid size-11 place-items-center rounded-full text-foreground/80">
           <Shuffle className="size-[22px]" />

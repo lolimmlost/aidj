@@ -658,6 +658,7 @@ export function PlaylistImportDialog({
 
       <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }}>
         <DialogContent
+          sheet
           className="w-[calc(100%-2rem)] sm:w-auto sm:max-w-[500px] md:max-w-[600px] lg:max-w-[700px] min-h-[300px] max-h-[min(85vh,700px)] overflow-y-auto p-4 md:p-6"
           onPointerDownOutside={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}

@@ -5,6 +5,9 @@ import { SmartPlaylistEditor } from '@/components/playlists/smart-playlist-edito
 import { CreatePlaylistDialog } from '@/components/playlists/create-playlist-dialog';
 import { PlaylistList } from '@/components/playlists/playlist-list';
 import { PageLayout, PageSection } from '@/components/ui/page-layout';
+import { GlassPlaylistLibrary } from '@/components/playlists/GlassPlaylistLibrary';
+import { useIsPhone } from '@/components/glass/GlassSheet';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
 
 export const Route = createFileRoute('/playlists/')({
   beforeLoad: async ({ context, location }) => {
@@ -16,6 +19,10 @@ export const Route = createFileRoute('/playlists/')({
 });
 
 function PlaylistsPage() {
+  // Glass UI on phones: the library view (desktop keeps the card list for now)
+  const glass = useGlassUi();
+  const phone = useIsPhone();
+  if (glass && phone) return <GlassPlaylistLibrary />;
   return (
     <PageLayout
       title="My Playlists"
