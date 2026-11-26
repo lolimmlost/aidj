@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowDown, ArrowUp, ArrowUpDown, Pause, Play, Plus, Search, Shuffle, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, Pause, Play, Plus, Search, Shuffle, X } from 'lucide-react';
 import { GlassSheet } from '@/components/glass/GlassSheet';
 import { useDynamicColors } from '@/hooks/useDynamicColors';
 import { cn } from '@/lib/utils';
@@ -96,26 +96,31 @@ export function GlassPlaylistHeader<T extends string>({
         style={{ background: `linear-gradient(180deg, ${wash} 0%, transparent 100%)` }}
       />
 
-      {/* Compact bar (in flow height 0): centred title + the docked Play */}
+      {/* Scrolled: a pill (in flow height 0) slides in once the big Play scrolls under it: ‹, title, Play */}
       <div
         ref={barRef}
         className={cn(
-          // full-bleed past the page + column gutters (12 + 12 px), tinted like the wash
-          'sticky top-[calc(env(safe-area-inset-top)+3rem)] z-20 -mx-6 -mb-14 flex h-14 items-center justify-center px-20 transition-opacity duration-200 md:hidden',
-          'backdrop-blur-xl',
-          docked ? 'opacity-100' : 'pointer-events-none opacity-0',
+          'glass-surface sticky top-[calc(env(safe-area-inset-top)+var(--top-bar))] z-20 -mx-3 -mb-[52px] flex h-[52px] items-center gap-2 rounded-full px-1 shadow-[0_12px_30px_rgb(0_0_0/0.45)] transition-[opacity,transform] duration-200 md:hidden',
+          docked ? 'opacity-100' : 'pointer-events-none -translate-y-2 opacity-0',
         )}
         aria-hidden={!docked}
-        style={{ background: `linear-gradient(180deg, color-mix(in oklch, ${wash} 60%, var(--background)), color-mix(in oklch, var(--background) 88%, transparent))` }}
       >
-        <span className="truncate font-display text-[17px] font-bold">{name}</span>
+        <Link
+          to="/playlists"
+          tabIndex={docked ? 0 : -1}
+          aria-label="Back to Library"
+          className="grid size-11 shrink-0 place-items-center rounded-full [-webkit-tap-highlight-color:transparent]"
+        >
+          <ChevronLeft className="size-[22px]" strokeWidth={2.2} />
+        </Link>
+        <span className="min-w-0 flex-1 truncate font-display text-base font-bold">{name}</span>
         <button
           type="button"
           onClick={onPlay}
           disabled={disabled}
           tabIndex={docked ? 0 : -1}
           aria-label={playLabel}
-          className="absolute right-6 grid size-11 place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_6px_18px_color-mix(in_oklch,var(--primary)_45%,transparent)]"
+          className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"
         >
           {playIcon}
         </button>

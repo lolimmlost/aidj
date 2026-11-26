@@ -1327,3 +1327,14 @@ html[data-low-motion] .np-lyric-in {
   background: conic-gradient(from 20deg, transparent 0 30deg, rgb(255 255 255 / 0.2) 45deg, transparent 62deg 205deg, rgb(255 255 255 / 0.12) 220deg, transparent 238deg);
   pointer-events: none;
 }
+
+/* The mobile top bar's height. Glass phones have no top bar (the menu is the You tab, back is in the
+   page), so pages and sticky bars there sit just under the status bar. */
+:root {
+  --top-bar: 3rem;
+}
+@media (max-width: 767px) {
+  html[data-glass-ui] {
+    --top-bar: 0.5rem;
+  }
+}

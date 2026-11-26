@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Pause, Play, Radio, Shuffle } from 'lucide-react';
+import { ChevronLeft, Pause, Play, Radio, Shuffle } from 'lucide-react';
 import { getAlbums } from '@/lib/services/navidrome';
 import type { Song } from '@/lib/services/navidrome/types';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -131,23 +131,41 @@ export function GlassAlbumPage({ albumId, artistId, name, artistName, year, genr
     <div className="relative">
       <div aria-hidden className="pointer-events-none absolute -inset-x-4 -top-24 h-[620px]" style={{ background: `linear-gradient(180deg, ${wash} 0%, transparent 100%)` }} />
 
-      {/* compact bar (height 0 in flow): title + play once the big play scrolls under it */}
+      {/* "‹ Artist" is part of the page (no top bar on glass phones) */}
+      <Link
+        to="/library/artists/$id"
+        params={{ id: artistId }}
+        className="relative -ml-1.5 -mt-1 mb-1 flex h-11 w-fit max-w-full items-center gap-0.5 pr-2 text-[15px] font-semibold text-foreground/80 [-webkit-tap-highlight-color:transparent]"
+      >
+        <ChevronLeft className="size-[18px] shrink-0" strokeWidth={2.4} />
+        <span className="truncate">{artistName}</span>
+      </Link>
+
+      {/* Scrolled: a pill (height 0 in flow) slides in once the big play scrolls under it: ‹, title, play */}
       <div
         ref={barRef}
         aria-hidden={!docked}
         className={cn(
-          'sticky top-[calc(env(safe-area-inset-top)+3rem)] z-30 -mx-4 -mb-14 flex h-14 items-center justify-center px-20 backdrop-blur-xl transition-opacity duration-200',
-          docked ? 'opacity-100' : 'pointer-events-none opacity-0',
+          'glass-surface sticky top-[calc(env(safe-area-inset-top)+var(--top-bar))] z-30 -mx-1 -mb-[52px] flex h-[52px] items-center gap-2 rounded-full px-1 shadow-[0_12px_30px_rgb(0_0_0/0.45)] transition-[opacity,transform] duration-200',
+          docked ? 'opacity-100' : 'pointer-events-none -translate-y-2 opacity-0',
         )}
-        style={{ background: `linear-gradient(180deg, color-mix(in oklch, ${wash} 60%, var(--background)), color-mix(in oklch, var(--background) 88%, transparent))` }}
       >
-        <span className="truncate font-display text-[17px] font-bold">{name}</span>
+        <Link
+          to="/library/artists/$id"
+          params={{ id: artistId }}
+          tabIndex={docked ? 0 : -1}
+          aria-label={`Back to ${artistName}`}
+          className="grid size-11 shrink-0 place-items-center rounded-full [-webkit-tap-highlight-color:transparent]"
+        >
+          <ChevronLeft className="size-[22px]" strokeWidth={2.2} />
+        </Link>
+        <span className="min-w-0 flex-1 truncate font-display text-base font-bold">{name}</span>
         <button
           type="button"
           onClick={onPlayButton}
           tabIndex={docked ? 0 : -1}
           aria-label={thisAlbumPlaying ? 'Pause' : `Play ${name}`}
-          className="absolute right-4 grid size-11 place-items-center rounded-full bg-primary text-primary-foreground"
+          className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"
         >
           {playIcon}
         </button>
@@ -155,7 +173,7 @@ export function GlassAlbumPage({ albumId, artistId, name, artistName, year, genr
 
       {/* full-width square reserve; the sticky cover inside shrinks to COVER_MIN */}
       <div ref={reserveRef} className="relative -mx-4 aspect-square">
-        <div ref={stickyRef} className="sticky top-[calc(env(safe-area-inset-top)+3rem)] flex justify-center">
+        <div ref={stickyRef} className="sticky top-[calc(env(safe-area-inset-top)+var(--top-bar))] flex justify-center">
           <img ref={coverRef} src={coverUrl} alt={`${name} cover`} className="aspect-square w-full bg-muted object-cover shadow-[0_24px_50px_rgb(0_0_0/0.45)] will-change-[width,height]" />
         </div>
       </div>

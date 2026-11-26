@@ -316,7 +316,7 @@ export function GlassPlaylistLibrary() {
   return (
     <div className="glass-page glass-home relative min-h-screen bg-background pb-28">
       <GlassBackdrop />
-      <div className="relative px-4 pt-[calc(env(safe-area-inset-top)+3.5rem)]">
+      <div className="relative px-4 pt-[calc(env(safe-area-inset-top)+var(--top-bar)+0.5rem)]">
         <div className="flex items-center justify-between gap-3">
           <h1 className="font-display text-[26px] font-extrabold leading-8 tracking-[-0.03em]">Playlists</h1>
           <div className="flex items-center gap-2">

@@ -1,8 +1,10 @@
-import { useLayoutEffect } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { Home, Search, Library, Disc3, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import authClient from '@/lib/auth/auth-client';
+import { YouAvatar, YouSheet, initialOf } from '@/components/glass/YouSheet';
 
 /** Height of the tab bar's content row (excludes the bottom inset). */
 export const MOBILE_TAB_BAR_HEIGHT_REM = 3.5;
@@ -94,6 +96,8 @@ export function MobileTabBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const active = getActiveTab(pathname);
   const glass = useGlassUi();
+  const [youOpen, setYouOpen] = useState(false);
+  const { data: session } = authClient.useSession();
   useTabBarOffsets();
 
   return (
@@ -102,11 +106,11 @@ export function MobileTabBar() {
       className={cn(
         "md:hidden shrink-0 pb-[var(--mobile-safe-bottom,env(safe-area-inset-bottom))]",
         // glass UI: a floating frosted pill instead of a full-width strip
-        glass ? "px-10 pt-1" : "border-t border-border/50 bg-background/95 backdrop-blur-xl",
+        glass ? "px-6 pt-1" : "border-t border-border/50 bg-background/95 backdrop-blur-xl",
       )}
     >
       <ul
-        className={cn("grid grid-cols-4", glass && "glass-surface rounded-full")}
+        className={cn("grid", glass ? "glass-surface grid-cols-5 rounded-full" : "grid-cols-4")}
         style={{ height: glass ? `${MOBILE_TAB_BAR_HEIGHT_REM - 0.25}rem` : `${MOBILE_TAB_BAR_HEIGHT_REM}rem` }}
       >
         {TABS.map(({ id, to, label, icon: Icon }) => {
@@ -149,7 +153,22 @@ export function MobileTabBar() {
             </li>
           );
         })}
+        {/* glass: no top bar, so the old ☰ menu lives behind a fifth tab */}
+        {glass && (
+          <li className="flex">
+            <button
+              type="button"
+              onClick={() => setYouOpen(true)}
+              aria-label="You: menu and settings"
+              aria-haspopup="dialog"
+              className="flex flex-1 items-center justify-center [-webkit-tap-highlight-color:transparent] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            >
+              <YouAvatar letter={initialOf(session?.user)} className="size-7 text-[13px]" />
+            </button>
+          </li>
+        )}
       </ul>
+      {glass && <YouSheet open={youOpen} onOpenChange={setYouOpen} />}
     </nav>
   );
 }

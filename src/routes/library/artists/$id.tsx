@@ -330,7 +330,7 @@ function ArtistDetail() {
   return (
     <>
     {glass && (
-      <div className="glass-page glass-home relative min-h-screen px-4 pb-28 pt-[calc(env(safe-area-inset-top)+3rem)] md:hidden">
+      <div className="glass-page glass-home relative min-h-screen px-4 pb-28 pt-[calc(env(safe-area-inset-top)+var(--top-bar))] md:hidden">
         <GlassBackdrop className="md:hidden" />
         {artist ? (
           <GlassArtistPage

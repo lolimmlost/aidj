@@ -28,7 +28,7 @@ export function LiveBar({ engine, snap }: { engine: LabEngine; snap: EngineSnaps
     next?.state === 'mixing' ? 'mixing' : toBlend !== null && toBlend > 0 ? fmtTime(toBlend) : next?.state === 'loading' ? '…' : '–';
 
   return (
-    <div className="sticky top-[calc(env(safe-area-inset-top)+3rem)] z-20 -mx-4 border-b bg-background/90 px-4 py-2 backdrop-blur-xl sm:mx-0 sm:rounded-xl sm:border md:top-2">
+    <div className="sticky top-[calc(env(safe-area-inset-top)+var(--top-bar))] z-20 -mx-4 border-b bg-background/90 px-4 py-2 backdrop-blur-xl sm:mx-0 sm:rounded-xl sm:border md:top-2">
       <div className="flex items-center gap-2.5">
         <Button
           size="icon"
