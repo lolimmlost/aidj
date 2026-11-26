@@ -38,6 +38,10 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { cn } from '@/lib/utils';
 import { CollaborativePlaylistPanel } from '@/components/playlists/collaboration';
 import { StartRadioButton } from '@/components/radio/StartRadioButton';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { getCoverArtUrl } from '@/components/ui/album-art';
+import { GlassPlaylistHeader } from '@/components/playlists/GlassPlaylistHeader';
+import { SongActionSheet, type ActionSheetSong } from '@/components/glass/SongActionSheet';
 import {
   DndContext,
   closestCenter,
@@ -104,6 +108,10 @@ interface SongRowProps {
   onToggleStar: (songId: string, currentlyStarred: boolean) => void;
   onStartRadioFromSong: (songId: string) => void;
   isRemovePending: boolean;
+  /** Glass UI (phones): no track number, ⋯ opens the action sheet, optional no heart. */
+  glass?: boolean;
+  hideHeart?: boolean;
+  onMore?: (song: PlaylistSong) => void;
 }
 
 // Format duration as mm:ss
@@ -307,6 +315,9 @@ function SongRowContent({
   onStartRadioFromSong,
   isRemovePending,
   dragHandle,
+  glass,
+  hideHeart,
+  onMore,
 }: SongRowProps & { dragHandle?: JSX.Element }) {
   const [artist, title] = extractArtistTitle(song.songArtistTitle);
 
@@ -320,7 +331,8 @@ function SongRowContent({
       {/* Track Number / Equalizer */}
       <span className={cn(
         "w-8 text-sm tabular-nums text-right shrink-0 flex items-center justify-end",
-        isCurrentSong ? "text-primary" : "text-muted-foreground"
+        isCurrentSong ? "text-primary" : "text-muted-foreground",
+        glass && "max-md:hidden",
       )}>
         {index + 1}
       </span>
@@ -393,6 +405,7 @@ function SongRowContent({
         aria-pressed={!!song.starred}
         className={cn(
           "h-9 w-9 sm:h-8 sm:w-8 p-0 shrink-0 transition-opacity inline-flex",
+          glass && hideHeart && "max-md:hidden",
           song.starred ? "opacity-100 text-rose-500 hover:text-rose-600" : "text-muted-foreground/60 sm:opacity-0 sm:group-hover:opacity-100 hover:text-rose-500"
         )}
         onClick={(e) => { e.stopPropagation(); onToggleStar(song.songId, !!song.starred); }}
@@ -411,7 +424,20 @@ function SongRowContent({
         <SkipForward className="h-4 w-4" />
       </Button>
 
+      {/* Glass UI (phones): ⋯ opens the action sheet instead of the dropdown */}
+      {glass && onMore && (
+        <button
+          type="button"
+          aria-label={`More for ${title}`}
+          onClick={(e) => { e.stopPropagation(); onMore(song); }}
+          className="md:hidden grid h-10 w-9 shrink-0 place-items-center text-muted-foreground [-webkit-tap-highlight-color:transparent]"
+        >
+          <MoreHorizontal className="h-5 w-5" />
+        </button>
+      )}
+
       {/* Actions menu — controlled + scroll-guarded on mobile */}
+      <span className={glass && onMore ? "hidden md:contents" : "contents"}>
       <DropdownMenu open={menuOpen} onOpenChange={onMenuOpenChange}>
         <DropdownMenuTrigger asChild>
           <Button
@@ -465,6 +491,7 @@ function SongRowContent({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      </span>
     </>
   );
 }
@@ -479,7 +506,8 @@ function PlainSongRow(props: SongRowProps) {
       onClick={() => props.onPlayFromSong(props.index)}
       className={cn(
         "group flex items-center gap-3 px-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors min-w-0 cursor-pointer",
-        props.isCurrentSong && "bg-primary/10 border-l-2 border-l-primary"
+        props.isCurrentSong && (props.glass ? "bg-primary/10 md:border-l-2 md:border-l-primary" : "bg-primary/10 border-l-2 border-l-primary"),
+        props.glass && "max-md:px-1 max-md:[-webkit-tap-highlight-color:transparent]"
       )}
     >
       <SongRowContent {...props} />
@@ -553,6 +581,10 @@ interface VirtualizedPlaylistSongsProps {
   isRemovePending: boolean;
   disableDnD?: boolean;
   handleRef?: RefObject<PlaylistSongsListHandle | null>;
+  /** Glass UI (phones): no track number, ⋯ opens the action sheet, optional no heart. */
+  glass?: boolean;
+  hideHeart?: boolean;
+  onMore?: (song: PlaylistSong) => void;
 }
 
 /** Row height estimate (py-1.5 + 44px art); real heights are measured. */
@@ -572,6 +604,9 @@ function PlaylistSongsList({
   isRemovePending,
   disableDnD,
   handleRef,
+  glass,
+  hideHeart,
+  onMore,
 }: VirtualizedPlaylistSongsProps) {
   // Disable DnD on mobile — TouchSensor intercepts taps and wastes space
   const [isDesktop, setIsDesktop] = useState(() =>
@@ -646,6 +681,9 @@ function PlaylistSongsList({
     onToggleStar,
     onStartRadioFromSong,
     isRemovePending,
+    glass,
+    hideHeart,
+    onMore,
   };
 
   const useDnD = isDesktop && !disableDnD;
@@ -738,6 +776,10 @@ function PlaylistDetailPage() {
 
   // Collaboration panel state
   const [isCollaborationPanelOpen, setIsCollaborationPanelOpen] = useState(false);
+
+  // Glass UI prototype (phones): new header + ⋯ action sheet
+  const glass = useGlassUi();
+  const [actionSong, setActionSong] = useState<PlaylistSong | null>(null);
 
   // Search and sort state
   const [searchQuery, setSearchQuery] = useState('');
@@ -1178,81 +1220,26 @@ function PlaylistDetailPage() {
     song => song.songId === currentSong?.id
   );
 
-  return (
-    <PageLayout
-      title=""
-      backLink="/playlists"
-      backLabel="Playlists"
-      compact
-      fullWidth
-      className="px-3 sm:px-4 lg:px-6"
-    >
-      {/* Compact Header — icon + title + count + action buttons in one row */}
-      <div className="flex items-center gap-3 px-3 sm:px-4 lg:px-6 pb-3 border-b border-border/50">
-        {/* Playlist Icon */}
-        <div className={cn(
-          "w-10 h-10 sm:w-11 sm:h-11 rounded-lg shadow-md flex items-center justify-center shrink-0",
-          isLikedSongsPlaylist
-            ? "bg-gradient-to-br from-rose-500 to-pink-600"
-            : isSmartPlaylist
-              ? "bg-gradient-to-br from-violet-500 to-purple-600"
-              : "bg-gradient-to-br from-primary/80 to-primary"
-        )}>
-          {playlistIconType === 'heart' && <Heart className="h-5 w-5 text-white" />}
-          {playlistIconType === 'sparkles' && <Sparkles className="h-5 w-5 text-white" />}
-          {playlistIconType === 'list' && <ListMusic className="h-5 w-5 text-white" />}
-        </div>
+  // Glass UI (phones)
+  const isLikedView = isLikedSongsPlaylist || !!playlist.isLikedSongs;
+  const glassNavId = (playlist as PlaylistDetail & { navidromeId?: string | null }).navidromeId;
+  const glassCover = !isLikedView && glassNavId ? getCoverArtUrl(`pl-${glassNavId}`, 400) : null;
+  const glassSeconds = playlist.songs.reduce((sum, s) => sum + (s.duration ?? 0), 0);
+  const glassLength = glassSeconds >= 3600
+    ? `${Math.floor(glassSeconds / 3600)} hr ${Math.round((glassSeconds % 3600) / 60)} min`
+    : `${Math.round(glassSeconds / 60)} min`;
+  const glassMeta = `${playlist.songs.length} songs${glassSeconds > 0 ? ` · ${glassLength}` : ''}`;
+  const handleGlassPlay = () => {
+    if (isCurrentlyPlayingFromPlaylist) setIsPlaying(!isPlaying);
+    else handlePlayAll();
+  };
+  const toSheetSong = (ps: PlaylistSong): ActionSheetSong => {
+    const [artist, title] = extractArtistTitle(ps.songArtistTitle);
+    return { songId: ps.songId, title, artist, albumId: ps.albumId, artistId: ps.artistId, starred: isLikedView || !!ps.starred };
+  };
+  const findPlaylistSong = (songId: string) => playlist.songs.find((x) => x.songId === songId);
 
-        {/* Title + Song Count */}
-        <div className="min-w-0 flex-1">
-          <h1 className="text-lg sm:text-xl font-bold truncate">{playlist.name}</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground leading-tight">{playlist.songs.length} songs</p>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          {/* Main Play Button */}
-          <Button
-            onClick={handlePlayAll}
-            disabled={playlist.songs.length === 0}
-            size="sm"
-            className={cn(
-              "rounded-full h-9 w-9 sm:h-10 sm:w-10 p-0 shadow-md",
-              isLikedSongsPlaylist
-                ? "bg-rose-500 hover:bg-rose-600"
-                : isSmartPlaylist
-                  ? "bg-violet-500 hover:bg-violet-600"
-                  : "bg-primary hover:bg-primary/90"
-            )}
-          >
-            {isCurrentlyPlayingFromPlaylist && isPlaying ? (
-              <Pause className="h-4 w-4 sm:h-5 sm:w-5" />
-            ) : (
-              <Play className="h-4 w-4 sm:h-5 sm:w-5 ml-0.5" />
-            )}
-          </Button>
-
-          {/* Shuffle button */}
-          <Button
-            onClick={handleShufflePlay}
-            disabled={playlist.songs.length === 0}
-            variant="ghost"
-            size="sm"
-            className="rounded-full h-8 w-8 sm:h-9 sm:w-9 p-0"
-          >
-            <Shuffle className="h-4 w-4" />
-          </Button>
-
-          {/* Start Radio from this playlist */}
-          <StartRadioButton
-            seed={{ kind: 'playlist', playlistId: id }}
-            label="Start Radio"
-            size="icon"
-            variant="ghost"
-            className="rounded-full h-8 w-8 sm:h-9 sm:w-9 p-0"
-          />
-
-          {/* More Menu */}
+  const moreMenu = (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -1318,6 +1305,84 @@ function PlaylistDetailPage() {
               </AlertDialog>
             </DropdownMenuContent>
           </DropdownMenu>
+  );
+
+  return (
+    <PageLayout
+      title=""
+      backLink="/playlists"
+      backLabel="Playlists"
+      compact
+      fullWidth
+      className="px-3 sm:px-4 lg:px-6"
+    >
+      {/* Compact Header — icon + title + count + action buttons in one row */}
+      <div className={cn("flex items-center gap-3 px-3 sm:px-4 lg:px-6 pb-3 border-b border-border/50", glass && "max-md:hidden")}>
+        {/* Playlist Icon */}
+        <div className={cn(
+          "w-10 h-10 sm:w-11 sm:h-11 rounded-lg shadow-md flex items-center justify-center shrink-0",
+          isLikedSongsPlaylist
+            ? "bg-gradient-to-br from-rose-500 to-pink-600"
+            : isSmartPlaylist
+              ? "bg-gradient-to-br from-violet-500 to-purple-600"
+              : "bg-gradient-to-br from-primary/80 to-primary"
+        )}>
+          {playlistIconType === 'heart' && <Heart className="h-5 w-5 text-white" />}
+          {playlistIconType === 'sparkles' && <Sparkles className="h-5 w-5 text-white" />}
+          {playlistIconType === 'list' && <ListMusic className="h-5 w-5 text-white" />}
+        </div>
+
+        {/* Title + Song Count */}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg sm:text-xl font-bold truncate">{playlist.name}</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground leading-tight">{playlist.songs.length} songs</p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* Main Play Button */}
+          <Button
+            onClick={handlePlayAll}
+            disabled={playlist.songs.length === 0}
+            size="sm"
+            className={cn(
+              "rounded-full h-9 w-9 sm:h-10 sm:w-10 p-0 shadow-md",
+              isLikedSongsPlaylist
+                ? "bg-rose-500 hover:bg-rose-600"
+                : isSmartPlaylist
+                  ? "bg-violet-500 hover:bg-violet-600"
+                  : "bg-primary hover:bg-primary/90"
+            )}
+          >
+            {isCurrentlyPlayingFromPlaylist && isPlaying ? (
+              <Pause className="h-4 w-4 sm:h-5 sm:w-5" />
+            ) : (
+              <Play className="h-4 w-4 sm:h-5 sm:w-5 ml-0.5" />
+            )}
+          </Button>
+
+          {/* Shuffle button */}
+          <Button
+            onClick={handleShufflePlay}
+            disabled={playlist.songs.length === 0}
+            variant="ghost"
+            size="sm"
+            className="rounded-full h-8 w-8 sm:h-9 sm:w-9 p-0"
+          >
+            <Shuffle className="h-4 w-4" />
+          </Button>
+
+          {/* Start Radio from this playlist */}
+          <StartRadioButton
+            seed={{ kind: 'playlist', playlistId: id }}
+            label="Start Radio"
+            size="icon"
+            variant="ghost"
+            className="rounded-full h-8 w-8 sm:h-9 sm:w-9 p-0"
+          />
+
+          {/* More Menu */}
+          {moreMenu}
 
           {/* Collaborate button */}
           {!isLikedSongsPlaylist && !isSmartPlaylist && (
@@ -1343,8 +1408,38 @@ function PlaylistDetailPage() {
         <div className="flex-1 min-w-0">
           <div className={cn(
             "transition-all duration-300 px-3 sm:px-4 lg:px-6 py-1.5 sm:py-2",
-            isCollaborationPanelOpen ? "lg:mr-[400px]" : ""
+            isCollaborationPanelOpen ? "lg:mr-[400px]" : "",
+            glass && "relative glass-home",
           )}>
+            {glass && (
+              <GlassPlaylistHeader
+                name={isLikedView ? 'Liked Songs' : playlist.name}
+                meta={glassMeta}
+                coverUrl={glassCover}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                sortOptions={SORT_OPTIONS}
+                sortField={sortField}
+                onSortChange={handleSortChange}
+                onPlay={handleGlassPlay}
+                onShuffle={handleShufflePlay}
+                isPlayingThis={isCurrentlyPlayingFromPlaylist && isPlaying}
+                disabled={playlist.songs.length === 0}
+                showAddSongs={!isLikedView && !isSmartPlaylist}
+                leftActions={
+                  <>
+                    <StartRadioButton
+                      seed={{ kind: 'playlist', playlistId: id }}
+                      label="Start Radio"
+                      size="icon"
+                      variant="ghost"
+                      className="glass-flat size-11 rounded-full p-0"
+                    />
+                    <span className="glass-flat grid size-11 place-items-center rounded-full [&_button]:size-11 [&_button]:rounded-full">{moreMenu}</span>
+                  </>
+                }
+              />
+            )}
             {playlist.songs.length === 0 ? (
               <div className="text-center py-16">
                 <div className="w-20 h-20 mx-auto rounded-full bg-muted flex items-center justify-center mb-6">
@@ -1361,7 +1456,7 @@ function PlaylistDetailPage() {
             ) : (
               <>
                 {/* Search & Sort Bar */}
-                <div className="flex items-center gap-2 py-2 pr-6 sm:pr-0">
+                <div className={cn("flex items-center gap-2 py-2 pr-6 sm:pr-0", glass && "max-md:hidden")}>
                   <div className="relative flex-1 min-w-0">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     <Input
@@ -1447,6 +1542,9 @@ function PlaylistDetailPage() {
                     isRemovePending={removeSongMutation.isPending}
                     disableDnD={isFiltered}
                     handleRef={songListHandleRef}
+                    glass={glass}
+                    hideHeart={isLikedView}
+                    onMore={setActionSong}
                   />
 
                   {/* Alphabet rail — mobile only, when 20+ songs */}
@@ -1463,6 +1561,20 @@ function PlaylistDetailPage() {
             )}
           </div>
         </div>
+
+        {glass && (
+          <SongActionSheet
+            song={actionSong ? toSheetSong(actionSong) : null}
+            onOpenChange={(open) => { if (!open) setActionSong(null); }}
+            canRemove={!isLikedView && !isSmartPlaylist}
+            currentPlaylistId={id}
+            onPlayNext={(s) => { const ps = findPlaylistSong(s.songId); if (ps) handleAddSongToQueue(ps, 'next'); }}
+            onAddToQueue={(s) => { const ps = findPlaylistSong(s.songId); if (ps) handleAddSongToQueue(ps, 'end'); }}
+            onToggleLike={(s) => handleToggleStar(s.songId, !!s.starred)}
+            onStartRadio={(s) => { void startRadio({ kind: 'song', songId: s.songId }); }}
+            onRemove={(s) => handleRemoveSong(s.songId)}
+          />
+        )}
 
         {/* Collaboration Panel - Slide-in from right (only renders when open) */}
         {!isLikedSongsPlaylist && !isSmartPlaylist && isCollaborationPanelOpen && (
