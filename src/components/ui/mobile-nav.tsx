@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
-import { Menu, X, Music, Search, Settings, Download, LayoutDashboard, BarChart3, Clock, ListMusic, Sparkles, User, LogOut, Shield, ListTodo, TrendingUp } from 'lucide-react';
+import { Menu, X, Music, Search, Settings, Download, LayoutDashboard, BarChart3, Clock, ListMusic, Sparkles, User, LogOut, Shield, ListTodo, TrendingUp, Layers } from 'lucide-react';
 import { Button } from './button';
 import { cn } from '@/lib/utils';
 import authClient from '@/lib/auth/auth-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDebugTapToggle } from '@/lib/hooks/useDebugTapToggle';
+import { useGlassUi, setGlassUi } from '@/lib/hooks/useGlassUi';
+import { toast } from '@/lib/toast';
 
 /** Derive a page title from the current route path */
 function getPageTitle(path: string): string {
@@ -55,6 +57,7 @@ export function MobileNav() {
 
   // Tap the title bar 5× rapidly to toggle on-device debug logging (PWA-safe).
   const debugTap = useDebugTapToggle();
+  const glass = useGlassUi();
 
   const handleSignOut = async () => {
     closeMenu();
@@ -67,7 +70,10 @@ export function MobileNav() {
     <>
       {/* ─── Fixed Top Bar ─── */}
       <div
-        className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center px-3 bg-background/80 backdrop-blur-xl border-b border-border/30"
+        className={cn(
+          "md:hidden fixed top-0 left-0 right-0 z-50 flex items-center px-3 backdrop-blur-xl",
+          glass ? "bg-background/40" : "bg-background/80 border-b border-border/30",
+        )}
         style={{ paddingTop: 'env(safe-area-inset-top)', height: 'calc(env(safe-area-inset-top) + 3rem)' }}
       >
         <Button
@@ -80,7 +86,8 @@ export function MobileNav() {
           {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
         <span
-          className="flex-1 text-center text-sm font-bold text-foreground truncate pr-9 select-none"
+          // glass: the page shows its own big title, so this one is invisible (still the debug tap target)
+          className={cn("flex-1 text-center text-sm font-bold text-foreground truncate pr-9 select-none", glass && "opacity-0")}
           style={{ fontFamily: 'var(--font-display), Inter, sans-serif' }}
           onClick={debugTap}
         >
@@ -210,6 +217,27 @@ export function MobileNav() {
             />
 
             <div className="border-t border-border my-4" />
+
+            {/* Glass UI prototype switch (PWA has no address bar for ?glass=1) */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={glass}
+              onClick={() => {
+                if (setGlassUi(!glass)) {
+                  toast.success(glass ? 'Classic design' : 'Glass design (preview) on', { duration: 1500 });
+                } else {
+                  toast.error('Can’t save this setting (storage blocked)');
+                }
+              }}
+              className="flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg hover:bg-accent transition-colors w-full text-foreground"
+            >
+              <Layers className="h-5 w-5 text-muted-foreground" />
+              <span className="flex-1 text-left text-base">Glass design <span className="text-xs text-muted-foreground">(preview)</span></span>
+              <span aria-hidden className={cn("relative h-6 w-10 rounded-full transition-colors", glass ? "bg-primary" : "bg-muted")}>
+                <span className={cn("absolute top-0.5 size-5 rounded-full bg-background shadow transition-[left]", glass ? "left-[18px]" : "left-0.5")} />
+              </span>
+            </button>
 
             <button
               onClick={handleSignOut}

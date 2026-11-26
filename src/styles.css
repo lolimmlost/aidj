@@ -492,6 +492,25 @@
   }
 
   /* Glass Card */
+  /* Glass UI prototype (glassUi flag): frosted surface for the mobile Home,
+     mini player and tab bar. Light = milky white, dark = faint white tint. */
+  .glass-surface {
+    background: color-mix(in oklch, var(--background) 55%, transparent);
+    border: 1px solid color-mix(in oklch, var(--foreground) 9%, transparent);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+    backdrop-filter: blur(22px) saturate(150%);
+    box-shadow: 0 10px 30px rgb(20 22 40 / 0.08);
+  }
+  /* iOS paints a dark box over a tapped link/button; the glass UI has its own press states */
+  .glass-home :is(a, button) {
+    -webkit-tap-highlight-color: transparent;
+  }
+  .dark .glass-surface {
+    background: color-mix(in oklch, white 6%, transparent);
+    border-color: color-mix(in oklch, white 10%, transparent);
+    box-shadow: 0 16px 40px rgb(0 0 0 / 0.4);
+  }
+
   .glass-card-premium {
     @apply bg-card/60 backdrop-blur-xl border border-border/30 rounded-2xl;
     box-shadow:
@@ -827,6 +846,23 @@
     animation: 220ms cubic-bezier(0.2, 0.7, 0.3, 1) both vt-fade-in-up;
   }
 
+  /* The player bar and queue button are fixed over <main>: without their own
+     layer, app-main's snapshot paints over them for the whole page transition
+     (they looked cut off). Static, above the page, below the Now Playing sheet. */
+  ::view-transition-group(player-bar),
+  ::view-transition-group(queue-fab) {
+    animation: none;
+    z-index: 1;
+  }
+  ::view-transition-old(player-bar),
+  ::view-transition-old(queue-fab) {
+    display: none;
+  }
+  ::view-transition-new(player-bar),
+  ::view-transition-new(queue-fab) {
+    animation: none;
+  }
+
   ::view-transition-group(np-art),
   ::view-transition-group(album-art) {
     animation-duration: 440ms;
@@ -1054,4 +1090,22 @@
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Glass UI prototype (glassUi flag), phones only: cards on glass pages turn
+   frosted. Unlayered on purpose so it beats Card's bg-card / shadow-sm utilities. */
+@media (max-width: 47.99rem) {
+  .glass-page [data-slot="card"] {
+    background: color-mix(in oklch, var(--background) 55%, transparent);
+    border-color: color-mix(in oklch, var(--foreground) 9%, transparent);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+    backdrop-filter: blur(22px) saturate(150%);
+    box-shadow: 0 10px 30px rgb(20 22 40 / 0.08);
+    border-radius: 1.25rem;
+  }
+  .dark .glass-page [data-slot="card"] {
+    background: color-mix(in oklch, white 6%, transparent);
+    border-color: color-mix(in oklch, white 10%, transparent);
+    box-shadow: 0 16px 40px rgb(0 0 0 / 0.35);
+  }
 }

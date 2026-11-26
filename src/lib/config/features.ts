@@ -39,6 +39,12 @@ export interface FeatureFlags {
     minSupport: number;    // raw totalCount gate: below this an edge is treated as noise
     halfLifeDays: number;  // recency decay half-life used when mining the graph
   };
+
+  // Glass UI prototype (mobile Home, glass mini player + tab bar). Per device:
+  // `?glass=1` / `?glass=0` on any page flips it (see useGlassUi).
+  glassUi: {
+    enabled: boolean;
+  };
 }
 
 const defaultFlags: FeatureFlags = {
@@ -65,6 +71,9 @@ const defaultFlags: FeatureFlags = {
     weight: 0.10,
     minSupport: 3,
     halfLifeDays: 120,
+  },
+  glassUi: {
+    enabled: false,
   },
 };
 
@@ -143,7 +152,7 @@ export function getFeatureFlags(): FeatureFlags {
  * Check if a specific feature is enabled
  */
 export function isFeatureEnabled(
-  feature: 'hlsStreaming' | 'serverPlaybackState' | 'jukeboxMode' | 'aurralRecommendations' | 'transitionLearning'
+  feature: 'hlsStreaming' | 'serverPlaybackState' | 'jukeboxMode' | 'aurralRecommendations' | 'transitionLearning' | 'glassUi'
 ): boolean {
   return getFeatureFlags()[feature].enabled;
 }

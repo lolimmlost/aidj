@@ -2,6 +2,8 @@ import React from 'react';
 import { Link } from '@tanstack/react-router';
 import { ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { GlassBackdrop } from '@/components/glass/GlassBackdrop';
 
 interface PageLayoutProps {
   children: React.ReactNode;
@@ -42,14 +44,19 @@ export function PageLayout({
   compact = false,
   wide = false,
 }: PageLayoutProps) {
+  // Glass UI prototype (phones): cover-tinted glow, Home-size title, frosted cards
+  const glass = useGlassUi();
   return (
     <div className={cn(
       'min-h-screen bg-background',
       !fullWidth && 'pb-24 md:pb-20', // Space for audio player
+      glass && 'glass-page glass-home relative',
       className
     )}>
+      {glass && <GlassBackdrop className="md:hidden" />}
       <div className={cn(
         'mx-auto',
+        glass && 'relative',
         // On mobile: push content below the fixed top bar (safe-area + 3rem bar height)
         // On desktop: just safe-area is enough (no top bar)
         'pt-[calc(env(safe-area-inset-top)+3.5rem)] md:pt-[env(safe-area-inset-top)]',
@@ -86,14 +93,18 @@ export function PageLayout({
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-3">
                 {icon ? (
-                  <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 text-primary">
+                  <div className={cn(
+                    "flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 text-primary",
+                    glass && "max-md:hidden",
+                  )}>
                     {icon}
                   </div>
                 ) : null}
                 <div>
                   <h1 className={cn(
                     'font-bold tracking-tight text-foreground',
-                    compact ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl'
+                    compact ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl',
+                    glass && 'max-md:text-[30px] max-md:font-extrabold max-md:leading-tight max-md:tracking-[-0.03em]',
                   )}>
                     {title}
                   </h1>

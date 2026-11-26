@@ -46,6 +46,7 @@ import { toast } from '@/lib/toast';
 import { useDeferredRender } from '@/lib/utils/lazy-components';
 import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar';
 import { useDebugTapToggle } from '@/lib/hooks/useDebugTapToggle';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
 
 // Helper to get cover art URL from Navidrome
 const getCoverArtUrl = (albumId: string | undefined, size: number = 300) => {
@@ -225,6 +226,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   // does the user starting a new song. Not every isPlaying flip: automatic restarts (recovery, the
   // Transition Lab handing the audio back and forth) kept un-minimizing it (#438).
   const [playerCollapsed, setPlayerCollapsed] = useState(false);
+  const glass = useGlassUi();
   useEffect(() => useAudioStore.subscribe(createPlayerRevealWatcher(() => setPlayerCollapsed(false))), []);
   const showPlayer = hasActiveSong && !onLab && !playerCollapsed;
   const showPlayerPill = hasActiveSong && !onLab && playerCollapsed;
@@ -297,7 +299,14 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* CRITICAL: Always render PlayerBar to preserve audio elements across state changes.
          Unmounting destroys <audio> elements and kills playback. Hide visually instead. */}
       <div className={cn(
-        "fixed bottom-[var(--mobile-tabbar-offset,0px)] md:bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-xl",
+        "fixed bottom-[var(--mobile-tabbar-offset,0px)] md:bottom-0 left-0 right-0 z-50",
+        // glass UI: the mobile bar is a floating frosted card, so no strip behind it
+        glass ? "md:border-t md:bg-background/95 md:backdrop-blur-xl" : "border-t bg-background/95 backdrop-blur-xl",
+        // Own view-transition layer so page snapshots don't paint over the bar.
+        // A view-transition-name also makes the element a backdrop root, which
+        // would stop the glass card inside from blurring the page behind it, so
+        // in glass mode phones name the card itself (PlayerBar) instead.
+        glass ? "md:[view-transition-name:player-bar]" : "[view-transition-name:player-bar]",
         !showPlayer && "hidden"
       )}>
         <PlayerBar onCollapse={() => setPlayerCollapsed(true)} />

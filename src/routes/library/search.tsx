@@ -31,6 +31,8 @@ import type { RecentEntry } from '@/lib/utils/recent-searches';
 import { useRecentSearches } from '@/lib/hooks/useRecentSearches';
 import { findLibraryArtistByName } from '@/lib/utils/artist-name-match';
 import { compactName, searchVariants } from '@/lib/utils/search-variants';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { GlassBackdrop } from '@/components/glass/GlassBackdrop';
 
 export const Route = createFileRoute('/library/search')({
   validateSearch: (search: Record<string, unknown>): { q?: string } => ({
@@ -58,6 +60,8 @@ const SEARCH_DEBOUNCE_MS = 300;
 type ArtistWithCounts = { id: string; name: string; albumCount?: number; songCount?: number };
 
 function SearchPage() {
+  // Glass UI prototype (phones): see GlassHome
+  const glass = useGlassUi();
   const navigate = useNavigate({ from: '/library/search' });
   const { q } = Route.useSearch();
   // `query` is the committed search (in the URL, drives every fetch).
@@ -251,18 +255,22 @@ function SearchPage() {
 
   return (
     <NavidromeErrorBoundary>
-      <div className="min-h-screen bg-background pb-24 md:pb-20">
+      <div className={cn("min-h-screen bg-background pb-24 md:pb-20", glass && "glass-page glass-home relative")}>
+        {glass && <GlassBackdrop className="md:hidden" />}
         {/* Ambient backdrop */}
-        <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div aria-hidden className={cn("pointer-events-none fixed inset-0 -z-10 overflow-hidden", glass && "max-md:hidden")}>
           <div className="absolute -top-40 -left-40 size-[40rem] rounded-full bg-primary/10 blur-3xl" />
           <div className="absolute top-1/3 -right-40 size-[36rem] rounded-full bg-fuchsia-500/8 blur-3xl" />
           <div className="absolute bottom-0 left-1/4 size-[28rem] rounded-full bg-cyan-500/5 blur-3xl" />
         </div>
 
         {/* Sticky search header */}
-        <header className="sticky top-0 z-30 border-b border-border/50 bg-background/80 backdrop-blur-xl pt-[calc(env(safe-area-inset-top)+3.5rem)] md:pt-[env(safe-area-inset-top)]">
+        <header className={cn(
+          "sticky top-0 z-30 border-b border-border/50 bg-background/80 backdrop-blur-xl pt-[calc(env(safe-area-inset-top)+3.5rem)] md:pt-[env(safe-area-inset-top)]",
+          glass && "max-md:border-transparent max-md:bg-background/40",
+        )}>
           <div className="mx-auto w-full max-w-7xl 2xl:max-w-[1600px] 3xl:max-w-[1900px] px-4 sm:px-6 lg:px-8 pt-4 pb-3 sm:pt-5 sm:pb-4">
-            <h1 className="mb-3 text-2xl font-black tracking-tight sm:text-3xl">Search</h1>
+            <h1 className={cn("mb-3 text-2xl font-black tracking-tight sm:text-3xl", glass && "max-md:text-[30px] max-md:font-extrabold max-md:tracking-[-0.03em]")}>Search</h1>
 
             {/* Search input */}
             <div className="relative">
@@ -278,6 +286,7 @@ function SearchPage() {
                   'w-full rounded-xl border border-border/60 bg-muted/40 pl-10 pr-10 py-3 text-base outline-none transition-all',
                   'placeholder:text-muted-foreground/60',
                   'focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:bg-muted/60',
+                  glass && 'glass-surface rounded-full',
                 )}
                 aria-label="Search library"
               />
@@ -308,8 +317,8 @@ function SearchPage() {
                     className={cn(
                       'shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition-all',
                       tab === t.id
-                        ? 'bg-primary text-primary-foreground shadow-md'
-                        : 'border border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                        ? glass ? 'border border-foreground bg-foreground text-background' : 'bg-primary text-primary-foreground shadow-md'
+                        : glass ? 'glass-surface text-foreground' : 'border border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                     )}
                   >
                     {t.label}

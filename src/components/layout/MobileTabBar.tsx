@@ -2,6 +2,7 @@ import { useLayoutEffect } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { Home, Search, Library, Disc3, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
 
 /** Height of the tab bar's content row (excludes the bottom inset). */
 export const MOBILE_TAB_BAR_HEIGHT_REM = 3.5;
@@ -92,14 +93,22 @@ function scrollMainToTop() {
 export function MobileTabBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const active = getActiveTab(pathname);
+  const glass = useGlassUi();
   useTabBarOffsets();
 
   return (
     <nav
       aria-label="Primary"
-      className="md:hidden shrink-0 border-t border-border/50 bg-background/95 backdrop-blur-xl pb-[var(--mobile-safe-bottom,env(safe-area-inset-bottom))]"
+      className={cn(
+        "md:hidden shrink-0 pb-[var(--mobile-safe-bottom,env(safe-area-inset-bottom))]",
+        // glass UI: a floating frosted pill instead of a full-width strip
+        glass ? "px-10 pt-1" : "border-t border-border/50 bg-background/95 backdrop-blur-xl",
+      )}
     >
-      <ul className="grid grid-cols-4" style={{ height: `${MOBILE_TAB_BAR_HEIGHT_REM}rem` }}>
+      <ul
+        className={cn("grid grid-cols-4", glass && "glass-surface rounded-full")}
+        style={{ height: glass ? `${MOBILE_TAB_BAR_HEIGHT_REM - 0.25}rem` : `${MOBILE_TAB_BAR_HEIGHT_REM}rem` }}
+      >
         {TABS.map(({ id, to, label, icon: Icon }) => {
           const isActive = active === id;
           const isAtRoot = pathname === to || pathname === `${to}/`;
@@ -120,8 +129,22 @@ export function MobileTabBar() {
                   isActive ? 'text-primary' : 'text-muted-foreground active:text-foreground',
                 )}
               >
-                <Icon className={cn('h-5 w-5 transition-transform', isActive && 'scale-110')} strokeWidth={isActive ? 2.5 : 2} />
-                <span>{label}</span>
+                {glass ? (
+                  <>
+                    <span className={cn(
+                      'grid size-10 place-items-center rounded-full transition-colors',
+                      isActive && 'bg-foreground text-background',
+                    )}>
+                      <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />
+                    </span>
+                    <span className="sr-only">{label}</span>
+                  </>
+                ) : (
+                  <>
+                    <Icon className={cn('h-5 w-5 transition-transform', isActive && 'scale-110')} strokeWidth={isActive ? 2.5 : 2} />
+                    <span>{label}</span>
+                  </>
+                )}
               </Link>
             </li>
           );
