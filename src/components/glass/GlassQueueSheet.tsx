@@ -255,17 +255,18 @@ export function GlassQueueSheet(p: GlassQueueSheetProps) {
 
           {p.currentSong && (
             <div
+              ref={beat?.ref}
               className="glass-surface rainbow-border mt-3 flex shrink-0 flex-col gap-2 rounded-2xl px-3 py-2.5"
               data-playing={isPlaying ? '' : undefined}
               style={nowSrc ? { backgroundImage: `linear-gradient(oklch(from ${nowSrc.color} l c h / 0.14), oklch(from ${nowSrc.color} l c h / 0.14))` } : undefined}
             >
-              <span aria-hidden key={beat?.key} className="rainbow-ring" style={beat?.loop(8)} />
+              <span aria-hidden className="rainbow-ring" data-beat style={beat?.loop(8)} />
               <div className="flex items-center gap-3">
                 {cover ? <img src={cover} alt="" className="size-11 rounded-md bg-muted object-cover" /> : <span className="size-11 rounded-md bg-muted" />}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 font-mono text-[9px] tracking-[0.14em]">
                     <span className="text-success">
-                      <span key={beat?.key} className="beat-dot inline-block" data-beat={beat ? '' : undefined} style={beat?.loop(4)}>●</span> NOW PLAYING
+                      <span className="beat-dot inline-block" data-beat={beat ? '' : undefined} style={beat?.loop(4)}>●</span> NOW PLAYING
                     </span>
                     {beat && <span className="text-muted-foreground">· {Math.round(beat.bpm)} BPM{beat.onGrid ? ' · ON GRID' : ''}</span>}
                     {nowSrc && (

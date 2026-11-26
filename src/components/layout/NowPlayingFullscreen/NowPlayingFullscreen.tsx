@@ -25,7 +25,10 @@ import {
   Smartphone,
   Speaker,
   ListPlus,
+  Disc3,
 } from 'lucide-react';
+import { setLowMotion, useLowMotion } from '@/lib/hooks/useLowMotion';
+import { toast } from '@/lib/toast';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
 import { Waveform } from '@/components/glass/Waveform';
 import { useIsPhone } from '@/components/glass/GlassSheet';
@@ -41,6 +44,7 @@ import { haptic } from '@/lib/utils/haptics';
 import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
 import { useAudioStore } from '@/lib/stores/audio';
 import { ArtMode } from './ArtMode';
+import { LyricsPeek } from './LyricsPeek';
 import { LyricsMode } from './LyricsMode';
 import { VisualizerMode } from './VisualizerMode';
 import { ModeSwitcher } from './ModeSwitcher';
@@ -92,6 +96,7 @@ export function NowPlayingFullscreen({
   // play, and device / up-next pills. Desktop and landscape keep this layout.
   const glass = useGlassUi();
   const phone = useIsPhone();
+  const lowMotion = useLowMotion();
   const [addOpen, setAddOpen] = useState(false);
   const [visible, setVisible] = useState(false);
   const [animating, setAnimating] = useState(false);
@@ -358,8 +363,16 @@ export function NowPlayingFullscreen({
             <div className={cn(
               "w-full lg:flex-1 lg:max-w-md flex flex-col items-center gap-6 sm:gap-8",
               "short-landscape:flex-1 short-landscape:max-w-md short-landscape:min-w-0 short-landscape:gap-3 short-landscape:justify-center",
-              mode !== 'art' && "justify-center"
+              mode !== 'art' && "justify-center",
+              // Glass phone: a tighter lower half, so the record keeps its size with the lyrics line above the title
+              glass && "max-md:gap-4"
             )}>
+              {/* Glass, phone: the sung line under the record, above the title */}
+              {glass && phone && mode === 'art' && (
+                <div className="-mb-3 w-full md:hidden short-landscape:hidden">
+                  <LyricsPeek song={currentSong} duration={duration} onOpen={() => setMode('lyrics')} />
+                </div>
+              )}
               {/* Song info — title links to album page (song info context); artist links to artist page */}
               {glass && currentSong.album && mode === 'art' && (
                 <p className="-mb-3 w-full truncate font-mono text-[10px] tracking-[0.14em] text-white/55 md:hidden short-landscape:hidden">
@@ -435,7 +448,7 @@ export function NowPlayingFullscreen({
                     onSeek={onSeek}
                     playedClassName="bg-primary"
                     unplayedClassName="bg-white/20"
-                    className="h-10 md:hidden short-landscape:hidden"
+                    className="h-8 md:hidden short-landscape:hidden"
                   />
                 )}
                 <Slider
@@ -475,7 +488,7 @@ export function NowPlayingFullscreen({
                 <Button
                   variant="default"
                   size="sm"
-                  className={cn("h-16 w-16 sm:h-18 sm:w-18 p-0 rounded-full shadow-lg", glass && "max-md:h-[76px] max-md:w-[76px] max-md:shadow-[0_12px_30px_color-mix(in_oklch,var(--primary)_50%,transparent)]")}
+                  className={cn("h-16 w-16 sm:h-18 sm:w-18 p-0 rounded-full shadow-lg", glass && "max-md:h-16 max-md:w-16 max-md:shadow-[0_10px_26px_color-mix(in_oklch,var(--primary)_50%,transparent)]")}
                   onClick={onTogglePlayPause}
                   disabled={isLoading}
                 >
@@ -588,6 +601,22 @@ export function NowPlayingFullscreen({
                 <div className="[&_label]:text-white/70 [&_[data-state=checked]]:bg-primary">
                   <AIDJToggle compact />
                 </div>
+                {glass && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Low motion"
+                    aria-pressed={lowMotion}
+                    title={lowMotion ? 'Low motion: still artwork' : 'Record spin on'}
+                    className={cn('h-10 w-10 p-0 hover:bg-white/10', lowMotion ? 'text-white/40' : 'text-white/80')}
+                    onClick={() => {
+                      setLowMotion(!lowMotion);
+                      toast(lowMotion ? 'Record spin on' : 'Low motion — still artwork');
+                    }}
+                  >
+                    <Disc3 className="h-5 w-5" />
+                  </Button>
+                )}
                 <SleepTimerButton
                   glass={glass}
                   className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10 [&_svg]:h-5 [&_svg]:w-5"

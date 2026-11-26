@@ -9,6 +9,9 @@ import { getCoverArtUrl } from '@/components/ui/album-art';
 import { LikeHeart } from '@/components/player/LikeHeart';
 import type { NowPlayingSong } from './types';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { useLowMotion } from '@/lib/hooks/useLowMotion';
+import { useBeat } from '@/components/glass/beat-sync';
+import { useAudioStore } from '@/lib/stores/audio';
 
 interface ArtModeProps {
   song: NowPlayingSong;
@@ -24,11 +27,18 @@ interface ArtModeProps {
 const TAP_MAX_MOVE_PX = 10;
 const TAP_MAX_MS = 250;
 const DOUBLE_TAP_MS = 300;
+// Swipe-to-skip: the gesture must commit to sideways (more horizontal than vertical once it has moved
+// AXIS_LOCK_PX), then travel SKIP_PX, or FLICK_PX at FLICK_SPEED px/ms. A swipe down to close the player
+// that drifted sideways, or a 15 px twitch, used to skip — mostly "previous".
+const AXIS_LOCK_PX = 12;
+const SKIP_PX = 90;
+const FLICK_PX = 45;
+const FLICK_SPEED = 0.5;
 
 export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: ArtModeProps) {
   const [imgError, setImgError] = useState(false);
 
-  const artSwipeRef = useRef<{ x: number; time: number } | null>(null);
+  const artSwipeRef = useRef<{ x: number; y: number; time: number; axis: 'x' | 'y' | null } | null>(null);
   const artOffsetRef = useRef(0);
   const artContainerRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef(0);
@@ -99,13 +109,21 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
   }, [triggerDoubleTap]);
 
   const handleArtTouchStart = useCallback((e: React.TouchEvent) => {
-    artSwipeRef.current = { x: e.touches[0].clientX, time: Date.now() };
+    artSwipeRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now(), axis: null };
     artOffsetRef.current = 0;
   }, []);
 
   const handleArtTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!artSwipeRef.current) return;
-    const deltaX = e.touches[0].clientX - artSwipeRef.current.x;
+    const start = artSwipeRef.current;
+    if (!start) return;
+    const deltaX = e.touches[0].clientX - start.x;
+    const deltaY = e.touches[0].clientY - start.y;
+    if (!start.axis && Math.hypot(deltaX, deltaY) >= AXIS_LOCK_PX) start.axis = Math.abs(deltaX) > Math.abs(deltaY) * 1.2 ? 'x' : 'y';
+    // vertical (closing the player, scrolling): the art stays put and nothing skips
+    if (start.axis === 'y') {
+      artOffsetRef.current = 0;
+      return;
+    }
     artOffsetRef.current = deltaX;
     if (artContainerRef.current) {
       const dampened = deltaX * 0.6;
@@ -132,7 +150,8 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
       const velocity = artSwipeRef.current
         ? Math.abs(offset) / (Date.now() - artSwipeRef.current.time)
         : 0;
-      if (Math.abs(offset) > 80 || velocity > 0.3) {
+      const sideways = artSwipeRef.current?.axis === 'x';
+      if (sideways && (Math.abs(offset) > SKIP_PX || (Math.abs(offset) > FLICK_PX && velocity > FLICK_SPEED))) {
         const dampened = offset * 0.6;
         animateSkip(offset > 0 ? 'previous' : 'next', dampened, 1 - Math.abs(dampened) / 400);
       } else {
@@ -151,6 +170,12 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
   const songArtist = song.artist || 'Unknown';
 
   const glass = useGlassUi() && !expanded;
+  // Glass: the art is a record that turns once a bar and ducks on each kick (a sidechain pump) — on the
+  // real downbeat when the Lab has a grid for the song. Low motion keeps the still square.
+  const lowMotion = useLowMotion();
+  const isPlaying = useAudioStore((s) => s.isPlaying);
+  const vinyl = glass && !lowMotion && !!coverUrl && !imgError;
+  const beat = useBeat(vinyl ? song : null, isPlaying);
 
   return (
     <div
@@ -188,7 +213,25 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
           glass && 'np-phone:aspect-square np-phone:h-auto np-phone:w-[min(100cqw,100cqh)]',
         )}
       >
-        {coverUrl && !imgError ? (
+        {vinyl ? (
+          <div ref={beat?.ref} className="np-vinyl relative h-full w-full" data-playing={isPlaying ? '' : undefined}>
+            <div className="np-pump absolute inset-0" data-beat={beat ? '' : undefined} style={beat?.loop(1)}>
+              <div className="np-spin absolute inset-0 overflow-hidden rounded-full bg-black shadow-2xl shadow-black/60" style={beat ? { animationDuration: `${beat.bar}s` } : undefined}>
+                <img
+                  src={coverUrl}
+                  alt={`${song.name || song.title || 'Unknown'} album art`}
+                  className="h-full w-full select-none object-cover pointer-events-none"
+                  onError={() => setImgError(true)}
+                  draggable={false}
+                />
+                <span aria-hidden className="np-grooves absolute inset-0 rounded-full" />
+              </div>
+              <span aria-hidden className="np-shine absolute inset-0 rounded-full" />
+              {beat && <span aria-hidden className="np-flash absolute inset-0 rounded-full" data-beat style={beat.loop(1)} />}
+              <span aria-hidden className="absolute left-1/2 top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#0d0f16] ring-[3px] ring-white/35" />
+            </div>
+          </div>
+        ) : coverUrl && !imgError ? (
           <img
             src={coverUrl}
             alt={`${song.name || song.title || 'Unknown'} album art`}

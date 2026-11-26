@@ -9,12 +9,16 @@ import type { Song } from '@/lib/types/song';
  * (/api/dj/grids: tempo + bar0, the first downbeat); else the BPM tag (tempo only, no phase).
  */
 type Grid = { bpm: number; bar0: number; barLen: number };
+/** Any song shape with an id (and its BPM tag when the list carried it). */
+export type BeatSong = Pick<Song, 'id'> & { bpm?: number };
 
 function useGrid(id: string | undefined) {
   return useQuery({
     queryKey: ['song-grid', id],
     enabled: !!id,
-    staleTime: 10 * 60_000,
+    // a grid can appear any time (the Lab analyses and uploads), so "none yet" is only trusted briefly
+    staleTime: (q) => (q.state.data ? 10 * 60_000 : 30_000),
+    refetchInterval: (q) => (q.state.data ? false : 30_000),
     queryFn: async (): Promise<Grid | null> => {
       const res = await fetch(`/api/dj/grids?id=${encodeURIComponent(id!)}`, { credentials: 'include' });
       if (!res.ok) return null;
@@ -24,7 +28,7 @@ function useGrid(id: string | undefined) {
   });
 }
 
-function useTagBpm(song: Song | null, skip: boolean) {
+function useTagBpm(song: BeatSong | null, skip: boolean) {
   const { data } = useQuery({
     queryKey: ['song-bpm-tag', song?.id],
     enabled: !!song && !song.bpm && !skip,
@@ -50,7 +54,7 @@ const fold = (bpm: number) => {
 const mod = (a: number, n: number) => ((a % n) + n) % n;
 
 /**
- * Restarts on each fresh position (song change, play, seek, and every 20 s against drift), read the
+ * A fresh position on each song change, play, seek, and every 20 s against drift, read the
  * moment the player reports it so it's not a stale timeupdate.
  */
 function useSyncPoint(active: boolean, songId: string | undefined) {
@@ -78,37 +82,61 @@ export interface Beat {
   bpm: number;
   /** on the song's real downbeat (Lab grid), not just its tempo */
   onGrid: boolean;
-  /** remount key for the animated elements: a new phase each sync */
-  key: string;
   /** seconds per beat / per bar at the folded tempo */
   beat: number;
   bar: number;
-  /** animation timing for a loop of `beats` beats, phased to the downbeat when known */
+  /** animation duration for a loop of `beats` beats */
   loop: (beats: number) => CSSProperties;
+  /**
+   * Put on the element that holds the animations. Each `[data-beat]` animation inside it is phased to
+   * the downbeat in place (Web Animations currentTime) on every sync: nothing remounts, so the record
+   * keeps turning and the cover never reloads.
+   */
+  ref: (el: HTMLElement | null) => void;
 }
 
-export function useBeat(song: Song | null, isPlaying: boolean): Beat | null {
+/** Below this the correction would read as a twitch, not a fix. */
+const SNAP_MS = 40;
+
+function phase(el: HTMLElement, songTime: number, bar0: number) {
+  if (typeof el.getAnimations !== 'function') return;
+  for (const a of el.getAnimations({ subtree: true })) {
+    const effect = a.effect as KeyframeEffect | null;
+    if (!(effect?.target instanceof Element) || !effect.target.hasAttribute('data-beat')) continue;
+    const dur = Number(effect.getComputedTiming().duration);
+    if (!(dur > 0)) continue;
+    const want = mod((songTime - bar0) * 1000, dur);
+    const off = Math.abs(want - mod(Number(a.currentTime ?? 0), dur));
+    if (Math.min(off, dur - off) > SNAP_MS) a.currentTime = want;
+  }
+}
+
+export function useBeat(song: BeatSong | null, isPlaying: boolean): Beat | null {
   const { data: grid } = useGrid(song?.id);
   const tag = useTagBpm(song, !!grid);
   const sync = useSyncPoint(!!grid && isPlaying, song?.id);
+  const [el, setEl] = useState<HTMLElement | null>(null);
   const raw = grid?.bpm || tag;
-  if (!song || !(raw > 0)) return null;
-  const bpm = fold(raw);
+  const bpm = raw > 0 ? fold(raw) : 0;
+
+  // Phase once per sync point, after the frame that applied the durations. Never from render: render
+  // runs on every timeupdate, and re-deriving a delay there shoved the phase forward each time.
+  useEffect(() => {
+    if (!el || !grid || !sync || !bpm) return;
+    const id = requestAnimationFrame(() => phase(el, sync.t + (performance.now() - sync.at) / 1000, grid.bar0));
+    return () => cancelAnimationFrame(id);
+  }, [el, grid, sync, bpm]);
+
+  if (!song || !bpm) return null;
   const beat = 60 / bpm;
   // the grid's bar is at the native tempo; folding keeps 4 beats per bar at the new count
   const bar = beat * 4;
-  const now = sync ? sync.t + (performance.now() - sync.at) / 1000 : null;
   return {
     bpm,
     onGrid: !!grid,
-    key: `${song.id}:${sync?.n ?? 0}`,
     beat,
     bar,
-    loop: (beats) => {
-      const dur = beat * beats;
-      const style: CSSProperties = { animationDuration: `${dur}s` };
-      if (grid && now != null) style.animationDelay = `${-mod(now - grid.bar0, dur)}s`;
-      return style;
-    },
+    loop: (beats) => ({ animationDuration: `${beat * beats}s` }),
+    ref: setEl,
   };
 }

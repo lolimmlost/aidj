@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render } from '@testing-library/react';
 
 vi.mock('@/components/ui/album-art', () => ({ getCoverArtUrl: () => null }));
+// the record's beat timing fetches the song's grid; these tests are about taps
+vi.mock('@/components/glass/beat-sync', () => ({ useBeat: () => null }));
 
 import { ArtMode } from '../ArtMode';
 
@@ -46,11 +48,30 @@ describe('ArtMode double-tap', () => {
     const { art, onDoubleTap, onNext } = setup();
     tap(art);
     vi.advanceTimersByTime(100);
-    fireEvent.touchStart(art, { touches: [{ clientX: 200 }] });
-    fireEvent.touchMove(art, { touches: [{ clientX: 60 }] });
+    fireEvent.touchStart(art, { touches: [{ clientX: 200, clientY: 300 }] });
+    fireEvent.touchMove(art, { touches: [{ clientX: 60, clientY: 305 }] });
     fireEvent.touchEnd(art);
     expect(onDoubleTap).not.toHaveBeenCalled();
     expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
+  it('a swipe down that drifts sideways does not skip', () => {
+    const onPrevious = vi.fn();
+    const { container } = render(<ArtMode song={song} onPrevious={onPrevious} onNext={vi.fn()} />);
+    const el = container.firstElementChild as Element;
+    fireEvent.touchStart(el, { touches: [{ clientX: 100, clientY: 200 }] });
+    fireEvent.touchMove(el, { touches: [{ clientX: 120, clientY: 260 }] });
+    fireEvent.touchMove(el, { touches: [{ clientX: 200, clientY: 420 }] });
+    fireEvent.touchEnd(el);
+    expect(onPrevious).not.toHaveBeenCalled();
+  });
+
+  it('a small quick twitch does not skip', () => {
+    const { art, onNext } = setup();
+    fireEvent.touchStart(art, { touches: [{ clientX: 200, clientY: 300 }] });
+    fireEvent.touchMove(art, { touches: [{ clientX: 175, clientY: 300 }] });
+    fireEvent.touchEnd(art);
+    expect(onNext).not.toHaveBeenCalled();
   });
 
   it('ignores the synthetic dblclick right after a touch double-tap', () => {
