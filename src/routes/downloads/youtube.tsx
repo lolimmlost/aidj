@@ -168,7 +168,7 @@ function YouTubeDownloadPage() {
             <div className="flex items-center gap-2 text-destructive">
               <AlertCircle className="h-5 w-5" />
               <span>MeTube not configured or unreachable. Please check your settings.</span>
-              <Button variant="link" onClick={() => navigate({ to: '/settings/services' })}>
+              <Button variant="link" onClick={() => navigate({ to: '/settings', search: { tab: 'services' } })}>
                 Configure MeTube
               </Button>
             </div>
@@ -180,7 +180,7 @@ function YouTubeDownloadPage() {
             <div className="flex items-center gap-2 text-yellow-600">
               <AlertCircle className="h-5 w-5" />
               <span>{status.error || 'MeTube connection failed'}</span>
-              <Button variant="link" onClick={() => navigate({ to: '/settings/services' })}>
+              <Button variant="link" onClick={() => navigate({ to: '/settings', search: { tab: 'services' } })}>
                 Configure MeTube
               </Button>
             </div>

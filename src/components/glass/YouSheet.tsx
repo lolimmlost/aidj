@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { BarChart3, Clock, Download, Layers, ListTodo, LogOut, Settings, Shield, Sparkles, TrendingUp, User } from 'lucide-react';
+import { BarChart3, Clock, Download, Layers, ListTodo, LogOut, Palette, Settings, Shield, Sparkles, TrendingUp, User } from 'lucide-react';
 import authClient from '@/lib/auth/auth-client';
 import { setGlassUi } from '@/lib/hooks/useGlassUi';
 import { useDebugTapToggle } from '@/lib/hooks/useDebugTapToggle';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { GlassSheet } from './GlassSheet';
+import { ThemeSegmented } from './ThemeSegmented';
 
 type To = '/dashboard/discover' | '/downloads' | '/dashboard/history' | '/dashboard/analytics' | '/music-identity' | '/dashboard/library-growth' | '/tasks' | '/admin';
 
@@ -97,6 +98,12 @@ export function YouSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
       </div>
 
       <div className="glass-surface mt-4 overflow-hidden rounded-[18px]">
+        <div className="flex min-h-[56px] items-center gap-3 px-3.5">
+          <Palette className="size-5 text-muted-foreground" aria-hidden />
+          <span className="flex-1 text-[15px] font-semibold">Theme</span>
+          <ThemeSegmented compact className="w-[156px]" />
+        </div>
+        <div className="ml-[46px] h-px bg-foreground/10" />
         <button
           type="button"
           role="switch"
