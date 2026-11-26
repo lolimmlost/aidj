@@ -31,6 +31,18 @@ import {
 } from '@/lib/services/lyrics';
 import { useAudioStore } from '@/lib/stores/audio';
 
+/*
+ * Custom lyrics (edited, pasted, or an LRCLIB search pick) live ONLY in this
+ * browser's localStorage, keyed by Navidrome song id. Kept client-side on
+ * purpose for now (nothing for the server to hold). Long-term cleanup:
+ * - They don't sync across devices and are lost if site data is cleared.
+ * - Entries saved before the Navidrome 0.64 id change (2026-11-05) are keyed
+ *   by OLD ids and no longer match. Cheap client-only fix: on read, also try
+ *   the keys whose canonicalNavidromeId() equals the song id
+ *   (@/lib/utils/navidrome-id), then rewrite them under the new id.
+ * - If they ever move server-side: a per-user table, plus a one-time upload of
+ *   this key (canonicalising ids) on first load.
+ */
 const CUSTOM_LYRICS_KEY = 'aidj-custom-lyrics';
 
 function getCustomLyrics(songId: string): string | null {
@@ -123,7 +135,11 @@ const detectChorusLines = (lyrics: LyricLine[]): Set<number> => {
   return chorusIndices;
 };
 
-export function LyricsMode({ expanded }: { expanded?: boolean }) {
+/**
+ * glass: phones get the glass treatment (left-aligned display type, a fade at
+ * the top and bottom, quieter toolbar). onSeek: tap a synced line to jump to it.
+ */
+export function LyricsMode({ expanded, glass, onSeek }: { expanded?: boolean; glass?: boolean; onSeek?: (time: number) => void }) {
   const { playlist, currentSongIndex, currentTime, isPlaying } = useAudioStore();
   const song = playlist[currentSongIndex] || null;
 
@@ -333,9 +349,14 @@ export function LyricsMode({ expanded }: { expanded?: boolean }) {
       <div className={cn("flex items-center justify-between gap-2 px-1 pb-3 flex-shrink-0", expanded && "pr-14")}>
         <div className="min-w-0 flex-1">
           {lyricsData && lyricsData.source !== 'none' && !isEditing && !isSearching && (
-            <span className="inline-block text-xs text-white/60 px-2 py-1 bg-white/10 rounded whitespace-nowrap">
+            <span className={cn("inline-block text-xs text-white/60 px-2 py-1 bg-white/10 rounded whitespace-nowrap", glass && "max-md:bg-transparent max-md:px-0 max-md:font-mono max-md:text-[10px] max-md:uppercase max-md:tracking-[0.14em] max-md:text-white/50")}>
               {hasCustomLyrics ? 'Custom' : lyricsData.source === 'navidrome' ? 'Embedded' : 'LRCLIB'}
               {lyricsData.syncedLyrics && ' • Synced'}
+              {/* Glass: say so when there are no timings (LRCLIB often only
+                  has plain text), so it doesn't read as sync being broken. */}
+              {glass && !lyricsData.syncedLyrics && lyricsData.lyrics && !lyricsData.instrumental && (
+                <span className="hidden max-md:inline"> • No timings</span>
+              )}
             </span>
           )}
         </div>
@@ -385,7 +406,7 @@ export function LyricsMode({ expanded }: { expanded?: boolean }) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 text-white/70 hover:text-white hover:bg-white/10"
+                className={cn("h-9 w-9 text-white/70 hover:text-white hover:bg-white/10", glass && "max-md:rounded-full max-md:border max-md:border-white/15 max-md:bg-white/10 max-md:backdrop-blur-xl")}
                 onClick={handleStartSearch}
                 title="Search LRCLIB for lyrics"
               >
@@ -394,7 +415,7 @@ export function LyricsMode({ expanded }: { expanded?: boolean }) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 text-white/70 hover:text-white hover:bg-white/10"
+                className={cn("h-9 w-9 text-white/70 hover:text-white hover:bg-white/10", glass && "max-md:rounded-full max-md:border max-md:border-white/15 max-md:bg-white/10 max-md:backdrop-blur-xl")}
                 onClick={handleStartEdit}
                 title={lyricsData?.lyrics || hasCustomLyrics ? 'Edit lyrics' : 'Add lyrics'}
               >
@@ -522,7 +543,14 @@ export function LyricsMode({ expanded }: { expanded?: boolean }) {
           </div>
         </div>
       ) : (
-        <div ref={lyricsContainerRef} className="flex-1 overflow-y-auto min-h-0 px-2">
+        <div
+          ref={lyricsContainerRef}
+          className={cn(
+            "flex-1 overflow-y-auto min-h-0 px-2",
+            // Lines fade out toward the toolbar and the song info instead of being cut.
+            glass && "max-md:px-0 max-md:[mask-image:linear-gradient(to_bottom,transparent,black_14%,black_82%,transparent)] max-md:[scrollbar-width:none]"
+          )}
+        >
           {isLoading && (
             <div className="flex flex-col items-center justify-center h-full gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -581,7 +609,7 @@ export function LyricsMode({ expanded }: { expanded?: boolean }) {
               )}
 
               {lyricsData.syncedLyrics && lyricsData.syncedLyrics.length > 0 && (
-                <div className="max-w-2xl mx-auto space-y-4 pt-[30vh] pb-[50vh]">
+                <div className={cn("max-w-2xl mx-auto space-y-4 pt-[30vh] pb-[50vh]", glass && "max-md:space-y-1 max-md:pt-[18vh] max-md:pb-[30vh]")}>
                   {lyricsData.syncedLyrics.map((line, index) => {
                     const section = getSectionType(line.text);
                     const isChorus = chorusLines.has(index);
@@ -595,6 +623,7 @@ export function LyricsMode({ expanded }: { expanded?: boolean }) {
                           ref={isActive ? activeLineRef : null}
                           className={cn(
                             'text-center py-4 transition-all duration-300',
+                            glass && 'max-md:py-3 max-md:text-left',
                             isActive ? 'opacity-100' : isPast ? 'opacity-40' : 'opacity-60'
                           )}
                         >
@@ -615,23 +644,32 @@ export function LyricsMode({ expanded }: { expanded?: boolean }) {
                       <div
                         key={`${line.time}-${index}`}
                         ref={isActive ? activeLineRef : null}
+                        role={onSeek ? 'button' : undefined}
+                        tabIndex={onSeek ? 0 : undefined}
+                        onClick={onSeek ? () => onSeek(line.time) : undefined}
+                        onKeyDown={onSeek ? (e) => { if (e.key === 'Enter') onSeek(line.time); } : undefined}
                         className={cn(
                           'text-center transition-all duration-300 py-2',
+                          onSeek && 'cursor-pointer [-webkit-tap-highlight-color:transparent]',
                           isActive
                             ? 'text-2xl md:text-3xl font-bold text-white scale-105'
                             : isPast
                               ? 'text-lg md:text-xl text-white/40'
                               : 'text-lg md:text-xl text-white/60',
                           isChorus && !isActive && 'font-medium',
-                          isChorus && isActive && 'text-primary'
+                          isChorus && isActive && 'text-primary',
+                          // Glass phones: big left-aligned display type; the
+                          // active line is white, the rest recede.
+                          glass && 'max-md:origin-left max-md:py-1.5 max-md:text-left max-md:font-display max-md:text-[24px] max-md:font-extrabold max-md:leading-[30px] max-md:tracking-[-0.02em]',
+                          glass && (isActive ? 'max-md:scale-100' : isPast ? 'max-md:text-white/25' : 'max-md:text-white/40'),
                         )}
                       >
                         {isChorus && !isActive && (
-                          <span className="inline-block w-1 h-1 rounded-full bg-primary/60 mr-2 align-middle" />
+                          <span className={cn("inline-block w-1 h-1 rounded-full bg-primary/60 mr-2 align-middle", glass && "max-md:hidden")} />
                         )}
                         {line.text}
                         {isChorus && !isActive && (
-                          <span className="inline-block w-1 h-1 rounded-full bg-primary/60 ml-2 align-middle" />
+                          <span className={cn("inline-block w-1 h-1 rounded-full bg-primary/60 ml-2 align-middle", glass && "max-md:hidden")} />
                         )}
                       </div>
                     );
@@ -649,7 +687,7 @@ export function LyricsMode({ expanded }: { expanded?: boolean }) {
 
                     if (section.isSection) {
                       return (
-                        <div key={index} className="text-center py-4">
+                        <div key={index} className={cn("text-center py-4", glass && "max-md:text-left")}>
                           <span className={cn(
                             'inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold uppercase tracking-wider',
                             section.type === 'Chorus' || section.type === 'Refrain'
@@ -666,7 +704,7 @@ export function LyricsMode({ expanded }: { expanded?: boolean }) {
                     return (
                       <p
                         key={index}
-                        className="text-lg md:text-xl text-center leading-relaxed text-white/90 py-1"
+                        className={cn("text-lg md:text-xl text-center leading-relaxed text-white/90 py-1", glass && "max-md:text-left max-md:font-display max-md:text-[20px] max-md:font-bold max-md:leading-7")}
                       >
                         {trimmedLine}
                       </p>
@@ -678,7 +716,7 @@ export function LyricsMode({ expanded }: { expanded?: boolean }) {
           )}
 
           {isPlaying && lyricsData?.syncedLyrics && (
-            <div className="sticky bottom-2 flex justify-center pointer-events-none">
+            <div className={cn("sticky bottom-2 flex justify-center pointer-events-none", glass && "max-md:hidden")}>
               <div className="flex items-center gap-2 px-4 py-2 bg-primary/20 backdrop-blur-sm rounded-full border border-primary/30">
                 <div className="flex gap-0.5">
                   <div className="w-1 h-3 bg-primary rounded-full animate-[wave_1s_ease-in-out_infinite]" />

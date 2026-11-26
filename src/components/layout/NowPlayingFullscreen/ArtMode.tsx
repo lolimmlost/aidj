@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { getCoverArtUrl } from '@/components/ui/album-art';
 import { LikeHeart } from '@/components/player/LikeHeart';
 import type { NowPlayingSong } from './types';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
 
 interface ArtModeProps {
   song: NowPlayingSong;
@@ -149,6 +150,8 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
   const coverUrl = getCoverArtUrl(artId, 600);
   const songArtist = song.artist || 'Unknown';
 
+  const glass = useGlassUi() && !expanded;
+
   return (
     <div
       className={cn(
@@ -160,7 +163,13 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
         // the width, so the square fits exactly between the header and the
         // bottom safe area whatever their heights. (A guessed
         // min(45vw, 100dvh - 5.5rem) cut the art's bottom off on an iPhone 11.)
-        !expanded && "short-landscape:h-full short-landscape:w-auto short-landscape:max-w-[50%] short-landscape:mx-0"
+        !expanded && "short-landscape:h-full short-landscape:w-auto short-landscape:max-w-[50%] short-landscape:mx-0",
+        // Glass, phone upright: the art fills the free height between the
+        // header and the song info as a box, and a square sized
+        // min(box width, box height) sits centred in it — so it's as big as
+        // fits, flush with the text column's edges, with the same space
+        // above and below (pt-2 + the header's 12px = pb-5).
+        glass && "np-phone:flex np-phone:aspect-auto np-phone:min-h-0 np-phone:w-full np-phone:max-w-none np-phone:flex-1 np-phone:items-center np-phone:justify-center np-phone:pb-5 np-phone:pt-2 np-phone:[container-type:size]"
       )}
       onTouchStart={handleArtTouchStart}
       onTouchMove={handleArtTouchMove}
@@ -176,6 +185,7 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
           // Morph target for the mini-player art (#289)
           '[view-transition-name:np-art]',
           expanded ? 'max-h-full max-w-full aspect-square' : 'w-full h-full',
+          glass && 'np-phone:aspect-square np-phone:h-auto np-phone:w-[min(100cqw,100cqh)]',
         )}
       >
         {coverUrl && !imgError ? (

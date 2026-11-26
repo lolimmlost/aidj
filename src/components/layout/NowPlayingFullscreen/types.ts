@@ -18,6 +18,8 @@ export interface NowPlayingSong {
    * detail page.
    */
   artistId?: string;
+  /** Album name (glass UI shows "PLAYING FROM · album"). */
+  album?: string;
 }
 
 export interface NowPlayingFullscreenProps {
@@ -56,4 +58,12 @@ export interface NowPlayingFullscreenProps {
    *  Visualizer mode; if null, visualizer renders without live audio
    *  data. */
   analyserNode?: AnalyserNode | null;
+  /** Glass UI: open the device picker anchored to the tapped button. */
+  onOpenDevices?: (trigger: HTMLElement) => void;
+  /** Glass UI: where it's playing ("This phone", a speaker, another device). */
+  deviceLabel?: string;
+  /** Glass UI: true when another device / speaker is playing. */
+  deviceRemote?: boolean;
+  /** Glass UI: songs queued after this one. */
+  upNext?: number;
 }

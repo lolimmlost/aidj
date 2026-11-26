@@ -56,6 +56,7 @@ import { dismissAutoplayPrompt, registerAudioUnlocker } from '@/lib/utils/audio-
 import { canViewTransition, suppressTransitionNames, waitForImage, withViewTransition, withViewTransitionAsync } from '@/lib/utils/view-transition';
 import { LikeHeart, type LikeEffect } from '@/components/player/LikeHeart';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { useIsPhone } from '@/components/glass/GlassSheet';
 import { Waveform } from '@/components/glass/Waveform';
 
 /**
@@ -107,6 +108,7 @@ const formatTime = (time: number) => {
 export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
   // Glass UI prototype: frosted card + waveform progress on mobile.
   const glass = useGlassUi();
+  const phone = useIsPhone();
   const upcomingCount = useAudioStore((s) => s.getUpcomingQueue().length);
   const toggleQueuePanel = useAudioStore((s) => s.toggleQueuePanel);
   // Cross-device playback sync (WebSocket + REST)
@@ -1635,11 +1637,21 @@ export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
         onToggleLike={handleToggleLike}
         onToggleShuffle={toggleShuffle}
         onToggleRepeat={toggleRepeat}
+        onOpenDevices={(el) => {
+          devicePickerTriggerRef.current = el as HTMLButtonElement;
+          setDevicePickerOpen(!showDevicePicker);
+        }}
+        deviceLabel={showRemoteTime ? remoteDeviceLabel : 'This phone'}
+        deviceRemote={showRemoteTime}
+        upNext={upcomingCount}
       />
 
       {/* Device Picker — rendered via portal */}
-      {showDevicePicker && (
-        <DevicePicker onClose={() => setDevicePickerOpen(false)} triggerRef={devicePickerTriggerRef} />
+      {/* Glass UI phones: a bottom sheet, kept mounted so it can slide out. */}
+      {glass && phone ? (
+        <DevicePicker sheet open={showDevicePicker} onClose={() => setDevicePickerOpen(false)} />
+      ) : (
+        showDevicePicker && <DevicePicker onClose={() => setDevicePickerOpen(false)} triggerRef={devicePickerTriggerRef} />
       )}
     </>
   );

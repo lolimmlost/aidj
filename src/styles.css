@@ -10,6 +10,13 @@
 @custom-variant landscape (@media (orientation: landscape));
 /* Phones turned sideways: wide but too short for the portrait stack. */
 @custom-variant short-landscape (@media (orientation: landscape) and (max-height: 500px));
+/* Phone held upright (max-md, not short-landscape): the glass full-screen
+   player's portrait stack. */
+@custom-variant np-phone {
+  @media (max-width: 47.99rem) and (orientation: portrait), (max-width: 47.99rem) and (min-height: 501px) {
+    @slot;
+  }
+}
 
 @theme inline {
   /* Custom screen for very wide displays (1920p / 4K). Default Tailwind tops
@@ -1115,5 +1122,72 @@
     background: color-mix(in oklch, white 6%, transparent);
     border-color: color-mix(in oklch, white 10%, transparent);
     box-shadow: 0 16px 40px rgb(0 0 0 / 0.35);
+  }
+}
+
+/* Glass queue sheet (GlassQueueSheet). Same curve as the Now Playing sheet
+   (np-sheet-up), a little longer so the hand-off from full screen reads as
+   one move. No fill on the way in: a filled animation would override the
+   inline transform the drag-to-dismiss sets. data-drag-closed = the drag
+   already slid it off screen, so it unmounts without a second slide. */
+@keyframes glass-sheet-in {
+  from { transform: translateY(105%); }
+}
+@keyframes glass-sheet-out {
+  to { transform: translateY(105%); }
+}
+@keyframes glass-fade-in {
+  from { opacity: 0; }
+}
+@keyframes glass-fade-out {
+  to { opacity: 0; }
+}
+.glass-sheet[data-state="open"] {
+  animation: glass-sheet-in 520ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.glass-sheet[data-state="closed"] {
+  animation: glass-sheet-out 380ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+.glass-sheet[data-state="closed"][data-drag-closed] {
+  animation: none;
+}
+.glass-sheet-overlay[data-state="open"] {
+  animation: glass-fade-in 520ms ease-out;
+}
+.glass-sheet-overlay[data-state="closed"] {
+  animation: glass-fade-out 380ms ease-in forwards;
+}
+
+/* While a glass sheet is open over the full-screen player, the player
+   recedes behind it (scales back, rounds its corners), like a stacked iOS
+   sheet. --glass-sheet-drag (0..1) follows a drag-to-dismiss so the player
+   comes forward under your finger. Unlayered so it beats transition-opacity. */
+@media (max-width: 47.99rem) {
+  /* The spread shadow is the black backdrop around the receded player, so the
+     page under it (dashboard top bar etc.) doesn't show at the edges. It goes
+     on at once and comes off only after the player has grown back (0s
+     transition, 520ms delay). */
+  [data-np-sheet] {
+    transition:
+      opacity 300ms,
+      transform 520ms cubic-bezier(0.32, 0.72, 0, 1),
+      border-radius 520ms cubic-bezier(0.32, 0.72, 0, 1),
+      box-shadow 0s linear 520ms;
+    transform-origin: 50% 0;
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0);
+  }
+  html[data-glass-sheet] [data-np-sheet] {
+    transform: translateY(calc((1 - var(--glass-sheet-drag, 0)) * (env(safe-area-inset-top) + 0.75rem)))
+      scale(calc(0.92 + 0.08 * var(--glass-sheet-drag, 0)));
+    border-radius: 26px;
+    box-shadow: 0 0 0 100vmax rgb(0 0 0);
+    transition:
+      opacity 300ms,
+      transform 520ms cubic-bezier(0.32, 0.72, 0, 1),
+      border-radius 520ms cubic-bezier(0.32, 0.72, 0, 1),
+      box-shadow 0s;
+  }
+  html[data-glass-sheet-dragging] [data-np-sheet] {
+    transition: opacity 300ms;
   }
 }
