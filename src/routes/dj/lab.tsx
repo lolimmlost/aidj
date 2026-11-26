@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, FlaskConical, Loader2, Play, Settings2 } from 'lucide-react';
 import { loginRedirect } from '~/lib/auth/login-redirect';
@@ -25,12 +25,16 @@ import { LabAB } from '@/components/dj-lab/LabAB';
 import { LabVotes } from '@/components/dj-lab/LabVotes';
 import { LiveBar } from '@/components/dj-lab/LiveBar';
 import { RecentSets } from '@/components/dj-lab/RecentSets';
+import { SetReview } from '@/components/dj-lab/SetReview';
 import { ResumeBanner } from '@/components/dj-lab/ResumeBanner';
 import { TempoWindow } from '@/components/dj-lab/TempoWindow';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
 import { GlassLabOverview } from '@/components/dj-lab/GlassLabOverview';
+import { useKnownBook } from '@/components/dj-lab/KnownExits';
+import { exitsFrom, savedRecipe, takeOf, takeRecipe } from '@/lib/dj-lab/known-takes';
+import { canonicalNavidromeId } from '@/lib/utils/navidrome-id';
 
 const stretchPct = (setBpm: number, bpm: number) => {
   const pct = (setBpm / bpm - 1) * 100;
@@ -91,12 +95,35 @@ function DJLab() {
 
   // auto-lock: a transition you liked first, then the best pick in the tempo window, and so on (autoPick)
   const starred = useStarredIds();
+  // Set prep: your known transitions. A pair you picked a take for mixes with that take (any lock: yours,
+  // the queue's or auto-lock's; your picker choices still win), and auto-lock goes for your proven exits first.
+  const { data: book } = useKnownBook();
   useEffect(() => {
+    if (!book?.length) {
+      engine.setKnownTakes(null);
+      return;
+    }
+    const analyses = new Map(pool.map((p) => [canonicalNavidromeId(p.song.id), p.analysis]));
+    engine.setKnownTakes((fromId, toId) => {
+      const from = canonicalNavidromeId(fromId);
+      const to = canonicalNavidromeId(toId);
+      const take = takeOf(book.find((r) => r.fromSongId === from && r.toSongId === to));
+      return take ? takeRecipe(take, analyses.get(to), savedRecipe(loadSets(), from, to, take)) : undefined;
+    });
+  }, [engine, book, pool]);
+  useEffect(() => {
+    const proven = (fromId: string) => {
+      const ids = new Map(pool.map((p) => [canonicalNavidromeId(p.song.id), p.song.id]));
+      return exitsFrom(book ?? [], fromId)
+        .filter((r) => r.status === 'proven')
+        .map((r) => ids.get(r.toSongId))
+        .filter((id): id is string => !!id);
+    };
     // the picker reads the engine's state at each pick, not this render's copy of it (see autoPicker, #390)
-    engine.setPicker(autoPicker(engine.getSnapshot, pool, starred));
+    engine.setPicker(autoPicker(engine.getSnapshot, pool, starred, proven));
     // the set may start before the crate is analysed: pick as soon as there's something to pick
     engine.maybeAutoLock();
-  }, [engine, pool, starred, snap.setBpm, snap.mode, snap.autoLock, snap.status, snap.now, snap.next, snap.defaults.tempoDown, snap.defaults.tempoUp]);
+  }, [engine, pool, starred, book, snap.setBpm, snap.mode, snap.autoLock, snap.status, snap.now, snap.next, snap.defaults.tempoDown, snap.defaults.tempoUp]);
 
   const chooseCrate = (id: string) => {
     setCrateId(id);
@@ -108,6 +135,25 @@ function DJLab() {
   };
 
   const live = snap.status !== 'idle';
+
+  // When a set stops, offer to review its transitions (Proven / Needs work, or swipe away).
+  const [reviewSet, setReviewSet] = useState<SavedSet | null>(null);
+  const wasLiveRef = useRef(false);
+  useEffect(() => {
+    const isLive = snap.status === 'playing' || snap.status === 'paused';
+    if (wasLiveRef.current && snap.status === 'idle') {
+      const last = loadSets()[0];
+      const n = last ? last.tracks.filter((t, i) => i > 0 && t.kind).length : 0;
+      if (last && n > 0) {
+        toast(`Set saved · ${n} transition${n === 1 ? '' : 's'}`, {
+          description: 'Mark the good ones proven while they’re fresh',
+          duration: 15_000,
+          action: { label: 'Review', onClick: () => setReviewSet(last) },
+        });
+      }
+    }
+    wasLiveRef.current = isLive;
+  }, [snap.status]);
   const hydrated = useHydrated();
   const phone = hydrated && isPhone();
   // mid-set the setup folds into one line
@@ -444,6 +490,7 @@ function DJLab() {
           </TabsContent>
         </Tabs>
       </div>
+      <SetReview set={reviewSet} onClose={() => setReviewSet(null)} />
     </PageLayout>
   );
 }

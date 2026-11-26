@@ -3,9 +3,12 @@ import { AlertTriangle, Lock, Pause, Play, SkipForward } from 'lucide-react';
 import { getCoverArtUrl } from '@/components/ui/album-art';
 import { cn } from '@/lib/utils';
 import { barTime, type TrackAnalysis } from '@/lib/dj-lab/analysis';
+import { KnownExits, TakeLine, useKnownPair } from './KnownExits';
 import { rankCandidates, type Candidate, type LabSong } from '@/lib/dj-lab/crate';
 import { labLog } from '@/lib/dj-lab/log';
 import type { Choices, EngineSnapshot, LabEngine } from '@/lib/dj-lab/engine';
+import type { TransitionPlan } from '@/lib/dj-lab/plan';
+import { takeOf } from '@/lib/dj-lab/known-takes';
 import { fmtTime, useStarredIds, useTicker } from './useLab';
 
 type Pool = { song: LabSong; analysis: TrackAnalysis }[];
@@ -38,6 +41,38 @@ const BAR_PADS: Pad[] = [
   { label: '16 BARS', sub: 'BLEND', color: '#F4F3F8', set: { bars: 16 }, keys: ['bars'] },
   { label: '32 BARS', sub: 'LONG BLEND', color: '#F4F3F8', set: { bars: 32 }, keys: ['bars'] },
 ];
+/** where A goes out and B comes in (the TransitionPicker's exit / entry, as pads) */
+const EDGE_PADS: Pad[] = [
+  { label: 'PLAY OUT A', sub: 'A TO ITS END', color: '#F7A072', set: { exit: 'end' }, keys: ['exit'] },
+  { label: 'A NEXT DROP', sub: "SWAP ON A'S DROP", color: '#B4E36B', set: { exit: 'next-drop' }, keys: ['exit'] },
+  { label: 'B FADE IN', sub: "FROM B'S INTRO", color: '#8FB8FF', set: { entry: 'intro' }, keys: ['entry'] },
+  { label: 'B 1ST DROP', sub: 'EARLIEST DROP', color: '#F28FD0', set: { entry: 'first-drop' }, keys: ['entry'] },
+];
+const ALL_PADS = [...STYLE_PADS, ...BAR_PADS, ...EDGE_PADS];
+
+/**
+ * The pads the locked transition actually plays, whoever chose it (your pads, your take of a known pair, a
+ * replayed set, or the rules): read off the plan, so they light up even when no pad was tapped.
+ */
+function planPads(plan: TransitionPlan | undefined, B: TrackAnalysis | undefined): Set<string> {
+  const out = new Set<string>();
+  if (!plan || plan.jump) return out;
+  if (plan.bass === 'sweep') out.add('SWEEP');
+  else if (plan.kill === 0.5) out.add('DROP STOP');
+  else if (plan.depth === 'full') out.add('FULL CUT');
+  else if (plan.depth === 'rise') out.add('HPF RISE');
+  else out.add('SUB SWAP');
+  if (plan.N === 8 || plan.N === 16 || plan.N === 32) out.add(`${plan.N} BARS`);
+  if (plan.kind === 'playout') out.add('PLAY OUT A');
+  if (plan.kind === 'swap') out.add('A NEXT DROP');
+  if (B) {
+    const drops = [...B.drops, ...(B.drop !== null ? [B.drop] : [])];
+    if (plan.kind === 'intro' || plan.cueB <= B.first) out.add('B FADE IN');
+    else if (drops.length && plan.cueB + plan.S === Math.min(...drops)) out.add('B 1ST DROP');
+  }
+  return out;
+}
+
 const padActive = (choices: Choices, pad: Pad) =>
   (Object.keys(pad.set) as (keyof Choices)[]).every((k) => choices[k] === pad.set[k]) &&
   pad.keys.every((k) => k in pad.set || choices[k] === undefined);
@@ -121,6 +156,7 @@ export function GlassLabOverview({ engine, snap, pool, crateName }: { engine: La
     [now, pool, snap.setBpm, played, snap.mode, snap.defaults.tempoDown, snap.defaults.tempoUp, starred],
   );
   const wave = useMemo(() => (now ? waveFromAnalysis(now.analysis) : []), [now]);
+  const knownPair = useKnownPair(now?.song.id, next?.song.id);
   const tempos = useMemo(() => tempoSeries(snap), [snap]);
 
   // Playheads move every frame (refs, not re-renders): the 250 ms ticker only
@@ -343,6 +379,12 @@ export function GlassLabOverview({ engine, snap, pool, crateName }: { engine: La
     next?.state === 'mixing' ? 'MIXING' : toBlend !== null && toBlend > 0 ? `MIX ${fmtTime(toBlend)}` : next?.state === 'loading' ? '…' : '—';
 
   const shownPicks = frozenPicks ?? picks;
+  // after the early return: a plain call, not a hook (cheap)
+  const plannedPads = planPads(next?.plan, next?.analysis);
+  // who chose the locked transition when no pad is lit
+  const padSource: 'replay' | 'take' | 'rules' =
+    next && snap.replay?.songIds.includes(next.song.id) ? 'replay' : knownPair && takeOf(knownPair) ? 'take' : 'rules';
+  const plannedSub = padSource === 'replay' ? 'REPLAY' : padSource === 'take' ? '★ YOUR TAKE' : 'PLANNED';
   // Pads: 1st tap = this transition only, 2nd = lock (pin for the rest of the
   // set), 3rd = clear. One setChoices call = one re-plan (was one per key).
   const setKeys = (pad: Pad) => Object.keys(pad.set) as (keyof Choices)[];
@@ -538,6 +580,7 @@ export function GlassLabOverview({ engine, snap, pool, crateName }: { engine: La
               ) : (
                 <span className="font-mono text-[10px] text-muted-foreground">PREPARING {next.song.title.toUpperCase()}…</span>
               )}
+              <TakeLine row={knownPair} plan={plan ?? undefined} />
               <span className="font-mono text-[10px] tracking-[0.1em] text-success">{next.state.toUpperCase()}</span>
             </div>
           </>
@@ -558,37 +601,51 @@ export function GlassLabOverview({ engine, snap, pool, crateName }: { engine: La
                 ? 'LOCKED FOR THE SET'
                 : Object.keys(snap.choices).length
                   ? 'NEXT ONLY · TAP AGAIN TO LOCK'
-                  : 'AUTO · RULES DECIDE'}
+                  : padSource === 'replay'
+                    ? 'REPLAY · AS LAST TIME'
+                    : padSource === 'take'
+                      ? '★ YOUR TAKE'
+                      : 'AUTO · RULES DECIDE'}
           </span>
         </div>
         <div className="grid grid-cols-4 gap-2">
-          {[...STYLE_PADS, ...BAR_PADS].map((pad) => {
+          {ALL_PADS.map((pad) => {
             const on = padActive(snap.choices, pad);
             const locked = on && padLocked(pad);
+            // not tapped, but it's what the locked transition plays (your take, the replay, or the rules)
+            const planned = !on && plannedPads.has(pad.label);
             return (
               <button
                 key={pad.label}
                 type="button"
                 aria-pressed={on}
-                aria-label={`${pad.label}: ${locked ? 'locked for the set, tap to clear' : on ? 'next transition only, tap to lock for the set' : 'tap for the next transition'}`}
+                aria-label={`${pad.label}: ${locked ? 'locked for the set, tap to clear' : on ? 'next transition only, tap to lock for the set' : planned ? 'what the locked transition plays, tap to choose it' : 'tap for the next transition'}`}
                 disabled={frozen}
                 onClick={() => applyPad(pad)}
                 className={cn(
                   'flex h-[68px] flex-col items-center justify-center gap-1 rounded-xl font-mono text-[10px] font-bold tracking-[0.06em] transition-transform active:translate-y-px disabled:opacity-40 [-webkit-tap-highlight-color:transparent]',
                   on ? 'text-[#0A090E]' : 'bg-gradient-to-b from-[#2B2838] to-[#1B1924] text-[#F4F3F8] shadow-[inset_0_1px_0_rgb(255_255_255/0.08),0_4px_8px_rgb(0_0_0/0.5)]',
                 )}
-                style={on ? { background: pad.color, boxShadow: locked ? `0 0 0 2px #F4F3F8, 0 0 24px ${pad.color}` : `0 0 20px ${pad.color}` } : undefined}
+                style={
+                  on
+                    ? { background: pad.color, boxShadow: locked ? `0 0 0 2px #F4F3F8, 0 0 24px ${pad.color}` : `0 0 20px ${pad.color}` }
+                    : planned
+                      ? { color: pad.color, boxShadow: `inset 0 0 0 2px ${pad.color}, 0 0 14px color-mix(in srgb, ${pad.color} 35%, transparent)` }
+                      : undefined
+                }
               >
                 <span className="flex items-center gap-1">
                   {locked && <Lock className="size-3" aria-hidden />}
                   {pad.label}
                 </span>
-                <span className="text-[8px] font-medium opacity-75">{locked ? 'LOCKED · SET' : on ? 'NEXT · TAP=LOCK' : pad.sub}</span>
+                <span className="text-[8px] font-medium opacity-75">{locked ? 'LOCKED · SET' : on ? 'NEXT · TAP=LOCK' : planned ? plannedSub : pad.sub}</span>
               </button>
             );
           })}
         </div>
       </section>
+
+      <KnownExits engine={engine} snap={snap} pool={pool} className="pt-2.5" />
 
       {shownPicks.length > 0 && (
         <section aria-labelledby="glass-lab-picks" className="space-y-2 pt-2.5">

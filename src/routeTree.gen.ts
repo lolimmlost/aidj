@@ -39,6 +39,7 @@ import { Route as DjIndexRouteImport } from './routes/dj/index'
 import { Route as DjLabRouteImport } from './routes/dj/lab'
 import { Route as DjSetBuilderRouteImport } from './routes/dj/set-builder'
 import { Route as DjSettingsRouteImport } from './routes/dj/settings'
+import { Route as DjTransitionsRouteImport } from './routes/dj/transitions'
 import { Route as DownloadsIndexRouteImport } from './routes/downloads/index'
 import { Route as DownloadsHistoryRouteImport } from './routes/downloads/history'
 import { Route as DownloadsStatusRouteImport } from './routes/downloads/status'
@@ -168,6 +169,9 @@ import { Route as MusicIdentityShareTokenRouteImport } from './routes/music-iden
 import { Route as PlaylistsJoinShareCodeRouteImport } from './routes/playlists/join/$shareCode'
 import { Route as ApiBackgroundDiscoverySuggestionsIdRouteImport } from './routes/api/background-discovery/suggestions.$id'
 import { Route as ApiDiscoveryFeedNotificationsPreferencesRouteImport } from './routes/api/discovery-feed/notifications/preferences'
+import { Route as ApiDjKnownTransitionsIndexRouteImport } from './routes/api/dj/known-transitions/index'
+import { Route as ApiDjKnownTransitionsIdRouteImport } from './routes/api/dj/known-transitions/$id'
+import { Route as ApiDjKnownTransitionsImportRouteImport } from './routes/api/dj/known-transitions/import'
 import { Route as ApiLibrarySyncAbortRouteImport } from './routes/api/library/sync/abort'
 import { Route as ApiLibrarySyncPauseRouteImport } from './routes/api/library/sync/pause'
 import { Route as ApiLibrarySyncResumeRouteImport } from './routes/api/library/sync/resume'
@@ -355,6 +359,11 @@ const DjSetBuilderRoute = DjSetBuilderRouteImport.update({
 const DjSettingsRoute = DjSettingsRouteImport.update({
   id: '/dj/settings',
   path: '/dj/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DjTransitionsRoute = DjTransitionsRouteImport.update({
+  id: '/dj/transitions',
+  path: '/dj/transitions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DownloadsIndexRoute = DownloadsIndexRouteImport.update({
@@ -1042,6 +1051,23 @@ const ApiDiscoveryFeedNotificationsPreferencesRoute =
     path: '/api/discovery-feed/notifications/preferences',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiDjKnownTransitionsIndexRoute =
+  ApiDjKnownTransitionsIndexRouteImport.update({
+    id: '/api/dj/known-transitions/',
+    path: '/api/dj/known-transitions/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiDjKnownTransitionsIdRoute = ApiDjKnownTransitionsIdRouteImport.update({
+  id: '/api/dj/known-transitions/$id',
+  path: '/api/dj/known-transitions/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDjKnownTransitionsImportRoute =
+  ApiDjKnownTransitionsImportRouteImport.update({
+    id: '/api/dj/known-transitions/import',
+    path: '/api/dj/known-transitions/import',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiLibrarySyncAbortRoute = ApiLibrarySyncAbortRouteImport.update({
   id: '/api/library/sync/abort',
   path: '/api/library/sync/abort',
@@ -1278,6 +1304,7 @@ export interface FileRoutesByFullPath {
   '/dj/lab': typeof DjLabRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/settings': typeof DjSettingsRoute
+  '/dj/transitions': typeof DjTransitionsRoute
   '/downloads/history': typeof DownloadsHistoryRoute
   '/downloads/status': typeof DownloadsStatusRoute
   '/downloads/youtube': typeof DownloadsYoutubeRoute
@@ -1410,6 +1437,8 @@ export interface FileRoutesByFullPath {
   '/library/artists/': typeof LibraryArtistsIndexRoute
   '/api/background-discovery/suggestions/$id': typeof ApiBackgroundDiscoverySuggestionsIdRoute
   '/api/discovery-feed/notifications/preferences': typeof ApiDiscoveryFeedNotificationsPreferencesRoute
+  '/api/dj/known-transitions/$id': typeof ApiDjKnownTransitionsIdRoute
+  '/api/dj/known-transitions/import': typeof ApiDjKnownTransitionsImportRoute
   '/api/library/sync/abort': typeof ApiLibrarySyncAbortRoute
   '/api/library/sync/pause': typeof ApiLibrarySyncPauseRoute
   '/api/library/sync/resume': typeof ApiLibrarySyncResumeRoute
@@ -1436,6 +1465,7 @@ export interface FileRoutesByFullPath {
   '/api/playlists/liked-songs/sync': typeof ApiPlaylistsLikedSongsSyncRoute
   '/api/playlists/smart/preview': typeof ApiPlaylistsSmartPreviewRoute
   '/api/playlists/smart/random': typeof ApiPlaylistsSmartRandomRoute
+  '/api/dj/known-transitions/': typeof ApiDjKnownTransitionsIndexRoute
   '/api/listening-history/sessions/': typeof ApiListeningHistorySessionsIndexRoute
   '/api/playlists/smart/': typeof ApiPlaylistsSmartIndexRoute
   '/api/navidrome/api/album/$id': typeof ApiNavidromeApiAlbumIdRoute
@@ -1475,6 +1505,7 @@ export interface FileRoutesByTo {
   '/dj/lab': typeof DjLabRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/settings': typeof DjSettingsRoute
+  '/dj/transitions': typeof DjTransitionsRoute
   '/downloads/history': typeof DownloadsHistoryRoute
   '/downloads/status': typeof DownloadsStatusRoute
   '/downloads/youtube': typeof DownloadsYoutubeRoute
@@ -1606,6 +1637,8 @@ export interface FileRoutesByTo {
   '/library/artists': typeof LibraryArtistsIndexRoute
   '/api/background-discovery/suggestions/$id': typeof ApiBackgroundDiscoverySuggestionsIdRoute
   '/api/discovery-feed/notifications/preferences': typeof ApiDiscoveryFeedNotificationsPreferencesRoute
+  '/api/dj/known-transitions/$id': typeof ApiDjKnownTransitionsIdRoute
+  '/api/dj/known-transitions/import': typeof ApiDjKnownTransitionsImportRoute
   '/api/library/sync/abort': typeof ApiLibrarySyncAbortRoute
   '/api/library/sync/pause': typeof ApiLibrarySyncPauseRoute
   '/api/library/sync/resume': typeof ApiLibrarySyncResumeRoute
@@ -1632,6 +1665,7 @@ export interface FileRoutesByTo {
   '/api/playlists/liked-songs/sync': typeof ApiPlaylistsLikedSongsSyncRoute
   '/api/playlists/smart/preview': typeof ApiPlaylistsSmartPreviewRoute
   '/api/playlists/smart/random': typeof ApiPlaylistsSmartRandomRoute
+  '/api/dj/known-transitions': typeof ApiDjKnownTransitionsIndexRoute
   '/api/listening-history/sessions': typeof ApiListeningHistorySessionsIndexRoute
   '/api/playlists/smart': typeof ApiPlaylistsSmartIndexRoute
   '/api/navidrome/api/album/$id': typeof ApiNavidromeApiAlbumIdRoute
@@ -1674,6 +1708,7 @@ export interface FileRoutesById {
   '/dj/lab': typeof DjLabRoute
   '/dj/set-builder': typeof DjSetBuilderRoute
   '/dj/settings': typeof DjSettingsRoute
+  '/dj/transitions': typeof DjTransitionsRoute
   '/downloads/history': typeof DownloadsHistoryRoute
   '/downloads/status': typeof DownloadsStatusRoute
   '/downloads/youtube': typeof DownloadsYoutubeRoute
@@ -1806,6 +1841,8 @@ export interface FileRoutesById {
   '/library/artists/': typeof LibraryArtistsIndexRoute
   '/api/background-discovery/suggestions/$id': typeof ApiBackgroundDiscoverySuggestionsIdRoute
   '/api/discovery-feed/notifications/preferences': typeof ApiDiscoveryFeedNotificationsPreferencesRoute
+  '/api/dj/known-transitions/$id': typeof ApiDjKnownTransitionsIdRoute
+  '/api/dj/known-transitions/import': typeof ApiDjKnownTransitionsImportRoute
   '/api/library/sync/abort': typeof ApiLibrarySyncAbortRoute
   '/api/library/sync/pause': typeof ApiLibrarySyncPauseRoute
   '/api/library/sync/resume': typeof ApiLibrarySyncResumeRoute
@@ -1832,6 +1869,7 @@ export interface FileRoutesById {
   '/api/playlists/liked-songs/sync': typeof ApiPlaylistsLikedSongsSyncRoute
   '/api/playlists/smart/preview': typeof ApiPlaylistsSmartPreviewRoute
   '/api/playlists/smart/random': typeof ApiPlaylistsSmartRandomRoute
+  '/api/dj/known-transitions/': typeof ApiDjKnownTransitionsIndexRoute
   '/api/listening-history/sessions/': typeof ApiListeningHistorySessionsIndexRoute
   '/api/playlists/smart/': typeof ApiPlaylistsSmartIndexRoute
   '/api/navidrome/api/album/$id': typeof ApiNavidromeApiAlbumIdRoute
@@ -1874,6 +1912,7 @@ export interface FileRouteTypes {
     | '/dj/lab'
     | '/dj/set-builder'
     | '/dj/settings'
+    | '/dj/transitions'
     | '/downloads/history'
     | '/downloads/status'
     | '/downloads/youtube'
@@ -2006,6 +2045,8 @@ export interface FileRouteTypes {
     | '/library/artists/'
     | '/api/background-discovery/suggestions/$id'
     | '/api/discovery-feed/notifications/preferences'
+    | '/api/dj/known-transitions/$id'
+    | '/api/dj/known-transitions/import'
     | '/api/library/sync/abort'
     | '/api/library/sync/pause'
     | '/api/library/sync/resume'
@@ -2032,6 +2073,7 @@ export interface FileRouteTypes {
     | '/api/playlists/liked-songs/sync'
     | '/api/playlists/smart/preview'
     | '/api/playlists/smart/random'
+    | '/api/dj/known-transitions/'
     | '/api/listening-history/sessions/'
     | '/api/playlists/smart/'
     | '/api/navidrome/api/album/$id'
@@ -2071,6 +2113,7 @@ export interface FileRouteTypes {
     | '/dj/lab'
     | '/dj/set-builder'
     | '/dj/settings'
+    | '/dj/transitions'
     | '/downloads/history'
     | '/downloads/status'
     | '/downloads/youtube'
@@ -2202,6 +2245,8 @@ export interface FileRouteTypes {
     | '/library/artists'
     | '/api/background-discovery/suggestions/$id'
     | '/api/discovery-feed/notifications/preferences'
+    | '/api/dj/known-transitions/$id'
+    | '/api/dj/known-transitions/import'
     | '/api/library/sync/abort'
     | '/api/library/sync/pause'
     | '/api/library/sync/resume'
@@ -2228,6 +2273,7 @@ export interface FileRouteTypes {
     | '/api/playlists/liked-songs/sync'
     | '/api/playlists/smart/preview'
     | '/api/playlists/smart/random'
+    | '/api/dj/known-transitions'
     | '/api/listening-history/sessions'
     | '/api/playlists/smart'
     | '/api/navidrome/api/album/$id'
@@ -2269,6 +2315,7 @@ export interface FileRouteTypes {
     | '/dj/lab'
     | '/dj/set-builder'
     | '/dj/settings'
+    | '/dj/transitions'
     | '/downloads/history'
     | '/downloads/status'
     | '/downloads/youtube'
@@ -2401,6 +2448,8 @@ export interface FileRouteTypes {
     | '/library/artists/'
     | '/api/background-discovery/suggestions/$id'
     | '/api/discovery-feed/notifications/preferences'
+    | '/api/dj/known-transitions/$id'
+    | '/api/dj/known-transitions/import'
     | '/api/library/sync/abort'
     | '/api/library/sync/pause'
     | '/api/library/sync/resume'
@@ -2427,6 +2476,7 @@ export interface FileRouteTypes {
     | '/api/playlists/liked-songs/sync'
     | '/api/playlists/smart/preview'
     | '/api/playlists/smart/random'
+    | '/api/dj/known-transitions/'
     | '/api/listening-history/sessions/'
     | '/api/playlists/smart/'
     | '/api/navidrome/api/album/$id'
@@ -2457,6 +2507,7 @@ export interface RootRouteChildren {
   DjLabRoute: typeof DjLabRoute
   DjSetBuilderRoute: typeof DjSetBuilderRoute
   DjSettingsRoute: typeof DjSettingsRoute
+  DjTransitionsRoute: typeof DjTransitionsRoute
   DownloadsHistoryRoute: typeof DownloadsHistoryRoute
   DownloadsStatusRoute: typeof DownloadsStatusRoute
   DownloadsYoutubeRoute: typeof DownloadsYoutubeRoute
@@ -2576,6 +2627,8 @@ export interface RootRouteChildren {
   ApiSpeakersIndexRoute: typeof ApiSpeakersIndexRoute
   ApiTasksIndexRoute: typeof ApiTasksIndexRoute
   ApiDiscoveryFeedNotificationsPreferencesRoute: typeof ApiDiscoveryFeedNotificationsPreferencesRoute
+  ApiDjKnownTransitionsIdRoute: typeof ApiDjKnownTransitionsIdRoute
+  ApiDjKnownTransitionsImportRoute: typeof ApiDjKnownTransitionsImportRoute
   ApiLibrarySyncAbortRoute: typeof ApiLibrarySyncAbortRoute
   ApiLibrarySyncPauseRoute: typeof ApiLibrarySyncPauseRoute
   ApiLibrarySyncResumeRoute: typeof ApiLibrarySyncResumeRoute
@@ -2598,6 +2651,7 @@ export interface RootRouteChildren {
   ApiPlaylistsLikedSongsSyncRoute: typeof ApiPlaylistsLikedSongsSyncRoute
   ApiPlaylistsSmartPreviewRoute: typeof ApiPlaylistsSmartPreviewRoute
   ApiPlaylistsSmartRandomRoute: typeof ApiPlaylistsSmartRandomRoute
+  ApiDjKnownTransitionsIndexRoute: typeof ApiDjKnownTransitionsIndexRoute
   ApiListeningHistorySessionsIndexRoute: typeof ApiListeningHistorySessionsIndexRoute
   ApiPlaylistsSmartIndexRoute: typeof ApiPlaylistsSmartIndexRoute
   ApiNavidromeStreamChar91idChar93Char91idChar93Route: typeof ApiNavidromeStreamChar91idChar93Char91idChar93Route
@@ -2813,6 +2867,13 @@ declare module '@tanstack/react-router' {
       path: '/dj/settings'
       fullPath: '/dj/settings'
       preLoaderRoute: typeof DjSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dj/transitions': {
+      id: '/dj/transitions'
+      path: '/dj/transitions'
+      fullPath: '/dj/transitions'
+      preLoaderRoute: typeof DjTransitionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/downloads/': {
@@ -3718,6 +3779,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDiscoveryFeedNotificationsPreferencesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/dj/known-transitions/': {
+      id: '/api/dj/known-transitions/'
+      path: '/api/dj/known-transitions'
+      fullPath: '/api/dj/known-transitions/'
+      preLoaderRoute: typeof ApiDjKnownTransitionsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/dj/known-transitions/$id': {
+      id: '/api/dj/known-transitions/$id'
+      path: '/api/dj/known-transitions/$id'
+      fullPath: '/api/dj/known-transitions/$id'
+      preLoaderRoute: typeof ApiDjKnownTransitionsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/dj/known-transitions/import': {
+      id: '/api/dj/known-transitions/import'
+      path: '/api/dj/known-transitions/import'
+      fullPath: '/api/dj/known-transitions/import'
+      preLoaderRoute: typeof ApiDjKnownTransitionsImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/library/sync/abort': {
       id: '/api/library/sync/abort'
       path: '/api/library/sync/abort'
@@ -4183,6 +4265,7 @@ const rootRouteChildren: RootRouteChildren = {
   DjLabRoute: DjLabRoute,
   DjSetBuilderRoute: DjSetBuilderRoute,
   DjSettingsRoute: DjSettingsRoute,
+  DjTransitionsRoute: DjTransitionsRoute,
   DownloadsHistoryRoute: DownloadsHistoryRoute,
   DownloadsStatusRoute: DownloadsStatusRoute,
   DownloadsYoutubeRoute: DownloadsYoutubeRoute,
@@ -4306,6 +4389,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTasksIndexRoute: ApiTasksIndexRoute,
   ApiDiscoveryFeedNotificationsPreferencesRoute:
     ApiDiscoveryFeedNotificationsPreferencesRoute,
+  ApiDjKnownTransitionsIdRoute: ApiDjKnownTransitionsIdRoute,
+  ApiDjKnownTransitionsImportRoute: ApiDjKnownTransitionsImportRoute,
   ApiLibrarySyncAbortRoute: ApiLibrarySyncAbortRoute,
   ApiLibrarySyncPauseRoute: ApiLibrarySyncPauseRoute,
   ApiLibrarySyncResumeRoute: ApiLibrarySyncResumeRoute,
@@ -4330,6 +4415,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPlaylistsLikedSongsSyncRoute: ApiPlaylistsLikedSongsSyncRoute,
   ApiPlaylistsSmartPreviewRoute: ApiPlaylistsSmartPreviewRoute,
   ApiPlaylistsSmartRandomRoute: ApiPlaylistsSmartRandomRoute,
+  ApiDjKnownTransitionsIndexRoute: ApiDjKnownTransitionsIndexRoute,
   ApiListeningHistorySessionsIndexRoute: ApiListeningHistorySessionsIndexRoute,
   ApiPlaylistsSmartIndexRoute: ApiPlaylistsSmartIndexRoute,
   ApiNavidromeStreamChar91idChar93Char91idChar93Route:

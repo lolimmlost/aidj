@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { ChevronDown, Copy, ListPlus, Loader2, Repeat, Trash2 } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, Copy, ListPlus, Loader2, Repeat, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { deleteSet, loadSets, setTime, setWhen as when, tracklistText, type SavedSet } from '@/lib/dj-lab/sets';
 import { useHydrated } from './useLab';
+import { SetReview } from './SetReview';
 
 async function saveAsPlaylist(set: SavedSet) {
   const ids = [...new Set(set.tracks.map((t) => t.id))];
@@ -22,6 +23,7 @@ export function RecentSets({ onReplay, replaying }: { onReplay?: (set: SavedSet)
   const [sets, setSets] = useState<SavedSet[]>(() => loadSets());
   // folded: tap a set to see its tracklist
   const [open, setOpen] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState<SavedSet | null>(null);
   // the server render has no sets (localStorage): show them once hydrated, so the two match
   const hydrated = useHydrated();
   if (!hydrated || !sets.length) return null;
@@ -67,6 +69,9 @@ export function RecentSets({ onReplay, replaying }: { onReplay?: (set: SavedSet)
                         {replaying === set.id ? <Loader2 className="size-3.5 animate-spin" /> : <Repeat className="size-3.5" />} Replay
                       </Button>
                     )}
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setReviewing(set)} title="Mark each transition proven or needs work">
+                      <ClipboardCheck className="size-3.5" /> Review transitions
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -102,6 +107,7 @@ export function RecentSets({ onReplay, replaying }: { onReplay?: (set: SavedSet)
           );
         })}
       </ul>
+      <SetReview set={reviewing} onClose={() => setReviewing(null)} />
     </section>
   );
 }

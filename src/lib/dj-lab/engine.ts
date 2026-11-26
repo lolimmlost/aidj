@@ -31,6 +31,8 @@ export type NextState = 'loading' | 'locked' | 'committed' | 'mixing' | 'failed'
 
 /** Auto-lock's song picker: the song to lock next, and what to log about the pick once it locks (#383, #390). */
 export type Picker = (now: NowInfo, played: Set<string>) => { song: LabSong; log?: Record<string, unknown> } | null;
+/** The recipe for your picked take of a known pair (from → to), or nothing: the rules decide. */
+export type KnownTake = (fromId: string, toId: string) => Recipe | undefined;
 
 /** The next-transition picker (#375): unset = the rules decide */
 export type Choices = Pick<Recipe, 'exit' | 'entry' | 'bass' | 'bars' | 'kill' | 'depth'>;
@@ -225,6 +227,13 @@ export class LabEngine {
 
   setPicker(fn: Picker) {
     this.pickNext = fn;
+  }
+
+  /** your picked take for a pair (Set prep known transitions): the recipe that mixes it that way again */
+  private knownTake: KnownTake | null = null;
+
+  setKnownTakes(fn: KnownTake | null) {
+    this.knownTake = fn;
   }
 
   setOnBeforePlay(fn: () => void) {
@@ -699,12 +708,14 @@ export class LabEngine {
   }
 
   /**
-   * The recipe for locking `songId`: the set defaults and rules, then (in a replay) the choices it
-   * came in with last time, then your choices now, then an explicit recipe (A/B winner).
+   * The recipe for locking `songId`: the set defaults and rules, then your picked take of this pair
+   * (a known transition), then (in a replay) the choices it came in with last time, then your choices
+   * now, then an explicit recipe (A/B winner).
    */
   private planRecipe(songId: string, extra?: Recipe): Recipe {
     const replayed = this.replayQueue.find((e) => e.song.id === songId)?.recipe;
-    return { ...this.recipe(), ...replayed, ...this.snap.choices, ...extra };
+    const known = this.cur ? this.knownTake?.(this.cur.track.song.id, songId) : undefined;
+    return { ...this.recipe(), ...known, ...replayed, ...this.snap.choices, ...extra };
   }
 
   /** Stop following the replayed set: auto-lock goes back to its own picks. */

@@ -16,6 +16,8 @@ import { DeckStrip, type StripMarker, type StripRegion } from './DeckStrip';
 import { fmtTime, useStarredIds, useTicker } from './useLab';
 import { TransitionPicker } from './TransitionPicker';
 import { QueueCard } from './QueueCard';
+import { KnownExits, TakeLine, useKnownPair } from './KnownExits';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
 
 type Pool = { song: LabSong; analysis: TrackAnalysis }[];
 
@@ -174,6 +176,8 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
   // played, or queued already (#373): Up next leaves both out
   const played = useMemo(() => new Set([...snap.history.map((h) => h.song.id), ...snap.queue.map((q) => q.id)]), [snap.history, snap.queue]);
   const starred = useStarredIds();
+  const glass = useGlassUi();
+  const knownPair = useKnownPair(now?.song.id, next?.song.id);
   // thumbs out of the playing song, read when it starts: you can only give them once its successor has played
   const nowId = now?.song.id;
   const votes = useMemo(() => (nowId ? loadVotes() : []), [nowId]);
@@ -298,6 +302,7 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
                   <LockBadge next={next} />
                   {toBlend !== null && <span className="ml-auto shrink-0 font-medium text-foreground">{toBlend > 0 ? `mix in ${fmtTime(toBlend)}` : 'mixing'}</span>}
                 </div>
+                <TakeLine row={knownPair} plan={next.plan} />
                 <p className="line-clamp-2 text-[11px] text-muted-foreground">{next.plan.how}</p>
                 {next.notes.map((n) => (
                   <p key={n} className="flex items-center gap-1 text-[11px] text-warning">
@@ -311,6 +316,9 @@ export function LabMix({ engine, snap, pool }: { engine: LabEngine; snap: Engine
       </Card>
 
       <TransitionPicker engine={engine} snap={snap} />
+
+      {/* glass phones show these in the overview above */}
+      <KnownExits engine={engine} snap={snap} pool={pool} className={glass ? 'hidden md:block' : undefined} />
 
       <QueueCard engine={engine} snap={snap} pool={pool} starred={starred} votes={votes} />
 
