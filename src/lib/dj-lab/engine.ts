@@ -360,6 +360,17 @@ export class LabEngine {
     this.replanIfOpen();
   }
 
+  /** Several choices at once (the Lab's transition pads): one re-plan instead of one per key. */
+  setChoices(patch: { [K in ChoiceKey]?: Choices[K] | undefined }) {
+    const choices: Choices = { ...this.snap.choices };
+    for (const [k, v] of Object.entries(patch) as [ChoiceKey, Choices[ChoiceKey] | undefined][]) {
+      if (v === undefined) delete choices[k];
+      else (choices as Record<ChoiceKey, unknown>)[k] = v;
+    }
+    this.set({ choices });
+    this.replanIfOpen();
+  }
+
   /** 📌 keep a choice for the rest of the set instead of just the next transition */
   togglePin(key: ChoiceKey) {
     const pinned = this.snap.pinned.includes(key) ? this.snap.pinned.filter((k) => k !== key) : [...this.snap.pinned, key];
