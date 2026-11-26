@@ -1,9 +1,10 @@
 import { memo, useCallback, type ComponentType } from 'react';
+import { useBeat } from '@/components/glass/beat-sync';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { DndContext, closestCenter, type DragEndEvent, type SensorDescriptor, type SensorOptions } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Plus, Radio, RotateCcw, Shuffle, Sparkles, SkipForward, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { GripVertical, Plus, Radio, RotateCcw, Shuffle, Sparkles, SkipForward, ThumbsDown, ThumbsUp, User, X } from 'lucide-react';
 import { getCoverArtUrl } from '@/components/ui/album-art';
 import { AIDJToggle } from '@/components/ai-dj-toggle';
 import { Waveform } from '@/components/glass/Waveform';
@@ -11,6 +12,8 @@ import { useGlassSheetFlag, useSheetDrag } from '@/components/glass/GlassSheet';
 import { useAudioStore } from '@/lib/stores/audio';
 import { cn } from '@/lib/utils';
 import type { Song } from '@/lib/types/song';
+import type { UserQueued } from '@/lib/stores/audio';
+import { queueSourceOf, type QueueSourceInfo } from '@/components/glass/queue-source';
 
 type Feedback = 'thumbs_up' | 'thumbs_down' | null;
 
@@ -21,6 +24,7 @@ interface RowProps {
   sortableId: string;
   actualIndex: number;
   auto: 'ai' | 'autoplay' | null;
+  src: QueueSourceInfo | null;
   reason?: string;
   feedback: Feedback;
   onPlay: (index: number) => void;
@@ -29,7 +33,7 @@ interface RowProps {
   onSkipAutoplay?: (songId: string) => void;
 }
 
-const QueueRow = memo(function QueueRow({ song, sortableId, actualIndex, auto, reason, feedback, onPlay, onRemove, onFeedback, onSkipAutoplay }: RowProps) {
+const QueueRow = memo(function QueueRow({ song, sortableId, actualIndex, auto, src, reason, feedback, onPlay, onRemove, onFeedback, onSkipAutoplay }: RowProps) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: sortableId });
   const title = song.title || song.name || 'Unknown';
   const artist = song.artist || 'Unknown artist';
@@ -38,14 +42,19 @@ const QueueRow = memo(function QueueRow({ song, sortableId, actualIndex, auto, r
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn('flex min-h-[60px] items-center gap-2', isDragging && 'relative z-10 rounded-xl bg-background/80 shadow-xl')}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        // Entry highlight: a soft tint in the source's colour.
+        ...(src ? { backgroundColor: `oklch(from ${src.color} l c h / 0.14)` } : {}),
+      }}
+      className={cn('my-0.5 flex min-h-[60px] items-center gap-2 rounded-xl pl-2', isDragging && 'relative z-10 rounded-xl bg-background/80 shadow-xl')}
     >
       <button
         type="button"
         onClick={() => onPlay(actualIndex)}
         className="flex min-w-0 flex-1 items-center gap-3 py-1.5 text-left [-webkit-tap-highlight-color:transparent]"
-        aria-label={`Play ${title} by ${artist}${auto === 'ai' ? ', added by AI DJ' : auto === 'autoplay' ? ', added by Autoplay' : ''}`}
+        aria-label={`Play ${title} by ${artist}${src ? `, ${src.source === 'you' ? 'added by you' : `from ${src.label}`}` : ''}`}
       >
         {cover ? (
           <img src={cover} alt="" loading="lazy" className="size-11 shrink-0 rounded-md bg-muted object-cover" />
@@ -55,9 +64,9 @@ const QueueRow = memo(function QueueRow({ song, sortableId, actualIndex, auto, r
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[15px] font-semibold">{title}</span>
           <span className="block truncate text-[13px] text-muted-foreground" title={reason}>
-            {auto && (
-              <span className={cn('mr-1 inline-flex items-center gap-0.5', auto === 'ai' ? 'text-(--aidj-violet)' : 'text-(--aidj-cyan)')}>
-                <Sparkles className="size-3" /> {auto === 'ai' ? 'AI DJ' : 'Autoplay'} ·
+            {src && (
+              <span className="mr-1 inline-flex items-center gap-0.5 font-medium" style={{ color: src.color }}>
+                <SourceIcon src={src} /> {src.label} ·
               </span>
             )}
             {artist}
@@ -111,6 +120,11 @@ const QueueRow = memo(function QueueRow({ song, sortableId, actualIndex, auto, r
   );
 });
 
+function SourceIcon({ src }: { src: QueueSourceInfo }) {
+  const Icon = src.source === 'you' ? User : src.source === 'radio' ? Radio : Sparkles;
+  return <Icon className="size-3" />;
+}
+
 function Action({ icon: Icon, label, onClick, active, disabled, tone }: {
   icon: ComponentType<{ className?: string }>;
   label: string;
@@ -147,6 +161,8 @@ export interface GlassQueueSheetProps {
   onRemove: (index: number) => void;
   aiIds: Set<string>;
   autoplayIds: Set<string>;
+  userIds: Record<string, UserQueued>;
+  radio: boolean;
   reasons: Record<string, string>;
   getFeedback: (songId: string) => Feedback;
   onFeedback: RowProps['onFeedback'];
@@ -171,9 +187,15 @@ export interface GlassQueueSheetProps {
 export function GlassQueueSheet(p: GlassQueueSheetProps) {
   const currentTime = useAudioStore((s) => s.currentTime);
   const duration = useAudioStore((s) => s.duration);
+  const isPlaying = useAudioStore((s) => s.isPlaying);
+  // The rainbow laps every 2 bars and the ● pulses per beat, accented on the bar — on the real downbeat
+  // when the Lab has analysed the song, else at the tagged tempo.
+  const beat = useBeat(p.currentSong, isPlaying);
   const cover = p.currentSong?.albumId ? getCoverArtUrl(p.currentSong.albumId, 96) : null;
   const chip = 'flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold [-webkit-tap-highlight-color:transparent]';
   const autoCount = p.upcoming.filter((s) => p.aiIds.has(s.id) || p.autoplayIds.has(s.id)).length;
+  const sources = { userIds: p.userIds, aiIds: p.aiIds, autoplayIds: p.autoplayIds, radio: p.radio };
+  const nowSrc = p.currentSong ? queueSourceOf(p.currentSong.id, sources) : null;
   const { onOpenChange } = p;
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
   const { sheetRef, listRef, headerHandlers } = useSheetDrag(close);
@@ -232,11 +254,26 @@ export function GlassQueueSheet(p: GlassQueueSheetProps) {
           </div>
 
           {p.currentSong && (
-            <div className="glass-surface mt-3 flex shrink-0 flex-col gap-2 rounded-2xl px-3 py-2.5">
+            <div
+              className="glass-surface rainbow-border mt-3 flex shrink-0 flex-col gap-2 rounded-2xl px-3 py-2.5"
+              data-playing={isPlaying ? '' : undefined}
+              style={nowSrc ? { backgroundImage: `linear-gradient(oklch(from ${nowSrc.color} l c h / 0.14), oklch(from ${nowSrc.color} l c h / 0.14))` } : undefined}
+            >
+              <span aria-hidden key={beat?.key} className="rainbow-ring" style={beat?.loop(8)} />
               <div className="flex items-center gap-3">
                 {cover ? <img src={cover} alt="" className="size-11 rounded-md bg-muted object-cover" /> : <span className="size-11 rounded-md bg-muted" />}
                 <div className="min-w-0 flex-1">
-                  <div className="font-mono text-[9px] tracking-[0.14em] text-success">● NOW PLAYING</div>
+                  <div className="flex items-center gap-1.5 font-mono text-[9px] tracking-[0.14em]">
+                    <span className="text-success">
+                      <span key={beat?.key} className="beat-dot inline-block" data-beat={beat ? '' : undefined} style={beat?.loop(4)}>●</span> NOW PLAYING
+                    </span>
+                    {beat && <span className="text-muted-foreground">· {Math.round(beat.bpm)} BPM{beat.onGrid ? ' · ON GRID' : ''}</span>}
+                    {nowSrc && (
+                      <span className="inline-flex items-center gap-0.5 uppercase" style={{ color: nowSrc.color }}>
+                        · <SourceIcon src={nowSrc} /> {nowSrc.label}
+                      </span>
+                    )}
+                  </div>
                   <div className="truncate text-[15px] font-semibold text-primary">{p.currentSong.title || p.currentSong.name}</div>
                   <div className="truncate text-[13px] text-muted-foreground">{p.currentSong.artist}</div>
                 </div>
@@ -266,7 +303,8 @@ export function GlassQueueSheet(p: GlassQueueSheetProps) {
                 <SortableContext items={p.upcoming.map((s, i) => `${s.id}-${i}`)} strategy={verticalListSortingStrategy}>
                   {p.upcoming.map((song, index) => {
                     const actualIndex = p.currentSongIndex === -1 ? index : p.currentSongIndex + 1 + index;
-                    const auto = p.autoplayIds.has(song.id) ? 'autoplay' : p.aiIds.has(song.id) ? 'ai' : null;
+                    const src = queueSourceOf(song.id, sources);
+                    const auto = src?.source === 'autoplay' ? 'autoplay' : src?.source === 'ai' ? 'ai' : null;
                     return (
                       <QueueRow
                         key={`${song.id}-${index}`}
@@ -274,6 +312,7 @@ export function GlassQueueSheet(p: GlassQueueSheetProps) {
                         song={song}
                         actualIndex={actualIndex}
                         auto={auto}
+                        src={src}
                         reason={auto === 'ai' ? p.reasons[song.id] : undefined}
                         feedback={auto ? p.getFeedback(song.id) : null}
                         onPlay={p.onPlay}

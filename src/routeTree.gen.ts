@@ -80,6 +80,7 @@ import { Route as ApiDebugLogsRouteImport } from './routes/api/debug/logs'
 import { Route as ApiDiscoveryFeedIndexRouteImport } from './routes/api/discovery-feed/index'
 import { Route as ApiDiscoveryFeedAnalyticsRouteImport } from './routes/api/discovery-feed/analytics'
 import { Route as ApiDiscoveryFeedInteractionsRouteImport } from './routes/api/discovery-feed/interactions'
+import { Route as ApiDjGridsRouteImport } from './routes/api/dj/grids'
 import { Route as ApiDjLabLogRouteImport } from './routes/api/dj/lab-log'
 import { Route as ApiDjLabRecordingRouteImport } from './routes/api/dj/lab-recording'
 import { Route as ApiDjLabSetsRouteImport } from './routes/api/dj/lab-sets'
@@ -576,6 +577,11 @@ const ApiDiscoveryFeedInteractionsRoute =
     path: '/api/discovery-feed/interactions',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiDjGridsRoute = ApiDjGridsRouteImport.update({
+  id: '/api/dj/grids',
+  path: '/api/dj/grids',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDjLabLogRoute = ApiDjLabLogRouteImport.update({
   id: '/api/dj/lab-log',
   path: '/api/dj/lab-log',
@@ -1347,6 +1353,7 @@ export interface FileRoutesByFullPath {
   '/api/debug/logs': typeof ApiDebugLogsRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
+  '/api/dj/grids': typeof ApiDjGridsRoute
   '/api/dj/lab-log': typeof ApiDjLabLogRoute
   '/api/dj/lab-recording': typeof ApiDjLabRecordingRoute
   '/api/dj/lab-sets': typeof ApiDjLabSetsRoute
@@ -1547,6 +1554,7 @@ export interface FileRoutesByTo {
   '/api/debug/logs': typeof ApiDebugLogsRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
+  '/api/dj/grids': typeof ApiDjGridsRoute
   '/api/dj/lab-log': typeof ApiDjLabLogRoute
   '/api/dj/lab-recording': typeof ApiDjLabRecordingRoute
   '/api/dj/lab-sets': typeof ApiDjLabSetsRoute
@@ -1751,6 +1759,7 @@ export interface FileRoutesById {
   '/api/debug/logs': typeof ApiDebugLogsRoute
   '/api/discovery-feed/analytics': typeof ApiDiscoveryFeedAnalyticsRoute
   '/api/discovery-feed/interactions': typeof ApiDiscoveryFeedInteractionsRoute
+  '/api/dj/grids': typeof ApiDjGridsRoute
   '/api/dj/lab-log': typeof ApiDjLabLogRoute
   '/api/dj/lab-recording': typeof ApiDjLabRecordingRoute
   '/api/dj/lab-sets': typeof ApiDjLabSetsRoute
@@ -1955,6 +1964,7 @@ export interface FileRouteTypes {
     | '/api/debug/logs'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
+    | '/api/dj/grids'
     | '/api/dj/lab-log'
     | '/api/dj/lab-recording'
     | '/api/dj/lab-sets'
@@ -2155,6 +2165,7 @@ export interface FileRouteTypes {
     | '/api/debug/logs'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
+    | '/api/dj/grids'
     | '/api/dj/lab-log'
     | '/api/dj/lab-recording'
     | '/api/dj/lab-sets'
@@ -2358,6 +2369,7 @@ export interface FileRouteTypes {
     | '/api/debug/logs'
     | '/api/discovery-feed/analytics'
     | '/api/discovery-feed/interactions'
+    | '/api/dj/grids'
     | '/api/dj/lab-log'
     | '/api/dj/lab-recording'
     | '/api/dj/lab-sets'
@@ -2549,6 +2561,7 @@ export interface RootRouteChildren {
   ApiDebugLogsRoute: typeof ApiDebugLogsRoute
   ApiDiscoveryFeedAnalyticsRoute: typeof ApiDiscoveryFeedAnalyticsRoute
   ApiDiscoveryFeedInteractionsRoute: typeof ApiDiscoveryFeedInteractionsRoute
+  ApiDjGridsRoute: typeof ApiDjGridsRoute
   ApiDjLabLogRoute: typeof ApiDjLabLogRoute
   ApiDjLabRecordingRoute: typeof ApiDjLabRecordingRoute
   ApiDjLabSetsRoute: typeof ApiDjLabSetsRoute
@@ -3154,6 +3167,13 @@ declare module '@tanstack/react-router' {
       path: '/api/discovery-feed/interactions'
       fullPath: '/api/discovery-feed/interactions'
       preLoaderRoute: typeof ApiDiscoveryFeedInteractionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/dj/grids': {
+      id: '/api/dj/grids'
+      path: '/api/dj/grids'
+      fullPath: '/api/dj/grids'
+      preLoaderRoute: typeof ApiDjGridsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/dj/lab-log': {
@@ -4308,6 +4328,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDebugLogsRoute: ApiDebugLogsRoute,
   ApiDiscoveryFeedAnalyticsRoute: ApiDiscoveryFeedAnalyticsRoute,
   ApiDiscoveryFeedInteractionsRoute: ApiDiscoveryFeedInteractionsRoute,
+  ApiDjGridsRoute: ApiDjGridsRoute,
   ApiDjLabLogRoute: ApiDjLabLogRoute,
   ApiDjLabRecordingRoute: ApiDjLabRecordingRoute,
   ApiDjLabSetsRoute: ApiDjLabSetsRoute,

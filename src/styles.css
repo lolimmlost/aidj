@@ -1191,3 +1191,58 @@
     transition: opacity 300ms;
   }
 }
+
+/* Glass queue: a rainbow border that circles the now-playing card while it plays (beat-sync.ts sets
+   its duration to 2 bars and its phase to the downbeat when known; 4 s without a tempo). */
+@property --rainbow-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+.rainbow-border {
+  position: relative;
+  border-color: transparent !important;
+}
+.rainbow-ring {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(from var(--rainbow-angle), #ff6b8b, #ffb86b, #ffe66b, #7bf29a, #6bd8ff, #9b8cff, #f28fd0, #ff6b8b);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: rainbow-spin 4s linear infinite;
+  animation-play-state: paused;
+  pointer-events: none;
+}
+.rainbow-border[data-playing] .rainbow-ring,
+.rainbow-border[data-playing] .beat-dot[data-beat] {
+  animation-play-state: running;
+}
+@keyframes rainbow-spin {
+  to {
+    --rainbow-angle: 360deg;
+  }
+}
+/* One bar: a big hit on the downbeat, smaller ones on 2, 3, 4. */
+.beat-dot[data-beat] {
+  animation: beat-bar 2s linear infinite;
+  animation-play-state: paused;
+}
+@keyframes beat-bar {
+  0% { transform: scale(1.7); opacity: 1; }
+  12% { transform: scale(1); opacity: 0.55; }
+  25% { transform: scale(1.3); opacity: 0.9; }
+  37% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.3); opacity: 0.9; }
+  62% { transform: scale(1); opacity: 0.55; }
+  75% { transform: scale(1.3); opacity: 0.9; }
+  87%, 100% { transform: scale(1); opacity: 0.55; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rainbow-ring,
+  .beat-dot[data-beat] {
+    animation: none !important;
+  }
+}
