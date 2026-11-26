@@ -3,6 +3,21 @@ import { cleanup } from '@testing-library/react'
 import * as matchers from '@testing-library/jest-dom/matchers'
 import { setupWebAudioMocks } from './mocks/web-audio-api'
 
+// Node 25+ ships its own Web Storage globals. Without --localstorage-file they are inert
+// (bare `localStorage` reads undefined) and they shadow jsdom's, so any module touching
+// `localStorage` at import time throws. Here `window` is globalThis, so take the working storage
+// from the JSDOM instance vitest exposes as `globalThis.jsdom`.
+// (Production is unaffected: that code only runs when `window` exists, i.e. in the browser.)
+const jsdomWindow = (globalThis as { jsdom?: { window?: Window } }).jsdom?.window
+if (jsdomWindow) {
+  for (const key of ['localStorage', 'sessionStorage'] as const) {
+    const store = (globalThis as Record<string, unknown>)[key] as Storage | undefined
+    if (typeof store?.getItem !== 'function') {
+      Object.defineProperty(globalThis, key, { value: jsdomWindow[key], configurable: true, writable: true })
+    }
+  }
+}
+
 // Mock @t3-oss/env-core to prevent env validation failures in test environment
 vi.mock('@t3-oss/env-core', () => ({
   createEnv: (opts: Record<string, unknown>) => {

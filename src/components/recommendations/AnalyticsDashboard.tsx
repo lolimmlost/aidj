@@ -737,7 +737,8 @@ const SourceBreakdownCard = memo(function SourceBreakdownCard({
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: number, name) => {
+                    formatter={(raw, name) => {
+                      const value = Number(raw);
                       const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
                       return [`${value} plays (${pct}%)`, name];
                     }}
@@ -912,7 +913,8 @@ const TopArtistsChart = memo(function TopArtistsChart({ artists }: { artists: Ar
               ))}
             </Pie>
             <Tooltip
-              formatter={(value: number, name) => {
+              formatter={(raw, name) => {
+                const value = Number(raw);
                 const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
                 return [`${value} thumbs-up (${pct}%)`, name];
               }}

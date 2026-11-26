@@ -465,8 +465,8 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
               <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 10 }} />
               <Tooltip
                 cursor={chartBarCursor}
-                formatter={(value: number, _name: string, props: { payload: { total: number } }) =>
-                  [`${value.toFixed(1)}% (${props.payload.total} songs)`, 'Share']
+                formatter={(value, _name, item) =>
+                  [`${Number(value).toFixed(1)}% (${(item.payload as { total: number }).total} songs)`, 'Share']
                 }
                 contentStyle={chartTooltipContentStyle}
                 labelStyle={chartTooltipLabelStyle}
@@ -506,7 +506,7 @@ const RecommendationModesTab = memo(function RecommendationModesTab({
                 cy="50%"
                 labelLine={false}
                 label={({ percent }) =>
-                  `${(percent * 100).toFixed(0)}%`
+                  `${(Number(percent ?? 0) * 100).toFixed(0)}%`
                 }
                 outerRadius={70}
                 fill="var(--chart-2)"
@@ -705,7 +705,7 @@ const TopContentTab = memo(function TopContentTab({
                 <YAxis type="category" dataKey="genre" tick={{ fontSize: 9 }} width={80} />
                 <Tooltip
                   cursor={chartBarCursor}
-                  formatter={(v: number) => [`${v} songs`, 'Count']}
+                  formatter={(v) => [`${v} songs`, 'Count']}
                   contentStyle={chartTooltipContentStyle}
                   labelStyle={chartTooltipLabelStyle}
                   itemStyle={chartTooltipItemStyle}

@@ -177,7 +177,7 @@ export const MoodProfileChart = memo(function MoodProfileChart({
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, value }) => value > 5 ? `${name} (${value}%)` : ''}
+                  label={({ name, value }) => Number(value) > 5 ? `${name} (${value}%)` : ''}
                   outerRadius={80}
                   fill="var(--chart-2)"
                   dataKey="value"
@@ -187,7 +187,7 @@ export const MoodProfileChart = memo(function MoodProfileChart({
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value: number) => `${value}%`}
+                  formatter={(value) => `${value}%`}
                   contentStyle={chartTooltipContentStyle}
                   labelStyle={chartTooltipLabelStyle}
                   itemStyle={chartTooltipItemStyle}
