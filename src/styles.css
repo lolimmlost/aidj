@@ -501,6 +501,14 @@
     backdrop-filter: blur(22px) saturate(150%);
     box-shadow: 0 10px 30px rgb(20 22 40 / 0.08);
   }
+  /* Glass without the blur, for controls sitting on a plain gradient: iOS
+     composites each backdrop-filter element as its own layer and can draw the
+     gradient twice inside it (light rectangles behind the playlist header). */
+  .glass-flat {
+    background: color-mix(in oklch, var(--foreground) 9%, transparent);
+    border: 1px solid color-mix(in oklch, var(--foreground) 12%, transparent);
+  }
+
   /* iOS paints a dark box over a tapped link/button; the glass UI has its own press states */
   .glass-home :is(a, button) {
     -webkit-tap-highlight-color: transparent;
