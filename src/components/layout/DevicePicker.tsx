@@ -16,10 +16,14 @@ import { sendPlaybackMessage } from '@/lib/hooks/usePlaybackSync';
 import { startSpeakerPlayback, stopSpeakerPlayback } from '@/lib/hooks/useSpeakerSync';
 import { useSpeakerOutput } from '@/lib/stores/speaker-output';
 import { cn } from '@/lib/utils';
+import { GlassSheet, SheetLabel, SheetRow } from '@/components/glass/GlassSheet';
 
 interface DevicePickerProps {
   onClose: () => void;
   triggerRef?: React.RefObject<HTMLElement | null>;
+  /** Glass UI (phones): a bottom sheet instead of the popover. Stays mounted; `open` drives it so it can slide out. */
+  sheet?: boolean;
+  open?: boolean;
 }
 
 function getDeviceIcon(type: string) {
@@ -52,7 +56,7 @@ function formatLastSeen(iso: string): string {
   return `${days}d ago`;
 }
 
-export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: DevicePickerProps) {
+export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef, sheet = false, open = true }: DevicePickerProps) {
   const ref = useRef<HTMLDivElement>(null);
   const localDevice = getDeviceInfo();
   const remoteDevice = useAudioStore((s) => s.remoteDevice);
@@ -68,6 +72,7 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
       return res.json() as Promise<{ configured: boolean; speakers: SpeakerOption[] }>;
     },
     staleTime: 10_000,
+    enabled: open,
   });
   const speakers = speakerData?.speakers ?? [];
 
@@ -84,6 +89,7 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
       }> }>;
     },
     staleTime: 10_000,
+    enabled: open,
   });
 
   // Store ref for outside-click detection
@@ -94,6 +100,7 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
 
   // Close on outside click (ignore clicks on the trigger button)
   useEffect(() => {
+    if (sheet) return;
     function handleClick(e: MouseEvent) {
       const target = e.target as Node;
       if (ref.current && !ref.current.contains(target) &&
@@ -103,16 +110,17 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [onClose, triggerRef]);
+  }, [onClose, triggerRef, sheet]);
 
   // Close on escape
   useEffect(() => {
+    if (sheet) return;
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [onClose, sheet]);
 
   // The registry only lists devices seen in the last few minutes, and a phone
   // that has handed off to a speaker goes quiet — always offer this device so
@@ -182,6 +190,64 @@ export const DevicePicker = memo(function DevicePicker({ onClose, triggerRef }: 
   };
 
   if (typeof document === 'undefined') return null;
+
+  if (sheet) {
+    const remoteActive = !!(remoteDevice?.isPlaying && remoteDevice.deviceId !== localDevice.deviceId);
+    const localActive = !activeSpeaker && !remoteActive;
+    const playingOn = activeSpeaker?.name ?? (remoteActive ? remoteDevice?.deviceName : null) ?? 'This phone';
+    return (
+      <GlassSheet
+        open={open}
+        onOpenChange={(o) => { if (!o) onClose(); }}
+        title="Play on"
+        subtitle={<>Now on <span className={cn(!localActive && 'text-success')}>{playingOn}</span></>}
+        description="Choose the device or speaker to play on"
+      >
+        <SheetLabel className="pt-1">DEVICES</SheetLabel>
+        {devices.map((device) => {
+          const isLocal = device.id === localDevice.deviceId;
+          const isActive = isLocal ? localActive : !activeSpeaker && remoteDevice?.deviceId === device.id && !!remoteDevice?.isPlaying;
+          return (
+            <SheetRow
+              key={device.id}
+              icon={<span className="[&_svg]:size-5">{getDeviceIcon(device.deviceType)}</span>}
+              title={isLocal ? 'This phone' : device.deviceName}
+              sub={isActive ? 'Playing' : isLocal ? device.deviceName : formatLastSeen(device.lastSeenAt)}
+              active={isActive}
+              tone="success"
+              disabled={isActive}
+              onClick={() => handleTransfer(device.id, device.deviceName, device.deviceType)}
+              trailing={isActive ? <Check className="mr-1 size-5 text-success" /> : undefined}
+            />
+          );
+        })}
+        {devices.length === 0 && <p className="px-2 py-3 text-sm text-muted-foreground">No other devices are online.</p>}
+        {speakers.length > 0 && (
+          <>
+            <SheetLabel>SPEAKERS</SheetLabel>
+            {speakers.map((speaker) => {
+              const isActive = activeSpeaker?.id === speaker.id;
+              const isConnecting = isActive && speakerConnecting;
+              return (
+                <SheetRow
+                  key={speaker.id}
+                  icon={<Speaker className="size-5" />}
+                  title={speaker.name}
+                  sub={isConnecting ? 'Connecting…' : isActive ? 'Playing' : speaker.busyWith ? `In use: ${speaker.busyWith}` : 'Available'}
+                  active={isActive}
+                  tone="success"
+                  onClick={() => void handleSpeaker(speaker)}
+                  trailing={
+                    isConnecting ? <Loader2 className="mr-1 size-5 animate-spin text-success" /> : isActive ? <Check className="mr-1 size-5 text-success" /> : undefined
+                  }
+                />
+              );
+            })}
+          </>
+        )}
+      </GlassSheet>
+    );
+  }
 
   // Position above the trigger — use bottom-anchored so it grows upward.
   // Reads layout from the trigger ref during render by design: the picker

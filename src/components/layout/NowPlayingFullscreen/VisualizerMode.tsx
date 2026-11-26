@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Settings, Type, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { GlassSheet, useIsPhone } from '@/components/glass/GlassSheet';
 import { useAudioAnalyzer } from '@/components/visualizer/useAudioAnalyzer';
 import { visualizers, getNextVisualizer, getPreviousVisualizer } from '@/components/visualizer/visualizers';
 import {
@@ -61,9 +62,15 @@ function useThrottledValue<T>(value: T, ms: number): T {
 
 interface VisualizerModeProps {
   analyserNode: AnalyserNode | null;
+  /** Fills the screen (no header above), so it clears the status bar itself. */
+  expanded?: boolean;
+  /** Glass UI: settings open as a bottom sheet on phones, glass pills. */
+  glass?: boolean;
 }
 
-export function VisualizerMode({ analyserNode }: VisualizerModeProps) {
+export function VisualizerMode({ analyserNode, expanded = false, glass = false }: VisualizerModeProps) {
+  const phone = useIsPhone();
+  const sheetMode = glass && phone;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
@@ -374,72 +381,8 @@ export function VisualizerMode({ analyserNode }: VisualizerModeProps) {
     setSettings((prev) => ({ ...prev, autoRotate: !prev.autoRotate }));
   };
 
-  return (
-    <div className="w-full h-full relative overflow-hidden">
-      {/* Canvas background — fills the visualizer column. No rounded
-       *  corners so the GPU doesn't re-clip the animating canvas each
-       *  frame. */}
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 w-full h-full"
-        style={{ backgroundColor: currentTheme.background }}
-      />
-
-      {/* Controls overlay */}
-      <div className="relative z-10 flex flex-col h-full">
-        {/* Top bar — visualizer name + settings toggle */}
-        <div className="flex items-center justify-between p-3 sm:p-4 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
-          <div className="flex items-center gap-2 flex-wrap min-w-0">
-            <span className="text-white/80 text-xs sm:text-sm font-medium bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-sm truncate">
-              {currentVisualizer.name}
-            </span>
-            {settings.autoRotate && (
-              <span className="text-white/60 text-xs bg-black/30 px-2 py-1 rounded-full whitespace-nowrap">
-                Auto-rotating
-              </span>
-            )}
-          </div>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowSettings(!showSettings)}
-            className="text-white/80 hover:text-white hover:bg-white/10 flex-shrink-0"
-          >
-            <Settings className="h-5 w-5" />
-          </Button>
-        </div>
-
-        {/* Settings backdrop. Fixed so it covers the whole chassis,
-         *  not just the visualizer column (which can be short on mobile). */}
-        {showSettings && (
-          <button
-            type="button"
-            className="fixed inset-0 z-30 cursor-default"
-            onClick={() => setShowSettings(false)}
-            aria-label="Close settings"
-          />
-        )}
-
-        {/* Settings panel. Fixed positioning lets it escape the
-         *  visualizer column's overflow-hidden clip — on mobile the
-         *  column is short (transport stack sits below), so an
-         *  absolute panel with max-h-[70vh] would be cut off. On mobile
-         *  we anchor top+bottom so the panel is fully scrollable; on
-         *  desktop we fall back to top-anchored with max-h. */}
-        {showSettings && (
-          <div className="fixed top-[calc(env(safe-area-inset-top)+4rem)] right-3 sm:right-4 left-3 sm:left-auto sm:w-72 bottom-[calc(env(safe-area-inset-bottom)+1rem)] sm:bottom-auto sm:max-h-[70vh] overflow-y-auto bg-black/90 backdrop-blur-md rounded-lg border border-white/10 p-4 space-y-4 z-40">
-            <div className="flex items-center justify-between">
-              <h3 className="text-white font-medium">Settings</h3>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowSettings(false)}
-                className="text-white/60 hover:text-white hover:bg-white/10 h-8 w-8"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+  const settingsBody = (
+    <>
 
             {/* Color themes */}
             <div>
@@ -645,7 +588,85 @@ export function VisualizerMode({ analyserNode }: VisualizerModeProps) {
                       'No lyrics found'}
               </div>
             )}
+    </>
+  );
+
+  return (
+    <div className="w-full h-full relative overflow-hidden">
+      {/* Canvas background — fills the visualizer column. No rounded
+       *  corners so the GPU doesn't re-clip the animating canvas each
+       *  frame. */}
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full"
+        style={{ backgroundColor: currentTheme.background }}
+      />
+
+      {/* Controls overlay */}
+      <div className="relative z-10 flex flex-col h-full">
+        {/* Top bar — visualizer name + settings toggle */}
+        <div className={cn("flex items-center justify-between p-3 sm:p-4", expanded ? "pt-[calc(env(safe-area-inset-top)+0.75rem)]" : glass && "max-md:px-6 max-md:pt-1")}>
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <span className={cn("text-white/80 text-xs sm:text-sm font-medium bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-sm truncate", glass && "max-md:border max-md:border-white/15 max-md:bg-white/10 max-md:backdrop-blur-xl max-md:text-[13px] max-md:font-semibold")}>
+              {currentVisualizer.name}
+            </span>
+            {settings.autoRotate && (
+              <span className="text-white/60 text-xs bg-black/30 px-2 py-1 rounded-full whitespace-nowrap">
+                Auto-rotating
+              </span>
+            )}
           </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowSettings(!showSettings)}
+            aria-label="Visualizer settings"
+            className={cn("text-white/80 hover:text-white hover:bg-white/10 flex-shrink-0", glass && "max-md:rounded-full max-md:border max-md:border-white/15 max-md:bg-white/10 max-md:backdrop-blur-xl")}
+          >
+            <Settings className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* Settings backdrop. Fixed so it covers the whole chassis,
+         *  not just the visualizer column (which can be short on mobile). */}
+        {showSettings && !sheetMode && (
+          <button
+            type="button"
+            className="fixed inset-0 z-30 cursor-default"
+            onClick={() => setShowSettings(false)}
+            aria-label="Close settings"
+          />
+        )}
+
+        {/* Settings panel. Fixed positioning lets it escape the
+         *  visualizer column's overflow-hidden clip — on mobile the
+         *  column is short (transport stack sits below), so an
+         *  absolute panel with max-h-[70vh] would be cut off. On mobile
+         *  we anchor top+bottom so the panel is fully scrollable; on
+         *  desktop we fall back to top-anchored with max-h. */}
+        {showSettings && !sheetMode && (
+          <div className="fixed top-[calc(env(safe-area-inset-top)+4rem)] right-3 sm:right-4 left-3 sm:left-auto sm:w-72 bottom-[calc(env(safe-area-inset-bottom)+1rem)] sm:bottom-auto sm:max-h-[70vh] overflow-y-auto bg-black/90 backdrop-blur-md rounded-lg border border-white/10 p-4 space-y-4 z-40">
+            <div className="flex items-center justify-between">
+              <h3 className="text-white font-medium">Settings</h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowSettings(false)}
+                className="text-white/60 hover:text-white hover:bg-white/10 h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            {settingsBody}
+          </div>
+        )}
+
+        {/* Glass UI phones: the settings as a dark bottom sheet. */}
+        {sheetMode && (
+          <GlassSheet open={showSettings} onOpenChange={setShowSettings} title="Visualizer" subtitle={currentVisualizer.name} description="Visualizer settings" dark>
+            <div className="space-y-5 px-1 pt-1 text-white">{settingsBody}</div>
+          </GlassSheet>
         )}
 
         {/* Lyrics overlay */}
@@ -678,7 +699,7 @@ export function VisualizerMode({ analyserNode }: VisualizerModeProps) {
         {(!settings.showLyrics || !currentLyricLine) && <div className="flex-1" />}
 
         {/* Bottom navigation — prev / dots / next */}
-        <div className="flex items-center justify-center gap-3 p-3 sm:p-4">
+        <div className={cn("flex items-center justify-center gap-3 p-3 sm:p-4", glass && !expanded && "max-md:pb-2")}>
           <Button
             variant="ghost"
             size="icon"

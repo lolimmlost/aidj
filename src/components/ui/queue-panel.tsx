@@ -2,7 +2,7 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { X, Music, Trash2, GripVertical, Plus, RotateCcw, ThumbsUp, ThumbsDown, Shuffle, SkipForward, Sparkles, Radio, Download, Loader2 } from 'lucide-react';
-import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef, useSyncExternalStore } from 'react';
 import { CreatePlaylistDialog } from '@/components/playlists/CreatePlaylistDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
@@ -28,6 +28,17 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { GlassQueueSheet } from '@/components/glass/GlassQueueSheet';
+
+/** phones (below md): the glass queue is a bottom sheet there */
+const PHONE_QUERY = '(max-width: 767px)';
+function subscribePhone(cb: () => void) {
+  const m = window.matchMedia(PHONE_QUERY);
+  m.addEventListener('change', cb);
+  return () => m.removeEventListener('change', cb);
+}
+const usePhoneWidth = () =>
+  useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE_QUERY).matches, () => false);
 import { cn } from '@/lib/utils';
 
 interface SortableQueueItemProps {
@@ -344,6 +355,7 @@ export function QueuePanel() {
   } = useAudioStore();
   const queuePanelOpen = useAudioStore(s => s.queuePanelOpen);
   const glass = useGlassUi();
+  const phone = usePhoneWidth();
   const toggleQueuePanel = useAudioStore(s => s.toggleQueuePanel);
   const isRadioSession = useAudioStore(s => s.isRadioSession);
   const saveRadioAsPlaylist = useAudioStore(s => s.saveRadioAsPlaylist);
@@ -629,6 +641,61 @@ export function QueuePanel() {
       setDownloadingArtist(null);
     }
   }, []);
+
+  // Glass UI on phones: the same queue as a bottom sheet (GlassQueueSheet), open or
+  // closed (it also hosts the save dialogs, which open after the sheet closes)
+  if (glass && phone) {
+    return (
+      <>
+        <GlassQueueSheet
+          open={isOpen}
+          onOpenChange={setIsOpen}
+          currentSong={currentSong}
+          upcoming={upcomingQueue}
+          currentSongIndex={currentSongIndex}
+          sensors={sensors}
+          onDragEnd={handleDragEnd}
+          onPlay={handlePlaySong}
+          onRemove={removeFromQueue}
+          aiIds={aiQueuedSongIds}
+          autoplayIds={autoplayQueuedSongIds}
+          reasons={aiDJRecommendationReasons}
+          getFeedback={getFeedbackForSong}
+          onFeedback={handleAutoQueueFeedback}
+          onSkipAutoplay={skipAutoplayedSong}
+          onClear={clearQueue}
+          undoRemainingMs={undoTimeRemaining}
+          onUndoClear={undoClearQueue}
+          isShuffled={isShuffled}
+          onToggleShuffle={toggleShuffle}
+          onMoreLikeThis={() => {
+            nudgeMoreLikeThis();
+            if (currentSong) toast.success(`Finding more songs like "${currentSong.title || currentSong.name}"...`);
+          }}
+          onSave={() => {
+            setIsOpen(false);
+            setCreatePlaylistOpen(true);
+          }}
+          onSaveRadio={isRadioSession && (currentSong || upcomingQueue.length > 0) ? () => {
+            setIsOpen(false);
+            setSaveRadioDialogOpen(true);
+          } : undefined}
+        />
+        <CreatePlaylistDialog open={createPlaylistOpen} onOpenChange={setCreatePlaylistOpen} onSubmit={handleCreatePlaylistFromQueue} />
+        <CreatePlaylistDialog
+          open={saveRadioDialogOpen}
+          onOpenChange={setSaveRadioDialogOpen}
+          defaultName={radioDefaultName}
+          title="Save Radio as Playlist"
+          description="Snapshot the current radio queue as a new playlist in your library."
+          submitLabel="Save"
+          onSubmit={(data) => {
+            void saveRadioAsPlaylist(data.name.trim());
+          }}
+        />
+      </>
+    );
+  }
 
   if (!isOpen) {
     // Collapsed state - show count badge

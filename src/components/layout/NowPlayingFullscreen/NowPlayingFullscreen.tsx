@@ -22,7 +22,14 @@ import {
   ListMusic,
   Maximize2,
   Minimize2,
+  Smartphone,
+  Speaker,
+  ListPlus,
 } from 'lucide-react';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { Waveform } from '@/components/glass/Waveform';
+import { useIsPhone } from '@/components/glass/GlassSheet';
+import { GlassAddToPlaylistSheet } from '@/components/glass/GlassAddToPlaylistSheet';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { getCoverArtUrl } from '@/components/ui/album-art';
@@ -75,7 +82,17 @@ export function NowPlayingFullscreen({
   onToggleShuffle,
   onToggleRepeat,
   analyserNode,
+  onOpenDevices,
+  deviceLabel = 'This phone',
+  deviceRemote = false,
+  upNext = 0,
 }: NowPlayingFullscreenProps) {
+  // Glass UI (phones, canvas "full screen — glass"): cover-tinted backdrop,
+  // left-aligned title with the heart beside it, waveform scrubber, a big glowing
+  // play, and device / up-next pills. Desktop and landscape keep this layout.
+  const glass = useGlassUi();
+  const phone = useIsPhone();
+  const [addOpen, setAddOpen] = useState(false);
   const [visible, setVisible] = useState(false);
   const [animating, setAnimating] = useState(false);
   const [mode, setMode] = useState<NPMode>(initialMode);
@@ -119,6 +136,13 @@ export function NowPlayingFullscreen({
 
   // Vertical swipe-to-dismiss on the body (not the art swipe area).
   const handleBodyTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartRef.current = null;
+    // A sheet on top (queue, add to playlist, sleep, devices, visualizer) owns
+    // the swipe: dismissing it lands back here, it must not also close the
+    // player. React bubbles portal touches up to this handler (the sheets
+    // opened from in here are portals), so check the DOM, plus the open flag.
+    if (!containerRef.current?.contains(e.target as Node)) return;
+    if (useAudioStore.getState().queuePanelOpen || document.documentElement.hasAttribute('data-glass-sheet')) return;
     touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
     touchOffsetRef.current = 0;
   }, []);
@@ -134,7 +158,7 @@ export function NowPlayingFullscreen({
   }, []);
 
   const handleBodyTouchEnd = useCallback(() => {
-    if (containerRef.current) {
+    if (touchStartRef.current && containerRef.current) {
       containerRef.current.style.transition = 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)';
       if (touchOffsetRef.current > 100) {
         // With a view transition the art morphs back to the mini player from
@@ -183,6 +207,9 @@ export function NowPlayingFullscreen({
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // A glass sheet on top (queue, add to playlist, sleep, devices)
+        // handles its own Escape.
+        if (useAudioStore.getState().queuePanelOpen || document.documentElement.hasAttribute('data-glass-sheet')) return;
         if (isExpanded) {
           setIsExpanded(false);
           document.exitFullscreen?.().catch(() => {});
@@ -239,11 +266,14 @@ export function NowPlayingFullscreen({
       <div className="absolute inset-0 bg-black" />
       {bgCoverUrl && mode !== 'visualizer' && (
         <div
-          className="absolute inset-0 bg-cover bg-center scale-110 blur-3xl opacity-40"
+          className={cn("absolute inset-0 bg-cover bg-center scale-110 blur-3xl opacity-40", glass && "max-md:opacity-70")}
           style={{ backgroundImage: `url(${bgCoverUrl})` }}
         />
       )}
-      {mode !== 'visualizer' && <div className="absolute inset-0 bg-black/40" />}
+      {mode !== 'visualizer' && <div className={cn("absolute inset-0 bg-black/40", glass && "max-md:hidden")} />}
+      {glass && mode !== 'visualizer' && (
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(0_0_0/0.15)_0%,rgb(0_0_0/0.55)_55%,rgb(0_0_0/0.85)_100%)] md:hidden" />
+      )}
 
       {/* Slide-up container */}
       <div
@@ -267,7 +297,7 @@ export function NowPlayingFullscreen({
             >
               <ChevronDown className="h-6 w-6" />
             </Button>
-            <ModeSwitcher mode={mode} onModeChange={setMode} />
+            <ModeSwitcher mode={mode} onModeChange={setMode} glass={glass} />
             <Button
               variant="ghost"
               size="sm"
@@ -296,7 +326,9 @@ export function NowPlayingFullscreen({
                 "px-6 sm:px-8 lg:px-16 gap-6 sm:gap-8 lg:gap-16 max-w-6xl",
                 // Landscape phone: side-by-side, clear of the notch/home bar
                 "short-landscape:gap-8 short-landscape:py-1 short-landscape:pl-[max(1.5rem,env(safe-area-inset-left))] short-landscape:pr-[max(1.5rem,env(safe-area-inset-right))]",
-                mode === 'art' ? "items-center" : "items-stretch"
+                mode === 'art' ? "items-center" : "items-stretch",
+                // Glass art mode spaces the art itself (ArtMode pt/pb).
+                glass && mode === 'art' && "np-phone:gap-0"
               )
         )}>
 
@@ -312,12 +344,12 @@ export function NowPlayingFullscreen({
           )}
           {mode === 'lyrics' && (
             <div className={cn("w-full flex min-h-0", isExpanded ? "flex-1 pt-[env(safe-area-inset-top)]" : "lg:flex-1 flex-1")}>
-              <LyricsMode expanded={isExpanded} />
+              <LyricsMode expanded={isExpanded} glass={glass} onSeek={onSeek} />
             </div>
           )}
           {mode === 'visualizer' && (
-            <div className={cn("w-full flex min-h-0", isExpanded ? "flex-1" : "lg:flex-1 flex-1")}>
-              <VisualizerMode analyserNode={analyserNode ?? null} />
+            <div className={cn("w-full flex min-h-0", isExpanded ? "flex-1" : "lg:flex-1 flex-1", glass && !isExpanded && "np-phone:-mx-6 np-phone:w-[calc(100%+3rem)]")}>
+              <VisualizerMode analyserNode={analyserNode ?? null} expanded={isExpanded} glass={glass} />
             </div>
           )}
 
@@ -329,7 +361,13 @@ export function NowPlayingFullscreen({
               mode !== 'art' && "justify-center"
             )}>
               {/* Song info — title links to album page (song info context); artist links to artist page */}
-              <div className="w-full text-center lg:text-left short-landscape:text-left">
+              {glass && currentSong.album && mode === 'art' && (
+                <p className="-mb-3 w-full truncate font-mono text-[10px] tracking-[0.14em] text-white/55 md:hidden short-landscape:hidden">
+                  PLAYING FROM · {currentSong.album.toUpperCase()}
+                </p>
+              )}
+              <div className={cn("w-full", glass && "max-md:flex max-md:items-center max-md:gap-3")}>
+              <div className={cn("w-full text-center lg:text-left short-landscape:text-left", glass && "max-md:min-w-0 max-md:flex-1 max-md:text-left")}>
                 {artistId && currentSong.albumId ? (
                   <Link
                     to="/library/artists/$id/albums/$albumId"
@@ -344,13 +382,13 @@ export function NowPlayingFullscreen({
                         onClose();
                       }
                     }}
-                    className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate hover:underline focus:outline-none focus:underline block"
+                    className={cn("text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate hover:underline focus:outline-none focus:underline block", glass && "max-md:font-display max-md:text-[26px] max-md:font-extrabold max-md:leading-8 max-md:tracking-[-0.03em]")}
                     title="View album"
                   >
                     {songTitle}
                   </Link>
                 ) : (
-                  <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate">{songTitle}</h2>
+                  <h2 className={cn("text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate", glass && "max-md:font-display max-md:text-[26px] max-md:font-extrabold max-md:leading-8 max-md:tracking-[-0.03em]")}>{songTitle}</h2>
                 )}
                 {artistId ? (
                   <Link
@@ -373,15 +411,39 @@ export function NowPlayingFullscreen({
                   <p className="text-sm sm:text-base text-white/60 mt-1 truncate">{songArtist}</p>
                 )}
               </div>
+              {glass && (
+                <button
+                  type="button"
+                  onClick={onToggleLike}
+                  disabled={isLikePending}
+                  aria-label={isLiked ? 'Unlike' : 'Like'}
+                  aria-pressed={isLiked}
+                  className="grid size-11 shrink-0 place-items-center rounded-full text-white/80 md:hidden"
+                >
+                  <LikeHeart liked={isLiked} effect={likeEffect} className="h-6 w-6" burst={18} />
+                </button>
+              )}
+              </div>
 
               {/* Scrubber */}
               <div className="w-full space-y-2">
+                {glass && (
+                  <Waveform
+                    seed={currentSong.id}
+                    current={isFinite(currentTime) ? currentTime : 0}
+                    duration={isFinite(duration) && duration > 0 ? duration : 0}
+                    onSeek={onSeek}
+                    playedClassName="bg-primary"
+                    unplayedClassName="bg-white/20"
+                    className="h-10 md:hidden short-landscape:hidden"
+                  />
+                )}
                 <Slider
                   value={[isFinite(currentTime) ? currentTime : 0]}
                   max={isFinite(duration) && duration > 0 ? duration : 100}
                   step={0.1}
                   onValueChange={([v]) => onSeek(v)}
-                  className="w-full [&_[data-slot=slider-track]]:bg-white/20 [&_[data-slot=slider-thumb]]:border-white [&_[data-slot=slider-thumb]]:bg-white"
+                  className={cn("w-full [&_[data-slot=slider-track]]:bg-white/20 [&_[data-slot=slider-thumb]]:border-white [&_[data-slot=slider-thumb]]:bg-white", glass && "max-md:hidden short-landscape:flex")}
                 />
                 <div className="flex justify-between">
                   <span className="text-xs font-mono text-white/50">{formatTime(currentTime)}</span>
@@ -413,7 +475,7 @@ export function NowPlayingFullscreen({
                 <Button
                   variant="default"
                   size="sm"
-                  className="h-16 w-16 sm:h-18 sm:w-18 p-0 rounded-full shadow-lg"
+                  className={cn("h-16 w-16 sm:h-18 sm:w-18 p-0 rounded-full shadow-lg", glass && "max-md:h-[76px] max-md:w-[76px] max-md:shadow-[0_12px_30px_color-mix(in_oklch,var(--primary)_50%,transparent)]")}
                   onClick={onTogglePlayPause}
                   disabled={isLoading}
                 >
@@ -446,18 +508,63 @@ export function NowPlayingFullscreen({
                 </Button>
               </div>
 
+              {glass && (
+                <div className="-mt-1 flex w-full items-center justify-between gap-2 md:hidden short-landscape:hidden">
+                  <button
+                    type="button"
+                    onClick={(e) => onOpenDevices?.(e.currentTarget)}
+                    className={cn(
+                      'glass-surface flex h-9 min-w-0 items-center gap-2 rounded-full px-3 text-xs font-medium [-webkit-tap-highlight-color:transparent]',
+                      deviceRemote ? 'text-success' : 'text-white',
+                    )}
+                    aria-label={`Playing on ${deviceLabel}. Choose a device`}
+                  >
+                    {deviceRemote ? <Speaker className="size-4 shrink-0" /> : <Smartphone className="size-4 shrink-0" />}
+                    <span className="truncate">{deviceLabel}</span>
+                  </button>
+                  <button
+                    type="button"
+                    // The queue sheet opens over the player (which recedes
+                    // behind it) instead of after it closes, so it's one move
+                    // and closing the queue lands back here.
+                    onClick={() => useAudioStore.getState().toggleQueuePanel()}
+                    className="glass-surface flex h-9 shrink-0 items-center gap-2 rounded-full px-3 text-xs font-medium text-white [-webkit-tap-highlight-color:transparent]"
+                  >
+                    <ListMusic className="size-4" /> Up next{upNext > 0 ? ` · ${upNext}` : ''}
+                  </button>
+                </div>
+              )}
+
               {/* Secondary actions */}
-              <div className="flex items-center justify-center gap-4 sm:gap-6">
+              <div className={cn("flex items-center justify-center gap-4 sm:gap-6", glass && "np-phone:w-full np-phone:justify-between np-phone:px-1")}>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
+                  className={cn("h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10", glass && "max-md:hidden short-landscape:inline-flex")}
                   onClick={onToggleLike}
                   disabled={isLikePending}
                 >
                   <LikeHeart liked={isLiked} effect={likeEffect} className="h-5 w-5" burst={18} />
                 </Button>
-                {/* TODO: restyle dropdown to match dark fullscreen theme */}
+                {glass && phone ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Add to playlist"
+                      className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
+                      onClick={() => setAddOpen(true)}
+                    >
+                      <ListPlus className="h-5 w-5" />
+                    </Button>
+                    <GlassAddToPlaylistSheet
+                      open={addOpen}
+                      onOpenChange={setAddOpen}
+                      dark
+                      song={{ id: currentSong.id, title: songTitle, artist: songArtist }}
+                    />
+                  </>
+                ) : (
                 <AddToPlaylistButton
                   songId={currentSong.id}
                   artistName={songArtist}
@@ -467,10 +574,11 @@ export function NowPlayingFullscreen({
                   className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10 [&_svg]:h-5 [&_svg]:w-5"
                   contentClassName="z-[70]"
                 />
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10"
+                  className={cn("h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10", glass && "max-md:hidden short-landscape:inline-flex")}
                   onClick={() => closeAndThen(() => {
                     useAudioStore.getState().toggleQueuePanel();
                   })}
@@ -481,6 +589,7 @@ export function NowPlayingFullscreen({
                   <AIDJToggle compact />
                 </div>
                 <SleepTimerButton
+                  glass={glass}
                   className="h-10 w-10 p-0 text-white/70 hover:text-white hover:bg-white/10 [&_svg]:h-5 [&_svg]:w-5"
                   contentClassName="z-[70]"
                 />
@@ -504,7 +613,7 @@ export function NowPlayingFullscreen({
           </div>
         )}
 
-        {!isExpanded && <div className="h-8 short-landscape:h-3 pb-[env(safe-area-inset-bottom)]" />}
+        {!isExpanded && <div className={cn("h-8 short-landscape:h-3 pb-[env(safe-area-inset-bottom)]", glass && "np-phone:h-[calc(env(safe-area-inset-bottom)+1.25rem)] np-phone:pb-0")} />}
       </div>
     </div>,
     document.body
