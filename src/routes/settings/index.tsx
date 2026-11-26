@@ -12,14 +12,28 @@ import { PlaybackSettings } from './playback';
 import { ServicesSettings } from './services';
 import { AlbumArtSettings } from './album-art';
 import { SecuritySettings } from './security';
+import { ProfileSettings } from './profile';
+import { NotificationSettings } from './notifications';
+import { AppearanceSettings } from './appearance';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { useIsPhone } from '@/components/glass/GlassSheet';
+import { GLASS_SETTINGS_TITLES, GlassSettingsIndex, type GlassSettingsTab } from '@/components/glass/GlassSettings';
 
 const _NEW_TABS = ['general', 'security', 'services', 'playback', 'ai-dj', 'cover-art'] as const;
-type NewTab = (typeof _NEW_TABS)[number];
+type ClassicTab = (typeof _NEW_TABS)[number];
+// Glass phones give Profile, Notifications and Appearance their own pages; the classic tabs fold
+// them into General.
+type NewTab = ClassicTab | 'profile' | 'notifications' | 'appearance';
+const CLASSIC_TAB: Record<NewTab, ClassicTab> = {
+  general: 'general', security: 'security', services: 'services', playback: 'playback', 'ai-dj': 'ai-dj',
+  'cover-art': 'cover-art', profile: 'general', notifications: 'general', appearance: 'general',
+};
 
 // Map old tab param values to new tab names
 const TAB_MIGRATION: Record<string, NewTab> = {
-  profile: 'general',
-  notifications: 'general',
+  profile: 'profile',
+  notifications: 'notifications',
+  appearance: 'appearance',
   layout: 'general',
   services: 'services',
   playback: 'playback',
@@ -55,12 +69,19 @@ function SettingsPage() {
   const { user } = Route.useRouteContext();
   const isAdmin = user?.role === 'admin';
   const { loadPreferences, isLoading, error } = usePreferencesStore();
+  const glass = useGlassUi();
+  const phone = useIsPhone();
 
   // Load preferences on mount
   useEffect(() => {
     loadPreferences();
   }, [loadPreferences]);
 
+  if (glass && phone) {
+    return <GlassSettingsPage tab={tab} isAdmin={isAdmin} isLoading={isLoading} error={error} />;
+  }
+
+  const classicTab = tab ? CLASSIC_TAB[tab] : undefined;
   return (
     <PageLayout
       title="Settings"
@@ -84,7 +105,7 @@ function SettingsPage() {
 
       {/* Settings Tabs */}
       {!isLoading && (
-        <Tabs defaultValue={(!isAdmin && (tab === 'services' || tab === 'cover-art')) ? 'general' : (tab || 'general')} className="w-full">
+        <Tabs defaultValue={(!isAdmin && (classicTab === 'services' || classicTab === 'cover-art')) ? 'general' : (classicTab || 'general')} className="w-full">
           <TabsList className={`w-full grid grid-cols-2 gap-1 h-auto p-1 mb-8 ${isAdmin ? 'sm:grid-cols-6' : 'sm:grid-cols-4'}`}>
             <TabsTrigger value="general" className="text-xs sm:text-sm py-2">General</TabsTrigger>
             <TabsTrigger value="security" className="text-xs sm:text-sm py-2">Security</TabsTrigger>
@@ -123,6 +144,40 @@ function SettingsPage() {
           )}
         </Tabs>
       )}
+    </PageLayout>
+  );
+}
+
+/** Glass phones: the grouped index (no tab), or one settings page with "‹ Settings". */
+function GlassSettingsPage({ tab, isAdmin, isLoading, error }: { tab?: NewTab; isAdmin: boolean; isLoading: boolean; error: string | null }) {
+  const adminOnly = tab === 'services' || tab === 'cover-art';
+  const page: GlassSettingsTab | undefined = tab && (!adminOnly || isAdmin) ? tab : undefined;
+  const body = (() => {
+    switch (page) {
+      case 'profile': return <ProfileSettings />;
+      case 'notifications': return <NotificationSettings />;
+      case 'appearance': return <AppearanceSettings />;
+      case 'general': return <GeneralSettings />;
+      case 'security': return <SecuritySettings />;
+      case 'playback': return <PlaybackSettings />;
+      case 'ai-dj': return <RecommendationSettings />;
+      case 'services': return <ServicesSettings />;
+      case 'cover-art': return <AlbumArtSettings />;
+      default: return <GlassSettingsIndex isAdmin={isAdmin} />;
+    }
+  })();
+  return (
+    <PageLayout
+      title={page ? GLASS_SETTINGS_TITLES[page] : 'Settings'}
+      backLink={page ? '/settings' : '/dashboard'}
+      backLabel={page ? 'Settings' : 'Dashboard'}
+    >
+      {error && (
+        <Card className="p-4 bg-destructive/10 border-destructive/30">
+          <p className="text-destructive">{error}</p>
+        </Card>
+      )}
+      {isLoading ? <p className="py-8 text-center text-muted-foreground">Loading settings...</p> : body}
     </PageLayout>
   );
 }

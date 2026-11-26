@@ -168,7 +168,7 @@ function ConnectedAccounts() {
     try {
       await (authClient as unknown as { linkSocial: (opts: { provider: string; callbackURL: string }) => Promise<void> }).linkSocial({
         provider,
-        callbackURL: '/settings/profile',
+        callbackURL: '/settings?tab=profile',
       });
       // Will redirect to OAuth provider
     } catch {

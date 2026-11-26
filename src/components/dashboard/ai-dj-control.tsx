@@ -64,7 +64,7 @@ export function AIDJControl({
             </span>
           )}
         </CardTitle>
-        <Link to="/settings/recommendations">
+        <Link to="/settings" search={{ tab: 'ai-dj' }}>
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
             <Settings className="h-4 w-4" />
           </Button>
