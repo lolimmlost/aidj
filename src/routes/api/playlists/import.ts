@@ -30,6 +30,7 @@ import {
 } from '../../../lib/services/spotify';
 import type { SongMatchResult, PlaylistPlatform, PlaylistExportFormat } from '../../../lib/db/schema/playlist-export.schema';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
+import { primaryArtist as getPrimaryArtist } from '@/lib/utils/primary-artist';
 
 // Validation schemas
 const ImportValidateSchema = z.object({
@@ -82,7 +83,7 @@ function createNavidromeSearcher() {
     },
 
     async searchByTitleArtist(title: string, artist: string) {
-      const primaryArtist = artist.split(/[;,]/)[0].trim();
+      const primaryArtist = getPrimaryArtist(artist);
       const cleanTitle = title
         .replace(/\s*\((?:with|feat\.?|ft\.?|featuring)\s+[^)]+\)/gi, '')
         .replace(/\s*\((?:remaster|remastered|deluxe|anniversary|expanded|bonus)[^)]*\)/gi, '')

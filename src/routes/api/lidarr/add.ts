@@ -18,6 +18,7 @@ import { search as searchNavidrome } from '../../../lib/services/navidrome';
 import { getLastFmClient } from '../../../lib/services/lastfm';
 import { getConfigAsync } from '../../../lib/config/config';
 import { normalizeArtist, stringSimilarity } from '../../../lib/services/song-matcher';
+import { primaryArtist as getPrimaryArtist } from '@/lib/utils/primary-artist';
 
 /**
  * Pick the best-matching artist from Lidarr search results.
@@ -145,7 +146,7 @@ export const Route = createFileRoute("/api/lidarr/add")({
       }
 
       const artistName = match[1].trim();
-      const primaryArtist = artistName.split(/[,;]/)[0].trim();
+      const primaryArtist = getPrimaryArtist(artistName);
       const songTitle = match[2].trim();
 
       // Check if the specific song is already available in Navidrome
