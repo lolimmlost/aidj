@@ -82,24 +82,35 @@ export interface UserPreferences {
 
 interface PreferencesState {
   preferences: UserPreferences;
+  /** Loading from the server (not saving: a save must not unmount the settings forms). */
   isLoading: boolean;
+  /** A save is in flight. */
+  isSaving: boolean;
   error: string | null;
 
   // Actions
   loadPreferences: () => Promise<void>;
-  updatePreferences: (preferences: Partial<UserPreferences>) => Promise<void>;
-  setRecommendationSettings: (settings: Partial<RecommendationSettings>) => Promise<void>;
-  setPlaybackSettings: (settings: Partial<PlaybackSettings>) => Promise<void>;
-  setNotificationSettings: (settings: Partial<NotificationSettings>) => Promise<void>;
-  setDashboardLayout: (layout: Partial<DashboardLayout>) => Promise<void>;
+  /**
+   * Applies the change at once (optimistic), then saves it. Resolves false when the save failed:
+   * the change is rolled back and `error` is set. Never rejects.
+   */
+  updatePreferences: (preferences: Partial<UserPreferences>) => Promise<boolean>;
+  setRecommendationSettings: (settings: Partial<RecommendationSettings>) => Promise<boolean>;
+  setPlaybackSettings: (settings: Partial<PlaybackSettings>) => Promise<boolean>;
+  setNotificationSettings: (settings: Partial<NotificationSettings>) => Promise<boolean>;
+  setDashboardLayout: (layout: Partial<DashboardLayout>) => Promise<boolean>;
   reset: () => void;
 }
+
+// Orders overlapping saves (see updatePreferences).
+let saveSeq = 0;
 
 export const usePreferencesStore = create<PreferencesState>()(
   persist(
     (set, get) => ({
       preferences: DEFAULT_USER_PREFERENCES,
       isLoading: false,
+      isSaving: false,
       error: null,
 
       // Load preferences from backend
@@ -135,7 +146,9 @@ export const usePreferencesStore = create<PreferencesState>()(
 
       // Update preferences on backend
       updatePreferences: async (updates: Partial<UserPreferences>) => {
-        set({ isLoading: true, error: null });
+        const seq = ++saveSeq;
+        const previous = get().preferences;
+        set({ preferences: { ...previous, ...updates }, isSaving: true, error: null });
         try {
           const response = await fetch('/api/preferences', {
             method: 'POST',
@@ -151,17 +164,23 @@ export const usePreferencesStore = create<PreferencesState>()(
           }
 
           const { data } = await response.json();
-          set({
-            preferences: data,
-            isLoading: false,
-          });
+          // Only the newest save's answer is applied: an older reply arriving late would undo
+          // a change made after it.
+          if (seq === saveSeq) set({ preferences: data, isSaving: false });
+          return true;
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to update preferences';
-          set({
+          // Roll back only the fields this save touched, keeping later edits.
+          const rollback = Object.fromEntries(
+            Object.keys(updates).map((k) => [k, previous[k as keyof UserPreferences]]),
+          ) as Partial<UserPreferences>;
+          set((state) => ({
+            preferences: { ...state.preferences, ...rollback },
             error: message,
-            isLoading: false,
-          });
+            isSaving: seq === saveSeq ? false : state.isSaving,
+          }));
           console.error('Error updating preferences:', error);
+          return false;
         }
       },
 
@@ -172,7 +191,7 @@ export const usePreferencesStore = create<PreferencesState>()(
           current.recommendationSettings,
           settings
         );
-        await get().updatePreferences({
+        return get().updatePreferences({
           recommendationSettings: mergedSettings,
         });
       },
@@ -184,7 +203,7 @@ export const usePreferencesStore = create<PreferencesState>()(
           current.playbackSettings,
           settings
         );
-        await get().updatePreferences({
+        return get().updatePreferences({
           playbackSettings: mergedSettings,
         });
       },
@@ -196,7 +215,7 @@ export const usePreferencesStore = create<PreferencesState>()(
           current.notificationSettings,
           settings
         );
-        await get().updatePreferences({
+        return get().updatePreferences({
           notificationSettings: mergedSettings,
         });
       },
@@ -208,7 +227,7 @@ export const usePreferencesStore = create<PreferencesState>()(
           current.dashboardLayout,
           layout
         );
-        await get().updatePreferences({
+        return get().updatePreferences({
           dashboardLayout: mergedLayout,
         });
       },
@@ -218,6 +237,7 @@ export const usePreferencesStore = create<PreferencesState>()(
         set({
           preferences: DEFAULT_USER_PREFERENCES,
           isLoading: false,
+          isSaving: false,
           error: null,
         });
       },

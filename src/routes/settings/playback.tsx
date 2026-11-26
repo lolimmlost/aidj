@@ -1,228 +1,94 @@
-import { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { useEffect } from 'react';
 import { Volume2 } from 'lucide-react';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Slider } from '@/components/ui/slider';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { usePreferencesStore } from '@/lib/stores/preferences';
+import { usePreferencesStore, type PlaybackSettings as Playback } from '@/lib/stores/preferences';
 import { useAudioStore } from '@/lib/stores/audio';
+import {
+  SettingsSection,
+  SettingsSelectRow,
+  SettingsSliderRow,
+  SettingsStack,
+  SettingsSwitchRow,
+  saveOrWarn,
+} from '@/components/settings/settings-ui';
+
+const QUALITY = [
+  { value: 'low' as const, label: 'Low · 128 kbps' },
+  { value: 'medium' as const, label: 'Medium · 256 kbps' },
+  { value: 'high' as const, label: 'High · 320 kbps' },
+];
 
 export function PlaybackSettings() {
-  const { preferences, setPlaybackSettings, isLoading } = usePreferencesStore();
-  const audioStore = useAudioStore();
-  const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const settings = usePreferencesStore((s) => s.preferences.playbackSettings);
+  const save = (patch: Partial<Playback>) =>
+    saveOrWarn(usePreferencesStore.getState().setPlaybackSettings(patch), 'playback setting');
 
-  const [localSettings, setLocalSettings] = useState(preferences.playbackSettings);
-
-  // Sync volume and crossfade with audio store on mount
+  // The player follows the saved crossfade (read once per change, no per-tick subscription).
   useEffect(() => {
-    if (preferences.playbackSettings.volume !== audioStore.volume) {
-      audioStore.setVolume(preferences.playbackSettings.volume);
-    }
-    if (preferences.playbackSettings.crossfadeDuration !== audioStore.crossfadeDuration) {
-      audioStore.setCrossfadeDuration(preferences.playbackSettings.crossfadeDuration);
-    }
-  }, [preferences.playbackSettings.volume, preferences.playbackSettings.crossfadeDuration, audioStore]);
-
-  const handleVolumeChange = (value: number[]) => {
-    const newVolume = value[0];
-    setLocalSettings({ ...localSettings, volume: newVolume });
-    // Update audio store immediately for real-time feedback
-    audioStore.setVolume(newVolume);
-  };
-
-  const handleCrossfadeChange = (value: number[]) => {
-    const newDuration = value[0];
-    setLocalSettings({ ...localSettings, crossfadeDuration: newDuration });
-    // Update audio store immediately for real-time feedback
-    audioStore.setCrossfadeDuration(newDuration);
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    setMessage(null);
-
-    try {
-      await setPlaybackSettings(localSettings);
-      // Ensure audio store is synced
-      audioStore.setCrossfadeDuration(localSettings.crossfadeDuration);
-      setMessage({ type: 'success', text: 'Playback settings saved successfully' });
-    } catch {
-      setMessage({ type: 'error', text: 'Failed to save playback settings' });
-    } finally {
-      setIsSaving(false);
-    }
-  };
+    const audio = useAudioStore.getState();
+    if (settings.crossfadeDuration !== audio.crossfadeDuration) audio.setCrossfadeDuration(settings.crossfadeDuration);
+  }, [settings.crossfadeDuration]);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Volume2 className="h-5 w-5" />
-          Playback Settings
-        </CardTitle>
-        <CardDescription>Configure audio playback, crossfade, and quality</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Volume Control */}
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <Label htmlFor="volume">Default Volume</Label>
-            <span className="text-sm text-muted-foreground">
-              {Math.round(localSettings.volume * 100)}%
-            </span>
-          </div>
-          <Slider
-            id="volume"
-            min={0}
-            max={1}
-            step={0.01}
-            value={[localSettings.volume]}
-            onValueChange={handleVolumeChange}
-            className="mt-2"
-          />
-          <p className="text-sm text-muted-foreground mt-1">
-            Set the default volume level for playback
-          </p>
-        </div>
+    <SettingsStack>
+      <SettingsSection title="Sound" icon={<Volume2 />} description="Volume, crossfade and streaming quality">
+        <SettingsSliderRow
+          id="volume"
+          label="Default volume"
+          value={settings.volume}
+          min={0}
+          max={1}
+          step={0.01}
+          format={(v) => `${Math.round(v * 100)}%`}
+          onChange={(v) => useAudioStore.getState().setVolume(v)}
+          onCommit={(v) => save({ volume: v })}
+        />
+        <SettingsSliderRow
+          id="crossfade"
+          label="Crossfade"
+          value={settings.crossfadeDuration}
+          min={0}
+          max={10}
+          format={(v) => (v === 0 ? 'Off' : `${v} s`)}
+          description={() => 'Blend the end of one song into the next'}
+          onChange={(v) => useAudioStore.getState().setCrossfadeDuration(v)}
+          onCommit={(v) => save({ crossfadeDuration: v })}
+        />
+        <SettingsSelectRow
+          id="quality"
+          label="Streaming quality"
+          value={settings.defaultQuality}
+          options={QUALITY}
+          onChange={(v) => save({ defaultQuality: v })}
+        />
+      </SettingsSection>
 
-        {/* Autoplay Next Song */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="autoplay">Autoplay Next Song</Label>
-            <p className="text-sm text-muted-foreground">
-              Automatically play the next song in the queue
-            </p>
-          </div>
-          <Switch
-            id="autoplay"
-            checked={localSettings.autoplayNext}
-            onCheckedChange={(checked) =>
-              setLocalSettings({ ...localSettings, autoplayNext: checked })
-            }
-          />
-        </div>
-
-        {/* Crossfade Duration */}
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <Label htmlFor="crossfade">Crossfade Duration</Label>
-            <span className="text-sm text-muted-foreground">
-              {localSettings.crossfadeDuration}s
-            </span>
-          </div>
-          <Slider
-            id="crossfade"
-            min={0}
-            max={10}
-            step={1}
-            value={[localSettings.crossfadeDuration]}
-            onValueChange={handleCrossfadeChange}
-            className="mt-2"
-          />
-          <p className="text-sm text-muted-foreground mt-1">
-            Smooth transition between songs (0-10 seconds)
-          </p>
-        </div>
-
-        {/* Scrobble Threshold */}
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <Label htmlFor="scrobble-threshold">Count a Play After</Label>
-            <span className="text-sm text-muted-foreground">
-              {localSettings.scrobbleThreshold ?? 50}%
-            </span>
-          </div>
-          <Slider
-            id="scrobble-threshold"
-            min={10}
-            max={100}
-            step={5}
-            value={[localSettings.scrobbleThreshold ?? 50]}
-            onValueChange={(value) =>
-              setLocalSettings({ ...localSettings, scrobbleThreshold: value[0] })
-            }
-            className="mt-2"
-          />
-          <p className="text-sm text-muted-foreground mt-1">
-            How much of a song must play before it is scrobbled and added to your play count
-          </p>
-        </div>
-
-        {/* Default Playback Quality */}
-        <div>
-          <Label htmlFor="quality">Default Playback Quality</Label>
-          <Select
-            value={localSettings.defaultQuality}
-            onValueChange={(value: 'low' | 'medium' | 'high') =>
-              setLocalSettings({ ...localSettings, defaultQuality: value })
-            }
-          >
-            <SelectTrigger id="quality" className="mt-2">
-              <SelectValue placeholder="Select quality" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="low">Low (128kbps)</SelectItem>
-              <SelectItem value="medium">Medium (256kbps)</SelectItem>
-              <SelectItem value="high">High (320kbps)</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-sm text-muted-foreground mt-1">
-            Choose the default audio quality for streaming
-          </p>
-        </div>
-
-        {/* Safe Mode / Content Filter */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="safe-mode">Safe Mode (PG)</Label>
-            <p className="text-sm text-muted-foreground">
-              Filter explicit songs from AI DJ recommendations and autoplay.
-              Uses Deezer metadata to detect explicit content.
-            </p>
-          </div>
-          <Switch
-            id="safe-mode"
-            checked={localSettings.safeMode ?? false}
-            onCheckedChange={(checked) =>
-              setLocalSettings({ ...localSettings, safeMode: checked })
-            }
-          />
-        </div>
-
-        {/* Save Button */}
-        <div className="pt-4">
-          <Button
-            onClick={handleSave}
-            disabled={isSaving || isLoading}
-            className="w-full sm:w-auto"
-          >
-            {isSaving ? 'Saving...' : 'Save Settings'}
-          </Button>
-        </div>
-
-        {/* Message Display */}
-        {message && (
-          <div
-            className={`p-4 rounded-md ${
-              message.type === 'success'
-                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                : 'bg-destructive/10 text-destructive'
-            }`}
-          >
-            {message.text}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      <SettingsSection title="Playing">
+        <SettingsSwitchRow
+          id="autoplay"
+          label="Autoplay next song"
+          description="Keep playing the queue when a song ends"
+          checked={settings.autoplayNext}
+          onCheckedChange={(v) => save({ autoplayNext: v })}
+        />
+        <SettingsSliderRow
+          id="scrobble-threshold"
+          label="Count a play after"
+          value={settings.scrobbleThreshold ?? 50}
+          min={10}
+          max={100}
+          step={5}
+          format={(v) => `${v}%`}
+          description={(v) => `A song counts as played (and scrobbles) once ${v}% of it has played`}
+          onCommit={(v) => save({ scrobbleThreshold: v })}
+        />
+        <SettingsSwitchRow
+          id="safe-mode"
+          label="Safe mode (PG)"
+          description="Keep explicit songs out of AI DJ picks and autoplay (explicit flags come from Deezer)"
+          checked={settings.safeMode ?? false}
+          onCheckedChange={(v) => save({ safeMode: v })}
+        />
+      </SettingsSection>
+    </SettingsStack>
   );
 }

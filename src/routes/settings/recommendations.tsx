@@ -1,205 +1,91 @@
-import { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Wand2 } from 'lucide-react';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { usePreferencesStore } from '@/lib/stores/preferences';
+import { usePreferencesStore, type RecommendationSettings as Recs } from '@/lib/stores/preferences';
 import { AIDJSettings } from '@/components/ai-dj-settings';
+import {
+  SettingsSection,
+  SettingsSelectRow,
+  SettingsStack,
+  SettingsSwitchRow,
+  saveOrWarn,
+} from '@/components/settings/settings-ui';
+
+const FREQUENCY = [
+  { value: 'always' as const, label: 'Real time' },
+  { value: 'daily' as const, label: 'Daily' },
+  { value: 'weekly' as const, label: 'Weekly' },
+];
 
 export function RecommendationSettings() {
-  const { preferences, setRecommendationSettings, isLoading } = usePreferencesStore();
-  const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-
-  const [localSettings, setLocalSettings] = useState(preferences.recommendationSettings);
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    setMessage(null);
-
-    try {
-      await setRecommendationSettings(localSettings);
-      setMessage({ type: 'success', text: 'Recommendation settings saved successfully' });
-    } catch (err) {
-      console.error('Failed to save recommendation settings:', err);
-      setMessage({ type: 'error', text: 'Failed to save recommendation settings' });
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  const recs = usePreferencesStore((s) => s.preferences.recommendationSettings);
+  const save = (patch: Partial<Recs>) =>
+    saveOrWarn(usePreferencesStore.getState().setRecommendationSettings(patch), 'recommendation setting');
+  const off = !recs.aiEnabled;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Wand2 className="h-5 w-5" />
-          AI DJ
-        </CardTitle>
-        <CardDescription>Configure AI-powered recommendations and playlist generation</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* AI Recommendations Toggle */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="ai-enabled">Enable AI Recommendations</Label>
-            <p className="text-sm text-muted-foreground">
-              Get personalized music recommendations powered by AI
-            </p>
-          </div>
-          <Switch
-            id="ai-enabled"
-            checked={localSettings.aiEnabled}
-            onCheckedChange={(checked) =>
-              setLocalSettings({ ...localSettings, aiEnabled: checked })
-            }
-          />
-        </div>
+    <SettingsStack>
+      <SettingsSection title="Recommendations" icon={<Wand2 />} description="What the AI DJ and Discover pick from">
+        <SettingsSwitchRow
+          id="ai-enabled"
+          label="AI recommendations"
+          description="Personal picks based on what you play"
+          checked={recs.aiEnabled}
+          onCheckedChange={(v) => save({ aiEnabled: v })}
+        />
+        <SettingsSelectRow
+          id="frequency"
+          label="New picks"
+          value={recs.frequency}
+          options={FREQUENCY}
+          onChange={(v) => save({ frequency: v })}
+          disabled={off}
+        />
+        <SettingsSwitchRow
+          id="style-playlists"
+          label="Style-based playlists"
+          description="Build playlists from styles and moods"
+          checked={recs.styleBasedPlaylists}
+          onCheckedChange={(v) => save({ styleBasedPlaylists: v })}
+          disabled={off}
+        />
+        <SettingsSwitchRow
+          id="seasonal-recs"
+          label="Seasonal picks"
+          description="Lean on the time of year"
+          checked={recs.enableSeasonalRecommendations ?? true}
+          onCheckedChange={(v) => save({ enableSeasonalRecommendations: v })}
+          disabled={off}
+        />
+      </SettingsSection>
 
-        {/* Recommendation Frequency */}
-        <div>
-          <Label htmlFor="frequency">Recommendation Frequency</Label>
-          <Select
-            value={localSettings.frequency}
-            onValueChange={(value: 'always' | 'daily' | 'weekly') =>
-              setLocalSettings({ ...localSettings, frequency: value })
-            }
-          >
-            <SelectTrigger id="frequency" className="mt-2">
-              <SelectValue placeholder="Select frequency" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="always">Always (Real-time)</SelectItem>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="weekly">Weekly</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-sm text-muted-foreground mt-1">
-            How often should we generate new recommendations?
-          </p>
-        </div>
+      <SettingsSection title="Your feedback" description="How your thumbs up and down are used">
+        <SettingsSwitchRow
+          id="use-feedback"
+          label="Learn from feedback"
+          description="Use your ratings to tune recommendations"
+          checked={recs.useFeedbackForPersonalization}
+          onCheckedChange={(v) => save({ useFeedbackForPersonalization: v })}
+        />
+        <SettingsSwitchRow
+          id="sync-navidrome"
+          label="Star in Navidrome"
+          description="A thumbs up stars the song in Navidrome, a thumbs down unstars it"
+          checked={recs.syncFeedbackToNavidrome ?? true}
+          onCheckedChange={(v) => save({ syncFeedbackToNavidrome: v })}
+        />
+      </SettingsSection>
 
-        {/* Style-Based Playlists */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="style-playlists">Style-Based Playlist Generation</Label>
-            <p className="text-sm text-muted-foreground">
-              Generate playlists based on music styles and moods
-            </p>
-          </div>
-          <Switch
-            id="style-playlists"
-            checked={localSettings.styleBasedPlaylists}
-            onCheckedChange={(checked) =>
-              setLocalSettings({ ...localSettings, styleBasedPlaylists: checked })
-            }
-          />
-        </div>
+      <SettingsSection title="AI DJ">
+        <SettingsSwitchRow
+          id="ai-dj-enabled"
+          label="AI DJ mode"
+          description="Add songs to your queue based on what you’re playing"
+          checked={recs.aiDJEnabled}
+          onCheckedChange={(v) => save({ aiDJEnabled: v })}
+          disabled={off}
+        />
+      </SettingsSection>
 
-        {/* Seasonal Recommendations (Story 3.11) */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="seasonal-recs">Seasonal Recommendations</Label>
-            <p className="text-sm text-muted-foreground">
-              Automatically adjust recommendations based on season and time of year
-            </p>
-          </div>
-          <Switch
-            id="seasonal-recs"
-            checked={localSettings.enableSeasonalRecommendations ?? true}
-            onCheckedChange={(checked) =>
-              setLocalSettings({ ...localSettings, enableSeasonalRecommendations: checked })
-            }
-          />
-        </div>
-
-        {/* Privacy: Use Feedback for Personalization */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="use-feedback">Use Feedback for Personalization</Label>
-            <p className="text-sm text-muted-foreground">
-              Use your song ratings and feedback to improve recommendations
-            </p>
-          </div>
-          <Switch
-            id="use-feedback"
-            checked={localSettings.useFeedbackForPersonalization}
-            onCheckedChange={(checked) =>
-              setLocalSettings({ ...localSettings, useFeedbackForPersonalization: checked })
-            }
-          />
-        </div>
-
-        {/* Navidrome Sync */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="sync-navidrome">Sync Feedback to Navidrome</Label>
-            <p className="text-sm text-muted-foreground">
-              Star/unstar songs in Navidrome when you give thumbs up/down
-            </p>
-          </div>
-          <Switch
-            id="sync-navidrome"
-            checked={localSettings.syncFeedbackToNavidrome ?? true}
-            onCheckedChange={(checked) =>
-              setLocalSettings({ ...localSettings, syncFeedbackToNavidrome: checked })
-            }
-          />
-        </div>
-
-        {/* AI DJ Toggle (Story 3.9) */}
-        <div className="flex items-center justify-between pt-4 border-t border-border/50">
-          <div className="space-y-0.5">
-            <Label htmlFor="ai-dj-enabled">AI DJ Mode</Label>
-            <p className="text-sm text-muted-foreground">
-              Automatically add songs to your queue based on what you're listening to
-            </p>
-          </div>
-          <Switch
-            id="ai-dj-enabled"
-            checked={localSettings.aiDJEnabled}
-            onCheckedChange={(checked) =>
-              setLocalSettings({ ...localSettings, aiDJEnabled: checked })
-            }
-          />
-        </div>
-
-        {/* Save Button */}
-        <div className="pt-4">
-          <Button
-            onClick={handleSave}
-            disabled={isSaving || isLoading}
-            className="w-full sm:w-auto"
-          >
-            {isSaving ? 'Saving...' : 'Save Settings'}
-          </Button>
-        </div>
-
-        {/* Message Display */}
-        {message && (
-          <div
-            className={`p-4 rounded-md ${
-              message.type === 'success'
-                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                : 'bg-destructive/10 text-destructive'
-            }`}
-          >
-            {message.text}
-          </div>
-        )}
-      </CardContent>
-
-      {/* AI DJ Settings Section (Story 3.9) */}
-      <div className="px-6 pb-6">
-        <AIDJSettings />
-      </div>
-    </Card>
+      <AIDJSettings />
+    </SettingsStack>
   );
 }

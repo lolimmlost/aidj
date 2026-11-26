@@ -1,13 +1,14 @@
 import { ProfileSettings } from './profile';
 import { NotificationSettings } from './notifications';
 import { LayoutSettings } from './layout';
+import { SettingsStack } from '@/components/settings/settings-ui';
 
 export function GeneralSettings() {
   return (
-    <div className="space-y-8">
+    <SettingsStack>
       <ProfileSettings />
       <NotificationSettings />
       <LayoutSettings />
-    </div>
+    </SettingsStack>
   );
 }

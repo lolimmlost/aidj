@@ -219,10 +219,10 @@ export function AlbumArtSettings() {
   return (
     <div className="space-y-6">
       {/* Tab toggle */}
-      <div className="flex gap-1 p-1 rounded-lg bg-muted w-fit">
+      <div role="tablist" aria-label="Covers for" className="flex w-fit gap-1 rounded-full bg-foreground/[0.07] p-1">
         <button
           onClick={() => setTab('albums')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+          className={`flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition-colors ${
             tab === 'albums'
               ? 'bg-background text-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
@@ -233,7 +233,7 @@ export function AlbumArtSettings() {
         </button>
         <button
           onClick={() => setTab('artists')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+          className={`flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition-colors ${
             tab === 'artists'
               ? 'bg-background text-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'

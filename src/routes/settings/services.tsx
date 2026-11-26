@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSettingsLook } from '@/components/settings/settings-ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Server } from 'lucide-react';
@@ -39,7 +40,29 @@ function StatusBadge({ status }: { status?: TestStatus }) {
   );
 }
 
+/** Desktop: one card around the form. Glass phones: no outer card, the groups stand on their own. */
+function ServicesShell({ children }: { children: React.ReactNode }) {
+  if (useSettingsLook() === 'glass') return <div className="flex flex-col gap-5 pb-6">{children}</div>;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Server className="h-5 w-5" />
+          Service Configuration
+        </CardTitle>
+        <CardDescription>
+          Configure the LLM provider and external services that power AI recommendations, music playback, and automatic music management
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">{children}</CardContent>
+    </Card>
+  );
+}
+
 export function ServicesSettings() {
+  // Glass phones: each service is its own glass group; desktop keeps the bordered boxes.
+  const glass = useSettingsLook() === 'glass';
+  const box = (classic: string) => (glass ? 'glass-surface rounded-[20px] p-4 space-y-3' : classic);
   const [config, setConfig] = useState<{
     llmProvider?: LLMProviderType;
     ollamaUrl?: string;
@@ -384,22 +407,12 @@ export function ServicesSettings() {
   ];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Server className="h-5 w-5" />
-          Service Configuration
-        </CardTitle>
-        <CardDescription>
-          Configure the LLM provider and external services that power AI recommendations, music playback, and automatic music management
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <ServicesShell>
 
         {/* Configuration Form */}
         <form onSubmit={onSubmit} className="space-y-6">
           {/* LLM Provider Section */}
-          <div className="p-4 border rounded-lg space-y-4 bg-muted/50">
+          <div className={box('p-4 border rounded-lg space-y-4 bg-muted/50')}>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">AI Provider Configuration</h3>
               <div className="flex items-center gap-2">
@@ -640,7 +653,7 @@ export function ServicesSettings() {
             <h3 className="text-lg font-semibold">Music Services</h3>
 
             {/* Navidrome */}
-            <div className="p-4 border rounded-lg space-y-3">
+            <div className={box('p-4 border rounded-lg space-y-3')}>
               <div className="flex items-center justify-between">
                 <Label className="text-base font-medium">Navidrome</Label>
                 <div className="flex items-center gap-2">
@@ -670,7 +683,7 @@ export function ServicesSettings() {
             </div>
 
             {/* Lidarr */}
-            <div className="p-4 border rounded-lg space-y-3">
+            <div className={box('p-4 border rounded-lg space-y-3')}>
               <div className="flex items-center justify-between">
                 <Label className="text-base font-medium">Lidarr</Label>
                 <div className="flex items-center gap-2">
@@ -712,7 +725,7 @@ export function ServicesSettings() {
             </div>
 
             {/* MeTube */}
-            <div className="p-4 border rounded-lg space-y-3">
+            <div className={box('p-4 border rounded-lg space-y-3')}>
               <div className="flex items-center justify-between">
                 <Label className="text-base font-medium">MeTube</Label>
                 <div className="flex items-center gap-2">
@@ -751,7 +764,7 @@ export function ServicesSettings() {
           </div>
 
           {/* Discovery Services Section */}
-          <div className="p-4 border rounded-lg space-y-4 bg-(--aidj-violet)/5">
+          <div className={box('p-4 border rounded-lg space-y-4 bg-(--aidj-violet)/5')}>
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <svg className="w-5 h-5 text-(--aidj-violet)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -806,7 +819,7 @@ export function ServicesSettings() {
           </div>
 
           {/* Last.fm Scrobble Backfill Section */}
-          <div className="p-4 border rounded-lg space-y-4 bg-(--aidj-cyan)/5">
+          <div className={box('p-4 border rounded-lg space-y-4 bg-(--aidj-cyan)/5')}>
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <Download className="w-5 h-5 text-(--aidj-cyan)" />
               Last.fm Scrobble Backfill
@@ -898,7 +911,6 @@ export function ServicesSettings() {
             {status}
           </div>
         )}
-      </CardContent>
-    </Card>
+    </ServicesShell>
   );
 }
