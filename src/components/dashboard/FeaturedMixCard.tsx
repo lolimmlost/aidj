@@ -80,7 +80,7 @@ export function FeaturedMixCard({ songId = FEATURED_MIX_ID }: { songId?: string 
   return (
     <section
       aria-labelledby="featured-mix-title"
-      className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/15 via-card to-card p-4 sm:p-6"
+      className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/15 via-card to-card p-5 sm:p-6"
     >
       <div className="flex items-center gap-4 sm:gap-6">
         <div className="relative size-20 shrink-0 sm:size-28">

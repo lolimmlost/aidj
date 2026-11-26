@@ -233,7 +233,7 @@ function ScrollableRow({ children, label }: { children: React.ReactNode; label: 
       <ScrollArrow direction="right" onClick={() => scrollBy('right')} visible={canScrollRight} />
       <div
         ref={scrollRef}
-        className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-2 snap-x snap-mandatory md:snap-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="-mx-4 sm:-mx-6 lg:-mx-8 flex gap-1 overflow-x-auto px-4 sm:px-6 lg:px-8 pb-2 snap-x snap-mandatory md:snap-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         aria-label={label}
       >
         {children}
@@ -250,11 +250,11 @@ export function RecentlyAddedSection() {
     return (
       <div className="space-y-6">
         <div className="space-y-3">
-          <h3 className="font-semibold text-base flex items-center gap-2">
-            <Clock className="h-4 w-4 text-emerald-500" />
+          <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+            <Clock className="h-4 w-4 text-(--aidj-emerald)" />
             Recently Added
-          </h3>
-          <div className="flex gap-3">
+          </h2>
+          <div className="flex gap-1">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="w-36 sm:w-40 shrink-0 space-y-2 p-2 animate-pulse">
                 <div className="aspect-square rounded-lg bg-muted" />
@@ -274,10 +274,10 @@ export function RecentlyAddedSection() {
     <div className="space-y-6">
       {albums.length > 0 && (
         <div className="space-y-3">
-          <h3 className="font-semibold text-base flex items-center gap-2">
-            <Disc className="h-4 w-4 text-violet-500" />
+          <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+            <Disc className="h-4 w-4 text-(--aidj-violet)" />
             Recently Added Albums
-          </h3>
+          </h2>
           <ScrollableRow label="Recently added albums">
             {albums.map((album) => (
               <AlbumCard key={album.id} album={album} />
@@ -288,10 +288,10 @@ export function RecentlyAddedSection() {
 
       {songs.length > 0 && (
         <div className="space-y-3">
-          <h3 className="font-semibold text-base flex items-center gap-2">
-            <Music className="h-4 w-4 text-cyan-500" />
+          <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+            <Music className="h-4 w-4 text-(--aidj-cyan)" />
             Recently Added Songs
-          </h3>
+          </h2>
           <ScrollableRow label="Recently added songs">
             {songs.map((song) => (
               <SongCard key={song.id} song={song} />

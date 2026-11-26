@@ -128,7 +128,7 @@ export function QuickActions({
       {/* Section Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
+          <h2 className="text-lg font-semibold tracking-tight">
             What's your vibe?
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -155,7 +155,7 @@ export function QuickActions({
             className={cn(
               'relative inline-flex items-center gap-2 px-4 py-2.5 rounded-full shrink-0',
               'cursor-pointer transition-all duration-200 active:scale-95',
-              'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-sm',
+              'bg-gradient-to-r from-(--aidj-violet) to-(--aidj-magenta) text-white shadow-sm',
               radioLoading && 'animate-pulse'
             )}
           >
@@ -179,7 +179,7 @@ export function QuickActions({
           onClick={handleStartRadio}
           disabled={radioLoading}
           className={cn(
-            'mood-card bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white',
+            'mood-card bg-gradient-to-br from-(--aidj-violet) to-(--aidj-magenta) text-white',
             radioLoading && 'animate-pulse'
           )}
         >

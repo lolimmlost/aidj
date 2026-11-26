@@ -237,7 +237,7 @@ function DashboardIndex() {
             <Link
               to="/dashboard/generate"
               search={{ section: 'recommendations' }}
-              className="group rounded-xl border bg-card p-5 hover:border-primary/30 hover:bg-accent/50 transition-all"
+              className="group rounded-2xl border bg-card p-5 sm:p-6 hover:border-primary/30 hover:bg-accent/50 transition-all"
             >
               <div className="flex items-start gap-4">
                 <div className="rounded-lg bg-primary/10 p-2.5 text-primary group-hover:bg-primary/20 transition-colors">
@@ -258,16 +258,16 @@ function DashboardIndex() {
             <Link
               to="/dashboard/generate"
               search={{ section: 'playlist' }}
-              className="group rounded-xl border bg-card p-5 hover:border-primary/30 hover:bg-accent/50 transition-all"
+              className="group rounded-2xl border bg-card p-5 sm:p-6 hover:border-primary/30 hover:bg-accent/50 transition-all"
             >
               <div className="flex items-start gap-4">
-                <div className="rounded-lg bg-violet-500/10 p-2.5 text-violet-500 group-hover:bg-violet-500/20 transition-colors">
+                <div className="rounded-lg bg-(--aidj-violet)/10 p-2.5 text-(--aidj-violet) group-hover:bg-(--aidj-violet)/20 transition-colors">
                   <Music className="h-5 w-5" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-base flex items-center gap-2">
                     Playlist Studio
-                    <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-violet-500 transition-colors group-hover:translate-x-0.5" />
+                    <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-(--aidj-violet) transition-colors group-hover:translate-x-0.5" />
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
                     Generate custom playlists with AI from any mood or style

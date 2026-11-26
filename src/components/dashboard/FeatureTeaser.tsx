@@ -21,7 +21,7 @@ export function FeatureTeaser({
   const percentage = Math.min(Math.round((progress / total) * 100), 100);
 
   return (
-    <div className="rounded-xl border bg-card p-5 opacity-75 relative">
+    <div className="rounded-2xl border bg-card p-5 sm:p-6 opacity-75 relative">
       <div className="flex items-start gap-4">
         <div className="rounded-lg bg-muted p-2.5 text-muted-foreground relative">
           <Icon className="h-5 w-5" />
