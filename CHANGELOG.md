@@ -6,6 +6,75 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ---
 
+## [1.6.0] — 2026-11-27
+
+> **Final 1.6.0.** Everything in rc.2 and rc.3, plus the changes below. The glass design is still opt-in (☰ → Glass design).
+
+### ✨ Highlights
+
+- ⚙️ **Settings, rebuilt.**
+  - On glass phones: iOS-style grouped lists, one page per topic, and a new Appearance page.
+  - Everywhere: changes save as you make them, with no Save buttons.
+- 🔐 **Sign-in security.** better-auth 1.5.6 → 1.7.28 fixes a set of critical and high advisories (incl. account takeover via email-code sign-in). Rehearsed against a copy of production's accounts before going live.
+- 📦 **Dependencies refreshed.** `npm audit`: 29 → 4 (dev-only, moderate). CI now tests on Node 26, the version production runs.
+
+### Added
+
+- **Settings on glass phones** (#472, #475, #476):
+  - an index of grouped lists (Profile, Playback, AI DJ, Notifications, Appearance, Security; plus Services and Album art for admins);
+  - one page per row, each with a "‹ Settings" back link.
+- **Appearance page:** Light / Dark / Auto theme, the glass design switch, Low motion.
+- **Theme toggle in the You sheet** (#470).
+- **Profile header:** your avatar, name and email at the top of Profile.
+
+### Changed
+
+- **Settings save on change.** Switches and choices save at once. Sliders save when you let go (they used to send a request on every step).
+- **Preference saves show immediately.** A failed save is undone and tells you so.
+- **Profile → sign-in methods** lists only the providers the server has configured.
+- **AI DJ settings** reorganised into: how it picks, DJ mixing, queue seeding, and low-queue fallback.
+- **CI:** Node 26, and an empty security allowlist. Any new high or critical advisory fails the build.
+
+### Fixed
+
+- **Artists:** names with a comma ("Tyler, The Creator") are no longer cut to the first part (#424, #453).
+- **Dashboard:** section headings, gutters, cards and colours line up with the design system (#457).
+- **Settings:**
+  - every save reported "saved successfully", even when it failed;
+  - saving reloaded the page and reset the desktop tab.
+- **Profile:**
+  - "Update display name" didn't save anything;
+  - GitHub and Google showed up when they weren't configured, and failed with "Provider not found".
+- **Dead links** to settings pages that no longer exist: the dashboard AI DJ card, "Configure MeTube", the Navidrome error screen, the email-change confirmation, and /dj/settings → Main Settings.
+- **Playback settings:**
+  - re-rendered on every playback tick;
+  - reset the player's volume each time the page opened.
+- **Tests:** 101 tests failed on Node 25+ (its own localStorage hid jsdom's).
+- **Sign-in rate limiting:** each person's real IP is used behind Cloudflare and Traefik. better-auth 1.6+ would otherwise put everyone in one bucket.
+
+### Security
+
+- **better-auth 1.7.28** (#467): fixes GHSA-qq9h-g4jm-xgf3, GHSA-965c-763c-88jm, GHSA-pw9m-5jxm-xr6h and the rest of the 1.5.6 bundle.
+- **seroval 1.6.12:** script and code injection advisories.
+- **`npm audit fix`:** eslint, typescript-eslint and minimatch.
+
+### Removed
+
+- **`tests/integration/`:** never ran, and couldn't pass.
+- **~140 docs:** 2025 planning paperwork (PRDs, stories, QA, sprints, the unbuilt React Native plan). Still in git history.
+
+### Database
+
+- **Migration `0034_better_auth_1_7_two_factor`:** 2FA enrolment state and lockout columns. **Applied on production before the deploy.** Migrations don't run on deploy (#162), so apply it by hand anywhere else before running 1.6.0.
+
+### Held for later
+
+- TanStack Start 1.169 (#417): needs Vite 8.
+- vitest 5 (#223).
+- jsdom 30 (#114): needs Node 22+ locally.
+
+---
+
 ## [1.6.0-rc.3] — 2026-11-26
 
 > **Release candidate.** 12 PRs since rc.2: the glass design preview for phones, DJ Set prep, a turntable-style player and iOS audio fixes.
