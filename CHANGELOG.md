@@ -6,6 +6,78 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ---
 
+## [1.6.0-rc.3] — 2026-11-26
+
+> **Release candidate.** 12 PRs since rc.2: the glass design preview for phones, DJ Set prep, a turntable-style player and iOS audio fixes.
+
+### ✨ Highlights
+
+- 🫧 **Glass design (preview, phones).** A new look for every main page: Home, Search, Library, playlists, artists, albums, the full-screen player, the queue and the Lab. Turn it on in the ☰ menu; it's off by default.
+- 🎚️ **Set prep.** The transitions you've mixed in the Lab become a book of known transitions. Pick your best take, tag what each one does to the night, review a set's transitions afterwards, and the live Lab offers your known exits next.
+- 💿 **The record.** The cover spins as a record and pumps on the kick, on the real downbeat from the Lab's beat grid, in both the full and the mini player.
+- 🔈 **iOS audio.** A silent output after another app took the audio comes back on your next play tap (#451).
+
+### Added
+
+**Glass design (preview, phones)**
+- No top bar. A **You** tab opens a sheet with your pages, settings and the design switch. Pages have their own back link, and the title docks into a pill as you scroll.
+- **Home:** stats line, filter chips, jump-back-in tiles, recent playlists and the featured mix.
+- **Search:** top result, matching artist and album tiles, ⋯ rows, recently played.
+- **Library:** My Playlists, Artists A–Z with a letter rail, and the playlist page with a docking Play.
+- **Artist and album pages:** the album cover starts full width and shrinks as you scroll.
+- **Full-screen player and queue sheet:** sheets for queue, devices and add to playlist, lyrics and visualizer modes, drag to dismiss.
+- **Sheets:** radio, smart playlist, import and export open as sheets.
+- **Lab overview:** now waveform, A/B lanes, BPM tracker, MPC pads, and a zoomable timeline (pinch or double-tap).
+
+**DJ**
+- **Set prep (`/dj/transitions`):**
+  - known transitions imported from your Lab sets;
+  - your best take for each pair;
+  - roles (stable, build up, plateau, breather, cooldown) and how sure you are;
+  - set review: proven / needs work / swipe away;
+  - your known exits in the live Lab, locked with your take.
+- **Beat grids saved on the server,** so any device can use the Lab's analysis.
+
+**Player & queue**
+- **The record:** the art spins with a sidechain pump and a highlight on each kick. There's a **Low motion** toggle.
+- **Lyrics peek:** the current lyric line between the record and the title.
+- **Mini player:** the art spins as a tiny record. Two lines on phones (#455).
+- **Queue source tags:** every queued song shows where it came from (You / AI DJ / Autoplay / Radio). Now playing gets a rainbow border at the song's BPM.
+- **Landscape:** side-by-side full-screen player on phones turned sideways (#442).
+
+**Diagnostics**
+- Every page's lifecycle is logged, along with the app's other open copies, using one page id across client, socket and server logs (#446, #447, #449).
+
+### Changed
+
+- **Lab auto-lock** aims at the middle of the tempo window and no longer swings between tempos (#383, #390, #401).
+- **Playlist rows:** two lines. Long titles scroll once, then hold ~5 s (#450, #454).
+- **Performance:** the app shell, the playlist page and the player modes no longer re-render on every playback tick. Phones mount only the Home they show.
+
+### Fixed
+
+- **Audio:**
+  - a silent output after the page was away is revived on the next play tap (#451);
+  - the output reconnects when it's cut while playing;
+  - a song you paused no longer resumes after you swipe away and back.
+- **Lab:**
+  - the app player and the Lab no longer fight over the audio on iOS (#438, #441);
+  - a lost set can be picked back up, and a live page isn't called dead (#439, #440).
+- **Likes:** the heart now stars songs AI DJ had already thumbed up.
+- **Playlists:** each song keeps its date added across syncs (#429, #452).
+- **Search:** artists, releases and songs are requested straight from Lidarr (#435, #436, #437).
+- **Player:**
+  - beat animations no longer fight;
+  - art swipe skips only on a clear sideways swipe;
+  - swiping a sheet away no longer closes the full-screen player;
+  - every page opens at the top.
+
+### Database
+
+- Migrations `0032_known_transitions` and `0033_known_transitions_preferred` are already applied on prod. Migrations don't run on deploy (#162), so apply them by hand anywhere else.
+
+---
+
 ## [1.6.0-rc.2] — 2026-11-18
 
 > **Release candidate.** Everything merged to `main` since 1.5.0, about 100 PRs. It replaces rc.1, which was never tagged.
