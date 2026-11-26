@@ -18,6 +18,7 @@ import { AppearanceSettings } from './appearance';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
 import { useIsPhone } from '@/components/glass/GlassSheet';
 import { GLASS_SETTINGS_TITLES, GlassSettingsIndex, type GlassSettingsTab } from '@/components/glass/GlassSettings';
+import { SettingsLookProvider } from '@/components/settings/settings-ui';
 
 const _NEW_TABS = ['general', 'security', 'services', 'playback', 'ai-dj', 'cover-art'] as const;
 type ClassicTab = (typeof _NEW_TABS)[number];
@@ -78,7 +79,7 @@ function SettingsPage() {
   }, [loadPreferences]);
 
   if (glass && phone) {
-    return <GlassSettingsPage tab={tab} isAdmin={isAdmin} isLoading={isLoading} error={error} />;
+    return <GlassSettingsPage tab={tab} isAdmin={isAdmin} error={error} />;
   }
 
   const classicTab = tab ? CLASSIC_TAB[tab] : undefined;
@@ -149,7 +150,7 @@ function SettingsPage() {
 }
 
 /** Glass phones: the grouped index (no tab), or one settings page with "‹ Settings". */
-function GlassSettingsPage({ tab, isAdmin, isLoading, error }: { tab?: NewTab; isAdmin: boolean; isLoading: boolean; error: string | null }) {
+function GlassSettingsPage({ tab, isAdmin, error }: { tab?: NewTab; isAdmin: boolean; error: string | null }) {
   const adminOnly = tab === 'services' || tab === 'cover-art';
   const page: GlassSettingsTab | undefined = tab && (!adminOnly || isAdmin) ? tab : undefined;
   const body = (() => {
@@ -177,7 +178,8 @@ function GlassSettingsPage({ tab, isAdmin, isLoading, error }: { tab?: NewTab; i
           <p className="text-destructive">{error}</p>
         </Card>
       )}
-      {isLoading ? <p className="py-8 text-center text-muted-foreground">Loading settings...</p> : body}
+      {/* Preferences are kept on the device, so the page shows them at once while the server copy loads. */}
+      <SettingsLookProvider value="glass">{body}</SettingsLookProvider>
     </PageLayout>
   );
 }

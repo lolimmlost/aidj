@@ -340,6 +340,50 @@ describe('Preferences Store Tests', () => {
     });
   });
 
+  describe('saving (optimistic, honest)', () => {
+    const json = (data: unknown) => ({ ok: true, status: 200, json: async () => ({ data }) });
+    const withVolume = (volume: number) => ({
+      ...mockPreferencesData,
+      playbackSettings: { ...mockPreferencesData.playbackSettings, volume },
+    });
+
+    beforeEach(() => {
+      usePreferencesStore.setState({ preferences: withVolume(0.5) as never, isLoading: false, isSaving: false, error: null });
+    });
+
+    it('applies the change before the server answers, and never touches isLoading', async () => {
+      let resolve!: (v: unknown) => void;
+      mockFetch.mockReturnValueOnce(new Promise((r) => { resolve = r; }));
+      const p = usePreferencesStore.getState().setPlaybackSettings({ volume: 0.9 });
+      expect(usePreferencesStore.getState().preferences.playbackSettings.volume).toBe(0.9);
+      expect(usePreferencesStore.getState().isSaving).toBe(true);
+      expect(usePreferencesStore.getState().isLoading).toBe(false);
+      resolve(json(withVolume(0.9)));
+      await expect(p).resolves.toBe(true);
+      expect(usePreferencesStore.getState().isSaving).toBe(false);
+    });
+
+    it('rolls back and resolves false when the save fails', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
+      await expect(usePreferencesStore.getState().setPlaybackSettings({ volume: 0.9 })).resolves.toBe(false);
+      const s = usePreferencesStore.getState();
+      expect(s.preferences.playbackSettings.volume).toBe(0.5);
+      expect(s.error).toBe('Failed to update preferences');
+      expect(s.isSaving).toBe(false);
+    });
+
+    it('ignores a late reply from an older save', async () => {
+      let first!: (v: unknown) => void;
+      mockFetch.mockReturnValueOnce(new Promise((r) => { first = r; }));
+      mockFetch.mockResolvedValueOnce(json(withVolume(0.8)));
+      const p1 = usePreferencesStore.getState().setPlaybackSettings({ volume: 0.6 });
+      await usePreferencesStore.getState().setPlaybackSettings({ volume: 0.8 });
+      first(json(withVolume(0.6)));
+      await p1;
+      expect(usePreferencesStore.getState().preferences.playbackSettings.volume).toBe(0.8);
+    });
+  });
+
   describe('localStorage persistence', () => {
     it('should persist preferences to localStorage', async () => {
       mockFetch.mockResolvedValueOnce({

@@ -42,7 +42,7 @@ function DJSettingsPage() {
             </Button>
           </Link>
           <span className="text-muted-foreground">•</span>
-          <Link to="/settings">
+          <Link to="/settings" search={{ tab: undefined }}>
             <Button variant="link" size="sm" className="h-auto p-0">
               Main Settings
             </Button>

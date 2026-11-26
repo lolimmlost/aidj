@@ -1,182 +1,84 @@
-import { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
+import { useEffect, useState } from 'react';
 import { Bell } from 'lucide-react';
-import { usePreferencesStore } from '@/lib/stores/preferences';
+import { Button } from '@/components/ui/button';
+import { usePreferencesStore, type NotificationSettings as Notifications } from '@/lib/stores/preferences';
+import { toast } from '@/lib/toast';
+import { SettingsBlock, SettingsSection, SettingsSwitchRow, saveOrWarn } from '@/components/settings/settings-ui';
 
 export function NotificationSettings() {
-  const { preferences, setNotificationSettings, isLoading } = usePreferencesStore();
-  const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [permissionStatus, setPermissionStatus] = useState<'granted' | 'denied' | 'default'>('default');
+  const settings = usePreferencesStore((s) => s.preferences.notificationSettings);
+  const [permission, setPermission] = useState<NotificationPermission>('default');
+  const supported = typeof window !== 'undefined' && 'Notification' in window;
 
-  const [localSettings, setLocalSettings] = useState(preferences.notificationSettings);
-
-  // Check browser notification permission on mount
   useEffect(() => {
-    if ('Notification' in window) {
-      setPermissionStatus(Notification.permission);
-    }
-  }, []);
+    if (supported) setPermission(Notification.permission);
+  }, [supported]);
 
-  const handleBrowserNotificationToggle = async (checked: boolean) => {
-    if (checked && permissionStatus !== 'granted') {
+  const save = (patch: Partial<Notifications>) =>
+    saveOrWarn(usePreferencesStore.getState().setNotificationSettings(patch), 'notification setting');
+
+  const toggleBrowser = async (on: boolean) => {
+    if (on && permission !== 'granted') {
       try {
-        const permission = await Notification.requestPermission();
-        setPermissionStatus(permission);
-
-        if (permission !== 'granted') {
-          setMessage({
-            type: 'error',
-            text: 'Browser notifications permission denied. Please enable in browser settings.',
-          });
+        const result = await Notification.requestPermission();
+        setPermission(result);
+        if (result !== 'granted') {
+          toast.error('Notifications are blocked. Allow them for this site in your browser settings.');
           return;
         }
       } catch {
-        setMessage({
-          type: 'error',
-          text: 'Failed to request notification permission',
-        });
+        toast.error('Couldn’t ask for notification permission');
         return;
       }
     }
-
-    setLocalSettings({ ...localSettings, browserNotifications: checked });
+    await save({ browserNotifications: on });
   };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    setMessage(null);
-
-    try {
-      await setNotificationSettings(localSettings);
-      setMessage({ type: 'success', text: 'Notification settings saved successfully' });
-    } catch {
-      setMessage({ type: 'error', text: 'Failed to save notification settings' });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const isNotificationSupported = typeof window !== 'undefined' && 'Notification' in window;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bell className="h-5 w-5" />
-          Notification Preferences
-        </CardTitle>
-        <CardDescription>Control how and when you receive notifications</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Browser Notifications Warning */}
-        {!isNotificationSupported && (
-          <div className="p-4 rounded-md bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400">
-            Browser notifications are not supported in your browser
-          </div>
-        )}
-
-        {/* Permission Status */}
-        {isNotificationSupported && permissionStatus === 'denied' && (
-          <div className="p-4 rounded-md bg-destructive/10 text-destructive">
-            Notification permissions are blocked. Please enable them in your browser settings to receive notifications.
-          </div>
-        )}
-
-        {/* Browser Notifications Toggle */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="browser-notifications">Browser Notifications</Label>
-            <p className="text-sm text-muted-foreground">
-              Receive desktop notifications for important events
-            </p>
-          </div>
-          <Switch
-            id="browser-notifications"
-            checked={localSettings.browserNotifications}
-            onCheckedChange={handleBrowserNotificationToggle}
-            disabled={!isNotificationSupported}
-          />
-        </div>
-
-        {/* Download Completion Notifications */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="download-completion">Download Completion</Label>
-            <p className="text-sm text-muted-foreground">
-              Notify when song downloads are complete
-            </p>
-          </div>
-          <Switch
-            id="download-completion"
-            checked={localSettings.downloadCompletion}
-            onCheckedChange={(checked) =>
-              setLocalSettings({ ...localSettings, downloadCompletion: checked })
-            }
-          />
-        </div>
-
-        {/* Recommendation Update Notifications */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="recommendation-updates">Recommendation Updates</Label>
-            <p className="text-sm text-muted-foreground">
-              Notify when new recommendations are available
-            </p>
-          </div>
-          <Switch
-            id="recommendation-updates"
-            checked={localSettings.recommendationUpdates}
-            onCheckedChange={(checked) =>
-              setLocalSettings({ ...localSettings, recommendationUpdates: checked })
-            }
-          />
-        </div>
-
-        {/* Test Notification Button */}
-        {localSettings.browserNotifications && permissionStatus === 'granted' && (
-          <div className="pt-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                new Notification('AIDJ Test Notification', {
-                  body: 'This is a test notification from AIDJ',
-                  icon: '/favicon.ico',
-                });
-              }}
-            >
-              Send Test Notification
-            </Button>
-          </div>
-        )}
-
-        {/* Save Button */}
-        <div className="pt-4">
+    <SettingsSection
+      title="Notifications"
+      icon={<Bell />}
+      description="What pings you"
+      footer={
+        !supported
+          ? 'This browser doesn’t support notifications.'
+          : permission === 'denied'
+            ? 'Notifications are blocked for this site. Allow them in your browser settings first.'
+            : undefined
+      }
+    >
+      <SettingsSwitchRow
+        id="browser-notifications"
+        label="Browser notifications"
+        description="Show alerts from AIDJ on this device"
+        checked={settings.browserNotifications}
+        onCheckedChange={toggleBrowser}
+        disabled={!supported}
+      />
+      <SettingsSwitchRow
+        id="download-completion"
+        label="Downloads finished"
+        description="When a song you requested has downloaded"
+        checked={settings.downloadCompletion}
+        onCheckedChange={(v) => save({ downloadCompletion: v })}
+      />
+      <SettingsSwitchRow
+        id="recommendation-updates"
+        label="New recommendations"
+        description="When fresh picks are ready for you"
+        checked={settings.recommendationUpdates}
+        onCheckedChange={(v) => save({ recommendationUpdates: v })}
+      />
+      {settings.browserNotifications && permission === 'granted' && (
+        <SettingsBlock>
           <Button
-            onClick={handleSave}
-            disabled={isSaving || isLoading}
-            className="w-full sm:w-auto"
+            variant="outline"
+            onClick={() => new Notification('AIDJ', { body: 'Notifications are working.', icon: '/favicon.ico' })}
           >
-            {isSaving ? 'Saving...' : 'Save Settings'}
+            Send a test notification
           </Button>
-        </div>
-
-        {/* Message Display */}
-        {message && (
-          <div
-            className={`p-4 rounded-md ${
-              message.type === 'success'
-                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                : 'bg-destructive/10 text-destructive'
-            }`}
-          >
-            {message.text}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+        </SettingsBlock>
+      )}
+    </SettingsSection>
   );
 }

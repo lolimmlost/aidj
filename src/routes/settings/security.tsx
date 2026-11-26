@@ -12,13 +12,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { SettingsBlock, SettingsRow, SettingsSection, SettingsStack } from "@/components/settings/settings-ui";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from '@/lib/toast';
@@ -203,19 +197,9 @@ export function SecuritySettings() {
   );
 
   return (
-    <div className="space-y-8">
-      {/* Password Change */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            Change Password
-          </CardTitle>
-          <CardDescription>
-            Update your account password for better security
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <SettingsStack>
+      <SettingsSection title="Password" icon={<Shield />} description="Change the password you sign in with">
+        <SettingsBlock>
           {passwordSuccess ? (
             <div className="text-center py-8">
               <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
@@ -272,30 +256,19 @@ export function SecuritySettings() {
               </div>
             </form>
           )}
-        </CardContent>
-      </Card>
+        </SettingsBlock>
+      </SettingsSection>
 
       {/* Two-Factor Authentication */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Key className="h-5 w-5" />
-            Two-Factor Authentication
-          </CardTitle>
-          <CardDescription>
-            Add an extra layer of security to your account using an
-            authenticator app
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Status */}
-          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-            <span className="font-medium">Status:</span>
-            <Badge variant={twoFactorEnabled ? "default" : "secondary"}>
-              {twoFactorEnabled ? "On" : "Off"}
-            </Badge>
-          </div>
-
+      <SettingsSection
+        title="Two-factor authentication"
+        icon={<Key />}
+        description="A code from your authenticator app (or email) on top of your password"
+      >
+        <SettingsRow label="Two-factor">
+          <Badge variant={twoFactorEnabled ? "default" : "secondary"}>{twoFactorEnabled ? "On" : "Off"}</Badge>
+        </SettingsRow>
+        <SettingsBlock className="space-y-6">
           {/* Setup: scan + save codes + prove it works */}
           {setup.step === "scan" && (
             <div className="space-y-6 p-4 border rounded-lg">
@@ -417,8 +390,8 @@ export function SecuritySettings() {
               )}
             </div>
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </SettingsBlock>
+      </SettingsSection>
+    </SettingsStack>
   );
 }

@@ -1,123 +1,90 @@
 import { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Github, Loader2, User } from 'lucide-react';
 import { toast } from '@/lib/toast';
 import authClient from '@/lib/auth/auth-client';
+import { useAuthOptions } from '@/lib/auth/use-auth-options';
+import { YouAvatar, initialOf } from '@/components/glass/YouSheet';
+import { SettingsBlock, SettingsRow, SettingsSection, SettingsStack } from '@/components/settings/settings-ui';
 
 export function ProfileSettings() {
   const { data: session } = authClient.useSession();
   const [displayName, setDisplayName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
-    if (session?.user?.name) {
-      setDisplayName(session.user.name);
-    }
-  }, [session]);
-
-  const handleUpdateName = async () => {
-    setIsUpdating(true);
-    setMessage(null);
-
-    try {
-      // This would integrate with Better Auth's update user endpoint
-      // For now, showing the UI pattern
-      setMessage({ type: 'success', text: 'Display name updated successfully' });
-    } catch {
-      setMessage({ type: 'error', text: 'Failed to update display name' });
-    } finally {
-      setIsUpdating(false);
-    }
-  };
+    if (session?.user?.name) setDisplayName(session.user.name);
+  }, [session?.user?.name]);
 
   if (!session) {
     return (
-      <Card className="p-6">
-        <p className="text-muted-foreground">Please log in to view your profile.</p>
-      </Card>
+      <SettingsSection title="Profile">
+        <SettingsBlock>
+          <p className="text-muted-foreground">Sign in to see your profile.</p>
+        </SettingsBlock>
+      </SettingsSection>
     );
   }
 
+  const name = displayName.trim();
+  const unchanged = name === (session.user.name ?? '');
+  const saveName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || unchanged) return;
+    setIsUpdating(true);
+    const { error } = await authClient.updateUser({ name });
+    setIsUpdating(false);
+    if (error) toast.error(error.message || 'Couldn’t update your name');
+    else toast.success('Name updated');
+  };
+
+  const created = session.user.createdAt
+    ? new Date(session.user.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+    : null;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <User className="h-5 w-5" />
-          Profile Information
-        </CardTitle>
-        <CardDescription>Manage your account details and display name</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Email (read-only) */}
-        <div>
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            value={session.user.email}
-            disabled
-            className="mt-2"
-          />
-          <p className="text-sm text-muted-foreground mt-1">
-            Email cannot be changed
-          </p>
-        </div>
-
-        {/* Display Name */}
-        <div>
-          <Label htmlFor="displayName">Display Name</Label>
-          <div className="flex gap-2 mt-2">
-            <Input
-              id="displayName"
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Enter your display name"
-            />
-            <Button
-              onClick={handleUpdateName}
-              disabled={isUpdating || !displayName}
-            >
-              {isUpdating ? 'Updating...' : 'Update'}
-            </Button>
+    <SettingsStack>
+      <SettingsSection title="Account" icon={<User />}>
+        <SettingsBlock>
+          <div className="flex items-center gap-3">
+            <YouAvatar letter={initialOf(session.user)} className="size-12 shrink-0 text-[19px]" />
+            <div className="min-w-0">
+              <p className="truncate text-[17px] font-bold">{session.user.name || 'You'}</p>
+              <p className="truncate text-[13px] text-muted-foreground">{session.user.email}</p>
+            </div>
           </div>
-        </div>
-
-        {/* Account Creation Date */}
-        <div>
-          <Label>Account Created</Label>
-          <p className="text-sm text-muted-foreground mt-2">
-            {session.user.createdAt
-              ? new Date(session.user.createdAt).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })
-              : 'N/A'}
-          </p>
-        </div>
-
-        {/* Message Display */}
-        {message && (
-          <div
-            className={`p-4 rounded-md ${
-              message.type === 'success'
-                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                : 'bg-destructive/10 text-destructive'
-            }`}
-          >
-            {message.text}
-          </div>
+        </SettingsBlock>
+        <SettingsBlock>
+          <form onSubmit={saveName} className="space-y-2">
+            <Label htmlFor="displayName">Display name</Label>
+            <div className="flex gap-2">
+              <Input
+                id="displayName"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Your name"
+                autoComplete="name"
+                maxLength={80}
+              />
+              <Button type="submit" disabled={isUpdating || !name || unchanged}>
+                {isUpdating ? <Loader2 className="size-4 animate-spin" /> : 'Save'}
+              </Button>
+            </div>
+          </form>
+        </SettingsBlock>
+        <SettingsRow label="Email" description="Used to sign in; can’t be changed here">
+          <span className="max-w-[45%] truncate text-sm text-muted-foreground">{session.user.email}</span>
+        </SettingsRow>
+        {created && (
+          <SettingsRow label="Member since">
+            <span className="text-sm text-muted-foreground">{created}</span>
+          </SettingsRow>
         )}
-      </CardContent>
-
-      {/* Connected Accounts */}
+      </SettingsSection>
       <ConnectedAccounts />
-    </Card>
+    </SettingsStack>
   );
 }
 
@@ -193,62 +160,39 @@ function ConnectedAccounts() {
     }
   };
 
+  const options = useAuthOptions();
   const providers = [
     { id: 'github' as const, name: 'GitHub', icon: <Github className="h-5 w-5" /> },
     { id: 'google' as const, name: 'Google', icon: <GoogleIcon className="h-5 w-5" /> },
-  ];
+  ].filter((p) => options[p.id]);
+
+  // No social sign-in configured on this server: nothing to link (and no dead buttons).
+  if (providers.length === 0) return null;
 
   return (
-    <div className="px-6 pb-6 pt-2 border-t">
-      <h3 className="text-lg font-semibold mb-1 mt-4">Connected Accounts</h3>
-      <p className="text-sm text-muted-foreground mb-4">
-        Link your social accounts for easier sign-in
-      </p>
-      <div className="space-y-3">
-        {providers.map(({ id, name, icon }) => {
-          const connected = isConnected(id);
-          const isLoading = connecting === id;
-
-          return (
-            <div
-              key={id}
-              className="flex items-center justify-between p-3 rounded-xl border bg-card"
-            >
-              <div className="flex items-center gap-3">
-                <div className="text-muted-foreground">{icon}</div>
-                <div>
-                  <p className="text-sm font-medium">{name}</p>
-                  {loading ? (
-                    <p className="text-xs text-muted-foreground">Checking...</p>
-                  ) : connected ? (
-                    <p className="text-xs text-green-600 dark:text-green-400">Connected</p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">Not connected</p>
-                  )}
-                </div>
-              </div>
-              {!loading && (
-                <Button
-                  variant={connected ? 'outline' : 'default'}
-                  size="sm"
-                  disabled={isLoading}
-                  onClick={() =>
-                    connected ? handleDisconnect(id) : handleConnect(id)
-                  }
-                >
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : connected ? (
-                    'Disconnect'
-                  ) : (
-                    'Connect'
-                  )}
-                </Button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <SettingsSection title="Sign-in methods" description="Link an account for one-tap sign-in">
+      {providers.map(({ id, name, icon }) => {
+        const connected = isConnected(id);
+        const busy = connecting === id;
+        return (
+          <SettingsRow
+            key={id}
+            label={<span className="flex items-center gap-2 [&_svg]:size-4">{icon}{name}</span>}
+            description={loading ? 'Checking…' : connected ? 'Connected' : 'Not connected'}
+          >
+            {!loading && (
+              <Button
+                variant={connected ? 'outline' : 'default'}
+                size="sm"
+                disabled={busy}
+                onClick={() => (connected ? handleDisconnect(id) : handleConnect(id))}
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : connected ? 'Disconnect' : 'Connect'}
+              </Button>
+            )}
+          </SettingsRow>
+        );
+      })}
+    </SettingsSection>
   );
 }
