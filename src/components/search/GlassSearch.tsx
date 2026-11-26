@@ -22,7 +22,7 @@ import type { RecentEntry } from '@/lib/utils/recent-searches';
 
 export type GlassArtist = { id: string; name: string; albumCount?: number; songCount?: number };
 
-const fmt = (sec: number) => `${Math.floor(sec / 60)}:${Math.floor(sec % 60).toString().padStart(2, '0')}`;
+export const fmt = (sec: number) => `${Math.floor(sec / 60)}:${Math.floor(sec % 60).toString().padStart(2, '0')}`;
 
 function Cover({ albumId, size = 48, className }: { albumId?: string; size?: number; className?: string }) {
   const url = albumId ? getCoverArtUrl(albumId, size * 2) : null;
@@ -33,7 +33,7 @@ function Cover({ albumId, size = 48, className }: { albumId?: string; size?: num
   );
 }
 
-function Avatar({ artist, image, size }: { artist: GlassArtist; image?: string; size: number }) {
+export function Avatar({ artist, image, size }: { artist: GlassArtist; image?: string; size: number }) {
   return (
     <span className="block shrink-0 overflow-hidden rounded-full bg-muted" style={{ width: size, height: size }}>
       <LazyArtistAvatar artistId={artist.id} name={artist.name} savedImageUrl={image} />
@@ -54,18 +54,22 @@ const rowClass =
   'flex min-h-[60px] w-full items-center gap-3 rounded-xl py-1.5 text-left transition-colors active:bg-foreground/5 [-webkit-tap-highlight-color:transparent]';
 
 export function GlassSongRow({
-  song, playing, onPlay, onMore,
-}: { song: Song; playing: boolean; onPlay: () => void; onMore: () => void }) {
+  song, playing, onPlay, onMore, sub, cover = true,
+}: { song: Song; playing: boolean; onPlay: () => void; onMore: () => void; /** replaces "Song · artist · 3:41" */ sub?: ReactNode; /** album pages: no cover per row */ cover?: boolean }) {
   const title = song.title || song.name || 'Unknown song';
   return (
     <div className="flex items-center gap-1">
       <button type="button" onClick={onPlay} className={cn(rowClass, 'min-w-0 flex-1')} aria-label={`Play ${title} by ${song.artist}`}>
-        <Cover albumId={song.albumId} className="rounded-md" />
+        {cover && <Cover albumId={song.albumId} className="rounded-md" />}
         <span className="min-w-0 flex-1">
           <span className={cn('block truncate text-[15px] font-semibold', playing && 'text-primary')}>{title}</span>
           <span className="block truncate text-[13px] text-muted-foreground">
-            Song · {song.artist || 'Unknown artist'}
-            {song.duration ? ` · ${fmt(song.duration)}` : ''}
+            {sub ?? (
+              <>
+                Song · {song.artist || 'Unknown artist'}
+                {song.duration ? ` · ${fmt(song.duration)}` : ''}
+              </>
+            )}
           </span>
         </span>
       </button>
@@ -155,7 +159,7 @@ export function GlassArtistStrip({
   );
 }
 
-export type GlassAlbum = { id: string; name: string; artist: string; artistId?: string };
+export type GlassAlbum = { id: string; name: string; artist: string; artistId?: string; /** second caption line; default: the album artist */ sub?: string };
 
 /** Albums as square tiles matching the artist strip: a sideways strip (All) or a 2-up grid (Albums tab). */
 export function GlassAlbums({
@@ -171,7 +175,7 @@ export function GlassAlbums({
         ) : (
           <Cover albumId={a.id} size={TILE} className="rounded-xl" />
         )}
-        {tileCaption(a.name, a.artist)}
+        {tileCaption(a.name, a.sub ?? a.artist)}
       </>
     );
     const cls = cn('flex flex-col gap-2 [-webkit-tap-highlight-color:transparent]', !grid && 'shrink-0');

@@ -23,13 +23,17 @@ import { cn } from "@/lib/utils"
  *
  * See also: src/styles.css has a matching CSS rule as a fallback.
  */
-const ScrollArea = ({ ref, className, children, ...props }: React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> & { ref?: React.RefObject<React.ElementRef<typeof ScrollAreaPrimitive.Root> | null> }) => (
+const ScrollArea = ({ ref, className, children, viewportProps, ...props }: React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> & {
+  ref?: React.RefObject<React.ElementRef<typeof ScrollAreaPrimitive.Root> | null>
+  /** extra attributes for the scrolling element (e.g. data-scroll-restoration-id) */
+  viewportProps?: Record<`data-${string}`, string>
+}) => (
   <ScrollAreaPrimitive.Root
     ref={ref}
     className={cn("relative overflow-hidden", className)}
     {...props}
   >
-    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit] [&>div]:!block">
+    <ScrollAreaPrimitive.Viewport {...viewportProps} className="h-full w-full rounded-[inherit] [&>div]:!block">
       {children}
     </ScrollAreaPrimitive.Viewport>
     <ScrollBar />

@@ -280,7 +280,8 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* Center - Main Content */}
         <main className="flex-1 overflow-hidden [view-transition-name:app-main]">
-          <ScrollArea className="h-full">
+          {/* the page scroller: the router resets it to the top on each new page and restores it on back/forward */}
+          <ScrollArea className="h-full" viewportProps={{ 'data-scroll-restoration-id': 'app-main' }}>
             <div className="min-h-full pb-6">
               {children}
             </div>

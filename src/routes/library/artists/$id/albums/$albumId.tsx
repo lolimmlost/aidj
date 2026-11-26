@@ -19,6 +19,11 @@ import { toast } from '@/lib/toast';
 import { StartRadioButton } from '@/components/radio/StartRadioButton';
 import { AddToPlaylistButton } from '@/components/playlists/AddToPlaylistButton';
 import { usePageTitle } from '@/lib/hooks/useDocumentTitle';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { GlassBackdrop } from '@/components/glass/GlassBackdrop';
+import { GlassAlbumPage } from '@/components/library/GlassAlbumPage';
+import { Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export const Route = createFileRoute('/library/artists/$id/albums/$albumId')({
   beforeLoad: async ({ context, location }) => {
@@ -38,6 +43,19 @@ function AlbumDetail() {
   const [hoveredTrack, setHoveredTrack] = useState<string | null>(null);
 
   const coverUrl = `/api/navidrome/rest/getCoverArt?id=${albumId}&size=600`;
+  // Glass UI (phones): GlassAlbumPage, A/B for a live comparison
+  const glass = useGlassUi();
+  const { data: savedArtistImages = {} } = useQuery({
+    queryKey: ['all-artist-images'],
+    queryFn: async () => {
+      const res = await fetch('/api/cover-art/all-artist-images');
+      if (!res.ok) return {};
+      const json = await res.json();
+      return (json.data?.images || {}) as Record<string, string>;
+    },
+    staleTime: 10 * 60 * 1000,
+    enabled: glass,
+  });
 
   const {
     data: album,
@@ -172,8 +190,31 @@ function AlbumDetail() {
     );
   }
 
+  const genreNames = (album?.genres ?? []).map((g) => (typeof g === 'string' ? g : (g as { name: string }).name)).filter(Boolean);
+
   return (
-    <div className="min-h-screen bg-background pb-24 md:pb-20">
+    <>
+    {glass && (
+      <div className="glass-page glass-home relative min-h-screen px-4 pb-28 pt-[calc(env(safe-area-inset-top)+3.5rem)] md:hidden">
+        <GlassBackdrop className="md:hidden" />
+        {isLoading ? (
+          <div className="flex justify-center py-24"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
+        ) : (
+          <GlassAlbumPage
+            albumId={albumId}
+            artistId={artistId}
+            name={albumName}
+            artistName={artistName}
+            year={album?.year}
+            genres={genreNames}
+            songs={sortedSongs}
+            coverUrl={coverUrl}
+            artistImage={savedArtistImages[artistName.toLowerCase()]}
+          />
+        )}
+      </div>
+    )}
+    <div className={cn("min-h-screen bg-background pb-24 md:pb-20", glass && "max-md:hidden")}>
       {/* Ambient backdrop from album art */}
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         {!coverError && (
@@ -429,5 +470,6 @@ function AlbumDetail() {
         )}
       </div>
     </div>
+    </>
   );
 }
