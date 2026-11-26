@@ -172,7 +172,7 @@ export function GlassAlbumPage({ albumId, artistId, name, artistName, year, genr
       </div>
 
       {/* full-width square reserve; the sticky cover inside shrinks to COVER_MIN */}
-      <div ref={reserveRef} className="relative -mx-4 aspect-square">
+      <div ref={reserveRef} className="relative -mx-4 aspect-square md:mx-auto md:max-w-[420px]">
         <div ref={stickyRef} className="sticky top-[calc(env(safe-area-inset-top)+var(--top-bar))] flex justify-center">
           <img ref={coverRef} src={coverUrl} alt={`${name} cover`} className="aspect-square w-full bg-muted object-cover shadow-[0_24px_50px_rgb(0_0_0/0.45)] will-change-[width,height]" />
         </div>

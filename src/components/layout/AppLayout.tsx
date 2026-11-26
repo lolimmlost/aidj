@@ -47,6 +47,7 @@ import { useDeferredRender } from '@/lib/utils/lazy-components';
 import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar';
 import { useDebugTapToggle } from '@/lib/hooks/useDebugTapToggle';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { GlassBackdropWide } from '@/components/glass/GlassBackdrop';
 
 // Helper to get cover art URL from Navidrome
 const getCoverArtUrl = (albumId: string | undefined, size: number = 300) => {
@@ -276,7 +277,9 @@ export function AppLayout({ children }: AppLayoutProps) {
   }, []);
 
   return (
-    <div className="h-[100dvh] flex flex-col overflow-hidden bg-background">
+    <div className={cn("h-[100dvh] flex flex-col overflow-hidden bg-background", glass && "relative isolate")}>
+      {/* Glass design, iPad and up: one cover-tinted glow behind everything (isolate keeps it above the page background) */}
+      {glass && <GlassBackdropWide />}
       {/* Mobile Navigation - Only visible below md breakpoint */}
       <MobileNav />
 
@@ -289,7 +292,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         // the mini player's measured height (--mini-player-h, below): it
         // grows with the glass card's progress row, so a fixed pb cut the
         // last rows off under it
-        showPlayer && "pb-[var(--mini-player-h,7rem)] md:pb-20",
+        showPlayer && (glass ? "pb-[var(--mini-player-h,7rem)] md:pb-[6.5rem]" : "pb-[var(--mini-player-h,7rem)] md:pb-20"),
         showPlayerPill && "pb-14"
       )}>
         {/* Left Sidebar - Navigation & Playlists */}
@@ -318,8 +321,11 @@ export function AppLayout({ children }: AppLayoutProps) {
          Unmounting destroys <audio> elements and kills playback. Hide visually instead. */}
       <div ref={measureMiniPlayer} className={cn(
         "fixed bottom-[var(--mobile-tabbar-offset,0px)] md:bottom-0 left-0 right-0 z-50",
-        // glass UI: the mobile bar is a floating frosted card, so no strip behind it
-        glass ? "md:border-t md:bg-background/95 md:backdrop-blur-xl" : "border-t bg-background/95 backdrop-blur-xl",
+        // glass UI: the mobile bar is a floating frosted card, so no strip behind it; on wider
+        // screens the whole bar floats as a glass card above the window edge
+        glass
+          ? "player-dock-glass md:bottom-3 md:left-3 md:right-3 md:overflow-hidden md:rounded-[26px]"
+          : "border-t bg-background/95 backdrop-blur-xl",
         // Own view-transition layer so page snapshots don't paint over the bar.
         // A view-transition-name also makes the element a backdrop root, which
         // would stop the glass card inside from blurring the page behind it, so
@@ -358,6 +364,7 @@ export function AppLayout({ children }: AppLayoutProps) {
  * Contains: Logo, Navigation, Your Music section, Playlists
  */
 function LeftSidebar() {
+  const glass = useGlassUi();
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const navigate = useNavigate();
@@ -442,7 +449,9 @@ function LeftSidebar() {
       // relative z-[1]: <main> is named for view transitions, which makes it a
       // stacking context, so a page's fixed backdrop (album/search) would
       // paint over this translucent sidebar. Keep the sidebars above it.
-      "relative z-[1] hidden md:flex flex-col border-r bg-card/30 flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out",
+      "relative z-[1] hidden md:flex flex-col flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out",
+      // glass design: a floating frosted panel instead of a ruled column
+      glass ? "glass-surface my-3 ml-3 rounded-[26px]" : "border-r bg-card/30",
       isCollapsed ? "w-14" : "w-56"
     )}>
       {/* Logo + Collapse Toggle */}
@@ -769,6 +778,7 @@ function LeftSidebar() {
  * Non-critical sidebar data is fetched after the main content renders.
  */
 function RightSidebar() {
+  const glass = useGlassUi();
   const playlist = useAudioStore((s) => s.playlist);
   const currentSongIndex = useAudioStore((s) => s.currentSongIndex);
   const currentSong = playlist[currentSongIndex];
@@ -845,7 +855,7 @@ function RightSidebar() {
   ];
 
   return (
-    <aside className="relative z-[1] hidden xl:flex flex-col w-72 border-l bg-card/30 flex-shrink-0">
+    <aside className={cn("relative z-[1] hidden xl:flex flex-col w-72 flex-shrink-0", glass ? "glass-surface my-3 mr-3 overflow-hidden rounded-[26px]" : "border-l bg-card/30")}>
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-5">
           {/* Now Playing - Large Album Art at Top */}

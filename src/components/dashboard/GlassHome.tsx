@@ -171,9 +171,9 @@ export function GlassHome() {
 
   return (
     <div className="glass-home relative min-h-[100dvh]">
-      <GlassBackdrop />
+      <GlassBackdrop className="md:hidden" />
 
-      <div className="relative px-[18px] pt-[calc(env(safe-area-inset-top)+var(--top-bar)+0.75rem)] pb-6">
+      <div className="relative mx-auto w-full max-w-6xl px-[18px] pt-[calc(env(safe-area-inset-top)+var(--top-bar)+0.75rem)] pb-6 md:px-8 md:pt-8">
         <header className="flex items-end justify-between pb-3">
           <div className="flex flex-col gap-1">
             {stats && (
@@ -181,7 +181,7 @@ export function GlassHome() {
                 {day} · {stats.current.totalPlays} PLAYS THIS WEEK
               </span>
             )}
-            <h1 className="font-display text-[26px] font-extrabold leading-8 tracking-[-0.03em]">Home</h1>
+            <h1 className="font-display text-[26px] font-extrabold leading-8 tracking-[-0.03em] md:text-[34px] md:leading-10">Home</h1>
           </div>
           <Link to="/library/search" aria-label="Search" className="glass-surface grid size-11 place-items-center rounded-full text-foreground">
             <Search className="size-[18px]" aria-hidden />
@@ -206,7 +206,7 @@ export function GlassHome() {
         </div>
 
         {filter === 'all' && tiles.length > 0 && (
-          <section aria-label="Jump back in" className="mb-5 grid grid-cols-2 gap-2">
+          <section aria-label="Jump back in" className="mb-5 grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-2.5">
             {tiles.map((p) => (
               <Link
                 key={p.id}
@@ -223,7 +223,7 @@ export function GlassHome() {
 
         <section aria-labelledby="glass-home-list">
           <h2 id="glass-home-list" className="mb-1 font-display text-[17px] font-bold tracking-[-0.01em]">{listTitle}</h2>
-          <ul className="flex flex-col">
+          <ul className="flex flex-col md:grid md:grid-cols-2 md:gap-x-6">
             {showMix && mix && (
               <li>
                 <button

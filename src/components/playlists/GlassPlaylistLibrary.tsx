@@ -353,9 +353,9 @@ export function GlassPlaylistLibrary() {
     busy === key ? <Loader2 className="size-5 animate-spin" /> : <Icon className="size-5" />;
 
   return (
-    <div className="glass-page glass-home relative min-h-screen bg-background pb-28">
-      <GlassBackdrop />
-      <div className="relative px-4 pt-[calc(env(safe-area-inset-top)+var(--top-bar)+0.5rem)]">
+    <div className="glass-page glass-home relative min-h-screen bg-background md:bg-transparent pb-28">
+      <GlassBackdrop className="md:hidden" />
+      <div className="relative mx-auto w-full max-w-3xl px-4 pt-[calc(env(safe-area-inset-top)+var(--top-bar)+0.5rem)] md:px-8 md:pt-8">
         <div className="flex items-center justify-between gap-3">
           <h1 className="font-display text-[26px] font-extrabold leading-8 tracking-[-0.03em]">Playlists</h1>
           <div className="flex items-center gap-2">

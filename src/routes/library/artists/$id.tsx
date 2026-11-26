@@ -330,7 +330,7 @@ function ArtistDetail() {
   return (
     <>
     {glass && (
-      <div className="glass-page glass-home relative min-h-screen px-4 pb-28 pt-[calc(env(safe-area-inset-top)+var(--top-bar))] md:hidden">
+      <div className="glass-page glass-home relative min-h-screen px-4 pb-28 pt-[calc(env(safe-area-inset-top)+var(--top-bar))] md:mx-auto md:max-w-3xl md:px-8 md:pt-8">
         <GlassBackdrop className="md:hidden" />
         {artist ? (
           <GlassArtistPage
@@ -347,7 +347,7 @@ function ArtistDetail() {
         )}
       </div>
     )}
-    <div className={cn("relative", glass && "max-md:hidden")}>
+    <div className={cn("relative", glass && "hidden")}>
       {/* ─── Hero ─── */}
       {/* mt-12 on mobile clears the fixed top bar (h-12); md: no top bar */}
       <div className="relative h-[28vh] sm:h-[32vh] md:h-[38vh] mt-12 md:mt-0 overflow-hidden">

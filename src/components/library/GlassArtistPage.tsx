@@ -145,9 +145,9 @@ export function GlassArtistPage({ artistId, name, albums, songs, metadata, image
   const shownSongs = allSongs ? byPlays : byPlays.slice(0, SONGS_SHOWN);
   const shownReleases = allReleases ? filtered : filtered.slice(0, TILES_SHOWN);
   return (
-    <div className="glass-home relative -mt-12 pb-6">
-      {/* photo hero, full bleed under the top bar */}
-      <div className="relative -mx-4 h-[330px] overflow-hidden bg-muted">
+    <div className="glass-home relative -mt-12 pb-6 md:mt-0">
+      {/* photo hero: full bleed under the top bar on phones, a rounded card on wider screens */}
+      <div className="relative -mx-4 h-[330px] overflow-hidden bg-muted md:mx-0 md:h-[360px] md:rounded-[28px]">
         {imageUrl ? <img src={imageUrl} alt="" className="absolute inset-0 size-full object-cover" /> : <span className="absolute inset-0 bg-gradient-to-br from-primary/50 to-background" />}
         <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,transparent_35%,color-mix(in_oklch,var(--background)_55%,transparent)_70%,var(--background)_100%)]" />
         <div className="absolute inset-x-4 bottom-3.5">

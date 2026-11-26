@@ -1328,15 +1328,14 @@ html[data-low-motion] .np-lyric-in {
   pointer-events: none;
 }
 
-/* The mobile top bar's height. Glass phones have no top bar (the menu is the You tab, back is in the
-   page), so pages and sticky bars there sit just under the status bar. */
+/* The mobile top bar's height. The glass design has no top bar at any size (phones: the menu is the
+   You tab and back is in the page; wider screens: the sidebar), so pages and sticky bars sit just
+   under the status bar / window edge. */
 :root {
   --top-bar: 3rem;
 }
-@media (max-width: 767px) {
-  html[data-glass-ui] {
-    --top-bar: 0.5rem;
-  }
+html[data-glass-ui] {
+  --top-bar: 0.5rem;
 }
 
 /* Settings redraw (canvas "Settings redraw"): iOS-size switches and chunky sliders on glass. */
@@ -1377,4 +1376,21 @@ html[data-low-motion] .np-lyric-in {
   border: 0;
   background: white;
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.4);
+}
+
+/* Glass design, iPad and up: the player bar floats as a frosted card (phones keep the mini player's
+   own card, so the dock stays bare there). */
+@media (min-width: 768px) {
+  .player-dock-glass {
+    background: color-mix(in oklch, var(--background) 55%, transparent);
+    border: 1px solid color-mix(in oklch, var(--foreground) 9%, transparent);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+    backdrop-filter: blur(22px) saturate(150%);
+    box-shadow: 0 18px 50px rgb(20 22 40 / 0.14);
+  }
+  .dark .player-dock-glass {
+    background: color-mix(in oklch, white 6%, transparent);
+    border-color: color-mix(in oklch, white 10%, transparent);
+    box-shadow: 0 18px 50px rgb(0 0 0 / 0.45);
+  }
 }

@@ -22,7 +22,6 @@ import { RecentlyAddedSection } from '@/components/dashboard/RecentlyAddedSectio
 import { FeaturedMixCard } from '@/components/dashboard/FeaturedMixCard';
 import { GlassHome } from '@/components/dashboard/GlassHome';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
-import { useIsPhone } from '@/components/glass/GlassSheet';
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context, location }) => {
@@ -40,11 +39,9 @@ function DashboardIndex() {
   const { onboardingCompleted, onboardingSkipped, dataMaturity, isLoading: onboardingLoading } = useOnboardingStatus();
   const [radioLoading, setRadioLoading] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
-  // Glass UI prototype: phones get the new Home; desktop keeps this layout. Only one is mounted, so a
-  // phone doesn't fetch everything the hidden desktop dashboard would show.
-  const glass = useGlassUi();
-  const phone = useIsPhone();
-  const glassHome = glass && phone;
+  // Glass design: the glass Home at every size (it widens on iPad and desktop). Only one Home is
+  // mounted, so glass doesn't fetch everything the classic dashboard would show.
+  const glassHome = useGlassUi();
 
   // Determine dashboard tier
   const historyCount = dataMaturity?.listeningHistoryCount ?? 0;
