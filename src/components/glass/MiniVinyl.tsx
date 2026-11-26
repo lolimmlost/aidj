@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { memo, useState, type CSSProperties } from 'react';
 import { AlbumArt, getCoverArtUrl } from '@/components/ui/album-art';
 import { useBeat } from '@/components/glass/beat-sync';
 import { useLowMotion } from '@/lib/hooks/useLowMotion';
@@ -16,7 +16,7 @@ interface Props {
  * player's sidechain pump, a touch deeper so it reads at 56 px). Low motion, or no cover, falls back
  * to the plain square AlbumArt.
  */
-export function MiniVinyl({ songId, albumId, artist, bpm, playing }: Props) {
+function MiniVinylImpl({ songId, albumId, artist, bpm, playing }: Props) {
   const lowMotion = useLowMotion();
   const [failed, setFailed] = useState<string | null>(null);
   const cover = albumId ? getCoverArtUrl(albumId, 112) : null;
@@ -38,3 +38,6 @@ export function MiniVinyl({ songId, albumId, artist, bpm, playing }: Props) {
     </div>
   );
 }
+
+/** Memoized: the player bar re-renders on every playback tick, this only when its props change. */
+export const MiniVinyl = memo(MiniVinylImpl);

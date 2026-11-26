@@ -6,7 +6,7 @@
  * those. analyserNode is threaded down from PlayerBar through the
  * chassis.
  */
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { memo, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Settings, Type, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -68,7 +68,7 @@ interface VisualizerModeProps {
   glass?: boolean;
 }
 
-export function VisualizerMode({ analyserNode, expanded = false, glass = false }: VisualizerModeProps) {
+function VisualizerModeImpl({ analyserNode, expanded = false, glass = false }: VisualizerModeProps) {
   const phone = useIsPhone();
   const sheetMode = glass && phone;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -741,3 +741,6 @@ export function VisualizerMode({ analyserNode, expanded = false, glass = false }
     </div>
   );
 }
+
+/** Memoized: the player bar re-renders on every playback tick, this only when its props change. */
+export const VisualizerMode = memo(VisualizerModeImpl);

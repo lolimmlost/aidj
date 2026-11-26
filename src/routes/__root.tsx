@@ -145,8 +145,9 @@ export const Route = createRootRouteWithContext<{
 });
 
 function RootComponent() {
-  const { isPlaying, playlist, currentSongIndex } = useAudioStore();
-  const hasActiveSong = playlist.length > 0 && currentSongIndex >= 0;
+  // narrow selectors: the root re-rendering on every playback tick re-rendered the whole page under it
+  const hasActiveSong = useAudioStore((s) => s.playlist.length > 0 && s.currentSongIndex >= 0);
+  const isPlaying = useAudioStore((s) => s.isPlaying);
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
 

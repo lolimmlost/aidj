@@ -3,7 +3,7 @@
  * skip prev/next. This is the only mode in PR A; lyrics / visualizer /
  * queue plug in via the same shape in subsequent PRs.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { getCoverArtUrl } from '@/components/ui/album-art';
 import { LikeHeart } from '@/components/player/LikeHeart';
@@ -35,7 +35,7 @@ const SKIP_PX = 90;
 const FLICK_PX = 45;
 const FLICK_SPEED = 0.5;
 
-export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: ArtModeProps) {
+function ArtModeImpl({ song, onPrevious, onNext, expanded, onDoubleTap }: ArtModeProps) {
   const [imgError, setImgError] = useState(false);
 
   const artSwipeRef = useRef<{ x: number; y: number; time: number; axis: 'x' | 'y' | null } | null>(null);
@@ -265,3 +265,6 @@ export function ArtMode({ song, onPrevious, onNext, expanded, onDoubleTap }: Art
     </div>
   );
 }
+
+/** Memoized: the player bar re-renders on every playback tick, this only when its props change. */
+export const ArtMode = memo(ArtModeImpl);

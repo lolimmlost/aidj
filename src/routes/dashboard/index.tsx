@@ -22,7 +22,7 @@ import { RecentlyAddedSection } from '@/components/dashboard/RecentlyAddedSectio
 import { FeaturedMixCard } from '@/components/dashboard/FeaturedMixCard';
 import { GlassHome } from '@/components/dashboard/GlassHome';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
-import { cn } from '@/lib/utils';
+import { useIsPhone } from '@/components/glass/GlassSheet';
 
 export const Route = createFileRoute("/dashboard/")({
   beforeLoad: async ({ context, location }) => {
@@ -40,8 +40,11 @@ function DashboardIndex() {
   const { onboardingCompleted, onboardingSkipped, dataMaturity, isLoading: onboardingLoading } = useOnboardingStatus();
   const [radioLoading, setRadioLoading] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
-  // Glass UI prototype: phones get the new Home; desktop keeps this layout.
+  // Glass UI prototype: phones get the new Home; desktop keeps this layout. Only one is mounted, so a
+  // phone doesn't fetch everything the hidden desktop dashboard would show.
   const glass = useGlassUi();
+  const phone = useIsPhone();
+  const glassHome = glass && phone;
 
   // Determine dashboard tier
   const historyCount = dataMaturity?.listeningHistoryCount ?? 0;
@@ -171,15 +174,8 @@ function DashboardIndex() {
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-20 overflow-x-hidden">
-      {glass && (
-        <div className="md:hidden">
-          <GlassHome />
-        </div>
-      )}
-      <div className={cn(
-        "mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 pt-[calc(env(safe-area-inset-top)+var(--top-bar)+0.5rem)] md:pt-[env(safe-area-inset-top)] space-y-4 sm:space-y-6 lg:space-y-8",
-        glass && "hidden md:block",
-      )}>
+      {glassHome ? <GlassHome /> : (
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 pt-[calc(env(safe-area-inset-top)+var(--top-bar)+0.5rem)] md:pt-[env(safe-area-inset-top)] space-y-4 sm:space-y-6 lg:space-y-8">
         {/* Hero Section */}
         <DashboardHero
           userName={session?.user?.name}
@@ -295,6 +291,7 @@ function DashboardIndex() {
           <DiscoveryQueueSection />
         )}
       </div>
+      )}
     </div>
   );
 }
