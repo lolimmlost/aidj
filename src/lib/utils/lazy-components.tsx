@@ -7,7 +7,7 @@
  * - Preloading capabilities for improved UX
  */
 
-import React, { Suspense, lazy, useEffect, useState, type ComponentType, type ReactNode } from 'react';
+import { Suspense, lazy, useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 /**
