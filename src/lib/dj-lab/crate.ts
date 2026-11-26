@@ -282,12 +282,106 @@ async function cachePut(id: string, entry: CacheEntry): Promise<void> {
   }
 }
 
+/*
+ * Server copy of the grids (/api/dj/grids): every analysis goes up so another device's Lab skips the
+ * decode, and the player's queue can find a song's downbeat without touching the audio.
+ */
+const GRIDS = '/api/dj/grids';
+const GRIDS_SYNCED = `aidj:dj-lab:grids-synced-v${ANALYSIS_VERSION}`;
+type GridUpload = { id: string; version: number; hint?: number; analysis: TrackAnalysis };
+let pendingGrids: GridUpload[] = [];
+let gridTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function postGrids(entries: GridUpload[]): Promise<boolean> {
+  try {
+    const res = await fetch(GRIDS, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entries }) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function uploadGrid(id: string, entry: CacheEntry) {
+  const { meter: _meter, ...analysis } = entry.analysis;
+  pendingGrids.push({ id, version: ANALYSIS_VERSION, hint: entry.hint, analysis });
+  // a crate scan analyses many songs in a row: send them together a few seconds after the last
+  if (gridTimer) clearTimeout(gridTimer);
+  gridTimer = setTimeout(() => {
+    gridTimer = null;
+    const all = pendingGrids;
+    pendingGrids = [];
+    void (async () => {
+      for (let i = 0; i < all.length; i += 50) await postGrids(all.slice(i, i + 50));
+    })();
+  }, 3000);
+}
+
+async function fetchServerGrid(id: string): Promise<CacheEntry | undefined> {
+  try {
+    const res = await fetch(`${GRIDS}?id=${encodeURIComponent(id)}`, { credentials: 'include' });
+    if (!res.ok) return undefined;
+    const d = (await res.json()).data as GridUpload | null;
+    return d && d.version === ANALYSIS_VERSION && d.analysis ? { analysis: d.analysis, hint: d.hint } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Once per device and analysis version: copy every analysis this browser already has to the server. */
+export async function syncGridsToServer(): Promise<void> {
+  try {
+    if (localStorage.getItem(GRIDS_SYNCED)) return;
+  } catch {
+    return;
+  }
+  const db = await openDb();
+  if (!db) return;
+  const suffix = `:v${ANALYSIS_VERSION}`;
+  const all = await new Promise<GridUpload[]>((resolve) => {
+    const out: GridUpload[] = [];
+    try {
+      const req = db.transaction('analysis').objectStore('analysis').openCursor();
+      req.onsuccess = () => {
+        const c = req.result;
+        if (!c) return resolve(out);
+        const key = String(c.key);
+        const v = c.value as CacheEntry | undefined;
+        if (key.endsWith(suffix) && v?.analysis) {
+          const { meter: _meter, ...analysis } = v.analysis;
+          out.push({ id: key.slice(0, -suffix.length), version: ANALYSIS_VERSION, hint: v.hint, analysis });
+        }
+        c.continue();
+      };
+      req.onerror = () => resolve(out);
+    } catch {
+      resolve(out);
+    }
+  });
+  for (let i = 0; i < all.length; i += 50) {
+    if (!(await postGrids(all.slice(i, i + 50)))) return; // try again next visit
+  }
+  labLog('grids synced', { count: all.length });
+  try {
+    localStorage.setItem(GRIDS_SYNCED, new Date().toISOString());
+  } catch {
+    // fine
+  }
+}
+
 /** A cached analysis is reused unless the tempo hint moved far enough to change the octave pick. */
 const hintCompatible = (a?: number, b?: number) => !a || !b || Math.abs(Math.log2(a / b)) < 0.2;
 
 export async function getCachedAnalysis(id: string, hint?: number): Promise<TrackAnalysis | null> {
   const hit = await cacheGet(id);
   if (hit && hintCompatible(hit.hint, hint)) return hit.analysis;
+  // another device analysed it: take the server's copy (and keep it here)
+  if (!hit) {
+    const server = await fetchServerGrid(id);
+    if (server && hintCompatible(server.hint, hint)) {
+      void cachePut(id, server);
+      return server.analysis;
+    }
+  }
   // v1 read some half-time tracks at 2/3 or 1/2 tempo; keep only its readings that can't be that
   const old = await cacheGet(id, 1);
   return old && old.analysis.bpm >= V1_TRUSTED_BPM && hintCompatible(old.hint, hint) ? old.analysis : null;
@@ -312,6 +406,7 @@ export async function analyseSong(song: LabSong, hint: number | undefined, buf?:
     await new Promise((r) => setTimeout(r, 0));
     const analysis = analyseTrack(mono, sr, { bpmHint: hint ?? song.bpm });
     void cachePut(song.id, { analysis, hint: hint ?? song.bpm });
+    uploadGrid(song.id, { analysis, hint: hint ?? song.bpm });
     labLog('analysed', { song: label, from, fileMB, fetchMs: Math.round(t1 - t0), decodeMs: Math.round(t2 - t1), bpm: analysis.bpm });
     return analysis;
   } catch (e) {

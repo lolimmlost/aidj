@@ -358,6 +358,7 @@ export function QueuePanel() {
   const phone = usePhoneWidth();
   const toggleQueuePanel = useAudioStore(s => s.toggleQueuePanel);
   const isRadioSession = useAudioStore(s => s.isRadioSession);
+  const userQueuedSongIds = useAudioStore(s => s.userQueuedSongIds);
   const saveRadioAsPlaylist = useAudioStore(s => s.saveRadioAsPlaylist);
   const radioDiscoveryArtists = useAudioStore(s => s.radioDiscoveryArtists);
   const isOpen = queuePanelOpen;
@@ -659,6 +660,8 @@ export function QueuePanel() {
           onRemove={removeFromQueue}
           aiIds={aiQueuedSongIds}
           autoplayIds={autoplayQueuedSongIds}
+          userIds={userQueuedSongIds}
+          radio={isRadioSession}
           reasons={aiDJRecommendationReasons}
           getFeedback={getFeedbackForSong}
           onFeedback={handleAutoQueueFeedback}

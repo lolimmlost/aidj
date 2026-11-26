@@ -20,6 +20,16 @@ export interface RadioDiscoveryArtist {
   matchScore: number;
 }
 
+/** How you added a song yourself (the queue shows it next to AI DJ / Autoplay picks). */
+export type UserQueued = 'next' | 'end' | 'now';
+
+/** Tag songs as added by you, without dropping earlier tags. */
+const tagUser = (prev: Record<string, UserQueued>, songs: Song[], how: UserQueued) => {
+  const next = { ...prev };
+  for (const s of songs) next[s.id] = how;
+  return next;
+};
+
 const RADIO_RESET = {
   isRadioSession: false,
   radioSeed: null as SeededRadioSeed | null,
@@ -102,6 +112,8 @@ interface AudioState {
   autoplayTransitionActive: boolean;
   autoplayLastQueueTime: number;
   autoplayQueuedSongIds: Set<string>;
+  /** Songs you added yourself this session: Play next, Add to queue, or Play now. Transient. */
+  userQueuedSongIds: Record<string, UserQueued>;
   // WiFi reconnect recovery state
   wasPlayingBeforeUnload: boolean; // Persisted - captures playback intent before page unload
   pendingPlaybackResume: boolean; // Transient - signals that playback should resume after rehydration
@@ -262,6 +274,7 @@ export const useAudioStore = create<AudioState>()(
     autoplayTransitionActive: false,
     autoplayLastQueueTime: 0,
     autoplayQueuedSongIds: new Set<string>(),
+    userQueuedSongIds: {},
     // WiFi reconnect recovery initial state
     wasPlayingBeforeUnload: false,
     pendingPlaybackResume: false,
@@ -293,6 +306,7 @@ export const useAudioStore = create<AudioState>()(
       currentSongIndex: 0,
       isShuffled: false,
       originalQueue: [],
+      userQueuedSongIds: {},
       ...RADIO_RESET,
     }),
 
@@ -347,7 +361,7 @@ export const useAudioStore = create<AudioState>()(
         playlist,
         currentSongIndex: index,
         isPlaying: true,
-        ...(replacing ? RADIO_RESET : {}),
+        ...(replacing ? { ...RADIO_RESET, userQueuedSongIds: {} } : {}),
       });
     },
 
@@ -379,6 +393,7 @@ export const useAudioStore = create<AudioState>()(
           isShuffled: false,
           originalQueue: [],
           ...RADIO_RESET,
+          userQueuedSongIds: { [song.id]: 'now' },
         });
       } else {
         // Replace the currently playing song with the new song
@@ -393,6 +408,7 @@ export const useAudioStore = create<AudioState>()(
           playlist: newPlaylist,
           currentSongIndex: state.currentSongIndex,
           isPlaying: true,
+          userQueuedSongIds: tagUser(state.userQueuedSongIds, [song], 'now'),
         });
       }
       
@@ -615,7 +631,7 @@ export const useAudioStore = create<AudioState>()(
 
       if (state.playlist.length === 0 || state.currentSongIndex === -1) {
         // No playlist exists, just set it
-        set({ playlist: songs, currentSongIndex: 0, isPlaying: true });
+        set({ playlist: songs, currentSongIndex: 0, isPlaying: true, userQueuedSongIds: tagUser({}, songs, 'next') });
       } else {
         // Insert songs after current song
         const newPlaylist = [
@@ -624,7 +640,7 @@ export const useAudioStore = create<AudioState>()(
           ...state.playlist.slice(state.currentSongIndex + 1),
         ];
 
-        set({ playlist: newPlaylist });
+        set({ playlist: newPlaylist, userQueuedSongIds: tagUser(state.userQueuedSongIds, songs, 'next') });
       }
 
       // Clear the flag after a short delay
@@ -641,12 +657,12 @@ export const useAudioStore = create<AudioState>()(
 
       if (state.playlist.length === 0 || state.currentSongIndex === -1) {
         // No playlist exists, just set it
-        set({ playlist: songs, currentSongIndex: 0, isPlaying: true });
+        set({ playlist: songs, currentSongIndex: 0, isPlaying: true, userQueuedSongIds: tagUser({}, songs, 'end') });
       } else {
         // Append to end
         const newPlaylist = [...state.playlist, ...songs];
 
-        set({ playlist: newPlaylist });
+        set({ playlist: newPlaylist, userQueuedSongIds: tagUser(state.userQueuedSongIds, songs, 'end') });
       }
 
       // Clear the flag after a short delay
@@ -2076,6 +2092,7 @@ export const useAudioStore = create<AudioState>()(
         state.autoplayIsLoading = false;
         state.autoplayTransitionActive = false;
         state.autoplayQueuedSongIds = new Set<string>();
+        state.userQueuedSongIds = {};
         state.aiDJConsecutiveSkips = 0;
         state.aiDJSessionGenreCounts = {};
         state.aiDJRecommendationReasons = {};

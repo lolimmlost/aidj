@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { findSongs, getCachedAnalysis, isPhone, listCrates, MAX_STRETCH } from '@/lib/dj-lab/crate';
+import { findSongs, getCachedAnalysis, isPhone, listCrates, MAX_STRETCH, syncGridsToServer } from '@/lib/dj-lab/crate';
 import { loadSets, replayRecipe, setWhen, syncSets, type SavedSet } from '@/lib/dj-lab/sets';
 import { fitOctave, meterName } from '@/lib/dj-lab/analysis';
 import type { LabEngine, ReplayEntry } from '@/lib/dj-lab/engine';
@@ -87,6 +87,10 @@ function DJLab() {
   }, []);
 
   useEffect(() => watchAppPlayer(engine), [engine]);
+  // copy this device's analyses to the server once (the queue's beat sync and other devices read them)
+  useEffect(() => {
+    void syncGridsToServer();
+  }, []);
   useEffect(() => watchTakeOver(engine), [engine]);
   useEffect(() => engine.loadDefaults(), [engine]);
   useEffect(() => startLabLog(), []);
