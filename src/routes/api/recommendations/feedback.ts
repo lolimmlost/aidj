@@ -133,8 +133,13 @@ export const POST = withAuthAndErrorHandling(
     if (existingFeedback) {
       // If feedback exists and is the same, return conflict status (409) to indicate duplicate
       if (existingFeedback.feedbackType === validatedData.feedbackType) {
-        console.log(`✓ Feedback already exists with same type, returning 409`);
-        return errorResponse('DUPLICATE_FEEDBACK', 'Feedback already exists for this song', { status: 409 });
+        // The heart (source 'library') still has to star the song: a 👍 that AI DJ recorded (a thumbs or
+        // a listen-through) never starred it, and returning here left the heart dead on those songs.
+        if (validatedData.source !== 'library') {
+          console.log(`✓ Feedback already exists with same type, returning 409`);
+          return errorResponse('DUPLICATE_FEEDBACK', 'Feedback already exists for this song', { status: 409 });
+        }
+        feedbackRecord = existingFeedback;
       } else {
         // Update existing feedback with new type
         console.log(`🔄 Updating feedback from ${existingFeedback.feedbackType} to ${validatedData.feedbackType}`);

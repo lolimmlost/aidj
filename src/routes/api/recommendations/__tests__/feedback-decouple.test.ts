@@ -111,4 +111,28 @@ describe('feedback POST — thumbs decoupled from stars', () => {
       expect.anything(),
     );
   });
+
+  it('the heart still stars a song AI DJ already thumbed up (same-type duplicate)', async () => {
+    resolveValue = [{ id: 'f1', feedbackType: 'thumbs_up', source: 'ai_dj_listen_through' }];
+    const res = await POST(postReq({
+      songArtistTitle: 'Cage the Elephant - Spiderhead',
+      songId: 'song-dup',
+      feedbackType: 'thumbs_up',
+      source: 'library',
+    }));
+    expect(res.status).toBe(200);
+    expect(likedSongsSync.setSongLiked).toHaveBeenCalledWith('user-1', 'song-dup', true, expect.anything(), expect.anything());
+  });
+
+  it('a recommendation-source duplicate is still a 409 and stars nothing', async () => {
+    resolveValue = [{ id: 'f1', feedbackType: 'thumbs_up', source: 'ai_dj' }];
+    const res = await POST(postReq({
+      songArtistTitle: 'Artist - Title',
+      songId: 'song-dup',
+      feedbackType: 'thumbs_up',
+      source: 'ai_dj',
+    }));
+    expect(res.status).toBe(409);
+    expect(likedSongsSync.setSongLiked).not.toHaveBeenCalled();
+  });
 });

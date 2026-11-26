@@ -15,6 +15,8 @@ export interface WebAudioGraph {
   getGainValue: (deck: 'A' | 'B') => number;
   setMasterVolume: (volume: number) => void;
   resumeContext: () => Promise<boolean>;
+  /** On a user play tap: bounce a 'running' context whose output may be dead (#451). */
+  kickOutput: () => void;
 }
 
 // --- Helpers (pure, no hooks) ---
@@ -48,6 +50,14 @@ export function useWebAudioGraph(): WebAudioGraph {
   const gainARef = useRef<GainNode | null>(null);
   const gainBRef = useRef<GainNode | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
+  /** Whether masterGain → destination is wired right now. The interrupt
+   *  handler cuts it; every reconnect sets it back. Tracked because gain
+   *  alone can't tell a cut graph from a playing one. */
+  const masterConnectedRef = useRef(false);
+  /** Set when the page comes back from hidden: another app may have taken the
+   *  iOS audio session meanwhile without any statechange, leaving a 'running'
+   *  context with dead output (#451). Cleared by any real interrupt cycle. */
+  const outputSuspectRef = useRef(false);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -117,6 +127,7 @@ export function useWebAudioGraph(): WebAudioGraph {
       merge.connect(masterGain);
       merge.connect(analyser);
       masterGain.connect(ctx.destination);
+      masterConnectedRef.current = true;
 
       gainA.gain.value = 1.0;
       gainB.gain.value = 0.0;
@@ -246,6 +257,66 @@ export function useWebAudioGraph(): WebAudioGraph {
     return true;
   }, []);
 
+  // --- #451: dead output after another app took the audio session ---
+  //
+  // iOS can take the session away (another app, Siri, a call) without any
+  // AudioContext statechange: the context still says 'running', the element
+  // plays, nothing is heard; only an interrupt → running bounce revives it.
+  // Bounce it ourselves, but ONLY inside the user's own play tap and only when
+  // the page has been away since the last real bounce. Never automatically:
+  // the automatic version (#170) stole the session from other apps.
+  const kickOutput = useCallback(() => {
+    const ctx = audioContextRef.current;
+    if (!ctx || !outputSuspectRef.current) return;
+    if ((ctx.state as string) !== 'running') return; // resumeContext handles the other states
+    outputSuspectRef.current = false;
+    console.log('[WEB AUDIO] Play tap after the page was away — bouncing the context to revive the output (#451)');
+    ctx.suspend()
+      .then(() => ctx.resume())
+      .catch((err) => console.warn('[WEB AUDIO] Output bounce failed:', (err as Error).message));
+  }, []);
+
+  // --- Output self-heal: context running, music playing, output cut ---
+  //
+  // iOS can deliver the interrupt/running pair so the disconnect lands after
+  // the reconnect (seen 2026-11-25: 'instant restore' logged before 'masterGain
+  // disconnected'). The context then reads 'running', the element plays, and
+  // nothing is heard until some later interrupt happens to reconnect it (a
+  // visibility change). Nothing calls ctx.resume() here (that stole the iOS
+  // session in #170); it only rewires our own node inside a running context.
+  useEffect(() => {
+    if (!isInitialized) return;
+    const heal = (why: string) => {
+      const ctx = audioContextRef.current;
+      const master = masterGainRef.current;
+      if (!ctx || !master || masterConnectedRef.current) return;
+      if ((ctx.state as string) !== 'running') return;
+      const deckA = deckAElementRef.current;
+      const deckB = deckBElementRef.current;
+      const playing = (d: HTMLAudioElement | null) =>
+        !!d && !d.paused && !!d.currentSrc && d.networkState !== HTMLMediaElement.NETWORK_EMPTY;
+      if (!useAudioStore.getState().isPlaying && !playing(deckA) && !playing(deckB)) return;
+      console.log(`[WEB AUDIO] Output was cut while playing (${why}) — reconnecting masterGain`);
+      const userVolume = useAudioStore.getState().volume ?? 1.0;
+      try { master.gain.cancelScheduledValues(0); } catch { /* none */ }
+      master.gain.setValueAtTime(0.001, ctx.currentTime);
+      try { master.connect(ctx.destination); } catch { /* already connected */ }
+      masterConnectedRef.current = true;
+      master.gain.exponentialRampToValueAtTime(Math.max(userVolume, 0.001), ctx.currentTime + 0.25);
+    };
+    const id = setInterval(() => heal('check'), 2000);
+    // Pressing play (or a new song starting) heals at once, not on the next tick.
+    const unsub = useAudioStore.subscribe((st, prev) => {
+      if (st.isPlaying && (!prev.isPlaying || st.currentSongIndex !== prev.currentSongIndex)) {
+        setTimeout(() => heal('play'), 300);
+      }
+    });
+    return () => {
+      clearInterval(id);
+      unsub();
+    };
+  }, [isInitialized]);
+
   // --- Periodic AudioContext health check ---
   //
   // Browsers may suspend the AudioContext silently (tab backgrounding, autoplay
@@ -368,7 +439,12 @@ export function useWebAudioGraph(): WebAudioGraph {
         const storeState = useAudioStore.getState();
         const deckA = deckAElementRef.current;
         const deckB = deckBElementRef.current;
-        const eitherPlaying = (deckA && !deckA.paused) || (deckB && !deckB.paused);
+        // Only a deck with a song in it counts. On visibility return something play()s the empty
+        // spare deck (src=NONE, networkState EMPTY); counting it as "playing" re-armed recovery
+        // after a user pause, and the next interrupt resumed the song you had paused.
+        const deckHasMusic = (d: HTMLAudioElement | null) =>
+          !!d && !d.paused && !!d.currentSrc && d.networkState !== HTMLMediaElement.NETWORK_EMPTY;
+        const eitherPlaying = deckHasMusic(deckA) || deckHasMusic(deckB);
         if ((storeState.isPlaying || eitherPlaying) && !recentlyUserPaused()) {
           wasPlayingBeforeInterruptRef.current = true;
         }
@@ -394,6 +470,7 @@ export function useWebAudioGraph(): WebAudioGraph {
           const m = masterGainRef.current;
           if (m) {
             try { m.disconnect(); } catch { /* already disconnected */ }
+            masterConnectedRef.current = false;
           }
         }
 
@@ -419,6 +496,8 @@ export function useWebAudioGraph(): WebAudioGraph {
         }, 2000);
 
       } else if (state === 'running') {
+        // A real interrupt → running bounce: the output is rebuilt (#451)
+        if (interruptedAtRef.current > 0) outputSuspectRef.current = false;
         // Clear the persistent resume interval — context is running now
         if (resumeIntervalRef.current) {
           clearInterval(resumeIntervalRef.current);
@@ -474,6 +553,7 @@ export function useWebAudioGraph(): WebAudioGraph {
           if (masterFast) {
             try { masterFast.gain.cancelScheduledValues(0); } catch { /* no scheduled values */ }
             try { masterFast.connect(ctx.destination); } catch { /* already connected */ }
+            masterConnectedRef.current = true;
             const userVolume = useAudioStore.getState().volume ?? 1.0;
             masterFast.gain.setValueAtTime(userVolume, ctx.currentTime);
           }
@@ -507,6 +587,7 @@ export function useWebAudioGraph(): WebAudioGraph {
           try { master.gain.cancelScheduledValues(0); } catch { /* no scheduled values */ }
           master.gain.setValueAtTime(0, ctx.currentTime);
           try { master.connect(ctx.destination); } catch { /* already connected */ }
+          masterConnectedRef.current = true;
         }
 
         // 3. Restore element volumes after brief settle (graph is now connected,
@@ -575,6 +656,8 @@ export function useWebAudioGraph(): WebAudioGraph {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
+      // Back from away: the session may have been taken meanwhile (#451)
+      outputSuspectRef.current = true;
       const state = ctx.state as string;
       const visDA = deckAElementRef.current;
       const visDB = deckBElementRef.current;
@@ -607,8 +690,8 @@ export function useWebAudioGraph(): WebAudioGraph {
           console.log('[WEB AUDIO] Recovery suppressed — recent user pause');
         }
 
-        // Check if masterGain is disconnected (gain=0 is our signal from interrupted handler)
-        const needsReconnect = master && master.gain.value === 0;
+        // masterGain cut off (the interrupted handler disconnects it) or left at 0
+        const needsReconnect = master && (!masterConnectedRef.current || master.gain.value === 0);
 
         if (needsReconnect && shouldBeAudible) {
           const visInterruptDuration = interruptedAtRef.current > 0
@@ -620,6 +703,7 @@ export function useWebAudioGraph(): WebAudioGraph {
           try { master.gain.cancelScheduledValues(0); } catch { /* no scheduled values */ }
           master.gain.setValueAtTime(0, ctx.currentTime);
           try { master.connect(ctx.destination); } catch { /* already connected */ }
+          masterConnectedRef.current = true;
 
           // Ensure store says playing
           if (!useAudioStore.getState().isPlaying) {
@@ -710,5 +794,6 @@ export function useWebAudioGraph(): WebAudioGraph {
     getGainValue,
     setMasterVolume,
     resumeContext,
+    kickOutput,
   };
 }
