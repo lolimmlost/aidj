@@ -548,8 +548,8 @@ export function GlassLabOverview({ engine, snap, pool, crateName }: { engine: La
         )}
       </section>
 
-      <section aria-labelledby="glass-lab-pads" className="space-y-2">
-        <div className="flex items-baseline justify-between px-1">
+      <section aria-labelledby="glass-lab-pads" className="space-y-2 pt-2.5">
+        <div className="flex items-baseline justify-between">
           <h2 id="glass-lab-pads" className="font-display text-[17px] font-bold">Next transition</h2>
           <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground">
             {frozen
@@ -591,8 +591,8 @@ export function GlassLabOverview({ engine, snap, pool, crateName }: { engine: La
       </section>
 
       {shownPicks.length > 0 && (
-        <section aria-labelledby="glass-lab-picks" className="space-y-2">
-          <div className="flex items-baseline justify-between px-1">
+        <section aria-labelledby="glass-lab-picks" className="space-y-2 pt-2.5">
+          <div className="flex items-baseline justify-between">
             <h2 id="glass-lab-picks" className="font-display text-[17px] font-bold">Pick what’s next</h2>
             <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground">−{snap.defaults.tempoDown}…+{snap.defaults.tempoUp} %</span>
           </div>

@@ -33,6 +33,9 @@ import { findLibraryArtistByName } from '@/lib/utils/artist-name-match';
 import { compactName, searchVariants } from '@/lib/utils/search-variants';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
 import { GlassBackdrop } from '@/components/glass/GlassBackdrop';
+import {
+  GlassAlbums, GlassArtistRows, GlassArtistStrip, GlassRecent, GlassRecentlyPlayed, GlassSectionHead, GlassSongRow, GlassTopResult, useGlassSongSheet,
+} from '@/components/search/GlassSearch';
 
 export const Route = createFileRoute('/library/search')({
   validateSearch: (search: Record<string, unknown>): { q?: string } => ({
@@ -53,6 +56,10 @@ const TABS = [
   { id: 'albums', label: 'Albums' },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
+
+/** Glass "All" tab: rows / tiles per section before "See all N". */
+const GLASS_ALL_SONGS = 5;
+const GLASS_ALL_TILES = 8;
 
 /** Pause after the last keystroke before the search runs. */
 const SEARCH_DEBOUNCE_MS = 300;
@@ -210,16 +217,32 @@ function SearchPage() {
 
   const songIds = songs.map(song => song.id);
   const { data: feedbackData } = useSongFeedback(songIds);
+  const glassSheet = useGlassSongSheet(feedbackData?.liked);
+  const storePlaylist = useAudioStore((s) => s.playlist);
+  const currentSongIndex = useAudioStore((s) => s.currentSongIndex);
+  const currentSongId = useMemo(() => storePlaylist[currentSongIndex]?.id, [storePlaylist, currentSongIndex]);
+  const topArtist = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return matchedArtists.find((a) => a.name.trim().toLowerCase() === needle);
+  }, [matchedArtists, query]);
+  const recordArtist = (a: { id: string; name: string }) => recordRecent({ kind: 'artist', id: a.id, name: a.name });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
   };
 
   const handleSongClick = (songId: string) => {
-    const song = songs.find(s => s.id === songId);
-    if (!song) return;
+    const index = songs.findIndex(s => s.id === songId);
+    if (index < 0) return;
+    const song = songs[index];
     recordRecent({ kind: 'song', song });
-    playRecentSong(song);
+    // Nothing else lined up (no queue playing): play out the results from this song on.
+    // With a queue or source already playing, keep to just this song.
+    const st = useAudioStore.getState();
+    const busy = st.isPlaying && st.playlist.length - st.currentSongIndex - 1 > 0;
+    setAIUserActionInProgress(true);
+    playSong(song.id, busy ? [song] : songs.slice(index));
+    setTimeout(() => setAIUserActionInProgress(false), 1000);
   };
 
   const playRecentSong = (song: Song) => {
@@ -269,8 +292,8 @@ function SearchPage() {
           "sticky top-0 z-30 border-b border-border/50 bg-background/80 backdrop-blur-xl pt-[calc(env(safe-area-inset-top)+3.5rem)] md:pt-[env(safe-area-inset-top)]",
           glass && "max-md:border-transparent max-md:bg-background/40",
         )}>
-          <div className="mx-auto w-full max-w-7xl 2xl:max-w-[1600px] 3xl:max-w-[1900px] px-4 sm:px-6 lg:px-8 pt-4 pb-3 sm:pt-5 sm:pb-4">
-            <h1 className={cn("mb-3 text-2xl font-black tracking-tight sm:text-3xl", glass && "max-md:text-[30px] max-md:font-extrabold max-md:tracking-[-0.03em]")}>Search</h1>
+          <div className={cn("mx-auto w-full max-w-7xl 2xl:max-w-[1600px] 3xl:max-w-[1900px] px-4 sm:px-6 lg:px-8 pt-4 pb-3 sm:pt-5 sm:pb-4", glass && "max-md:pt-0 max-md:pb-2")}>
+            <h1 className={cn("mb-3 text-2xl font-black tracking-tight sm:text-3xl", glass && "max-md:mb-2 max-md:text-[26px] max-md:font-extrabold max-md:leading-8 max-md:tracking-[-0.03em]")}>Search</h1>
 
             {/* Search input */}
             <div className="relative">
@@ -283,10 +306,11 @@ function SearchPage() {
                 onChange={handleInputChange}
                 onKeyDown={(e) => { if (e.key === 'Enter') commitQuery(input); }}
                 className={cn(
-                  'w-full rounded-xl border border-border/60 bg-muted/40 pl-10 pr-10 py-3 text-base outline-none transition-all',
-                  'placeholder:text-muted-foreground/60',
-                  'focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:bg-muted/60',
-                  glass && 'glass-surface rounded-full',
+                  'w-full rounded-xl pl-10 pr-10 text-base outline-none transition-all',
+                  glass
+                    ? // same find field as the glass playlist page
+                      'glass-flat h-11 py-0 text-[15px] font-semibold placeholder:text-foreground/70 focus:ring-2 focus:ring-primary/30 md:h-auto md:py-3'
+                    : 'border border-border/60 bg-muted/40 py-3 placeholder:text-muted-foreground/60 focus:border-primary/50 focus:bg-muted/60 focus:ring-2 focus:ring-primary/20',
                 )}
                 aria-label="Search library"
               />
@@ -306,7 +330,7 @@ function SearchPage() {
               <div
                 role="tablist"
                 aria-label="Filter results"
-                className="mt-3 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className={cn("mt-3 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", glass && "max-md:mt-2")}
               >
                 {TABS.map((t) => (
                   <button
@@ -316,6 +340,8 @@ function SearchPage() {
                     onClick={() => setTab(t.id)}
                     className={cn(
                       'shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition-all',
+                      // an h- class also opts out of the 44 px coarse-pointer min-height
+                      glass && 'max-md:h-9 max-md:py-0',
                       tab === t.id
                         ? glass ? 'border border-foreground bg-foreground text-background' : 'bg-primary text-primary-foreground shadow-md'
                         : glass ? 'glass-surface text-foreground' : 'border border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground',
@@ -338,7 +364,7 @@ function SearchPage() {
 
             {/* Result summary */}
             {hasQuery && !isLoading && (
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className={cn("mt-2 text-xs text-muted-foreground", glass && "max-md:hidden")}>
                 {matchedArtists.length} artist{matchedArtists.length !== 1 ? 's' : ''} · {matchedAlbums.length} album{matchedAlbums.length !== 1 ? 's' : ''} · {songs.length} song{songs.length !== 1 ? 's' : ''}
               </p>
             )}
@@ -346,7 +372,7 @@ function SearchPage() {
         </header>
 
         {/* Main content */}
-        <main className="mx-auto w-full max-w-7xl 2xl:max-w-[1600px] 3xl:max-w-[1900px] px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <main className={cn("mx-auto w-full max-w-7xl 2xl:max-w-[1600px] 3xl:max-w-[1900px] px-4 sm:px-6 lg:px-8 py-6 sm:py-8", glass && "max-md:pt-4")}>
           {error && (
             <Card className="border-destructive mb-6">
               <CardContent className="p-6 text-center">
@@ -376,7 +402,72 @@ function SearchPage() {
                 onSearchName={setQuery}
               />
             ) : (
-              <div aria-live="polite" className="space-y-8">
+              <>
+              {glass && (
+                <div aria-live="polite" className="space-y-5 md:hidden">
+                  {tab === 'all' && (
+                    <GlassTopResult
+                      artist={topArtist}
+                      song={topArtist ? undefined : songs[0]}
+                      artistImage={topArtist ? allArtistImages[topArtist.name.toLowerCase()] : undefined}
+                      onPlaySong={(s) => handleSongClick(s.id)}
+                      onOpenArtist={recordArtist}
+                    />
+                  )}
+                  {showSongs && songs.length > 0 && (
+                    <section className="space-y-1">
+                      <GlassSectionHead
+                        title="Songs"
+                        count={songs.length}
+                        shown={tab === 'all' ? GLASS_ALL_SONGS : songs.length}
+                        onSeeAll={() => setTab('songs')}
+                      />
+                      <div className="flex flex-col">
+                        {(tab === 'all' ? songs.slice(0, GLASS_ALL_SONGS) : songs).map((song) => (
+                          <GlassSongRow
+                            key={song.id}
+                            song={song}
+                            playing={song.id === currentSongId}
+                            onPlay={() => handleSongClick(song.id)}
+                            onMore={() => glassSheet.open(song)}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                  {showArtists && matchedArtists.length > 0 && (
+                    <section className="space-y-2">
+                      <GlassSectionHead
+                        title="Artists"
+                        count={matchedArtists.length}
+                        shown={tab === 'all' ? GLASS_ALL_TILES : matchedArtists.length}
+                        onSeeAll={() => setTab('artists')}
+                      />
+                      {tab === 'all' ? (
+                        <GlassArtistStrip artists={matchedArtists.slice(0, GLASS_ALL_TILES)} images={allArtistImages} onOpen={recordArtist} />
+                      ) : (
+                        <GlassArtistRows artists={matchedArtists} images={allArtistImages} onOpen={recordArtist} />
+                      )}
+                    </section>
+                  )}
+                  {showAlbums && matchedAlbums.length > 0 && (
+                    <section className="space-y-2">
+                      <GlassSectionHead
+                        title="Albums"
+                        count={matchedAlbums.length}
+                        shown={tab === 'all' ? GLASS_ALL_TILES : matchedAlbums.length}
+                        onSeeAll={() => setTab('albums')}
+                      />
+                      <GlassAlbums
+                        albums={tab === 'all' ? matchedAlbums.slice(0, GLASS_ALL_TILES) : matchedAlbums}
+                        layout={tab === 'all' ? 'strip' : 'grid'}
+                        onOpen={(album) => recordRecent({ kind: 'album', id: album.id, name: album.name, artist: album.artist, artistId: album.artistId })}
+                      />
+                    </section>
+                  )}
+                </div>
+              )}
+              <div aria-live="polite" className={cn("space-y-8", glass && "max-md:hidden")}>
                 {/* Artists section */}
                 {showArtists && matchedArtists.length > 0 && (
                   <section className="space-y-3">
@@ -464,10 +555,24 @@ function SearchPage() {
                   </section>
                 )}
               </div>
+              </>
             )
           ) : (
             /* === Idle state === */
-            <div className="space-y-8">
+            <>
+            {glass && (
+              <div className="space-y-5 md:hidden">
+                <GlassRecent
+                  recent={recent}
+                  images={allArtistImages}
+                  onOpen={openRecent}
+                  onRemove={removeRecent}
+                  onClear={clearRecent}
+                />
+                <GlassRecentlyPlayed onPlay={playRecentSong} />
+              </div>
+            )}
+            <div className={cn("space-y-8", glass && "max-md:hidden")}>
               {/* Recent searches */}
               {recent.length > 0 && (
                 <section className="space-y-3">
@@ -527,7 +632,9 @@ function SearchPage() {
                 </p>
               </div>
             </div>
+            </>
           )}
+          {glass && glassSheet.element}
         </main>
       </div>
     </NavidromeErrorBoundary>

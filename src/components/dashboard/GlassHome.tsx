@@ -181,7 +181,7 @@ export function GlassHome() {
                 {day} · {stats.current.totalPlays} PLAYS THIS WEEK
               </span>
             )}
-            <h1 className="font-display text-[30px] font-extrabold leading-none tracking-[-0.03em]">Home</h1>
+            <h1 className="font-display text-[26px] font-extrabold leading-8 tracking-[-0.03em]">Home</h1>
           </div>
           <Link to="/library/search" aria-label="Search" className="glass-surface grid size-11 place-items-center rounded-full text-foreground">
             <Search className="size-[18px]" aria-hidden />
