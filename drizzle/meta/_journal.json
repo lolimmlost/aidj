@@ -239,6 +239,13 @@
       "when": 1795654575761,
       "tag": "0033_known_transitions_preferred",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795729396614,
+      "tag": "0034_better_auth_1_7_two_factor",
+      "breakpoints": true
     }
   ]
 }
