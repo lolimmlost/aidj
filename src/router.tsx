@@ -29,6 +29,10 @@ export function getRouter() {
     defaultErrorComponent: DefaultCatchBoundary,
     defaultNotFoundComponent: DefaultNotFound,
     scrollRestoration: true,
+    // Pages scroll inside <main>'s ScrollArea, not the window: without this a new
+    // page opened at the previous page's scroll position. Back/forward still
+    // restore it (the viewport carries data-scroll-restoration-id="app-main").
+    scrollToTopSelectors: ['window', '[data-scroll-restoration-id="app-main"]'],
     defaultStructuralSharing: true,
     // Page transitions (#289). Only where typed view transitions exist, so
     // search-param-only updates (e.g. typing in search) can opt out; older

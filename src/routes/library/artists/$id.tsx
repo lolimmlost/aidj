@@ -33,6 +33,9 @@ import { cn } from '@/lib/utils';
 import { getArtistGradient } from '@/lib/utils/artist-avatar';
 import { usePageTitle } from '@/lib/hooks/useDocumentTitle';
 import { nameForNextTransition } from '@/lib/utils/view-transition';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { GlassBackdrop } from '@/components/glass/GlassBackdrop';
+import { GlassArtistPage } from '@/components/library/GlassArtistPage';
 
 /** Album cover with Navidrome getCoverArt proxy fallback, then placeholder */
 function AlbumCoverArt({ albumId, artwork, name }: { albumId: string; artwork?: string; name: string }) {
@@ -213,6 +216,8 @@ function ArtistDetail() {
 
   const location = useLocation();
   const isChildRoute = location.pathname.includes('/albums/');
+  // Glass UI (phones): GlassArtistPage, with an A/B switch (canvas AT / AU)
+  const glass = useGlassUi();
 
   const { playSong, addToQueueNext, addToQueueEnd, setIsPlaying, setAIUserActionInProgress, startRadio } = useAudioStore();
 
@@ -323,7 +328,26 @@ function ArtistDetail() {
   const topTracks = [...songs].sort((a, b) => (b.playCount || 0) - (a.playCount || 0)).slice(0, 5);
 
   return (
-    <div className="relative">
+    <>
+    {glass && (
+      <div className="glass-page glass-home relative min-h-screen px-4 pb-28 pt-[calc(env(safe-area-inset-top)+3rem)] md:hidden">
+        <GlassBackdrop className="md:hidden" />
+        {artist ? (
+          <GlassArtistPage
+            artistId={id}
+            name={artistName}
+            albums={albums}
+            songs={songs}
+            metadata={artistMetadata}
+            imageUrl={artistMetadata?.coverImageUrl || savedArtistImages[artistName.toLowerCase()] || undefined}
+            images={savedArtistImages}
+          />
+        ) : (
+          <div className="flex justify-center py-24"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
+        )}
+      </div>
+    )}
+    <div className={cn("relative", glass && "max-md:hidden")}>
       {/* ─── Hero ─── */}
       {/* mt-12 on mobile clears the fixed top bar (h-12); md: no top bar */}
       <div className="relative h-[28vh] sm:h-[32vh] md:h-[38vh] mt-12 md:mt-0 overflow-hidden">
@@ -633,5 +657,6 @@ function ArtistDetail() {
         )}
       </div>
     </div>
+    </>
   );
 }

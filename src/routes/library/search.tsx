@@ -103,6 +103,8 @@ function SearchPage() {
     navigate({
       search: () => (next ? { q: next } : {}),
       replace: true,
+      // typing updates ?q= in place: don't jump to the top on each pause
+      resetScroll: false,
     });
   };
 
@@ -620,6 +622,9 @@ function SearchPage() {
                   </div>
                 </section>
               )}
+
+              {/* Recently played: same strip as the glass phone layout */}
+              <GlassRecentlyPlayed onPlay={playRecentSong} />
 
               {/* Empty prompt */}
               <div className="flex flex-col items-center justify-center text-center py-16 px-6">
