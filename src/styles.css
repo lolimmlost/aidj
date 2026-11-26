@@ -1338,3 +1338,43 @@ html[data-low-motion] .np-lyric-in {
     --top-bar: 0.5rem;
   }
 }
+
+/* Settings redraw (canvas "Settings redraw"): iOS-size switches and chunky sliders on glass. */
+.ios-switch[data-slot="switch"] {
+  height: 31px;
+  width: 51px;
+  padding: 2px;
+  border: 0;
+}
+.ios-switch[data-slot="switch"][data-state="unchecked"] {
+  background: color-mix(in oklch, var(--foreground) 16%, transparent);
+}
+.ios-switch[data-slot="switch"][data-state="checked"] {
+  background: var(--primary);
+}
+.ios-switch [data-slot="switch-thumb"] {
+  width: 27px;
+  height: 27px;
+  background: white !important;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
+}
+.ios-switch[data-state="checked"] [data-slot="switch-thumb"] {
+  translate: 20px 0;
+}
+.ios-switch[data-state="unchecked"] [data-slot="switch-thumb"] {
+  translate: 0 0;
+}
+.chunky-slider [data-slot="slider-track"] {
+  height: 8px;
+  background: color-mix(in oklch, var(--foreground) 14%, transparent);
+}
+.chunky-slider [data-slot="slider-range"] {
+  background: linear-gradient(90deg, var(--primary), color-mix(in oklch, var(--primary) 55%, white));
+}
+.chunky-slider [data-slot="slider-thumb"] {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  background: white;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.4);
+}

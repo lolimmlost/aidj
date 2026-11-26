@@ -6,13 +6,18 @@ import {
   Copy,
   Download,
   Key,
+  Lock,
+  Mail,
   RefreshCw,
   Shield,
+  ShieldCheck,
+  Smartphone,
   XCircle,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SettingsBlock, SettingsRow, SettingsSection, SettingsStack } from "@/components/settings/settings-ui";
+import { SettingsBlock, SettingsHero, SettingsLinkRow, SettingsRow, SettingsSection, SettingsStack, StatusPill } from "@/components/settings/settings-ui";
+import { SessionsSection } from "@/components/settings/SessionsSection";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from '@/lib/toast';
@@ -46,6 +51,7 @@ export function SecuritySettings() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const handlePasswordChange = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -198,7 +204,36 @@ export function SecuritySettings() {
 
   return (
     <SettingsStack>
-      <SettingsSection title="Password" icon={<Shield />} description="Change the password you sign in with">
+      <SettingsHero
+        className={cn(
+          "flex items-center gap-3.5",
+          twoFactorEnabled
+            ? "bg-[linear-gradient(135deg,color-mix(in_oklch,var(--success)_22%,transparent),color-mix(in_oklch,var(--primary)_16%,transparent))]"
+            : "bg-[linear-gradient(135deg,color-mix(in_oklch,#E0AE4A_22%,transparent),color-mix(in_oklch,var(--primary)_14%,transparent))]",
+        )}
+      >
+        <span
+          className={cn(
+            "grid size-[52px] shrink-0 place-items-center rounded-2xl text-background",
+            twoFactorEnabled ? "bg-success" : "bg-[#E0AE4A]",
+          )}
+        >
+          {twoFactorEnabled ? <ShieldCheck className="size-[26px]" /> : <Shield className="size-[26px]" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-display text-[19px] font-extrabold">{twoFactorEnabled ? "You’re protected" : "Add a second step"}</p>
+          <p className="text-[13px] leading-snug text-foreground/80">
+            {twoFactorEnabled
+              ? `Password plus a code from your app${emailOtp ? " or email" : ""}`
+              : "Only your password protects this account. Turn on two-factor below."}
+          </p>
+        </div>
+      </SettingsHero>
+
+      <SettingsSection title="Password">
+        {!changingPassword && !passwordSuccess ? (
+          <SettingsLinkRow icon={<Lock />} label="Change password" onClick={() => setChangingPassword(true)} />
+        ) : (
         <SettingsBlock>
           {passwordSuccess ? (
             <div className="text-center py-8">
@@ -208,10 +243,13 @@ export function SecuritySettings() {
               </p>
               <Button
                 variant="outline"
-                onClick={() => setPasswordSuccess(false)}
-                className="mt-4"
+                onClick={() => {
+                  setPasswordSuccess(false);
+                  setChangingPassword(false);
+                }}
+                className="mt-4 rounded-full"
               >
-                Change Password Again
+                Done
               </Button>
             </div>
           ) : (
@@ -249,24 +287,31 @@ export function SecuritySettings() {
               {passwordError && (
                 <div className="text-sm text-destructive">{passwordError}</div>
               )}
-              <div className="flex justify-end pt-4">
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Changing..." : "Change Password"}
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <Button type="button" variant="outline" className="rounded-full" onClick={() => setChangingPassword(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="rounded-full" disabled={isSubmitting}>
+                  {isSubmitting ? "Changing..." : "Change password"}
                 </Button>
               </div>
             </form>
           )}
         </SettingsBlock>
+        )}
       </SettingsSection>
 
       {/* Two-Factor Authentication */}
       <SettingsSection
-        title="Two-factor authentication"
+        title="Two-factor"
         icon={<Key />}
-        description="A code from your authenticator app (or email) on top of your password"
+        footer="Turning things on or off asks for your password."
       >
-        <SettingsRow label="Two-factor">
-          <Badge variant={twoFactorEnabled ? "default" : "secondary"}>{twoFactorEnabled ? "On" : "Off"}</Badge>
+        <SettingsRow icon={<Smartphone />} label="Authenticator app" description={twoFactorEnabled ? "Codes from an app like 1Password or Authy" : "Set it up below"}>
+          <StatusPill tone={twoFactorEnabled ? "good" : "neutral"}>{twoFactorEnabled ? "On" : "Off"}</StatusPill>
+        </SettingsRow>
+        <SettingsRow icon={<Mail />} label="Email codes" description={emailOtp ? "A code sent to your email instead" : "Not available on this server"}>
+          <StatusPill tone={twoFactorEnabled && emailOtp ? "good" : "neutral"}>{twoFactorEnabled && emailOtp ? "On" : "Off"}</StatusPill>
         </SettingsRow>
         <SettingsBlock className="space-y-6">
           {/* Setup: scan + save codes + prove it works */}
@@ -392,6 +437,8 @@ export function SecuritySettings() {
           )}
         </SettingsBlock>
       </SettingsSection>
+
+      <SessionsSection />
     </SettingsStack>
   );
 }

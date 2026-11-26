@@ -78,8 +78,8 @@ function SettingsPage() {
     loadPreferences();
   }, [loadPreferences]);
 
-  if (glass && phone) {
-    return <GlassSettingsPage tab={tab} isAdmin={isAdmin} error={error} />;
+  if (glass) {
+    return <GlassSettingsPage tab={tab} isAdmin={isAdmin} error={error} wide={!phone} />;
   }
 
   const classicTab = tab ? CLASSIC_TAB[tab] : undefined;
@@ -150,9 +150,15 @@ function SettingsPage() {
 }
 
 /** Glass phones: the grouped index (no tab), or one settings page with "‹ Settings". */
-function GlassSettingsPage({ tab, isAdmin, error }: { tab?: NewTab; isAdmin: boolean; error: string | null }) {
+/**
+ * Glass design. Phones: the grouped index (no tab), or one settings page with "‹ Settings".
+ * Wider screens (iPad and up): a split view, the index on the left and the open page on the right.
+ */
+function GlassSettingsPage({ tab, isAdmin, error, wide }: { tab?: NewTab; isAdmin: boolean; error: string | null; wide: boolean }) {
   const adminOnly = tab === 'services' || tab === 'cover-art';
-  const page: GlassSettingsTab | undefined = tab && (!adminOnly || isAdmin) ? tab : undefined;
+  const chosen: GlassSettingsTab | undefined = tab && (!adminOnly || isAdmin) ? tab : undefined;
+  // The split view always has a page open.
+  const page: GlassSettingsTab | undefined = chosen ?? (wide ? 'profile' : undefined);
   const body = (() => {
     switch (page) {
       case 'profile': return <ProfileSettings />;
@@ -167,17 +173,40 @@ function GlassSettingsPage({ tab, isAdmin, error }: { tab?: NewTab; isAdmin: boo
       default: return <GlassSettingsIndex isAdmin={isAdmin} />;
     }
   })();
+  const errorCard = error && (
+    <Card className="p-4 bg-destructive/10 border-destructive/30">
+      <p className="text-destructive">{error}</p>
+    </Card>
+  );
+
+  if (wide) {
+    return (
+      <PageLayout title="Settings" backLink="/dashboard" backLabel="Dashboard">
+        {errorCard}
+        <SettingsLookProvider value="glass">
+          <div className="grid items-start gap-6 md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-[340px_minmax(0,1fr)]">
+            <aside className="md:sticky md:top-[calc(env(safe-area-inset-top)+var(--top-bar)+1rem)]">
+              <GlassSettingsIndex isAdmin={isAdmin} active={page} />
+            </aside>
+            <section aria-labelledby="settings-page-title" className="min-w-0">
+              <h2 id="settings-page-title" className="mb-4 font-display text-[26px] font-extrabold tracking-[-0.03em]">
+                {page ? GLASS_SETTINGS_TITLES[page] : 'Settings'}
+              </h2>
+              {body}
+            </section>
+          </div>
+        </SettingsLookProvider>
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout
       title={page ? GLASS_SETTINGS_TITLES[page] : 'Settings'}
       backLink={page ? '/settings' : '/dashboard'}
       backLabel={page ? 'Settings' : 'Dashboard'}
     >
-      {error && (
-        <Card className="p-4 bg-destructive/10 border-destructive/30">
-          <p className="text-destructive">{error}</p>
-        </Card>
-      )}
+      {errorCard}
       {/* Preferences are kept on the device, so the page shows them at once while the server copy loads. */}
       <SettingsLookProvider value="glass">{body}</SettingsLookProvider>
     </PageLayout>

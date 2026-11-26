@@ -3,22 +3,20 @@
 // back on failure), so there is no local copy to drift.
 
 import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { AudioWaveform, Disc3, Gauge, ListPlus, Music, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePreferencesStore, type RecommendationSettings as Recs } from '@/lib/stores/preferences';
 import { useAudioStore } from '@/lib/stores/audio';
 import { toast } from '@/lib/toast';
-import { cn } from '@/lib/utils';
 import {
   SettingsBlock,
+  SettingsLinkRow,
   SettingsSection,
-  SettingsSliderRow,
   SettingsStack,
+  SettingsStepperRow,
   SettingsSwitchRow,
   saveOrWarn,
 } from '@/components/settings/settings-ui';
-
-const songs = (n: number) => `${n} ${n === 1 ? 'song' : 'songs'}`;
 
 export function AIDJSettings() {
   const recs = usePreferencesStore((s) => s.preferences.recommendationSettings);
@@ -29,10 +27,8 @@ export function AIDJSettings() {
   if (!recs.aiEnabled) return null;
 
   const off = !recs.aiDJEnabled;
-  const drip = recs.aiDJDripInterval ?? 3;
   const matching = recs.djMatchingEnabled ?? true;
   const seeding = recs.aiDJSeedQueueEnabled ?? false;
-  const density = recs.aiDJSeedDensity ?? 2;
   const threshold = recs.aiDJQueueThreshold;
   const batch = recs.aiDJBatchSize;
 
@@ -48,37 +44,29 @@ export function AIDJSettings() {
 
   return (
     <SettingsStack>
-      <SettingsSection
-        title="How the AI DJ picks"
-        footer={
-          off
-            ? 'Turn on AI DJ mode to use these.'
-            : `Adds 1 song every ${drip} songs you play${recs.aiDJUseCurrentContext ? ', based on what’s playing' : ''}.`
-        }
-      >
-        <SettingsSliderRow
-          id="ai-dj-drip"
+      <SettingsSection title="How it picks" footer={off ? 'Turn on the AI DJ to use these.' : undefined}>
+        <SettingsStepperRow
+          icon={<Gauge />}
           label="Add a pick every"
-          value={drip}
+          value={recs.aiDJDripInterval ?? 3}
           min={2}
           max={5}
-          format={songs}
-          onCommit={(v) => save({ aiDJDripInterval: v })}
+          unit="songs"
+          onChange={(v) => save({ aiDJDripInterval: v })}
           disabled={off}
         />
         <SettingsSwitchRow
           id="ai-dj-context"
+          icon={<Music />}
           label="Follow what’s playing"
           description="Base picks on the current song"
           checked={recs.aiDJUseCurrentContext}
           onCheckedChange={(v) => save({ aiDJUseCurrentContext: v })}
           disabled={off}
         />
-      </SettingsSection>
-
-      <SettingsSection title="DJ mixing">
         <SettingsSwitchRow
           id="dj-matching"
+          icon={<AudioWaveform />}
           label="Match BPM, energy and key"
           description="Prefer songs that blend smoothly"
           checked={matching}
@@ -87,75 +75,68 @@ export function AIDJSettings() {
         />
         <SettingsSwitchRow
           id="bpm-analysis"
+          icon={<Disc3 />}
           label="Detect BPM while playing"
-          description={recs.bpmAnalysisEnabled ? 'Analyses songs as they play (uses some extra CPU)' : 'Analyse songs as they play'}
+          description="Uses a little extra battery"
           checked={recs.bpmAnalysisEnabled ?? false}
           onCheckedChange={(v) => save({ bpmAnalysisEnabled: v })}
           disabled={off || !matching}
         />
       </SettingsSection>
 
-      <SettingsSection title="Queue seeding">
+      <SettingsSection title="Seeding">
         <SettingsSwitchRow
           id="seed-queue"
+          icon={<SlidersHorizontal />}
           label="Seed picks through the queue"
-          description="Spread AI picks through your queue, not just at the end"
+          description="Not just at the end"
           checked={seeding}
           onCheckedChange={(v) => save({ aiDJSeedQueueEnabled: v })}
           disabled={off}
         />
         {seeding && (
-          <SettingsSliderRow
-            id="seed-density"
+          <SettingsStepperRow
+            icon={<ListPlus />}
             label="Picks per 10 songs"
-            value={density}
+            value={recs.aiDJSeedDensity ?? 2}
             min={1}
             max={5}
-            format={(v) => String(v)}
-            onCommit={(v) => save({ aiDJSeedDensity: v })}
+            onChange={(v) => save({ aiDJSeedDensity: v })}
             disabled={off}
           />
         )}
         <SettingsBlock>
-          <Button variant="outline" className="w-full" onClick={seedNow} disabled={off}>
+          <Button variant="outline" className="h-11 w-full rounded-full" onClick={seedNow} disabled={off}>
+            <Sparkles className="size-4" />
             Seed my queue now
           </Button>
         </SettingsBlock>
       </SettingsSection>
 
-      <SettingsSection title="When the queue runs low" footer="Fallback for when you’re near the end of the queue.">
-        <SettingsBlock className="!py-0">
-          <button
-            type="button"
-            aria-expanded={showAdvanced}
-            onClick={() => setShowAdvanced((v) => !v)}
-            className="flex min-h-[52px] w-full items-center justify-between text-left text-[15px] font-semibold"
-          >
-            Advanced
-            <ChevronDown className={cn('size-4 text-muted-foreground transition-transform', showAdvanced && 'rotate-180')} />
-          </button>
-        </SettingsBlock>
+      <SettingsSection title="When the queue runs low">
+        <SettingsLinkRow
+          icon={<SlidersHorizontal />}
+          label={showAdvanced ? 'Hide' : 'Advanced'}
+          description={`Top up ${batch} ${batch === 1 ? 'song' : 'songs'} when ${threshold} ${threshold === 1 ? 'is' : 'are'} left`}
+          onClick={() => setShowAdvanced((v) => !v)}
+        />
         {showAdvanced && (
-          <SettingsSliderRow
-            id="ai-dj-threshold"
+          <SettingsStepperRow
             label="Top up when this many are left"
             value={threshold}
             min={1}
             max={5}
-            format={songs}
-            onCommit={(v) => save({ aiDJQueueThreshold: v })}
+            onChange={(v) => save({ aiDJQueueThreshold: v })}
             disabled={off}
           />
         )}
         {showAdvanced && (
-          <SettingsSliderRow
-            id="ai-dj-batch"
-            label="Songs added per top-up"
+          <SettingsStepperRow
+            label="Songs per top-up"
             value={batch}
             min={1}
             max={10}
-            format={songs}
-            onCommit={(v) => save({ aiDJBatchSize: v })}
+            onChange={(v) => save({ aiDJBatchSize: v })}
             disabled={off}
           />
         )}

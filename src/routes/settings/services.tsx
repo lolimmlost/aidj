@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSettingsLook } from '@/components/settings/settings-ui';
+import { SettingsHero, useSettingsLook } from '@/components/settings/settings-ui';
+import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Server } from 'lucide-react';
+import { RefreshCw, Server } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,57 @@ function StatusBadge({ status }: { status?: TestStatus }) {
       <span className={`inline-block w-1.5 h-1.5 rounded-full ${isOk ? 'bg-success' : isWarn ? 'bg-warning' : 'bg-destructive'}`} />
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
+  );
+}
+
+const SERVICE_NAMES: Record<string, string> = {
+  llmProvider: 'AI provider',
+  navidromeUrl: 'Navidrome',
+  lidarrUrl: 'Lidarr',
+  metubeUrl: 'MeTube',
+  lastfmApiKey: 'Last.fm',
+};
+
+/** "6 / 8 connected", a bar per service, and what's not working. */
+function ServicesHealth({ statuses, testing, onTestAll }: { statuses: Record<string, TestStatus>; testing: boolean; onTestAll: () => void }) {
+  const entries = Object.entries(statuses);
+  const ok = entries.filter(([, v]) => v === 'connected').length;
+  const problems = entries.filter(([, v]) => v !== 'connected' && v !== 'not configured');
+  const unset = entries.filter(([, v]) => v === 'not configured');
+  const name = (k: string) => SERVICE_NAMES[k] ?? k;
+  return (
+    <SettingsHero className="flex flex-col gap-3">
+      <div className="flex items-baseline justify-between">
+        <p className="font-display text-[34px] font-extrabold leading-none">
+          {entries.length ? ok : '–'}
+          <span className="text-xl text-muted-foreground"> / {entries.length || '–'}</span>
+          <span className="ml-2 text-[13px] font-semibold text-muted-foreground">connected</span>
+        </p>
+        <Button size="sm" className="h-8 rounded-full" onClick={onTestAll} disabled={testing}>
+          <RefreshCw className={cn('size-3.5', testing && 'animate-spin')} />
+          {testing ? 'Testing' : 'Test all'}
+        </Button>
+      </div>
+      <div aria-hidden className="flex gap-1.5">
+        {entries.map(([k, v]) => (
+          <span
+            key={k}
+            title={`${name(k)}: ${v}`}
+            className={cn('h-1.5 flex-1 rounded-full', v === 'connected' ? 'bg-success' : v === 'not configured' ? 'bg-foreground/20' : 'bg-destructive')}
+          />
+        ))}
+      </div>
+      <p className="text-[13px] leading-snug text-muted-foreground">
+        {testing && !entries.length
+          ? 'Checking your services…'
+          : [
+              problems.length ? `${problems.map(([k, v]) => `${name(k)}: ${v}`).join(' · ')}` : null,
+              unset.length ? `Not set up: ${unset.map(([k]) => name(k)).join(', ')}` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ') || 'Everything is connected.'}
+      </p>
+    </SettingsHero>
   );
 }
 
@@ -189,6 +241,26 @@ export function ServicesSettings() {
   };
 
   // Test a single service via targeted API
+  // Every service at once, for the health card (the API tests all when `test: true`).
+  const [testingAll, setTestingAll] = useState(false);
+  const testAll = useCallback(async () => {
+    setTestingAll(true);
+    try {
+      const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ test: true }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.statuses) setTestStatuses((prev) => ({ ...prev, ...json.statuses }));
+    } finally {
+      setTestingAll(false);
+    }
+  }, []);
+  useEffect(() => {
+    void testAll();
+  }, [testAll]);
+
   const testService = async (serviceKey: string) => {
     setTestingService(serviceKey);
     try {
@@ -408,6 +480,7 @@ export function ServicesSettings() {
 
   return (
     <ServicesShell>
+      <ServicesHealth statuses={testStatuses} testing={testingAll} onTestAll={testAll} />
 
         {/* Configuration Form */}
         <form onSubmit={onSubmit} className="space-y-6">
