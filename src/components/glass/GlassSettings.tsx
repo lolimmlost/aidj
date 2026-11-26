@@ -50,7 +50,7 @@ const GROUPS: Row[][] = [
 ];
 
 /** The glass Settings index (canvas "TodoSettings"): grouped glass lists, one row per page. */
-export function GlassSettingsIndex({ isAdmin }: { isAdmin: boolean }) {
+export function GlassSettingsIndex({ isAdmin, active }: { isAdmin: boolean; /** Split view: the open page's row is highlighted. */ active?: GlassSettingsTab }) {
   return (
     <div className="flex flex-col gap-5 pb-6">
       {GROUPS.map((group, i) => {
@@ -63,7 +63,11 @@ export function GlassSettingsIndex({ isAdmin }: { isAdmin: boolean }) {
                 <Link
                   to="/settings"
                   search={{ tab: r.tab }}
-                  className="flex min-h-[60px] items-center gap-3 px-3.5 text-foreground [-webkit-tap-highlight-color:transparent] active:bg-foreground/5"
+                  aria-current={active === r.tab ? 'page' : undefined}
+                  className={cn(
+                    'flex min-h-[60px] items-center gap-3 px-3.5 text-foreground [-webkit-tap-highlight-color:transparent] active:bg-foreground/5',
+                    active === r.tab && 'bg-primary/20',
+                  )}
                 >
                   <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-primary/15 text-primary [&_svg]:size-[18px]">
                     {r.icon}
@@ -72,7 +76,7 @@ export function GlassSettingsIndex({ isAdmin }: { isAdmin: boolean }) {
                     <span className="truncate text-[15px] font-semibold">{GLASS_SETTINGS_TITLES[r.tab]}</span>
                     <span className="truncate text-[13px] text-muted-foreground">{r.sub}</span>
                   </span>
-                  <ChevronRight className="size-[18px] shrink-0 text-muted-foreground" aria-hidden />
+                  {!active && <ChevronRight className="size-[18px] shrink-0 text-muted-foreground" aria-hidden />}
                 </Link>
               </li>
             ))}

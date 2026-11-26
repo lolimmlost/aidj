@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Segmented, SettingsHero } from '@/components/settings/settings-ui';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, Search, X, ImageIcon, Loader2, Music, User, Zap } from 'lucide-react';
+import { Check, Search, X, ImageIcon, Loader2, Music, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -218,34 +219,60 @@ export function AlbumArtSettings() {
 
   return (
     <div className="space-y-6">
-      {/* Tab toggle */}
-      <div role="tablist" aria-label="Covers for" className="flex w-fit gap-1 rounded-full bg-foreground/[0.07] p-1">
-        <button
-          onClick={() => setTab('albums')}
-          className={`flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition-colors ${
-            tab === 'albums'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Music className="h-3.5 w-3.5" />
-          Albums
-        </button>
-        <button
-          onClick={() => setTab('artists')}
-          className={`flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition-colors ${
-            tab === 'artists'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <User className="h-3.5 w-3.5" />
-          Artists
-        </button>
-      </div>
+      <Segmented
+        label="Covers for"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'albums', label: <><Music aria-hidden />Albums</> },
+          { value: 'artists', label: <><User aria-hidden />Artists</> },
+        ]}
+      />
 
       {tab === 'albums' ? <AlbumsTab /> : <ArtistsTab />}
     </div>
+  );
+}
+
+/** The count of what's missing, how much is covered, and one button to fetch everything. */
+function CoverStats({
+  count,
+  noun,
+  sub,
+  covered,
+  running,
+  disabled,
+  onRun,
+}: {
+  count: number;
+  noun: string;
+  sub?: string;
+  covered?: number;
+  running: boolean;
+  disabled?: boolean;
+  onRun: () => void;
+}) {
+  return (
+    <SettingsHero className="flex flex-col gap-3.5">
+      <div className="flex items-center gap-3.5">
+        <span className="font-display text-[34px] font-extrabold leading-none tabular-nums">{count.toLocaleString()}</span>
+        <div className="min-w-0">
+          <p className="text-[15px] font-semibold">{noun}</p>
+          {sub && <p className="text-[13px] leading-snug text-muted-foreground">{sub}</p>}
+        </div>
+      </div>
+      {covered !== undefined && (
+        <div aria-hidden className="h-2 overflow-hidden rounded-full bg-foreground/[0.14]">
+          <div className="h-full rounded-full bg-[linear-gradient(90deg,var(--success),var(--primary))]" style={{ width: `${Math.round(covered * 100)}%` }} />
+        </div>
+      )}
+      {count > 0 && (
+        <Button className="h-11 w-full rounded-full" onClick={onRun} disabled={running || disabled}>
+          {running ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+          {running ? 'Finding covers…' : `Find covers for all ${count.toLocaleString()}`}
+        </Button>
+      )}
+    </SettingsHero>
   );
 }
 
@@ -366,41 +393,15 @@ function AlbumsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Header stats + auto-fetch */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <span>{albums.length} albums in history</span>
-          <span>&middot;</span>
-          <span className="text-green-500">{navidromeArtCount} have Navidrome art</span>
-          <span>&middot;</span>
-          <span>{missingAlbums.length} missing</span>
-          {probing && (
-            <>
-              <span>&middot;</span>
-              <span className="flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Checking...
-              </span>
-            </>
-          )}
-        </div>
-        {missingAlbums.length > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 text-xs"
-            onClick={autoFetch.run}
-            disabled={autoFetch.running || probing}
-          >
-            {autoFetch.running ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Zap className="h-3 w-3" />
-            )}
-            {autoFetch.running ? 'Fetching...' : 'Auto-fetch All'}
-          </Button>
-        )}
-      </div>
+      <CoverStats
+        count={missingAlbums.length}
+        noun={missingAlbums.length === 1 ? 'album without a cover' : 'albums without a cover'}
+        sub={`of ${albums.length} in your history · ${navidromeArtCount} have Navidrome art${probing ? ' · checking…' : ''}`}
+        covered={albums.length ? (albums.length - missingAlbums.length) / albums.length : undefined}
+        running={autoFetch.running}
+        disabled={probing}
+        onRun={autoFetch.run}
+      />
       {autoFetch.job && <AutoFetchProgress job={autoFetch.job} progress={autoFetch.progress} />}
 
       {/* Search filter */}
@@ -619,28 +620,12 @@ function ArtistsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Header stats + auto-fetch */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <span>{artists.length} artists missing images</span>
-        </div>
-        {artists.length > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 text-xs"
-            onClick={autoFetch.run}
-            disabled={autoFetch.running}
-          >
-            {autoFetch.running ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Zap className="h-3 w-3" />
-            )}
-            {autoFetch.running ? 'Fetching...' : 'Auto-fetch All'}
-          </Button>
-        )}
-      </div>
+      <CoverStats
+        count={artists.length}
+        noun={artists.length === 1 ? 'artist without an image' : 'artists without an image'}
+        running={autoFetch.running}
+        onRun={autoFetch.run}
+      />
       {autoFetch.job && <AutoFetchProgress job={autoFetch.job} progress={autoFetch.progress} />}
 
       {/* Search filter */}
