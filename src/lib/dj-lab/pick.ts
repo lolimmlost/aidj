@@ -37,7 +37,7 @@ export function splitByThumbs(ranked: Candidate[], now: SongRef, votes: LabVote[
 
 /** Where a pick stood when auto-lock made it, for the flight recorder (#383, #390). */
 export interface PickLog {
-  why: 'liked transition' | 'tempo window' | 'stretch' | 'tempo jump';
+  why: 'proven transition' | 'liked transition' | 'tempo window' | 'stretch' | 'tempo jump';
   /** the track's own tempo, as analysed */
   ownBpm: number;
   /** the set tempo it was ranked against */
@@ -63,7 +63,8 @@ export interface AutoPick {
 }
 
 /**
- * The song auto-lock locks next. A liked transition first (anywhere it can stretch to: it outranks the
+ * The song auto-lock locks next. A transition you marked proven first (Set prep known transitions, in the
+ * order given: it plays with your picked take), then a liked one (anywhere it can stretch to: both outrank the
  * tempo window, but never forces a tempo jump); then the best pick in the tempo window; when that runs dry,
  * anything it can stretch; then a tempo jump: the closest one that keeps the direction of the set's last jump
  * (`last`, #390). A small crate used to end the set in silence once every match had played. Never a 👎'd pair.
@@ -79,10 +80,12 @@ export function autoPick(
     liked?: Set<string>;
     /** the set's last tempo jump (lastJump of the engine's history) */
     last?: LastJump;
+    /** songs you marked a proven transition into from `current`, best first */
+    proven?: string[];
   },
   votes: LabVote[],
 ): AutoPick | null {
-  const { window, last, ...o } = opts;
+  const { window, last, proven, ...o } = opts;
   const split = (ranked: Candidate[]) => splitByThumbs(ranked, current.song, votes);
   const r1 = (v: number) => Math.round(v * 10) / 10;
   const pick = (why: PickLog['why'], list: Candidate[], more?: (c: Candidate) => Partial<PickLog>): AutoPick | null => {
@@ -99,7 +102,10 @@ export function autoPick(
     const j = split(rankJumps(current, pool, { ...o, last }));
     return [...j.liked, ...j.rest];
   };
+  const all = [...stretchable.liked, ...stretchable.rest];
+  const provenList = (proven ?? []).map((id) => all.find((c) => c.song.id === id)).filter((c): c is Candidate => !!c);
   return (
+    pick('proven transition', provenList) ??
     pick('liked transition', stretchable.liked) ??
     pick('tempo window', inWindow(), () => ({ window: `−${window.down} … +${window.up} %`, aim: windowTarget(window) })) ??
     pick('stretch', stretchable.rest) ??
@@ -117,13 +123,27 @@ export type PickerState = Pick<EngineSnapshot, 'setBpm' | 'mode' | 'history'> & 
  * that copy swung the set between two tempos, a jump on every song (#390). Logs each pick, and hands the same
  * line to the engine for the song's `locked` event.
  */
-export function autoPicker(read: () => PickerState, pool: { song: LabSong; analysis: TrackAnalysis }[], liked: Set<string>): Picker {
+export function autoPicker(
+  read: () => PickerState,
+  pool: { song: LabSong; analysis: TrackAnalysis }[],
+  liked: Set<string>,
+  /** the songs you marked a proven transition into from a song, best first (Set prep) */
+  provenFrom?: (fromId: string) => string[],
+): Picker {
   return (now, played) => {
     const s = read();
     const pick = autoPick(
       { song: now.song, analysis: now.analysis },
       pool,
-      { setBpm: s.setBpm, played, mode: s.mode, window: { down: s.defaults.tempoDown, up: s.defaults.tempoUp }, liked, last: lastJump(s.history) },
+      {
+        setBpm: s.setBpm,
+        played,
+        mode: s.mode,
+        window: { down: s.defaults.tempoDown, up: s.defaults.tempoUp },
+        liked,
+        last: lastJump(s.history),
+        proven: provenFrom?.(now.song.id),
+      },
       // read at each pick: a thumb you just gave counts
       loadVotes(),
     );

@@ -1,0 +1,1 @@
+ALTER TABLE "known_transitions" ADD COLUMN "preferred" jsonb;

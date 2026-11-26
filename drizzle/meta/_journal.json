@@ -225,6 +225,20 @@
       "when": 1795051134362,
       "tag": "0031_artist_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1795653985575,
+      "tag": "0032_known_transitions",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1795654575761,
+      "tag": "0033_known_transitions_preferred",
+      "breakpoints": true
     }
   ]
 }

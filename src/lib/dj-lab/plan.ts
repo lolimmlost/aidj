@@ -56,6 +56,11 @@ export interface Recipe {
   exit?: ExitChoice;
   /** Where B comes in (#375): its earliest drop, its main drop, or from the top */
   entry?: EntryChoice;
+  /**
+   * The earliest bar of A the blend may start at (a known take's cue, Set prep): the planner can't go out at
+   * an earlier drop. Past it, or with no exit from there, the rules plan from the playhead as usual.
+   */
+  outAt?: number;
 }
 
 export interface TransitionPlan {
@@ -413,6 +418,15 @@ export function planJump(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOptions):
 
 /** The first feasible exit for A into B; dropchain falls back to the classic end-of-track blend, then a cut. */
 export function planTransition(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOptions): TransitionPlan | null {
+  const outAt = opts.recipe?.outAt;
+  if (outAt != null && outAt > opts.fromBar) {
+    const p = planFrom(A, B, { ...opts, fromBar: outAt });
+    if (p) return p;
+  }
+  return planFrom(A, B, opts);
+}
+
+function planFrom(A: TrackAnalysis, B: TrackAnalysis, opts: PlanOptions): TransitionPlan | null {
   const r = opts.recipe ?? {};
   const mode = r.mode ?? opts.mode;
   const o = { ...opts, mode };

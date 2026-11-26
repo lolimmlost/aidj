@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { ChevronRight, Disc, ListMusic, Settings, Wand2 } from "lucide-react";
+import { ChevronRight, Disc, ListMusic, Settings, Shuffle, Wand2 } from "lucide-react";
 import { loginRedirect } from "~/lib/auth/login-redirect";
 import { Card } from "@/components/ui/card";
 import { PageLayout } from "@/components/ui/page-layout";
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/dj/")({
 });
 
 /** One row per DJ tool: icon, name, one line, chevron. */
-function ToolRow({ to, icon, title, line }: { to: "/dj/set-builder" | "/dj/settings"; icon: ReactNode; title: string; line: string }) {
+function ToolRow({ to, icon, title, line }: { to: "/dj/set-builder" | "/dj/settings" | "/dj/transitions"; icon: ReactNode; title: string; line: string }) {
   return (
     <Link to={to} className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50">
       <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-primary">{icon}</div>
@@ -43,6 +43,9 @@ function DJIndex() {
         </Card>
 
         <Card className="divide-y overflow-hidden p-0">
+          {user?.role === "admin" && (
+            <ToolRow to="/dj/transitions" icon={<Shuffle className="size-4" />} title="Known transitions" line="Pairs you've mixed in the Lab: tag them stable, build up, cooldown…" />
+          )}
           <ToolRow to="/dj/set-builder" icon={<ListMusic className="size-4" />} title="Set Builder" line="Plan a set: energy curve, BPM path, export as a playlist" />
           <ToolRow to="/dj/settings" icon={<Settings className="size-4" />} title="DJ Settings" line="Crossfades, AI DJ batch size, autoplay" />
         </Card>
