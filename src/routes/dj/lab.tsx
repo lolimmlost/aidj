@@ -29,6 +29,8 @@ import { ResumeBanner } from '@/components/dj-lab/ResumeBanner';
 import { TempoWindow } from '@/components/dj-lab/TempoWindow';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
+import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { GlassLabOverview } from '@/components/dj-lab/GlassLabOverview';
 
 const stretchPct = (setBpm: number, bpm: number) => {
   const pct = (setBpm / bpm - 1) * 100;
@@ -58,6 +60,8 @@ function watchTakeOver(engine: LabEngine) {
 }
 
 function DJLab() {
+  // Glass UI prototype (phones): GlassLabOverview replaces the slim live bar
+  const glass = useGlassUi();
   const { engine, snap } = useLabEngine();
   const [crateId, setCrateId] = useState<string | null>(null);
   const [tab, setTab] = useState('mix');
@@ -217,7 +221,19 @@ function DJLab() {
         {!live && resumePoint && (
           <ResumeBanner point={resumePoint} busy={resuming} onResume={() => void resumeSet(resumePoint)} onDismiss={clearResumePoint} />
         )}
-        {live && snap.now && <LiveBar engine={engine} snap={snap} />}
+        {live && snap.now && (glass ? (
+          <>
+            {/* Glass UI (phones): canvas draft AD; desktop keeps the slim live bar */}
+            <div className="md:hidden">
+              <GlassLabOverview engine={engine} snap={snap} pool={pool} crateName={crateName} />
+            </div>
+            <div className="hidden md:contents">
+              <LiveBar engine={engine} snap={snap} />
+            </div>
+          </>
+        ) : (
+          <LiveBar engine={engine} snap={snap} />
+        ))}
         <Card className="space-y-2 p-2.5">
           {live && (
             <button
