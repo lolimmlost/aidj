@@ -130,6 +130,7 @@ export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
     getGainValue,
     setMasterVolume,
     resumeContext,
+    kickOutput,
   } = useWebAudioGraph();
 
   // Track consecutive stream failures to prevent infinite skip loops
@@ -153,9 +154,10 @@ export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
   // non-gesture play() is allowed (#311).
   useEffect(() => registerAudioUnlocker(() => {
     ensureGraphInitializedRef.current();
+    kickOutput(); // inside the tap: revive a dead output after the page was away (#451)
     primeDeckForGesture(deckARef.current);
     primeDeckForGesture(deckBRef.current);
-  }), [deckARef, deckBRef]);
+  }), [deckARef, deckBRef, kickOutput]);
   // The "needs a tap" toast is moot once anything starts playback.
   useEffect(() => useAudioStore.subscribe((s, prev) => {
     if (s.isPlaying && !prev.isPlaying) dismissAutoplayPrompt();
@@ -818,6 +820,9 @@ export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
           setMasterVolume(volume);
         }
         resumeContext();
+        // Another app may have taken the audio while we were away, leaving a
+        // 'running' context with dead output: bounce it inside this tap (#451)
+        kickOutput();
 
         // Prime the inactive deck against autoplay policy. Browsers require
         // a user gesture on each HTMLAudioElement before .play() can run
@@ -875,7 +880,7 @@ export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
       }
       setIsPlaying(!isPlaying);
     }
-  }, [isPlaying, setIsPlaying, getActiveDeck, getInactiveDeck, webAudioInitialized, deckARef, deckBRef, initializeGraph, setMasterVolume, volume, resumeContext]);
+  }, [isPlaying, setIsPlaying, getActiveDeck, getInactiveDeck, webAudioInitialized, deckARef, deckBRef, initializeGraph, setMasterVolume, volume, resumeContext, kickOutput]);
 
   // Sleep timer (#171): pause when the armed timer expires. Uses an absolute
   // timestamp (survives backgrounding/lock) and re-checks on visibility so a

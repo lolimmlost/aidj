@@ -15,6 +15,8 @@ export interface WebAudioGraph {
   getGainValue: (deck: 'A' | 'B') => number;
   setMasterVolume: (volume: number) => void;
   resumeContext: () => Promise<boolean>;
+  /** On a user play tap: bounce a 'running' context whose output may be dead (#451). */
+  kickOutput: () => void;
 }
 
 // --- Helpers (pure, no hooks) ---
@@ -52,6 +54,10 @@ export function useWebAudioGraph(): WebAudioGraph {
    *  handler cuts it; every reconnect sets it back. Tracked because gain
    *  alone can't tell a cut graph from a playing one. */
   const masterConnectedRef = useRef(false);
+  /** Set when the page comes back from hidden: another app may have taken the
+   *  iOS audio session meanwhile without any statechange, leaving a 'running'
+   *  context with dead output (#451). Cleared by any real interrupt cycle. */
+  const outputSuspectRef = useRef(false);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -249,6 +255,25 @@ export function useWebAudioGraph(): WebAudioGraph {
       }
     }
     return true;
+  }, []);
+
+  // --- #451: dead output after another app took the audio session ---
+  //
+  // iOS can take the session away (another app, Siri, a call) without any
+  // AudioContext statechange: the context still says 'running', the element
+  // plays, nothing is heard; only an interrupt → running bounce revives it.
+  // Bounce it ourselves, but ONLY inside the user's own play tap and only when
+  // the page has been away since the last real bounce. Never automatically:
+  // the automatic version (#170) stole the session from other apps.
+  const kickOutput = useCallback(() => {
+    const ctx = audioContextRef.current;
+    if (!ctx || !outputSuspectRef.current) return;
+    if ((ctx.state as string) !== 'running') return; // resumeContext handles the other states
+    outputSuspectRef.current = false;
+    console.log('[WEB AUDIO] Play tap after the page was away — bouncing the context to revive the output (#451)');
+    ctx.suspend()
+      .then(() => ctx.resume())
+      .catch((err) => console.warn('[WEB AUDIO] Output bounce failed:', (err as Error).message));
   }, []);
 
   // --- Output self-heal: context running, music playing, output cut ---
@@ -471,6 +496,8 @@ export function useWebAudioGraph(): WebAudioGraph {
         }, 2000);
 
       } else if (state === 'running') {
+        // A real interrupt → running bounce: the output is rebuilt (#451)
+        if (interruptedAtRef.current > 0) outputSuspectRef.current = false;
         // Clear the persistent resume interval — context is running now
         if (resumeIntervalRef.current) {
           clearInterval(resumeIntervalRef.current);
@@ -629,6 +656,8 @@ export function useWebAudioGraph(): WebAudioGraph {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
+      // Back from away: the session may have been taken meanwhile (#451)
+      outputSuspectRef.current = true;
       const state = ctx.state as string;
       const visDA = deckAElementRef.current;
       const visDB = deckBElementRef.current;
@@ -765,5 +794,6 @@ export function useWebAudioGraph(): WebAudioGraph {
     getGainValue,
     setMasterVolume,
     resumeContext,
+    kickOutput,
   };
 }
