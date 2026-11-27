@@ -12,9 +12,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ### ✨ Highlights
 
-- ⚙️ **Settings, rebuilt.**
-  - On glass phones: iOS-style grouped lists, one page per topic, and a new Appearance page.
-  - Everywhere: changes save as you make them, with no Save buttons.
+- ⚙️ **Settings, redrawn.**
+  - Every page opens with a card that shows what it controls (the crossfade as two overlapping waveforms, the AI DJ's picks in your queue, your devices, your services' health), then iOS-style rows, switches, pill choices and steppers.
+  - On iPad and desktop, Settings is a split view.
+  - Changes save as you make them, with no Save buttons.
+- 🫧 **Glass on every screen.**
+  - The glass design now works on iPad and desktop, not just phones: floating frosted sidebars and player bar, one cover-tinted glow behind the app.
+  - Home, Artists, Playlists, artist and album pages use their glass versions at every size.
 - 🔐 **Sign-in security.** better-auth 1.5.6 → 1.7.28 fixes a set of critical and high advisories (incl. account takeover via email-code sign-in). Rehearsed against a copy of production's accounts before going live.
 - 📦 **Dependencies refreshed.** `npm audit`: 29 → 4 (dev-only, moderate). CI now tests on Node 26, the version production runs.
 
@@ -26,6 +30,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 - **Appearance page:** Light / Dark / Auto theme, the glass design switch, Low motion.
 - **Theme toggle in the You sheet** (#470).
 - **Profile header:** your avatar, name and email at the top of Profile.
+- **Signed-in devices** (Security): every device signed in to your account, with a way to sign out one or all the others.
+- **Services health:** Settings → Services tests every service when it opens (n / total connected, what's down).
+- **Settings split view** on iPad and desktop.
+- **Glass on iPad and desktop** (#479).
 
 ### Changed
 
