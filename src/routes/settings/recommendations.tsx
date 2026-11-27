@@ -1,4 +1,4 @@
-import { CalendarDays, Heart, Sparkles, Star, Wand2 } from 'lucide-react';
+import { Heart, Sparkles, Star, Wand2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { usePreferencesStore, type RecommendationSettings as Recs } from '@/lib/stores/preferences';
 import { AIDJSettings } from '@/components/ai-dj-settings';
@@ -6,18 +6,11 @@ import { cn } from '@/lib/utils';
 import {
   SettingsHero,
   SettingsSection,
-  SettingsSelectRow,
   SettingsStack,
   SettingsSwitchRow,
   saveOrWarn,
   useSettingsLook,
 } from '@/components/settings/settings-ui';
-
-const FREQUENCY = [
-  { value: 'always' as const, label: 'Real time' },
-  { value: 'daily' as const, label: 'Daily' },
-  { value: 'weekly' as const, label: 'Weekly' },
-];
 
 /** Your next 12 songs: a sparkle every (interval + 1)th is an AI DJ pick. */
 function DripDots({ every, on }: { every: number; on: boolean }) {
@@ -60,7 +53,7 @@ export function RecommendationSettings() {
               {off
                 ? 'Turn on AI recommendations below to use the AI DJ'
                 : djOn
-                  ? `Adds a pick every ${every} songs${recs.aiDJUseCurrentContext ? ', following what’s playing' : ''}`
+                  ? `Adds a pick every ${every} songs`
                   : 'Off · your queue plays as you set it'}
             </p>
           </div>
@@ -81,44 +74,15 @@ export function RecommendationSettings() {
 
       <AIDJSettings />
 
-      <SettingsSection title="Recommendations" icon={<Wand2 />}>
+      <SettingsSection title="Recommendations">
         <SettingsSwitchRow
           id="ai-enabled"
-          icon={<Star />}
+          icon={<Wand2 />}
           label="AI recommendations"
           description="Personal picks from what you play"
           checked={recs.aiEnabled}
           onCheckedChange={(v) => save({ aiEnabled: v })}
         />
-        <SettingsSelectRow
-          id="frequency"
-          label="New picks"
-          value={recs.frequency}
-          options={FREQUENCY}
-          onChange={(v) => save({ frequency: v })}
-          disabled={off}
-        />
-        <SettingsSwitchRow
-          id="seasonal-recs"
-          icon={<CalendarDays />}
-          label="Seasonal picks"
-          description="Lean on the time of year"
-          checked={recs.enableSeasonalRecommendations ?? true}
-          onCheckedChange={(v) => save({ enableSeasonalRecommendations: v })}
-          disabled={off}
-        />
-        <SettingsSwitchRow
-          id="style-playlists"
-          icon={<Wand2 />}
-          label="Style-based playlists"
-          description="Build playlists from styles and moods"
-          checked={recs.styleBasedPlaylists}
-          onCheckedChange={(v) => save({ styleBasedPlaylists: v })}
-          disabled={off}
-        />
-      </SettingsSection>
-
-      <SettingsSection title="Your ratings">
         <SettingsSwitchRow
           id="use-feedback"
           icon={<Heart />}

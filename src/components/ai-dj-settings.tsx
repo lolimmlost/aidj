@@ -1,9 +1,9 @@
-// AI DJ settings (Story 3.9, drip-feed model). Shared by Settings → AI DJ and /dj/settings.
+// AI DJ settings (Story 3.9, drip-feed model), shown on Settings → AI DJ.
 // Reads the preferences store directly and saves on change (the store applies it at once and rolls
 // back on failure), so there is no local copy to drift.
 
 import { useState } from 'react';
-import { AudioWaveform, Disc3, Gauge, ListPlus, Music, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { AudioWaveform, Gauge, ListPlus, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePreferencesStore, type RecommendationSettings as Recs } from '@/lib/stores/preferences';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -56,15 +56,6 @@ export function AIDJSettings() {
           disabled={off}
         />
         <SettingsSwitchRow
-          id="ai-dj-context"
-          icon={<Music />}
-          label="Follow what’s playing"
-          description="Base picks on the current song"
-          checked={recs.aiDJUseCurrentContext}
-          onCheckedChange={(v) => save({ aiDJUseCurrentContext: v })}
-          disabled={off}
-        />
-        <SettingsSwitchRow
           id="dj-matching"
           icon={<AudioWaveform />}
           label="Match BPM, energy and key"
@@ -72,15 +63,6 @@ export function AIDJSettings() {
           checked={matching}
           onCheckedChange={(v) => save({ djMatchingEnabled: v })}
           disabled={off}
-        />
-        <SettingsSwitchRow
-          id="bpm-analysis"
-          icon={<Disc3 />}
-          label="Detect BPM while playing"
-          description="Uses a little extra battery"
-          checked={recs.bpmAnalysisEnabled ?? false}
-          onCheckedChange={(v) => save({ bpmAnalysisEnabled: v })}
-          disabled={off || !matching}
         />
       </SettingsSection>
 

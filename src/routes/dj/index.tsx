@@ -47,7 +47,7 @@ function DJIndex() {
             <ToolRow to="/dj/transitions" icon={<Shuffle className="size-4" />} title="Known transitions" line="Pairs you've mixed in the Lab: tag them stable, build up, cooldown…" />
           )}
           <ToolRow to="/dj/set-builder" icon={<ListMusic className="size-4" />} title="Set Builder" line="Plan a set: energy curve, BPM path, export as a playlist" />
-          <ToolRow to="/dj/settings" icon={<Settings className="size-4" />} title="DJ Settings" line="Crossfades, AI DJ batch size, autoplay" />
+          <ToolRow to="/dj/settings" icon={<Settings className="size-4" />} title="AI DJ settings" line="How often it adds picks, seeding, top-ups" />
         </Card>
 
         <details className="group rounded-xl border px-3 py-2.5 text-sm">

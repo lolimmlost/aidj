@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { SettingsBlock, SettingsHero, SettingsLinkRow, SettingsRow, SettingsSection, SettingsStack, StatusPill } from "@/components/settings/settings-ui";
 import { SessionsSection } from "@/components/settings/SessionsSection";
+import { ConnectedAccounts } from "@/components/settings/ConnectedAccounts";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -437,6 +438,8 @@ export function SecuritySettings() {
           )}
         </SettingsBlock>
       </SettingsSection>
+
+      <ConnectedAccounts />
 
       <SessionsSection />
     </SettingsStack>
