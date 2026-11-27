@@ -115,6 +115,8 @@ export function ServicesSettings() {
   // Glass phones: each service is its own glass group; desktop keeps the bordered boxes.
   const glass = useSettingsLook() === 'glass';
   const box = (classic: string) => (glass ? 'glass-surface rounded-[20px] p-4 space-y-3' : classic);
+  // Section heads match the other settings pages on glass.
+  const head = glass ? 'font-display text-[17px] font-bold tracking-[-0.01em]' : 'text-lg font-semibold';
   const [config, setConfig] = useState<{
     llmProvider?: LLMProviderType;
     ollamaUrl?: string;
@@ -487,7 +489,7 @@ export function ServicesSettings() {
           {/* LLM Provider Section */}
           <div className={box('p-4 border rounded-lg space-y-4 bg-muted/50')}>
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">AI Provider Configuration</h3>
+              <h3 className={head}>AI provider</h3>
               <div className="flex items-center gap-2">
                 <StatusBadge status={testStatuses.llmProvider} />
                 <Button
@@ -504,7 +506,7 @@ export function ServicesSettings() {
 
             {/* Provider Selection */}
             <div>
-              <Label htmlFor="llmProvider">LLM Provider</Label>
+              <Label htmlFor="llmProvider">LLM provider</Label>
               <Select
                 value={config.llmProvider || 'ollama'}
                 onValueChange={(value) => update('llmProvider', value)}
@@ -567,7 +569,7 @@ export function ServicesSettings() {
             {config.llmProvider === 'openrouter' && (
               <>
                 <div>
-                  <Label htmlFor="openrouterApiKey">OpenRouter API Key</Label>
+                  <Label htmlFor="openrouterApiKey">OpenRouter API key</Label>
                   <Input
                     id="openrouterApiKey"
                     name="openrouterApiKey"
@@ -617,7 +619,7 @@ export function ServicesSettings() {
             {config.llmProvider === 'glm' && (
               <>
                 <div>
-                  <Label htmlFor="glmApiKey">GLM API Key</Label>
+                  <Label htmlFor="glmApiKey">GLM API key</Label>
                   <Input
                     id="glmApiKey"
                     name="glmApiKey"
@@ -667,7 +669,7 @@ export function ServicesSettings() {
             {config.llmProvider === 'anthropic' && (
               <>
                 <div>
-                  <Label htmlFor="anthropicApiKey">API Key</Label>
+                  <Label htmlFor="anthropicApiKey">API key</Label>
                   <Input
                     id="anthropicApiKey"
                     name="anthropicApiKey"
@@ -682,7 +684,7 @@ export function ServicesSettings() {
                   </p>
                 </div>
                 <div>
-                  <Label htmlFor="anthropicBaseUrl">API Base URL</Label>
+                  <Label htmlFor="anthropicBaseUrl">API base URL</Label>
                   <Input
                     id="anthropicBaseUrl"
                     name="anthropicBaseUrl"
@@ -723,7 +725,7 @@ export function ServicesSettings() {
 
           {/* Music Services Section */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Music Services</h3>
+            <h3 className={cn(head, glass && "px-1")}>Music services</h3>
 
             {/* Navidrome */}
             <div className={box('p-4 border rounded-lg space-y-3')}>
@@ -781,7 +783,7 @@ export function ServicesSettings() {
                 onChange={(e) => update('lidarrUrl', e.target.value)}
               />
               <div>
-                <Label htmlFor="lidarrApiKey">API Key</Label>
+                <Label htmlFor="lidarrApiKey">API key</Label>
                 <Input
                   id="lidarrApiKey"
                   name="lidarrApiKey"
@@ -838,11 +840,11 @@ export function ServicesSettings() {
 
           {/* Discovery Services Section */}
           <div className={box('p-4 border rounded-lg space-y-4 bg-(--aidj-violet)/5')}>
-            <h3 className="text-lg font-semibold flex items-center gap-2">
+            <h3 className={cn(head, "flex items-center gap-2")}>
               <svg className="w-5 h-5 text-(--aidj-violet)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              Discovery Services
+              Discovery
             </h3>
             <p className="text-sm text-muted-foreground">
               Optional services to help you discover new music similar to what you already enjoy.
@@ -850,7 +852,7 @@ export function ServicesSettings() {
 
             {/* Last.fm API Key */}
             <div>
-              <Label htmlFor="lastfmApiKey">Last.fm API Key</Label>
+              <Label htmlFor="lastfmApiKey">Last.fm API key</Label>
               <div className="flex gap-2 mt-2">
                 <Input
                   id="lastfmApiKey"
@@ -893,9 +895,9 @@ export function ServicesSettings() {
 
           {/* Last.fm Scrobble Backfill Section */}
           <div className={box('p-4 border rounded-lg space-y-4 bg-(--aidj-cyan)/5')}>
-            <h3 className="text-lg font-semibold flex items-center gap-2">
+            <h3 className={cn(head, "flex items-center gap-2")}>
               <Download className="w-5 h-5 text-(--aidj-cyan)" />
-              Last.fm Scrobble Backfill
+              Import Last.fm history
             </h3>
             <p className="text-sm text-muted-foreground">
               Import your listening history from Last.fm to enrich analytics and recommendations.
@@ -903,7 +905,7 @@ export function ServicesSettings() {
             </p>
 
             <div>
-              <Label htmlFor="backfillUsername">Last.fm Username</Label>
+              <Label htmlFor="backfillUsername">Last.fm username</Label>
               <div className="flex gap-2 mt-2">
                 <Input
                   id="backfillUsername"

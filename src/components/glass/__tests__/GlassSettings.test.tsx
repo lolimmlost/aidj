@@ -52,7 +52,7 @@ describe('GlassSettingsIndex (Control centre)', () => {
     expect(within(row('J')).getByText('juan@example.com · Admin')).toBeTruthy();
     expect(within(row('Playback')).getByText('Crossfade 6 s')).toBeTruthy();
     expect(within(row('AI DJ')).getByText('Every 3')).toBeTruthy();
-    expect(within(row('Notifications')).getByText('1 on')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /^Notifications/ })).toBeNull();
     expect(within(row('Appearance')).getByText('Dark')).toBeTruthy();
     expect(within(row('Security')).getByText('2FA on')).toBeTruthy();
     expect(row('Services')).toBeTruthy();

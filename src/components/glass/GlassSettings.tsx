@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Bell, ChevronRight, Disc3, ImageIcon, Layers, Palette, Play, Server, Shield, Sparkles } from 'lucide-react';
+import { ChevronRight, Disc3, ImageIcon, Layers, Palette, Play, Server, Shield, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import authClient from '@/lib/auth/auth-client';
 import { useTheme } from '@/components/theme-provider';
@@ -18,23 +18,19 @@ export type GlassSettingsTab =
   | 'profile'
   | 'playback'
   | 'ai-dj'
-  | 'notifications'
   | 'appearance'
   | 'security'
   | 'services'
-  | 'cover-art'
-  | 'general';
+  | 'cover-art';
 
 export const GLASS_SETTINGS_TITLES: Record<GlassSettingsTab, string> = {
   profile: 'Profile',
   playback: 'Playback',
   'ai-dj': 'AI DJ',
-  notifications: 'Notifications',
   appearance: 'Appearance',
   security: 'Security',
   services: 'Services',
   'cover-art': 'Album art',
-  general: 'General',
 };
 
 interface Row {
@@ -48,11 +44,10 @@ const GROUPS: Row[][] = [
   [
     { tab: 'playback', icon: <Play /> },
     { tab: 'ai-dj', icon: <Sparkles /> },
-    { tab: 'notifications', icon: <Bell /> },
     { tab: 'appearance', icon: <Palette /> },
+    { tab: 'security', icon: <Shield /> },
   ],
   [
-    { tab: 'security', icon: <Shield /> },
     { tab: 'services', icon: <Server />, admin: true },
     { tab: 'cover-art', icon: <ImageIcon />, admin: true },
   ],
@@ -66,12 +61,9 @@ function useRowValues(twoFactor: boolean): Partial<Record<GlassSettingsTab, { te
   const { theme } = useTheme();
   const recs = prefs.recommendationSettings;
   const fade = prefs.playbackSettings?.crossfadeDuration ?? 0;
-  const notes = prefs.notificationSettings;
-  const notesOn = [notes?.downloadCompletion, notes?.recommendationUpdates].filter(Boolean).length;
   return {
     playback: { text: fade > 0 ? `Crossfade ${fade} s` : 'No crossfade' },
     'ai-dj': { text: recs.aiEnabled && recs.aiDJEnabled ? `Every ${recs.aiDJDripInterval ?? 3}` : 'Off' },
-    notifications: { text: notesOn ? `${notesOn} on` : 'Off' },
     appearance: { text: THEME_NAMES[theme] ?? 'Auto' },
     security: twoFactor ? { text: '2FA on', good: true } : { text: 'Password only' },
   };
@@ -193,6 +185,7 @@ export function GlassSettingsIndex({ isAdmin, active }: { isAdmin: boolean; /** 
 
       {GROUPS.map((group) => {
         const rows = group.filter((r) => !r.admin || isAdmin);
+        if (rows.length === 0) return null;
         return (
           <ul key={group[0].tab} className="glass-surface overflow-hidden rounded-[20px]">
             {rows.map((r, j) => {

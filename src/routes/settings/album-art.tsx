@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Segmented, SettingsHero } from '@/components/settings/settings-ui';
+import { Segmented, SettingsHero, useSettingsLook } from '@/components/settings/settings-ui';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Search, X, ImageIcon, Loader2, Music, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -235,6 +235,13 @@ export function AlbumArtSettings() {
 }
 
 /** The count of what's missing, how much is covered, and one button to fetch everything. */
+/** One album or artist missing art: a glass row on the glass design, a card on the classic one. */
+function CoverRow({ children }: { children: React.ReactNode }) {
+  const glass = useSettingsLook() === 'glass';
+  if (glass) return <div className="glass-surface rounded-[18px] p-3">{children}</div>;
+  return <Card className="p-3">{children}</Card>;
+}
+
 function CoverStats({
   count,
   noun,
@@ -432,7 +439,7 @@ function AlbumsTab() {
           const isSearching = searchingAlbum === key;
 
           return (
-            <Card key={key} className="p-3">
+            <CoverRow key={key}>
               <div className="flex items-center gap-3">
                 {/* Navidrome thumbnail */}
                 <div className="w-10 h-10 rounded bg-muted flex-shrink-0 overflow-hidden">
@@ -513,7 +520,7 @@ function AlbumsTab() {
                   )}
                 </div>
               </div>
-            </Card>
+            </CoverRow>
           );
         })}
       </div>
@@ -651,7 +658,7 @@ function ArtistsTab() {
           const isSearching = searchingArtist === entry.artist;
 
           return (
-            <Card key={entry.artist} className="p-3">
+            <CoverRow key={entry.artist}>
               <div className="flex items-center gap-3">
                 {/* Artist initial */}
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center flex-shrink-0">
@@ -725,7 +732,7 @@ function ArtistsTab() {
                   )}
                 </div>
               </div>
-            </Card>
+            </CoverRow>
           );
         })}
       </div>

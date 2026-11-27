@@ -6,14 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { PageLayout } from '@/components/ui/page-layout';
 import { usePreferencesStore } from '@/lib/stores/preferences';
-import { GeneralSettings } from './general';
 import { RecommendationSettings } from './recommendations';
 import { PlaybackSettings } from './playback';
 import { ServicesSettings } from './services';
 import { AlbumArtSettings } from './album-art';
 import { SecuritySettings } from './security';
 import { ProfileSettings } from './profile';
-import { NotificationSettings } from './notifications';
 import { AppearanceSettings } from './appearance';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
 import { useIsPhone } from '@/components/glass/GlassSheet';
@@ -21,28 +19,28 @@ import { GlassBackPill } from '@/components/glass/GlassBackPill';
 import { GLASS_SETTINGS_TITLES, GlassSettingsIndex, type GlassSettingsTab } from '@/components/glass/GlassSettings';
 import { SettingsLookProvider } from '@/components/settings/settings-ui';
 
-const _NEW_TABS = ['general', 'security', 'services', 'playback', 'ai-dj', 'cover-art'] as const;
-type ClassicTab = (typeof _NEW_TABS)[number];
-// Glass phones give Profile, Notifications and Appearance their own pages; the classic tabs fold
-// them into General.
-type NewTab = ClassicTab | 'profile' | 'notifications' | 'appearance';
+const _CLASSIC_TABS = ['profile', 'security', 'services', 'playback', 'ai-dj', 'cover-art'] as const;
+type ClassicTab = (typeof _CLASSIC_TABS)[number];
+// The glass design adds an Appearance page; the classic layout has the theme toggle in its header.
+type NewTab = ClassicTab | 'appearance';
 const CLASSIC_TAB: Record<NewTab, ClassicTab> = {
-  general: 'general', security: 'security', services: 'services', playback: 'playback', 'ai-dj': 'ai-dj',
-  'cover-art': 'cover-art', profile: 'general', notifications: 'general', appearance: 'general',
+  profile: 'profile', security: 'security', services: 'services', playback: 'playback', 'ai-dj': 'ai-dj',
+  'cover-art': 'cover-art', appearance: 'profile',
 };
 
 // Map old tab param values to new tab names
 const TAB_MIGRATION: Record<string, NewTab> = {
   profile: 'profile',
-  notifications: 'notifications',
   appearance: 'appearance',
-  layout: 'general',
+  // Retired pages (their settings did nothing): old links land on Profile.
+  general: 'profile',
+  notifications: 'profile',
+  layout: 'profile',
   services: 'services',
   playback: 'playback',
   recommendations: 'ai-dj',
   security: 'security',
   // New values pass through
-  general: 'general',
   'ai-dj': 'ai-dj',
   'cover-art': 'cover-art',
   'album-art': 'cover-art',
@@ -73,6 +71,7 @@ function SettingsPage() {
   const { loadPreferences, isLoading, error } = usePreferencesStore();
   const glass = useGlassUi();
   const phone = useIsPhone();
+  const navigate = useNavigate();
 
   // Load preferences on mount
   useEffect(() => {
@@ -83,7 +82,9 @@ function SettingsPage() {
     return <GlassSettingsPage tab={tab} isAdmin={isAdmin} error={error} wide={!phone} />;
   }
 
-  const classicTab = tab ? CLASSIC_TAB[tab] : undefined;
+  const wanted: ClassicTab = tab ? CLASSIC_TAB[tab] : 'profile';
+  // Controlled by ?tab=, so a link to another tab (or Back) switches it, not just the first load.
+  const classicTab: ClassicTab = !isAdmin && (wanted === 'services' || wanted === 'cover-art') ? 'profile' : wanted;
   return (
     <PageLayout
       title="Settings"
@@ -107,9 +108,13 @@ function SettingsPage() {
 
       {/* Settings Tabs */}
       {!isLoading && (
-        <Tabs defaultValue={(!isAdmin && (classicTab === 'services' || classicTab === 'cover-art')) ? 'general' : (classicTab || 'general')} className="w-full">
+        <Tabs
+          value={classicTab}
+          onValueChange={(v) => navigate({ to: '/settings', search: { tab: v as ClassicTab }, replace: true })}
+          className="w-full"
+        >
           <TabsList className={`w-full grid grid-cols-2 gap-1 h-auto p-1 mb-8 ${isAdmin ? 'sm:grid-cols-6' : 'sm:grid-cols-4'}`}>
-            <TabsTrigger value="general" className="text-xs sm:text-sm py-2">General</TabsTrigger>
+            <TabsTrigger value="profile" className="text-xs sm:text-sm py-2">Profile</TabsTrigger>
             <TabsTrigger value="security" className="text-xs sm:text-sm py-2">Security</TabsTrigger>
             {isAdmin && <TabsTrigger value="services" className="text-xs sm:text-sm py-2">Services</TabsTrigger>}
             <TabsTrigger value="playback" className="text-xs sm:text-sm py-2">Playback</TabsTrigger>
@@ -117,8 +122,8 @@ function SettingsPage() {
             {isAdmin && <TabsTrigger value="cover-art" className="text-xs sm:text-sm py-2">Cover Art</TabsTrigger>}
           </TabsList>
 
-          <TabsContent value="general">
-            <GeneralSettings />
+          <TabsContent value="profile">
+            <ProfileSettings />
           </TabsContent>
 
           <TabsContent value="security">
@@ -150,7 +155,6 @@ function SettingsPage() {
   );
 }
 
-/** Glass phones: the grouped index (no tab), or one settings page with "‹ Settings". */
 /**
  * Glass design. Phones: the grouped index (no tab), or one settings page with "‹ Settings".
  * Wider screens (iPad and up): a split view, the index on the left and the open page on the right.
@@ -164,9 +168,7 @@ function GlassSettingsPage({ tab, isAdmin, error, wide }: { tab?: NewTab; isAdmi
   const body = (() => {
     switch (page) {
       case 'profile': return <ProfileSettings />;
-      case 'notifications': return <NotificationSettings />;
       case 'appearance': return <AppearanceSettings />;
-      case 'general': return <GeneralSettings />;
       case 'security': return <SecuritySettings />;
       case 'playback': return <PlaybackSettings />;
       case 'ai-dj': return <RecommendationSettings />;

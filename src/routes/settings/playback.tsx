@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Play, ShieldCheck, Volume2 } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { usePreferencesStore, type PlaybackSettings as Playback } from '@/lib/stores/preferences';
 import { useAudioStore } from '@/lib/stores/audio';
 import {
@@ -13,13 +13,6 @@ import {
   saveOrWarn,
   useSliderDraft,
 } from '@/components/settings/settings-ui';
-
-const QUALITY = [
-  { value: 'low' as const, label: 'Low' },
-  { value: 'medium' as const, label: 'Medium' },
-  { value: 'high' as const, label: 'High' },
-];
-const QUALITY_NOTE = { low: '128 kbps · about 58 MB an hour', medium: '256 kbps · about 115 MB an hour', high: '320 kbps · about 145 MB an hour' };
 
 // "Count a play after": the common stops; End = the whole song.
 const COUNT_AT = [
@@ -88,7 +81,7 @@ export function PlaybackSettings() {
         <SettingsSlider aria-label="Crossfade length" min={0} max={10} step={1} className="mt-2" {...crossfade.props} />
       </SettingsHero>
 
-      <SettingsSection title="Sound" icon={<Volume2 />}>
+      <SettingsSection title="Playing">
         <SettingsSliderRow
           id="volume"
           label="Volume"
@@ -97,28 +90,8 @@ export function PlaybackSettings() {
           max={1}
           step={0.01}
           format={(v) => `${Math.round(v * 100)}%`}
-          description={() => 'Where the player starts'}
           onChange={(v) => useAudioStore.getState().setVolume(v)}
           onCommit={(v) => save({ volume: v })}
-        />
-        <SettingsSelectRow
-          id="quality"
-          label="Streaming quality"
-          value={settings.defaultQuality}
-          options={QUALITY}
-          description={QUALITY_NOTE[settings.defaultQuality]}
-          onChange={(v) => save({ defaultQuality: v })}
-        />
-      </SettingsSection>
-
-      <SettingsSection title="Playing">
-        <SettingsSwitchRow
-          id="autoplay"
-          icon={<Play />}
-          label="Autoplay next song"
-          description="Keep going when a song ends"
-          checked={settings.autoplayNext}
-          onCheckedChange={(v) => save({ autoplayNext: v })}
         />
         <SettingsSelectRow
           id="scrobble-threshold"
@@ -132,7 +105,7 @@ export function PlaybackSettings() {
           id="safe-mode"
           icon={<ShieldCheck />}
           label="Safe mode (PG)"
-          description="No explicit songs from AI DJ or autoplay"
+          description="No explicit songs from AI DJ, radio or recommendations"
           checked={settings.safeMode ?? false}
           onCheckedChange={(v) => save({ safeMode: v })}
         />
