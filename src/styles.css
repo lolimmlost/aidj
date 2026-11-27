@@ -2,9 +2,16 @@
 
 @import "tw-animate-css";
 
-/* App fonts: Inter (body), Plus Jakarta Sans (display), JetBrains Mono (stats),
-   Unbounded + Syne (brand marks). Only load families that are actually used. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Unbounded:wght@700;800;900&family=Syne:ital,wght@0,700;1,800&display=swap');
+/* App fonts, bundled with the app (Fontsource): Inter (body), Plus Jakarta Sans (display), JetBrains Mono
+   (stats), Unbounded + Syne (brand marks). They used to come from Google Fonts by a remote @import, which the
+   build silently dropped, so phones showed their system font instead. Variable fonts: one file per script
+   covers every weight; the browser fetches only the scripts a page uses (unicode-range). */
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/plus-jakarta-sans";
+@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource-variable/unbounded";
+@import "@fontsource/syne/700.css";
+@import "@fontsource/syne/800.css";
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant landscape (@media (orientation: landscape));
@@ -25,15 +32,15 @@
 
   /* Display + mono font utilities. font-display drives big stat numbers and
      headings; font-mono is reserved for stats, timestamps, BPM/key labels. */
-  --font-display: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'Menlo', monospace;
+  --font-display: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, 'Menlo', monospace;
   /* Brand-mark accents. font-brand is Unbounded (geometric, wide, rave-flyer
      feel) — reserved for the "AI" half of the AIDJ wordmark and other hero
      brand moments. font-accent is Syne (off-axis, italic-leaning) — used for
      the "DJ" half and for taglines / eyebrow accents that need contrast
      against the stricter geometric face. */
-  --font-brand: 'Unbounded', 'Plus Jakarta Sans', ui-sans-serif, sans-serif;
-  --font-accent: 'Syne', 'Plus Jakarta Sans', ui-sans-serif, sans-serif;
+  --font-brand: 'Unbounded Variable', 'Unbounded', 'Plus Jakarta Sans Variable', ui-sans-serif, sans-serif;
+  --font-accent: 'Syne', 'Plus Jakarta Sans Variable', ui-sans-serif, sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -209,7 +216,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-family: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
     /* iOS PWA: Full height with safe areas */
     min-height: 100%;
     min-height: 100dvh;
@@ -227,7 +234,7 @@
      Options: 'Plus Jakarta Sans' | 'Sora' | 'Outfit' | 'Space Grotesk'
   */
   :root {
-    --font-display: 'Plus Jakarta Sans';
+    --font-display: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans';
   }
   .fade-in {
     @apply opacity-0 animate-in fade-in-0 duration-300;
@@ -975,7 +982,7 @@
      and a countdown progress bar that matches the toast duration. */
 
   [data-sonner-toaster] {
-    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-family: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
   }
 
   [data-sonner-toast] {
