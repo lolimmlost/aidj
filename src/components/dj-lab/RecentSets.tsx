@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ClipboardCheck, Copy, ListPlus, Loader2, Repeat, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/lib/toast';
@@ -18,20 +19,62 @@ async function saveAsPlaylist(set: SavedSet) {
   if (!res.ok) throw new Error(`${res.status}`);
 }
 
-/** Every Lab set played in this browser, newest first: tracklist, replay, copy, save as a playlist. */
+/** A set from the server (/storage/sets): the whole thing, recipes and cues included, for a replay. */
+async function fetchFullSet(id: string): Promise<SavedSet> {
+  const res = await fetch(`/api/dj/lab-sets?id=${encodeURIComponent(id)}`, { credentials: 'include' });
+  if (!res.ok) throw new Error(`${res.status}`);
+  return (await res.json()).data as SavedSet;
+}
+
+const SHOWN = 20;
+
+/**
+ * Every Lab set, newest first: the ones played in this browser plus the older ones kept on the server
+ * (this browser only keeps its newest 20). Tracklist, replay, copy, save as a playlist.
+ */
 export function RecentSets({ onReplay, replaying }: { onReplay?: (set: SavedSet) => void; replaying?: string | null }) {
-  const [sets, setSets] = useState<SavedSet[]>(() => loadSets());
+  const [local, setLocal] = useState<SavedSet[]>(() => loadSets());
+  const [showAll, setShowAll] = useState(false);
+  const [fetching, setFetching] = useState<string | null>(null);
+  // admin-only endpoint: anyone else just sees their local sets
+  const { data: server = [] } = useQuery({
+    queryKey: ['lab-sets', 'all'],
+    queryFn: async () => {
+      const res = await fetch('/api/dj/lab-sets?limit=200', { credentials: 'include' });
+      if (!res.ok) return [] as SavedSet[];
+      return ((await res.json()).data ?? []) as SavedSet[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const localIds = useMemo(() => new Set(local.map((s) => s.id)), [local]);
+  const sets = useMemo(() => {
+    const merged = [...local, ...server.filter((s) => !localIds.has(s.id))];
+    return merged.sort((a, b) => (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0));
+  }, [local, server, localIds]);
+  const replay = async (set: SavedSet) => {
+    if (!onReplay) return;
+    if (localIds.has(set.id)) return onReplay(set);
+    setFetching(set.id);
+    try {
+      onReplay(await fetchFullSet(set.id));
+    } catch (e) {
+      toast.error(`Couldn't load that set (${(e as Error).message})`);
+    } finally {
+      setFetching(null);
+    }
+  };
   // folded: tap a set to see its tracklist
   const [open, setOpen] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState<SavedSet | null>(null);
   // the server render has no sets (localStorage): show them once hydrated, so the two match
   const hydrated = useHydrated();
   if (!hydrated || !sets.length) return null;
+  const visible = showAll ? sets : sets.slice(0, SHOWN);
   return (
     <section className="space-y-2 pt-4">
-      <h3 className="text-sm font-semibold">Recent sets</h3>
+      <h3 className="text-sm font-semibold">Your sets</h3>
       <ul className="divide-y rounded-lg border">
-        {sets.map((set) => {
+        {visible.map((set) => {
           const isOpen = open === set.id;
           const last = set.tracks[set.tracks.length - 1];
           return (
@@ -41,6 +84,7 @@ export function RecentSets({ onReplay, replaying }: { onReplay?: (set: SavedSet)
                   <div className="truncate text-sm font-medium">{when(set.startedAt)}</div>
                   <div className="truncate text-xs text-muted-foreground">
                     {set.tracks.length} tracks · {setTime(last?.at ?? 0)}+ · {set.setBpm} BPM · {set.mode === 'dropchain' ? 'drop-chain' : 'classic'}
+                    {!localIds.has(set.id) && ' · saved on the server'}
                   </div>
                 </div>
                 <ChevronDown className={cn('size-4 shrink-0 text-muted-foreground transition-transform', isOpen && 'rotate-180')} />
@@ -65,8 +109,8 @@ export function RecentSets({ onReplay, replaying }: { onReplay?: (set: SavedSet)
                   </ol>
                   <div className="flex flex-wrap gap-1.5">
                     {onReplay && (
-                      <Button size="sm" className="gap-1.5" disabled={!!replaying} onClick={() => onReplay(set)} title="Play this set again in the same order, mixed the same way">
-                        {replaying === set.id ? <Loader2 className="size-3.5 animate-spin" /> : <Repeat className="size-3.5" />} Replay
+                      <Button size="sm" className="gap-1.5" disabled={!!replaying || !!fetching} onClick={() => void replay(set)} title="Play this set again in the same order, mixed the same way">
+                        {replaying === set.id || fetching === set.id ? <Loader2 className="size-3.5 animate-spin" /> : <Repeat className="size-3.5" />} Replay
                       </Button>
                     )}
                     <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setReviewing(set)} title="Mark each transition proven or needs work">
@@ -97,9 +141,11 @@ export function RecentSets({ onReplay, replaying }: { onReplay?: (set: SavedSet)
                     >
                       <ListPlus className="size-3.5" /> Save as playlist
                     </Button>
-                    <Button size="sm" variant="ghost" className="gap-1.5 text-muted-foreground" onClick={() => setSets(deleteSet(set.id))}>
-                      <Trash2 className="size-3.5" /> Delete
-                    </Button>
+                    {localIds.has(set.id) && (
+                      <Button size="sm" variant="ghost" className="gap-1.5 text-muted-foreground" onClick={() => setLocal(deleteSet(set.id))}>
+                        <Trash2 className="size-3.5" /> Delete
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
@@ -107,6 +153,11 @@ export function RecentSets({ onReplay, replaying }: { onReplay?: (set: SavedSet)
           );
         })}
       </ul>
+      {sets.length > SHOWN && (
+        <Button variant="ghost" size="sm" className="w-full" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? 'Show fewer' : `Older sets (${sets.length - SHOWN} more)`}
+        </Button>
+      )}
       <SetReview set={reviewing} onClose={() => setReviewing(null)} />
     </section>
   );
