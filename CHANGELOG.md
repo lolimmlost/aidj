@@ -13,9 +13,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 ### ✨ Highlights
 
 - ⚙️ **Settings, redrawn.**
+  - The main page is a control centre (#482): your profile card, quick switches for AI DJ, Glass, Low motion and theme, and every page's current value at a glance.
   - Every page opens with a card that shows what it controls (the crossfade as two overlapping waveforms, the AI DJ's picks in your queue, your devices, your services' health), then iOS-style rows, switches, pill choices and steppers.
   - On iPad and desktop, Settings is a split view.
   - Changes save as you make them, with no Save buttons.
+  - Settings that did nothing are gone (#484, #483).
 - 🫧 **Glass on every screen.**
   - The glass design now works on iPad and desktop, not just phones: floating frosted sidebars and player bar, one cover-tinted glow behind the app.
   - Home, Artists, Playlists, artist and album pages use their glass versions at every size.
@@ -24,9 +26,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ### Added
 
-- **Settings on glass phones** (#472, #475, #476):
-  - an index of grouped lists (Profile, Playback, AI DJ, Notifications, Appearance, Security; plus Services and Album art for admins);
-  - one page per row, each with a "‹ Settings" back link.
+- **Settings on glass phones** (#472, #475, #476, #482):
+  - a control-centre index: profile card, quick tiles (AI DJ, Glass, Low motion, Light / Dark / Auto), then one row per page with its current value (crossfade, AI DJ interval, theme, two-factor);
+  - one page per row; as you scroll, its title slides into a ‹ pill, like playlists and Liked Songs (#480).
 - **Appearance page:** Light / Dark / Auto theme, the glass design switch, Low motion.
 - **Theme toggle in the You sheet** (#470).
 - **Profile header:** your avatar, name and email at the top of Profile.
@@ -34,12 +36,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 - **Services health:** Settings → Services tests every service when it opens (n / total connected, what's down).
 - **Settings split view** on iPad and desktop.
 - **Glass on iPad and desktop** (#479).
+- **Transition Lab › Your sets** lists every set saved on the server, not just this device's, and any of them can be replayed (#481).
 
 ### Changed
 
 - **Settings save on change.** Switches and choices save at once. Sliders save when you let go (they used to send a request on every step).
 - **Preference saves show immediately.** A failed save is undone and tells you so.
-- **Profile → sign-in methods** lists only the providers the server has configured.
+- **Linked accounts** (GitHub, Google) move from Profile to Security, beside password, two-factor and devices, and list only the providers the server has configured (#484).
+- **DJ Tools › DJ Settings** now opens Settings › AI DJ; it repeated that page word for word (#484).
 - **AI DJ settings** reorganised into: how it picks, DJ mixing, queue seeding, and low-queue fallback.
 - **CI:** Node 26, and an empty security allowlist. Any new high or critical advisory fails the build.
 
@@ -47,6 +51,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 - **Artists:** names with a comma ("Tyler, The Creator") are no longer cut to the first part (#424, #453).
 - **Dashboard:** section headings, gutters, cards and colours line up with the design system (#457).
+- **Search on iPhone:** the keyboard couldn't be put away except by leaving the page. Dragging the results or pressing Search now lowers it, in every find box (#485).
+- **Classic Settings tabs** ignored links to another tab after the first load (#484).
 - **Settings:**
   - every save reported "saved successfully", even when it failed;
   - saving reloaded the page and reset the desktop tab.
@@ -68,6 +74,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ### Removed
 
+- **Settings that saved but did nothing** (#484; listed in #483 in case any come back): Streaming quality, Autoplay next song, Follow what's playing, Detect BPM while playing, New picks, Seasonal picks, Style-based playlists, the Notifications page, the classic Dashboard sections, and DJ Settings' Autoplay queueing. Saved values stay in the database.
 - **`tests/integration/`:** never ran, and couldn't pass.
 - **~140 docs:** 2025 planning paperwork (PRDs, stories, QA, sprints, the unbuilt React Native plan). Still in git history.
 
