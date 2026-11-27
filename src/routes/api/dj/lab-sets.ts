@@ -37,13 +37,27 @@ export async function POST({ request }: { request: Request }) {
 
 /**
  * GET: the saved sets, newest first (the known-transitions page shows them in play order). Only what that page
- * needs per track: id, title, artist, how it came in. ?limit= (default 40).
+ * needs per track: id, title, artist, how it came in. ?limit= (default 40). ?id= returns one whole set.
  */
 export async function GET({ request }: { request: Request }) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session) return new Response('Unauthorized', { status: 401 });
   if (session.user.role !== 'admin') return new Response('Forbidden', { status: 403 });
-  const limit = Math.min(200, Math.max(1, Number(new URL(request.url).searchParams.get('limit')) || 40));
+  const params = new URL(request.url).searchParams;
+  // ?id= : one whole set, as saved (recipes and cues included), so the Lab can replay a set that's
+  // no longer in this browser's newest 20.
+  const one = params.get('id');
+  if (one !== null) {
+    if (!/^[a-z0-9]{4,20}$/.test(one)) return new Response('Bad id', { status: 400 });
+    try {
+      const set = JSON.parse(await readFile(join(DIR, `${one}.json`), 'utf8')) as { tracks?: { id?: unknown }[] };
+      for (const t of set.tracks ?? []) if (t && typeof t.id === 'string') t.id = canonicalNavidromeId(t.id);
+      return Response.json({ data: set });
+    } catch {
+      return new Response('Not found', { status: 404 });
+    }
+  }
+  const limit = Math.min(200, Math.max(1, Number(params.get('limit')) || 40));
   let files: string[];
   try {
     files = (await readdir(DIR)).filter((f) => f.endsWith('.json'));
