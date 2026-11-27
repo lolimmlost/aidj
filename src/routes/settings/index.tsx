@@ -1,4 +1,4 @@
-import { createFileRoute, useSearch } from '@tanstack/react-router';
+import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
 import { loginRedirect } from '~/lib/auth/login-redirect';
 import { useEffect } from 'react';
 import { Cog } from 'lucide-react';
@@ -17,6 +17,7 @@ import { NotificationSettings } from './notifications';
 import { AppearanceSettings } from './appearance';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
 import { useIsPhone } from '@/components/glass/GlassSheet';
+import { GlassBackPill } from '@/components/glass/GlassBackPill';
 import { GLASS_SETTINGS_TITLES, GlassSettingsIndex, type GlassSettingsTab } from '@/components/glass/GlassSettings';
 import { SettingsLookProvider } from '@/components/settings/settings-ui';
 
@@ -155,6 +156,7 @@ function SettingsPage() {
  * Wider screens (iPad and up): a split view, the index on the left and the open page on the right.
  */
 function GlassSettingsPage({ tab, isAdmin, error, wide }: { tab?: NewTab; isAdmin: boolean; error: string | null; wide: boolean }) {
+  const navigate = useNavigate();
   const adminOnly = tab === 'services' || tab === 'cover-art';
   const chosen: GlassSettingsTab | undefined = tab && (!adminOnly || isAdmin) ? tab : undefined;
   // The split view always has a page open.
@@ -208,7 +210,21 @@ function GlassSettingsPage({ tab, isAdmin, error, wide }: { tab?: NewTab; isAdmi
     >
       {errorCard}
       {/* Preferences are kept on the device, so the page shows them at once while the server copy loads. */}
-      <SettingsLookProvider value="glass">{body}</SettingsLookProvider>
+      <SettingsLookProvider value="glass">
+        {page ? (
+          // A sub-page: as you scroll, the title slides into a ‹ pill (like playlists and Liked Songs)
+          <div className="relative">
+            <GlassBackPill
+              title={GLASS_SETTINGS_TITLES[page]}
+              backLabel="Back to Settings"
+              onBack={() => navigate({ to: '/settings', search: { tab: undefined } })}
+            />
+            {body}
+          </div>
+        ) : (
+          body
+        )}
+      </SettingsLookProvider>
     </PageLayout>
   );
 }
