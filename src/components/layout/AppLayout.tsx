@@ -47,6 +47,7 @@ import { useDeferredRender } from '@/lib/utils/lazy-components';
 import { getArtistGradient, getArtistInitials } from '@/lib/utils/artist-avatar';
 import { useDebugTapToggle } from '@/lib/hooks/useDebugTapToggle';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
+import { useDismissKeyboardOnDrag } from '@/lib/hooks/useDismissKeyboardOnDrag';
 import { GlassBackdropWide } from '@/components/glass/GlassBackdrop';
 
 // Helper to get cover art URL from Navidrome
@@ -228,6 +229,8 @@ export function AppLayout({ children }: AppLayoutProps) {
   // Transition Lab handing the audio back and forth) kept un-minimizing it (#438).
   const [playerCollapsed, setPlayerCollapsed] = useState(false);
   const glass = useGlassUi();
+  // Dragging the page lowers the phone keyboard (Safari keeps it up while you scroll results).
+  useDismissKeyboardOnDrag();
   useEffect(() => useAudioStore.subscribe(createPlayerRevealWatcher(() => setPlayerCollapsed(false))), []);
   const showPlayer = hasActiveSong && !onLab && !playerCollapsed;
   // Publishes the player's real height as --mini-player-h on <html> so the
