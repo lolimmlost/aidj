@@ -306,7 +306,13 @@ function SearchPage() {
                 placeholder="Songs, artists, albums..."
                 value={input}
                 onChange={handleInputChange}
-                onKeyDown={(e) => { if (e.key === 'Enter') commitQuery(input); }}
+                enterKeyHint="search"
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  commitQuery(input);
+                  // The keyboard's Search key: run it and get the keyboard out of the way of the results.
+                  e.currentTarget.blur();
+                }}
                 className={cn(
                   'w-full rounded-xl pl-10 pr-10 text-base outline-none transition-all',
                   glass
