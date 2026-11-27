@@ -1,6 +1,6 @@
 {
   "name": "aidj-music-interface",
-  "version": "1.6.0-rc.2",
+  "version": "1.6.0",
   "description": "Self-hosted AI DJ for Navidrome: dual-deck crossfade, learning radio, cross-device playback (PWA)",
   "license": "MIT",
   "repository": {
