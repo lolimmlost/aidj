@@ -146,6 +146,7 @@ export async function POST({ request }: { request: Request }) {
         useProfileBased,
         // Session genre counts for adaptive recommendations
         sessionGenreCounts,
+        queueSongIds,
       } = body as {
         currentSong: Song;
         recentQueue?: Song[];
@@ -165,6 +166,8 @@ export async function POST({ request }: { request: Request }) {
         useProfileBased?: boolean;
         // Session genre counts for adaptive recommendations
         sessionGenreCounts?: Record<string, number>;
+        /** Songs in the play queue (kept out even by the last-resort same-artist fallback). */
+        queueSongIds?: string[];
       };
 
       if (!currentSong) {
@@ -247,6 +250,9 @@ export async function POST({ request }: { request: Request }) {
 
       // Merge client exclusions with server-side listening history
       const mergedExcludeSongIds = [...new Set([...(excludeSongIds || []), ...recentHistoryIds])];
+      // The queue itself: never queued twice, even when the last-resort fallback lets songs played
+      // lately back in.
+      const queueIds = queueSongIds ?? fullPlaylist?.map((s) => s.id) ?? excludeSongIds ?? [];
 
       // Check if we should use profile-based recommendations (drip-feed model)
       // Profile-based uses ZERO API calls - all from pre-computed database
@@ -296,6 +302,7 @@ export async function POST({ request }: { request: Request }) {
             },
             limit: batchSize || 3,
             excludeSongIds: mergedExcludeSongIds,
+            queueSongIds: queueIds,
             excludeArtists: excludeArtists || [],
             queueContext,
             userId,
@@ -325,6 +332,7 @@ export async function POST({ request }: { request: Request }) {
           },
           limit: batchSize || 3,
           excludeSongIds: mergedExcludeSongIds,
+          queueSongIds: queueIds,
           excludeArtists: excludeArtists || [],
           queueContext, // Pass queue context for smarter fallback (includes artistBatchCounts)
           userId, // Phase 3.3: Pass userId for skip-based scoring
