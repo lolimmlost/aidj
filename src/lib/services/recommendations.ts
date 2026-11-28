@@ -35,6 +35,8 @@ import {
 import {
   getBlendedRecommendations,
 } from './blended-recommendation-scorer';
+import { creditsArtist, expandSimilarArtists } from '@/lib/utils/artist-credits';
+import { NO_REJECTIONS, getRecentRejections, isRejected, type Rejections } from './recommendation-rejections';
 
 /**
  * Get the Last.fm client, initializing with API key from config if needed
@@ -94,6 +96,11 @@ export interface RecommendationRequest {
   limit?: number;
   /** Song IDs to exclude from results */
   excludeSongIds?: string[];
+  /**
+   * Songs in the play queue. The last-resort same-artist fallback still keeps these out but lets
+   * songs played lately back in. Default: excludeSongIds.
+   */
+  queueSongIds?: string[];
   /** Artist names to exclude (for diversity) */
   excludeArtists?: string[];
   /** User ID for personalized compound scoring (Phase 4) */
@@ -298,7 +305,7 @@ async function getSimilarSongs(
 
   if (!lastFm) {
     console.log('⚠️ [Recommendations] Last.fm not configured, using fallback');
-    return fallbackToGenreRandom(currentSong, limit, 'lastfm_not_configured', queueContext);
+    return finalSimilarFallback(currentSong, limit, 'lastfm_not_configured', request);
   }
 
   try {
@@ -339,14 +346,14 @@ async function getSimilarSongs(
         limit,
         excludeSongIds,
         excludeArtists,
-        lastFm
+        lastFm,
+        await getRecentRejections(userId),
       );
       if (similarArtistsFallback.songs.length > 0) {
         return similarArtistsFallback;
       }
 
-      // If no similar artist songs, fall back to genre-based random
-      return fallbackToGenreRandom(currentSong, limit, 'no_library_matches', queueContext);
+      return finalSimilarFallback(currentSong, limit, 'no_library_matches', request);
     }
 
     // Convert to Song format
@@ -476,7 +483,7 @@ async function getSimilarSongs(
     };
   } catch (error) {
     console.error('❌ [Recommendations] Last.fm error:', error);
-    return fallbackToGenreRandom(currentSong, limit, 'lastfm_error', queueContext);
+    return finalSimilarFallback(currentSong, limit, 'lastfm_error', request);
   }
 }
 
@@ -876,6 +883,40 @@ function subsonicSongToSong(song: SubsonicSong): Song {
 }
 
 /**
+ * The end of the "similar" chain, once Last.fm's tracks and artists found nothing in the library.
+ * Never random songs from the whole library (a house track used to get Arcade Fire, cumbia and
+ * MGMT):
+ * 1. more by the same artist, now letting songs played lately back in (only the queue stays out);
+ * 2. only when a genre is known (the song's tag or the queue's), library songs in that genre;
+ * 3. otherwise nothing, and the caller says no similar songs were found.
+ * Skipped-out artists and thumbed-down songs stay out of both.
+ */
+async function finalSimilarFallback(
+  currentSong: { artist: string; title: string; genre?: string },
+  limit: number,
+  reason: string,
+  request: RecommendationRequest,
+): Promise<RecommendationResult> {
+  const rejections = await getRecentRejections(request.userId);
+
+  const sameArtist = await fallbackToSameArtist(currentSong, limit, request.queueSongIds ?? request.excludeSongIds ?? [], rejections);
+  if (sameArtist.songs.length > 0) {
+    return { ...sameArtist, metadata: { ...sameArtist.metadata, fallbackReason: `${reason}:same_artist_final` } };
+  }
+
+  if (currentSong.genre || request.queueContext?.genres?.length) {
+    return fallbackToGenreRandom(currentSong, limit, reason, request.queueContext, {
+      rejections,
+      excludeSongIds: request.excludeSongIds,
+      onlyGenreMatches: true,
+    });
+  }
+
+  console.log(`🤷 [Recommendations] Nothing similar to "${currentSong.artist} - ${currentSong.title}" (${reason}); no genre to go on`);
+  return { songs: [], source: 'fallback', mode: 'similar', metadata: { fallbackReason: `${reason}:nothing_similar` } };
+}
+
+/**
  * Fallback to other songs by the SAME ARTIST in the library
  * This is the first fallback when Last.fm similar tracks aren't found
  * Users expect "if I have more songs by this artist, find them"
@@ -885,7 +926,8 @@ function subsonicSongToSong(song: SubsonicSong): Song {
 async function fallbackToSameArtist(
   currentSong: { artist: string; title: string; genre?: string },
   limit: number,
-  excludeSongIds: string[] = []
+  excludeSongIds: string[] = [],
+  rejections: Rejections = NO_REJECTIONS,
 ): Promise<RecommendationResult> {
   console.log(`🎤 [Recommendations] Trying same-artist fallback for "${currentSong.artist}"`);
 
@@ -895,31 +937,22 @@ async function fallbackToSameArtist(
 
   try {
     // Search for songs by the same artist using Navidrome search
-    const artistSongs = await search(currentSong.artist, 0, limit * 3);
+    // Wide enough that an artist's whole catalogue is in view when the queue already holds some.
+    const artistSongs = await search(currentSong.artist, 0, Math.max(limit * 3, 50));
 
     // Filter to only songs that:
     // 1. Are by the same artist (case-insensitive match)
     // 2. Are NOT the current song
     // 3. Are NOT in the exclusion list
     const currentTitleLower = currentSong.title.toLowerCase();
-    const artistLower = currentSong.artist.toLowerCase();
+    const excluded = new Set(excludeSongIds);
 
     const filtered = artistSongs.filter(song => {
-      const songArtistLower = (song.artist || '').toLowerCase();
       const songTitleLower = (song.title || song.name || '').toLowerCase();
-
-      // Must be same artist
-      const isSameArtist = songArtistLower === artistLower ||
-        songArtistLower.includes(artistLower) ||
-        artistLower.includes(songArtistLower);
-
-      // Must not be the current song
-      const isNotCurrentSong = songTitleLower !== currentTitleLower;
-
-      // Must not be excluded
-      const isNotExcluded = !excludeSongIds.includes(song.id);
-
-      return isSameArtist && isNotCurrentSong && isNotExcluded;
+      return creditsArtist(song.artist, currentSong.artist) &&
+        songTitleLower !== currentTitleLower &&
+        !excluded.has(song.id) &&
+        !isRejected(song, rejections);
     });
 
     console.log(`🎵 [Recommendations] Found ${filtered.length} other songs by "${currentSong.artist}" (limiting to ${effectiveLimit})`);
@@ -987,7 +1020,8 @@ async function fallbackToSimilarArtists(
   limit: number,
   excludeSongIds: string[] = [],
   excludeArtists: string[] = [],
-  lastFm: LastFmClient | null
+  lastFm: LastFmClient | null,
+  rejections: Rejections = NO_REJECTIONS,
 ): Promise<RecommendationResult> {
   if (!lastFm) {
     return {
@@ -1012,13 +1046,15 @@ async function fallbackToSimilarArtists(
       };
     }
 
-    // Filter to artists that are in our library and not excluded
-    const libraryArtists = similarArtists.filter(a =>
-      a.inLibrary &&
-      !excludeArtists.some(ea => ea.toLowerCase() === a.name.toLowerCase())
-    );
+    // Each artist on its own: Last.fm names collabs ("BL3SS × Tchami"), which the library files
+    // under each artist. A search below tells whether one is in the library.
+    const libraryArtists = expandSimilarArtists(
+      similarArtists,
+      currentSong.artist,
+      new Set(excludeArtists.map(ea => ea.toLowerCase())),
+    ).slice(0, 8);
 
-    console.log(`📚 [Recommendations] ${libraryArtists.length} similar artists are in library`);
+    console.log(`📚 [Recommendations] Looking up ${libraryArtists.length} similar artists: ${libraryArtists.map(a => a.name).join(', ')}`);
 
     if (libraryArtists.length === 0) {
       return {
@@ -1033,19 +1069,16 @@ async function fallbackToSimilarArtists(
     const allSongs: Song[] = [];
     const artistsSearched: string[] = [];
 
-    for (const artist of libraryArtists.slice(0, 5)) { // Limit to top 5 similar artists
+    for (const artist of libraryArtists) {
       try {
         const artistSongs = await search(artist.name, 0, 10);
 
-        // Filter to exact artist match and exclude already queued songs
-        const filtered = artistSongs.filter(song => {
-          const songArtistLower = (song.artist || '').toLowerCase();
-          const targetArtistLower = artist.name.toLowerCase();
-          const isSameArtist = songArtistLower === targetArtistLower ||
-            songArtistLower.includes(targetArtistLower);
-          const isNotExcluded = !excludeSongIds.includes(song.id);
-          return isSameArtist && isNotExcluded;
-        });
+        // That artist's songs, minus queued, thumbed-down and skipped-out ones
+        const filtered = artistSongs.filter(song =>
+          creditsArtist(song.artist, artist.name) &&
+          !excludeSongIds.includes(song.id) &&
+          !isRejected(song, rejections)
+        );
 
         if (filtered.length > 0) {
           artistsSearched.push(artist.name);
@@ -1119,7 +1152,13 @@ async function fallbackToGenreRandom(
   currentSong: { artist: string; title: string; genre?: string },
   limit: number,
   reason: string,
-  queueContext?: QueueContext
+  queueContext?: QueueContext,
+  opts: {
+    rejections?: Rejections;
+    excludeSongIds?: string[];
+    /** Only songs that share the genre (score ≥ 0.5): no padding with off-genre ones, none without a genre. */
+    onlyGenreMatches?: boolean;
+  } = {},
 ): Promise<RecommendationResult> {
   console.log(`🔄 [Recommendations] Falling back to genre random (${reason})`);
 
@@ -1156,8 +1195,11 @@ async function fallbackToGenreRandom(
       }
     }
 
+    const excludedIds = new Set(opts.excludeSongIds ?? []);
     let filtered = songs.filter(s =>
-      !excludeArtists.has(s.artist?.toLowerCase() || '')
+      !excludeArtists.has(s.artist?.toLowerCase() || '') &&
+      !excludedIds.has(s.id) &&
+      !(opts.rejections && isRejected(s, opts.rejections))
     );
 
     // Build target genres list: queue context genres first, then current song genre
@@ -1187,6 +1229,8 @@ async function fallbackToGenreRandom(
     console.log(`🎵 [Genre Hierarchy] Expanded ${targetGenres.length} genres to ${expandedGenres.size} with related genres`);
 
     // Phase 2.2: Score each song by genre similarity (not just string matching)
+    const pool = filtered;
+    const genreMatchIds = new Set<string>();
     if (targetGenres.length > 0) {
       const scoredSongs: Array<{ song: SubsonicSong; score: number }> = [];
 
@@ -1226,6 +1270,7 @@ async function fallbackToGenreRandom(
 
       // Phase 2.2: Smart selection - high scorers first, then variety
       const highScorers = scoredSongs.filter(s => s.score >= 0.5);
+      for (const s of highScorers) genreMatchIds.add(s.song.id);
       const mediumScorers = scoredSongs.filter(s => s.score >= 0.2 && s.score < 0.5);
       const lowScorers = scoredSongs.filter(s => s.score < 0.2);
 
@@ -1284,6 +1329,10 @@ async function fallbackToGenreRandom(
     } else {
       // No target genres - just shuffle
       filtered = filtered.sort(() => Math.random() - 0.5).slice(0, limit);
+    }
+
+    if (opts.onlyGenreMatches) {
+      filtered = pool.filter(s => genreMatchIds.has(s.id)).sort(() => Math.random() - 0.5).slice(0, limit);
     }
 
     console.log(`✅ [Recommendations] Returning ${filtered.length} fallback songs with genre hierarchy scoring`);

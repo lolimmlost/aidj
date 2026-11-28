@@ -1344,6 +1344,12 @@ export const useAudioStore = create<AudioState>()(
           credentials: 'include',
           body: JSON.stringify({
             currentSong,
+            // The queue as context (genres, artists), like the automatic AI DJ sends, so a song
+            // with no genre tag still gets picks in the session's style.
+            recentQueue: state.playlist.slice(Math.max(0, state.currentSongIndex - 5), state.currentSongIndex),
+            fullPlaylist: state.playlist,
+            sessionGenreCounts: state.aiDJSessionGenreCounts,
+            queueSongIds: allPlaylistSongIds,
             batchSize,
             excludeSongIds: allExclusions,
             skipAutoRefresh: true, // User-initiated, show toast

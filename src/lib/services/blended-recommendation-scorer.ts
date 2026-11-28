@@ -34,6 +34,7 @@ import { getCurrentSeasonalPattern, type SeasonalPattern } from './seasonal-patt
 import { normalizeGenre, getGenreSimilarity } from './genre-hierarchy';
 import { getCachedSimilarArtistNames, getCachedArtistGenresAndTags } from './aurral';
 import { getFeatureFlags } from '@/lib/config/features';
+import { creditsArtist, expandSimilarArtists } from '@/lib/utils/artist-credits';
 
 // ============================================================================
 // Constants
@@ -75,6 +76,9 @@ async function throttledSearch(query: string, start: number, limit: number): Pro
 }
 
 // Maximum candidates to gather from each source
+/** Navidrome searches for similar artists per request (collabs expand to several names). */
+const MAX_SIMILAR_ARTIST_SEARCHES = 8;
+
 const CANDIDATE_LIMITS = {
   lastfm: 20,
   sameArtist: 2,  // Reduced to prevent artist domination
@@ -399,10 +403,10 @@ async function gatherSimilarArtistsSongs(
     // Get similar artists WITHOUT searching Navidrome (just from Last.fm API)
     const similarArtists = await lastFm.getSimilarArtistsRaw(seedSong.artist, 10);
 
-    // Filter to artists not excluded
-    const candidateArtists = similarArtists
-      .filter(a => !excludeArtists.has(a.name.toLowerCase()))
-      .slice(0, 5);
+    // Last.fm names collabs ("NERO × Taiki Nulight", "BL3SS × Tchami"), which match nothing in a
+    // library filed by artist, so look up each part too.
+    const candidateArtists = expandSimilarArtists(similarArtists, seedSong.artist, excludeArtists).slice(0, MAX_SIMILAR_ARTIST_SEARCHES);
+    const matchedCredits = new Set<string>();
 
     let totalCount = 0;
     for (const artist of candidateArtists) {
@@ -410,37 +414,31 @@ async function gatherSimilarArtistsSongs(
 
       try {
         const artistSongs = await throttledSearch(artist.name, 0, 3);
-        let foundMatch = false;
         for (const song of artistSongs) {
           if (totalCount >= CANDIDATE_LIMITS.similarArtists) break;
-
-          const songArtistLower = (song.artist || '').toLowerCase();
-          const artistNameLower = artist.name.toLowerCase();
-          if (songArtistLower === artistNameLower || songArtistLower.startsWith(artistNameLower)) {
-            const songWithUrl: Song = {
-              ...song,
-              url: song.url || `/api/navidrome/stream/${song.id}`,
-            };
-            addCandidate(songWithUrl, {
-              source: 'similar_artist',
-              weight: 0.7,
-              matchScore: artist.match || 0.5,
-            });
-            totalCount++;
-            foundMatch = true;
-          }
-        }
-        if (!foundMatch && unmatchedArtists) {
-          const key = artist.name.toLowerCase();
-          if (!unmatchedArtists.has(key) && key !== seedSong.artist.toLowerCase()) {
-            unmatchedArtists.set(key, { name: artist.name, source: 'lastfm', matchScore: artist.match || 0.5 });
-          }
+          if (!creditsArtist(song.artist, artist.name)) continue;
+          addCandidate(
+            { ...song, url: song.url || `/api/navidrome/stream/${song.id}` },
+            { source: 'similar_artist', weight: 0.7, matchScore: artist.match },
+          );
+          totalCount++;
+          matchedCredits.add(artist.from.toLowerCase());
         }
       } catch {
         // Continue with next artist
       }
     }
-    console.log(`🎭 [BlendedScorer] Similar artists: ${totalCount} songs from ${candidateArtists.length} artists`);
+
+    // Discovery: Last.fm's credits that nothing in the library matched, under their own name.
+    if (unmatchedArtists) {
+      for (const a of similarArtists) {
+        const key = a.name.toLowerCase();
+        if (matchedCredits.has(key) || excludeArtists.has(key) || key === seedSong.artist.toLowerCase() || unmatchedArtists.has(key)) continue;
+        if (!candidateArtists.some((c) => c.from === a.name)) continue;
+        unmatchedArtists.set(key, { name: a.name, source: 'lastfm', matchScore: Number(a.match) || 0.5 });
+      }
+    }
+    console.log(`🎭 [BlendedScorer] Similar artists: ${totalCount} songs from ${candidateArtists.length} artists (${candidateArtists.map((a) => a.name).join(', ')})`);
   } catch (error) {
     console.warn('⚠️ [BlendedScorer] Similar artists search failed:', error);
   }
