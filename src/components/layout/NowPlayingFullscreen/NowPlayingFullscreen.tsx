@@ -30,7 +30,7 @@ import {
 import { setLowMotion, useLowMotion } from '@/lib/hooks/useLowMotion';
 import { toast } from '@/lib/toast';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
-import { useIsPhone } from '@/components/glass/GlassSheet';
+import { useIsPhone } from '@/lib/hooks/useIsPhone';
 import { GlassAddToPlaylistSheet } from '@/components/glass/GlassAddToPlaylistSheet';
 import { Button } from '@/components/ui/button';
 import { Scrubber } from './Scrubber';

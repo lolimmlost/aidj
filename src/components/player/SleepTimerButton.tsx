@@ -8,7 +8,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Disc3, Moon, Plus, X } from 'lucide-react';
-import { GlassSheet, SheetLabel, useIsPhone } from '@/components/glass/GlassSheet';
+import { GlassSheet, SheetLabel } from '@/components/glass/GlassSheet';
+import { useIsPhone } from '@/lib/hooks/useIsPhone';
 import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import {

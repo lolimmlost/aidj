@@ -14,7 +14,7 @@ import { SecuritySettings } from './security';
 import { ProfileSettings } from './profile';
 import { AppearanceSettings } from './appearance';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
-import { useIsPhone } from '@/components/glass/GlassSheet';
+import { useIsPhone } from '@/lib/hooks/useIsPhone';
 import { GlassBackPill } from '@/components/glass/GlassBackPill';
 import { GLASS_SETTINGS_TITLES, GlassSettingsIndex, type GlassSettingsTab } from '@/components/glass/GlassSettings';
 import { SettingsLookProvider } from '@/components/settings/settings-ui';
