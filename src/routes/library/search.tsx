@@ -33,9 +33,9 @@ import { findLibraryArtistByName } from '@/lib/utils/artist-name-match';
 import { compactName, searchVariants } from '@/lib/utils/search-variants';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
 import { GlassBackdrop } from '@/components/glass/GlassBackdrop';
-import {
-  GlassAlbums, GlassArtistRows, GlassArtistStrip, GlassRecent, GlassRecentlyPlayed, GlassSectionHead, GlassSongRow, GlassTopResult, useGlassSongSheet,
-} from '@/components/search/GlassSearch';
+import { GlassArtistRows, GlassArtistStrip, GlassRecent, GlassRecentlyPlayed, GlassTopResult } from '@/components/search/GlassSearch';
+import { GlassAlbums, GlassSectionHead, GlassSongRow } from '@/components/glass/rows';
+import { useGlassSongSheet } from '@/components/glass/useGlassSongSheet';
 
 export const Route = createFileRoute('/library/search')({
   validateSearch: (search: Record<string, unknown>): { q?: string } => ({

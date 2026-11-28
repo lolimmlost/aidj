@@ -10,9 +10,8 @@ import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { findLibraryArtistByName } from '@/lib/utils/artist-name-match';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
-import {
-  Avatar, GlassAlbums, GlassSectionHead, GlassSongRow, fmt, useGlassSongSheet, type GlassAlbum,
-} from '@/components/search/GlassSearch';
+import { GlassAlbums, GlassArtistAvatar, GlassSectionHead, GlassSongRow, fmt, type GlassAlbum } from '@/components/glass/rows';
+import { useGlassSongSheet } from '@/components/glass/useGlassSongSheet';
 
 /**
  * Glass UI (phones) artist page, canvas AT (picked over AU on 2026-11-25):
@@ -113,7 +112,7 @@ export function GlassArtistPage({ artistId, name, albums, songs, metadata, image
       {similar.map((s) => {
         const inner = (
           <>
-            <Avatar artist={{ id: s.libraryId ?? s.name, name: s.name }} image={s.image} size={120} />
+            <GlassArtistAvatar artist={{ id: s.libraryId ?? s.name, name: s.name }} image={s.image} size={120} />
             <span className="w-full min-w-0 text-left">
               <span className="block truncate text-[13px] font-semibold">{s.name}</span>
               <span className="block truncate text-xs text-muted-foreground">{s.libraryId ? 'In your library' : 'Search for it'}</span>
