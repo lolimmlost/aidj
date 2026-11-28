@@ -34,7 +34,7 @@ import { getArtistGradient } from '@/lib/utils/artist-avatar';
 import { usePageTitle } from '@/lib/hooks/useDocumentTitle';
 import { nameForNextTransition } from '@/lib/utils/view-transition';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
-import { GlassBackdrop } from '@/components/glass/GlassBackdrop';
+import { GlassColumn, GlassPage } from '@/components/glass/GlassPage';
 import { GlassArtistPage } from '@/components/library/GlassArtistPage';
 
 /** Album cover with Navidrome getCoverArt proxy fallback, then placeholder */
@@ -327,27 +327,30 @@ function ArtistDetail() {
   // Top tracks by play count (or just first 5 if no play count)
   const topTracks = [...songs].sort((a, b) => (b.playCount || 0) - (a.playCount || 0)).slice(0, 5);
 
+  if (glass) {
+    return (
+      <GlassPage className="pb-28">
+        <GlassColumn className="pt-[calc(env(safe-area-inset-top)+var(--top-bar))]">
+          {artist ? (
+            <GlassArtistPage
+              artistId={id}
+              name={artistName}
+              albums={albums}
+              songs={songs}
+              metadata={artistMetadata}
+              imageUrl={artistMetadata?.coverImageUrl || savedArtistImages[artistName.toLowerCase()] || undefined}
+              images={savedArtistImages}
+            />
+          ) : (
+            <div className="flex justify-center py-24"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
+          )}
+        </GlassColumn>
+      </GlassPage>
+    );
+  }
+
   return (
-    <>
-    {glass && (
-      <div className="glass-page glass-home relative min-h-screen px-4 pb-28 pt-[calc(env(safe-area-inset-top)+var(--top-bar))] md:mx-auto md:max-w-3xl md:px-8 md:pt-8">
-        <GlassBackdrop className="md:hidden" />
-        {artist ? (
-          <GlassArtistPage
-            artistId={id}
-            name={artistName}
-            albums={albums}
-            songs={songs}
-            metadata={artistMetadata}
-            imageUrl={artistMetadata?.coverImageUrl || savedArtistImages[artistName.toLowerCase()] || undefined}
-            images={savedArtistImages}
-          />
-        ) : (
-          <div className="flex justify-center py-24"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
-        )}
-      </div>
-    )}
-    <div className={cn("relative", glass && "hidden")}>
+    <div className="relative">
       {/* ─── Hero ─── */}
       {/* mt-12 on mobile clears the fixed top bar (h-12); md: no top bar */}
       <div className="relative h-[28vh] sm:h-[32vh] md:h-[38vh] mt-12 md:mt-0 overflow-hidden">
@@ -657,6 +660,5 @@ function ArtistDetail() {
         )}
       </div>
     </div>
-    </>
   );
 }

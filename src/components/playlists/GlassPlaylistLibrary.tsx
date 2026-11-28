@@ -5,7 +5,7 @@ import {
   ArrowUpDown, Check, Download, Heart, LayoutGrid, List, ListMusic, ListPlus, Loader2, MoreHorizontal,
   Play, Plus, RefreshCw, Search, Shuffle, Sparkles, Trash2, Upload, WifiOff, X, AudioWaveform,
 } from 'lucide-react';
-import { GlassBackdrop } from '@/components/glass/GlassBackdrop';
+import { GlassColumn, GlassPage } from '@/components/glass/GlassPage';
 import { GlassSheet, SheetLabel, SheetRow } from '@/components/glass/GlassSheet';
 import { getCoverArtUrl } from '@/components/ui/album-art';
 import { useAudioStore } from '@/lib/stores/audio';
@@ -353,9 +353,8 @@ export function GlassPlaylistLibrary() {
     busy === key ? <Loader2 className="size-5 animate-spin" /> : <Icon className="size-5" />;
 
   return (
-    <div className="glass-page glass-home relative min-h-screen bg-background md:bg-transparent pb-28">
-      <GlassBackdrop className="md:hidden" />
-      <div className="relative mx-auto w-full max-w-3xl px-4 pt-[calc(env(safe-area-inset-top)+var(--top-bar)+0.5rem)] md:px-8 md:pt-8">
+    <GlassPage className="pb-28">
+      <GlassColumn>
         <div className="flex items-center justify-between gap-3">
           <h1 className="font-display text-[26px] font-extrabold leading-8 tracking-[-0.03em]">Playlists</h1>
           <div className="flex items-center gap-2">
@@ -451,7 +450,7 @@ export function GlassPlaylistLibrary() {
             {items.map((p) => <PlaylistRow key={p.id} p={p} onMore={setActionFor} />)}
           </ul>
         )}
-      </div>
+      </GlassColumn>
 
       {/* Sort */}
       <GlassSheet open={sortOpen} onOpenChange={setSortOpen} title="Sort by" description="Choose how playlists are ordered">
@@ -583,6 +582,6 @@ export function GlassPlaylistLibrary() {
           <PlaylistExportDialog open onOpenChange={(o) => !o && setExportFor(null)} playlistId={exportFor.id} playlistName={exportFor.name} />
         )}
       </Suspense>
-    </div>
+    </GlassPage>
   );
 }
