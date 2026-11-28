@@ -28,6 +28,7 @@ import type { SubsonicCreds } from './navidrome-users';
 import { broadcastFeedbackChange, broadcastFeedbackRefresh } from './feedback-broadcast';
 import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 import { syncPlaylistRows } from './playlist-rows-db';
+import { LIKED_SONGS_NAME } from '@/lib/playlists/liked';
 
 // ============================================================================
 // Types
@@ -351,7 +352,6 @@ export async function getLikedSongsCount(userId: string): Promise<number> {
 // Liked Songs Playlist Rebuild
 // ============================================================================
 
-const LIKED_SONGS_NAME = '❤️ Liked Songs';
 
 type LikedPlaylistRow = typeof userPlaylists.$inferSelect;
 

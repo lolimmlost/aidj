@@ -11,6 +11,7 @@ import { getCoverArtUrl } from '@/components/ui/album-art';
 import { useAudioStore } from '@/lib/stores/audio';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
+import { isLikedSongsPlaylist } from '@/lib/playlists/liked';
 
 // Opened rarely: fetched on first open instead of shipping with the page.
 const PlaylistExportDialog = lazy(() => import('./export/playlist-export-dialog').then((m) => ({ default: m.PlaylistExportDialog })));
@@ -34,7 +35,6 @@ type Filter = 'all' | 'playlist' | 'smart' | 'set';
 type Sort = 'recent' | 'name' | 'size' | 'custom';
 type View = 'list' | 'grid';
 
-const LIKED_NAME = '❤️ Liked Songs';
 const FIND_FROM = 8;
 const PREFS_KEY = 'aidj-glass-library';
 /** The order the old (desktop) list saves when you drag cards around. */
@@ -54,13 +54,13 @@ const SORTS: { id: Sort; label: string }[] = [
 ];
 
 function kindOf(p: Playlist): Kind {
-  if (p.name === LIKED_NAME) return 'liked';
+  if (isLikedSongsPlaylist(p)) return 'liked';
   if (p.smartPlaylistCriteria) return 'smart';
   if (/^(lab set|live set)\b/i.test(p.name)) return 'set';
   return 'playlist';
 }
 const KIND_LABEL: Record<Kind, string> = { liked: 'Playlist', playlist: 'Playlist', smart: 'Smart', set: 'Lab set' };
-const displayName = (p: Playlist) => (p.name === LIKED_NAME ? 'Liked Songs' : p.name);
+const displayName = (p: Playlist) => (isLikedSongsPlaylist(p) ? 'Liked Songs' : p.name);
 const countOf = (p: Playlist) => p.actualSongCount ?? p.songCount ?? 0;
 const songsLabel = (n: number) => `${n} song${n === 1 ? '' : 's'}`;
 

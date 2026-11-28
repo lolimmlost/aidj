@@ -68,6 +68,7 @@ import {
 } from 'lucide-react';
 import { useAudioStore } from '@/lib/stores/audio';
 import { parseArtistTitle } from '@/lib/utils/song-artist-title';
+import { isLikedSongsPlaylist } from '@/lib/playlists/liked';
 
 // Sortable playlist card props
 interface SortablePlaylistCardProps {
@@ -244,7 +245,7 @@ const SortablePlaylistCard = memo(function SortablePlaylistCard({
               <Download className="mr-2 h-4 w-4" />
               Export Playlist
             </DropdownMenuItem>
-            {playlist.name !== '❤️ Liked Songs' && (
+            {!isLikedSongsPlaylist(playlist) && (
               <DropdownMenuItem
                 onClick={() => onDelete(playlist)}
                 className="min-h-[44px] text-destructive focus:text-destructive"

@@ -90,6 +90,7 @@ const GET = withAuthAndErrorHandling(
         name: userPlaylists.name,
         description: userPlaylists.description,
         navidromeId: userPlaylists.navidromeId,
+        isLikedSongs: userPlaylists.isLikedSongs,
         lastSynced: userPlaylists.lastSynced,
         songCount: userPlaylists.songCount,
         totalDuration: userPlaylists.totalDuration,
@@ -102,7 +103,7 @@ const GET = withAuthAndErrorHandling(
       .leftJoin(playlistSongs, eq(userPlaylists.id, playlistSongs.playlistId))
       .where(eq(userPlaylists.userId, session.user.id))
       .groupBy(userPlaylists.id, userPlaylists.name, userPlaylists.description,
-               userPlaylists.navidromeId, userPlaylists.lastSynced, userPlaylists.songCount,
+               userPlaylists.navidromeId, userPlaylists.isLikedSongs, userPlaylists.lastSynced, userPlaylists.songCount,
                userPlaylists.totalDuration, userPlaylists.smartPlaylistCriteria,
                userPlaylists.createdAt, userPlaylists.updatedAt)
       .orderBy(desc(userPlaylists.createdAt));

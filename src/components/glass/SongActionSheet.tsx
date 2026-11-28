@@ -9,6 +9,7 @@ import { getCoverArtUrl } from '@/components/ui/album-art';
 import { GlassSheetFrame, SheetScroll } from '@/components/glass/GlassSheet';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
+import { isLikedSongsPlaylist } from '@/lib/playlists/liked';
 
 export interface ActionSheetSong {
   songId: string;
@@ -41,8 +42,6 @@ interface PlaylistOption {
   smartPlaylistCriteria?: unknown;
 }
 
-const LIKED_NAME = '❤️ Liked Songs';
-
 const rowClass =
   'flex h-[50px] w-full items-center gap-3.5 rounded-xl px-1 text-left text-[15px] text-foreground transition-colors active:bg-foreground/10 [-webkit-tap-highlight-color:transparent]';
 
@@ -68,7 +67,7 @@ export function SongActionSheet({
     },
     select: (data: unknown) =>
       ((data as { playlists?: PlaylistOption[] })?.playlists ?? []).filter(
-        (p) => p.name !== LIKED_NAME && !p.smartPlaylistCriteria && p.id !== currentPlaylistId,
+        (p) => !isLikedSongsPlaylist(p) && !p.smartPlaylistCriteria && p.id !== currentPlaylistId,
       ),
   });
 
