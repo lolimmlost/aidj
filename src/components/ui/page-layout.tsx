@@ -44,7 +44,7 @@ export function PageLayout({
   compact = false,
   wide = false,
 }: PageLayoutProps) {
-  // Glass UI prototype (phones): cover-tinted glow, Home-size title, frosted cards
+  // Glass design (phones): cover-tinted glow, Home-size title, frosted cards
   const glass = useGlassUi();
   return (
     <div className={cn(

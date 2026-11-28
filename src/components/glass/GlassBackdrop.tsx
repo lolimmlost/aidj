@@ -5,7 +5,7 @@ import { useDynamicColors } from '@/hooks/useDynamicColors';
 import { cn } from '@/lib/utils';
 
 /**
- * Glass UI prototype: the soft glow at the top of a page, tinted by the
+ * Glass design: the soft glow at the top of a page, tinted by the
  * playing song's cover. Colours are mixed with the brand violet / cyan so a
  * black-and-white cover still glows. The parent must be `relative`; content
  * that should sit on top needs `relative` too.

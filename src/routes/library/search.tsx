@@ -67,7 +67,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 type ArtistWithCounts = { id: string; name: string; albumCount?: number; songCount?: number };
 
 function SearchPage() {
-  // Glass UI prototype (phones): see GlassHome
+  // Glass design (phones): see GlassHome
   const glass = useGlassUi();
   const navigate = useNavigate({ from: '/library/search' });
   const { q } = Route.useSearch();

@@ -114,7 +114,7 @@ function PlaylistDetailPage() {
   // Collaboration panel state
   const [isCollaborationPanelOpen, setIsCollaborationPanelOpen] = useState(false);
 
-  // Glass UI prototype (phones): new header + ⋯ action sheet
+  // Glass design (phones): new header + ⋯ action sheet
   const glass = useGlassUi();
   const [actionSong, setActionSong] = useState<PlaylistSong | null>(null);
 

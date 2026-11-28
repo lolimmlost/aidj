@@ -64,7 +64,7 @@ function watchTakeOver(engine: LabEngine) {
 }
 
 function DJLab() {
-  // Glass UI prototype (phones): GlassLabOverview replaces the slim live bar
+  // Glass design (phones): GlassLabOverview replaces the slim live bar
   const glass = useGlassUi();
   const { engine, snap } = useLabEngine();
   const [crateId, setCrateId] = useState<string | null>(null);

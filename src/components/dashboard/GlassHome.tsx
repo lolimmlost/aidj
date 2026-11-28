@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { GlassBackdrop } from '@/components/glass/GlassBackdrop';
 
 /**
- * Glass UI prototype: the mobile Home (drafts N / O). One list in the spirit
+ * Glass design: the mobile Home (drafts N / O). One list in the spirit
  * of a library tab: a stats caption, filter chips, four "jump back in" tiles
  * and two-line rows. Light or dark follows the app theme; the glow behind it
  * comes from the playing song's cover.

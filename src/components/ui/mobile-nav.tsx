@@ -226,14 +226,14 @@ export function MobileNav() {
 
             <div className="border-t border-border my-4" />
 
-            {/* Glass UI prototype switch (PWA has no address bar for ?glass=1) */}
+            {/* Glass design switch (PWA has no address bar for ?glass=0) */}
             <button
               type="button"
               role="switch"
               aria-checked={glass}
               onClick={() => {
                 if (setGlassUi(!glass)) {
-                  toast.success(glass ? 'Classic design' : 'Glass design (preview) on', { duration: 1500 });
+                  toast.success(glass ? 'Classic design' : 'Glass design', { duration: 1500 });
                 } else {
                   toast.error('Can’t save this setting (storage blocked)');
                 }
@@ -241,7 +241,7 @@ export function MobileNav() {
               className="flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg hover:bg-accent transition-colors w-full text-foreground"
             >
               <Layers className="h-5 w-5 text-muted-foreground" />
-              <span className="flex-1 text-left text-base">Glass design <span className="text-xs text-muted-foreground">(preview)</span></span>
+              <span className="flex-1 text-left text-base">Glass design</span>
               <span aria-hidden className={cn("relative h-6 w-10 rounded-full transition-colors", glass ? "bg-primary" : "bg-muted")}>
                 <span className={cn("absolute top-0.5 size-5 rounded-full bg-background shadow transition-[left]", glass ? "left-[18px]" : "left-0.5")} />
               </span>
