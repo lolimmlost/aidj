@@ -11,5 +11,14 @@ function subscribe(onChange: () => void) {
 
 /** True on phone widths (the glass UI's max-md), tracked live. False on the server. */
 export function useIsPhone(): boolean {
-  return useSyncExternalStore(subscribe, () => window.matchMedia(PHONE_QUERY).matches, () => false);
+  return usePhoneWidth() ?? false;
+}
+
+/**
+ * Like useIsPhone, but undefined on the server and while hydrating, when the width isn't known
+ * yet. For a page that renders both its phone and wider layouts (CSS picks one) until then, and
+ * only the one that fits after.
+ */
+export function usePhoneWidth(): boolean | undefined {
+  return useSyncExternalStore(subscribe, () => window.matchMedia(PHONE_QUERY).matches, () => undefined);
 }
