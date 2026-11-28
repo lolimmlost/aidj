@@ -49,6 +49,7 @@ import { useDebugTapToggle } from '@/lib/hooks/useDebugTapToggle';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
 import { useDismissKeyboardOnDrag } from '@/lib/hooks/useDismissKeyboardOnDrag';
 import { GlassBackdropWide } from '@/components/glass/GlassBackdrop';
+import { isLikedSongsPlaylist } from '@/lib/playlists/liked';
 
 // Helper to get cover art URL from Navidrome
 const getCoverArtUrl = (albumId: string | undefined, size: number = 300) => {
@@ -419,7 +420,7 @@ function LeftSidebar() {
 
   // Find the Liked Songs playlist
   const likedSongsPlaylist = playlists.find(
-    (p: { name: string }) => p.name === '❤️ Liked Songs'
+    (p: { name: string; isLikedSongs?: boolean }) => isLikedSongsPlaylist(p)
   );
 
   // Sync Liked Songs from Navidrome
@@ -678,7 +679,7 @@ function LeftSidebar() {
             </div>
             <nav className="space-y-0.5">
               {playlists
-                ?.filter((p: { name: string }) => p.name !== '❤️ Liked Songs')
+                ?.filter((p: { name: string; isLikedSongs?: boolean }) => !isLikedSongsPlaylist(p))
                 .slice(0, isCollapsed ? 5 : 8)
                 .map((playlist: { id: string; name: string; songCount?: number }) => (
                 <Link
@@ -707,7 +708,7 @@ function LeftSidebar() {
                   )}
                 </Link>
               ))}
-              {playlists?.filter((p: { name: string }) => p.name !== '❤️ Liked Songs').length > (isCollapsed ? 5 : 8) && (
+              {playlists?.filter((p: { name: string; isLikedSongs?: boolean }) => !isLikedSongsPlaylist(p)).length > (isCollapsed ? 5 : 8) && (
                 <Link
                   to="/playlists"
                   title={isCollapsed ? 'See all playlists' : undefined}

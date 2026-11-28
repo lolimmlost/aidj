@@ -78,10 +78,7 @@ export function MobileNav() {
     <>
       {/* ─── Fixed Top Bar ─── */}
       <div
-        className={cn(
-          "md:hidden fixed top-0 left-0 right-0 z-50 flex items-center px-3 backdrop-blur-xl",
-          glass ? "bg-background/40" : "bg-background/80 border-b border-border/30",
-        )}
+        className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center px-3 backdrop-blur-xl bg-background/80 border-b border-border/30"
         style={{ paddingTop: 'env(safe-area-inset-top)', height: 'calc(env(safe-area-inset-top) + 3rem)' }}
       >
         <Button
@@ -94,8 +91,7 @@ export function MobileNav() {
           {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
         <span
-          // glass: the page shows its own big title, so this one is invisible (still the debug tap target)
-          className={cn("flex-1 text-center text-sm font-bold text-foreground truncate pr-9 select-none", glass && "opacity-0")}
+          className="flex-1 text-center text-sm font-bold text-foreground truncate pr-9 select-none"
           style={{ fontFamily: 'var(--font-display), Inter, sans-serif' }}
           onClick={debugTap}
         >
@@ -226,24 +222,21 @@ export function MobileNav() {
 
             <div className="border-t border-border my-4" />
 
-            {/* Glass design switch (PWA has no address bar for ?glass=0) */}
+            {/* Back to the glass design (this menu only shows in classic; a PWA has no address bar for ?glass=1) */}
             <button
               type="button"
               role="switch"
-              aria-checked={glass}
+              aria-checked={false}
               onClick={() => {
-                if (setGlassUi(!glass)) {
-                  toast.success(glass ? 'Classic design' : 'Glass design', { duration: 1500 });
-                } else {
-                  toast.error('Can’t save this setting (storage blocked)');
-                }
+                if (setGlassUi(true)) toast.success('Glass design', { duration: 1500 });
+                else toast.error('Can’t save this setting (storage blocked)');
               }}
               className="flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg hover:bg-accent transition-colors w-full text-foreground"
             >
               <Layers className="h-5 w-5 text-muted-foreground" />
               <span className="flex-1 text-left text-base">Glass design</span>
-              <span aria-hidden className={cn("relative h-6 w-10 rounded-full transition-colors", glass ? "bg-primary" : "bg-muted")}>
-                <span className={cn("absolute top-0.5 size-5 rounded-full bg-background shadow transition-[left]", glass ? "left-[18px]" : "left-0.5")} />
+              <span aria-hidden className="relative h-6 w-10 rounded-full bg-muted transition-colors">
+                <span className="absolute top-0.5 left-0.5 size-5 rounded-full bg-background shadow" />
               </span>
             </button>
 

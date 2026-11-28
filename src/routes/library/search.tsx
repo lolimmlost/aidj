@@ -33,9 +33,10 @@ import { findLibraryArtistByName } from '@/lib/utils/artist-name-match';
 import { compactName, searchVariants } from '@/lib/utils/search-variants';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
 import { GlassBackdrop } from '@/components/glass/GlassBackdrop';
-import {
-  GlassAlbums, GlassArtistRows, GlassArtistStrip, GlassRecent, GlassRecentlyPlayed, GlassSectionHead, GlassSongRow, GlassTopResult, useGlassSongSheet,
-} from '@/components/search/GlassSearch';
+import { GlassArtistRows, GlassArtistStrip, GlassRecent, GlassRecentlyPlayed, GlassTopResult } from '@/components/search/GlassSearch';
+import { GlassAlbums, GlassSectionHead, GlassSongRow } from '@/components/glass/rows';
+import { useGlassSongSheet } from '@/components/glass/useGlassSongSheet';
+import { usePhoneWidth } from '@/lib/hooks/useIsPhone';
 
 export const Route = createFileRoute('/library/search')({
   validateSearch: (search: Record<string, unknown>): { q?: string } => ({
@@ -69,6 +70,11 @@ type ArtistWithCounts = { id: string; name: string; albumCount?: number; songCou
 function SearchPage() {
   // Glass design (phones): see GlassHome
   const glass = useGlassUi();
+  // Glass on a phone gets the glass results; wider screens keep the classic ones. Until the
+  // width is known (server, hydration) both render and CSS shows the right one.
+  const phone = usePhoneWidth();
+  const glassResults = glass && phone !== false;
+  const classicResults = !glass || phone !== true;
   const navigate = useNavigate({ from: '/library/search' });
   const { q } = Route.useSearch();
   // `query` is the committed search (in the URL, drives every fetch).
@@ -411,7 +417,7 @@ function SearchPage() {
               />
             ) : (
               <>
-              {glass && (
+              {glassResults && (
                 <div aria-live="polite" className="space-y-5 md:hidden">
                   {tab === 'all' && (
                     <GlassTopResult
@@ -475,6 +481,7 @@ function SearchPage() {
                   )}
                 </div>
               )}
+              {classicResults && (
               <div aria-live="polite" className={cn("space-y-8", glass && "max-md:hidden")}>
                 {/* Artists section */}
                 {showArtists && matchedArtists.length > 0 && (
@@ -563,12 +570,13 @@ function SearchPage() {
                   </section>
                 )}
               </div>
+              )}
               </>
             )
           ) : (
             /* === Idle state === */
             <>
-            {glass && (
+            {glassResults && (
               <div className="space-y-5 md:hidden">
                 <GlassRecent
                   recent={recent}
@@ -580,6 +588,7 @@ function SearchPage() {
                 <GlassRecentlyPlayed onPlay={playRecentSong} />
               </div>
             )}
+            {classicResults && (
             <div className={cn("space-y-8", glass && "max-md:hidden")}>
               {/* Recent searches */}
               {recent.length > 0 && (
@@ -643,9 +652,10 @@ function SearchPage() {
                 </p>
               </div>
             </div>
+            )}
             </>
           )}
-          {glass && glassSheet.element}
+          {glassResults && glassSheet.element}
         </main>
       </div>
     </NavidromeErrorBoundary>

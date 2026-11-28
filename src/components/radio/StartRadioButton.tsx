@@ -1,6 +1,7 @@
 import { Loader2, Radio } from 'lucide-react';
 import { useState } from 'react';
-import { GlassSheet, SheetLabel, useIsPhone } from '@/components/glass/GlassSheet';
+import { GlassSheet, SheetLabel } from '@/components/glass/GlassSheet';
+import { useIsPhone } from '@/lib/hooks/useIsPhone';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
 import { Button } from '@/components/ui/button';
 import {

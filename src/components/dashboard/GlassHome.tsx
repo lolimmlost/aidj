@@ -9,6 +9,7 @@ import { mixDisplayTitle } from '@/lib/utils/mix-tracklist';
 import { useMixSong } from './FeaturedMixCard';
 import { cn } from '@/lib/utils';
 import { GlassBackdrop } from '@/components/glass/GlassBackdrop';
+import { isLikedSongsPlaylist } from '@/lib/playlists/liked';
 
 /**
  * Glass design: the mobile Home (drafts N / O). One list in the spirit
@@ -36,11 +37,10 @@ const FILTERS: { id: Filter; label: string }[] = [
 ];
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-const LIKED_NAME = '❤️ Liked Songs';
 const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
 function isLiked(p: PlaylistRow) {
-  return p.name === LIKED_NAME;
+  return isLikedSongsPlaylist(p);
 }
 
 function songCount(p: PlaylistRow) {

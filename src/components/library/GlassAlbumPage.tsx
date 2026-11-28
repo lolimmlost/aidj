@@ -8,9 +8,8 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { useSongFeedback } from '@/lib/hooks/useSongFeedback';
 import { useDynamicColors } from '@/hooks/useDynamicColors';
 import { cn } from '@/lib/utils';
-import {
-  Avatar, GlassAlbums, GlassSectionHead, GlassSongRow, fmt, useGlassSongSheet,
-} from '@/components/search/GlassSearch';
+import { GlassAlbums, GlassArtistAvatar, GlassSectionHead, GlassSongRow, fmt } from '@/components/glass/rows';
+import { useGlassSongSheet } from '@/components/glass/useGlassSongSheet';
 
 /**
  * Glass UI (phones) album page — canvas AR / AV ("A", picked over the record
@@ -181,7 +180,7 @@ export function GlassAlbumPage({ albumId, artistId, name, artistName, year, genr
       <div className="relative">
         <h1 className="mt-4 font-display text-[30px] font-extrabold leading-9 tracking-[-0.03em]">{name}</h1>
         <Link to="/library/artists/$id" params={{ id: artistId }} className="mt-2 inline-flex items-center gap-2 [-webkit-tap-highlight-color:transparent]">
-          <Avatar artist={{ id: artistId, name: artistName }} image={artistImage} size={24} />
+          <GlassArtistAvatar artist={{ id: artistId, name: artistName }} image={artistImage} size={24} />
           <span className="text-sm font-bold">{artistName}</span>
         </Link>
         <p className="mt-1.5 text-[13px] text-muted-foreground">{meta}</p>

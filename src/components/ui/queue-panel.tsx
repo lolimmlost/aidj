@@ -2,7 +2,7 @@ import { useAudioStore } from '@/lib/stores/audio';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { X, Music, Trash2, GripVertical, Plus, RotateCcw, ThumbsUp, ThumbsDown, Shuffle, SkipForward, Sparkles, Radio, Download, Loader2 } from 'lucide-react';
-import { useState, useEffect, useCallback, useMemo, memo, useRef, useSyncExternalStore } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { CreatePlaylistDialog } from '@/components/playlists/CreatePlaylistDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
@@ -30,15 +30,7 @@ import { formatArtistTitle } from '@/lib/utils/song-artist-title';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
 import { GlassQueueSheet } from '@/components/glass/GlassQueueSheet';
 
-/** phones (below md): the glass queue is a bottom sheet there */
-const PHONE_QUERY = '(max-width: 767px)';
-function subscribePhone(cb: () => void) {
-  const m = window.matchMedia(PHONE_QUERY);
-  m.addEventListener('change', cb);
-  return () => m.removeEventListener('change', cb);
-}
-const usePhoneWidth = () =>
-  useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE_QUERY).matches, () => false);
+import { useIsPhone } from '@/lib/hooks/useIsPhone';
 import { cn } from '@/lib/utils';
 
 interface SortableQueueItemProps {
@@ -355,7 +347,7 @@ export function QueuePanel() {
   } = useAudioStore();
   const queuePanelOpen = useAudioStore(s => s.queuePanelOpen);
   const glass = useGlassUi();
-  const phone = usePhoneWidth();
+  const phone = useIsPhone();
   const toggleQueuePanel = useAudioStore(s => s.toggleQueuePanel);
   const isRadioSession = useAudioStore(s => s.isRadioSession);
   const userQueuedSongIds = useAudioStore(s => s.userQueuedSongIds);

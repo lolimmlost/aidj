@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Lock, Pause, Play, SkipForward } from 'lucide-react';
-import { getCoverArtUrl } from '@/components/ui/album-art';
+import { GlassCover } from '@/components/glass/rows';
 import { cn } from '@/lib/utils';
 import { barTime, type TrackAnalysis } from '@/lib/dj-lab/analysis';
 import { KnownExits, TakeLine, useKnownPair } from './KnownExits';
@@ -76,15 +76,6 @@ function planPads(plan: TransitionPlan | undefined, B: TrackAnalysis | undefined
 const padActive = (choices: Choices, pad: Pad) =>
   (Object.keys(pad.set) as (keyof Choices)[]).every((k) => choices[k] === pad.set[k]) &&
   pad.keys.every((k) => k in pad.set || choices[k] === undefined);
-
-function Cover({ song, className }: { song: LabSong; className?: string }) {
-  const url = song.albumId ? getCoverArtUrl(song.albumId, 160) : null;
-  return url ? (
-    <img src={url} alt="" loading="lazy" className={cn('shrink-0 bg-muted object-cover', className)} />
-  ) : (
-    <span className={cn('shrink-0 bg-gradient-to-br from-primary/40 to-primary/10', className)} />
-  );
-}
 
 /** Per-bar loudness (dB) → WAVE_BARS heights 0..1, from the track's own analysis. */
 function waveFromAnalysis(a: TrackAnalysis): number[] {
@@ -429,7 +420,7 @@ export function GlassLabOverview({ engine, snap, pool, crateName }: { engine: La
 
       <section className="glass-surface space-y-2 rounded-[20px] p-2.5" aria-label="Now playing">
         <div className="flex items-center gap-2.5">
-          <Cover song={now.song} className="size-11 rounded-[10px] shadow-md" />
+          <GlassCover albumId={now.song.albumId} className="size-11 rounded-[10px] shadow-md" />
           <div className="min-w-0 flex-1">
             <div className="truncate font-display text-base font-bold leading-tight">{now.song.title}</div>
             <div className="truncate text-xs text-muted-foreground">{now.song.artist}</div>
@@ -547,7 +538,7 @@ export function GlassLabOverview({ engine, snap, pool, crateName }: { engine: La
                   >
                     {/* stays at the strip's left edge while the lane scrolls past */}
                     <span className="sticky left-0 flex min-w-0 max-w-full items-center gap-1.5 px-1">
-                      <Cover song={r.song} className="size-6 rounded-md" />
+                      <GlassCover albumId={r.song.albumId} className="size-6 rounded-md" />
                       <span className="truncate text-[11px] font-semibold">
                         {r.kind === 'now' ? 'A' : r.kind === 'next' ? 'B' : 'Q'} · {r.song.title}
                       </span>
@@ -691,7 +682,7 @@ export function GlassLabOverview({ engine, snap, pool, crateName }: { engine: La
                   )}
                 >
                   <span className="relative block">
-                    <Cover song={c.song} className="aspect-square w-full rounded-xl" />
+                    <GlassCover albumId={c.song.albumId} className="aspect-square w-full rounded-xl" />
                     {(isSel || isNext) && (
                       <span
                         className={cn(

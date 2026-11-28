@@ -56,7 +56,7 @@ import { dismissAutoplayPrompt, registerAudioUnlocker } from '@/lib/utils/audio-
 import { canViewTransition, suppressTransitionNames, waitForImage, withViewTransition, withViewTransitionAsync } from '@/lib/utils/view-transition';
 import { LikeHeart, type LikeEffect } from '@/components/player/LikeHeart';
 import { useGlassUi } from '@/lib/hooks/useGlassUi';
-import { useIsPhone } from '@/components/glass/GlassSheet';
+import { useIsPhone } from '@/lib/hooks/useIsPhone';
 import { Waveform } from '@/components/glass/Waveform';
 import { MiniVinyl } from '@/components/glass/MiniVinyl';
 

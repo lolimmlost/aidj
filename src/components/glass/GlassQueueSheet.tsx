@@ -1,4 +1,4 @@
-import { memo, useCallback, type ComponentType } from 'react';
+import { memo, type ComponentType } from 'react';
 import { useBeat } from '@/components/glass/beat-sync';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { DndContext, closestCenter, type DragEndEvent, type SensorDescriptor, type SensorOptions } from '@dnd-kit/core';
@@ -8,7 +8,7 @@ import { GripVertical, Plus, Radio, RotateCcw, Shuffle, Sparkles, SkipForward, T
 import { getCoverArtUrl } from '@/components/ui/album-art';
 import { AIDJToggle } from '@/components/ai-dj-toggle';
 import { Waveform } from '@/components/glass/Waveform';
-import { useGlassSheetFlag, useSheetDrag } from '@/components/glass/GlassSheet';
+import { GlassSheetFrame, SheetClose, SheetScroll } from '@/components/glass/GlassSheet';
 import { useAudioStore } from '@/lib/stores/audio';
 import { cn } from '@/lib/utils';
 import type { Song } from '@/lib/types/song';
@@ -196,148 +196,126 @@ export function GlassQueueSheet(p: GlassQueueSheetProps) {
   const autoCount = p.upcoming.filter((s) => p.aiIds.has(s.id) || p.autoplayIds.has(s.id)).length;
   const sources = { userIds: p.userIds, aiIds: p.aiIds, autoplayIds: p.autoplayIds, radio: p.radio };
   const nowSrc = p.currentSong ? queueSourceOf(p.currentSong.id, sources) : null;
-  const { onOpenChange } = p;
-  const close = useCallback(() => onOpenChange(false), [onOpenChange]);
-  const { sheetRef, listRef, headerHandlers } = useSheetDrag(close);
 
-  // Lets the full-screen player recede behind the sheet (styles.css).
-  useGlassSheetFlag(p.open);
+  // Drag zone (head): title row + now-playing card.
+  const head = (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <DialogPrimitive.Title className="font-display text-[26px] font-extrabold leading-8 tracking-[-0.03em]">Queue</DialogPrimitive.Title>
+        <DialogPrimitive.Description className="sr-only">
+          {p.upcoming.length} songs up next{autoCount ? `, ${autoCount} picked by AI DJ or Autoplay` : ''}
+        </DialogPrimitive.Description>
+        <div className="flex items-center gap-1.5">
+          {p.undoRemainingMs !== null && p.undoRemainingMs > 0 ? (
+            <button type="button" onClick={p.onUndoClear} className={cn(chip, 'glass-flat h-8 text-info')}>
+              <RotateCcw className="size-3.5" /> Undo
+              <span className="font-mono text-[11px] opacity-70">
+                {p.undoRemainingMs >= 60000 ? `${Math.floor(p.undoRemainingMs / 60000)}m` : `${Math.floor(p.undoRemainingMs / 1000)}s`}
+              </span>
+            </button>
+          ) : (
+            p.upcoming.length > 0 && (
+              <button type="button" onClick={p.onClear} className={cn(chip, 'glass-flat h-8')}>
+                Clear
+              </button>
+            )
+          )}
+          <SheetClose label="Close the queue" />
+        </div>
+      </div>
+
+      {p.currentSong && (
+        <div
+          ref={beat?.ref}
+          className="glass-surface rainbow-border mt-3 flex shrink-0 flex-col gap-2 rounded-2xl px-3 py-2.5"
+          data-playing={isPlaying ? '' : undefined}
+          style={nowSrc ? { backgroundImage: `linear-gradient(oklch(from ${nowSrc.color} l c h / 0.14), oklch(from ${nowSrc.color} l c h / 0.14))` } : undefined}
+        >
+          <span aria-hidden className="rainbow-ring" data-beat style={beat?.loop(8)} />
+          <div className="flex items-center gap-3">
+            {cover ? <img src={cover} alt="" className="size-11 rounded-md bg-muted object-cover" /> : <span className="size-11 rounded-md bg-muted" />}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 font-mono text-[9px] tracking-[0.14em]">
+                <span className="text-success">
+                  <span className="beat-dot inline-block" data-beat={beat ? '' : undefined} style={beat?.loop(4)}>●</span> NOW PLAYING
+                </span>
+                {beat && <span className="text-muted-foreground">· {Math.round(beat.bpm)} BPM{beat.onGrid ? ' · ON GRID' : ''}</span>}
+                {nowSrc && (
+                  <span className="inline-flex items-center gap-0.5 uppercase" style={{ color: nowSrc.color }}>
+                    · <SourceIcon src={nowSrc} /> {nowSrc.label}
+                  </span>
+                )}
+              </div>
+              <div className="truncate text-[15px] font-semibold text-primary">{p.currentSong.title || p.currentSong.name}</div>
+              <div className="truncate text-[13px] text-muted-foreground">{p.currentSong.artist}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-8 text-right font-mono text-[10px] text-muted-foreground">{fmt(currentTime || 0)}</span>
+            <Waveform seed={p.currentSong.id} current={currentTime || 0} duration={duration || 0} className="h-4 flex-1" label="Position" disabled />
+            <span className="w-9 font-mono text-[10px] text-muted-foreground">-{fmt(Math.max(0, (duration || 0) - (currentTime || 0)))}</span>
+          </div>
+        </div>
+      )}
+    </>
+  );
 
   return (
-    <DialogPrimitive.Root open={p.open} onOpenChange={p.onOpenChange}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="glass-sheet-overlay fixed inset-0 z-[70] bg-black/50" />
-        <DialogPrimitive.Content
-          ref={sheetRef}
-          className={cn(
-            'glass-sheet glass-surface fixed inset-x-2 bottom-2 top-[calc(env(safe-area-inset-top)+3rem)] z-[71] flex flex-col rounded-[26px] px-4 pt-2',
-            'bg-background/85 dark:bg-[rgb(22_20_32/0.88)]',
-          )}
-        >
-          {/* Drag zone: grabber + title row + now-playing card. */}
-          <div className="-mx-4 -mt-2 shrink-0 touch-none px-4 select-none" {...headerHandlers}>
-          <button
-            type="button"
-            data-grabber
-            // Pointer taps close through the drag handler (pointer capture
-            // moves the click to the header); this is for keyboard / VoiceOver.
-            onClick={(e) => { if (e.detail === 0) close(); }}
-            aria-label="Close the queue"
-            className="flex h-6 w-full items-center justify-center [-webkit-tap-highlight-color:transparent]"
-          >
-            <span aria-hidden className="block h-1.5 w-10 rounded-full bg-foreground/30" />
-          </button>
-          <div className="flex items-center justify-between gap-2">
-            <DialogPrimitive.Title className="font-display text-[26px] font-extrabold leading-8 tracking-[-0.03em]">Queue</DialogPrimitive.Title>
-            <DialogPrimitive.Description className="sr-only">
-              {p.upcoming.length} songs up next{autoCount ? `, ${autoCount} picked by AI DJ or Autoplay` : ''}
-            </DialogPrimitive.Description>
-            <div className="flex items-center gap-1.5">
-              {p.undoRemainingMs !== null && p.undoRemainingMs > 0 ? (
-                <button type="button" onClick={p.onUndoClear} className={cn(chip, 'glass-flat h-8 text-info')}>
-                  <RotateCcw className="size-3.5" /> Undo
-                  <span className="font-mono text-[11px] opacity-70">
-                    {p.undoRemainingMs >= 60000 ? `${Math.floor(p.undoRemainingMs / 60000)}m` : `${Math.floor(p.undoRemainingMs / 1000)}s`}
-                  </span>
-                </button>
-              ) : (
-                p.upcoming.length > 0 && (
-                  <button type="button" onClick={p.onClear} className={cn(chip, 'glass-flat h-8')}>
-                    Clear
-                  </button>
-                )
-              )}
-              <DialogPrimitive.Close aria-label="Close the queue" className="grid size-9 place-items-center rounded-full text-muted-foreground">
-                <X className="size-5" />
-              </DialogPrimitive.Close>
-            </div>
-          </div>
+    <GlassSheetFrame
+      open={p.open}
+      onOpenChange={p.onOpenChange}
+      grabberLabel="Close the queue"
+      className="top-[calc(env(safe-area-inset-top)+3rem)] max-h-none"
+      head={head}
+    >
+      <div className="mt-4 flex shrink-0 items-baseline justify-between">
+        <h2 className="font-display text-[17px] font-bold">Next up</h2>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground [&_label]:text-muted-foreground">
+          <span className="font-mono text-[10px] tracking-[0.1em]">{p.upcoming.length} SONGS</span>
+          <AIDJToggle compact />
+        </div>
+      </div>
 
-          {p.currentSong && (
-            <div
-              ref={beat?.ref}
-              className="glass-surface rainbow-border mt-3 flex shrink-0 flex-col gap-2 rounded-2xl px-3 py-2.5"
-              data-playing={isPlaying ? '' : undefined}
-              style={nowSrc ? { backgroundImage: `linear-gradient(oklch(from ${nowSrc.color} l c h / 0.14), oklch(from ${nowSrc.color} l c h / 0.14))` } : undefined}
-            >
-              <span aria-hidden className="rainbow-ring" data-beat style={beat?.loop(8)} />
-              <div className="flex items-center gap-3">
-                {cover ? <img src={cover} alt="" className="size-11 rounded-md bg-muted object-cover" /> : <span className="size-11 rounded-md bg-muted" />}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 font-mono text-[9px] tracking-[0.14em]">
-                    <span className="text-success">
-                      <span className="beat-dot inline-block" data-beat={beat ? '' : undefined} style={beat?.loop(4)}>●</span> NOW PLAYING
-                    </span>
-                    {beat && <span className="text-muted-foreground">· {Math.round(beat.bpm)} BPM{beat.onGrid ? ' · ON GRID' : ''}</span>}
-                    {nowSrc && (
-                      <span className="inline-flex items-center gap-0.5 uppercase" style={{ color: nowSrc.color }}>
-                        · <SourceIcon src={nowSrc} /> {nowSrc.label}
-                      </span>
-                    )}
-                  </div>
-                  <div className="truncate text-[15px] font-semibold text-primary">{p.currentSong.title || p.currentSong.name}</div>
-                  <div className="truncate text-[13px] text-muted-foreground">{p.currentSong.artist}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-8 text-right font-mono text-[10px] text-muted-foreground">{fmt(currentTime || 0)}</span>
-                <Waveform seed={p.currentSong.id} current={currentTime || 0} duration={duration || 0} className="h-4 flex-1" label="Position" disabled />
-                <span className="w-9 font-mono text-[10px] text-muted-foreground">-{fmt(Math.max(0, (duration || 0) - (currentTime || 0)))}</span>
-              </div>
-            </div>
-          )}
-          </div>
+      <SheetScroll className="mt-1">
+        {p.upcoming.length === 0 ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">Nothing queued. Add songs with ⋯ → Play next or Add to queue.</p>
+        ) : (
+          <DndContext sensors={p.sensors} collisionDetection={closestCenter} onDragEnd={p.onDragEnd}>
+            <SortableContext items={p.upcoming.map((s, i) => `${s.id}-${i}`)} strategy={verticalListSortingStrategy}>
+              {p.upcoming.map((song, index) => {
+                const actualIndex = p.currentSongIndex === -1 ? index : p.currentSongIndex + 1 + index;
+                const src = queueSourceOf(song.id, sources);
+                const auto = src?.source === 'autoplay' ? 'autoplay' : src?.source === 'ai' ? 'ai' : null;
+                return (
+                  <QueueRow
+                    key={`${song.id}-${index}`}
+                    sortableId={`${song.id}-${index}`}
+                    song={song}
+                    actualIndex={actualIndex}
+                    auto={auto}
+                    src={src}
+                    reason={auto === 'ai' ? p.reasons[song.id] : undefined}
+                    feedback={auto ? p.getFeedback(song.id) : null}
+                    onPlay={p.onPlay}
+                    onRemove={p.onRemove}
+                    onFeedback={p.onFeedback}
+                    onSkipAutoplay={p.onSkipAutoplay}
+                  />
+                );
+              })}
+            </SortableContext>
+          </DndContext>
+        )}
+      </SheetScroll>
 
-          <div className="mt-4 flex shrink-0 items-baseline justify-between">
-            <h2 className="font-display text-[17px] font-bold">Next up</h2>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground [&_label]:text-muted-foreground">
-              <span className="font-mono text-[10px] tracking-[0.1em]">{p.upcoming.length} SONGS</span>
-              <AIDJToggle compact />
-            </div>
-          </div>
-
-          <div ref={listRef} className="-mx-1 mt-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1">
-            {p.upcoming.length === 0 ? (
-              <p className="py-10 text-center text-sm text-muted-foreground">Nothing queued. Add songs with ⋯ → Play next or Add to queue.</p>
-            ) : (
-              <DndContext sensors={p.sensors} collisionDetection={closestCenter} onDragEnd={p.onDragEnd}>
-                <SortableContext items={p.upcoming.map((s, i) => `${s.id}-${i}`)} strategy={verticalListSortingStrategy}>
-                  {p.upcoming.map((song, index) => {
-                    const actualIndex = p.currentSongIndex === -1 ? index : p.currentSongIndex + 1 + index;
-                    const src = queueSourceOf(song.id, sources);
-                    const auto = src?.source === 'autoplay' ? 'autoplay' : src?.source === 'ai' ? 'ai' : null;
-                    return (
-                      <QueueRow
-                        key={`${song.id}-${index}`}
-                        sortableId={`${song.id}-${index}`}
-                        song={song}
-                        actualIndex={actualIndex}
-                        auto={auto}
-                        src={src}
-                        reason={auto === 'ai' ? p.reasons[song.id] : undefined}
-                        feedback={auto ? p.getFeedback(song.id) : null}
-                        onPlay={p.onPlay}
-                        onRemove={p.onRemove}
-                        onFeedback={p.onFeedback}
-                        onSkipAutoplay={p.onSkipAutoplay}
-                      />
-                    );
-                  })}
-                </SortableContext>
-              </DndContext>
-            )}
-          </div>
-
-          {/* Actions: a grid, not a scroller, so they're all in view and
-              there's room for more (a fifth tile wraps to a second row). */}
-          <div className="-mx-4 grid shrink-0 grid-cols-4 gap-1 border-t border-foreground/10 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2.5">
-            <Action icon={Shuffle} label={p.isShuffled ? 'Shuffled' : 'Shuffle'} active={p.isShuffled} onClick={p.onToggleShuffle} />
-            <Action icon={Sparkles} label="More like this" onClick={p.onMoreLikeThis} disabled={!p.currentSong} />
-            <Action icon={Plus} label="Save playlist" onClick={p.onSave} disabled={!p.currentSong && p.upcoming.length === 0} />
-            {p.onSaveRadio && <Action icon={Radio} label="Save radio" onClick={p.onSaveRadio} tone="text-warning" />}
-          </div>
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+      {/* Actions: a grid, not a scroller, so they're all in view and
+          there's room for more (a fifth tile wraps to a second row). */}
+      <div className="-mx-4 grid shrink-0 grid-cols-4 gap-1 border-t border-foreground/10 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2.5">
+        <Action icon={Shuffle} label={p.isShuffled ? 'Shuffled' : 'Shuffle'} active={p.isShuffled} onClick={p.onToggleShuffle} />
+        <Action icon={Sparkles} label="More like this" onClick={p.onMoreLikeThis} disabled={!p.currentSong} />
+        <Action icon={Plus} label="Save playlist" onClick={p.onSave} disabled={!p.currentSong && p.upcoming.length === 0} />
+        {p.onSaveRadio && <Action icon={Radio} label="Save radio" onClick={p.onSaveRadio} tone="text-warning" />}
+      </div>
+    </GlassSheetFrame>
   );
 }

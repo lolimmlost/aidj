@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { formatPercentChange } from '@/lib/utils/period-comparison';
 import { useDynamicColors } from '@/hooks/useDynamicColors';
 import { loadPlaylistIntoQueue } from '@/lib/utils/playlist-helpers';
+import { isLikedSongsPlaylist } from '@/lib/playlists/liked';
 
 function getTimeIcon(hour: number) {
   if (hour < 6) return <Moon className="h-7 w-7 sm:h-8 sm:w-8 text-indigo-400" />;
@@ -360,7 +361,7 @@ function StartListeningCTA() {
 
   const playlists = playlistsData?.playlists || [];
   const likedPlaylist = playlists.find(
-    (p: { name: string }) => p.name === '❤️ Liked Songs'
+    (p: { name: string; isLikedSongs?: boolean }) => isLikedSongsPlaylist(p)
   );
   const songCount = likedPlaylist?.actualSongCount || likedPlaylist?.songCount || 0;
   const hasLikedSongs = likedPlaylist && songCount > 0;

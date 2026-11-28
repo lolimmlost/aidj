@@ -3,7 +3,8 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"
 
 import { cn } from "~/lib/utils"
-import { useIsPhone, useSheetDrag } from "@/components/glass/GlassSheet"
+import { useSheetDrag } from "@/components/glass/GlassSheet"
+import { useIsPhone } from "@/lib/hooks/useIsPhone"
 import { useGlassUi } from "@/lib/hooks/useGlassUi"
 
 function Dialog({

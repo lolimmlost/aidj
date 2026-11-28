@@ -4,6 +4,7 @@ import { Check, ListMusic, Loader2, Plus, Search } from 'lucide-react';
 import { GlassSheet, SheetLabel, SheetRow } from '@/components/glass/GlassSheet';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
+import { isLikedSongsPlaylist } from '@/lib/playlists/liked';
 
 interface PlaylistOption {
   id: string;
@@ -13,7 +14,6 @@ interface PlaylistOption {
   smartPlaylistCriteria?: unknown;
 }
 
-const LIKED_NAME = '❤️ Liked Songs';
 const FILTER_FROM = 7;
 
 async function addSong(playlistId: string, song: { id: string; title: string; artist: string }) {
@@ -53,7 +53,7 @@ export function GlassAddToPlaylistSheet({ open, onOpenChange, song, dark }: {
       if (!res.ok) throw new Error('Failed to fetch playlists');
       return (await res.json()).data as { playlists: PlaylistOption[] };
     },
-    select: (d) => (d?.playlists ?? []).filter((p) => p.name !== LIKED_NAME && !p.smartPlaylistCriteria),
+    select: (d) => (d?.playlists ?? []).filter((p) => !isLikedSongsPlaylist(p) && !p.smartPlaylistCriteria),
   });
 
   const reset = () => {

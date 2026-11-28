@@ -10,7 +10,8 @@ import { memo, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Settings, Type, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { GlassSheet, useIsPhone } from '@/components/glass/GlassSheet';
+import { GlassSheet } from '@/components/glass/GlassSheet';
+import { useIsPhone } from '@/lib/hooks/useIsPhone';
 import { useAudioAnalyzer } from '@/components/visualizer/useAudioAnalyzer';
 import { visualizers, getNextVisualizer, getPreviousVisualizer } from '@/components/visualizer/visualizers';
 import {
