@@ -107,7 +107,7 @@ const formatTime = (time: number) => {
  */
 /** `onCollapse`: the ⌄ button hides the bar (the layout keeps it mounted, so playback goes on) */
 export function PlayerBar({ onCollapse }: { onCollapse?: () => void } = {}) {
-  // Glass UI prototype: frosted card + waveform progress on mobile.
+  // Glass design: frosted card + waveform progress on mobile.
   const glass = useGlassUi();
   const phone = useIsPhone();
   const upcomingCount = useAudioStore((s) => s.getUpcomingQueue().length);

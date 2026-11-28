@@ -25,6 +25,12 @@ vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ clear: vi.fn() }),
 }));
 
+// This is the classic top bar and menu; glass phones (the default) render nothing here.
+vi.mock('@/lib/hooks/useGlassUi', () => ({
+  useGlassUi: () => false,
+  setGlassUi: vi.fn(() => true),
+}));
+
 vi.mock('@/lib/hooks/useDebugTapToggle', () => ({
   useDebugTapToggle: () => vi.fn(),
 }));

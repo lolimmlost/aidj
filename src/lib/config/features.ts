@@ -40,12 +40,15 @@ export interface FeatureFlags {
     halfLifeDays: number;  // recency decay half-life used when mining the graph
   };
 
-  // Glass UI prototype (mobile Home, glass mini player + tab bar). Per device:
-  // `?glass=1` / `?glass=0` on any page flips it (see useGlassUi).
+  // Glass design, the default since 1.6. Per device: the ☰ menu switch or
+  // `?glass=1` / `?glass=0` on any page turns it on or off (see useGlassUi).
   glassUi: {
     enabled: boolean;
   };
 }
+
+/** Glass is on unless this device switched it off; also what the server renders. */
+export const GLASS_UI_DEFAULT = true;
 
 const defaultFlags: FeatureFlags = {
   hlsStreaming: {
@@ -73,7 +76,7 @@ const defaultFlags: FeatureFlags = {
     halfLifeDays: 120,
   },
   glassUi: {
-    enabled: false,
+    enabled: GLASS_UI_DEFAULT,
   },
 };
 
