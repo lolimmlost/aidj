@@ -45,6 +45,10 @@ function equalPowerValue(start: number, end: number, t: number): number {
  * - masterGain: user volume slider (immediate value changes)
  * - AnalyserNode: tapped pre-master so visualization is unaffected by volume
  */
+/** How long the player can sit paused before the keep-alive stops (#444): covers iOS's brief
+ *  false pauses and a quick pause/play, not a stopped player left in the background. */
+export const KEEP_ALIVE_GRACE_MS = 60_000;
+
 export function useWebAudioGraph(): WebAudioGraph {
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainARef = useRef<GainNode | null>(null);
@@ -86,6 +90,40 @@ export function useWebAudioGraph(): WebAudioGraph {
     const t = useAudioStore.getState()._userPauseAt;
     return t > 0 && Date.now() - t < windowMs && !useAudioStore.getState().isPlaying;
   };
+
+  /** The silent keep-alive oscillator, while it runs (#444). */
+  const keepAliveRef = useRef<{ osc: OscillatorNode; gain: GainNode } | null>(null);
+  const keepAliveStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Start the silent keep-alive oscillator if it isn't running. It keeps iOS from suspending the
+   * context in the background mid-playback (createMediaElementSource goes silent without it), and
+   * runs only while the player plays: a running one also keeps a paused, hidden page alive (#444).
+   */
+  const startKeepAlive = useCallback((ctx: AudioContext) => {
+    if (keepAliveRef.current) return;
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      keepAliveRef.current = { osc, gain };
+      console.log('[WEB AUDIO] Silent keep-alive oscillator started');
+    } catch (e) {
+      console.warn('[WEB AUDIO] Failed to create keep-alive oscillator:', e);
+    }
+  }, []);
+
+  const stopKeepAlive = useCallback(() => {
+    const ka = keepAliveRef.current;
+    if (!ka) return;
+    keepAliveRef.current = null;
+    try { ka.osc.stop(); } catch { /* not started */ }
+    try { ka.osc.disconnect(); ka.gain.disconnect(); } catch { /* already disconnected */ }
+    console.log('[WEB AUDIO] Silent keep-alive oscillator stopped (not playing)');
+  }, []);
 
   const getGainNode = useCallback((deck: 'A' | 'B'): GainNode | null => {
     return deck === 'A' ? gainARef.current : gainBRef.current;
@@ -132,19 +170,8 @@ export function useWebAudioGraph(): WebAudioGraph {
       gainA.gain.value = 1.0;
       gainB.gain.value = 0.0;
 
-      // Silent keep-alive oscillator prevents iOS from suspending the context
-      // when backgrounded. Without it, createMediaElementSource goes silent.
-      try {
-        const osc = ctx.createOscillator();
-        const silentGain = ctx.createGain();
-        silentGain.gain.value = 0;
-        osc.connect(silentGain);
-        silentGain.connect(ctx.destination);
-        osc.start();
-        console.log('[WEB AUDIO] Silent keep-alive oscillator started');
-      } catch (e) {
-        console.warn('[WEB AUDIO] Failed to create keep-alive oscillator:', e);
-      }
+      // Silent keep-alive oscillator: see startKeepAlive. Graph setup runs inside a play tap.
+      startKeepAlive(ctx);
 
       // Lock element.volume — all volume control goes through GainNodes
       deckA.volume = 1.0;
@@ -164,7 +191,40 @@ export function useWebAudioGraph(): WebAudioGraph {
       console.error('[WEB AUDIO] Failed to initialize graph:', err);
       return false;
     }
-  }, [isInitialized]);
+  }, [isInitialized, startKeepAlive]);
+
+  // Keep-alive only while the player plays (#444). Paused or at the end of the queue it stops after a
+  // grace period, so iOS can suspend a hidden page instead of keeping it alive for hours.
+  useEffect(() => {
+    if (!isInitialized) return;
+    const clearStopTimer = () => {
+      if (keepAliveStopTimerRef.current) {
+        clearTimeout(keepAliveStopTimerRef.current);
+        keepAliveStopTimerRef.current = null;
+      }
+    };
+    const apply = (playing: boolean) => {
+      if (playing) {
+        clearStopTimer();
+        const ctx = audioContextRef.current;
+        if (ctx) startKeepAlive(ctx);
+        return;
+      }
+      if (!keepAliveRef.current || keepAliveStopTimerRef.current) return;
+      keepAliveStopTimerRef.current = setTimeout(() => {
+        keepAliveStopTimerRef.current = null;
+        if (!useAudioStore.getState().isPlaying) stopKeepAlive();
+      }, KEEP_ALIVE_GRACE_MS);
+    };
+    apply(useAudioStore.getState().isPlaying);
+    const unsub = useAudioStore.subscribe((s, prev) => {
+      if (s.isPlaying !== prev.isPlaying) apply(s.isPlaying);
+    });
+    return () => {
+      unsub();
+      clearStopTimer();
+    };
+  }, [isInitialized, startKeepAlive, stopKeepAlive]);
 
   // --- Gain ramp scheduling ---
 
